@@ -1,9 +1,10 @@
 // packages/backend/src/contributors/contributors.service.ts
-import { Injectable, ConflictException } from "@nestjs/common";
+import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
 import { CreateContributorDto } from "./dto/create-contributor.dto";
 import { UpdateContributorDto } from "./dto/update-contributor.dto";
-import { PrismaService } from "src/prisma.service";
+import { PrismaService } from "../prisma.service";
 import * as bcrypt from "bcrypt";
+import { Prisma, contacts_type, contributors_type } from '@prisma/client';
 
 const SALT_ROUNDS = 10;
 
@@ -11,37 +12,46 @@ const SALT_ROUNDS = 10;
 export class ContributorsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // --- THIS IS NOW A FUNCTIONAL CREATE METHOD ---
   async create(createContributorDto: CreateContributorDto) {
-    const { email, password_hash, first_name, last_name, role_id } =
-      createContributorDto;
+    const {
+      email,
+      password,
+      first_name,
+      last_name,
+      role_id,
+      contributor_type,
+    } = createContributorDto;
 
-    // 1. Check if a user with this email already exists
-    const existing = await this.prisma.contacts.findUnique({
+    const existingContact = await this.prisma.contacts.findUnique({
       where: { email },
     });
-    if (existing) {
+    if (existingContact) {
       throw new ConflictException("A contact with this email already exists.");
     }
 
-    // 2. Hash the password
-    const hashedPassword = await bcrypt.hash(password_hash, SALT_ROUNDS);
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-    // 3. Create the contact and contributor in one transaction
     return this.prisma.contacts.create({
       data: {
         email,
         first_name,
         last_name,
-        type: "Contributor",
+        type: contacts_type.Contributor,
         contributor: {
           create: {
             password_hash: hashedPassword,
-            role_id: role_id,
-            contributor_type: "Internal", // A sensible default
+            role_id: role_id, // Prisma allows setting FK directly on create within nested create
+            contributor_type: contributor_type || contributors_type.Internal,
           },
         },
       },
+      include: {
+        contributor: {
+          include: {
+            role: true,
+          }
+        }
+      }
     });
   }
 
@@ -54,37 +64,89 @@ export class ContributorsService {
     });
   }
 
-  findOne(id: number) {
-    return this.prisma.contributors.findUnique({
-      where: { id },
-      include: { contact: true, role: true },
-    });
-  }
-
-  // --- THIS IS NOW A FUNCTIONAL UPDATE METHOD ---
-  async update(id: number, updateContributorDto: UpdateContributorDto) {
-    // We'll just return the contributor for now, but the parameters are used.
-    // A full implementation would update fields.
+  async findOne(id: number) {
     const contributor = await this.prisma.contributors.findUnique({
       where: { id },
+      include: { 
+        contact: true, 
+        role: true 
+      },
     });
-
-    console.log(
-      "Would update contributor:",
-      contributor,
-      "with data:",
-      updateContributorDto,
-    );
-
-    // In a real scenario, you'd do something like:
-    // return this.prisma.contributors.update({ where: { id }, data: { ... } });
-
+    if (!contributor) {
+      throw new NotFoundException(`Contributor with ID ${id} not found`);
+    }
     return contributor;
   }
 
-  remove(id: number) {
-    return this.prisma.contributors.delete({
-      where: { id },
-    });
+  async update(id: number, updateContributorDto: UpdateContributorDto) {
+    const { email, first_name, last_name, role_id, contributor_type, password } = updateContributorDto;
+
+    const dataForContributorUpdate: Prisma.contributorsUpdateInput = {};
+
+    if (password) {
+      dataForContributorUpdate.password_hash = await bcrypt.hash(password, SALT_ROUNDS);
+    }
+    
+    // Correct way to update the role relationship
+    if (role_id !== undefined) {
+      dataForContributorUpdate.role = {
+        connect: { id: role_id }
+      };
+    }
+
+    if (contributor_type !== undefined) {
+      dataForContributorUpdate.contributor_type = contributor_type;
+    }
+
+    const contactDataForUpdate: Prisma.contactsUpdateInput = {};
+    let contactNeedsUpdate = false;
+
+    if (email !== undefined) {
+      contactDataForUpdate.email = email;
+      contactNeedsUpdate = true;
+    }
+    if (first_name !== undefined) {
+      contactDataForUpdate.first_name = first_name;
+      contactNeedsUpdate = true;
+    }
+    if (last_name !== undefined) {
+      contactDataForUpdate.last_name = last_name;
+      contactNeedsUpdate = true;
+    }
+
+    if (contactNeedsUpdate) {
+      dataForContributorUpdate.contact = {
+        update: contactDataForUpdate,
+      };
+    }
+
+    try {
+      return await this.prisma.contributors.update({
+        where: { id },
+        data: dataForContributorUpdate,
+        include: {
+          contact: true,
+          role: true,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException(`Contributor with ID ${id} not found for update.`);
+      }
+      throw error; 
+    }
+  }
+
+  async remove(id: number) {
+    try {
+      return await this.prisma.contributors.delete({
+        where: { id },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException(`Contributor with ID ${id} not found for deletion.`);
+      }
+      throw error;
+    }
   }
 }

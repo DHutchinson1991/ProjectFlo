@@ -23,13 +23,13 @@ model contacts {
   email        String  @unique
   phone_number String?
   company_name String?
-  type         contacts_type
+  type         contacts_type // Enum
 
   // Relationships
   client      clients?
   contributor contributors?
 
-  @@map("contacts") // Maps this model to the 'contacts' table in the DB
+  @@map("contacts")
 }
 
 // Represents an internal user (admin, editor, etc.).
