@@ -1,0 +1,124 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===============================================
+// Core Identity & User Records
+// ===============================================
+
+// The master table for every person in the system.
+// A contact is the central identity, which can then be
+// associated with a role like a Contributor or a Client.
+model contacts {
+  id           Int     @id @default(autoincrement())
+  first_name   String?
+  last_name    String?
+  email        String  @unique
+  phone_number String?
+  company_name String?
+  type         contacts_type
+
+  // Relationships
+  client      clients?
+  contributor contributors?
+
+  @@map("contacts") // Maps this model to the 'contacts' table in the DB
+}
+
+// Represents an internal user (admin, editor, etc.).
+// This links a 'contact' record to a specific 'role'.
+model contributors {
+  id               Int                @id @default(autoincrement())
+  contact_id       Int                @unique
+  role_id          Int
+  contributor_type contributors_type?
+  password_hash    String
+
+  // Relationships
+  contact contacts @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  role    roles    @relation(fields: [role_id], references: [id], onDelete: Restrict)
+
+  @@map("contributors")
+}
+
+// Represents a paying client.
+// This is a profile linked to a master 'contact' record.
+model clients {
+  id         Int      @id @default(autoincrement())
+  contact_id Int      @unique
+  inquiry_id Int?
+
+  // Relationships
+  contact    contacts      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  client_user client_users? // A client may have login credentials
+
+  @@map("clients")
+}
+
+// Manages the login credentials for the client-facing portal.
+model client_users {
+  id              Int        @id @default(autoincrement())
+  client_id       Int        @unique
+  email           String     @unique
+  password_hash   String
+  last_login_date DateTime?  
+
+  // Relationships
+  client clients @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@map("client_users")
+}
+
+// ===============================================
+// RBAC (Role-Based Access Control) System
+// ===============================================
+
+// Defines the roles within the system (e.g., 'Admin', 'Project Manager').
+model roles {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+
+  // Relationships
+  permissions  permissions[]
+  contributors contributors[]
+
+  @@map("roles")
+}
+
+// Defines individual actions a user can perform (e.g., 'edit-project', 'delete-user').
+model permissions {
+  id          Int      @id @default(autoincrement())
+  action_name String   @unique
+  description String?
+
+  // Relationships
+  roles roles[]
+
+  @@map("permissions")
+}
+
+
+// ===============================================
+// Enumerated Types (ENUMs)
+// ===============================================
+
+enum contacts_type {
+  Client_Lead
+  Client
+  Contributor
+  Vendor
+}
+
+enum contributors_type {
+  Internal
+  External
+  Freelance
+}

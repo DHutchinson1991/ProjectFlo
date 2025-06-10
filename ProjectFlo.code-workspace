@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"googleSheetPusher.sheetId": "1F5hdM7qxdfCpQIDWSd5i76Bno5qHg1BOnrnsZREdK5A",
+		"googleSheetPusher.sheetName": "Sheet1"
+	}
+}
