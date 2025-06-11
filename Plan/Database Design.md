@@ -1,60 +1,87 @@
-Database Technical Specification: ProjectFlo v1.0
-Version: 2.0 (Definitive Charter Aligned)
-Date: 07 June 2025
-System: Postgres
+# 🗄️ Database Design: ProjectFlo
 
-1. System Overview
-This document details the complete database architecture for ProjectFlo. The schema is designed with a "data-first" approach, ensuring not only transactional integrity but also providing a rich, structured foundation for future analytics, automation, and business intelligence. It manages the entire business lifecycle from initial lead capture through project execution to financial reconciliation.
+<!-- ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ PROJECT METADATA ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ -->
 
-A key addition in this version is a native calendar and scheduling system, which serves as the primary source of truth for contributor availability, with Google Calendar integration being an optional enhancement. This specification also outlines the required workflow for database migrations and developer database seeding, which are critical for ensuring a consistent and efficient development process.
+🏷️ Project Name - ProjectFlo - The Creative OS  
+🔢 Version - 1.0  
+🗓️ Date - 11 June 2025
 
-2. Visual Database Schema (ERD via DBML)
-The following DBML (Database Markup Language) code provides a complete and interactive visual representation of the entire schema.
+<!-- ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ INTRODUCTION ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ -->
 
-(Note: This link points to the original schema and will need to be updated once the v2.0 changes are modeled and published.)
-https://dbdocs.io/info-aa383142f8/ProjectFlo
+## 1. Introduction 🚀
 
-3. PostgreSQL Implementation Script: ProjectFlo v1.0
-This is the runnable SQL code to physically create the entire database structure in PostgreSQL.
+This document is the definitive technical specification for the ProjectFlo database. It serves as the ultimate source of truth, designed to align the business's operational logic with a robust and scalable technical implementation.
 
-Database Setup Instructions (PostgreSQL)
-Follow these steps to set up your database. It's crucial to execute the batches in the specified order.
+> This version incorporates significant enhancements in flexibility, data integrity, security, and long-term performance planning.
 
-Open your preferred SQL client for PostgreSQL (e.g., psql, DBeaver, PgAdmin).
-Create and connect to your database:
-SQL
+<!-- ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ SCHEMA DEFINITION ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ -->
 
-CREATE DATABASE projectflo;
-\c projectflo
-Execute each SQL batch one by one, in the specified order.
-Batch 0: Enumerated Type Definitions
-In PostgreSQL, we must first define all the custom ENUM types that will be used throughout the schema.
+## 2. Schema Definition 📋
 
-SQL
+```sql
+/* ━━━━━━━━━━ ENUMERATED TYPES ━━━━━━━━━━
+   Definition of all custom enum types used throughout the database.
+   These ensure data consistency by limiting values to predefined sets.
+*/
 
--- Batch 0: Enumerated Type Definitions
+-- contacts_type: Types of contacts in the system
 CREATE TYPE contacts_type AS ENUM ('Client Lead', 'Client', 'Contributor', 'Vendor');
+
+-- pricing_type_options: Available pricing models
 CREATE TYPE pricing_type_options AS ENUM ('Hourly', 'Fixed');
+
+-- billable_item_pricing_type: How items can be priced
 CREATE TYPE billable_item_pricing_type AS ENUM ('Fixed', 'Unit');
+
+-- inquiries_status: Stages of an inquiry in the sales process
 CREATE TYPE inquiries_status AS ENUM ('New', 'Contacted', 'Proposal Sent', 'Booked', 'Closed-Lost');
+
+-- contributors_type: Classification of contributors
 CREATE TYPE contributors_type AS ENUM ('Internal', 'External', 'Freelance');
-CREATE TYPE builds_status AS ENUM ('Inquiry', 'Proposal Sent', 'Booked', 'Completed');
+
+-- builds_status: Current status of a build in the system
+CREATE TYPE builds_status AS ENUM ('Inquiry', 'Proposal Sent', 'Booked', 'Completed', 'Archived');
+
+-- change_order_status: Approval status of a change order
 CREATE TYPE change_order_status AS ENUM ('Pending Approval', 'Approved', 'Rejected');
+
+-- discount_type_enum: Type of discounts that can be applied
+CREATE TYPE discount_type_enum AS ENUM ('Percentage', 'Fixed');
+
+-- tasks_status: Various states a task can be in
 CREATE TYPE tasks_status AS ENUM ('To-Do', 'Ready to Start', 'In Progress', 'Completed', 'Archived');
+
+-- calendar_event_type: Types of events in the calendar
 CREATE TYPE calendar_event_type AS ENUM ('PROJECT_ASSIGNMENT', 'ABSENCE', 'HOLIDAY', 'EXTERNAL_SYNC', 'PERSONAL');
+
+-- project_asset_type: Types of assets that can be associated with a project
 CREATE TYPE project_asset_type AS ENUM ('Raw Footage', 'Audio File', 'Project File', 'Export');
+
+-- activity_type: Different types of activities that can be logged
 CREATE TYPE activity_type AS ENUM ('Call', 'Email', 'Meeting', 'To-Do');
+
+-- activity_status: Current status of an activity
 CREATE TYPE activity_status AS ENUM ('Pending', 'Completed');
+
+-- document_status: Status of a document in the system
 CREATE TYPE document_status AS ENUM ('Active', 'Archived');
+
+-- task_comment_visibility: Visibility settings for task comments
 CREATE TYPE task_comment_visibility AS ENUM ('Internal', 'Client-Visible');
+
+-- calendar_sync_provider: External calendar providers for synchronization
 CREATE TYPE calendar_sync_provider AS ENUM ('Google');
+
+-- calendar_sync_status: Synchronization status with external calendars
 CREATE TYPE calendar_sync_status AS ENUM ('Active', 'Error', 'Disabled');
-Batch 1: The Foundation - Core Catalogs & Definitions
-This batch creates the "lookup" tables. These tables contain the raw ingredients and definitions for your services. They don't depend on anything else, but almost everything else will depend on them.
 
-SQL
+/* ━━━━━━━━━━ CORE TABLES ━━━━━━━━━━
+   The foundational tables that store primary entity data.
+   These tables form the backbone of the system.
+*/
 
--- Batch 1: Core Catalogs & Definitions
+-- contacts: The central registry of all persons in the system
+-- Stores core identity information and serves as the single source of truth
 CREATE TABLE contacts (
   id SERIAL PRIMARY KEY,
   first_name VARCHAR(255),
@@ -62,29 +89,44 @@ CREATE TABLE contacts (
   email VARCHAR(255) NOT NULL UNIQUE,
   phone_number VARCHAR(50),
   company_name VARCHAR(255),
-  type contacts_type NOT NULL
+  type contacts_type NOT NULL,
+  archived_at TIMESTAMPTZ NULL -- For soft deletes
 );
 CREATE INDEX idx_contacts_email ON contacts(email);
 CREATE INDEX idx_contacts_type ON contacts(type);
 
+/* ━━━━━━━━━━ LOOKUP TABLES ━━━━━━━━━━
+   Reference tables containing standardized options and configurations.
+   Used to maintain consistency across the application.
+*/
+
+-- coverage_scenes: Different types of events or scenes that can be filmed
+-- deliverables: Final products that can be offered to clients
+-- editing_styles: Available editing approaches and their characteristics
 CREATE TABLE coverage_scenes (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE,
   description TEXT
 );
-
 CREATE TABLE deliverables (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE,
   description TEXT
 );
-
 CREATE TABLE editing_styles (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE,
   description TEXT
 );
 
+/* ━━━━━━━━━━ OPERATIONAL TABLES ━━━━━━━━━━
+   Tables that manage day-to-day business operations.
+   These handle pricing, tasks, and operational configurations.
+*/
+
+-- operator_types: Types of service providers and their default rates
+-- billable_items: Individual items that can be charged to clients
+-- task_templates: Reusable task definitions with effort estimates
 CREATE TABLE operator_types (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE,
@@ -92,7 +134,6 @@ CREATE TABLE operator_types (
   default_fixed_price DECIMAL(10,2) NULL,
   pricing_type pricing_type_options NOT NULL DEFAULT 'Hourly'
 );
-
 CREATE TABLE billable_items (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE,
@@ -102,7 +143,6 @@ CREATE TABLE billable_items (
   pricing_type billable_item_pricing_type NOT NULL DEFAULT 'Fixed',
   is_active BOOLEAN NOT NULL DEFAULT true
 );
-
 CREATE TABLE task_templates (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE,
@@ -114,23 +154,34 @@ CREATE TABLE task_templates (
   average_duration_hours DECIMAL(8,2)
 );
 
+/* ━━━━━━━━━━ ROLE-BASED ACCESS CONTROL ━━━━━━━━━━
+   Security and permissions management tables.
+   Implements a flexible RBAC system for granular access control.
+*/
+
+-- roles: Defined job functions with associated permissions
+-- permissions: Individual actions that can be performed in the system
+-- role_permissions: Maps roles to their allowed actions
 CREATE TABLE roles (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE,
   description TEXT
 );
-
 CREATE TABLE permissions (
   id SERIAL PRIMARY KEY,
   action_name VARCHAR(255) NOT NULL UNIQUE,
   description TEXT
 );
-Batch 2: The Frame - CRM Entities & User Management
-This batch creates the core "container" entities (inquiries, clients, projects) and the tables needed for user administration (contributors, role_permissions, etc.). These tables link back to the catalogs created in Batch 1.
 
-SQL
+/* ━━━━━━━━━━ CRM & PROJECT MANAGEMENT ━━━━━━━━━━
+   Customer relationship and project tracking tables.
+   Manages the complete lifecycle from inquiry to project completion.
+*/
 
--- Batch 2: CRM Entities & User Management
+-- inquiries: Initial client interactions and lead tracking
+-- clients: Confirmed customers with active projects
+-- projects: Active production work being executed
+-- contributors: Internal and external team members
 CREATE TABLE inquiries (
   id SERIAL PRIMARY KEY,
   contact_id INT NOT NULL,
@@ -142,6 +193,7 @@ CREATE TABLE inquiries (
   lead_source VARCHAR(255),
   lead_source_details TEXT,
   campaign_id VARCHAR(255),
+  archived_at TIMESTAMPTZ NULL, -- For soft deletes
   FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE RESTRICT
 );
 
@@ -149,6 +201,7 @@ CREATE TABLE clients (
   id SERIAL PRIMARY KEY,
   contact_id INT NOT NULL UNIQUE,
   inquiry_id INT NULL,
+  archived_at TIMESTAMPTZ NULL, -- For soft deletes
   FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
   FOREIGN KEY (inquiry_id) REFERENCES inquiries(id) ON DELETE SET NULL
 );
@@ -170,9 +223,29 @@ CREATE TABLE projects (
   booking_date DATE,
   edit_start_date DATE,
   phase VARCHAR(255),
+  archived_at TIMESTAMPTZ NULL, -- For soft deletes
   FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT
 );
 CREATE INDEX idx_projects_wedding_date ON projects(wedding_date);
+
+CREATE TABLE contributors (
+  id SERIAL PRIMARY KEY,
+  contact_id INT NOT NULL UNIQUE,
+  contributor_type contributors_type,
+  default_hourly_rate DECIMAL(8,2) NOT NULL DEFAULT 0.00,
+  archived_at TIMESTAMPTZ NULL, -- For soft deletes
+  FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+);
+
+CREATE TABLE contributor_skill_rates (
+  id SERIAL PRIMARY KEY,
+  contributor_id INT NOT NULL,
+  task_template_id INT NOT NULL,
+  rate DECIMAL(8,2) NOT NULL,
+  UNIQUE(contributor_id, task_template_id),
+  FOREIGN KEY (contributor_id) REFERENCES contributors(id) ON DELETE CASCADE,
+  FOREIGN KEY (task_template_id) REFERENCES task_templates(id) ON DELETE CASCADE
+);
 
 CREATE TABLE role_permissions (
   role_id INT NOT NULL,
@@ -182,20 +255,25 @@ CREATE TABLE role_permissions (
   FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
 );
 
-CREATE TABLE contributors (
+CREATE TABLE project_assignments (
   id SERIAL PRIMARY KEY,
-  contact_id INT NOT NULL UNIQUE,
+  project_id INT NOT NULL,
+  contributor_id INT NOT NULL,
   role_id INT NOT NULL,
-  contributor_type contributors_type,
-  FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+  UNIQUE(project_id, contributor_id), -- A contributor can only have one role per project
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (contributor_id) REFERENCES contributors(id) ON DELETE CASCADE,
   FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT
 );
-Batch 3: The Automation Engines - Rules & Defaults
-This batch creates the "rulebook" tables that power your automation. They connect the catalogs from Batch 1 to create your intelligent pricing and task generation logic.
 
-SQL
+/* ━━━━━━━━━━ AUTOMATION ENGINE ━━━━━━━━━━
+   Tables powering the automated workflow system.
+   Handles task generation and process automation.
+*/
 
--- Batch 3: Automation Engines - Rules & Defaults
+-- deliverable_default_components: Standard parts of each deliverable type
+-- editing_style_requirements: Resources needed for each editing style
+-- component_task_recipes: Rules for generating tasks based on client choices
 CREATE TABLE deliverable_default_components (
   id SERIAL PRIMARY KEY,
   deliverable_id INT NOT NULL,
@@ -207,7 +285,6 @@ CREATE TABLE deliverable_default_components (
   FOREIGN KEY (coverage_scene_id) REFERENCES coverage_scenes(id) ON DELETE CASCADE,
   FOREIGN KEY (default_editing_style_id) REFERENCES editing_styles(id) ON DELETE RESTRICT
 );
-
 CREATE TABLE editing_style_requirements (
   id SERIAL PRIMARY KEY,
   editing_style_id INT NOT NULL,
@@ -217,7 +294,6 @@ CREATE TABLE editing_style_requirements (
   FOREIGN KEY (editing_style_id) REFERENCES editing_styles(id) ON DELETE CASCADE,
   FOREIGN KEY (billable_item_id) REFERENCES billable_items(id) ON DELETE CASCADE
 );
-
 CREATE TABLE component_task_recipes (
   id SERIAL PRIMARY KEY,
   deliverable_id INT NULL,
@@ -230,12 +306,16 @@ CREATE TABLE component_task_recipes (
   FOREIGN KEY (editing_style_id) REFERENCES editing_styles(id) ON DELETE CASCADE,
   FOREIGN KEY (task_template_id) REFERENCES task_templates(id) ON DELETE CASCADE
 );
-Batch 4: The Core System - The "Build & Ledger" Engine
-This is the heart of your application. These tables manage the entire dynamic quoting and configuration process.
 
-SQL
+/* ━━━━━━━━━━ THE "BUILD & LEDGER" ENGINE ━━━━━━━━━━
+   Financial and quote management system tables.
+   Tracks all monetary aspects of projects and services.
+*/
 
--- Batch 4: The "Build & Ledger" Engine
+-- builds: The core quote and financial tracking entity
+-- build_coverage_assignments: Crew and equipment assignments
+-- build_deliverables: Products included in a quote
+-- build_components: Detailed breakdown of deliverable components
 CREATE TABLE builds (
   id SERIAL PRIMARY KEY,
   client_id INT NULL,
@@ -246,6 +326,7 @@ CREATE TABLE builds (
   approved_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   live_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   total_paid DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  archived_at TIMESTAMPTZ NULL,
   FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
   FOREIGN KEY (inquiry_id) REFERENCES inquiries(id) ON DELETE CASCADE,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -257,11 +338,11 @@ CREATE TABLE build_coverage_assignments (
   coverage_scene_id INT NOT NULL,
   operator_type_id INT NOT NULL,
   quantity INT NOT NULL DEFAULT 1,
+  rate_at_time_of_add DECIMAL(8,2) NOT NULL,
   FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE,
   FOREIGN KEY (coverage_scene_id) REFERENCES coverage_scenes(id) ON DELETE RESTRICT,
   FOREIGN KEY (operator_type_id) REFERENCES operator_types(id) ON DELETE RESTRICT
 );
-
 CREATE TABLE build_deliverables (
   id SERIAL PRIMARY KEY,
   build_id INT NOT NULL,
@@ -269,7 +350,6 @@ CREATE TABLE build_deliverables (
   FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE,
   FOREIGN KEY (deliverable_id) REFERENCES deliverables(id) ON DELETE RESTRICT
 );
-
 CREATE TABLE build_components (
   id SERIAL PRIMARY KEY,
   build_deliverable_id INT NOT NULL,
@@ -283,6 +363,14 @@ CREATE TABLE build_components (
   FOREIGN KEY (editing_style_id) REFERENCES editing_styles(id) ON DELETE RESTRICT
 );
 
+/* ━━━━━━━━━━ BILLING & CHANGE ORDER MANAGEMENT ━━━━━━━━━━
+   Financial transaction and modification tracking.
+   Manages invoicing, payments, and service changes.
+*/
+
+-- build_billable_items: Additional items added to quotes
+-- build_change_orders: Tracks changes to approved quotes
+-- build_snapshots: Historical record of quote states
 CREATE TABLE build_billable_items (
   id SERIAL PRIMARY KEY,
   build_id INT NOT NULL,
@@ -302,17 +390,33 @@ CREATE TABLE build_change_orders (
   new_total_approved_price DECIMAL(10,2) NOT NULL,
   description TEXT NOT NULL,
   status change_order_status NOT NULL,
-  discount_percentage DECIMAL(5,2) DEFAULT 0.00,
+  discount_type discount_type_enum,
+  discount_percentage DECIMAL(5,2),
+  discount_amount DECIMAL(10,2),
   discount_reason TEXT,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE
 );
-Batch 5: The Execution Layer - Tasks, Assets, Performance & Calendar
-These tables are for managing the actual work once a project is booked. This batch includes the new native calendar system.
 
-SQL
+CREATE TABLE build_snapshots (
+  id SERIAL PRIMARY KEY,
+  build_id INT NOT NULL,
+  change_order_id INT NOT NULL,
+  snapshot_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE,
+  FOREIGN KEY (change_order_id) REFERENCES build_change_orders(id) ON DELETE CASCADE
+);
 
--- Batch 5: Execution Layer - Tasks, Assets, Performance & Calendar
+/* ━━━━━━━━━━ EXECUTION LAYER ━━━━━━━━━━
+   Task and resource management tables.
+   Handles the actual delivery of services and project execution.
+*/
+
+-- tasks: Individual units of work to be completed
+-- calendar_events: Schedule management for team members
+-- project_assets: Files and resources associated with projects
+-- contributor_task_benchmarks: Performance metrics for team members
 CREATE TABLE tasks (
   id SERIAL PRIMARY KEY,
   project_id INT NOT NULL,
@@ -324,6 +428,7 @@ CREATE TABLE tasks (
   due_date DATE,
   assigned_to_contributor_id INT NULL,
   is_client_visible BOOLEAN DEFAULT false,
+  rate_at_time_of_assignment DECIMAL(8,2) NOT NULL DEFAULT 0.00,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   FOREIGN KEY (build_component_id) REFERENCES build_components(id) ON DELETE CASCADE,
   FOREIGN KEY (task_template_id) REFERENCES task_templates(id) ON DELETE RESTRICT,
@@ -368,12 +473,17 @@ CREATE TABLE contributor_task_benchmarks (
   FOREIGN KEY (contributor_id) REFERENCES contributors(id) ON DELETE CASCADE,
   FOREIGN KEY (task_template_id) REFERENCES task_templates(id) ON DELETE CASCADE
 );
-Batch 6: The Supporting Systems - Comms, Financials, Logs & Sync
-This final batch includes all the supporting tables for communication, detailed financials, feedback, logging, and third-party sync credentials.
 
-SQL
+/* ━━━━━━━━━━ SUPPORTING SYSTEMS ━━━━━━━━━━
+   Auxiliary functionality tables.
+   Provides additional features like notifications and audit logging.
+*/
 
--- Batch 6: Supporting Systems - Comms, Financials, Logs & Sync
+-- invoices: Client billing records
+-- payments: Financial transaction tracking
+-- project_expenses: Cost tracking for projects
+-- audit_log: System-wide change tracking
+-- notifications: User alert management
 CREATE TABLE invoices (
   id SERIAL PRIMARY KEY,
   project_id INT NOT NULL,
@@ -385,7 +495,6 @@ CREATE TABLE invoices (
   status VARCHAR(255),
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
-
 CREATE TABLE payments (
   id SERIAL PRIMARY KEY,
   invoice_id INT NOT NULL,
@@ -395,7 +504,6 @@ CREATE TABLE payments (
   transaction_id VARCHAR(255),
   FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE RESTRICT
 );
-
 CREATE TABLE project_expenses (
   id SERIAL PRIMARY KEY,
   project_id INT NOT NULL,
@@ -405,6 +513,47 @@ CREATE TABLE project_expenses (
   amount DECIMAL(10,2) NOT NULL,
   receipt_url VARCHAR(1024),
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE TABLE audit_log (
+  id SERIAL PRIMARY KEY,
+  contributor_id INT NULL,
+  action VARCHAR(255) NOT NULL,
+  "timestamp" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  details JSONB,
+  FOREIGN KEY (contributor_id) REFERENCES contributors(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_audit_log_details_gin ON audit_log USING GIN (details);
+
+CREATE TABLE notifications (
+  id SERIAL PRIMARY KEY,
+  recipient_contributor_id INT NOT NULL,
+  message TEXT NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  link_url VARCHAR(1024),
+  FOREIGN KEY (recipient_contributor_id) REFERENCES contributors(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_notifications_recipient_read ON notifications(recipient_contributor_id, is_read);
+
+/* ━━━━━━━━━━ WORKFLOW MANAGEMENT ━━━━━━━━━━
+   Process and communication management tables.
+   Handles task dependencies, activities, and client communication.
+*/
+
+-- task_dependencies: Relationships between dependent tasks
+-- activities: Scheduled actions and follow-ups
+-- communications_log: Record of client interactions
+-- documents: File management and tracking
+-- client_feedback_surveys: Customer satisfaction tracking
+-- task_comments: Discussion threads on tasks
+-- calendar_sync_tokens: External calendar integration
+CREATE TABLE task_dependencies (
+  id SERIAL PRIMARY KEY,
+  blocking_task_id INT NOT NULL,
+  dependent_task_id INT NOT NULL,
+  FOREIGN KEY (blocking_task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+  FOREIGN KEY (dependent_task_id) REFERENCES tasks(id) ON DELETE CASCADE
 );
 
 CREATE TABLE activities (
@@ -423,7 +572,6 @@ CREATE TABLE activities (
   FOREIGN KEY (inquiry_id) REFERENCES inquiries(id) ON DELETE CASCADE,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
-
 CREATE TABLE communications_log (
   id SERIAL PRIMARY KEY,
   project_id INT NULL,
@@ -434,7 +582,6 @@ CREATE TABLE communications_log (
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
 );
-
 CREATE TABLE documents (
   id SERIAL PRIMARY KEY,
   project_id INT NULL,
@@ -448,6 +595,9 @@ CREATE TABLE documents (
   FOREIGN KEY (inquiry_id) REFERENCES inquiries(id) ON DELETE CASCADE
 );
 
+-- client_feedback_surveys: Surveys sent to clients for feedback
+-- task_comments: Comments on tasks by contributors
+-- calendar_sync_tokens: Tokens for syncing calendars with external providers
 CREATE TABLE client_feedback_surveys (
   id SERIAL PRIMARY KEY,
   project_id INT NOT NULL,
@@ -460,92 +610,25 @@ CREATE TABLE client_feedback_surveys (
   CHECK (nps_score BETWEEN 0 AND 10),
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
-
-CREATE TABLE audit_log (
-  id SERIAL PRIMARY KEY,
-  contributor_id INT NULL,
-  action VARCHAR(255) NOT NULL,
-  "timestamp" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  details JSONB,
-  FOREIGN KEY (contributor_id) REFERENCES contributors(id) ON DELETE SET NULL
-);
-
-CREATE TABLE notifications (
-  id SERIAL PRIMARY KEY,
-  recipient_contributor_id INT NOT NULL,
-  message TEXT NOT NULL,
-  is_read BOOLEAN NOT NULL DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-  link_url VARCHAR(1024),
-  FOREIGN KEY (recipient_contributor_id) REFERENCES contributors(id) ON DELETE CASCADE
-);
-CREATE INDEX idx_notifications_recipient_read ON notifications(recipient_contributor_id, is_read);
-
 CREATE TABLE task_comments (
   id SERIAL PRIMARY KEY,
   task_id INT NOT NULL,
   contributor_id INT NULL,
   comment_text TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMTz DEFAULT CURRENT_TIMESTAMP,
   visibility task_comment_visibility,
   FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
   FOREIGN KEY (contributor_id) REFERENCES contributors(id) ON DELETE SET NULL
 );
-
-CREATE TABLE task_dependencies (
-  id SERIAL PRIMARY KEY,
-  blocking_task_id INT NOT NULL,
-  dependent_task_id INT NOT NULL,
-  FOREIGN KEY (blocking_task_id) REFERENCES tasks(id) ON DELETE CASCADE,
-  FOREIGN KEY (dependent_task_id) REFERENCES tasks(id) ON DELETE CASCADE
-);
-
 CREATE TABLE calendar_sync_tokens (
     id SERIAL PRIMARY KEY,
     contributor_id INT NOT NULL UNIQUE,
     provider calendar_sync_provider NOT NULL,
-    refresh_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL, -- This MUST be encrypted at the application layer
     last_sync_at TIMESTAMPTZ NULL,
     sync_status calendar_sync_status NOT NULL DEFAULT 'Active',
     FOREIGN KEY (contributor_id) REFERENCES contributors(id) ON DELETE CASCADE
 );
-4. Core Business Logic & Workflows
-The entire process can be seen as a six-phase journey, where data flows logically from one stage to the next, building intelligence and automation at each step.
+```
 
-Phase 1: Pre-Contact Setup (The Admin's Foundation)
-Before any client contacts you, an administrator sets up the "brain" of the system.
-
-Defining Services & Costs: The admin populates master catalogs: coverage_scenes, deliverables, editing_styles, operator_types, billable_items.
-Setting up Automation Rules:
-editing_style_requirements: "Whenever a client chooses style X, automatically add billable item Y."
-deliverable_default_components: "When a client adds deliverable X, its parts should default to style Y."
-task_templates: Defines all possible work units (e.g., 'Cinematic Color Grade').
-component_task_recipes: "If a component for deliverable X uses style Y, it requires task Z."
-Phase 2: First Contact & CRM (The Lead Arrives)
-A Lead Inquires: A new contacts record is created (type='Client Lead'). A new inquiries record is also created, linked to the contact.
-Sales Management: An activities record is auto-created as a to-do for the sales team.
-Phase 3: The "Build" Process (The Dynamic Quote)
-Creating the Build: A master builds record is created, linked to the inquiry.
-The "Scene-First" Configuration:
-Coverage: Client selects scenes and operators, creating build_coverage_assignments.
-Films: Client selects films, creating build_deliverables.
-Auto-Generation: The system creates build_components based on default rules.
-Client Customization: Client changes an editing_style_id on a component.
-The Live Pricing Engine Reacts:
-The system sees the style change, checks editing_style_requirements, and auto-adds a record to build_billable_items.
-The backend calculates the total cost and updates the builds.live_price field in real-time.
-Phase 4: Booking & Financial Agreement (The Contract)
-Jane Books: A projects record and a clients record are created.
-The builds record is updated: status becomes 'Booked', project_id is set, and approved_price is locked.
-The first build_change_orders record is created to formalize the agreement.
-invoices and payments are logged, and builds.total_paid is updated.
-Phase 5: Project Execution & Performance Tracking (The Work)
-Generating Tasks: The backend service iterates through build_components and uses component_task_recipes to create all the necessary tasks records for the project.
-The Editor's Workflow:
-An editor is assigned a task. The system calculates tasks.planned_duration_hours by checking contributor_task_benchmarks first, then falling back to the global task_templates.effort_hours.
-Actual time is recorded in tasks.actual_duration_hours.
-The System Learns (Nightly Job): A scheduled job updates performance benchmarks by calculating the average actual_duration_hours and updating both task_templates (global average) and contributor_task_benchmarks (personal average).
-Phase 6: Delivery & Wrap-up (The End)
-Delivery & Assets: Final files are logged in the project_assets table.
-Closing the Loop: A survey is sent, and results are stored in client_feedback_surveys.
-Reporting: You can now run comprehensive reports to analyze project profitability, team performance, and marketing ROI.
+<!-- ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ END OF DOCUMENT ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ -->
