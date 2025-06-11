@@ -24,8 +24,8 @@ import {
   DialogContentText,
   DialogTitle,
 } from "@mui/material";
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 // --- DATA SHAPES ---
 // Role interface simplified to match backend GET /roles response
@@ -47,8 +47,8 @@ interface Contact {
 // Contributor interface updated to reflect backend structure (nested contact and role)
 interface Contributor {
   id: number;
-  contact: Contact;     // Nested contact object
-  role: Role;           // Nested role object
+  contact: Contact; // Nested contact object
+  role: Role; // Nested role object
   contributor_type?: string | null; // Or use the actual enum type if shared
   // password_hash is not typically sent to frontend
 }
@@ -93,7 +93,10 @@ interface AuthResponse {
 // --- API FUNCTIONS ---
 
 // Helper to get authorization headers
-const getAuthHeaders = (token: string | null, includeContentType: boolean = false): HeadersInit => {
+const getAuthHeaders = (
+  token: string | null,
+  includeContentType: boolean = false,
+): HeadersInit => {
   const headers = new Headers();
   if (includeContentType) {
     headers.append("Content-Type", "application/json");
@@ -104,35 +107,49 @@ const getAuthHeaders = (token: string | null, includeContentType: boolean = fals
   return headers;
 };
 
-const loginUser = async (credentials: LoginCredentials): Promise<AuthResponse> => {
+const loginUser = async (
+  credentials: LoginCredentials,
+): Promise<AuthResponse> => {
   const response = await fetch("http://localhost:3000/auth/login", {
     method: "POST",
     headers: getAuthHeaders(null, true), // No token needed for login, but Content-Type is
     body: JSON.stringify(credentials),
   });
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: "Login failed" }));
+    const errorData = await response
+      .json()
+      .catch(() => ({ message: "Login failed" }));
     throw new Error(errorData.message || "Login failed");
   }
   return response.json();
 };
 
 // Modify existing API functions to accept and use the auth token
-const addContributor = async ({ newData, token }: { newData: NewContributorData; token: string | null }) => {
+const addContributor = async ({
+  newData,
+  token,
+}: {
+  newData: NewContributorData;
+  token: string | null;
+}) => {
   const response = await fetch("http://localhost:3000/contributors", {
     method: "POST",
     headers: getAuthHeaders(token, true),
     body: JSON.stringify(newData),
   });
-  if (!response.ok) throw new Error("Network response was not ok (addContributor)");
+  if (!response.ok)
+    throw new Error("Network response was not ok (addContributor)");
   return response.json();
 };
 
-const getContributors = async (token: string | null): Promise<Contributor[]> => {
+const getContributors = async (
+  token: string | null,
+): Promise<Contributor[]> => {
   const response = await fetch("http://localhost:3000/contributors", {
     headers: getAuthHeaders(token),
   });
-  if (!response.ok) throw new Error("Network response was not ok (getContributors)");
+  if (!response.ok)
+    throw new Error("Network response was not ok (getContributors)");
   return response.json();
 };
 
@@ -144,25 +161,43 @@ const getRoles = async (token: string | null): Promise<Role[]> => {
   return response.json();
 };
 
-const deleteContributorApi = async ({ id, token }: { id: number; token: string | null }): Promise<void> => {
+const deleteContributorApi = async ({
+  id,
+  token,
+}: {
+  id: number;
+  token: string | null;
+}): Promise<void> => {
   const response = await fetch(`http://localhost:3000/contributors/${id}`, {
     method: "DELETE",
     headers: getAuthHeaders(token),
   });
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: "Network response was not ok" }));
+    const errorData = await response
+      .json()
+      .catch(() => ({ message: "Network response was not ok" }));
     throw new Error(errorData.message || "Failed to delete contributor");
   }
 };
 
-const updateContributorApi = async ({ id, data, token }: { id: number; data: UpdateContributorDto; token: string | null }): Promise<Contributor> => {
+const updateContributorApi = async ({
+  id,
+  data,
+  token,
+}: {
+  id: number;
+  data: UpdateContributorDto;
+  token: string | null;
+}): Promise<Contributor> => {
   const response = await fetch(`http://localhost:3000/contributors/${id}`, {
     method: "PATCH",
     headers: getAuthHeaders(token, true),
     body: JSON.stringify(data),
   });
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: "Network response was not ok" }));
+    const errorData = await response
+      .json()
+      .catch(() => ({ message: "Network response was not ok" }));
     throw new Error(errorData.message || "Failed to update contributor");
   }
   return response.json();
@@ -184,7 +219,8 @@ export default function Home() {
   // const [contributorType, setContributorType] = useState<contributors_type | string>(""); // Optional: For contributor_type enum
 
   // State for editing contributor
-  const [editingContributor, setEditingContributor] = useState<Contributor | null>(null);
+  const [editingContributor, setEditingContributor] =
+    useState<Contributor | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // State for edit form fields - initialize when modal opens
@@ -192,7 +228,9 @@ export default function Home() {
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editPassword, setEditPassword] = useState(""); // For new password
-  const [editSelectedRoleId, setEditSelectedRoleId] = useState<number | string>("");
+  const [editSelectedRoleId, setEditSelectedRoleId] = useState<number | string>(
+    "",
+  );
 
   const queryClient = useQueryClient();
 
@@ -209,13 +247,13 @@ export default function Home() {
     },
     onError: (error) => {
       alert(`Login failed: ${error.message}`);
-    }
+    },
   });
 
   const {
     data: contributors,
     isLoading: isLoadingContributors, // Renamed for clarity
-    isError: isContributorsError,   // Renamed for clarity
+    isError: isContributorsError, // Renamed for clarity
   } = useQuery<Contributor[], Error>({
     queryKey: ["contributors", authToken],
     queryFn: () => getContributors(authToken),
@@ -232,7 +270,11 @@ export default function Home() {
     enabled: !!authToken,
   });
 
-  const addContributorMutation = useMutation<Contributor, Error, NewContributorData>({
+  const addContributorMutation = useMutation<
+    Contributor,
+    Error,
+    NewContributorData
+  >({
     mutationFn: (newData) => addContributor({ newData, token: authToken }),
     onSuccess: () => {
       // Reset new form fields
@@ -259,7 +301,11 @@ export default function Home() {
     },
   });
 
-  const updateContributorMutation = useMutation<Contributor, Error, { id: number; data: UpdateContributorDto }>({
+  const updateContributorMutation = useMutation<
+    Contributor,
+    Error,
+    { id: number; data: UpdateContributorDto }
+  >({
     mutationFn: (vars) => updateContributorApi({ ...vars, token: authToken }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["contributors", authToken] });
@@ -300,7 +346,7 @@ export default function Home() {
     const payload: NewContributorData = {
       email,
       first_name: firstName || undefined, // Send undefined if empty, or handle in backend DTO
-      last_name: lastName || undefined,  // Send undefined if empty
+      last_name: lastName || undefined, // Send undefined if empty
       password,
       role_id: Number(selectedRoleId),
       // contributor_type: contributorType as contributors_type, // Cast if using enum type directly
@@ -309,7 +355,7 @@ export default function Home() {
   };
 
   const handleEditContributor = (id: number) => {
-    const contributorToEdit = contributors?.find(c => c.id === id);
+    const contributorToEdit = contributors?.find((c) => c.id === id);
     if (contributorToEdit) {
       setEditingContributor(contributorToEdit);
       // Pre-fill edit form state
@@ -335,21 +381,34 @@ export default function Home() {
     if (!editingContributor) return;
 
     const payload: UpdateContributorDto = {
-      email: editEmail !== editingContributor.contact.email ? editEmail : undefined,
-      first_name: editFirstName !== (editingContributor.contact.first_name || "") ? editFirstName : undefined,
-      last_name: editLastName !== (editingContributor.contact.last_name || "") ? editLastName : undefined,
-      role_id: Number(editSelectedRoleId) !== editingContributor.role.id ? Number(editSelectedRoleId) : undefined,
+      email:
+        editEmail !== editingContributor.contact.email ? editEmail : undefined,
+      first_name:
+        editFirstName !== (editingContributor.contact.first_name || "")
+          ? editFirstName
+          : undefined,
+      last_name:
+        editLastName !== (editingContributor.contact.last_name || "")
+          ? editLastName
+          : undefined,
+      role_id:
+        Number(editSelectedRoleId) !== editingContributor.role.id
+          ? Number(editSelectedRoleId)
+          : undefined,
       // Only include password if it's entered
       ...(editPassword && { password: editPassword }),
     };
 
     // Filter out undefined properties to send a clean payload
-    const filteredPayload = Object.entries(payload).reduce((acc, [key, value]) => {
-      if (value !== undefined) {
-        acc[key as keyof UpdateContributorDto] = value;
-      }
-      return acc;
-    }, {} as Partial<UpdateContributorDto>);
+    const filteredPayload = Object.entries(payload).reduce(
+      (acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key as keyof UpdateContributorDto] = value;
+        }
+        return acc;
+      },
+      {} as Partial<UpdateContributorDto>,
+    );
 
     if (Object.keys(filteredPayload).length === 0) {
       alert("No changes detected.");
@@ -357,7 +416,10 @@ export default function Home() {
       return;
     }
 
-    updateContributorMutation.mutate({ id: editingContributor.id, data: filteredPayload });
+    updateContributorMutation.mutate({
+      id: editingContributor.id,
+      data: filteredPayload,
+    });
   };
 
   const handleDeleteContributor = (id: number) => {
@@ -370,21 +432,70 @@ export default function Home() {
   // Conditional rendering based on authToken
   if (!authToken) {
     return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-        <Box component="form" onSubmit={handleLoginSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 3, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 3, width: '100%', maxWidth: '350px' }}>
-          <Typography variant="h5" component="h1" sx={{ textAlign: 'center', mb: 2 }}>Login</Typography>
-          <TextField label="Email" type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
-          <TextField label="Password" type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
-          <Button type="submit" variant="contained" disabled={loginMutation.isPending}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+        }}
+      >
+        <Box
+          component="form"
+          onSubmit={handleLoginSubmit}
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            p: 3,
+            bgcolor: "background.paper",
+            borderRadius: 2,
+            boxShadow: 3,
+            width: "100%",
+            maxWidth: "350px",
+          }}
+        >
+          <Typography
+            variant="h5"
+            component="h1"
+            sx={{ textAlign: "center", mb: 2 }}
+          >
+            Login
+          </Typography>
+          <TextField
+            label="Email"
+            type="email"
+            value={loginEmail}
+            onChange={(e) => setLoginEmail(e.target.value)}
+            required
+          />
+          <TextField
+            label="Password"
+            type="password"
+            value={loginPassword}
+            onChange={(e) => setLoginPassword(e.target.value)}
+            required
+          />
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={loginMutation.isPending}
+          >
             {loginMutation.isPending ? <CircularProgress size={24} /> : "Login"}
           </Button>
           {loginMutation.isError && (
-            <Alert severity="error" sx={{ mt: 2 }}>{loginMutation.error.message}</Alert>
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {loginMutation.error.message}
+            </Alert>
           )}
         </Box>
       </Box>
     );
   }
+
+  // Determine if the current user is an Admin
+  const isAdmin = userProfile?.roles.includes("Admin");
 
   // Main application content (shown after login)
   return (
@@ -393,125 +504,156 @@ export default function Home() {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 2, // Reduced gap for a more compact layout with logout button
+        gap: 2,
         p: 3,
       }}
     >
-      <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        {userProfile && <Typography sx={{ mr: 2 }}>Welcome, {userProfile.email}!</Typography>}
-        <Button variant="outlined" onClick={handleLogout}>Logout</Button>
-      </Box>
-
-      {/* --- ADD FORM SECTION --- */}
       <Box
-        component="form"
-        onSubmit={handleSubmit}
         sx={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-          p: 3,
-          bgcolor: "background.paper",
-          borderRadius: 2,
-          boxShadow: 3,
           width: "100%",
-          maxWidth: "400px",
+          display: "flex",
+          justifyContent: "flex-end",
+          mb: 2,
         }}
       >
-        <Typography
-          variant="h5"
-          component="h1"
-          sx={{ textAlign: "center", mb: 2 }}
-        >
-          Add New Contributor
-        </Typography>
-        <TextField
-          label="Email"
-          variant="outlined"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <TextField
-          label="First Name (Optional)"
-          variant="outlined"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
-        />
-        <TextField
-          label="Last Name (Optional)"
-          variant="outlined"
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
-        />
-        <TextField
-          label="Password"
-          variant="outlined"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-
-        <FormControl fullWidth required>
-          <InputLabel id="role-select-label">Role</InputLabel>
-          <Select
-            labelId="role-select-label"
-            id="role-select"
-            value={selectedRoleId}
-            label="Role"
-            onChange={(e) => setSelectedRoleId(e.target.value as number)}
-            disabled={isLoadingRoles} // Disable while roles are loading
-          >
-            {/* Handle loading and error states for roles dropdown */}
-            {isLoadingRoles && <MenuItem value="" disabled><em>Loading roles...</em></MenuItem>}
-            {isRolesError && <MenuItem value="" disabled><em>Error loading roles</em></MenuItem>}
-            {!isLoadingRoles && !isRolesError && roles && roles.map((role) => (
-              <MenuItem key={role.id} value={role.id}>
-                {role.name}
-              </MenuItem>
-            ))}
-            {!isLoadingRoles && !isRolesError && (!roles || roles.length === 0) && (
-              <MenuItem value="" disabled><em>No roles available</em></MenuItem>
-            )}
-          </Select>
-        </FormControl>
-
-        {/* Optional: Add a Select for contributor_type if needed */}
-
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={addContributorMutation.isPending || isLoadingRoles} // Also disable if roles are loading
-          sx={{ mt: 1, p: 1.5 }}
-        >
-          {addContributorMutation.isPending ? (
-            <CircularProgress size={24} />
-          ) : (
-            "Add Contributor"
-          )}
+        {userProfile && (
+          <Typography sx={{ mr: 2 }}>
+            Welcome, {userProfile.email} ({userProfile.roles.join(", ")})!
+          </Typography>
+        )}
+        <Button variant="outlined" onClick={handleLogout}>
+          Logout
         </Button>
-        {addContributorMutation.isSuccess && (
-          <Alert severity="success" sx={{ mt: 2 }}>
-            Contributor added!
-          </Alert>
-        )}
-        {addContributorMutation.isError && (
-          <Alert severity="error" sx={{ mt: 2 }}>
-            Error: {addContributorMutation.error.message}
-          </Alert>
-        )}
       </Box>
 
-      {/* --- EDIT MODAL --- */}
+      {/* --- ADD FORM SECTION (Admin only) --- */}
+      {isAdmin && (
+        <Box
+          component="form"
+          onSubmit={handleSubmit}
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            p: 3,
+            bgcolor: "background.paper",
+            borderRadius: 2,
+            boxShadow: 3,
+            width: "100%",
+            maxWidth: "400px",
+            mb: 4, // Add some margin if both form and list are present
+          }}
+        >
+          <Typography
+            variant="h5"
+            component="h1"
+            sx={{ textAlign: "center", mb: 2 }}
+          >
+            Add New Contributor
+          </Typography>
+          <TextField
+            label="Email"
+            variant="outlined"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <TextField
+            label="First Name (Optional)"
+            variant="outlined"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+          />
+          <TextField
+            label="Last Name (Optional)"
+            variant="outlined"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+          />
+          <TextField
+            label="Password"
+            variant="outlined"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+
+          <FormControl fullWidth required>
+            <InputLabel id="role-select-label">Role</InputLabel>
+            <Select
+              labelId="role-select-label"
+              id="role-select"
+              value={selectedRoleId}
+              label="Role"
+              onChange={(e) => setSelectedRoleId(e.target.value as number)}
+              disabled={isLoadingRoles}
+            >
+              {isLoadingRoles && (
+                <MenuItem value="" disabled>
+                  <em>Loading roles...</em>
+                </MenuItem>
+              )}
+              {isRolesError && (
+                <MenuItem value="" disabled>
+                  <em>Error loading roles</em>
+                </MenuItem>
+              )}
+              {!isLoadingRoles &&
+                !isRolesError &&
+                roles &&
+                roles.map((role) => (
+                  <MenuItem key={role.id} value={role.id}>
+                    {role.name}
+                  </MenuItem>
+                ))}
+              {!isLoadingRoles &&
+                !isRolesError &&
+                (!roles || roles.length === 0) && (
+                  <MenuItem value="" disabled>
+                    <em>No roles available</em>
+                  </MenuItem>
+                )}
+            </Select>
+          </FormControl>
+
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={addContributorMutation.isPending || isLoadingRoles}
+            sx={{ mt: 1, p: 1.5 }}
+          >
+            {addContributorMutation.isPending ? (
+              <CircularProgress size={24} />
+            ) : (
+              "Add Contributor"
+            )}
+          </Button>
+          {addContributorMutation.isSuccess && (
+            <Alert severity="success" sx={{ mt: 2 }}>
+              Contributor added!
+            </Alert>
+          )}
+          {addContributorMutation.isError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              Error: {addContributorMutation.error.message}
+            </Alert>
+          )}
+        </Box>
+      )}
+
+      {/* --- EDIT MODAL (Logic for opening this is tied to edit button, which will be conditional) --- */}
       {editingContributor && (
         <Dialog open={isEditModalOpen} onClose={handleEditModalClose}>
           <DialogTitle>Edit Contributor</DialogTitle>
           <Box component="form" onSubmit={handleUpdateContributorSubmit}>
             <DialogContent>
               <DialogContentText sx={{ mb: 2 }}>
-                Update the details for {editingContributor.contact.first_name || editingContributor.contact.email}.
+                Update the details for{" "}
+                {editingContributor.contact.first_name ||
+                  editingContributor.contact.email}
+                .
               </DialogContentText>
               <TextField
                 autoFocus
@@ -566,23 +708,42 @@ export default function Home() {
                   id="edit-role-select"
                   value={editSelectedRoleId}
                   label="Role"
-                  onChange={(e) => setEditSelectedRoleId(e.target.value as number)}
+                  onChange={(e) =>
+                    setEditSelectedRoleId(e.target.value as number)
+                  }
                   disabled={isLoadingRoles}
                 >
-                  {isLoadingRoles && <MenuItem value="" disabled><em>Loading roles...</em></MenuItem>}
-                  {isRolesError && <MenuItem value="" disabled><em>Error loading roles</em></MenuItem>}
-                  {roles && roles.map((role) => (
-                    <MenuItem key={role.id} value={role.id}>
-                      {role.name}
+                  {isLoadingRoles && (
+                    <MenuItem value="" disabled>
+                      <em>Loading roles...</em>
                     </MenuItem>
-                  ))}
+                  )}
+                  {isRolesError && (
+                    <MenuItem value="" disabled>
+                      <em>Error loading roles</em>
+                    </MenuItem>
+                  )}
+                  {roles &&
+                    roles.map((role) => (
+                      <MenuItem key={role.id} value={role.id}>
+                        {role.name}
+                      </MenuItem>
+                    ))}
                 </Select>
               </FormControl>
             </DialogContent>
-            <DialogActions sx={{ p: '0 24px 24px 24px' }}>
+            <DialogActions sx={{ p: "0 24px 24px 24px" }}>
               <Button onClick={handleEditModalClose}>Cancel</Button>
-              <Button type="submit" variant="contained" disabled={updateContributorMutation.isPending}>
-                {updateContributorMutation.isPending ? <CircularProgress size={24} /> : "Save Changes"}
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={updateContributorMutation.isPending}
+              >
+                {updateContributorMutation.isPending ? (
+                  <CircularProgress size={24} />
+                ) : (
+                  "Save Changes"
+                )}
               </Button>
             </DialogActions>
           </Box>
@@ -621,19 +782,38 @@ export default function Home() {
                   key={contributor.id}
                   disableGutters
                   secondaryAction={
-                    <Stack direction="row" spacing={1}>
-                      <IconButton edge="end" aria-label="edit" onClick={() => handleEditContributor(contributor.id)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteContributor(contributor.id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Stack>
+                    isAdmin ? (
+                      <Stack direction="row" spacing={1}>
+                        <IconButton
+                          edge="end"
+                          aria-label="edit"
+                          onClick={() => handleEditContributor(contributor.id)}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton
+                          edge="end"
+                          aria-label="delete"
+                          onClick={() =>
+                            handleDeleteContributor(contributor.id)
+                          }
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Stack>
+                    ) : null // No actions if not admin
                   }
                 >
                   <ListItemText
-                    primary={`${contributor.contact.first_name || ''} ${contributor.contact.last_name || ''}`.trim() || contributor.contact.email}
-                    secondary={contributor.role ? contributor.role.name : "Role not specified"}
+                    primary={
+                      `${contributor.contact.first_name || ""} ${contributor.contact.last_name || ""}`.trim() ||
+                      contributor.contact.email
+                    }
+                    secondary={
+                      contributor.role
+                        ? contributor.role.name
+                        : "Role not specified"
+                    }
                   />
                 </ListItem>
               ))}
