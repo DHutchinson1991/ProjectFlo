@@ -27,16 +27,18 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add -g vercel
 
-      - name: Deploy to Vercel
-        env:
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      - name: Link Vercel Project
         run: |
           cd packages/frontend
-          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }} --cwd .
+          vercel link --token=${{ secrets.VERCEL_TOKEN }} --confirm
+
+      - name: Deploy to Vercel
+        run: |
+          cd packages/frontend
           if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/master" ]; then
-            vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --cwd .
+            vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
           else
-            vercel deploy --token=${{ secrets.VERCEL_TOKEN }} --cwd .
+            vercel deploy --token=${{ secrets.VERCEL_TOKEN }} --yes
           fi
 
   deploy-backend:
