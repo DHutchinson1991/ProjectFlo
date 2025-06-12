@@ -1,8 +1,8 @@
 import { createTheme } from "@mui/material/styles";
-import { Geist } from "next/font/google";
+import { Roboto } from "next/font/google";
 
-const geist = Geist({
-  variable: "--font-geist-sans",
+const roboto = Roboto({
+  weight: ["300", "400", "500", "700"],
   subsets: ["latin"],
   display: "swap",
 });
@@ -12,7 +12,7 @@ const theme = createTheme({
     mode: "dark",
   },
   typography: {
-    fontFamily: geist.style.fontFamily,
+    fontFamily: roboto.style.fontFamily,
   },
 });
 
