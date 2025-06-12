@@ -1,6 +1,6 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '../decorators/roles.decorator';
+import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { ROLES_KEY } from "../decorators/roles.decorator";
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -11,23 +11,21 @@ export class RolesGuard implements CanActivate {
       ROLES_KEY,
       [
         context.getHandler(), // Method-level roles
-        context.getClass(),   // Class-level roles (though we might not use this for specific role checks)
+        context.getClass(), // Class-level roles (though we might not use this for specific role checks)
       ],
     );
     if (!requiredRoles) {
       return true; // No roles are required, access is granted
     }
     const { user } = context.switchToHttp().getRequest();
-    
-    // Assuming the user object attached by AuthGuard has a 'role' property (e.g., user.role = 'Admin')
-    // Or, if the user can have multiple roles, it might be user.roles = ['Admin', 'Editor']
-    // For this example, let's assume user.role is a string representing the user's single role name.
-    // You might need to adjust this based on how your JWT payload is structured and what JwtStrategy provides.
-    if (!user || !user.role) {
-      return false; // User or user.role is not defined, deny access
+
+    // Check if user exists and has roles array
+    if (!user || !user.roles || !Array.isArray(user.roles)) {
+      return false;
     }
 
-    return requiredRoles.some((role) => user.role === role);
+    // Check if user has any of the required roles
+    return requiredRoles.some((role) => user.roles.includes(role));
     // If user.roles is an array: return requiredRoles.some(role => user.roles?.includes(role));
   }
 }

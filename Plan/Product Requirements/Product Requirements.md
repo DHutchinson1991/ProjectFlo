@@ -47,6 +47,18 @@ Every feature must provide clear, tangible value to at least one of our core use
 
 ---
 
+### **Terminology Standards**
+
+To ensure consistent communication across all stakeholders, these key terms are used with specific meanings:
+
+> **Build:** The core data structure representing a creative project (stored in `builds` table). Used consistently in technical contexts and client-facing UI ("Build Sheet").
+>
+> **Quote:** A Build in its pre-approval state. Uses the same data structure but with `status = 'Proposal Sent'`. Represents the configuration and pricing before client commitment.
+>
+> **Project:** The business-friendly term for a booked Build (`status = 'Booked'`). Used in navigation, client communication, and general discussion.
+>
+> This clear terminology mapping ensures that database structure (`builds`), UI elements ("Build Sheet"), and human communication remain aligned while maintaining user-friendly language.
+
 ## 3. Core User Roles 🎭
 
 ProjectFlo is designed around the distinct needs of three primary user personas.

@@ -49,6 +49,19 @@ This document defines the definitive standards, conventions, and design principl
 > - No server-side sessions
 > - Complete request context
 
+### 2.4 Performance Requirements ⚡
+
+**Rule:** All API endpoints must meet the performance targets defined in `NFRS.md`.
+
+> **Implementation:**
+>
+> - All endpoints must achieve:
+>   - P95 (95th Percentile): < 300ms
+>   - P99 (99th Percentile): < 500ms
+> - Performance is monitored through application metrics
+> - New endpoints must be load tested before production deployment
+> - See `NFRS.md` Section 2 "Performance & Scalability Targets" for complete requirements
+
 <!-- ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ REQUEST/RESPONSE STANDARDS ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ -->
 
 ## 3. Request & Response Standards 📦

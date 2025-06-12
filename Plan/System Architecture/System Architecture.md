@@ -60,6 +60,18 @@ These foundational principles are non-negotiable and must inform all technical d
 > - Timestamp-based tracking of state changes
 > - Built-in analytics foundations
 
+### 2.5 Terminology Standards
+
+**Principle:** Consistent use of key terms across UI and documentation.
+
+> **Implementation:**
+>
+> - **Build:** The core data structure representing a creative project. Used in database (`builds` table) and client-facing UI ("Build Sheet").
+> - **Quote:** A proposed Build before client approval. Has its own lifecycle in the `quotes` table but shares core schema with `builds`.
+> - **Project:** The overarching term used in client/admin communication. Technically implemented as a Build, but used as a more accessible term in UI navigation and documentation.
+>
+> This alignment ensures that technical implementation (`builds` table) and user-facing language ("Build Sheet", "Project Dashboard") remain consistent while maintaining user-friendly terminology.
+
 <!-- ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ SYSTEM ARCHITECTURE ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ -->
 
 ## 3. System Architecture & Technology Stack 🏗️
@@ -101,7 +113,36 @@ These foundational principles are non-negotiable and must inform all technical d
 
 ### **Third-Party Integrations**
 
-- **Core Services:** Google Workspace, Clockify, Frame.io, Stripe.
+- **Google Workspace Integration** 📄
+
+  **Core Integration Points:**
+
+  1. **Storage & Asset Management:**
+     > - Google Drive API for secure asset storage
+     > - Hierarchical folder structure per project
+     > - Automated permission management based on RBAC
+  2. **Communication:**
+     > - Gmail API for automated notifications
+     > - Email templating system with brand consistency
+     > - Attachment handling via Drive links
+  3. **Calendar Integration:**
+
+     > - Google Calendar API for project timelines
+     > - Two-way sync for team scheduling
+     > - Auto-population of project milestones
+
+  4. **Authentication:**
+     > - Google OAuth 2.0 for client authentication
+     > - Service accounts for backend operations
+     > - SSO integration for internal users
+
+  **Implementation Notes:**
+
+  - All Google API interactions are wrapped in our own service layer
+  - Failures gracefully degrade to local alternatives
+  - Audit logging tracks all Google API operations
+
+- **Other Core Services:** Clockify, Frame.io, Stripe.
 - **Graceful Degradation**
   > **Policy:** Each integration must have a defined failure policy. For example, if the Clockify API is down, time-tracking requests will be added to the BullMQ queue and retried with an exponential backoff strategy. This ensures no data is lost and that a failure in an external service does not cascade into a failure of our core platform.
 

@@ -1,5 +1,5 @@
 // packages/backend/prisma/seed.ts
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, contacts_type, contributors_type } from "@prisma/client";
 import * as bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
@@ -30,37 +30,44 @@ async function main() {
   });
   console.log("Roles seeded.");
 
-  // --- 2. Seed a default Admin User ---
-  const adminEmail = "admin@projectflo.com";
-  const adminPassword = "password"; // Use a simple password for development seeding
+  // --- 2. Seed Admin Users ---
+  const adminUsers = [
+    {
+      email: "info@dhutchinson.co.uk",
+      password: "password",
+      firstName: "Daniel",
+      lastName: "Hutchinson",
+    },
+  ];
 
-  // Securely hash the password
-  const salt = await bcrypt.genSalt(SALT_ROUNDS);
-  const hashedPassword = await bcrypt.hash(adminPassword, salt);
-  console.log("Hashed default admin password.");
+  for (const user of adminUsers) {
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(user.password, SALT_ROUNDS);
 
-  // Create the contact and the linked contributor in a single transaction
-  await prisma.contacts.upsert({
-    where: { email: adminEmail },
-    update: {}, // Don't update if exists
-    create: {
-      first_name: "Admin",
-      last_name: "User",
-      email: adminEmail,
-      type: "Contributor",
-      contributor: {
-        create: {
-          role_id: adminRole.id,
-          contributor_type: "Internal",
-          password_hash: hashedPassword, // Store the hashed password
+    // Create the contact and the linked contributor in a single transaction
+    await prisma.contacts.upsert({
+      where: { email: user.email },
+      update: {}, // Don't update if exists
+      create: {
+        first_name: user.firstName,
+        last_name: user.lastName,
+        email: user.email,
+        type: contacts_type.Contributor,
+        contributor: {
+          create: {
+            role_id: adminRole.id,
+            contributor_type: contributors_type.Internal,
+            password_hash: hashedPassword,
+          },
         },
       },
-    },
-  });
+    });
 
-  console.log(`✅ Default admin user created:`);
-  console.log(`   Email: ${adminEmail}`);
-  console.log(`   Password: ${adminPassword}`);
+    console.log(`✅ Admin user created:`);
+    console.log(`   Email: ${user.email}`);
+    console.log(`   Password: ${user.password}`);
+  }
+
   console.log("Seeding finished.");
 }
 

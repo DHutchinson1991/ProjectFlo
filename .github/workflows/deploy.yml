@@ -1,0 +1,43 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy to Vercel
+        run: |
+          cd packages/frontend
+          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            vercel deploy --token=${{ secrets.VERCEL_TOKEN }}
+          fi
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Render
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          service-id: ${{ secrets.RENDER_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          working-directory: ./packages/backend

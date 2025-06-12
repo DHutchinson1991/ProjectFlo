@@ -11,7 +11,13 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async signIn(email: string, pass: string): Promise<{ access_token: string }> {
+  async signIn(
+    email: string,
+    pass: string,
+  ): Promise<{
+    access_token: string;
+    user: { id: number; email: string; roles: string[] };
+  }> {
     // Step 1: Find the user by their unique email and include related data.
     const userContact = await this.prisma.contacts.findUnique({
       where: { email },
@@ -46,9 +52,17 @@ export class AuthService {
       role: userContact.contributor.role.name,
     };
 
-    // Step 5: Sign the payload and return the access token.
+    // Create user profile object matching frontend expectations
+    const user = {
+      id: userContact.contributor.id,
+      email: userContact.email,
+      roles: [userContact.contributor.role.name], // Array of roles as expected by frontend
+    };
+
+    // Step 5: Sign the payload and return the access token and user profile.
     return {
       access_token: await this.jwtService.signAsync(payload),
+      user,
     };
   }
 }

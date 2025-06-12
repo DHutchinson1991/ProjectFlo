@@ -1,49 +1,50 @@
 {
-	"name": "projectflo",
-	"version": "1.0.0",
-	"description": "",
-	"private": true,
-	"scripts": {
-		"build": "pnpm -r build",
-		"test": "pnpm -r test",
-		"format": "prettier --write \"packages/**/*.{js,ts,jsx,tsx,json}\"",
-		"lint": "eslint \"packages/**/*.{js,ts,jsx,tsx}\"",
-		"lint:fix": "eslint \"packages/**/*.{js,ts,jsx,tsx}\" --fix",
-		"dev": "concurrently \"pnpm --filter backend run start:dev\" \"pnpm --filter frontend run dev\""
-	},
-	"keywords": [],
-	"author": "",
-	"license": "ISC",
-	"devDependencies": {
-		"@eslint/js": "^9.28.0",
-		"@types/node": "^22.10.7",
-		"@typescript-eslint/eslint-plugin": "^8.34.0",
-		"@typescript-eslint/parser": "^8.34.0",
-		"concurrently": "^9.1.2",
-		"eslint": "^9",
-		"eslint-config-next": "15.3.3",
-		"eslint-config-prettier": "^10.1.5",
-		"eslint-plugin-prettier": "^5.4.1",
-		"eslint-plugin-react": "^7.37.5",
-		"globals": "^16.2.0",
-		"husky": "^9.1.4",
-		"lint-staged": "^15.2.10",
-		"prettier": "^3.5.3",
-		"typescript": "^5.7.3",
-		"typescript-eslint": "^8.34.0"
-	},
-	"lint-staged": {
-		"*.{js,ts,jsx,tsx}": [
-			"eslint --fix",
-			"prettier --write"
-		],
-		"*.{json,md,yml}": [
-			"prettier --write"
-		]
-	},
-	"pnpm": {
-		"onlyBuiltDependencies": [
-			"bcrypt"
-		]
-	}
+  "name": "projectflo",
+  "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "format": "prettier --write \"packages/**/*.{js,ts,jsx,tsx,json}\"",
+    "lint": "eslint \"packages/**/*.{js,ts,jsx,tsx}\"",
+    "lint:fix": "eslint \"packages/**/*.{js,ts,jsx,tsx}\" --fix",
+    "dev": "concurrently \"pnpm --filter backend run start:dev\" \"pnpm --filter frontend run dev\"",
+    "prepare": "husky install"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@eslint/js": "^9.28.0",
+    "@types/node": "^22.10.7",
+    "@typescript-eslint/eslint-plugin": "^8.34.0",
+    "@typescript-eslint/parser": "^8.34.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.3",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-prettier": "^5.4.1",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^16.2.0",
+    "husky": "^8.0.0",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.5.3",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.34.0"
+  },
+  "lint-staged": {
+    "*.{js,ts,jsx,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml}": [
+      "prettier --write"
+    ]
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "bcrypt"
+    ]
+  }
 }
