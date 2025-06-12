@@ -49,14 +49,14 @@ export class AuthService {
     const payload = {
       sub: userContact.contributor.id,
       email: userContact.email,
-      role: userContact.contributor.role.name,
+      role: userContact.contributor.role?.name || "User",
     };
 
     // Create user profile object matching frontend expectations
     const user = {
       id: userContact.contributor.id,
       email: userContact.email,
-      roles: [userContact.contributor.role.name], // Array of roles as expected by frontend
+      roles: [userContact.contributor.role?.name || "User"], // Array of roles as expected by frontend
     };
 
     // Step 5: Sign the payload and return the access token and user profile.

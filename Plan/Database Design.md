@@ -233,8 +233,11 @@ CREATE TABLE contributors (
   contact_id INT NOT NULL UNIQUE,
   contributor_type contributors_type,
   default_hourly_rate DECIMAL(8,2) NOT NULL DEFAULT 0.00,
+  password_hash VARCHAR(255) NOT NULL, -- Added for application login
+  role_id INT NULL, -- Added for optional default system-wide role
   archived_at TIMESTAMPTZ NULL, -- For soft deletes
-  FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+  FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+  FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL -- Added FK for role_id
 );
 
 CREATE TABLE contributor_skill_rates (

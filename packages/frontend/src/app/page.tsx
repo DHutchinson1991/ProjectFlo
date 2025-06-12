@@ -153,6 +153,27 @@ const getContributors = async (
   return response.json();
 };
 
+// New interface for Contact from the contacts endpoint
+interface ContactData {
+  id: number;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  phone_number: string | null;
+  company_name: string | null;
+  type: string;
+  archived_at: string | null;
+}
+
+const getContacts = async (token: string | null): Promise<ContactData[]> => {
+  const response = await fetch("http://localhost:3000/contacts", {
+    headers: getAuthHeaders(token),
+  });
+  if (!response.ok)
+    throw new Error("Network response was not ok (getContacts)");
+  return response.json();
+};
+
 const getRoles = async (token: string | null): Promise<Role[]> => {
   const response = await fetch("http://localhost:3000/roles", {
     headers: getAuthHeaders(token),
@@ -267,6 +288,16 @@ export default function Home() {
   } = useQuery<Role[], Error>({
     queryKey: ["roles", authToken],
     queryFn: () => getRoles(authToken),
+    enabled: !!authToken,
+  });
+
+  const {
+    data: contacts,
+    isLoading: isLoadingContacts,
+    isError: isContactsError,
+  } = useQuery<ContactData[], Error>({
+    queryKey: ["contacts", authToken],
+    queryFn: () => getContacts(authToken),
     enabled: !!authToken,
   });
 
@@ -461,8 +492,33 @@ export default function Home() {
             component="h1"
             sx={{ textAlign: "center", mb: 2 }}
           >
-            Login
+            ProjectFlo Wedding Video Business
           </Typography>
+          <Typography
+            variant="body2"
+            sx={{ textAlign: "center", mb: 2, color: "text.secondary" }}
+          >
+            Team Member Login
+          </Typography>
+          <Box sx={{ mb: 2, p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: "bold", mb: 1 }}>
+              Test Credentials:
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{ fontSize: "0.75rem", lineHeight: 1.4 }}
+            >
+              <strong>Admin:</strong> info@dhutchinson.co.uk / password
+              <br />
+              <strong>Lead Videographer:</strong> sarah.films@example.com /
+              weddingpass1
+              <br />
+              <strong>Editor:</strong> mark.edits@example.com / editmaster22
+              <br />
+              <strong>Client Manager:</strong> emily.clients@example.com /
+              clientlove3
+            </Typography>
+          </Box>
           <TextField
             label="Email"
             type="email"
@@ -517,9 +573,14 @@ export default function Home() {
         }}
       >
         {userProfile && (
-          <Typography sx={{ mr: 2 }}>
-            Welcome, {userProfile.email} ({userProfile.roles.join(", ")})!
-          </Typography>
+          <Box sx={{ textAlign: "right" }}>
+            <Typography variant="h6" sx={{ color: "primary.main", mb: 0.5 }}>
+              🎬 ProjectFlo Wedding Videos
+            </Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Welcome, {userProfile.email} • {userProfile.roles.join(", ")}
+            </Typography>
+          </Box>
         )}
         <Button variant="outlined" onClick={handleLogout}>
           Logout
@@ -547,9 +608,16 @@ export default function Home() {
           <Typography
             variant="h5"
             component="h1"
-            sx={{ textAlign: "center", mb: 2 }}
+            sx={{ textAlign: "center", mb: 1 }}
           >
-            Add New Contributor
+            Add Team Member
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{ textAlign: "center", mb: 3, color: "text.secondary" }}
+          >
+            Add videographers, editors, and other crew members to your wedding
+            video production team
           </Typography>
           <TextField
             label="Email"
@@ -627,7 +695,7 @@ export default function Home() {
             {addContributorMutation.isPending ? (
               <CircularProgress size={24} />
             ) : (
-              "Add Contributor"
+              "Add Team Member"
             )}
           </Button>
           {addContributorMutation.isSuccess && (
@@ -757,7 +825,7 @@ export default function Home() {
           component="h2"
           sx={{ textAlign: "center", mb: 2 }}
         >
-          Current Contributors
+          🎥 Wedding Video Production Team
         </Typography>
         <Box
           sx={{
@@ -806,13 +874,84 @@ export default function Home() {
                 >
                   <ListItemText
                     primary={
-                      `${contributor.contact.first_name || ""} ${contributor.contact.last_name || ""}`.trim() ||
-                      contributor.contact.email
+                      <Typography component="div" sx={{ fontWeight: "medium" }}>
+                        {`${contributor.contact.first_name || ""} ${contributor.contact.last_name || ""}`.trim() ||
+                          contributor.contact.email}
+                      </Typography>
                     }
                     secondary={
-                      contributor.role
-                        ? contributor.role.name
-                        : "Role not specified"
+                      <Box>
+                        <Typography variant="body2" color="text.primary">
+                          {contributor.role?.name || "Role not specified"}
+                          {contributor.contributor_type &&
+                            ` • ${contributor.contributor_type}`}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          📧 {contributor.contact.email}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </Box>
+      </Box>
+
+      {/* --- CONTACTS OVERVIEW SECTION --- */}
+      <Box sx={{ width: "100%", maxWidth: "600px", mt: 4 }}>
+        <Typography
+          variant="h5"
+          component="h2"
+          sx={{ textAlign: "center", mb: 2 }}
+        >
+          📇 Wedding Business Contacts
+        </Typography>
+        <Box
+          sx={{
+            p: 2,
+            bgcolor: "background.paper",
+            borderRadius: 2,
+            boxShadow: 3,
+          }}
+        >
+          {isLoadingContacts && (
+            <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
+              <CircularProgress />
+            </Box>
+          )}
+          {isContactsError && (
+            <Alert severity="error">Error fetching contacts.</Alert>
+          )}
+          {contacts && (
+            <List>
+              {contacts.map((contact) => (
+                <ListItem key={contact.id} disableGutters>
+                  <ListItemText
+                    primary={
+                      <Typography component="div" sx={{ fontWeight: "medium" }}>
+                        {`${contact.first_name || ""} ${contact.last_name || ""}`.trim() ||
+                          contact.email}
+                      </Typography>
+                    }
+                    secondary={
+                      <Box>
+                        <Typography variant="body2" color="text.primary">
+                          {contact.type === "Client"
+                            ? "💍 Client"
+                            : contact.type === "Client_Lead"
+                              ? "📞 Lead"
+                              : contact.type === "Contributor"
+                                ? "👥 Team Member"
+                                : contact.type}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          📧 {contact.email}
+                          {contact.phone_number &&
+                            ` • 📱 ${contact.phone_number}`}
+                        </Typography>
+                      </Box>
                     }
                   />
                 </ListItem>

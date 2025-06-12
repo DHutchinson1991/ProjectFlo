@@ -27,7 +27,7 @@ This roadmap is structured to deliver functional, end-to-end user workflows in p
 - ✅ Set up core database schema with Prisma
 - ✅ Configure Docker development environment
 - ✅ Establish project documentation structure
-- 🚧 Set up CI/CD pipelines
+- ✅ Set up CI/CD pipelines for frontend (Vercel) and backend (Render) [CI: GitHub Actions, CD: Vercel & Render]
 
 ### 2.2 Authentication & Core Layout 🔐 [🚧 IN PROGRESS]
 
@@ -36,43 +36,43 @@ This roadmap is structured to deliver functional, end-to-end user workflows in p
 - ✅ JWT authentication strategy
 - ✅ Role-based access control (RBAC)
 - ✅ User management endpoints
-- ✅ Password hashing with Argon2
+- ✅ Secure password hashing (using bcrypt)
 
 #### Frontend Implementation [🚧 IN PROGRESS]
 
-- ✅ Login page design (`/login`)
-- 🚧 Dashboard layout with navigation sidebar
-- ⏳ Dark/light theme implementation
-- ⏳ Responsive design system
-- ⏳ Loading states and error boundaries
+- ✅ Login page design (`/login`) <!-- Status updated to COMPLETED for initial structure -->
+- ✅ Dashboard layout with navigation sidebar <!-- Updated from IN PROGRESS -->
+- ✅ Dark/light theme implementation <!-- Updated from PENDING -->
+- 🚧 Responsive design system (Core layout responsive, broader system pending) <!-- Updated from PENDING -->
+- ✅ Loading states and error boundaries <!-- Updated from PENDING -->
 
-### 2.3 Core Admin Functionality ⚙️ [⏳ PENDING]
+### 2.3 Core Admin Functionality ⚙️ [🚧 IN PROGRESS] <!-- Status updated as sub-items are now in progress/done -->
 
-#### Settings Module [⏳ PENDING]
+#### Settings Module [🚧 IN PROGRESS] <!-- Status updated -->
 
-- 🚧 `/app/settings/services` - Service catalog management
-  - ⏳ Service creation form with real-time validation
+- ✅ `/app/settings/services` - Service catalog management (Initial page structure created)
+  - ✅ Service creation form with real-time validation (On-submit and on-blur validation implemented)
   - ⏳ Dynamic pricing rules interface
-  - ⏳ Service category organization
+  - ✅ Service category organization (Services can be assigned categories via dropdown using a predefined list; UI for managing the category list itself is pending) <!-- Updated for clarity -->
 - ⏳ `/app/settings/recipes` - Workflow automation rules
   - ⏳ Task template builder
   - ⏳ Service-to-task mapping interface
   - ⏳ Dependency visualization
-- ⏳ `/app/settings/team` - User management
-  - ⏳ Team member invitation flow
-  - ⏳ Role assignment interface
+- ✅ `/app/settings/team` - User management (Initial page structure created)
+  - ✅ Team member invitation flow (Form with on-submit and on-blur validation) <!-- Updated -->
+  - ✅ Role assignment interface (Basic role selection in forms with validation) <!-- Updated -->
   - ⏳ Permission management
 
 #### CRM Implementation [🚧 IN PROGRESS]
 
 - ✅ Contact data model and API endpoints
-- 🚧 `/app/contacts` - Contact management interface
-  - ⏳ Contact list with filtering and search
-  - ⏳ Contact detail view with activity history
-  - ⏳ Quick actions menu
+- ✅ `/app/contacts` - Contact management interface (Initial page structure created)
+  - ✅ Contact list with filtering and search (Local state)
+  - ✅ Contact detail view with activity history (Local state, basic implementation) <!-- Updated from PENDING -->
+  - ✅ Quick actions menu (Local state) <!-- Updated from PENDING -->
 
 > **✅ Phase 1 Outcome:**  
-> An Admin can log in, define every service the company offers, and set up the rules for how those services are priced and produced.
+> An Admin can log in, define every service the company offers, and set up the rules for how those services are priced and produced. Core infrastructure for CI/CD and deployments is operational.
 
 <!-- ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ PHASE 2 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ -->
 
@@ -241,5 +241,39 @@ This roadmap is structured to deliver functional, end-to-end user workflows in p
 
 > **✅ Phase 3 Outcome:**  
 > The production team can efficiently manage their work, track progress, maintain project health, and seamlessly collaborate using integrated tools.
+
+<!-- ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ FUTURE CONSIDERATIONS (Post Phase 3 / Non-Crucial for Initial MVP) ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ -->
+
+## 5. Future Considerations & Deferred Items 🚀
+
+The following items are important for the long-term success and robustness of ProjectFlo but are deferred to later phases to allow for a quicker rollout of core functionality.
+
+### 5.1 Database Seeding & Full API Testing
+
+- **Database Seeding for Staging/Production:** Implement a robust strategy for seeding the Render PostgreSQL database for testing and initial production data. (Currently, manual seeding via local Prisma client is the workaround).
+- **Comprehensive API Testing:** Conduct thorough end-to-end testing of all API endpoints once the frontend is integrated and initial data is in place.
+
+### 5.2 Frontend-Backend Integration & Configuration
+
+- **Frontend API Integration:** Fully connect the Vercel-deployed frontend to the live Render backend API (`https://projectflo.onrender.com`).
+  - Configure `NEXT_PUBLIC_API_URL=${env.PROJECTFLO_BACKEND_URL}` (or similar) in Vercel project settings.
+  - Ensure all frontend features that consume backend services are functional.
+
+### 5.3 Advanced DevOps & Monitoring
+
+- **Advanced Error Monitoring:** Fully integrate Sentry (or similar) for both frontend (Vercel) and backend (Render) error tracking as outlined in the DevOps guide.
+- **Logging Enhancements:** Implement more detailed structured logging (e.g., Pino) and explore centralized logging solutions if needed.
+- **Automated E2E Tests:** Integrate automated End-to-End tests into the CI/CD pipeline.
+- **Advanced Health Checks:** Develop more comprehensive health check endpoints for the backend.
+- **Automated Database Migrations for Staging/Preview:** Explore Render's Blueprint Previews or similar for managing database schema changes in pre-production environments.
+
+### 5.4 Domain & Branding
+
+- **Custom Domains:** Configure custom domains for frontend (e.g., `www.projectflo.com`) and backend (e.g., `api.projectflo.com`).
+
+### 5.5 Feature Enhancements (Examples)
+
+- **Redis Integration:** Fully leverage Redis for caching, session management, or queueing as outlined in the system architecture.
+- **Terraform for IaC:** Implement Infrastructure as Code using Terraform for managing Render and other cloud resources, as initially planned.
 
 <!-- ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ END OF DOCUMENT ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ -->

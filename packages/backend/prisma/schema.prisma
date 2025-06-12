@@ -10,104 +10,7 @@ datasource db {
 }
 
 // ===============================================
-// Core Identity & User Records
-// ===============================================
-
-// The master table for every person in the system.
-// A contact is the central identity, which can then be
-// associated with a role like a Contributor or a Client.
-model contacts {
-  id           Int     @id @default(autoincrement())
-  first_name   String?
-  last_name    String?
-  email        String  @unique
-  phone_number String?
-  company_name String?
-  type         contacts_type // Enum
-
-  // Relationships
-  client      clients?
-  contributor contributors?
-
-  @@map("contacts")
-}
-
-// Represents an internal user (admin, editor, etc.).
-// This links a 'contact' record to a specific 'role'.
-model contributors {
-  id               Int                @id @default(autoincrement())
-  contact_id       Int                @unique
-  role_id          Int
-  contributor_type contributors_type?
-  password_hash    String
-
-  // Relationships
-  contact contacts @relation(fields: [contact_id], references: [id], onDelete: Cascade)
-  role    roles    @relation(fields: [role_id], references: [id], onDelete: Restrict)
-
-  @@map("contributors")
-}
-
-// Represents a paying client.
-// This is a profile linked to a master 'contact' record.
-model clients {
-  id         Int      @id @default(autoincrement())
-  contact_id Int      @unique
-  inquiry_id Int?
-
-  // Relationships
-  contact    contacts      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
-  client_user client_users? // A client may have login credentials
-
-  @@map("clients")
-}
-
-// Manages the login credentials for the client-facing portal.
-model client_users {
-  id              Int        @id @default(autoincrement())
-  client_id       Int        @unique
-  email           String     @unique
-  password_hash   String
-  last_login_date DateTime?  
-
-  // Relationships
-  client clients @relation(fields: [client_id], references: [id], onDelete: Cascade)
-
-  @@map("client_users")
-}
-
-// ===============================================
-// RBAC (Role-Based Access Control) System
-// ===============================================
-
-// Defines the roles within the system (e.g., 'Admin', 'Project Manager').
-model roles {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String?
-
-  // Relationships
-  permissions  permissions[]
-  contributors contributors[]
-
-  @@map("roles")
-}
-
-// Defines individual actions a user can perform (e.g., 'edit-project', 'delete-user').
-model permissions {
-  id          Int      @id @default(autoincrement())
-  action_name String   @unique
-  description String?
-
-  // Relationships
-  roles roles[]
-
-  @@map("permissions")
-}
-
-
-// ===============================================
-// Enumerated Types (ENUMs)
+// ENUMERATED TYPES
 // ===============================================
 
 enum contacts_type {
@@ -117,8 +20,784 @@ enum contacts_type {
   Vendor
 }
 
+enum pricing_type_options {
+  Hourly
+  Fixed
+}
+
+enum billable_item_pricing_type {
+  Fixed
+  Unit
+}
+
+enum inquiries_status {
+  New
+  Contacted
+  Proposal_Sent
+  Booked
+  Closed_Lost
+}
+
 enum contributors_type {
   Internal
   External
   Freelance
+}
+
+enum builds_status {
+  Inquiry
+  Proposal_Sent
+  Booked
+  Completed
+  Archived
+}
+
+enum change_order_status {
+  Pending_Approval
+  Approved
+  Rejected
+}
+
+enum discount_type_enum {
+  Percentage
+  Fixed
+}
+
+enum tasks_status {
+  To_Do
+  Ready_to_Start
+  In_Progress
+  Completed
+  Archived
+}
+
+enum calendar_event_type {
+  PROJECT_ASSIGNMENT
+  ABSENCE
+  HOLIDAY
+  EXTERNAL_SYNC
+  PERSONAL
+}
+
+enum project_asset_type {
+  Raw_Footage
+  Audio_File
+  Project_File
+  Export
+}
+
+enum activity_type {
+  Call
+  Email
+  Meeting
+  To_Do
+}
+
+enum activity_status {
+  Pending
+  Completed
+}
+
+enum document_status {
+  Active
+  Archived
+}
+
+enum task_comment_visibility {
+  Internal
+  Client_Visible
+}
+
+enum calendar_sync_provider {
+  Google
+}
+
+enum calendar_sync_status {
+  Active
+  Error
+  Disabled
+}
+
+// ===============================================
+// MODELS
+// ===============================================
+
+// --- Core Tables ---
+model contacts {
+  id           Int     @id @default(autoincrement())
+  first_name   String?
+  last_name    String?
+  email        String  @unique
+  phone_number String?
+  company_name String?
+  type         contacts_type
+  archived_at  DateTime?
+
+  client             clients?
+  contributor        contributors?
+  inquiries          inquiries[]
+  activities         activities[]
+  communications_log communications_log[]
+
+  @@map("contacts")
+  @@index([email])
+  @@index([type])
+}
+
+// --- Lookup Tables ---
+model coverage_scenes {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+
+  deliverable_default_components deliverable_default_components[]
+  component_task_recipes         component_task_recipes[]
+  build_coverage_assignments     build_coverage_assignments[]
+  build_components               build_components[]
+  project_assets                 project_assets[]
+
+  @@map("coverage_scenes")
+}
+
+model deliverables {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+
+  deliverable_default_components deliverable_default_components[]
+  component_task_recipes         component_task_recipes[]
+  build_deliverables             build_deliverables[]
+
+  @@map("deliverables")
+}
+
+model editing_styles {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+
+  deliverable_default_components deliverable_default_components[]
+  editing_style_requirements     editing_style_requirements[]
+  component_task_recipes         component_task_recipes[]
+  build_components               build_components[]
+
+  @@map("editing_styles")
+}
+
+// --- Operational Tables ---
+model operator_types {
+  id                  Int                  @id @default(autoincrement())
+  name                String               @unique
+  default_hourly_rate Decimal?             @db.Decimal(8, 2)
+  default_fixed_price Decimal?             @db.Decimal(10, 2)
+  pricing_type        pricing_type_options @default(Hourly)
+
+  build_coverage_assignments build_coverage_assignments[]
+
+  @@map("operator_types")
+}
+
+model billable_items {
+  id           Int                          @id @default(autoincrement())
+  name         String                       @unique
+  description  String?
+  category     String?
+  price        Decimal                      @db.Decimal(10, 2)
+  pricing_type billable_item_pricing_type @default(Fixed)
+  is_active    Boolean                      @default(true)
+
+  editing_style_requirements editing_style_requirements[]
+  build_billable_items       build_billable_items[]
+
+  @@map("billable_items")
+}
+
+model task_templates {
+  id                         Int                           @id @default(autoincrement())
+  name                       String                        @unique
+  phase                      String?
+  effort_hours               Decimal?                      @db.Decimal(8, 2)
+  effort_calculation_rules   Json?
+  pricing_type               pricing_type_options          @default(Hourly)
+  fixed_price                Decimal?                      @db.Decimal(10, 2)
+  average_duration_hours     Decimal?                      @db.Decimal(8, 2)
+
+  contributor_skill_rates    contributor_skill_rates[]
+  component_task_recipes     component_task_recipes[]
+  tasks                      tasks[]
+  contributor_task_benchmarks contributor_task_benchmarks[]
+
+  @@map("task_templates")
+}
+
+// --- Role-Based Access Control ---
+model roles {
+  id           Int     @id @default(autoincrement())
+  name         String  @unique
+  description  String?
+
+  role_permissions    role_permissions[]
+  contributors        contributors[] 
+  project_assignments project_assignments[]
+
+  @@map("roles")
+}
+
+model permissions {
+  id          Int     @id @default(autoincrement())
+  action_name String  @unique
+  description String?
+
+  role_permissions role_permissions[]
+
+  @@map("permissions")
+}
+
+model role_permissions {
+  role_id       Int
+  permission_id Int
+
+  role       roles       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@id([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+
+// --- CRM & Project Management ---
+model inquiries {
+  id                    Int                @id @default(autoincrement())
+  contact_id            Int
+  wedding_date          DateTime?
+  status                inquiries_status   @default(New)
+  notes                 String?
+  venue_details         String?
+  follow_up_due_date    DateTime?
+  lead_source           String?
+  lead_source_details   String?
+  campaign_id           String?
+  archived_at           DateTime?
+
+  contact    contacts @relation(fields: [contact_id], references: [id], onDelete: Restrict)
+  client     clients?   
+  build      builds?    
+  documents  documents[]
+  activities activities[]
+
+  @@map("inquiries")
+}
+
+model clients {
+  id           Int        @id @default(autoincrement())
+  contact_id   Int        @unique
+  inquiry_id   Int?       @unique
+  archived_at  DateTime?
+
+  contact     contacts      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  inquiry     inquiries?    @relation(fields: [inquiry_id], references: [id], onDelete: SetNull)
+  client_user client_users?
+  projects    projects[]
+  builds      builds[]
+
+  @@map("clients")
+}
+
+model client_users {
+  id              Int       @id @default(autoincrement())
+  client_id       Int       @unique
+  email           String    @unique
+  password_hash   String
+  last_login_date DateTime?
+
+  client clients @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@map("client_users")
+}
+
+model projects {
+  id                  Int       @id @default(autoincrement())
+  client_id           Int
+  project_name        String?
+  wedding_date        DateTime
+  booking_date        DateTime?
+  edit_start_date     DateTime?
+  phase               String?
+  archived_at         DateTime?
+
+  client                    clients                     @relation(fields: [client_id], references: [id], onDelete: Restrict)
+  project_assignments       project_assignments[]
+  tasks                     tasks[]
+  calendar_events           calendar_events[]
+  project_assets            project_assets[]
+  invoices                  invoices[]
+  project_expenses          project_expenses[]
+  communications_log        communications_log[]
+  documents                 documents[]
+  client_feedback_surveys   client_feedback_surveys[]
+  build                     builds?
+  activities                activities[]
+
+  @@map("projects")
+  @@index([wedding_date])
+  @@unique([client_id, wedding_date])
+}
+
+model contributors {
+  id                    Int                         @id @default(autoincrement())
+  contact_id            Int                         @unique
+  contributor_type      contributors_type?
+  default_hourly_rate   Decimal                     @default(0.00) @db.Decimal(8, 2)
+  password_hash         String                      
+  archived_at           DateTime?
+  role_id               Int?                        
+
+  contact                     contacts                      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  role                        roles?                        @relation(fields: [role_id], references: [id], onDelete: Restrict) 
+  contributor_skill_rates     contributor_skill_rates[]
+  project_assignments         project_assignments[]
+  tasks_assigned              tasks[]                       @relation("AssignedTasks")
+  calendar_events             calendar_events[]
+  contributor_task_benchmarks contributor_task_benchmarks[]
+  audit_logs                  audit_log[]
+  notifications_received      notifications[]
+  activities_assigned         activities[]
+  task_comments_made          task_comments[]
+  calendar_sync_token         calendar_sync_tokens?
+
+  @@map("contributors")
+}
+
+model contributor_skill_rates {
+  id                 Int   @id @default(autoincrement())
+  contributor_id     Int
+  task_template_id   Int
+  rate               Decimal @db.Decimal(8, 2)
+
+  contributor    contributors   @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  task_template  task_templates @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
+
+  @@unique([contributor_id, task_template_id])
+  @@map("contributor_skill_rates")
+}
+
+model project_assignments {
+  id             Int  @id @default(autoincrement())
+  project_id     Int
+  contributor_id Int
+  role_id        Int
+
+  project     projects     @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  contributor contributors @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  role        roles        @relation(fields: [role_id], references: [id], onDelete: Restrict)
+
+  @@unique([project_id, contributor_id])
+  @@map("project_assignments")
+}
+
+// --- Automation Engine ---
+model deliverable_default_components {
+  id                         Int      @id @default(autoincrement())
+  deliverable_id             Int
+  coverage_scene_id          Int?
+  default_editing_style_id   Int
+  default_target_minutes     Decimal? @db.Decimal(8, 2)
+  default_is_included        Boolean  @default(true)
+
+  deliverable         deliverables     @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+  coverage_scene      coverage_scenes? @relation(fields: [coverage_scene_id], references: [id], onDelete: Cascade) 
+  default_editing_style editing_styles   @relation(fields: [default_editing_style_id], references: [id], onDelete: Restrict)
+
+  @@map("deliverable_default_components")
+}
+
+model editing_style_requirements {
+  id               Int   @id @default(autoincrement())
+  editing_style_id Int
+  billable_item_id Int
+  quantity         Int   @default(1)
+
+  editing_style  editing_styles @relation(fields: [editing_style_id], references: [id], onDelete: Cascade)
+  billable_item  billable_items @relation(fields: [billable_item_id], references: [id], onDelete: Cascade) 
+
+  @@unique([editing_style_id, billable_item_id], map: "idx_style_item_unique")
+  @@map("editing_style_requirements")
+}
+
+model component_task_recipes {
+  id                 Int   @id @default(autoincrement())
+  deliverable_id     Int?
+  coverage_scene_id  Int?
+  editing_style_id   Int?
+  task_template_id   Int
+  priority           Int   @default(0)
+
+  deliverable     deliverables?    @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+  coverage_scene  coverage_scenes? @relation(fields: [coverage_scene_id], references: [id], onDelete: Cascade)
+  editing_style   editing_styles?  @relation(fields: [editing_style_id], references: [id], onDelete: Cascade)
+  task_template   task_templates   @relation(fields: [task_template_id], references: [id], onDelete: Cascade) 
+
+  @@map("component_task_recipes")
+}
+
+// --- The "Build & Ledger" Engine ---
+model builds {
+  id                        Int           @id @default(autoincrement())
+  client_id                 Int?
+  inquiry_id                Int?          @unique
+  project_id                Int?          @unique
+  status                    builds_status
+  configuration_locked_at   DateTime?
+  approved_price            Decimal       @default(0.00) @db.Decimal(10, 2)
+  live_price                Decimal       @default(0.00) @db.Decimal(10, 2)
+  total_paid                Decimal       @default(0.00) @db.Decimal(10, 2)
+  archived_at               DateTime?
+
+  client                     clients?                     @relation(fields: [client_id], references: [id], onDelete: SetNull)
+  inquiry                    inquiries?                   @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project                    projects?                    @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  build_coverage_assignments build_coverage_assignments[]
+  build_deliverables         build_deliverables[]
+  build_billable_items       build_billable_items[]
+  build_change_orders        build_change_orders[]
+  build_snapshots            build_snapshots[]
+
+  @@map("builds")
+}
+
+model build_coverage_assignments {
+  id                  Int    @id @default(autoincrement())
+  build_id            Int
+  coverage_scene_id   Int
+  operator_type_id    Int
+  quantity            Int    @default(1)
+  rate_at_time_of_add Decimal @db.Decimal(8, 2)
+
+  build            builds            @relation(fields: [build_id], references: [id], onDelete: Cascade)
+  coverage_scene   coverage_scenes   @relation(fields: [coverage_scene_id], references: [id], onDelete: Restrict)
+  operator_type    operator_types    @relation(fields: [operator_type_id], references: [id], onDelete: Restrict)
+
+  @@map("build_coverage_assignments")
+}
+
+model build_deliverables {
+  id             Int    @id @default(autoincrement())
+  build_id       Int
+  deliverable_id Int
+
+  build            builds            @relation(fields: [build_id], references: [id], onDelete: Cascade)
+  deliverable      deliverables      @relation(fields: [deliverable_id], references: [id], onDelete: Restrict)
+  build_components build_components[]
+
+  @@map("build_deliverables")
+}
+
+model build_components {
+  id                   Int       @id @default(autoincrement())
+  build_deliverable_id Int
+  coverage_scene_id    Int
+  editing_style_id     Int
+  target_minutes       Decimal?  @db.Decimal(8, 2)
+  is_included          Boolean?  @default(true)
+  calculated_price     Decimal?  @db.Decimal(10, 2)
+
+  build_deliverable build_deliverables @relation(fields: [build_deliverable_id], references: [id], onDelete: Cascade)
+  coverage_scene    coverage_scenes    @relation(fields: [coverage_scene_id], references: [id], onDelete: Restrict)
+  editing_style     editing_styles     @relation(fields: [editing_style_id], references: [id], onDelete: Restrict)
+  tasks             tasks[]
+
+  @@map("build_components")
+}
+
+// --- Billing & Change Order Management ---
+model build_billable_items {
+  id                     Int     @id @default(autoincrement())
+  build_id               Int
+  billable_item_id       Int
+  quantity               Int     @default(1)
+  price_at_time_of_add   Decimal @db.Decimal(10, 2)
+  notes                  String?
+
+  build          builds         @relation(fields: [build_id], references: [id], onDelete: Cascade)
+  billable_item  billable_items @relation(fields: [billable_item_id], references: [id], onDelete: Restrict)
+
+  @@map("build_billable_items")
+}
+
+model build_change_orders {
+  id                         Int                 @id @default(autoincrement())
+  build_id                   Int
+  version_number             Int
+  price_delta                Decimal             @db.Decimal(10, 2)
+  new_total_approved_price   Decimal             @db.Decimal(10, 2)
+  description                String
+  status                     change_order_status
+  discount_type              discount_type_enum?
+  discount_percentage        Decimal?            @db.Decimal(5, 2)
+  discount_amount            Decimal?            @db.Decimal(10, 2)
+  discount_reason            String?
+  created_at                 DateTime?           @default(now())
+
+  build           builds            @relation(fields: [build_id], references: [id], onDelete: Cascade)
+  build_snapshots build_snapshots[]
+
+  @@map("build_change_orders")
+}
+
+model build_snapshots {
+  id              Int       @id @default(autoincrement())
+  build_id        Int
+  change_order_id Int
+  snapshot_data   Json
+  created_at      DateTime? @default(now())
+
+  build        builds                @relation(fields: [build_id], references: [id], onDelete: Cascade)
+  change_order build_change_orders @relation(fields: [change_order_id], references: [id], onDelete: Cascade)
+
+  @@map("build_snapshots")
+}
+
+// --- Execution Layer ---
+model tasks {
+  id                           Int          @id @default(autoincrement())
+  project_id                   Int
+  build_component_id           Int
+  task_template_id             Int
+  planned_duration_hours       Decimal?     @db.Decimal(8, 2)
+  actual_duration_hours        Decimal?     @db.Decimal(8, 2)
+  status                       tasks_status @default(To_Do)
+  due_date                     DateTime?
+  assigned_to_contributor_id   Int?
+  is_client_visible            Boolean?     @default(false)
+  rate_at_time_of_assignment   Decimal      @default(0.00) @db.Decimal(8, 2)
+
+  project                   projects          @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  build_component           build_components  @relation(fields: [build_component_id], references: [id], onDelete: Cascade)
+  task_template             task_templates    @relation(fields: [task_template_id], references: [id], onDelete: Restrict)
+  assigned_to_contributor   contributors?     @relation("AssignedTasks", fields: [assigned_to_contributor_id], references: [id], onDelete: SetNull)
+  task_dependencies_blocking task_dependencies[] @relation("BlockingTasks")
+  task_dependencies_dependent task_dependencies[] @relation("DependentTasks")
+  task_comments             task_comments[]
+
+  @@map("tasks")
+  @@index([status])
+  @@index([due_date])
+  @@index([assigned_to_contributor_id])
+}
+
+model calendar_events {
+  id             Int                 @id @default(autoincrement())
+  contributor_id Int
+  project_id     Int?
+  title          String
+  start_time     DateTime
+  end_time       DateTime
+  is_all_day     Boolean             @default(false)
+  event_type     calendar_event_type
+  description    String?
+
+  contributor contributors @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  project     projects?    @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("calendar_events")
+  @@index([contributor_id, start_time, end_time])
+}
+
+model project_assets {
+  id                Int                 @id @default(autoincrement())
+  project_id        Int
+  coverage_scene_id Int?
+  file_name         String?
+  storage_path      String?
+  asset_type        project_asset_type? 
+
+  project        projects         @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  coverage_scene coverage_scenes? @relation(fields: [coverage_scene_id], references: [id], onDelete: SetNull)
+
+  @@map("project_assets")
+}
+
+model contributor_task_benchmarks {
+  contributor_id            Int
+  task_template_id          Int
+  contributor_default_hours Decimal? @db.Decimal(8, 2)
+  contributor_average_hours Decimal? @db.Decimal(8, 2)
+
+  contributor   contributors   @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  task_template task_templates @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
+
+  @@id([contributor_id, task_template_id])
+  @@map("contributor_task_benchmarks")
+}
+
+// --- Supporting Systems ---
+model invoices {
+  id             Int       @id @default(autoincrement())
+  project_id     Int
+  invoice_number String?   @unique
+  issue_date     DateTime?
+  due_date       DateTime?
+  total_amount   Decimal   @db.Decimal(10, 2)
+  amount_paid    Decimal?  @default(0.00) @db.Decimal(10, 2)
+  status         String?
+
+  project  projects   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  payments payments[]
+
+  @@map("invoices")
+}
+
+model payments {
+  id             Int       @id @default(autoincrement())
+  invoice_id     Int
+  payment_date   DateTime? @default(now())
+  amount         Decimal   @db.Decimal(10, 2)
+  payment_method String?
+  transaction_id String?
+
+  invoice invoices @relation(fields: [invoice_id], references: [id], onDelete: Restrict)
+
+  @@map("payments")
+}
+
+model project_expenses {
+  id          Int       @id @default(autoincrement())
+  project_id  Int
+  expense_date DateTime?
+  description String?
+  category    String?
+  amount      Decimal   @db.Decimal(10, 2)
+  receipt_url String?
+
+  project projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("project_expenses")
+}
+
+model audit_log {
+  id             Int       @id @default(autoincrement())
+  contributor_id Int?
+  action         String
+  timestamp      DateTime  @default(now()) 
+  details        Json?
+
+  contributor contributors? @relation(fields: [contributor_id], references: [id], onDelete: SetNull)
+
+  @@map("audit_log")
+  @@index([details], type: Gin) 
+}
+
+model notifications {
+  id                       Int       @id @default(autoincrement())
+  recipient_contributor_id Int
+  message                  String
+  is_read                  Boolean   @default(false)
+  created_at               DateTime? @default(now())
+  link_url                 String?
+
+  recipient_contributor contributors @relation(fields: [recipient_contributor_id], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+  @@index([recipient_contributor_id, is_read])
+}
+
+// --- Workflow Management ---
+model task_dependencies {
+  id                Int @id @default(autoincrement())
+  blocking_task_id  Int
+  dependent_task_id Int
+
+  blocking_task  tasks @relation("BlockingTasks", fields: [blocking_task_id], references: [id], onDelete: Cascade)
+  dependent_task tasks @relation("DependentTasks", fields: [dependent_task_id], references: [id], onDelete: Cascade)
+
+  @@map("task_dependencies")
+}
+
+model activities {
+  id                         Int             @id @default(autoincrement())
+  assigned_to_contributor_id Int
+  contact_id                 Int?
+  inquiry_id                 Int?
+  project_id                 Int?
+  due_date                   DateTime?
+  activity_type              activity_type
+  title                      String
+  notes                      String?
+  status                     activity_status @default(Pending)
+
+  assigned_to_contributor contributors @relation(fields: [assigned_to_contributor_id], references: [id], onDelete: Cascade)
+  contact                 contacts?    @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  inquiry                 inquiries?   @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project                 projects?    @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("activities")
+}
+
+model communications_log {
+  id                 Int       @id @default(autoincrement())
+  project_id         Int?
+  contact_id         Int
+  communication_date DateTime  @default(now())
+  type               String?
+  notes              String?
+
+  project projects? @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  contact contacts  @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+
+  @@map("communications_log")
+}
+
+model documents {
+  id            Int             @id @default(autoincrement())
+  project_id    Int?
+  inquiry_id    Int?
+  file_name     String?
+  file_path     String?
+  document_type String?
+  status        document_status @default(Active)
+  upload_date   DateTime?       @default(now())
+
+  project projects?  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry inquiries? @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+
+  @@map("documents")
+}
+
+model client_feedback_surveys {
+  id                  Int       @id @default(autoincrement())
+  project_id          Int
+  sent_date           DateTime?
+  response_date       DateTime?
+  satisfaction_rating Int?      
+  nps_score           Int?      
+  feedback_text       String?
+
+  project projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("client_feedback_surveys")
+}
+
+model task_comments {
+  id             Int                       @id @default(autoincrement())
+  task_id        Int
+  contributor_id Int?
+  comment_text   String
+  created_at     DateTime?                 @default(now())
+  visibility     task_comment_visibility? 
+
+  task        tasks         @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  contributor contributors? @relation(fields: [contributor_id], references: [id], onDelete: SetNull)
+
+  @@map("task_comments")
+}
+
+model calendar_sync_tokens {
+  id             Int                    @id @default(autoincrement())
+  contributor_id Int                    @unique
+  provider       calendar_sync_provider
+  refresh_token  String
+
+  contributor contributors @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+
+  @@map("calendar_sync_tokens")
 }
