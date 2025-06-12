@@ -30,12 +30,12 @@ jobs:
       - name: Deploy Frontend to Vercel
         working-directory: ./packages/frontend
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }} # Token for authentication
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }} # This makes it available to the shell
         run: |
           if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/master" ]; then
-            vercel deploy --prod --yes
+            vercel deploy --prod --token $VERCEL_TOKEN --yes
           else
-            vercel deploy --yes
+            vercel deploy --token $VERCEL_TOKEN --yes
           fi
 
   deploy-backend:
