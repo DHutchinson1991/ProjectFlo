@@ -1,29 +1,110 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 🎬 ProjectFlo Backend API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A comprehensive NestJS backend API for ProjectFlo, providing authentication, CRUD operations, and business logic for wedding videography project management.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 🚀 Quick Start
 
-## Description
+```bash
+# Install dependencies
+pnpm install
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+# Set up environment (.env)
+DATABASE_URL="postgresql://username:password@localhost:5432/projectflo"
+JWT_SECRET="your-secure-jwt-secret"
+PORT=3002
+
+# Set up database
+npx prisma generate
+npx prisma db push
+npx prisma db seed
+
+# Start development server
+pnpm dev
+```
+
+## 🔌 API Access
+
+- **Base URL:** http://localhost:3002
+- **API Documentation:** http://localhost:3002/api (Swagger UI)
+- **Health Check:** http://localhost:3002/health
+
+## �️ Technology Stack
+
+- **Framework:** NestJS with TypeScript
+- **Database:** PostgreSQL with Prisma ORM
+- **Authentication:** JWT with Passport.js
+- **API Documentation:** Swagger/OpenAPI
+- **Validation:** class-validator and class-transformer
+
+## 📁 Module Structure
+
+```
+src/
+├── auth/                          # Authentication & Authorization
+├── contacts/                      # Contact Management (CRM)
+├── contributors/                  # Team Management
+├── coverage-scenes/               # Wedding Coverage Types
+├── deliverables/                  # Deliverable Types
+├── editing-styles/                # Video Editing Styles
+├── app.module.ts                  # Main application module
+├── main.ts                        # Application bootstrap
+└── prisma.service.ts              # Database service
+```
+
+## 🔐 Authentication
+
+**Default Credentials:**
+```
+Email: admin@projectflo.com
+Password: admin123
+```
+
+**Login Endpoint:**
+```bash
+curl -X POST http://localhost:3002/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@projectflo.com","password":"admin123"}'
+```
+
+## 🔧 Development Commands
+
+```bash
+# Development
+pnpm dev              # Start with hot reload
+pnpm build            # Build for production
+pnpm start            # Start production server
+
+# Database
+npx prisma studio     # Database GUI
+npx prisma generate   # Generate client
+npx prisma db push    # Apply schema changes
+npx prisma db seed    # Seed database
+
+# Testing
+pnpm test             # Unit tests
+pnpm test:e2e         # End-to-end tests
+```
+
+## 📚 Documentation
+
+**For complete API documentation, setup instructions, and architecture details, see:**
+
+- **[API Design Spec](../../Plan/System%20Architecture/API%20Design%20Spec.md)** - Complete API endpoints and examples
+- **[DevOps Guide](../../Plan/System%20Architecture/DevOps%20Guide.md)** - Development setup and deployment
+- **[Database Design](../../Plan/Database%20Design.md)** - Database schema and relationships
+
+## 🎯 Key API Modules
+
+- **`/auth`** - Authentication and user management
+- **`/contacts`** - Client and vendor contact management
+- **`/contributors`** - Team member management
+- **`/coverage-scenes`** - Wedding coverage scene types
+- **`/deliverables`** - Deliverable type management
+- **`/editing-styles`** - Video editing style options
+
+---
+
+**See the main [ProjectFlo README](../../README.md) for complete project information.**
 
 ## Project setup
 

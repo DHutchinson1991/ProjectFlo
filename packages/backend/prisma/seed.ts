@@ -463,6 +463,388 @@ async function main() {
 
     console.log("✅ Sample Clients seeded.");
 
+    // --- Enhanced Deliverable System Seed Data ---
+    console.log("🎬 Seeding Enhanced Deliverable Components...");
+
+    // Video Components with realistic wedding videography tasks
+    const ceremonyProcessional = await prisma.componentLibrary.create({
+      data: {
+        name: "Ceremony Processional",
+        description: "Bridal party and bride entrance footage",
+        type: "COVERAGE_LINKED",
+        complexity_score: 4,
+        estimated_duration: 3,
+        base_task_hours: 2.5,
+        component_tasks: {
+          create: [
+            {
+              task_template_name: "Film Coverage Scene",
+              hours_required: 0.5,
+              order_index: 1,
+            },
+            {
+              task_template_name: "Edit Highlight Sequence",
+              hours_required: 2.0,
+              order_index: 2,
+            },
+          ],
+        },
+      },
+    });
+
+    const vowsExchange = await prisma.componentLibrary.create({
+      data: {
+        name: "Vows Exchange",
+        description: "Personal vows and ring exchange with audio enhancement",
+        type: "COVERAGE_LINKED",
+        complexity_score: 6,
+        estimated_duration: 4,
+        base_task_hours: 3.5,
+        component_tasks: {
+          create: [
+            {
+              task_template_name: "Film Coverage Scene",
+              hours_required: 0.5,
+              order_index: 1,
+            },
+            {
+              task_template_name: "Audio Enhancement",
+              hours_required: 1.0,
+              order_index: 2,
+            },
+            {
+              task_template_name: "Edit Highlight Sequence",
+              hours_required: 2.0,
+              order_index: 3,
+            },
+          ],
+        },
+      },
+    });
+
+    const receptionDancing = await prisma.componentLibrary.create({
+      data: {
+        name: "Reception Dancing",
+        description: "First dance and party dancing with multi-camera editing",
+        type: "COVERAGE_LINKED",
+        complexity_score: 7,
+        estimated_duration: 5,
+        base_task_hours: 4.0,
+        component_tasks: {
+          create: [
+            {
+              task_template_name: "Film Coverage Scene",
+              hours_required: 1.0,
+              order_index: 1,
+            },
+            {
+              task_template_name: "Multi-Camera Editing",
+              hours_required: 2.5,
+              order_index: 2,
+            },
+            {
+              task_template_name: "Music Synchronization",
+              hours_required: 0.5,
+              order_index: 3,
+            },
+          ],
+        },
+      },
+    });
+
+    const openingTitle = await prisma.componentLibrary.create({
+      data: {
+        name: "Opening Title Sequence",
+        description: "Branded opening with couple names and graphics",
+        type: "EDIT",
+        complexity_score: 3,
+        estimated_duration: 1,
+        base_task_hours: 2.0,
+        component_tasks: {
+          create: [
+            {
+              task_template_name: "Motion Graphics Creation",
+              hours_required: 1.5,
+              order_index: 1,
+            },
+            {
+              task_template_name: "Typography Design",
+              hours_required: 0.5,
+              order_index: 2,
+            },
+          ],
+        },
+      },
+    });
+
+    const transitionGraphics = await prisma.componentLibrary.create({
+      data: {
+        name: "Transition Graphics",
+        description: "Scene transitions and lower thirds",
+        type: "EDIT",
+        complexity_score: 4,
+        estimated_duration: 2,
+        base_task_hours: 1.5,
+        component_tasks: {
+          create: [
+            {
+              task_template_name: "Motion Graphics Creation",
+              hours_required: 1.0,
+              order_index: 1,
+            },
+            {
+              task_template_name: "Color Grading",
+              hours_required: 0.5,
+              order_index: 2,
+            },
+          ],
+        },
+      },
+    });
+
+    console.log("💰 Seeding Admin Pricing Modifiers...");
+
+    // Admin-configurable pricing modifiers
+    await prisma.pricingModifier.createMany({
+      data: [
+        {
+          name: "Peak Wedding Season",
+          type: "PEAK_SEASON",
+          multiplier: 1.25, // 25% increase
+          is_active: true,
+          conditions: {
+            months: [5, 6, 7, 8, 9], // May through September
+          },
+        },
+        {
+          name: "Rush Job (< 2 weeks)",
+          type: "RUSH_JOB",
+          multiplier: 1.5, // 50% increase
+          is_active: true,
+          conditions: {
+            days_notice: { lt: 14 },
+          },
+        },
+        {
+          name: "Saturday Premium",
+          type: "DAY_OF_WEEK",
+          multiplier: 1.15, // 15% increase
+          is_active: true,
+          conditions: {
+            day_of_week: [6], // Saturday
+          },
+        },
+        {
+          name: "Friday/Sunday Discount",
+          type: "DAY_OF_WEEK",
+          multiplier: 0.9, // 10% discount
+          is_active: true,
+          conditions: {
+            day_of_week: [5, 0], // Friday, Sunday
+          },
+        },
+        {
+          name: "Volume Discount (5+ components)",
+          type: "VOLUME_DISCOUNT",
+          multiplier: 0.85, // 15% discount
+          is_active: true,
+          conditions: {
+            component_count: { gte: 5 },
+          },
+        },
+      ],
+    });
+
+    console.log("🎬 Seeding Timeline Layers...");
+
+    // Default timeline layers for video editing workflow
+    await prisma.timelineLayer.upsert({
+      where: { name: "Video" },
+      update: {},
+      create: {
+        name: "Video",
+        order_index: 1,
+        color_hex: "#3B82F6", // Blue
+        description: "Primary video track for main footage",
+        is_active: true,
+      },
+    });
+
+    await prisma.timelineLayer.upsert({
+      where: { name: "Audio" },
+      update: {},
+      create: {
+        name: "Audio",
+        order_index: 2,
+        color_hex: "#10B981", // Green
+        description: "Audio track for ceremonies, vows, and ambient sound",
+        is_active: true,
+      },
+    });
+
+    await prisma.timelineLayer.upsert({
+      where: { name: "Music" },
+      update: {},
+      create: {
+        name: "Music",
+        order_index: 3,
+        color_hex: "#8B5CF6", // Purple
+        description: "Background music and soundtrack",
+        is_active: true,
+      },
+    });
+
+    await prisma.timelineLayer.upsert({
+      where: { name: "Graphics" },
+      update: {},
+      create: {
+        name: "Graphics",
+        order_index: 4,
+        color_hex: "#F59E0B", // Amber
+        description: "Titles, overlays, and graphic elements",
+        is_active: true,
+      },
+    });
+
+    await prisma.timelineLayer.upsert({
+      where: { name: "B-Roll" },
+      update: {},
+      create: {
+        name: "B-Roll",
+        order_index: 5,
+        color_hex: "#EF4444", // Red
+        description: "Supporting footage and cutaway shots",
+        is_active: true,
+      },
+    });
+
+    console.log("📦 Creating Enhanced Deliverable Templates...");
+
+    // Update existing deliverables with component-based configuration
+    const featureFilm = await prisma.deliverables.findFirst({
+      where: { name: "Feature Film (10-15 min)" },
+    });
+
+    if (featureFilm) {
+      await prisma.deliverables.update({
+        where: { id: featureFilm.id },
+        data: {
+          type: "STANDARD",
+          includes_music: true,
+          default_music_type: "ORCHESTRAL",
+          delivery_timeline: 45,
+          version: "1.0",
+          assigned_components: {
+            create: [
+              {
+                component_id: ceremonyProcessional.id,
+                order_index: 1,
+                calculated_task_hours: 2.5,
+                calculated_base_price: 187.5, // 2.5 hours * $75/hr
+              },
+              {
+                component_id: vowsExchange.id,
+                order_index: 2,
+                calculated_task_hours: 3.5,
+                calculated_base_price: 262.5, // 3.5 hours * $75/hr
+              },
+              {
+                component_id: receptionDancing.id,
+                order_index: 3,
+                calculated_task_hours: 4.0,
+                calculated_base_price: 300.0, // 4.0 hours * $75/hr
+              },
+              {
+                component_id: openingTitle.id,
+                order_index: 4,
+                calculated_task_hours: 2.0,
+                calculated_base_price: 150.0, // 2.0 hours * $75/hr
+              },
+              {
+                component_id: transitionGraphics.id,
+                order_index: 5,
+                calculated_task_hours: 1.5,
+                calculated_base_price: 112.5, // 1.5 hours * $75/hr
+              },
+            ],
+          },
+        },
+      });
+    }
+
+    const highlightReel = await prisma.deliverables.findFirst({
+      where: { name: "Highlight Film (3-5 min)" },
+    });
+
+    if (highlightReel) {
+      await prisma.deliverables.update({
+        where: { id: highlightReel.id },
+        data: {
+          type: "STANDARD",
+          includes_music: true,
+          default_music_type: "MODERN",
+          delivery_timeline: 21,
+          version: "1.0",
+          assigned_components: {
+            create: [
+              {
+                component_id: ceremonyProcessional.id,
+                order_index: 1,
+                calculated_task_hours: 1.5, // Reduced for highlight version
+                calculated_base_price: 112.5,
+              },
+              {
+                component_id: receptionDancing.id,
+                order_index: 2,
+                calculated_task_hours: 2.0, // Reduced for highlight version
+                calculated_base_price: 150.0,
+              },
+            ],
+          },
+        },
+      });
+    }
+
+    // Connect components to coverage scenes
+    const ceremonyScene = await prisma.coverage_scenes.findFirst({
+      where: { name: "Ceremony" },
+    });
+
+    if (ceremonyScene) {
+      await prisma.componentCoverageScene.createMany({
+        data: [
+          {
+            component_id: ceremonyProcessional.id,
+            coverage_scene_id: ceremonyScene.id,
+          },
+          {
+            component_id: vowsExchange.id,
+            coverage_scene_id: ceremonyScene.id,
+          },
+        ],
+      });
+    }
+
+    const receptionScene = await prisma.coverage_scenes.findFirst({
+      where: { name: "Reception" },
+    });
+
+    if (receptionScene) {
+      await prisma.componentCoverageScene.create({
+        data: {
+          component_id: receptionDancing.id,
+          coverage_scene_id: receptionScene.id,
+        },
+      });
+    }
+
+    console.log("✅ Enhanced deliverable system seeded successfully!");
+    console.log(`   • Created ${5} video components with task recipes`);
+    console.log(`   • Added ${5} pricing modifiers for admin control`);
+    console.log(`   • Updated deliverables with component associations`);
+    console.log(`   • Connected components to coverage scenes`);
+    console.log("");
+
     console.log("🎉 Wedding Video Business database seeded successfully!");
     console.log("");
     console.log("📋 Login Credentials:");

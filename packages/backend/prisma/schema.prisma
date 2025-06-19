@@ -1,5 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,9 +7,909 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ===============================================
-// ENUMERATED TYPES
-// ===============================================
+model contacts {
+  id                 Int                  @id @default(autoincrement())
+  first_name         String?
+  last_name          String?
+  email              String               @unique
+  phone_number       String?
+  company_name       String?
+  type               contacts_type
+  archived_at        DateTime?
+  activities         activities[]
+  client             clients?
+  communications_log communications_log[]
+  contributor        contributors?
+  inquiries          inquiries[]
+
+  @@index([email])
+  @@index([type])
+  @@map("contacts")
+}
+
+model coverage_scenes {
+  id                         Int                          @id @default(autoincrement())
+  name                       String                       @unique
+  description                String?
+  build_components           build_components[]
+  build_coverage_assignments build_coverage_assignments[]
+  component_coverage_scenes  ComponentCoverageScene[]
+  component_task_recipes     component_task_recipes[]
+  template_defaults          ComponentTemplateDefaults[]
+  project_assets             project_assets[]
+  task_generation_rules      task_generation_rules[]
+
+  @@map("coverage_scenes")
+}
+
+model deliverable_categories {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  code        String   @unique
+  description String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("deliverable_categories")
+}
+
+model deliverables {
+  id                     Int                             @id @default(autoincrement())
+  name                   String                          @unique
+  description            String?
+  created_at             DateTime                        @default(now())
+  default_music_type     MusicType?
+  delivery_timeline      Int?
+  includes_music         Boolean                         @default(true)
+  is_active              Boolean                         @default(true)
+  type                   DeliverableType                 @default(STANDARD)
+  updated_at             DateTime                        @updatedAt
+  version                String                          @default("1.0")
+  build_deliverables     build_deliverables[]
+  component_task_recipes component_task_recipes[]
+  template_defaults      ComponentTemplateDefaults[]
+  usage_analytics        ComponentUsageAnalytics[]
+  assigned_components    DeliverableAssignedComponents[]
+  change_logs            DeliverableChangeLog[]
+  music_tracks           DeliverableMusicTrack[]
+  versions               DeliverableVersion[]
+  timeline_changes       TimelineChangeLog[]
+  timeline_components    TimelineComponent[]
+  timeline_sessions      TimelineEditingSession[]
+
+  @@map("deliverables")
+}
+
+model editing_styles {
+  id                         Int                          @id @default(autoincrement())
+  name                       String                       @unique
+  description                String?
+  build_components           build_components[]
+  component_task_recipes     component_task_recipes[]
+  template_defaults          ComponentTemplateDefaults[]
+  editing_style_requirements editing_style_requirements[]
+
+  @@map("editing_styles")
+}
+
+model ComponentLibrary {
+  id                      Int                             @id @default(autoincrement())
+  name                    String
+  description             String?
+  type                    ComponentType
+  complexity_score        Int                             @default(5)
+  estimated_duration      Int?
+  default_editing_style   String?
+  base_task_hours         Decimal                         @default(0.00) @db.Decimal(5, 2)
+  created_at              DateTime                        @default(now())
+  updated_at              DateTime                        @updatedAt
+  usage_count             Int?                            @default(0)
+  last_used_at            DateTime?
+  average_actual_duration Decimal?                        @db.Decimal(8, 2)
+  performance_score       Decimal?                        @default(5.0) @db.Decimal(3, 2)
+  computed_task_count     Int?
+  computed_total_hours    Decimal?                        @db.Decimal(8, 2)
+  coverage_scenes         ComponentCoverageScene[]
+  dependent_components    ComponentDependency[]           @relation("DependentComponent")
+  parent_dependencies     ComponentDependency[]           @relation("ParentDependency")
+  music_options           ComponentMusicOption[]
+  usage_analytics         ComponentUsageAnalytics[]
+  deliverable_assignments DeliverableAssignedComponents[]
+  timeline_changes        TimelineChangeLog[]
+  timeline_components     TimelineComponent[]
+  component_tasks         ComponentTaskRecipe[]
+
+  @@map("component_library")
+}
+
+model DeliverableAssignedComponents {
+  deliverable_id        Int
+  component_id          Int
+  order_index           Int
+  editing_style         String?
+  duration_override     Int?
+  calculated_task_hours Decimal?         @db.Decimal(5, 2)
+  calculated_base_price Decimal?         @db.Decimal(10, 2)
+  created_at            DateTime         @default(now())
+  updated_at            DateTime         @updatedAt
+  component             ComponentLibrary @relation(fields: [component_id], references: [id])
+  deliverable           deliverables     @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+
+  @@id([deliverable_id, component_id])
+  @@map("deliverable_assigned_components")
+}
+
+model ComponentCoverageScene {
+  component_id      Int
+  coverage_scene_id Int
+  component         ComponentLibrary @relation(fields: [component_id], references: [id], onDelete: Cascade)
+  coverage_scene    coverage_scenes  @relation(fields: [coverage_scene_id], references: [id])
+
+  @@id([component_id, coverage_scene_id])
+  @@map("component_coverage_scenes")
+}
+
+model ComponentMusicOption {
+  id           Int              @id @default(autoincrement())
+  component_id Int
+  music_type   MusicType
+  weight       Int              @default(5)
+  component    ComponentLibrary @relation(fields: [component_id], references: [id], onDelete: Cascade)
+
+  @@map("component_music_options")
+}
+
+model ComponentTaskRecipe {
+  id                 Int              @id @default(autoincrement())
+  component_id       Int
+  task_template_name String
+  hours_required     Decimal          @db.Decimal(4, 2)
+  order_index        Int              @default(0)
+  component          ComponentLibrary @relation(fields: [component_id], references: [id], onDelete: Cascade)
+
+  @@map("video_component_tasks")
+}
+
+model DeliverableMusicTrack {
+  id             Int          @id @default(autoincrement())
+  deliverable_id Int
+  music_type     MusicType
+  track_name     String?
+  artist         String?
+  duration       Int?
+  order_index    Int          @default(0)
+  deliverable    deliverables @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+
+  @@map("deliverable_music_tracks")
+}
+
+model PricingModifier {
+  id         Int                 @id @default(autoincrement())
+  name       String
+  type       PricingModifierType
+  multiplier Decimal             @db.Decimal(4, 2)
+  is_active  Boolean             @default(true)
+  conditions Json?
+  created_at DateTime            @default(now())
+  updated_at DateTime            @updatedAt
+
+  @@map("pricing_modifiers")
+}
+
+model DeliverableVersion {
+  id                  Int          @id @default(autoincrement())
+  deliverable_id      Int
+  version_number      String
+  change_summary      String
+  changed_by_id       Int
+  created_at          DateTime     @default(now())
+  components_snapshot Json
+  pricing_snapshot    Json
+  changed_by          contributors @relation("DeliverableVersionCreator", fields: [changed_by_id], references: [id])
+  deliverable         deliverables @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+
+  @@map("deliverable_versions")
+}
+
+model DeliverableChangeLog {
+  id             Int          @id @default(autoincrement())
+  deliverable_id Int
+  change_type    String
+  old_value      Json?
+  new_value      Json?
+  changed_by_id  Int
+  created_at     DateTime     @default(now())
+  changed_by     contributors @relation("DeliverableChangeUser", fields: [changed_by_id], references: [id])
+  deliverable    deliverables @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+
+  @@map("deliverable_change_logs")
+}
+
+model operator_types {
+  id                         Int                          @id @default(autoincrement())
+  name                       String                       @unique
+  default_hourly_rate        Decimal?                     @db.Decimal(8, 2)
+  default_fixed_price        Decimal?                     @db.Decimal(10, 2)
+  pricing_type               pricing_type_options         @default(Hourly)
+  build_coverage_assignments build_coverage_assignments[]
+
+  @@map("operator_types")
+}
+
+model billable_items {
+  id                         Int                          @id @default(autoincrement())
+  name                       String                       @unique
+  description                String?
+  category                   String?
+  price                      Decimal                      @db.Decimal(10, 2)
+  pricing_type               billable_item_pricing_type   @default(Fixed)
+  is_active                  Boolean                      @default(true)
+  build_billable_items       build_billable_items[]
+  editing_style_requirements editing_style_requirements[]
+
+  @@map("billable_items")
+}
+
+model task_templates {
+  id                          Int                           @id @default(autoincrement())
+  name                        String                        @unique
+  phase                       String?
+  effort_hours                Decimal?                      @db.Decimal(8, 2)
+  effort_calculation_rules    Json?
+  pricing_type                pricing_type_options          @default(Hourly)
+  fixed_price                 Decimal?                      @db.Decimal(10, 2)
+  average_duration_hours      Decimal?                      @db.Decimal(8, 2)
+  component_task_recipes      component_task_recipes[]
+  contributor_skill_rates     contributor_skill_rates[]
+  contributor_task_benchmarks contributor_task_benchmarks[]
+  tasks                       tasks[]
+  task_generation_rules       task_generation_rules[]
+
+  @@map("task_templates")
+}
+
+model roles {
+  id                  Int                   @id @default(autoincrement())
+  name                String                @unique
+  description         String?
+  contributors        contributors[]
+  project_assignments project_assignments[]
+  role_permissions    role_permissions[]
+
+  @@map("roles")
+}
+
+model permissions {
+  id               Int                @id @default(autoincrement())
+  action_name      String             @unique
+  description      String?
+  role_permissions role_permissions[]
+
+  @@map("permissions")
+}
+
+model role_permissions {
+  role_id       Int
+  permission_id Int
+  permission    permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+  role          roles       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@id([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+model inquiries {
+  id                  Int              @id @default(autoincrement())
+  contact_id          Int
+  wedding_date        DateTime?
+  status              inquiries_status @default(New)
+  notes               String?
+  venue_details       String?
+  follow_up_due_date  DateTime?
+  lead_source         String?
+  lead_source_details String?
+  campaign_id         String?
+  archived_at         DateTime?
+  activities          activities[]
+  build               builds?
+  client              clients?
+  documents           documents[]
+  contact             contacts         @relation(fields: [contact_id], references: [id])
+
+  @@map("inquiries")
+}
+
+model clients {
+  id          Int           @id @default(autoincrement())
+  contact_id  Int           @unique
+  inquiry_id  Int?          @unique
+  archived_at DateTime?
+  builds      builds[]
+  client_user client_users?
+  contact     contacts      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  inquiry     inquiries?    @relation(fields: [inquiry_id], references: [id])
+  projects    projects[]
+
+  @@map("clients")
+}
+
+model client_users {
+  id              Int       @id @default(autoincrement())
+  client_id       Int       @unique
+  email           String    @unique
+  password_hash   String
+  last_login_date DateTime?
+  client          clients   @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@map("client_users")
+}
+
+model projects {
+  id                      Int                       @id @default(autoincrement())
+  client_id               Int
+  workflow_template_id    Int?
+  project_name            String?
+  wedding_date            DateTime
+  booking_date            DateTime?
+  edit_start_date         DateTime?
+  phase                   String?
+  archived_at             DateTime?
+  activities              activities[]
+  build                   builds?
+  calendar_events         calendar_events[]
+  client_feedback_surveys client_feedback_surveys[]
+  communications_log      communications_log[]
+  documents               documents[]
+  invoices                invoices[]
+  project_assets          project_assets[]
+  project_assignments     project_assignments[]
+  project_expenses        project_expenses[]
+  client                  clients                   @relation(fields: [client_id], references: [id])
+  workflow_template       workflow_templates?       @relation(fields: [workflow_template_id], references: [id])
+  tasks                   tasks[]
+  generated_task_logs     generated_task_log[]
+
+  @@unique([client_id, wedding_date])
+  @@index([wedding_date])
+  @@map("projects")
+}
+
+model contributors {
+  id                             Int                           @id @default(autoincrement())
+  contact_id                     Int                           @unique
+  role_id                        Int?
+  contributor_type               contributors_type?
+  password_hash                  String
+  archived_at                    DateTime?
+  default_hourly_rate            Decimal                       @default(0.00) @db.Decimal(8, 2)
+  activities_assigned            activities[]
+  audit_logs                     audit_log[]
+  calendar_events                calendar_events[]
+  calendar_sync_token            calendar_sync_tokens?
+  component_dependencies_created ComponentDependency[]
+  usage_analytics_created        ComponentUsageAnalytics[]
+  contributor_skill_rates        contributor_skill_rates[]
+  contributor_task_benchmarks    contributor_task_benchmarks[]
+  contact                        contacts                      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  role                           roles?                        @relation(fields: [role_id], references: [id], onDelete: Restrict)
+  deliverable_changes_made       DeliverableChangeLog[]        @relation("DeliverableChangeUser")
+  deliverable_versions_created   DeliverableVersion[]          @relation("DeliverableVersionCreator")
+  notifications_received         notifications[]
+  project_assignments            project_assignments[]
+  task_comments_made             task_comments[]
+  tasks_assigned                 tasks[]                       @relation("AssignedTasks")
+  timeline_changes_made          TimelineChangeLog[]
+  timeline_components_created    TimelineComponent[]
+  timeline_sessions              TimelineEditingSession[]
+
+  @@map("contributors")
+}
+
+model contributor_skill_rates {
+  id               Int            @id @default(autoincrement())
+  contributor_id   Int
+  task_template_id Int
+  rate             Decimal        @db.Decimal(8, 2)
+  contributor      contributors   @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  task_template    task_templates @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
+
+  @@unique([contributor_id, task_template_id])
+  @@map("contributor_skill_rates")
+}
+
+model project_assignments {
+  id             Int          @id @default(autoincrement())
+  project_id     Int
+  contributor_id Int
+  role_id        Int
+  contributor    contributors @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  project        projects     @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  role           roles        @relation(fields: [role_id], references: [id])
+
+  @@unique([project_id, contributor_id])
+  @@map("project_assignments")
+}
+
+model ComponentTemplateDefaults {
+  id                       Int              @id @default(autoincrement())
+  deliverable_id           Int
+  coverage_scene_id        Int?
+  default_editing_style_id Int
+  default_target_minutes   Decimal?         @db.Decimal(8, 2)
+  default_is_included      Boolean          @default(true)
+  coverage_scene           coverage_scenes? @relation(fields: [coverage_scene_id], references: [id], onDelete: Cascade)
+  default_editing_style    editing_styles   @relation(fields: [default_editing_style_id], references: [id])
+  deliverable              deliverables     @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+
+  @@map("component_template_defaults")
+}
+
+model editing_style_requirements {
+  id               Int            @id @default(autoincrement())
+  editing_style_id Int
+  billable_item_id Int
+  quantity         Int            @default(1)
+  billable_item    billable_items @relation(fields: [billable_item_id], references: [id], onDelete: Cascade)
+  editing_style    editing_styles @relation(fields: [editing_style_id], references: [id], onDelete: Cascade)
+
+  @@unique([editing_style_id, billable_item_id], map: "idx_style_item_unique")
+  @@map("editing_style_requirements")
+}
+
+model component_task_recipes {
+  id                Int              @id @default(autoincrement())
+  deliverable_id    Int?
+  coverage_scene_id Int?
+  editing_style_id  Int?
+  task_template_id  Int
+  priority          Int              @default(0)
+  coverage_scene    coverage_scenes? @relation(fields: [coverage_scene_id], references: [id], onDelete: Cascade)
+  deliverable       deliverables?    @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+  editing_style     editing_styles?  @relation(fields: [editing_style_id], references: [id], onDelete: Cascade)
+  task_template     task_templates   @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
+
+  @@map("component_task_recipes")
+}
+
+model builds {
+  id                         Int                          @id @default(autoincrement())
+  client_id                  Int?
+  inquiry_id                 Int?                         @unique
+  project_id                 Int?                         @unique
+  status                     builds_status
+  configuration_locked_at    DateTime?
+  approved_price             Decimal                      @default(0.00) @db.Decimal(10, 2)
+  live_price                 Decimal                      @default(0.00) @db.Decimal(10, 2)
+  total_paid                 Decimal                      @default(0.00) @db.Decimal(10, 2)
+  archived_at                DateTime?
+  build_billable_items       build_billable_items[]
+  build_change_orders        build_change_orders[]
+  build_coverage_assignments build_coverage_assignments[]
+  build_deliverables         build_deliverables[]
+  build_snapshots            build_snapshots[]
+  client                     clients?                     @relation(fields: [client_id], references: [id])
+  inquiry                    inquiries?                   @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project                    projects?                    @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  usage_analytics            ComponentUsageAnalytics[]
+
+  @@map("builds")
+}
+
+model build_coverage_assignments {
+  id                  Int             @id @default(autoincrement())
+  build_id            Int
+  coverage_scene_id   Int
+  operator_type_id    Int
+  quantity            Int             @default(1)
+  rate_at_time_of_add Decimal         @db.Decimal(8, 2)
+  build               builds          @relation(fields: [build_id], references: [id], onDelete: Cascade)
+  coverage_scene      coverage_scenes @relation(fields: [coverage_scene_id], references: [id])
+  operator_type       operator_types  @relation(fields: [operator_type_id], references: [id])
+
+  @@map("build_coverage_assignments")
+}
+
+model build_deliverables {
+  id               Int                @id @default(autoincrement())
+  build_id         Int
+  deliverable_id   Int
+  build_components build_components[]
+  build            builds             @relation(fields: [build_id], references: [id], onDelete: Cascade)
+  deliverable      deliverables       @relation(fields: [deliverable_id], references: [id])
+
+  @@map("build_deliverables")
+}
+
+model build_components {
+  id                   Int                @id @default(autoincrement())
+  build_deliverable_id Int
+  coverage_scene_id    Int
+  editing_style_id     Int
+  target_minutes       Decimal?           @db.Decimal(8, 2)
+  is_included          Boolean?           @default(true)
+  calculated_price     Decimal?           @db.Decimal(10, 2)
+  build_deliverable    build_deliverables @relation(fields: [build_deliverable_id], references: [id], onDelete: Cascade)
+  coverage_scene       coverage_scenes    @relation(fields: [coverage_scene_id], references: [id])
+  editing_style        editing_styles     @relation(fields: [editing_style_id], references: [id])
+  tasks                tasks[]
+
+  @@map("build_components")
+}
+
+model build_billable_items {
+  id                   Int            @id @default(autoincrement())
+  build_id             Int
+  billable_item_id     Int
+  quantity             Int            @default(1)
+  price_at_time_of_add Decimal        @db.Decimal(10, 2)
+  notes                String?
+  billable_item        billable_items @relation(fields: [billable_item_id], references: [id])
+  build                builds         @relation(fields: [build_id], references: [id], onDelete: Cascade)
+
+  @@map("build_billable_items")
+}
+
+model build_change_orders {
+  id                       Int                 @id @default(autoincrement())
+  build_id                 Int
+  version_number           Int
+  price_delta              Decimal             @db.Decimal(10, 2)
+  new_total_approved_price Decimal             @db.Decimal(10, 2)
+  description              String
+  status                   change_order_status
+  discount_type            discount_type_enum?
+  discount_percentage      Decimal?            @db.Decimal(5, 2)
+  discount_amount          Decimal?            @db.Decimal(10, 2)
+  discount_reason          String?
+  created_at               DateTime?           @default(now())
+  build                    builds              @relation(fields: [build_id], references: [id], onDelete: Cascade)
+  build_snapshots          build_snapshots[]
+
+  @@map("build_change_orders")
+}
+
+model build_snapshots {
+  id              Int                 @id @default(autoincrement())
+  build_id        Int
+  change_order_id Int
+  snapshot_data   Json
+  created_at      DateTime?           @default(now())
+  build           builds              @relation(fields: [build_id], references: [id], onDelete: Cascade)
+  change_order    build_change_orders @relation(fields: [change_order_id], references: [id], onDelete: Cascade)
+
+  @@map("build_snapshots")
+}
+
+model tasks {
+  id                          Int                 @id @default(autoincrement())
+  project_id                  Int
+  build_component_id          Int
+  task_template_id            Int
+  planned_duration_hours      Decimal?            @db.Decimal(8, 2)
+  actual_duration_hours       Decimal?            @db.Decimal(8, 2)
+  status                      tasks_status        @default(To_Do)
+  due_date                    DateTime?
+  assigned_to_contributor_id  Int?
+  is_client_visible           Boolean?            @default(false)
+  rate_at_time_of_assignment  Decimal             @default(0.00) @db.Decimal(8, 2)
+  task_comments               task_comments[]
+  task_dependencies_blocking  task_dependencies[] @relation("BlockingTasks")
+  task_dependencies_dependent task_dependencies[] @relation("DependentTasks")
+  assigned_to_contributor     contributors?       @relation("AssignedTasks", fields: [assigned_to_contributor_id], references: [id])
+  build_component             build_components    @relation(fields: [build_component_id], references: [id], onDelete: Cascade)
+  project                     projects            @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  task_template               task_templates      @relation(fields: [task_template_id], references: [id])
+  generated_task_logs         generated_task_log[]
+
+  @@index([status])
+  @@index([due_date])
+  @@index([assigned_to_contributor_id])
+  @@map("tasks")
+}
+
+model calendar_events {
+  id             Int                 @id @default(autoincrement())
+  contributor_id Int
+  project_id     Int?
+  title          String
+  start_time     DateTime
+  end_time       DateTime
+  is_all_day     Boolean             @default(false)
+  event_type     calendar_event_type
+  description    String?
+  contributor    contributors        @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  project        projects?           @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@index([contributor_id, start_time, end_time])
+  @@map("calendar_events")
+}
+
+model project_assets {
+  id                Int                 @id @default(autoincrement())
+  project_id        Int
+  coverage_scene_id Int?
+  file_name         String?
+  storage_path      String?
+  asset_type        project_asset_type?
+  coverage_scene    coverage_scenes?    @relation(fields: [coverage_scene_id], references: [id])
+  project           projects            @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("project_assets")
+}
+
+model contributor_task_benchmarks {
+  contributor_id            Int
+  task_template_id          Int
+  contributor_default_hours Decimal?       @db.Decimal(8, 2)
+  contributor_average_hours Decimal?       @db.Decimal(8, 2)
+  contributor               contributors   @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  task_template             task_templates @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
+
+  @@id([contributor_id, task_template_id])
+  @@map("contributor_task_benchmarks")
+}
+
+model invoices {
+  id             Int        @id @default(autoincrement())
+  project_id     Int
+  invoice_number String?    @unique
+  issue_date     DateTime?
+  due_date       DateTime?
+  total_amount   Decimal    @db.Decimal(10, 2)
+  amount_paid    Decimal?   @default(0.00) @db.Decimal(10, 2)
+  status         String?
+  project        projects   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  payments       payments[]
+
+  @@map("invoices")
+}
+
+model payments {
+  id             Int       @id @default(autoincrement())
+  invoice_id     Int
+  payment_date   DateTime? @default(now())
+  amount         Decimal   @db.Decimal(10, 2)
+  payment_method String?
+  transaction_id String?
+  invoice        invoices  @relation(fields: [invoice_id], references: [id])
+
+  @@map("payments")
+}
+
+model project_expenses {
+  id           Int       @id @default(autoincrement())
+  project_id   Int
+  expense_date DateTime?
+  description  String?
+  category     String?
+  amount       Decimal   @db.Decimal(10, 2)
+  receipt_url  String?
+  project      projects  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("project_expenses")
+}
+
+model audit_log {
+  id             Int           @id @default(autoincrement())
+  contributor_id Int?
+  action         String
+  timestamp      DateTime      @default(now())
+  details        Json?
+  contributor    contributors? @relation(fields: [contributor_id], references: [id])
+
+  @@index([details], type: Gin)
+  @@map("audit_log")
+}
+
+model notifications {
+  id                       Int          @id @default(autoincrement())
+  recipient_contributor_id Int
+  message                  String
+  is_read                  Boolean      @default(false)
+  created_at               DateTime?    @default(now())
+  link_url                 String?
+  recipient_contributor    contributors @relation(fields: [recipient_contributor_id], references: [id], onDelete: Cascade)
+
+  @@index([recipient_contributor_id, is_read])
+  @@map("notifications")
+}
+
+model task_dependencies {
+  id                Int   @id @default(autoincrement())
+  blocking_task_id  Int
+  dependent_task_id Int
+  blocking_task     tasks @relation("BlockingTasks", fields: [blocking_task_id], references: [id], onDelete: Cascade)
+  dependent_task    tasks @relation("DependentTasks", fields: [dependent_task_id], references: [id], onDelete: Cascade)
+
+  @@map("task_dependencies")
+}
+
+model activities {
+  id                         Int             @id @default(autoincrement())
+  assigned_to_contributor_id Int
+  contact_id                 Int?
+  inquiry_id                 Int?
+  project_id                 Int?
+  due_date                   DateTime?
+  activity_type              activity_type
+  title                      String
+  notes                      String?
+  status                     activity_status @default(Pending)
+  assigned_to_contributor    contributors    @relation(fields: [assigned_to_contributor_id], references: [id], onDelete: Cascade)
+  contact                    contacts?       @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  inquiry                    inquiries?      @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project                    projects?       @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("activities")
+}
+
+model communications_log {
+  id                 Int       @id @default(autoincrement())
+  project_id         Int?
+  contact_id         Int
+  communication_date DateTime  @default(now())
+  type               String?
+  notes              String?
+  contact            contacts  @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  project            projects? @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("communications_log")
+}
+
+model documents {
+  id            Int             @id @default(autoincrement())
+  project_id    Int?
+  inquiry_id    Int?
+  file_name     String?
+  file_path     String?
+  document_type String?
+  status        document_status @default(Active)
+  upload_date   DateTime?       @default(now())
+  inquiry       inquiries?      @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project       projects?       @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("documents")
+}
+
+model client_feedback_surveys {
+  id                  Int       @id @default(autoincrement())
+  project_id          Int
+  sent_date           DateTime?
+  response_date       DateTime?
+  satisfaction_rating Int?
+  nps_score           Int?
+  feedback_text       String?
+  project             projects  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@map("client_feedback_surveys")
+}
+
+model task_comments {
+  id             Int                      @id @default(autoincrement())
+  task_id        Int
+  contributor_id Int?
+  comment_text   String
+  created_at     DateTime?                @default(now())
+  visibility     task_comment_visibility?
+  contributor    contributors?            @relation(fields: [contributor_id], references: [id])
+  task           tasks                    @relation(fields: [task_id], references: [id], onDelete: Cascade)
+
+  @@map("task_comments")
+}
+
+model calendar_sync_tokens {
+  id             Int                    @id @default(autoincrement())
+  contributor_id Int                    @unique
+  provider       calendar_sync_provider
+  refresh_token  String
+  contributor    contributors           @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+
+  @@map("calendar_sync_tokens")
+}
+
+model TimelineLayer {
+  id                  Int                 @id @default(autoincrement())
+  name                String              @unique
+  order_index         Int
+  color_hex           String
+  description         String?
+  is_active           Boolean             @default(true)
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
+  timeline_components TimelineComponent[]
+
+  @@map("timeline_layers")
+}
+
+model TimelineComponent {
+  id                 Int              @id @default(autoincrement())
+  deliverable_id     Int
+  component_id       Int
+  layer_id           Int
+  start_time_seconds Int
+  duration_seconds   Int
+  order_index        Int              @default(0)
+  notes              String?
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @updatedAt
+  created_by_id      Int?
+  component          ComponentLibrary @relation(fields: [component_id], references: [id], onDelete: Cascade)
+  created_by         contributors?    @relation(fields: [created_by_id], references: [id])
+  deliverable        deliverables     @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+  layer              TimelineLayer    @relation(fields: [layer_id], references: [id])
+
+  @@unique([deliverable_id, layer_id, start_time_seconds])
+  @@map("timeline_components")
+}
+
+model ComponentDependency {
+  id                     Int              @id @default(autoincrement())
+  parent_component_id    Int
+  dependent_component_id Int
+  dependency_type        String           @default("REQUIRED")
+  description            String?
+  created_at             DateTime         @default(now())
+  created_by_id          Int?
+  created_by             contributors?    @relation(fields: [created_by_id], references: [id])
+  dependent_component    ComponentLibrary @relation("DependentComponent", fields: [dependent_component_id], references: [id], onDelete: Cascade)
+  parent_component       ComponentLibrary @relation("ParentDependency", fields: [parent_component_id], references: [id], onDelete: Cascade)
+
+  @@unique([parent_component_id, dependent_component_id])
+  @@map("component_dependencies")
+}
+
+model ComponentUsageAnalytics {
+  id                         Int              @id @default(autoincrement())
+  component_id               Int
+  used_in_deliverable_id     Int?
+  used_in_build_id           Int?
+  usage_date                 DateTime         @default(now())
+  actual_duration_seconds    Int?
+  estimated_duration_seconds Int?
+  variance_percentage        Decimal?         @db.Decimal(5, 2)
+  user_id                    Int?
+  component                  ComponentLibrary @relation(fields: [component_id], references: [id], onDelete: Cascade)
+  used_in_build              builds?          @relation(fields: [used_in_build_id], references: [id])
+  used_in_deliverable        deliverables?    @relation(fields: [used_in_deliverable_id], references: [id])
+  user                       contributors?    @relation(fields: [user_id], references: [id])
+
+  @@map("component_usage_analytics")
+}
+
+model TimelineEditingSession {
+  id             Int                 @id @default(autoincrement())
+  deliverable_id Int
+  user_id        Int
+  session_start  DateTime            @default(now())
+  session_end    DateTime?
+  last_activity  DateTime            @default(now())
+  is_active      Boolean             @default(true)
+  change_logs    TimelineChangeLog[]
+  deliverable    deliverables        @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+  user           contributors        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([deliverable_id, user_id, session_start])
+  @@map("timeline_editing_sessions")
+}
+
+model TimelineChangeLog {
+  id             Int                     @id @default(autoincrement())
+  deliverable_id Int
+  component_id   Int?
+  change_type    String
+  old_values     Json?
+  new_values     Json?
+  changed_by_id  Int
+  changed_at     DateTime                @default(now())
+  session_id     Int?
+  changed_by     contributors            @relation(fields: [changed_by_id], references: [id])
+  component      ComponentLibrary?       @relation(fields: [component_id], references: [id])
+  deliverable    deliverables            @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+  session        TimelineEditingSession? @relation(fields: [session_id], references: [id])
+
+  @@map("timeline_change_log")
+}
 
 enum contacts_type {
   Client_Lead
@@ -118,686 +1016,105 @@ enum calendar_sync_status {
   Disabled
 }
 
-// ===============================================
-// MODELS
-// ===============================================
-
-// --- Core Tables ---
-model contacts {
-  id           Int     @id @default(autoincrement())
-  first_name   String?
-  last_name    String?
-  email        String  @unique
-  phone_number String?
-  company_name String?
-  type         contacts_type
-  archived_at  DateTime?
-
-  client             clients?
-  contributor        contributors?
-  inquiries          inquiries[]
-  activities         activities[]
-  communications_log communications_log[]
-
-  @@map("contacts")
-  @@index([email])
-  @@index([type])
+enum DeliverableType {
+  STANDARD
+  RAW_FOOTAGE
 }
 
-// --- Lookup Tables ---
-model coverage_scenes {
-  id          Int     @id @default(autoincrement())
-  name        String  @unique
-  description String?
-
-  deliverable_default_components deliverable_default_components[]
-  component_task_recipes         component_task_recipes[]
-  build_coverage_assignments     build_coverage_assignments[]
-  build_components               build_components[]
-  project_assets                 project_assets[]
-
-  @@map("coverage_scenes")
+enum ComponentType {
+  COVERAGE_LINKED
+  EDIT
 }
 
-model deliverables {
-  id          Int     @id @default(autoincrement())
-  name        String  @unique
-  description String?
-
-  deliverable_default_components deliverable_default_components[]
-  component_task_recipes         component_task_recipes[]
-  build_deliverables             build_deliverables[]
-
-  @@map("deliverables")
+enum MusicType {
+  NONE
+  SCENE_MATCHED
+  ORCHESTRAL
+  PIANO
+  MODERN
+  VINTAGE
 }
 
-model editing_styles {
-  id          Int     @id @default(autoincrement())
-  name        String  @unique
-  description String?
-
-  deliverable_default_components deliverable_default_components[]
-  editing_style_requirements     editing_style_requirements[]
-  component_task_recipes         component_task_recipes[]
-  build_components               build_components[]
-
-  @@map("editing_styles")
+enum ProcessingLevel {
+  MINIMAL
+  STANDARD
+  PREMIUM
 }
 
-// --- Operational Tables ---
-model operator_types {
-  id                  Int                  @id @default(autoincrement())
-  name                String               @unique
-  default_hourly_rate Decimal?             @db.Decimal(8, 2)
-  default_fixed_price Decimal?             @db.Decimal(10, 2)
-  pricing_type        pricing_type_options @default(Hourly)
-
-  build_coverage_assignments build_coverage_assignments[]
-
-  @@map("operator_types")
+enum DeliveryFormat {
+  MP4_H264
+  PRORES_422
+  ORIGINAL_CODEC
 }
 
-model billable_items {
-  id           Int                          @id @default(autoincrement())
-  name         String                       @unique
-  description  String?
-  category     String?
-  price        Decimal                      @db.Decimal(10, 2)
-  pricing_type billable_item_pricing_type @default(Fixed)
-  is_active    Boolean                      @default(true)
-
-  editing_style_requirements editing_style_requirements[]
-  build_billable_items       build_billable_items[]
-
-  @@map("billable_items")
+enum PricingModifierType {
+  PEAK_SEASON
+  RUSH_JOB
+  DAY_OF_WEEK
+  LOCATION
+  VOLUME_DISCOUNT
+  TIMELINE_COMPLEXITY
+  COVERAGE_COMPLEXITY
+  COMPONENT_DEPENDENCY
+  DELIVERABLE_OVERRIDE
 }
 
-model task_templates {
-  id                         Int                           @id @default(autoincrement())
-  name                       String                        @unique
-  phase                      String?
-  effort_hours               Decimal?                      @db.Decimal(8, 2)
-  effort_calculation_rules   Json?
-  pricing_type               pricing_type_options          @default(Hourly)
-  fixed_price                Decimal?                      @db.Decimal(10, 2)
-  average_duration_hours     Decimal?                      @db.Decimal(8, 2)
+// Workflow Management Models
+model workflow_templates {
+  id              Int                @id @default(autoincrement())
+  name            String             @unique
+  description     String?
+  is_active       Boolean            @default(true)
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @updatedAt
+  stages          workflow_stages[]
+  projects        projects[]
 
-  contributor_skill_rates    contributor_skill_rates[]
-  component_task_recipes     component_task_recipes[]
-  tasks                      tasks[]
-  contributor_task_benchmarks contributor_task_benchmarks[]
-
-  @@map("task_templates")
+  @@map("workflow_templates")
 }
 
-// --- Role-Based Access Control ---
-model roles {
-  id           Int     @id @default(autoincrement())
-  name         String  @unique
-  description  String?
+model workflow_stages {
+  id                    Int                     @id @default(autoincrement())
+  workflow_template_id  Int
+  name                  String
+  description           String?
+  order_index           Int
+  is_active             Boolean                 @default(true)
+  created_at            DateTime                @default(now())
+  updated_at            DateTime                @updatedAt
+  workflow_template     workflow_templates      @relation(fields: [workflow_template_id], references: [id], onDelete: Cascade)
+  task_generation_rules task_generation_rules[]
 
-  role_permissions    role_permissions[]
-  contributors        contributors[] 
-  project_assignments project_assignments[]
-
-  @@map("roles")
+  @@unique([workflow_template_id, order_index])
+  @@map("workflow_stages")
 }
 
-model permissions {
-  id          Int     @id @default(autoincrement())
-  action_name String  @unique
-  description String?
-
-  role_permissions role_permissions[]
-
-  @@map("permissions")
-}
-
-model role_permissions {
-  role_id       Int
-  permission_id Int
-
-  role       roles       @relation(fields: [role_id], references: [id], onDelete: Cascade)
-  permission permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade)
-
-  @@id([role_id, permission_id])
-  @@map("role_permissions")
-}
-
-
-// --- CRM & Project Management ---
-model inquiries {
-  id                    Int                @id @default(autoincrement())
-  contact_id            Int
-  wedding_date          DateTime?
-  status                inquiries_status   @default(New)
-  notes                 String?
-  venue_details         String?
-  follow_up_due_date    DateTime?
-  lead_source           String?
-  lead_source_details   String?
-  campaign_id           String?
-  archived_at           DateTime?
-
-  contact    contacts @relation(fields: [contact_id], references: [id], onDelete: Restrict)
-  client     clients?   
-  build      builds?    
-  documents  documents[]
-  activities activities[]
-
-  @@map("inquiries")
-}
-
-model clients {
-  id           Int        @id @default(autoincrement())
-  contact_id   Int        @unique
-  inquiry_id   Int?       @unique
-  archived_at  DateTime?
-
-  contact     contacts      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
-  inquiry     inquiries?    @relation(fields: [inquiry_id], references: [id], onDelete: SetNull)
-  client_user client_users?
-  projects    projects[]
-  builds      builds[]
-
-  @@map("clients")
-}
-
-model client_users {
-  id              Int       @id @default(autoincrement())
-  client_id       Int       @unique
-  email           String    @unique
-  password_hash   String
-  last_login_date DateTime?
-
-  client clients @relation(fields: [client_id], references: [id], onDelete: Cascade)
-
-  @@map("client_users")
-}
-
-model projects {
-  id                  Int       @id @default(autoincrement())
-  client_id           Int
-  project_name        String?
-  wedding_date        DateTime
-  booking_date        DateTime?
-  edit_start_date     DateTime?
-  phase               String?
-  archived_at         DateTime?
-
-  client                    clients                     @relation(fields: [client_id], references: [id], onDelete: Restrict)
-  project_assignments       project_assignments[]
-  tasks                     tasks[]
-  calendar_events           calendar_events[]
-  project_assets            project_assets[]
-  invoices                  invoices[]
-  project_expenses          project_expenses[]
-  communications_log        communications_log[]
-  documents                 documents[]
-  client_feedback_surveys   client_feedback_surveys[]
-  build                     builds?
-  activities                activities[]
-
-  @@map("projects")
-  @@index([wedding_date])
-  @@unique([client_id, wedding_date])
-}
-
-model contributors {
+model task_generation_rules {
   id                    Int                         @id @default(autoincrement())
-  contact_id            Int                         @unique
-  contributor_type      contributors_type?
-  default_hourly_rate   Decimal                     @default(0.00) @db.Decimal(8, 2)
-  password_hash         String                      
-  archived_at           DateTime?
-  role_id               Int?                        
+  workflow_stage_id     Int
+  task_template_id      Int
+  component_type        ComponentType?
+  coverage_scene_id     Int?
+  is_required           Boolean                     @default(true)
+  auto_assign_to_role   String?
+  conditions            Json?                       // JSON conditions for when to generate this task
+  created_at            DateTime                    @default(now())
+  updated_at            DateTime                    @updatedAt
+  workflow_stage        workflow_stages             @relation(fields: [workflow_stage_id], references: [id], onDelete: Cascade)
+  task_template         task_templates              @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
+  coverage_scene        coverage_scenes?            @relation(fields: [coverage_scene_id], references: [id])
 
-  contact                     contacts                      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
-  role                        roles?                        @relation(fields: [role_id], references: [id], onDelete: Restrict) 
-  contributor_skill_rates     contributor_skill_rates[]
-  project_assignments         project_assignments[]
-  tasks_assigned              tasks[]                       @relation("AssignedTasks")
-  calendar_events             calendar_events[]
-  contributor_task_benchmarks contributor_task_benchmarks[]
-  audit_logs                  audit_log[]
-  notifications_received      notifications[]
-  activities_assigned         activities[]
-  task_comments_made          task_comments[]
-  calendar_sync_token         calendar_sync_tokens?
-
-  @@map("contributors")
+  @@map("task_generation_rules")
 }
 
-model contributor_skill_rates {
-  id                 Int   @id @default(autoincrement())
-  contributor_id     Int
-  task_template_id   Int
-  rate               Decimal @db.Decimal(8, 2)
-
-  contributor    contributors   @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
-  task_template  task_templates @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
-
-  @@unique([contributor_id, task_template_id])
-  @@map("contributor_skill_rates")
-}
-
-model project_assignments {
-  id             Int  @id @default(autoincrement())
-  project_id     Int
-  contributor_id Int
-  role_id        Int
-
-  project     projects     @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  contributor contributors @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
-  role        roles        @relation(fields: [role_id], references: [id], onDelete: Restrict)
-
-  @@unique([project_id, contributor_id])
-  @@map("project_assignments")
-}
-
-// --- Automation Engine ---
-model deliverable_default_components {
-  id                         Int      @id @default(autoincrement())
-  deliverable_id             Int
-  coverage_scene_id          Int?
-  default_editing_style_id   Int
-  default_target_minutes     Decimal? @db.Decimal(8, 2)
-  default_is_included        Boolean  @default(true)
-
-  deliverable         deliverables     @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
-  coverage_scene      coverage_scenes? @relation(fields: [coverage_scene_id], references: [id], onDelete: Cascade) 
-  default_editing_style editing_styles   @relation(fields: [default_editing_style_id], references: [id], onDelete: Restrict)
-
-  @@map("deliverable_default_components")
-}
-
-model editing_style_requirements {
-  id               Int   @id @default(autoincrement())
-  editing_style_id Int
-  billable_item_id Int
-  quantity         Int   @default(1)
-
-  editing_style  editing_styles @relation(fields: [editing_style_id], references: [id], onDelete: Cascade)
-  billable_item  billable_items @relation(fields: [billable_item_id], references: [id], onDelete: Cascade) 
-
-  @@unique([editing_style_id, billable_item_id], map: "idx_style_item_unique")
-  @@map("editing_style_requirements")
-}
-
-model component_task_recipes {
-  id                 Int   @id @default(autoincrement())
-  deliverable_id     Int?
-  coverage_scene_id  Int?
-  editing_style_id   Int?
-  task_template_id   Int
-  priority           Int   @default(0)
-
-  deliverable     deliverables?    @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
-  coverage_scene  coverage_scenes? @relation(fields: [coverage_scene_id], references: [id], onDelete: Cascade)
-  editing_style   editing_styles?  @relation(fields: [editing_style_id], references: [id], onDelete: Cascade)
-  task_template   task_templates   @relation(fields: [task_template_id], references: [id], onDelete: Cascade) 
-
-  @@map("component_task_recipes")
-}
-
-// --- The "Build & Ledger" Engine ---
-model builds {
-  id                        Int           @id @default(autoincrement())
-  client_id                 Int?
-  inquiry_id                Int?          @unique
-  project_id                Int?          @unique
-  status                    builds_status
-  configuration_locked_at   DateTime?
-  approved_price            Decimal       @default(0.00) @db.Decimal(10, 2)
-  live_price                Decimal       @default(0.00) @db.Decimal(10, 2)
-  total_paid                Decimal       @default(0.00) @db.Decimal(10, 2)
-  archived_at               DateTime?
-
-  client                     clients?                     @relation(fields: [client_id], references: [id], onDelete: SetNull)
-  inquiry                    inquiries?                   @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
-  project                    projects?                    @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  build_coverage_assignments build_coverage_assignments[]
-  build_deliverables         build_deliverables[]
-  build_billable_items       build_billable_items[]
-  build_change_orders        build_change_orders[]
-  build_snapshots            build_snapshots[]
-
-  @@map("builds")
-}
-
-model build_coverage_assignments {
-  id                  Int    @id @default(autoincrement())
-  build_id            Int
-  coverage_scene_id   Int
-  operator_type_id    Int
-  quantity            Int    @default(1)
-  rate_at_time_of_add Decimal @db.Decimal(8, 2)
-
-  build            builds            @relation(fields: [build_id], references: [id], onDelete: Cascade)
-  coverage_scene   coverage_scenes   @relation(fields: [coverage_scene_id], references: [id], onDelete: Restrict)
-  operator_type    operator_types    @relation(fields: [operator_type_id], references: [id], onDelete: Restrict)
-
-  @@map("build_coverage_assignments")
-}
-
-model build_deliverables {
-  id             Int    @id @default(autoincrement())
-  build_id       Int
-  deliverable_id Int
-
-  build            builds            @relation(fields: [build_id], references: [id], onDelete: Cascade)
-  deliverable      deliverables      @relation(fields: [deliverable_id], references: [id], onDelete: Restrict)
-  build_components build_components[]
-
-  @@map("build_deliverables")
-}
-
-model build_components {
-  id                   Int       @id @default(autoincrement())
-  build_deliverable_id Int
-  coverage_scene_id    Int
-  editing_style_id     Int
-  target_minutes       Decimal?  @db.Decimal(8, 2)
-  is_included          Boolean?  @default(true)
-  calculated_price     Decimal?  @db.Decimal(10, 2)
-
-  build_deliverable build_deliverables @relation(fields: [build_deliverable_id], references: [id], onDelete: Cascade)
-  coverage_scene    coverage_scenes    @relation(fields: [coverage_scene_id], references: [id], onDelete: Restrict)
-  editing_style     editing_styles     @relation(fields: [editing_style_id], references: [id], onDelete: Restrict)
-  tasks             tasks[]
-
-  @@map("build_components")
-}
-
-// --- Billing & Change Order Management ---
-model build_billable_items {
-  id                     Int     @id @default(autoincrement())
-  build_id               Int
-  billable_item_id       Int
-  quantity               Int     @default(1)
-  price_at_time_of_add   Decimal @db.Decimal(10, 2)
-  notes                  String?
-
-  build          builds         @relation(fields: [build_id], references: [id], onDelete: Cascade)
-  billable_item  billable_items @relation(fields: [billable_item_id], references: [id], onDelete: Restrict)
-
-  @@map("build_billable_items")
-}
-
-model build_change_orders {
-  id                         Int                 @id @default(autoincrement())
-  build_id                   Int
-  version_number             Int
-  price_delta                Decimal             @db.Decimal(10, 2)
-  new_total_approved_price   Decimal             @db.Decimal(10, 2)
-  description                String
-  status                     change_order_status
-  discount_type              discount_type_enum?
-  discount_percentage        Decimal?            @db.Decimal(5, 2)
-  discount_amount            Decimal?            @db.Decimal(10, 2)
-  discount_reason            String?
-  created_at                 DateTime?           @default(now())
-
-  build           builds            @relation(fields: [build_id], references: [id], onDelete: Cascade)
-  build_snapshots build_snapshots[]
-
-  @@map("build_change_orders")
-}
-
-model build_snapshots {
-  id              Int       @id @default(autoincrement())
-  build_id        Int
-  change_order_id Int
-  snapshot_data   Json
-  created_at      DateTime? @default(now())
-
-  build        builds                @relation(fields: [build_id], references: [id], onDelete: Cascade)
-  change_order build_change_orders @relation(fields: [change_order_id], references: [id], onDelete: Cascade)
-
-  @@map("build_snapshots")
-}
-
-// --- Execution Layer ---
-model tasks {
-  id                           Int          @id @default(autoincrement())
-  project_id                   Int
-  build_component_id           Int
-  task_template_id             Int
-  planned_duration_hours       Decimal?     @db.Decimal(8, 2)
-  actual_duration_hours        Decimal?     @db.Decimal(8, 2)
-  status                       tasks_status @default(To_Do)
-  due_date                     DateTime?
-  assigned_to_contributor_id   Int?
-  is_client_visible            Boolean?     @default(false)
-  rate_at_time_of_assignment   Decimal      @default(0.00) @db.Decimal(8, 2)
-
-  project                   projects          @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  build_component           build_components  @relation(fields: [build_component_id], references: [id], onDelete: Cascade)
-  task_template             task_templates    @relation(fields: [task_template_id], references: [id], onDelete: Restrict)
-  assigned_to_contributor   contributors?     @relation("AssignedTasks", fields: [assigned_to_contributor_id], references: [id], onDelete: SetNull)
-  task_dependencies_blocking task_dependencies[] @relation("BlockingTasks")
-  task_dependencies_dependent task_dependencies[] @relation("DependentTasks")
-  task_comments             task_comments[]
-
-  @@map("tasks")
-  @@index([status])
-  @@index([due_date])
-  @@index([assigned_to_contributor_id])
-}
-
-model calendar_events {
-  id             Int                 @id @default(autoincrement())
-  contributor_id Int
-  project_id     Int?
-  title          String
-  start_time     DateTime
-  end_time       DateTime
-  is_all_day     Boolean             @default(false)
-  event_type     calendar_event_type
-  description    String?
-
-  contributor contributors @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
-  project     projects?    @relation(fields: [project_id], references: [id], onDelete: Cascade)
-
-  @@map("calendar_events")
-  @@index([contributor_id, start_time, end_time])
-}
-
-model project_assets {
-  id                Int                 @id @default(autoincrement())
-  project_id        Int
-  coverage_scene_id Int?
-  file_name         String?
-  storage_path      String?
-  asset_type        project_asset_type? 
-
-  project        projects         @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  coverage_scene coverage_scenes? @relation(fields: [coverage_scene_id], references: [id], onDelete: SetNull)
-
-  @@map("project_assets")
-}
-
-model contributor_task_benchmarks {
-  contributor_id            Int
-  task_template_id          Int
-  contributor_default_hours Decimal? @db.Decimal(8, 2)
-  contributor_average_hours Decimal? @db.Decimal(8, 2)
-
-  contributor   contributors   @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
-  task_template task_templates @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
-
-  @@id([contributor_id, task_template_id])
-  @@map("contributor_task_benchmarks")
-}
-
-// --- Supporting Systems ---
-model invoices {
-  id             Int       @id @default(autoincrement())
-  project_id     Int
-  invoice_number String?   @unique
-  issue_date     DateTime?
-  due_date       DateTime?
-  total_amount   Decimal   @db.Decimal(10, 2)
-  amount_paid    Decimal?  @default(0.00) @db.Decimal(10, 2)
-  status         String?
-
-  project  projects   @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  payments payments[]
-
-  @@map("invoices")
-}
-
-model payments {
-  id             Int       @id @default(autoincrement())
-  invoice_id     Int
-  payment_date   DateTime? @default(now())
-  amount         Decimal   @db.Decimal(10, 2)
-  payment_method String?
-  transaction_id String?
-
-  invoice invoices @relation(fields: [invoice_id], references: [id], onDelete: Restrict)
-
-  @@map("payments")
-}
-
-model project_expenses {
-  id          Int       @id @default(autoincrement())
-  project_id  Int
-  expense_date DateTime?
-  description String?
-  category    String?
-  amount      Decimal   @db.Decimal(10, 2)
-  receipt_url String?
-
-  project projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
-
-  @@map("project_expenses")
-}
-
-model audit_log {
-  id             Int       @id @default(autoincrement())
-  contributor_id Int?
-  action         String
-  timestamp      DateTime  @default(now()) 
-  details        Json?
-
-  contributor contributors? @relation(fields: [contributor_id], references: [id], onDelete: SetNull)
-
-  @@map("audit_log")
-  @@index([details], type: Gin) 
-}
-
-model notifications {
-  id                       Int       @id @default(autoincrement())
-  recipient_contributor_id Int
-  message                  String
-  is_read                  Boolean   @default(false)
-  created_at               DateTime? @default(now())
-  link_url                 String?
-
-  recipient_contributor contributors @relation(fields: [recipient_contributor_id], references: [id], onDelete: Cascade)
-
-  @@map("notifications")
-  @@index([recipient_contributor_id, is_read])
-}
-
-// --- Workflow Management ---
-model task_dependencies {
-  id                Int @id @default(autoincrement())
-  blocking_task_id  Int
-  dependent_task_id Int
-
-  blocking_task  tasks @relation("BlockingTasks", fields: [blocking_task_id], references: [id], onDelete: Cascade)
-  dependent_task tasks @relation("DependentTasks", fields: [dependent_task_id], references: [id], onDelete: Cascade)
-
-  @@map("task_dependencies")
-}
-
-model activities {
-  id                         Int             @id @default(autoincrement())
-  assigned_to_contributor_id Int
-  contact_id                 Int?
-  inquiry_id                 Int?
-  project_id                 Int?
-  due_date                   DateTime?
-  activity_type              activity_type
-  title                      String
-  notes                      String?
-  status                     activity_status @default(Pending)
-
-  assigned_to_contributor contributors @relation(fields: [assigned_to_contributor_id], references: [id], onDelete: Cascade)
-  contact                 contacts?    @relation(fields: [contact_id], references: [id], onDelete: Cascade)
-  inquiry                 inquiries?   @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
-  project                 projects?    @relation(fields: [project_id], references: [id], onDelete: Cascade)
-
-  @@map("activities")
-}
-
-model communications_log {
-  id                 Int       @id @default(autoincrement())
-  project_id         Int?
-  contact_id         Int
-  communication_date DateTime  @default(now())
-  type               String?
-  notes              String?
-
-  project projects? @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  contact contacts  @relation(fields: [contact_id], references: [id], onDelete: Cascade)
-
-  @@map("communications_log")
-}
-
-model documents {
-  id            Int             @id @default(autoincrement())
-  project_id    Int?
-  inquiry_id    Int?
-  file_name     String?
-  file_path     String?
-  document_type String?
-  status        document_status @default(Active)
-  upload_date   DateTime?       @default(now())
-
-  project projects?  @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  inquiry inquiries? @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
-
-  @@map("documents")
-}
-
-model client_feedback_surveys {
-  id                  Int       @id @default(autoincrement())
-  project_id          Int
-  sent_date           DateTime?
-  response_date       DateTime?
-  satisfaction_rating Int?      
-  nps_score           Int?      
-  feedback_text       String?
-
-  project projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
-
-  @@map("client_feedback_surveys")
-}
-
-model task_comments {
-  id             Int                       @id @default(autoincrement())
-  task_id        Int
-  contributor_id Int?
-  comment_text   String
-  created_at     DateTime?                 @default(now())
-  visibility     task_comment_visibility? 
-
-  task        tasks         @relation(fields: [task_id], references: [id], onDelete: Cascade)
-  contributor contributors? @relation(fields: [contributor_id], references: [id], onDelete: SetNull)
-
-  @@map("task_comments")
-}
-
-model calendar_sync_tokens {
-  id             Int                    @id @default(autoincrement())
-  contributor_id Int                    @unique
-  provider       calendar_sync_provider
-  refresh_token  String
-
-  contributor contributors @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
-
-  @@map("calendar_sync_tokens")
+model generated_task_log {
+  id                      Int               @id @default(autoincrement())
+  project_id              Int
+  task_generation_rule_id Int
+  task_id                 Int
+  generated_at            DateTime          @default(now())
+  project                 projects          @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  task                    tasks             @relation(fields: [task_id], references: [id], onDelete: Cascade)
+
+  @@map("generated_task_log")
 }

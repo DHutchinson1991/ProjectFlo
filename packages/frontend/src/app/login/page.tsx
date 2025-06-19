@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
@@ -10,13 +10,22 @@ import Container from "@mui/material/Container";
 import Paper from "@mui/material/Paper";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
+import { useAuth } from "../providers/AuthProvider";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login, user, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user && !authLoading) {
+      router.push("/app-crm");
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -24,27 +33,8 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // Use the local backend API endpoint
-      const response = await fetch("http://localhost:3000/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Login failed. Please check your credentials.");
-      }
-
-      const data = await response.json();
-
-      // Store the token and user info in localStorage
-      localStorage.setItem("accessToken", data.access_token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      // Redirect to the dashboard
-      router.push("/app");
+      await login({ email, password });
+      // The useEffect hook will now handle the redirect when the 'user' state updates.
     } catch (err) {
       console.error("Login error:", err);
       setError(
@@ -54,6 +44,24 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  // Show loading spinner while checking authentication state
+  if (authLoading) {
+    return (
+      <Container component="main" maxWidth="xs">
+        <Box
+          sx={{
+            marginTop: 8,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
+        >
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
 
   return (
     <Container component="main" maxWidth="xs">
@@ -102,8 +110,6 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             disabled={isLoading}
           />
-          {/* TODO: Add Remember me checkbox if needed */}
-          {/* TODO: Add Forgot password link if needed */}
           <Button
             type="submit"
             fullWidth
@@ -117,7 +123,6 @@ export default function LoginPage() {
               "Sign In"
             )}
           </Button>
-          {/* TODO: Add Sign up link if needed */}
         </Box>
       </Paper>
     </Container>
