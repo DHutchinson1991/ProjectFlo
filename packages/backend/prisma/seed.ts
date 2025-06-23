@@ -475,20 +475,6 @@ async function main() {
         complexity_score: 4,
         estimated_duration: 3,
         base_task_hours: 2.5,
-        component_tasks: {
-          create: [
-            {
-              task_template_name: "Film Coverage Scene",
-              hours_required: 0.5,
-              order_index: 1,
-            },
-            {
-              task_template_name: "Edit Highlight Sequence",
-              hours_required: 2.0,
-              order_index: 2,
-            },
-          ],
-        },
       },
     });
 
@@ -500,25 +486,6 @@ async function main() {
         complexity_score: 6,
         estimated_duration: 4,
         base_task_hours: 3.5,
-        component_tasks: {
-          create: [
-            {
-              task_template_name: "Film Coverage Scene",
-              hours_required: 0.5,
-              order_index: 1,
-            },
-            {
-              task_template_name: "Audio Enhancement",
-              hours_required: 1.0,
-              order_index: 2,
-            },
-            {
-              task_template_name: "Edit Highlight Sequence",
-              hours_required: 2.0,
-              order_index: 3,
-            },
-          ],
-        },
       },
     });
 
@@ -530,25 +497,6 @@ async function main() {
         complexity_score: 7,
         estimated_duration: 5,
         base_task_hours: 4.0,
-        component_tasks: {
-          create: [
-            {
-              task_template_name: "Film Coverage Scene",
-              hours_required: 1.0,
-              order_index: 1,
-            },
-            {
-              task_template_name: "Multi-Camera Editing",
-              hours_required: 2.5,
-              order_index: 2,
-            },
-            {
-              task_template_name: "Music Synchronization",
-              hours_required: 0.5,
-              order_index: 3,
-            },
-          ],
-        },
       },
     });
 
@@ -560,20 +508,6 @@ async function main() {
         complexity_score: 3,
         estimated_duration: 1,
         base_task_hours: 2.0,
-        component_tasks: {
-          create: [
-            {
-              task_template_name: "Motion Graphics Creation",
-              hours_required: 1.5,
-              order_index: 1,
-            },
-            {
-              task_template_name: "Typography Design",
-              hours_required: 0.5,
-              order_index: 2,
-            },
-          ],
-        },
       },
     });
 
@@ -585,20 +519,6 @@ async function main() {
         complexity_score: 4,
         estimated_duration: 2,
         base_task_hours: 1.5,
-        component_tasks: {
-          create: [
-            {
-              task_template_name: "Motion Graphics Creation",
-              hours_required: 1.0,
-              order_index: 1,
-            },
-            {
-              task_template_name: "Color Grading",
-              hours_required: 0.5,
-              order_index: 2,
-            },
-          ],
-        },
       },
     });
 

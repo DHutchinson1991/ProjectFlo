@@ -1,6 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
-import { ComponentsService } from './components.service';
-import { ComponentType, MusicType } from '@prisma/client';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  ParseIntPipe,
+} from "@nestjs/common";
+import { ComponentsService } from "./components.service";
+import { ComponentType, MusicType } from "@prisma/client";
 
 // DTOs
 export class CreateComponentDto {
@@ -32,13 +41,7 @@ export class ComponentMusicOptionDto {
   weight?: number;
 }
 
-export class ComponentTaskRecipeDto {
-  task_template_name: string;
-  hours_required: number;
-  order_index?: number;
-}
-
-@Controller('components')
+@Controller("components")
 export class ComponentsController {
   constructor(private readonly componentsService: ComponentsService) {}
 
@@ -52,133 +55,112 @@ export class ComponentsController {
     return this.componentsService.findAll();
   }
 
-  @Get('with-relations')
+  @Get("with-relations")
   findAllWithRelations() {
     return this.componentsService.findAllWithRelations();
   }
 
-  @Get(':id/with-relations')
-  findOneWithRelations(@Param('id', ParseIntPipe) id: number) {
+  @Get(":id/with-relations")
+  findOneWithRelations(@Param("id", ParseIntPipe) id: number) {
     return this.componentsService.findOneWithRelations(id);
   }
 
-  @Get('stats')
+  @Get("stats")
   getStats() {
     return this.componentsService.getComponentStats();
   }
 
-  @Get('coverage-scenes/available')
+  @Get("coverage-scenes/available")
   getAvailableCoverageScenes() {
     return this.componentsService.getAvailableCoverageScenes();
   }
 
-  @Get('by-type/:type')
-  findByType(@Param('type') type: ComponentType) {
+  @Get("by-type/:type")
+  findByType(@Param("type") type: ComponentType) {
     return this.componentsService.findByType(type);
   }
 
-  @Get('coverage-based')
+  @Get("coverage-based")
   getCoverageBasedComponents() {
     return this.componentsService.getCoverageBasedComponents();
   }
 
-  @Get('production')
+  @Get("production")
   getProductionComponents() {
     return this.componentsService.getProductionComponents();
   }
 
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  @Get(":id")
+  findOne(@Param("id", ParseIntPipe) id: number) {
     return this.componentsService.findOneWithRelations(id);
   }
 
-  @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateComponentDto: UpdateComponentDto) {
+  @Patch(":id")
+  update(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() updateComponentDto: UpdateComponentDto,
+  ) {
     return this.componentsService.update(id, updateComponentDto);
   }
 
-  @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
+  @Delete(":id")
+  remove(@Param("id", ParseIntPipe) id: number) {
     return this.componentsService.remove(id);
   }
 
-  @Get(':id/dependencies')
-  getComponentDependencies(@Param('id', ParseIntPipe) id: number) {
+  @Get(":id/dependencies")
+  getComponentDependencies(@Param("id", ParseIntPipe) id: number) {
     return this.componentsService.getComponentDependencies(id);
   }
 
-  @Post('bulk-update-hours')
-  bulkUpdateTaskHours(@Body() updates: { id: number; base_task_hours: number }[]) {
+  @Post("bulk-update-hours")
+  bulkUpdateTaskHours(
+    @Body() updates: { id: number; base_task_hours: number }[],
+  ) {
     return this.componentsService.bulkUpdateTaskHours(updates);
   }
 
   // COVERAGE SCENES ENDPOINTS
-  
-  @Post(':id/coverage-scenes')
+
+  @Post(":id/coverage-scenes")
   addCoverageScenes(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() coverageScenes: ComponentCoverageSceneDto[]
+    @Param("id", ParseIntPipe) id: number,
+    @Body() coverageScenes: ComponentCoverageSceneDto[],
   ) {
     return this.componentsService.addCoverageScenes(id, coverageScenes);
   }
 
-  @Delete(':id/coverage-scenes/:sceneId')
+  @Delete(":id/coverage-scenes/:sceneId")
   removeCoverageScene(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('sceneId', ParseIntPipe) sceneId: number
+    @Param("id", ParseIntPipe) id: number,
+    @Param("sceneId", ParseIntPipe) sceneId: number,
   ) {
     return this.componentsService.removeCoverageScene(id, sceneId);
   }
 
   // MUSIC OPTIONS ENDPOINTS
 
-  @Post(':id/music-options')
+  @Post(":id/music-options")
   addMusicOptions(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() musicOptions: ComponentMusicOptionDto[]
+    @Param("id", ParseIntPipe) id: number,
+    @Body() musicOptions: ComponentMusicOptionDto[],
   ) {
     return this.componentsService.addMusicOptions(id, musicOptions);
   }
 
-  @Delete(':id/music-options/:optionId')
+  @Delete(":id/music-options/:optionId")
   removeMusicOption(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('optionId', ParseIntPipe) optionId: number
+    @Param("id", ParseIntPipe) id: number,
+    @Param("optionId", ParseIntPipe) optionId: number,
   ) {
     return this.componentsService.removeMusicOption(id, optionId);
   }
 
-  @Patch('music-options/:optionId/weight')
+  @Patch("music-options/:optionId/weight")
   updateMusicOptionWeight(
-    @Param('optionId', ParseIntPipe) optionId: number,
-    @Body() { weight }: { weight: number }
+    @Param("optionId", ParseIntPipe) optionId: number,
+    @Body() { weight }: { weight: number },
   ) {
     return this.componentsService.updateMusicOptionWeight(optionId, weight);
-  }
-
-  // TASK RECIPES ENDPOINTS
-
-  @Post(':id/task-recipes')
-  addTaskRecipes(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() taskRecipes: ComponentTaskRecipeDto[]
-  ) {
-    return this.componentsService.addTaskRecipes(id, taskRecipes);
-  }
-
-  @Patch('task-recipes/:recipeId')
-  updateTaskRecipe(
-    @Param('recipeId', ParseIntPipe) recipeId: number,
-    @Body() updates: Partial<ComponentTaskRecipeDto>
-  ) {
-    return this.componentsService.updateTaskRecipe(recipeId, updates);
-  }
-
-  @Delete(':id/task-recipes/:recipeId')
-  removeTaskRecipe(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('recipeId', ParseIntPipe) recipeId: number
-  ) {
-    return this.componentsService.removeTaskRecipe(id, recipeId);
   }
 }

@@ -1,0 +1,25 @@
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  Min,
+  MaxLength,
+} from "class-validator";
+
+export class CreateEntityDefaultTaskDto {
+  @IsString()
+  @MaxLength(255)
+  taskName: string;
+
+  @IsNumber()
+  @Min(0)
+  estimatedHours: number;
+
+  @IsOptional()
+  @IsNumber()
+  taskTemplateId?: number;
+
+  @IsOptional()
+  @IsNumber()
+  orderIndex?: number;
+}

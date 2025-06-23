@@ -1,20 +1,21 @@
 // Types for deliverables system
-export type DeliverableType = 'STANDARD' | 'RAW_FOOTAGE';
+export type DeliverableType = "STANDARD" | "RAW_FOOTAGE";
 
-export type MusicType = 
-  | 'NONE' 
-  | 'SCENE_MATCHED' 
-  | 'ORCHESTRAL' 
-  | 'PIANO' 
-  | 'MODERN' 
-  | 'VINTAGE';
+export type MusicType =
+  | "NONE"
+  | "SCENE_MATCHED"
+  | "ORCHESTRAL"
+  | "PIANO"
+  | "MODERN"
+  | "VINTAGE";
 
-export type ComponentType = 'COVERAGE_BASED' | 'PRODUCTION';
+export type ComponentType = "COVERAGE_BASED" | "PRODUCTION";
 
 export interface DeliverableTemplate {
   id: number;
   name: string;
   description?: string;
+  workflow_template_id?: number;
   created_at: string;
   default_music_type?: MusicType;
   delivery_timeline?: number;
@@ -66,6 +67,17 @@ export interface ComponentLibrary {
   base_task_hours: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ComponentTemplateDefaults {
+  id: number;
+  deliverable_id: number;
+  component_id: number;
+  order_index: number;
+  duration_override?: number;
+  created_at: string;
+  updated_at: string;
+  component: ComponentLibrary;
 }
 
 export interface ComponentPricing {

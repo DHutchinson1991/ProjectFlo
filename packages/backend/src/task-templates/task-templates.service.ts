@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
-import { Prisma, pricing_type_options } from '@prisma/client';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../prisma.service";
+import { Prisma, pricing_type_options } from "@prisma/client";
 
 export interface CreateTaskTemplateDto {
   name: string;
@@ -36,9 +36,15 @@ export class TaskTemplatesService {
     return this.prisma.task_templates.create({
       data: {
         ...createTaskTemplateDto,
-        effort_hours: createTaskTemplateDto.effort_hours ? new Prisma.Decimal(createTaskTemplateDto.effort_hours) : null,
-        fixed_price: createTaskTemplateDto.fixed_price ? new Prisma.Decimal(createTaskTemplateDto.fixed_price) : null,
-        average_duration_hours: createTaskTemplateDto.average_duration_hours ? new Prisma.Decimal(createTaskTemplateDto.average_duration_hours) : null,
+        effort_hours: createTaskTemplateDto.effort_hours
+          ? new Prisma.Decimal(createTaskTemplateDto.effort_hours)
+          : null,
+        fixed_price: createTaskTemplateDto.fixed_price
+          ? new Prisma.Decimal(createTaskTemplateDto.fixed_price)
+          : null,
+        average_duration_hours: createTaskTemplateDto.average_duration_hours
+          ? new Prisma.Decimal(createTaskTemplateDto.average_duration_hours)
+          : null,
       },
     });
   }
@@ -56,8 +62,8 @@ export class TaskTemplatesService {
 
     if (filters?.search) {
       where.OR = [
-        { name: { contains: filters.search, mode: 'insensitive' } },
-        { phase: { contains: filters.search, mode: 'insensitive' } },
+        { name: { contains: filters.search, mode: "insensitive" } },
+        { phase: { contains: filters.search, mode: "insensitive" } },
       ];
     }
 
@@ -66,12 +72,11 @@ export class TaskTemplatesService {
       include: {
         _count: {
           select: {
-            component_task_recipes: true,
             tasks: true,
           },
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy: { name: "asc" },
     });
   }
 
@@ -79,22 +84,6 @@ export class TaskTemplatesService {
     const taskTemplate = await this.prisma.task_templates.findUnique({
       where: { id },
       include: {
-        component_task_recipes: {
-          include: {
-            deliverable: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-            coverage_scene: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
         tasks: {
           select: {
             id: true,
@@ -103,11 +92,10 @@ export class TaskTemplatesService {
             due_date: true,
           },
           take: 10,
-          orderBy: { due_date: 'desc' },
+          orderBy: { due_date: "desc" },
         },
         _count: {
           select: {
-            component_task_recipes: true,
             tasks: true,
           },
         },
@@ -128,9 +116,15 @@ export class TaskTemplatesService {
       where: { id },
       data: {
         ...updateTaskTemplateDto,
-        effort_hours: updateTaskTemplateDto.effort_hours ? new Prisma.Decimal(updateTaskTemplateDto.effort_hours) : undefined,
-        fixed_price: updateTaskTemplateDto.fixed_price ? new Prisma.Decimal(updateTaskTemplateDto.fixed_price) : undefined,
-        average_duration_hours: updateTaskTemplateDto.average_duration_hours ? new Prisma.Decimal(updateTaskTemplateDto.average_duration_hours) : undefined,
+        effort_hours: updateTaskTemplateDto.effort_hours
+          ? new Prisma.Decimal(updateTaskTemplateDto.effort_hours)
+          : undefined,
+        fixed_price: updateTaskTemplateDto.fixed_price
+          ? new Prisma.Decimal(updateTaskTemplateDto.fixed_price)
+          : undefined,
+        average_duration_hours: updateTaskTemplateDto.average_duration_hours
+          ? new Prisma.Decimal(updateTaskTemplateDto.average_duration_hours)
+          : undefined,
       },
     });
   }
@@ -149,14 +143,13 @@ export class TaskTemplatesService {
       include: {
         _count: {
           select: {
-            component_task_recipes: true,
             tasks: true,
           },
         },
       },
       orderBy: {
-        component_task_recipes: {
-          _count: 'desc',
+        tasks: {
+          _count: "desc",
         },
       },
     });
@@ -164,10 +157,9 @@ export class TaskTemplatesService {
     return {
       total_templates: templates.length,
       most_used_templates: templates.slice(0, 10),
-      usage_distribution: templates.map(template => ({
+      usage_distribution: templates.map((template) => ({
         id: template.id,
         name: template.name,
-        component_usage: template._count.component_task_recipes,
         task_usage: template._count.tasks,
       })),
     };

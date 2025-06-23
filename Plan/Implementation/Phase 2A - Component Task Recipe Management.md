@@ -1,194 +1,263 @@
-# 🎯 Phase 2A: Component Task Recipe Management
+# 🎯 Phase 2A: Entity Default Task Management System
+
 ## Immediate Next Implementation - Week 1
 
-**Focus:** Transform component detail pages into powerful task recipe management centers  
-**Goal:** Make components truly useful by defining their required tasks and workflows
+**Focus:** Create reusable default task management for Components, Deliverables, and Coverage Scenes  
+**Goal:** Replace complex workflow templates with simple, intuitive default task systems
 
 ---
 
 ## 🎯 **IMPLEMENTATION OVERVIEW**
 
 ### **Current State:**
-- ✅ Component detail pages exist with basic info and placeholder tabs
-- ✅ Backend has task-related tables (`task_recipes`, `task_templates`)
-- ✅ Component CRUD operations working perfectly
-- ✅ Component analytics partially implemented
+
+- ✅ Component detail pages exist with basic info
+- ✅ Backend has task-related tables (`tasks`, `task_templates`)
+- ✅ Legacy UniversalWorkflowManager removed from entity pages
+- ✅ Component/Deliverable/Coverage Scene CRUD operations working
+- ✅ New `entity_default_tasks` table created with Prisma schema
+- ✅ Backend service (`EntityDefaultTaskService`) created for task management
 
 ### **Phase 2A Goals:**
-- [ ] **Task Recipe CRUD** - Full create, read, update, delete for component task recipes
-- [ ] **Task Template Library** - Reusable task definitions across components
-- [ ] **Enhanced Component Analytics** - Task-based metrics and insights
-- [ ] **Workflow Visualization** - Show task sequences and dependencies
+
+- ✅ **Backend Default Task System** - Database schema and service layer complete
+- [ ] **Reusable Frontend Component** - Shared `DefaultTaskManager` UI component for task management across entity types
+- [ ] **Task Template Integration** - Drag-and-drop from existing task templates
+- [ ] **Backend Controllers** - REST API endpoints for CRUD operations
+- [ ] **Project Integration** - Copy default tasks to actual project tasks when triggered
+
+---
+
+## 🛠️ **ARCHITECTURE CHANGES**
+
+### **Remove Complex Workflow System**
+
+- [ ] Remove UniversalWorkflowManager from all entity detail pages
+- [ ] Remove workflow template complexity from entity management
+- [ ] Keep workflow system only for project-level task orchestration
+
+### **New Default Task System**
+
+Each entity (Component, Deliverable, Coverage Scene) will have:
+
+- **Default Tasks**: Pre-defined task list with names, hours, order
+- **Task Templates**: Ability to drag existing task templates into default tasks
+- **Customization**: Add/edit/delete/reorder default tasks per entity
+- **Project Copy**: When entity is used in project, copy default tasks to actual project tasks
 
 ---
 
 ## 🛠️ **BACKEND IMPLEMENTATION**
 
-### **Task Template Management**
-**New Endpoints Needed:**
+### **New Database Tables**
 
-```typescript
-// Task Templates
-GET    /task-templates                    // List all task templates
-POST   /task-templates                    // Create new task template
-GET    /task-templates/:id                // Get specific template
-PUT    /task-templates/:id                // Update template
-DELETE /task-templates/:id                // Delete template
+````sql
+-- Default tasks for each entity type
+CREATE TABLE entity_default_tasks (
+---
 
-// Component Task Recipes
-GET    /components/:id/task-recipes       // Get component's task recipes
-POST   /components/:id/task-recipes       // Add task recipe to component
-PUT    /components/:id/task-recipes/:rid  // Update task recipe
-DELETE /components/:id/task-recipes/:rid  // Remove task recipe
+## 🛠️ **BACKEND IMPLEMENTATION**
 
-// Task Recipe Bulk Operations
-POST   /components/:id/task-recipes/bulk  // Bulk add from templates
-PUT    /components/:id/task-recipes/reorder // Reorder task recipes
-```
+### **Database Schema (COMPLETED)**
+✅ **New `entity_default_tasks` Table Added:**
+```prisma
+model EntityDefaultTask {
+  id              Int           @id @default(autoincrement())
+  entityType      String        @map("entity_type")
+  entityId        Int           @map("entity_id")
+  taskTemplateId  Int?          @map("task_template_id")
+  taskName        String        @map("task_name")
+  estimatedHours  Float         @default(0) @map("estimated_hours")
+  orderIndex      Int           @map("order_index")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at")
 
-### **Database Schema Verification**
-Let me check if we need any schema updates:
+  taskTemplate    TaskTemplate? @relation(fields: [taskTemplateId], references: [id])
 
-**Required Tables:**
-- `task_templates` - Reusable task definitions
-- `task_recipes` - Component-specific task instances
-- `component_dependencies` - Task sequence dependencies
+  @@map("entity_default_tasks")
+}
+````
 
-### **Backend Service Implementation**
+✅ **Task Templates Model Updated:**
 
-**TaskTemplateService:**
-```typescript
-@Injectable()
-export class TaskTemplateService {
-  async createTemplate(data: CreateTaskTemplateDto) {
-    // Create reusable task template
-  }
-  
-  async getTemplates(filters?: TaskTemplateFilters) {
-    // Get all task templates with optional filtering
-  }
-  
-  async updateTemplate(id: number, data: UpdateTaskTemplateDto) {
-    // Update existing template
-  }
+```prisma
+model TaskTemplate {
+  // ...existing fields...
+  entityDefaultTasks EntityDefaultTask[]
 }
 ```
 
-**ComponentTaskRecipeService:**
+### **Backend Service (COMPLETED)**
+
+✅ **EntityDefaultTaskService Created:**
+
+- `packages/backend/src/entity-default-tasks/entity-default-task.service.ts`
+- Full CRUD operations for default tasks
+- Reordering and template integration logic
+- Support for all entity types (component, deliverable, coverage_scene)
+
+### **API Endpoints (TO IMPLEMENT)**
+
 ```typescript
-@Injectable()
-export class ComponentTaskRecipeService {
-  async addTaskRecipe(componentId: number, data: CreateTaskRecipeDto) {
-    // Add task recipe to component
-  }
-  
-  async getComponentTaskRecipes(componentId: number) {
-    // Get all task recipes for component
-  }
-  
-  async updateTaskRecipe(componentId: number, recipeId: number, data: UpdateTaskRecipeDto) {
-    // Update specific task recipe
-  }
-  
-  async reorderTaskRecipes(componentId: number, orderData: ReorderTaskRecipesDto) {
-    // Change task recipe order
-  }
-}
+// Default Tasks for any entity
+GET    /entities/:type/:id/default-tasks        // Get entity's default tasks
+POST   /entities/:type/:id/default-tasks        // Add default task
+PUT    /entities/:type/:id/default-tasks/:tid   // Update default task
+DELETE /entities/:type/:id/default-tasks/:tid   // Delete default task
+POST   /entities/:type/:id/default-tasks/reorder // Reorder default tasks
+
+// Task Template Integration
+GET    /task-templates/by-category              // Get templates by category for drag-drop
+POST   /entities/:type/:id/default-tasks/from-template // Add task from template
 ```
+
+### **Controller Implementation (TO IMPLEMENT)**
+
+**Files to Create:**
+
+- `packages/backend/src/entity-default-tasks/entity-default-task.controller.ts`
+- Update main app module to include new controller
 
 ---
 
 ## 🎨 **FRONTEND IMPLEMENTATION**
 
-### **Enhanced Component Detail Page**
+### **Reusable Default Task Manager Component**
+
+**File:** `packages/frontend/src/app/app-crm/_components/DefaultTaskManager.tsx`
+
+**Purpose:** Shared component used by Components, Deliverables, and Coverage Scenes for managing their default task lists
+
+**Key Features:**
+
+- [ ] **Task List Display** - Show current default tasks with names, hours, order
+- [ ] **Empty State** - Friendly empty list UI when no tasks exist
+- [ ] **Add/Edit/Delete** - CRUD operations for default tasks
+- [ ] **Drag-and-Drop Reordering** - Visual task reordering within the list
+- [ ] **Task Template Integration** - Drag existing templates from category into default tasks
+- [ ] **Category Filtering** - Filter task templates by entity type/category
+- [ ] **Manual Task Creation** - Ability to add custom tasks not from templates
+
+```tsx
+interface DefaultTaskManagerProps {
+  entityType: "component" | "deliverable" | "coverage_scene";
+  entityId: number;
+  entityName: string;
+  readonly?: boolean;
+}
+
+export function DefaultTaskManager({
+  entityType,
+  entityId,
+  entityName,
+  readonly,
+}: DefaultTaskManagerProps) {
+  // Features:
+  // 1. Empty list with "Add Task" button
+  // 2. Drag-and-drop from task templates filtered by category
+  // 3. Manual task creation with name/hours input
+  // 4. Reorder existing tasks via drag-and-drop
+  // 5. Edit/delete existing default tasks
+  // 6. Visual feedback for all operations
+}
+```
+
+### **Updated Entity Detail Pages**
+
+#### **Component Detail Page**
+
 **File:** `packages/frontend/src/app/app-crm/components/[id]/page.tsx`
 
-#### **Workflow & Tasks Tab Enhancement**
+- ✅ Remove UniversalWorkflowManager from Workflow tab (COMPLETED)
+- [ ] Replace with DefaultTaskManager component
+- [ ] Tab name remains "Workflow" but shows only default tasks
+- [ ] No project-specific task management here
 
-**Current State:** Basic placeholder with "Add Task Recipe" button  
-**Target State:** Full task recipe management interface
+#### **Deliverable Detail Page**
 
-**Features to Implement:**
+**File:** `packages/frontend/src/app/app-crm/settings/services/deliverables/[id]/page.tsx`
 
-1. **Task Recipe Table Enhancement**
-   ```tsx
-   // Replace placeholder table with full CRUD interface
-   - Add task recipe dialog
-   - Edit task recipe inline
-   - Delete with confirmation
-   - Drag-and-drop reordering
-   - Bulk operations
-   ```
+**Changes:**
 
+- [ ] Remove UniversalWorkflowManager from Workflow tab
+- [ ] Add DefaultTaskManager component to show deliverable default tasks
+- [ ] Enable task template drag-and-drop from "Films" or "Assets" categories
+
+#### **Coverage Scene Detail Page**
+
+**File:** `packages/frontend/src/app/app-crm/settings/services/coverage-scenes/[id]/page.tsx`
+
+**Changes:**
+
+- [ ] Remove UniversalWorkflowManager from Workflow tab
+- [ ] Add DefaultTaskManager component to show coverage scene default tasks
+- [ ] Enable task template drag-and-drop from "Coverage" category
+
+---
+
+## 🎯 **DEFAULT TASK MANAGER COMPONENT REQUIREMENTS**
+
+### **Core Features:**
+
+1. **Empty State Management**
+   - Friendly empty list UI when no default tasks exist
+   - Clear "Add Task" call-to-action
 2. **Task Template Integration**
-   ```tsx
-   // Task template selector in add/edit dialogs
-   - Template library dropdown
-   - Template preview
-   - Custom task creation
-   - Template-to-recipe conversion
-   ```
+   - Drag-and-drop from task templates filtered by category
+   - Category filtering based on entity type:
+     - Components: "Production", "Post-Production", "General"
+     - Deliverables: "Films", "Assets", "Export"
+     - Coverage Scenes: "Coverage", "Footage", "Processing"
+3. **Manual Task Creation**
+   - Add custom tasks not from templates
+   - In-line editing of task names and hours
+4. **Visual Task Management**
+   - Drag-and-drop reordering within the default task list
+   - Visual feedback for drag operations
+   - Clean, minimal task cards with edit/delete actions
+5. **CRUD Operations**
+   - Add new default tasks (from template or manual)
+   - Edit existing default task names and hours
+   - Delete default tasks with confirmation
+   - Reorder tasks via drag-and-drop
 
-3. **Workflow Visualization**
-   ```tsx
-   // Visual workflow display
-   - Task sequence diagram
-   - Dependency arrows
-   - Critical path highlighting
-   - Estimated duration timeline
-   ```
+### **User Experience Flow:**
 
-#### **Task Recipe Management Dialog**
-**New Component:** `TaskRecipeDialog.tsx`
+1. **Empty State**: User sees "No default tasks" with "Add Task" button
+2. **Add Task Options**:
+   - "Add from Template" - Opens filtered template selector
+   - "Add Custom Task" - Opens inline task creation form
+3. **Task Management**: User can reorder, edit, and delete existing default tasks
+4. **Project Integration**: When entity is used in project, default tasks are copied to actual project tasks
 
-```tsx
-interface TaskRecipeDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onSave: (recipe: TaskRecipeData) => void;
-  componentId: number;
-  recipe?: TaskRecipe; // For editing
-  taskTemplates: TaskTemplate[];
-}
+---
 
-export function TaskRecipeDialog({ ... }) {
-  // Form for creating/editing task recipes
-  // Template selection
-  // Hours estimation
-  // Dependency selection
-  // Order index management
-}
-```
+## 🔄 **PROJECT INTEGRATION WORKFLOW**
 
-#### **Task Template Library Dialog**
-**New Component:** `TaskTemplateLibraryDialog.tsx`
+### **When Entity Used in Project:**
 
-```tsx
-interface TaskTemplateLibraryDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onSelectTemplate: (template: TaskTemplate) => void;
-  onCreateTemplate: (template: CreateTaskTemplateData) => void;
-}
+1. **Component Added to Project** → Copy component's default tasks to project tasks
+2. **Deliverable Added to Project** → Copy deliverable's default tasks to project tasks
+3. **Coverage Scene Added to Project** → Copy coverage scene's default tasks to project tasks
 
-export function TaskTemplateLibraryDialog({ ... }) {
-  // Browse existing templates
-  // Search and filter templates
-  // Create new templates
-  // Template preview
-}
-```
+### **Task Copying Logic:**
 
-### **Task Template Management Page**
-**New Page:** `packages/frontend/src/app/app-crm/task-templates/page.tsx`
+```typescript
+// When adding entity to project
+async copyDefaultTasksToProject(projectId: number, entityType: string, entityId: number) {
+  const defaultTasks = await getDefaultTasks(entityType, entityId);
 
-```tsx
-export default function TaskTemplatesPage() {
-  // Full CRUD interface for task templates
-  // Search and filter
-  // Template categories
-  // Usage analytics
-  // Bulk operations
+  for (const defaultTask of defaultTasks) {
+    await createProjectTask({
+      projectId,
+      taskName: defaultTask.taskName,
+      estimatedHours: defaultTask.estimatedHours,
+      orderIndex: defaultTask.orderIndex,
+      status: 'pending',
+      // Copy from default task template
+      templateId: defaultTask.taskTemplateId
+    });
+  }
 }
 ```
 
@@ -196,126 +265,90 @@ export default function TaskTemplatesPage() {
 
 ## 📊 **ENHANCED ANALYTICS**
 
-### **Task-Based Component Analytics**
+### **Default Task Analytics**
 
 **New Metrics to Track:**
-- **Task Recipe Count** - Number of tasks per component
-- **Estimated vs Actual Hours** - Accuracy of task estimates
-- **Task Completion Rate** - Success rate of task recipes
-- **Task Template Usage** - Most popular templates
-- **Component Complexity Score** - Based on task recipes
 
-**Analytics Enhancements:**
+- **Default Task Count** - Number of default tasks per entity
+- **Template Usage** - Most popular task templates
+- **Entity Complexity Score** - Based on default task count/hours
+- **Estimation Accuracy** - Compare default hours vs actual project hours
 
-1. **Component Detail Analytics Tab**
-   ```tsx
-   // Enhanced analytics with task metrics
-   - Task recipe performance
-   - Hours estimation accuracy
-   - Template usage patterns
-   - Efficiency recommendations
-   ```
-
-2. **Component List Analytics**
-   ```tsx
-   // Add task-based columns to component table
-   - Total task recipes
-   - Estimated hours
-   - Complexity score
-   - Template usage
-   ```
+- **Task Usage Patterns** - Track which default tasks are most effective
 
 ---
 
 ## 🔄 **IMPLEMENTATION SEQUENCE**
 
 ### **Day 1-2: Backend Foundation**
-1. **Create Task Template endpoints**
-   - CRUD operations for task templates
-   - Template search and filtering
-   - Template categories
 
-2. **Create Component Task Recipe endpoints**
-   - CRUD operations for component task recipes
-   - Recipe reordering
-   - Bulk operations
-
-3. **Test all endpoints**
-   - Create test scripts
-   - Verify data integrity
-   - Test error handling
+1. ✅ **Database Schema** - `entity_default_tasks` table created
+2. ✅ **Backend Service** - `EntityDefaultTaskService` implemented
+3. [ ] **Create Backend Controller** - REST API endpoints for default tasks
+4. [ ] **Create Task Template endpoints** - Enhanced template management
+5. [ ] **Test all endpoints** - Verify CRUD operations and error handling
 
 ### **Day 3-4: Frontend Components**
-1. **Create TaskRecipeDialog component**
-   - Form for creating/editing recipes
-   - Template selection
-   - Hours estimation
-   - Dependency management
 
-2. **Create TaskTemplateLibraryDialog component**
-   - Template browsing
-   - Template creation
-   - Search and filter
-
-3. **Create TaskTemplatesPage**
-   - Full template management
-   - Analytics and usage tracking
+1. [ ] **Create DefaultTaskManager component** - Reusable task management interface
+2. [ ] **Create TaskTemplateSelector component** - Drag-and-drop template selection
+3. [ ] **Integrate with entity detail pages** - Components, Deliverables, Coverage Scenes
+4. [ ] **Empty state and manual task creation** - Full user experience flow
 
 ### **Day 5-6: Integration & Enhancement**
-1. **Enhance component detail page**
-   - Replace placeholder with full interface
-   - Add workflow visualization
-   - Implement drag-and-drop reordering
 
-2. **Add task-based analytics**
-   - Component performance metrics
-   - Template usage analytics
-   - Efficiency recommendations
-
-3. **Testing and refinement**
-   - User experience testing
-   - Performance optimization
-   - Bug fixes and polish
+1. [ ] **Project Integration Logic** - Copy default tasks to project tasks
+2. [ ] **Visual Polish** - Drag-and-drop animations and feedback
+3. [ ] **Error Handling** - Comprehensive error states and recovery
+4. [ ] **Testing and refinement** - User experience testing and bug fixes
 
 ---
 
 ## 🎯 **SUCCESS CRITERIA**
 
 ### **Functional Requirements:**
-- [ ] **Task Template CRUD** - Can create, edit, delete task templates
-- [ ] **Task Recipe Management** - Can add, edit, reorder task recipes per component
-- [ ] **Template Library** - Can browse and select from existing templates
-- [ ] **Workflow Visualization** - Can see task sequences and dependencies
-- [ ] **Analytics Integration** - Task metrics appear in component analytics
+
+- [ ] **Default Task CRUD** - Can create, edit, delete default tasks for any entity
+- [ ] **Task Template Integration** - Can drag task templates into default tasks
+- [ ] **Manual Task Creation** - Can create custom tasks not from templates
+- [ ] **Task Reordering** - Can drag-and-drop reorder default tasks
+- [ ] **Empty State Management** - Clean empty state with clear call-to-action
+- [ ] **Project Integration** - Default tasks copy to project tasks when entity is used
 
 ### **User Experience Requirements:**
+
+- [ ] **Reusable Component** - Same interface works across Components, Deliverables, Coverage Scenes
 - [ ] **Intuitive Interface** - Easy to understand and use
-- [ ] **Fast Performance** - Responsive interactions
+- [ ] **Fast Performance** - Responsive drag-and-drop and API interactions
 - [ ] **Error Handling** - Clear error messages and recovery
 - [ ] **Consistent Design** - Matches existing UI patterns
 
 ### **Technical Requirements:**
+
 - [ ] **API Performance** - Sub-200ms response times
 - [ ] **Data Validation** - Proper validation and error handling
-- [ ] **Testing Coverage** - Unit tests for all new components
+- [ ] **Component Reusability** - Single component used across multiple pages
+- [ ] **Testing Coverage** - Unit tests for new components
 - [ ] **Documentation** - Updated API documentation
 
 ---
 
 ## 🚀 **NEXT PHASE PREPARATION**
 
-### **Phase 2B: Component Analytics & Intelligence**
-After task recipe management is complete, we'll enhance:
+### **Phase 2B: Enhanced Task Template System**
 
-1. **Usage Pattern Analysis** - Track how components perform
-2. **Efficiency Optimization** - Recommend better task sequences
-3. **Component Health Scores** - Comprehensive performance metrics
-4. **Cost Analysis** - Track actual vs estimated hours
+After default task management is complete, we'll enhance:
 
-### **Phase 3: Task Management System**
-With solid component task recipes, we can build:
+1. **Advanced Template Categories** - More granular categorization
+2. **Template Analytics** - Usage patterns and effectiveness tracking
+3. **Smart Recommendations** - AI-suggested tasks based on entity type
+4. **Template Sharing** - Import/export templates between systems
 
-1. **Task Generation** - Auto-create tasks from component recipes
+### **Phase 3: Full Project Task Management**
+
+With solid default task foundation, we can build:
+
+1. **Task Generation** - Auto-create project tasks from entity defaults
 2. **Task Board** - Kanban-style task management
 3. **Time Tracking** - Actual hours vs estimates
 4. **Team Assignment** - Resource allocation and workload management

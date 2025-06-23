@@ -31,13 +31,14 @@ model coverage_scenes {
   id                         Int                          @id @default(autoincrement())
   name                       String                       @unique
   description                String?
-  build_components           build_components[]
+  workflow_template_id       Int? // Link to coverage-specific workflow  build_components           build_components[]  build_components           build_components[]
   build_coverage_assignments build_coverage_assignments[]
   component_coverage_scenes  ComponentCoverageScene[]
-  component_task_recipes     component_task_recipes[]
   template_defaults          ComponentTemplateDefaults[]
   project_assets             project_assets[]
   task_generation_rules      task_generation_rules[]
+  workflow_template          workflow_templates?          @relation(fields: [workflow_template_id], references: [id])
+  build_components           build_components[]
 
   @@map("coverage_scenes")
 }
@@ -55,28 +56,29 @@ model deliverable_categories {
 }
 
 model deliverables {
-  id                     Int                             @id @default(autoincrement())
-  name                   String                          @unique
-  description            String?
-  created_at             DateTime                        @default(now())
-  default_music_type     MusicType?
-  delivery_timeline      Int?
-  includes_music         Boolean                         @default(true)
-  is_active              Boolean                         @default(true)
-  type                   DeliverableType                 @default(STANDARD)
-  updated_at             DateTime                        @updatedAt
-  version                String                          @default("1.0")
-  build_deliverables     build_deliverables[]
-  component_task_recipes component_task_recipes[]
-  template_defaults      ComponentTemplateDefaults[]
-  usage_analytics        ComponentUsageAnalytics[]
-  assigned_components    DeliverableAssignedComponents[]
-  change_logs            DeliverableChangeLog[]
-  music_tracks           DeliverableMusicTrack[]
-  versions               DeliverableVersion[]
-  timeline_changes       TimelineChangeLog[]
-  timeline_components    TimelineComponent[]
-  timeline_sessions      TimelineEditingSession[]
+  id                   Int                             @id @default(autoincrement())
+  name                 String                          @unique
+  description          String?
+  workflow_template_id Int? // Link to workflow template
+  created_at           DateTime                        @default(now())
+  default_music_type   MusicType?
+  delivery_timeline    Int?
+  includes_music       Boolean                         @default(true)
+  is_active            Boolean                         @default(true)
+  type                 DeliverableType                 @default(STANDARD)
+  updated_at           DateTime                        @updatedAt
+  version              String                          @default("1.0")
+  workflow_template    workflow_templates?             @relation(fields: [workflow_template_id], references: [id])
+  build_deliverables   build_deliverables[]
+  template_defaults    ComponentTemplateDefaults[]
+  usage_analytics      ComponentUsageAnalytics[]
+  assigned_components  DeliverableAssignedComponents[]
+  change_logs          DeliverableChangeLog[]
+  music_tracks         DeliverableMusicTrack[]
+  versions             DeliverableVersion[]
+  timeline_changes     TimelineChangeLog[]
+  timeline_components  TimelineComponent[]
+  timeline_sessions    TimelineEditingSession[]
 
   @@map("deliverables")
 }
@@ -85,10 +87,11 @@ model editing_styles {
   id                         Int                          @id @default(autoincrement())
   name                       String                       @unique
   description                String?
-  build_components           build_components[]
-  component_task_recipes     component_task_recipes[]
+  workflow_template_id       Int? // Link to editing-style-specific workflow  build_components           build_components[]
   template_defaults          ComponentTemplateDefaults[]
   editing_style_requirements editing_style_requirements[]
+  workflow_template          workflow_templates?          @relation(fields: [workflow_template_id], references: [id])
+  build_components           build_components[]
 
   @@map("editing_styles")
 }
@@ -98,6 +101,7 @@ model ComponentLibrary {
   name                    String
   description             String?
   type                    ComponentType
+  workflow_template_id    Int? // Link to component-specific workflow
   complexity_score        Int                             @default(5)
   estimated_duration      Int?
   default_editing_style   String?
@@ -110,6 +114,7 @@ model ComponentLibrary {
   performance_score       Decimal?                        @default(5.0) @db.Decimal(3, 2)
   computed_task_count     Int?
   computed_total_hours    Decimal?                        @db.Decimal(8, 2)
+  workflow_template       workflow_templates?             @relation(fields: [workflow_template_id], references: [id])
   coverage_scenes         ComponentCoverageScene[]
   dependent_components    ComponentDependency[]           @relation("DependentComponent")
   parent_dependencies     ComponentDependency[]           @relation("ParentDependency")
@@ -118,7 +123,6 @@ model ComponentLibrary {
   deliverable_assignments DeliverableAssignedComponents[]
   timeline_changes        TimelineChangeLog[]
   timeline_components     TimelineComponent[]
-  component_tasks         ComponentTaskRecipe[]
 
   @@map("component_library")
 }
@@ -158,17 +162,6 @@ model ComponentMusicOption {
   component    ComponentLibrary @relation(fields: [component_id], references: [id], onDelete: Cascade)
 
   @@map("component_music_options")
-}
-
-model ComponentTaskRecipe {
-  id                 Int              @id @default(autoincrement())
-  component_id       Int
-  task_template_name String
-  hours_required     Decimal          @db.Decimal(4, 2)
-  order_index        Int              @default(0)
-  component          ComponentLibrary @relation(fields: [component_id], references: [id], onDelete: Cascade)
-
-  @@map("video_component_tasks")
 }
 
 model DeliverableMusicTrack {
@@ -260,11 +253,11 @@ model task_templates {
   pricing_type                pricing_type_options          @default(Hourly)
   fixed_price                 Decimal?                      @db.Decimal(10, 2)
   average_duration_hours      Decimal?                      @db.Decimal(8, 2)
-  component_task_recipes      component_task_recipes[]
   contributor_skill_rates     contributor_skill_rates[]
   contributor_task_benchmarks contributor_task_benchmarks[]
   tasks                       tasks[]
   task_generation_rules       task_generation_rules[]
+  entity_default_tasks        entity_default_tasks[]
 
   @@map("task_templates")
 }
@@ -457,21 +450,6 @@ model editing_style_requirements {
   @@map("editing_style_requirements")
 }
 
-model component_task_recipes {
-  id                Int              @id @default(autoincrement())
-  deliverable_id    Int?
-  coverage_scene_id Int?
-  editing_style_id  Int?
-  task_template_id  Int
-  priority          Int              @default(0)
-  coverage_scene    coverage_scenes? @relation(fields: [coverage_scene_id], references: [id], onDelete: Cascade)
-  deliverable       deliverables?    @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
-  editing_style     editing_styles?  @relation(fields: [editing_style_id], references: [id], onDelete: Cascade)
-  task_template     task_templates   @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
-
-  @@map("component_task_recipes")
-}
-
 model builds {
   id                         Int                          @id @default(autoincrement())
   client_id                  Int?
@@ -582,24 +560,24 @@ model build_snapshots {
 }
 
 model tasks {
-  id                          Int                 @id @default(autoincrement())
+  id                          Int                  @id @default(autoincrement())
   project_id                  Int
   build_component_id          Int
   task_template_id            Int
-  planned_duration_hours      Decimal?            @db.Decimal(8, 2)
-  actual_duration_hours       Decimal?            @db.Decimal(8, 2)
-  status                      tasks_status        @default(To_Do)
+  planned_duration_hours      Decimal?             @db.Decimal(8, 2)
+  actual_duration_hours       Decimal?             @db.Decimal(8, 2)
+  status                      tasks_status         @default(To_Do)
   due_date                    DateTime?
   assigned_to_contributor_id  Int?
-  is_client_visible           Boolean?            @default(false)
-  rate_at_time_of_assignment  Decimal             @default(0.00) @db.Decimal(8, 2)
+  is_client_visible           Boolean?             @default(false)
+  rate_at_time_of_assignment  Decimal              @default(0.00) @db.Decimal(8, 2)
   task_comments               task_comments[]
-  task_dependencies_blocking  task_dependencies[] @relation("BlockingTasks")
-  task_dependencies_dependent task_dependencies[] @relation("DependentTasks")
-  assigned_to_contributor     contributors?       @relation("AssignedTasks", fields: [assigned_to_contributor_id], references: [id])
-  build_component             build_components    @relation(fields: [build_component_id], references: [id], onDelete: Cascade)
-  project                     projects            @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  task_template               task_templates      @relation(fields: [task_template_id], references: [id])
+  task_dependencies_blocking  task_dependencies[]  @relation("BlockingTasks")
+  task_dependencies_dependent task_dependencies[]  @relation("DependentTasks")
+  assigned_to_contributor     contributors?        @relation("AssignedTasks", fields: [assigned_to_contributor_id], references: [id])
+  build_component             build_components     @relation(fields: [build_component_id], references: [id], onDelete: Cascade)
+  project                     projects             @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  task_template               task_templates       @relation(fields: [task_template_id], references: [id])
   generated_task_logs         generated_task_log[]
 
   @@index([status])
@@ -1069,6 +1047,10 @@ model workflow_templates {
   updated_at      DateTime           @updatedAt
   stages          workflow_stages[]
   projects        projects[]
+  deliverables    deliverables[] // Deliverables that use this workflow
+  components      ComponentLibrary[] // Components that use this workflow
+  coverage_scenes coverage_scenes[] // Coverage scenes that use this workflow
+  editing_styles  editing_styles[] // Editing styles that use this workflow
 
   @@map("workflow_templates")
 }
@@ -1090,31 +1072,51 @@ model workflow_stages {
 }
 
 model task_generation_rules {
-  id                    Int                         @id @default(autoincrement())
-  workflow_stage_id     Int
-  task_template_id      Int
-  component_type        ComponentType?
-  coverage_scene_id     Int?
-  is_required           Boolean                     @default(true)
-  auto_assign_to_role   String?
-  conditions            Json?                       // JSON conditions for when to generate this task
-  created_at            DateTime                    @default(now())
-  updated_at            DateTime                    @updatedAt
-  workflow_stage        workflow_stages             @relation(fields: [workflow_stage_id], references: [id], onDelete: Cascade)
-  task_template         task_templates              @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
-  coverage_scene        coverage_scenes?            @relation(fields: [coverage_scene_id], references: [id])
+  id                  Int              @id @default(autoincrement())
+  workflow_stage_id   Int
+  task_template_id    Int
+  component_type      ComponentType?
+  coverage_scene_id   Int?
+  is_required         Boolean          @default(true)
+  auto_assign_to_role String?
+  conditions          Json? // JSON conditions for when to generate this task
+  created_at          DateTime         @default(now())
+  updated_at          DateTime         @updatedAt
+  workflow_stage      workflow_stages  @relation(fields: [workflow_stage_id], references: [id], onDelete: Cascade)
+  task_template       task_templates   @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
+  coverage_scene      coverage_scenes? @relation(fields: [coverage_scene_id], references: [id])
 
   @@map("task_generation_rules")
 }
 
 model generated_task_log {
-  id                      Int               @id @default(autoincrement())
+  id                      Int      @id @default(autoincrement())
   project_id              Int
   task_generation_rule_id Int
   task_id                 Int
-  generated_at            DateTime          @default(now())
-  project                 projects          @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  task                    tasks             @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  generated_at            DateTime @default(now())
+  project                 projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  task                    tasks    @relation(fields: [task_id], references: [id], onDelete: Cascade)
 
   @@map("generated_task_log")
+}
+
+// Entity Default Tasks - For storing default task lists for Components, Deliverables, Coverage Scenes
+model entity_default_tasks {
+  id                 Int             @id @default(autoincrement())
+  entity_type        String          // 'component', 'deliverable', 'coverage_scene'
+  entity_id          Int
+  task_template_id   Int?            // Optional reference to task template
+  task_name          String
+  estimated_hours    Decimal         @default(0) @db.Decimal(4,2)
+  order_index        Int
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @updatedAt
+  
+  // Optional relation to task template if task was created from template
+  task_template      task_templates? @relation(fields: [task_template_id], references: [id], onDelete: SetNull)
+
+  @@unique([entity_type, entity_id, order_index])
+  @@index([entity_type, entity_id])
+  @@map("entity_default_tasks")
 }

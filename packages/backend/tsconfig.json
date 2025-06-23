@@ -18,5 +18,5 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
   },
-  "include": ["src/**/*", "test/**/*", "prisma/**/*"]
+  "include": ["src/**/*", "test/**/*", "prisma/**/*", "verify-seeding.ts"]
 }
