@@ -17,7 +17,7 @@ async function verifySeeding() {
       prisma.contacts.count(),
       prisma.componentLibrary.count(),
       prisma.deliverables.count(),
-      prisma.workflowTemplates.count(),
+      prisma.workflow_templates.count(),
       prisma.tasks.count(),
     ]);
 
@@ -29,7 +29,7 @@ async function verifySeeding() {
     console.log(`   ✅ Tasks: ${taskCount}\n`);
 
     // Check for workflow integration
-    const workflowWithRelations = await prisma.workflowTemplates.findFirst({
+    const workflowWithRelations = await prisma.workflow_templates.findFirst({
       include: {
         stages: true,
         deliverables: true,

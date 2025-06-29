@@ -11,7 +11,7 @@ import {
 } from "./timeline.controller";
 
 // Define a type for timeline components used in analytics/validation
-interface TimelineComponent {
+export interface TimelineComponent {
   id: number;
   deliverable_id: number;
   layer_id: number;
@@ -20,6 +20,22 @@ interface TimelineComponent {
   component: { name: string };
   layer: { name: string; order_index: number };
   // Add other properties as needed
+}
+
+// Define return type for timeline analytics
+export interface TimelineAnalytics {
+  totalDuration: number;
+  totalComponents: number;
+  layerStats: Record<string, { count: number; totalDuration: number }>;
+  componentStats: Record<string, { count: number; totalDuration: number }>;
+  timelineHealth: {
+    hasGaps: { start: number; end: number; duration: number }[];
+    hasOverlaps: {
+      component1: TimelineComponent;
+      component2: TimelineComponent;
+      overlapDuration: number;
+    }[];
+  };
 }
 
 @Injectable()
@@ -199,7 +215,9 @@ export class TimelineService {
   }
 
   // Timeline Analytics
-  async getTimelineAnalytics(deliverableId: number) {
+  async getTimelineAnalytics(
+    deliverableId: number,
+  ): Promise<TimelineAnalytics> {
     const components = (await this.getTimelineComponentsForDeliverable(
       deliverableId,
     )) as TimelineComponent[];
@@ -313,9 +331,7 @@ export class TimelineService {
     return gaps;
   }
 
-  private detectTimelineOverlaps(
-    components: TimelineComponent[],
-  ): {
+  private detectTimelineOverlaps(components: TimelineComponent[]): {
     component1: TimelineComponent;
     component2: TimelineComponent;
     overlapDuration: number;

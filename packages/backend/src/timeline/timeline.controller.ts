@@ -1,5 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
-import { TimelineService } from './timeline.service';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  ParseIntPipe,
+} from "@nestjs/common";
+import { TimelineService, TimelineAnalytics } from "./timeline.service";
 
 // DTOs for Timeline management
 export class CreateTimelineComponentDto {
@@ -26,72 +35,78 @@ export class CreateTimelineLayerDto {
   description?: string;
 }
 
-@Controller('timeline')
+@Controller("timeline")
 export class TimelineController {
   constructor(private readonly timelineService: TimelineService) {}
 
   // Timeline Components
-  @Post('components')
+  @Post("components")
   createTimelineComponent(@Body() createDto: CreateTimelineComponentDto) {
     return this.timelineService.createTimelineComponent(createDto);
   }
 
-  @Get('deliverables/:id/components')
-  getTimelineComponentsForDeliverable(@Param('id', ParseIntPipe) deliverableId: number) {
-    return this.timelineService.getTimelineComponentsForDeliverable(deliverableId);
+  @Get("deliverables/:id/components")
+  getTimelineComponentsForDeliverable(
+    @Param("id", ParseIntPipe) deliverableId: number,
+  ) {
+    return this.timelineService.getTimelineComponentsForDeliverable(
+      deliverableId,
+    );
   }
 
-  @Get('components/:id')
-  getTimelineComponent(@Param('id', ParseIntPipe) id: number) {
+  @Get("components/:id")
+  getTimelineComponent(@Param("id", ParseIntPipe) id: number) {
     return this.timelineService.getTimelineComponent(id);
   }
 
-  @Patch('components/:id')
+  @Patch("components/:id")
   updateTimelineComponent(
-    @Param('id', ParseIntPipe) id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Body() updateDto: UpdateTimelineComponentDto,
   ) {
     return this.timelineService.updateTimelineComponent(id, updateDto);
   }
 
-  @Delete('components/:id')
-  removeTimelineComponent(@Param('id', ParseIntPipe) id: number) {
+  @Delete("components/:id")
+  removeTimelineComponent(@Param("id", ParseIntPipe) id: number) {
     return this.timelineService.removeTimelineComponent(id);
   }
 
   // Timeline Layers
-  @Get('layers')
+  @Get("layers")
   getTimelineLayers() {
     return this.timelineService.getTimelineLayers();
   }
 
-  @Post('layers')
+  @Post("layers")
   createTimelineLayer(@Body() createDto: CreateTimelineLayerDto) {
     return this.timelineService.createTimelineLayer(createDto);
   }
 
-  @Patch('layers/:id')
+  @Patch("layers/:id")
   updateTimelineLayer(
-    @Param('id', ParseIntPipe) id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Body() updateDto: Partial<CreateTimelineLayerDto>,
   ) {
     return this.timelineService.updateTimelineLayer(id, updateDto);
   }
 
-  @Delete('layers/:id')
-  removeTimelineLayer(@Param('id', ParseIntPipe) id: number) {
+  @Delete("layers/:id")
+  removeTimelineLayer(@Param("id", ParseIntPipe) id: number) {
     return this.timelineService.removeTimelineLayer(id);
   }
 
   // Timeline Analytics
-  @Get('deliverables/:id/analytics')
-  getTimelineAnalytics(@Param('id', ParseIntPipe) deliverableId: number) {
+  @Get("deliverables/:id/analytics")
+  getTimelineAnalytics(
+    @Param("id", ParseIntPipe) deliverableId: number,
+  ): Promise<TimelineAnalytics> {
     return this.timelineService.getTimelineAnalytics(deliverableId);
   }
 
   // Timeline Validation
-  @Post('deliverables/:id/validate')
-  validateTimeline(@Param('id', ParseIntPipe) deliverableId: number) {
+  @Post("deliverables/:id/validate")
+  validateTimeline(@Param("id", ParseIntPipe) deliverableId: number) {
     return this.timelineService.validateTimeline(deliverableId);
   }
 }
