@@ -23,6 +23,7 @@ import {
   Analytics as AnalyticsIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
+import UniversalTaskManager from "../../../../_components/UniversalTaskManager";
 
 // Coverage Scene data interface
 interface CoverageScene {
@@ -193,6 +194,15 @@ export default function CoverageSceneDetailPage() {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Task Management Section */}
+      <Box sx={{ mb: 3 }}>
+        <UniversalTaskManager
+          entityType="coverage_scene"
+          entityId={Number(sceneId)}
+          entityName={scene.name}
+        />
+      </Box>
 
       {/* Tabs */}
       <Card>

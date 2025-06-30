@@ -1002,6 +1002,10 @@ enum DeliverableType {
 enum ComponentType {
   COVERAGE_LINKED
   EDIT
+  GRAPHICS
+  VIDEO
+  AUDIO
+  MUSIC
 }
 
 enum MusicType {

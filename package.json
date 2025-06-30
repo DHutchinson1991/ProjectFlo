@@ -11,7 +11,12 @@
     "lint": "eslint \"packages/**/*.{js,ts,jsx,tsx}\"",
     "lint:fix": "eslint \"packages/**/*.{js,ts,jsx,tsx}\" --fix",
     "dev": "concurrently \"pnpm --filter backend run start:dev\" \"pnpm --filter frontend run dev\"",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "terminals:setup": "echo '🚀 Run: ./setup-terminals.sh OR use VS Code Command Palette: Ctrl+Shift+P → Tasks: Run Task → Setup Development Terminals'",
+    "terminals:servers": "echo '🚀 Use VS Code Command Palette: Ctrl+Shift+P → Tasks: Run Task → Start Development Servers'",
+    "terminals:backend": "echo '🔧 Use VS Code Command Palette: Ctrl+Shift+P → Tasks: Run Task → Start Backend Only'",
+    "terminals:frontend": "echo '🎨 Use VS Code Command Palette: Ctrl+Shift+P → Tasks: Run Task → Start Frontend Only'",
+    "terminals:health": "echo '🛠️ Use VS Code Command Palette: Ctrl+Shift+P → Tasks: Run Task → Quick Health Check'"
   },
   "keywords": [],
   "author": "",

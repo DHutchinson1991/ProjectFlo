@@ -23,7 +23,7 @@ import {
   Analytics as AnalyticsIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
-import TaskTemplatesAccordion from "../../_components/TaskTemplatesAccordion";
+import UniversalTaskManager from "../../_components/UniversalTaskManager";
 
 // Component data interface
 interface ComponentLibrary {
@@ -223,9 +223,9 @@ export default function ComponentDetailPage() {
         </Grid>
       </Grid>
 
-      {/* Task Templates Section */}
+      {/* Task Management Section */}
       <Box sx={{ mb: 3 }}>
-        <TaskTemplatesAccordion
+        <UniversalTaskManager
           entityType="component"
           entityId={Number(componentId)}
           entityName={component.name}

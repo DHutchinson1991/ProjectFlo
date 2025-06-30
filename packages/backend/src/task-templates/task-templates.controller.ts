@@ -77,4 +77,77 @@ export class TaskTemplatesController {
   remove(@Param("id", ParseIntPipe) id: number) {
     return this.taskTemplatesService.remove(id);
   }
+
+  // Advanced Phase 2B Features
+
+  @Get("recommendations")
+  async getRecommendations(
+    @Query("entity_type") entityType: string,
+    @Query("entity_id") entityId: string,
+    @Query("project_type") projectType?: string,
+    @Query("client_segment") clientSegment?: string,
+  ) {
+    return this.taskTemplatesService.getSmartRecommendations({
+      entityType,
+      entityId: parseInt(entityId),
+      projectType,
+      clientSegment,
+    });
+  }
+
+  @Get(":id/versions")
+  async getVersions(@Param("id", ParseIntPipe) id: number) {
+    return this.taskTemplatesService.getVersionHistory(id);
+  }
+
+  @Post(":id/versions")
+  async createVersion(
+    @Param("id", ParseIntPipe) id: number,
+    @Body()
+    versionData: {
+      name: string;
+      description?: string;
+      change_summary?: string;
+    },
+  ) {
+    return this.taskTemplatesService.createVersion(id, versionData);
+  }
+
+  @Patch("versions/:versionId/submit-approval")
+  async submitForApproval(@Param("versionId", ParseIntPipe) versionId: number) {
+    return this.taskTemplatesService.submitForApproval(versionId);
+  }
+
+  @Patch("versions/:versionId/approve")
+  async approveVersion(
+    @Param("versionId", ParseIntPipe) versionId: number,
+    @Body() approvalData: { action: "approve" | "reject"; notes?: string },
+  ) {
+    return this.taskTemplatesService.processApproval(versionId, approvalData);
+  }
+
+  @Patch("versions/:versionId/restore")
+  async restoreVersion(@Param("versionId", ParseIntPipe) versionId: number) {
+    return this.taskTemplatesService.restoreVersion(versionId);
+  }
+
+  @Get("marketplace/featured")
+  async getFeaturedTemplates() {
+    return this.taskTemplatesService.getFeaturedMarketplaceTemplates();
+  }
+
+  @Post("marketplace/import")
+  async importFromMarketplace(
+    @Body()
+    templateData: {
+      name: string;
+      phase: string;
+      pricing_type: "Hourly" | "Fixed";
+      fixed_price?: number;
+      effort_hours: string;
+      description?: string;
+    },
+  ) {
+    return this.taskTemplatesService.importFromMarketplace(templateData);
+  }
 }
