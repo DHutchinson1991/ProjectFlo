@@ -1,18 +1,17 @@
 // lib/api-services.ts
 import {
   apiClient,
-  LoginCredentials,
   AuthResponse,
   Contributor,
   Role,
   NewContributorData,
   UpdateContributorDto,
   CoverageSceneData,
-  DeliverableData,
   CreateCoverageSceneData,
-  CreateDeliverableData,
   UpdateCoverageSceneData,
-  UpdateDeliverableData
+  TimelineComponentData,
+  TimelineLayerData,
+  TimelineAnalyticsData
 } from './api-client';
 
 // Authentication Services
@@ -114,5 +113,58 @@ export const deliverablesService = {
 
   async delete(id: number): Promise<void> {
     return apiClient.delete<void>(`/deliverables/${id}`);
+  }
+};
+
+// Export types for use in other files
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+// Timeline Services
+export const timelineService = {
+  // Timeline Components
+  async getComponentsForContent(contentId: number): Promise<TimelineComponentData[]> {
+    return apiClient.get<TimelineComponentData[]>(`/timeline/content/${contentId}/components`);
+  },
+
+  async createComponent(data: TimelineComponentData): Promise<TimelineComponentData> {
+    return apiClient.post<TimelineComponentData>('/timeline/components', data);
+  },
+
+  async updateComponent(id: number, data: Partial<TimelineComponentData>): Promise<TimelineComponentData> {
+    return apiClient.patch<TimelineComponentData>(`/timeline/components/${id}`, data);
+  },
+
+  async deleteComponent(id: number): Promise<void> {
+    return apiClient.delete<void>(`/timeline/components/${id}`);
+  },
+
+  // Timeline Layers
+  async getLayers(): Promise<TimelineLayerData[]> {
+    return apiClient.get<TimelineLayerData[]>('/timeline/layers');
+  },
+
+  async createLayer(data: Omit<TimelineLayerData, 'id' | 'is_active'>): Promise<TimelineLayerData> {
+    return apiClient.post<TimelineLayerData>('/timeline/layers', data);
+  },
+
+  async updateLayer(id: number, data: Partial<Omit<TimelineLayerData, 'id' | 'is_active'>>): Promise<TimelineLayerData> {
+    return apiClient.patch<TimelineLayerData>(`/timeline/layers/${id}`, data);
+  },
+
+  async deleteLayer(id: number): Promise<void> {
+    return apiClient.delete<void>(`/timeline/layers/${id}`);
+  },
+
+  // Timeline Analytics
+  async getAnalytics(contentId: number): Promise<TimelineAnalyticsData> {
+    return apiClient.get<TimelineAnalyticsData>(`/timeline/content/${contentId}/analytics`);
+  },
+
+  // Timeline Validation
+  async validateTimeline(contentId: number): Promise<any> {
+    return apiClient.post<any>(`/timeline/content/${contentId}/validate`, {});
   }
 };
