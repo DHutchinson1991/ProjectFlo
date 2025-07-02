@@ -26,17 +26,17 @@ export interface UpdateCategoryDto {
 
 @Injectable()
 export class CategoriesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async findAll(): Promise<DeliverableCategory[]> {
-    return this.prisma.deliverable_categories.findMany({
+    return this.prisma.content_categories.findMany({
       where: { is_active: true },
       orderBy: { name: 'asc' },
     });
   }
 
   async findOne(id: number): Promise<DeliverableCategory | null> {
-    return this.prisma.deliverable_categories.findUnique({
+    return this.prisma.content_categories.findUnique({
       where: { id },
     });
   }
@@ -44,8 +44,8 @@ export class CategoriesService {
   async create(data: CreateCategoryDto): Promise<DeliverableCategory> {
     // Ensure code is uppercase and formatted properly
     const formattedCode = data.code.toUpperCase().replace(/\s+/g, '_');
-    
-    return this.prisma.deliverable_categories.create({
+
+    return this.prisma.content_categories.create({
       data: {
         ...data,
         code: formattedCode,
@@ -55,13 +55,13 @@ export class CategoriesService {
 
   async update(id: number, data: UpdateCategoryDto): Promise<DeliverableCategory> {
     const updateData = { ...data };
-    
+
     // Format code if provided
     if (updateData.code) {
       updateData.code = updateData.code.toUpperCase().replace(/\s+/g, '_');
     }
 
-    return this.prisma.deliverable_categories.update({
+    return this.prisma.content_categories.update({
       where: { id },
       data: updateData,
     });
@@ -69,15 +69,15 @@ export class CategoriesService {
 
   async remove(id: number): Promise<void> {
     // Soft delete by setting is_active to false
-    await this.prisma.deliverable_categories.update({
+    await this.prisma.content_categories.update({
       where: { id },
       data: { is_active: false },
     });
   }
 
   async hardDelete(id: number): Promise<void> {
-    // Hard delete - only use if no deliverables reference this category
-    await this.prisma.deliverable_categories.delete({
+    // Hard delete - only use if no content reference this category
+    await this.prisma.content_categories.delete({
       where: { id },
     });
   }
@@ -85,12 +85,12 @@ export class CategoriesService {
   async initializeDefaults(): Promise<void> {
     // Initialize default categories if they don't exist
     const defaults = [
-      { name: 'Standard', code: 'STANDARD', description: 'Standard deliverable templates' },
-      { name: 'Raw Footage', code: 'RAW_FOOTAGE', description: 'Raw footage deliverables' },
+      { name: 'Standard', code: 'STANDARD', description: 'Standard content templates' },
+      { name: 'Raw Footage', code: 'RAW_FOOTAGE', description: 'Raw footage content' },
     ];
 
     for (const category of defaults) {
-      await this.prisma.deliverable_categories.upsert({
+      await this.prisma.content_categories.upsert({
         where: { code: category.code },
         update: {}, // Don't update if exists
         create: category,

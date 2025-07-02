@@ -36,7 +36,7 @@ import {
   GraphicEq as AudioIcon,
   Image as GraphicsIcon,
 } from "@mui/icons-material";
-import VisualTimelineBuilder from "./VisualTimelineBuilder";
+import FilmBuilder from "../settings/services/content/[id]/components/FilmBuilder";
 
 interface TimelineTemplate {
   id: number;
@@ -713,10 +713,10 @@ const TimelineTemplateManager: React.FC<TimelineTemplateManagerProps> = ({
                   prev.map((t) =>
                     t.id === selectedTemplate.id
                       ? {
-                          ...t,
-                          ...formData,
-                          updated_at: new Date().toISOString(),
-                        }
+                        ...t,
+                        ...formData,
+                        updated_at: new Date().toISOString(),
+                      }
                       : t,
                   ),
                 );
@@ -741,7 +741,7 @@ const TimelineTemplateManager: React.FC<TimelineTemplateManagerProps> = ({
         <DialogTitle>Timeline Preview: {selectedTemplate?.name}</DialogTitle>
         <DialogContent sx={{ height: 600 }}>
           {selectedTemplate && (
-            <VisualTimelineBuilder
+            <FilmBuilder
               initialComponents={selectedTemplate.components}
               readOnly={true}
             />

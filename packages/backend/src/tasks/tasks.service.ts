@@ -5,7 +5,7 @@ import { tasks_status } from '@prisma/client';
 
 @Injectable()
 export class TasksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(createTaskDto: CreateTaskDto) {
     // Validate references exist
@@ -69,7 +69,7 @@ export class TasksService {
     if (filters.assigned_to) whereConditions.assigned_to_contributor_id = filters.assigned_to;
     if (filters.due_before) whereConditions.due_date = { lte: filters.due_before };
     if (filters.due_after) {
-      whereConditions.due_date = whereConditions.due_date 
+      whereConditions.due_date = whereConditions.due_date
         ? { ...whereConditions.due_date, gte: filters.due_after }
         : { gte: filters.due_after };
     }
@@ -197,17 +197,17 @@ export class TasksService {
           include: { contact: true, role: true }
         },
         project: {
-          include: { 
+          include: {
             client: { include: { contact: true } }
           }
         },
         build_component: {
           include: {
-            coverage_scene: true,
+            coverage: true,
             editing_style: true,
-            build_deliverable: {
+            build_content: {
               include: {
-                deliverable: true
+                content: true
               }
             }
           }
@@ -257,8 +257,8 @@ export class TasksService {
     if (!existingTask) throw new NotFoundException('Task not found');
 
     // If changing assignee, validate they exist
-    if (updateTaskDto.assigned_to_contributor_id && 
-        updateTaskDto.assigned_to_contributor_id !== existingTask.assigned_to_contributor_id) {
+    if (updateTaskDto.assigned_to_contributor_id &&
+      updateTaskDto.assigned_to_contributor_id !== existingTask.assigned_to_contributor_id) {
       const contributor = await this.prisma.contributors.findUnique({
         where: { id: updateTaskDto.assigned_to_contributor_id }
       });
@@ -390,7 +390,7 @@ export class TasksService {
 
       // Average actual vs planned duration
       this.prisma.tasks.aggregate({
-        where: { 
+        where: {
           ...whereConditions,
           actual_duration_hours: { not: null },
           planned_duration_hours: { not: null }
@@ -473,9 +473,9 @@ export class TasksService {
   }
 
   async getTimeEntries(task_id: number) {
-    const task = await this.prisma.tasks.findUnique({ 
+    const task = await this.prisma.tasks.findUnique({
       where: { id: task_id },
-      select: { 
+      select: {
         actual_duration_hours: true,
         planned_duration_hours: true
       }
@@ -593,7 +593,7 @@ export class TasksService {
   async getBuildComponents(projectId: number) {
     return this.prisma.build_components.findMany({
       where: {
-        build_deliverable: {
+        build_content: {
           build: {
             project_id: projectId
           }
@@ -601,7 +601,7 @@ export class TasksService {
       },
       select: {
         id: true,
-        coverage_scene: {
+        coverage: {
           select: {
             name: true
           }
@@ -611,14 +611,14 @@ export class TasksService {
             name: true
           }
         },
-        build_deliverable: {
+        build_content: {
           select: {
             build: {
               select: {
                 id: true
               }
             },
-            deliverable: {
+            content: {
               select: {
                 name: true
               }

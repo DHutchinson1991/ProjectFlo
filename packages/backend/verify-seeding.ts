@@ -10,13 +10,13 @@ async function verifySeeding() {
     const [
       contactCount,
       componentCount,
-      deliverableCount,
+      contentCount,
       workflowCount,
       taskCount,
     ] = await Promise.all([
       prisma.contacts.count(),
       prisma.componentLibrary.count(),
-      prisma.deliverables.count(),
+      prisma.contentLibrary.count(),
       prisma.workflow_templates.count(),
       prisma.tasks.count(),
     ]);
@@ -24,15 +24,14 @@ async function verifySeeding() {
     console.log("📊 Database Statistics:");
     console.log(`   📞 Contacts: ${contactCount}`);
     console.log(`   🧩 Components: ${componentCount}`);
-    console.log(`   📦 Deliverables: ${deliverableCount}`);
+    console.log(`   📦 Content: ${contentCount}`);
     console.log(`   🔄 Workflows: ${workflowCount}`);
     console.log(`   ✅ Tasks: ${taskCount}\n`);
 
     // Check for workflow integration
     const workflowWithRelations = await prisma.workflow_templates.findFirst({
       include: {
-        stages: true,
-        deliverables: true,
+        contentLibrary: true,
         components: true,
       },
     });
@@ -40,9 +39,8 @@ async function verifySeeding() {
     if (workflowWithRelations) {
       console.log("✅ Workflow Integration Found:");
       console.log(`   Name: "${workflowWithRelations.name}"`);
-      console.log(`   Stages: ${workflowWithRelations.stages.length}`);
       console.log(
-        `   Connected Deliverables: ${workflowWithRelations.deliverables.length}`,
+        `   Connected Content: ${workflowWithRelations.contentLibrary.length}`,
       );
       console.log(
         `   Connected Components: ${workflowWithRelations.components.length}\n`,

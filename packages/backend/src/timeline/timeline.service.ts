@@ -13,7 +13,7 @@ import {
 // Define a type for timeline components used in analytics/validation
 export interface TimelineComponent {
   id: number;
-  deliverable_id: number;
+  content_id: number;
   layer_id: number;
   start_time_seconds: number;
   duration_seconds: number;
@@ -40,7 +40,7 @@ export interface TimelineAnalytics {
 
 @Injectable()
 export class TimelineService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // Timeline Components
   async createTimelineComponent(createDto: CreateTimelineComponentDto) {
@@ -54,7 +54,7 @@ export class TimelineService {
     // Check for overlaps on the same layer
     const existingComponent = await this.prisma.timelineComponent.findFirst({
       where: {
-        deliverable_id: createDto.deliverable_id,
+        content_id: createDto.content_id,
         layer_id: createDto.layer_id,
         start_time_seconds: createDto.start_time_seconds,
       },
@@ -71,14 +71,14 @@ export class TimelineService {
       include: {
         component: true,
         layer: true,
-        deliverable: true,
+        content: true,
       },
     });
   }
 
-  async getTimelineComponentsForDeliverable(deliverableId: number) {
+  async getTimelineComponentsForContent(contentId: number) {
     return this.prisma.timelineComponent.findMany({
-      where: { deliverable_id: deliverableId },
+      where: { content_id: contentId },
       include: {
         component: true,
         layer: true,
@@ -96,7 +96,7 @@ export class TimelineService {
       include: {
         component: true,
         layer: true,
-        deliverable: true,
+        content: true,
       },
     });
 
@@ -130,7 +130,7 @@ export class TimelineService {
 
       const existingComponent = await this.prisma.timelineComponent.findFirst({
         where: {
-          deliverable_id: current.deliverable_id,
+          content_id: current.content_id,
           layer_id: newLayerId,
           start_time_seconds: newStartTime,
           NOT: { id },
@@ -150,7 +150,7 @@ export class TimelineService {
       include: {
         component: true,
         layer: true,
-        deliverable: true,
+        content: true,
       },
     });
   }
@@ -216,10 +216,10 @@ export class TimelineService {
 
   // Timeline Analytics
   async getTimelineAnalytics(
-    deliverableId: number,
+    contentId: number,
   ): Promise<TimelineAnalytics> {
-    const components = (await this.getTimelineComponentsForDeliverable(
-      deliverableId,
+    const components = (await this.getTimelineComponentsForContent(
+      contentId,
     )) as TimelineComponent[];
 
     // Calculate timeline statistics
@@ -267,9 +267,9 @@ export class TimelineService {
   }
 
   // Timeline Validation
-  async validateTimeline(deliverableId: number) {
-    const components = (await this.getTimelineComponentsForDeliverable(
-      deliverableId,
+  async validateTimeline(contentId: number) {
+    const components = (await this.getTimelineComponentsForContent(
+      contentId,
     )) as TimelineComponent[];
 
     const issues: string[] = [];

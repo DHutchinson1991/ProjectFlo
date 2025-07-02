@@ -23,7 +23,6 @@ import {
   Analytics as AnalyticsIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
-import UniversalTaskManager from "../../_components/UniversalTaskManager";
 
 // Component data interface
 interface ComponentLibrary {
@@ -222,15 +221,6 @@ export default function ComponentDetailPage() {
           </Card>
         </Grid>
       </Grid>
-
-      {/* Task Management Section */}
-      <Box sx={{ mb: 3 }}>
-        <UniversalTaskManager
-          entityType="component"
-          entityId={Number(componentId)}
-          entityName={component.name}
-        />
-      </Box>
 
       {/* Tabs */}
       <Card>

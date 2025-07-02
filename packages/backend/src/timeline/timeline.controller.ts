@@ -12,7 +12,7 @@ import { TimelineService, TimelineAnalytics } from "./timeline.service";
 
 // DTOs for Timeline management
 export class CreateTimelineComponentDto {
-  deliverable_id: number;
+  content_id: number;
   component_id: number;
   layer_id: number;
   start_time_seconds: number;
@@ -37,7 +37,7 @@ export class CreateTimelineLayerDto {
 
 @Controller("timeline")
 export class TimelineController {
-  constructor(private readonly timelineService: TimelineService) {}
+  constructor(private readonly timelineService: TimelineService) { }
 
   // Timeline Components
   @Post("components")
@@ -45,12 +45,12 @@ export class TimelineController {
     return this.timelineService.createTimelineComponent(createDto);
   }
 
-  @Get("deliverables/:id/components")
-  getTimelineComponentsForDeliverable(
-    @Param("id", ParseIntPipe) deliverableId: number,
+  @Get("content/:id/components")
+  getTimelineComponentsForContent(
+    @Param("id", ParseIntPipe) contentId: number,
   ) {
-    return this.timelineService.getTimelineComponentsForDeliverable(
-      deliverableId,
+    return this.timelineService.getTimelineComponentsForContent(
+      contentId,
     );
   }
 
@@ -97,16 +97,16 @@ export class TimelineController {
   }
 
   // Timeline Analytics
-  @Get("deliverables/:id/analytics")
+  @Get("content/:id/analytics")
   getTimelineAnalytics(
-    @Param("id", ParseIntPipe) deliverableId: number,
+    @Param("id", ParseIntPipe) contentId: number,
   ): Promise<TimelineAnalytics> {
-    return this.timelineService.getTimelineAnalytics(deliverableId);
+    return this.timelineService.getTimelineAnalytics(contentId);
   }
 
   // Timeline Validation
-  @Post("deliverables/:id/validate")
-  validateTimeline(@Param("id", ParseIntPipe) deliverableId: number) {
-    return this.timelineService.validateTimeline(deliverableId);
+  @Post("content/:id/validate")
+  validateTimeline(@Param("id", ParseIntPipe) contentId: number) {
+    return this.timelineService.validateTimeline(contentId);
   }
 }

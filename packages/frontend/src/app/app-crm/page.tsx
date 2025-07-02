@@ -64,9 +64,6 @@ export default function DashboardPage() {
             Manage Contributors
           </Button>
           <Button variant="contained" disabled>
-            View Contacts
-          </Button>
-          <Button variant="contained" disabled>
             Project Management
           </Button>
           <Button variant="contained" disabled>

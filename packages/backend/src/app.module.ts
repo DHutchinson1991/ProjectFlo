@@ -6,7 +6,8 @@ import { AuthModule } from "./auth/auth.module";
 import { RolesModule } from "./roles/roles.module";
 import { ContactsModule } from "./contacts/contacts.module";
 import { CoverageScenesModule } from "./coverage-scenes/coverage-scenes.module";
-import { DeliverablesModule } from "./deliverables/deliverables.module";
+import { ContentServiceModule } from "./content-service/content.module";
+import { ContentModule } from "./content/content.module";
 import { EditingStylesModule } from "./editing-styles/editing-styles.module";
 import { ComponentsModule } from "./components/components.module";
 import { MusicModule } from "./music/music.module";
@@ -28,7 +29,8 @@ import { PrismaService } from "./prisma.service";
     RolesModule,
     ContactsModule,
     CoverageScenesModule,
-    DeliverablesModule,
+    ContentServiceModule,
+    ContentModule,
     EditingStylesModule,
     ComponentsModule,
     MusicModule,
@@ -45,4 +47,4 @@ import { PrismaService } from "./prisma.service";
   controllers: [AppController],
   providers: [AppService, PrismaService],
 })
-export class AppModule {}
+export class AppModule { }

@@ -47,10 +47,10 @@ export interface UpdateTaskGenerationRuleDto {
 
 @Injectable()
 export class WorkflowsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // Basic CRUD operations using raw SQL to avoid Prisma client issues
-  
+
   async createTemplate(createTemplateDto: CreateWorkflowTemplateDto) {
     const result = await this.prisma.$queryRaw`
       INSERT INTO workflow_templates (name, description, is_active, created_at, updated_at)
@@ -215,7 +215,7 @@ export class WorkflowsService {
 
   async reorderStages(reorderDto: { stageId: number; newOrderIndex: number }[]) {
     const updates: unknown[] = [];
-    
+
     for (const { stageId, newOrderIndex } of reorderDto) {
       const result = await this.prisma.$queryRaw`
         UPDATE workflow_stages SET order_index = ${newOrderIndex}, updated_at = NOW()
@@ -268,7 +268,7 @@ export class WorkflowsService {
         cs.name as coverage_scene_name
       FROM task_generation_rules tgr
       JOIN task_templates tt ON tgr.task_template_id = tt.id
-      LEFT JOIN coverage_scenes cs ON tgr.coverage_scene_id = cs.id
+      LEFT JOIN coverage cs ON tgr.coverage_scene_id = cs.id
       WHERE tgr.workflow_stage_id = ${stageId}
       ORDER BY tgr.created_at DESC
     `;
@@ -334,7 +334,7 @@ export class WorkflowsService {
   // Analytics
   async getTemplateAnalytics(templateId: number) {
     const template = await this.findTemplate(templateId);
-    
+
     const usage = await this.prisma.$queryRaw`
       SELECT 
         COUNT(DISTINCT p.id)::int as projects_using_template,

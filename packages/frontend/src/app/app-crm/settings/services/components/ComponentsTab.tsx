@@ -183,7 +183,7 @@ export default function ComponentsTab() {
                         No video components found
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Components are the building blocks of deliverable templates
+                        Components are the building blocks of content templates
                     </Typography>
                     <Button
                         component={Link}

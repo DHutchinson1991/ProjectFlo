@@ -16,16 +16,15 @@ import {
   VideoLibrary as VideoLibraryIcon,
   Extension as ExtensionIcon,
   Movie as MovieIcon,
-  Palette as PaletteIcon,
   ArrowForward as ArrowForwardIcon,
 } from "@mui/icons-material";
 
 const serviceCards = [
   {
-    title: "Deliverable Templates",
-    description: "Create and manage deliverable templates with visual builder",
+    title: "Content",
+    description: "Create and manage content templates with visual builder",
     icon: <VideoLibraryIcon sx={{ fontSize: 40 }} />,
-    href: "/app-crm/settings/services/deliverables",
+    href: "/app-crm/settings/services/content",
     color: "primary.main",
     badge: "Builder Available",
   },
@@ -45,14 +44,6 @@ const serviceCards = [
     href: "/app-crm/settings/services/coverage-scenes",
     color: "success.main",
     badge: "Scenes",
-  },
-  {
-    title: "Editing Styles",
-    description: "Manage editing styles and visual treatments",
-    icon: <PaletteIcon sx={{ fontSize: 40 }} />,
-    href: "/app-crm/settings/services/editing-styles",
-    color: "warning.main",
-    badge: "Styles",
   },
 ];
 
@@ -130,19 +121,19 @@ export default function ServicesPage() {
           Quick Overview
         </Typography>
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={4}>
             <Card>
               <CardContent sx={{ textAlign: "center" }}>
                 <Typography variant="h4" color="primary">
                   0
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Deliverable Templates
+                  Content
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={4}>
             <Card>
               <CardContent sx={{ textAlign: "center" }}>
                 <Typography variant="h4" color="secondary">
@@ -154,7 +145,7 @@ export default function ServicesPage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={4}>
             <Card>
               <CardContent sx={{ textAlign: "center" }}>
                 <Typography variant="h4" color="success.main">
@@ -162,18 +153,6 @@ export default function ServicesPage() {
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Coverage Scenes
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent sx={{ textAlign: "center" }}>
-                <Typography variant="h4" color="warning.main">
-                  0
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Editing Styles
                 </Typography>
               </CardContent>
             </Card>

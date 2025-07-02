@@ -27,23 +27,23 @@ model contacts {
   @@map("contacts")
 }
 
-model coverage_scenes {
+model coverage {
   id                         Int                          @id @default(autoincrement())
   name                       String                       @unique
   description                String?
   workflow_template_id       Int? // Link to coverage-specific workflow  build_components           build_components[]  build_components           build_components[]
   build_coverage_assignments build_coverage_assignments[]
-  component_coverage_scenes  ComponentCoverageScene[]
+  component_coverage         ComponentCoverage[]
   template_defaults          ComponentTemplateDefaults[]
   project_assets             project_assets[]
   task_generation_rules      task_generation_rules[]
   workflow_template          workflow_templates?          @relation(fields: [workflow_template_id], references: [id])
   build_components           build_components[]
 
-  @@map("coverage_scenes")
+  @@map("coverage")
 }
 
-model deliverable_categories {
+model content_categories {
   id          Int      @id @default(autoincrement())
   name        String   @unique
   code        String   @unique
@@ -52,10 +52,10 @@ model deliverable_categories {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  @@map("deliverable_categories")
+  @@map("content_categories")
 }
 
-model deliverables {
+model contentLibrary {
   id                   Int                             @id @default(autoincrement())
   name                 String                          @unique
   description          String?
@@ -65,22 +65,22 @@ model deliverables {
   delivery_timeline    Int?
   includes_music       Boolean                         @default(true)
   is_active            Boolean                         @default(true)
-  type                 DeliverableType                 @default(STANDARD)
+  type                 ContentType                     @default(STANDARD)
   updated_at           DateTime                        @updatedAt
   version              String                          @default("1.0")
   workflow_template    workflow_templates?             @relation(fields: [workflow_template_id], references: [id])
-  build_deliverables   build_deliverables[]
+  build_content        build_content[]
   template_defaults    ComponentTemplateDefaults[]
   usage_analytics      ComponentUsageAnalytics[]
-  assigned_components  DeliverableAssignedComponents[]
-  change_logs          DeliverableChangeLog[]
-  music_tracks         DeliverableMusicTrack[]
-  versions             DeliverableVersion[]
+  assigned_components  ContentAssignedComponents[]
+  change_logs          ContentChangeLog[]
+  music_tracks         ContentMusicTrack[]
+  versions             ContentVersion[]
   timeline_changes     TimelineChangeLog[]
   timeline_components  TimelineComponent[]
   timeline_sessions    TimelineEditingSession[]
 
-  @@map("deliverables")
+  @@map("content_library")
 }
 
 model editing_styles {
@@ -101,6 +101,7 @@ model ComponentLibrary {
   name                    String
   description             String?
   type                    ComponentType
+  is_coverage_linked      Boolean                         @default(false)
   workflow_template_id    Int? // Link to component-specific workflow
   complexity_score        Int                             @default(5)
   estimated_duration      Int?
@@ -115,20 +116,20 @@ model ComponentLibrary {
   computed_task_count     Int?
   computed_total_hours    Decimal?                        @db.Decimal(8, 2)
   workflow_template       workflow_templates?             @relation(fields: [workflow_template_id], references: [id])
-  coverage_scenes         ComponentCoverageScene[]
+  coverage                ComponentCoverage[]
   dependent_components    ComponentDependency[]           @relation("DependentComponent")
   parent_dependencies     ComponentDependency[]           @relation("ParentDependency")
   music_options           ComponentMusicOption[]
   usage_analytics         ComponentUsageAnalytics[]
-  deliverable_assignments DeliverableAssignedComponents[]
+  content_assignments     ContentAssignedComponents[]
   timeline_changes        TimelineChangeLog[]
   timeline_components     TimelineComponent[]
 
   @@map("component_library")
 }
 
-model DeliverableAssignedComponents {
-  deliverable_id        Int
+model ContentAssignedComponents {
+  content_id            Int
   component_id          Int
   order_index           Int
   editing_style         String?
@@ -138,20 +139,20 @@ model DeliverableAssignedComponents {
   created_at            DateTime         @default(now())
   updated_at            DateTime         @updatedAt
   component             ComponentLibrary @relation(fields: [component_id], references: [id])
-  deliverable           deliverables     @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+  content               contentLibrary   @relation(fields: [content_id], references: [id], onDelete: Cascade)
 
-  @@id([deliverable_id, component_id])
-  @@map("deliverable_assigned_components")
+  @@id([content_id, component_id])
+  @@map("content_assigned_components")
 }
 
-model ComponentCoverageScene {
-  component_id      Int
-  coverage_scene_id Int
-  component         ComponentLibrary @relation(fields: [component_id], references: [id], onDelete: Cascade)
-  coverage_scene    coverage_scenes  @relation(fields: [coverage_scene_id], references: [id])
+model ComponentCoverage {
+  component_id   Int
+  coverage_id    Int
+  component      ComponentLibrary @relation(fields: [component_id], references: [id], onDelete: Cascade)
+  coverage       coverage         @relation(fields: [coverage_id], references: [id])
 
-  @@id([component_id, coverage_scene_id])
-  @@map("component_coverage_scenes")
+  @@id([component_id, coverage_id])
+  @@map("component_coverage")
 }
 
 model ComponentMusicOption {
@@ -164,17 +165,17 @@ model ComponentMusicOption {
   @@map("component_music_options")
 }
 
-model DeliverableMusicTrack {
-  id             Int          @id @default(autoincrement())
-  deliverable_id Int
-  music_type     MusicType
-  track_name     String?
-  artist         String?
-  duration       Int?
-  order_index    Int          @default(0)
-  deliverable    deliverables @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+model ContentMusicTrack {
+  id         Int            @id @default(autoincrement())
+  content_id Int
+  music_type MusicType
+  track_name String?
+  artist     String?
+  duration   Int?
+  order_index Int           @default(0)
+  content    contentLibrary @relation(fields: [content_id], references: [id], onDelete: Cascade)
 
-  @@map("deliverable_music_tracks")
+  @@map("content_music_tracks")
 }
 
 model PricingModifier {
@@ -190,33 +191,33 @@ model PricingModifier {
   @@map("pricing_modifiers")
 }
 
-model DeliverableVersion {
-  id                  Int          @id @default(autoincrement())
-  deliverable_id      Int
+model ContentVersion {
+  id                  Int            @id @default(autoincrement())
+  content_id          Int
   version_number      String
   change_summary      String
   changed_by_id       Int
-  created_at          DateTime     @default(now())
+  created_at          DateTime       @default(now())
   components_snapshot Json
   pricing_snapshot    Json
-  changed_by          contributors @relation("DeliverableVersionCreator", fields: [changed_by_id], references: [id])
-  deliverable         deliverables @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+  changed_by          contributors   @relation("ContentVersionCreator", fields: [changed_by_id], references: [id])
+  content             contentLibrary @relation(fields: [content_id], references: [id], onDelete: Cascade)
 
-  @@map("deliverable_versions")
+  @@map("content_versions")
 }
 
-model DeliverableChangeLog {
-  id             Int          @id @default(autoincrement())
-  deliverable_id Int
-  change_type    String
-  old_value      Json?
-  new_value      Json?
-  changed_by_id  Int
-  created_at     DateTime     @default(now())
-  changed_by     contributors @relation("DeliverableChangeUser", fields: [changed_by_id], references: [id])
-  deliverable    deliverables @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+model ContentChangeLog {
+  id         Int            @id @default(autoincrement())
+  content_id Int
+  change_type String
+  old_value   Json?
+  new_value   Json?
+  changed_by_id Int
+  created_at  DateTime       @default(now())
+  changed_by  contributors   @relation("ContentChangeUser", fields: [changed_by_id], references: [id])
+  content     contentLibrary @relation(fields: [content_id], references: [id], onDelete: Cascade)
 
-  @@map("deliverable_change_logs")
+  @@map("content_change_logs")
 }
 
 model operator_types {
@@ -386,8 +387,8 @@ model contributors {
   contributor_task_benchmarks    contributor_task_benchmarks[]
   contact                        contacts                      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
   role                           roles?                        @relation(fields: [role_id], references: [id], onDelete: Restrict)
-  deliverable_changes_made       DeliverableChangeLog[]        @relation("DeliverableChangeUser")
-  deliverable_versions_created   DeliverableVersion[]          @relation("DeliverableVersionCreator")
+  content_changes_made       ContentChangeLog[]        @relation("ContentChangeUser")
+  content_versions_created   ContentVersion[]          @relation("ContentVersionCreator")
   notifications_received         notifications[]
   project_assignments            project_assignments[]
   task_comments_made             task_comments[]
@@ -426,14 +427,14 @@ model project_assignments {
 
 model ComponentTemplateDefaults {
   id                       Int              @id @default(autoincrement())
-  deliverable_id           Int
-  coverage_scene_id        Int?
+  content_id               Int
+  coverage_id              Int?
   default_editing_style_id Int
   default_target_minutes   Decimal?         @db.Decimal(8, 2)
   default_is_included      Boolean          @default(true)
-  coverage_scene           coverage_scenes? @relation(fields: [coverage_scene_id], references: [id], onDelete: Cascade)
+  coverage                 coverage?        @relation(fields: [coverage_id], references: [id], onDelete: Cascade)
   default_editing_style    editing_styles   @relation(fields: [default_editing_style_id], references: [id])
-  deliverable              deliverables     @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+  content                  contentLibrary   @relation(fields: [content_id], references: [id], onDelete: Cascade)
 
   @@map("component_template_defaults")
 }
@@ -464,7 +465,7 @@ model builds {
   build_billable_items       build_billable_items[]
   build_change_orders        build_change_orders[]
   build_coverage_assignments build_coverage_assignments[]
-  build_deliverables         build_deliverables[]
+  build_content              build_content[]
   build_snapshots            build_snapshots[]
   client                     clients?                     @relation(fields: [client_id], references: [id])
   inquiry                    inquiries?                   @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
@@ -476,39 +477,39 @@ model builds {
 
 model build_coverage_assignments {
   id                  Int             @id @default(autoincrement())
-  build_id            Int
-  coverage_scene_id   Int
-  operator_type_id    Int
-  quantity            Int             @default(1)
-  rate_at_time_of_add Decimal         @db.Decimal(8, 2)
-  build               builds          @relation(fields: [build_id], references: [id], onDelete: Cascade)
-  coverage_scene      coverage_scenes @relation(fields: [coverage_scene_id], references: [id])
-  operator_type       operator_types  @relation(fields: [operator_type_id], references: [id])
+  build_id          Int
+  coverage_id       Int
+  operator_type_id  Int
+  quantity          Int             @default(1)
+  rate_at_time_of_add Decimal       @db.Decimal(8, 2)
+  build             builds          @relation(fields: [build_id], references: [id], onDelete: Cascade)
+  coverage          coverage        @relation(fields: [coverage_id], references: [id])
+  operator_type     operator_types  @relation(fields: [operator_type_id], references: [id])
 
   @@map("build_coverage_assignments")
 }
 
-model build_deliverables {
+model build_content {
   id               Int                @id @default(autoincrement())
   build_id         Int
-  deliverable_id   Int
+  content_id       Int
   build_components build_components[]
   build            builds             @relation(fields: [build_id], references: [id], onDelete: Cascade)
-  deliverable      deliverables       @relation(fields: [deliverable_id], references: [id])
+  content          contentLibrary     @relation(fields: [content_id], references: [id])
 
-  @@map("build_deliverables")
+  @@map("build_content")
 }
 
 model build_components {
-  id                   Int                @id @default(autoincrement())
-  build_deliverable_id Int
-  coverage_scene_id    Int
+  id               Int            @id @default(autoincrement())
+  build_content_id Int
+  coverage_id          Int
   editing_style_id     Int
   target_minutes       Decimal?           @db.Decimal(8, 2)
   is_included          Boolean?           @default(true)
-  calculated_price     Decimal?           @db.Decimal(10, 2)
-  build_deliverable    build_deliverables @relation(fields: [build_deliverable_id], references: [id], onDelete: Cascade)
-  coverage_scene       coverage_scenes    @relation(fields: [coverage_scene_id], references: [id])
+  calculated_price     Decimal?       @db.Decimal(10, 2)
+  build_content        build_content  @relation(fields: [build_content_id], references: [id], onDelete: Cascade)
+  coverage             coverage           @relation(fields: [coverage_id], references: [id])
   editing_style        editing_styles     @relation(fields: [editing_style_id], references: [id])
   tasks                tasks[]
 
@@ -606,11 +607,11 @@ model calendar_events {
 model project_assets {
   id                Int                 @id @default(autoincrement())
   project_id        Int
-  coverage_scene_id Int?
+  coverage_id       Int?
   file_name         String?
   storage_path      String?
   asset_type        project_asset_type?
-  coverage_scene    coverage_scenes?    @relation(fields: [coverage_scene_id], references: [id])
+  coverage          coverage?           @relation(fields: [coverage_id], references: [id])
   project           projects            @relation(fields: [project_id], references: [id], onDelete: Cascade)
 
   @@map("project_assets")
@@ -802,7 +803,7 @@ model TimelineLayer {
 
 model TimelineComponent {
   id                 Int              @id @default(autoincrement())
-  deliverable_id     Int
+  content_id         Int
   component_id       Int
   layer_id           Int
   start_time_seconds Int
@@ -814,10 +815,10 @@ model TimelineComponent {
   created_by_id      Int?
   component          ComponentLibrary @relation(fields: [component_id], references: [id], onDelete: Cascade)
   created_by         contributors?    @relation(fields: [created_by_id], references: [id])
-  deliverable        deliverables     @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+  content            contentLibrary   @relation(fields: [content_id], references: [id], onDelete: Cascade)
   layer              TimelineLayer    @relation(fields: [layer_id], references: [id])
 
-  @@unique([deliverable_id, layer_id, start_time_seconds])
+  @@unique([content_id, layer_id, start_time_seconds])
   @@map("timeline_components")
 }
 
@@ -840,7 +841,7 @@ model ComponentDependency {
 model ComponentUsageAnalytics {
   id                         Int              @id @default(autoincrement())
   component_id               Int
-  used_in_deliverable_id     Int?
+  used_in_content_id         Int?
   used_in_build_id           Int?
   usage_date                 DateTime         @default(now())
   actual_duration_seconds    Int?
@@ -849,7 +850,7 @@ model ComponentUsageAnalytics {
   user_id                    Int?
   component                  ComponentLibrary @relation(fields: [component_id], references: [id], onDelete: Cascade)
   used_in_build              builds?          @relation(fields: [used_in_build_id], references: [id])
-  used_in_deliverable        deliverables?    @relation(fields: [used_in_deliverable_id], references: [id])
+  used_in_content            contentLibrary?  @relation(fields: [used_in_content_id], references: [id])
   user                       contributors?    @relation(fields: [user_id], references: [id])
 
   @@map("component_usage_analytics")
@@ -857,34 +858,34 @@ model ComponentUsageAnalytics {
 
 model TimelineEditingSession {
   id             Int                 @id @default(autoincrement())
-  deliverable_id Int
+  content_id     Int
   user_id        Int
   session_start  DateTime            @default(now())
   session_end    DateTime?
   last_activity  DateTime            @default(now())
   is_active      Boolean             @default(true)
   change_logs    TimelineChangeLog[]
-  deliverable    deliverables        @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+  content        contentLibrary      @relation(fields: [content_id], references: [id], onDelete: Cascade)
   user           contributors        @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@unique([deliverable_id, user_id, session_start])
+  @@unique([content_id, user_id, session_start])
   @@map("timeline_editing_sessions")
 }
 
 model TimelineChangeLog {
-  id             Int                     @id @default(autoincrement())
-  deliverable_id Int
-  component_id   Int?
-  change_type    String
-  old_values     Json?
-  new_values     Json?
-  changed_by_id  Int
-  changed_at     DateTime                @default(now())
-  session_id     Int?
-  changed_by     contributors            @relation(fields: [changed_by_id], references: [id])
-  component      ComponentLibrary?       @relation(fields: [component_id], references: [id])
-  deliverable    deliverables            @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
-  session        TimelineEditingSession? @relation(fields: [session_id], references: [id])
+  id          Int                     @id @default(autoincrement())
+  content_id  Int
+  component_id Int?
+  change_type String
+  old_values  Json?
+  new_values  Json?
+  changed_by_id Int
+  changed_at  DateTime                @default(now())
+  session_id  Int?
+  changed_by  contributors            @relation(fields: [changed_by_id], references: [id])
+  component   ComponentLibrary?       @relation(fields: [component_id], references: [id])
+  content     contentLibrary          @relation(fields: [content_id], references: [id], onDelete: Cascade)
+  session     TimelineEditingSession? @relation(fields: [session_id], references: [id])
 
   @@map("timeline_change_log")
 }
@@ -994,14 +995,12 @@ enum calendar_sync_status {
   Disabled
 }
 
-enum DeliverableType {
+enum ContentType {
   STANDARD
   RAW_FOOTAGE
 }
 
 enum ComponentType {
-  COVERAGE_LINKED
-  EDIT
   GRAPHICS
   VIDEO
   AUDIO
@@ -1038,7 +1037,7 @@ enum PricingModifierType {
   TIMELINE_COMPLEXITY
   COVERAGE_COMPLEXITY
   COMPONENT_DEPENDENCY
-  DELIVERABLE_OVERRIDE
+  CONTENT_OVERRIDE
 }
 
 // Workflow Management Models
@@ -1051,9 +1050,9 @@ model workflow_templates {
   updated_at      DateTime           @updatedAt
   stages          workflow_stages[]
   projects        projects[]
-  deliverables    deliverables[] // Deliverables that use this workflow
+  contentLibrary    contentLibrary[] // Content that uses this workflow
   components      ComponentLibrary[] // Components that use this workflow
-  coverage_scenes coverage_scenes[] // Coverage scenes that use this workflow
+  coverage        coverage[] // Coverage that uses this workflow
   editing_styles  editing_styles[] // Editing styles that use this workflow
 
   @@map("workflow_templates")
@@ -1080,7 +1079,7 @@ model task_generation_rules {
   workflow_stage_id   Int
   task_template_id    Int
   component_type      ComponentType?
-  coverage_scene_id   Int?
+  coverage_id         Int?
   is_required         Boolean          @default(true)
   auto_assign_to_role String?
   conditions          Json? // JSON conditions for when to generate this task
@@ -1088,7 +1087,7 @@ model task_generation_rules {
   updated_at          DateTime         @updatedAt
   workflow_stage      workflow_stages  @relation(fields: [workflow_stage_id], references: [id], onDelete: Cascade)
   task_template       task_templates   @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
-  coverage_scene      coverage_scenes? @relation(fields: [coverage_scene_id], references: [id])
+  coverage            coverage?        @relation(fields: [coverage_id], references: [id])
 
   @@map("task_generation_rules")
 }
@@ -1105,10 +1104,10 @@ model generated_task_log {
   @@map("generated_task_log")
 }
 
-// Entity Default Tasks - For storing default task lists for Components, Deliverables, Coverage Scenes
+// Entity Default Tasks - For storing default task lists for Components, Content, Coverage Scenes
 model entity_default_tasks {
   id                 Int             @id @default(autoincrement())
-  entity_type        String          // 'component', 'deliverable', 'coverage_scene'
+  entity_type        String          // 'component', 'content', 'coverage_scene'
   entity_id          Int
   task_template_id   Int?            // Optional reference to task template
   task_name          String

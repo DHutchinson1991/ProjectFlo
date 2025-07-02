@@ -1,22 +1,18 @@
 // lib/api-services.ts
-import { 
-  apiClient, 
-  LoginCredentials, 
-  AuthResponse, 
-  Contributor, 
-  Role, 
-  ContactData, 
-  NewContributorData, 
+import {
+  apiClient,
+  LoginCredentials,
+  AuthResponse,
+  Contributor,
+  Role,
+  NewContributorData,
   UpdateContributorDto,
   CoverageSceneData,
   DeliverableData,
-  EditingStyleData,
   CreateCoverageSceneData,
   CreateDeliverableData,
-  CreateEditingStyleData,
   UpdateCoverageSceneData,
-  UpdateDeliverableData,
-  UpdateEditingStyleData
+  UpdateDeliverableData
 } from './api-client';
 
 // Authentication Services
@@ -74,30 +70,9 @@ export const rolesService = {
   }
 };
 
-// Contacts Services
-export const contactsService = {
-  async getAll(): Promise<ContactData[]> {
-    return apiClient.get<ContactData[]>('/contacts');
-  },
 
-  async getById(id: number): Promise<ContactData> {
-    return apiClient.get<ContactData>(`/contacts/${id}`);
-  },
 
-  async create(data: Partial<ContactData>): Promise<ContactData> {
-    return apiClient.post<ContactData>('/contacts', data);
-  },
-
-  async update(id: number, data: Partial<ContactData>): Promise<ContactData> {
-    return apiClient.patch<ContactData>(`/contacts/${id}`, data);
-  },
-
-  async delete(id: number): Promise<void> {
-    return apiClient.delete<void>(`/contacts/${id}`);
-  }
-};
-
-// Wedding Business Services (Coverage Scenes, Deliverables, Editing Styles)
+// Wedding Business Services (Coverage Scenes, Deliverables)
 export const coverageScenesService = {
   async getAll(): Promise<CoverageSceneData[]> {
     return apiClient.get<CoverageSceneData[]>('/coverage-scenes');
@@ -139,27 +114,5 @@ export const deliverablesService = {
 
   async delete(id: number): Promise<void> {
     return apiClient.delete<void>(`/deliverables/${id}`);
-  }
-};
-
-export const editingStylesService = {
-  async getAll(): Promise<EditingStyleData[]> {
-    return apiClient.get<EditingStyleData[]>('/editing-styles');
-  },
-
-  async getById(id: number): Promise<EditingStyleData> {
-    return apiClient.get<EditingStyleData>(`/editing-styles/${id}`);
-  },
-
-  async create(data: CreateEditingStyleData): Promise<EditingStyleData> {
-    return apiClient.post<EditingStyleData>('/editing-styles', data);
-  },
-
-  async update(id: number, data: UpdateEditingStyleData): Promise<EditingStyleData> {
-    return apiClient.patch<EditingStyleData>(`/editing-styles/${id}`, data);
-  },
-
-  async delete(id: number): Promise<void> {
-    return apiClient.delete<void>(`/editing-styles/${id}`);
   }
 };

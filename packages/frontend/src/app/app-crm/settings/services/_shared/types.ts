@@ -1,5 +1,5 @@
-// Types for deliverables system
-export type DeliverableType = "STANDARD" | "RAW_FOOTAGE";
+// Types for content system
+export type ContentType = "STANDARD" | "RAW_FOOTAGE";
 
 export type MusicType =
   | "NONE"
@@ -11,7 +11,7 @@ export type MusicType =
 
 export type ComponentType = "COVERAGE_BASED" | "PRODUCTION";
 
-export interface DeliverableTemplate {
+export interface ContentTemplate {
   id: number;
   name: string;
   description?: string;
@@ -21,16 +21,16 @@ export interface DeliverableTemplate {
   delivery_timeline?: number;
   includes_music: boolean;
   is_active: boolean;
-  type: DeliverableType;
+  type: ContentType;
   updated_at: string;
   version: string;
   template_defaults: ComponentTemplateDefaults[];
-  assigned_components?: DeliverableAssignedComponents[];
+  assigned_components?: ContentAssignedComponents[];
 }
 
-export interface DeliverableDefaultComponent {
+export interface ContentDefaultComponent {
   id: number;
-  deliverable_id: number;
+  content_id: number;
   coverage_scene?: {
     id: number;
     name: string;
@@ -43,8 +43,8 @@ export interface DeliverableDefaultComponent {
   };
 }
 
-export interface DeliverableAssignedComponents {
-  deliverable_id: number;
+export interface ContentAssignedComponents {
+  content_id: number;
   component_id: number;
   order_index: number;
   editing_style?: string;
@@ -71,7 +71,7 @@ export interface ComponentLibrary {
 
 export interface ComponentTemplateDefaults {
   id: number;
-  deliverable_id: number;
+  content_id: number;
   component_id: number;
   order_index: number;
   duration_override?: number;
@@ -88,10 +88,10 @@ export interface ComponentPricing {
   base_price: number;
 }
 
-export interface CreateDeliverableDto {
+export interface CreateContentDto {
   name: string;
   description?: string;
-  type: DeliverableType;
+  type: ContentType;
   includes_music?: boolean;
   delivery_timeline?: number;
   components?: Array<{
@@ -101,7 +101,7 @@ export interface CreateDeliverableDto {
   }>;
 }
 
-export type UpdateDeliverableDto = Partial<CreateDeliverableDto> & {
+export type UpdateContentDto = Partial<CreateContentDto> & {
   components?: Array<{
     component_id: number;
     order_index: number;
@@ -111,7 +111,7 @@ export type UpdateDeliverableDto = Partial<CreateDeliverableDto> & {
 };
 
 // Category types
-export interface DeliverableCategory {
+export interface ContentCategory {
   id: number;
   name: string;
   code: string;

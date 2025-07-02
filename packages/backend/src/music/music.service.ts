@@ -2,8 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { MusicType } from '@prisma/client';
 
-interface CreateDeliverableMusicDto {
-  deliverable_id: number;
+interface CreateContentMusicDto {
+  content_id: number;
   music_type: MusicType;
   track_name?: string;
   artist?: string;
@@ -11,7 +11,7 @@ interface CreateDeliverableMusicDto {
   order_index?: number;
 }
 
-interface UpdateDeliverableMusicDto {
+interface UpdateContentMusicDto {
   music_type?: MusicType;
   track_name?: string;
   artist?: string;
@@ -27,30 +27,30 @@ interface CreateComponentMusicOptionDto {
 
 @Injectable()
 export class MusicService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
-   * Create a music track for a deliverable
+   * Create a music track for content
    */
-  async createDeliverableMusic(createDto: CreateDeliverableMusicDto) {
-    const musicTrack = await this.prisma.deliverableMusicTrack.create({
+  async createContentMusic(createDto: CreateContentMusicDto) {
+    const musicTrack = await this.prisma.contentMusicTrack.create({
       data: {
         ...createDto,
         order_index: createDto.order_index ?? 0
       }
     });
 
-    return this.getDeliverableMusic(musicTrack.id);
+    return this.getContentMusic(musicTrack.id);
   }
 
   /**
-   * Get deliverable music track by ID
+   * Get content music track by ID
    */
-  async getDeliverableMusic(id: number) {
-    const track = await this.prisma.deliverableMusicTrack.findUnique({
+  async getContentMusic(id: number) {
+    const track = await this.prisma.contentMusicTrack.findUnique({
       where: { id },
       include: {
-        deliverable: {
+        content: {
           select: {
             id: true,
             name: true,
@@ -61,49 +61,49 @@ export class MusicService {
     });
 
     if (!track) {
-      throw new NotFoundException(`Deliverable music track with ID ${id} not found`);
+      throw new NotFoundException(`Content music track with ID ${id} not found`);
     }
 
     return track;
   }
 
   /**
-   * Get all music tracks for a deliverable
+   * Get all music tracks for content
    */
-  async getDeliverableMusicTracks(deliverableId: number) {
-    return this.prisma.deliverableMusicTrack.findMany({
-      where: { deliverable_id: deliverableId },
+  async getContentMusicTracks(contentId: number) {
+    return this.prisma.contentMusicTrack.findMany({
+      where: { content_id: contentId },
       orderBy: { order_index: 'asc' }
     });
   }
 
   /**
-   * Update deliverable music track
+   * Update content music track
    */
-  async updateDeliverableMusic(id: number, updateDto: UpdateDeliverableMusicDto) {
+  async updateContentMusic(id: number, updateDto: UpdateContentMusicDto) {
     // Check if track exists
-    await this.getDeliverableMusic(id);
+    await this.getContentMusic(id);
 
-    const track = await this.prisma.deliverableMusicTrack.update({
+    const track = await this.prisma.contentMusicTrack.update({
       where: { id },
       data: updateDto
     });
 
-    return this.getDeliverableMusic(track.id);
+    return this.getContentMusic(track.id);
   }
 
   /**
-   * Delete deliverable music track
+   * Delete content music track
    */
-  async removeDeliverableMusic(id: number) {
+  async removeContentMusic(id: number) {
     // Check if track exists
-    await this.getDeliverableMusic(id);
+    await this.getContentMusic(id);
 
-    await this.prisma.deliverableMusicTrack.delete({
+    await this.prisma.contentMusicTrack.delete({
       where: { id }
     });
 
-    return { message: 'Deliverable music track deleted successfully' };
+    return { message: 'Content music track deleted successfully' };
   }
 
   /**
@@ -190,20 +190,20 @@ export class MusicService {
    * Get music statistics
    */
   async getMusicStats() {
-    const deliverableMusicCount = await this.prisma.deliverableMusicTrack.count();
+    const contentMusicCount = await this.prisma.contentMusicTrack.count();
     const componentMusicOptionsCount = await this.prisma.componentMusicOption.count();
 
-    const musicTypeDistribution = await this.prisma.deliverableMusicTrack.groupBy({
+    const musicTypeDistribution = await this.prisma.contentMusicTrack.groupBy({
       by: ['music_type'],
       _count: { id: true }
     });
 
-    const averageDuration = await this.prisma.deliverableMusicTrack.aggregate({
+    const averageDuration = await this.prisma.contentMusicTrack.aggregate({
       _avg: { duration: true }
     });
 
     return {
-      totalDeliverableTracks: deliverableMusicCount,
+      totalContentTracks: contentMusicCount,
       totalComponentMusicOptions: componentMusicOptionsCount,
       averageDurationSeconds: averageDuration._avg?.duration || 0,
       musicTypeDistribution: musicTypeDistribution.map(group => ({
@@ -234,10 +234,10 @@ export class MusicService {
   }
 
   /**
-   * Bulk assign music to deliverable
+   * Bulk assign music to content
    */
-  async bulkAssignMusicToDeliverable(
-    deliverableId: number, 
+  async bulkAssignMusicToContent(
+    contentId: number,
     musicAssignments: {
       music_type: MusicType;
       track_name?: string;
@@ -248,9 +248,9 @@ export class MusicService {
   ) {
     const results = await Promise.all(
       musicAssignments.map((assignment, index) =>
-        this.prisma.deliverableMusicTrack.create({
+        this.prisma.contentMusicTrack.create({
           data: {
-            deliverable_id: deliverableId,
+            content_id: contentId,
             ...assignment,
             order_index: assignment.order_index ?? index
           }

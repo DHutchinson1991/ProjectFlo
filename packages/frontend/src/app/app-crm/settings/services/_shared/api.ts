@@ -1,35 +1,35 @@
-import { 
-  DeliverableTemplate, 
-  CreateDeliverableDto, 
-  UpdateDeliverableDto, 
+import {
+  ContentTemplate,
+  CreateContentDto,
+  UpdateContentDto,
   ComponentLibrary,
-  DeliverableCategory,
+  ContentCategory,
   CreateCategoryDto,
   UpdateCategoryDto
 } from './types';
 
 const API_BASE = 'http://localhost:3002';
 
-// Deliverables API
-export const deliverableAPI = {
-  async getAll(): Promise<DeliverableTemplate[]> {
-    const response = await fetch(`${API_BASE}/deliverables/templates`);
+// Content API
+export const contentAPI = {
+  async getAll(): Promise<ContentTemplate[]> {
+    const response = await fetch(`${API_BASE}/content`);
     if (!response.ok) {
-      throw new Error('Failed to fetch templates');
+      throw new Error('Failed to fetch content');
     }
     return response.json();
   },
 
-  async getById(id: number): Promise<DeliverableTemplate> {
-    const response = await fetch(`${API_BASE}/deliverables/templates/${id}`);
+  async getById(id: number): Promise<ContentTemplate> {
+    const response = await fetch(`${API_BASE}/content/${id}`);
     if (!response.ok) {
-      throw new Error('Failed to fetch template');
+      throw new Error('Failed to fetch content');
     }
     return response.json();
   },
 
-  async create(data: CreateDeliverableDto): Promise<DeliverableTemplate> {
-    const response = await fetch(`${API_BASE}/deliverables/templates`, {
+  async create(data: CreateContentDto): Promise<ContentTemplate> {
+    const response = await fetch(`${API_BASE}/content`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -37,13 +37,13 @@ export const deliverableAPI = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      throw new Error('Failed to create template');
+      throw new Error('Failed to create content');
     }
     return response.json();
   },
 
-  async update(id: number, data: UpdateDeliverableDto): Promise<DeliverableTemplate> {
-    const response = await fetch(`${API_BASE}/deliverables/templates/${id}`, {
+  async update(id: number, data: UpdateContentDto): Promise<ContentTemplate> {
+    const response = await fetch(`${API_BASE}/content/${id}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -51,17 +51,17 @@ export const deliverableAPI = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      throw new Error('Failed to update template');
+      throw new Error('Failed to update content');
     }
     return response.json();
   },
 
   async delete(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE}/deliverables/templates/${id}`, {
+    const response = await fetch(`${API_BASE}/content/${id}`, {
       method: 'DELETE',
     });
     if (!response.ok) {
-      throw new Error('Failed to delete template');
+      throw new Error('Failed to delete content');
     }
   },
 
@@ -70,8 +70,8 @@ export const deliverableAPI = {
     order_index: number;
     editing_style?: string;
     duration_override?: number;
-  }>): Promise<DeliverableTemplate> {
-    const response = await fetch(`${API_BASE}/deliverables/templates/${id}/components`, {
+  }>): Promise<ContentTemplate> {
+    const response = await fetch(`${API_BASE}/content/${id}/components`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -85,23 +85,13 @@ export const deliverableAPI = {
   },
 
   async getComponents(id: number) {
-    const response = await fetch(`${API_BASE}/deliverables/templates/${id}/components`);
+    const response = await fetch(`${API_BASE}/content/${id}/components`);
     if (!response.ok) {
       throw new Error('Failed to fetch components');
     }
     return response.json();
-  },
-
-  // Legacy methods for backward compatibility
-  getAllTemplates: function() { return this.getAll(); },
-  getTemplate: function(id: number) { return this.getById(id); },
-  createTemplate: function(data: CreateDeliverableDto) { return this.create(data); },
-  updateTemplate: function(id: number, data: UpdateDeliverableDto) { return this.update(id, data); },
-  deleteTemplate: function(id: number) { return this.delete(id); },
+  }
 };
-
-// Keep the old export for backward compatibility
-export const deliverableApi = deliverableAPI;
 
 // Components API
 export const componentAPI = {
@@ -159,11 +149,11 @@ export const componentAPI = {
   },
 
   // Legacy methods for backward compatibility
-  getAllComponents: function() { return this.getAll(); },
-  getComponent: function(id: number) { return this.getById(id); },
-  createComponent: function(data: Partial<ComponentLibrary>) { return this.create(data); },
-  updateComponent: function(id: number, data: Partial<ComponentLibrary>) { return this.update(id, data); },
-  deleteComponent: function(id: number) { return this.delete(id); },
+  getAllComponents: function () { return this.getAll(); },
+  getComponent: function (id: number) { return this.getById(id); },
+  createComponent: function (data: Partial<ComponentLibrary>) { return this.create(data); },
+  updateComponent: function (id: number, data: Partial<ComponentLibrary>) { return this.update(id, data); },
+  deleteComponent: function (id: number) { return this.delete(id); },
 };
 
 // Keep the old export for backward compatibility
@@ -171,8 +161,8 @@ export const componentApi = componentAPI;
 
 // Category Management API
 export const categoryAPI = {
-  async getAll(): Promise<DeliverableCategory[]> {
-    const response = await fetch(`${API_BASE}/deliverables/categories`);
+  async getAll(): Promise<ContentCategory[]> {
+    const response = await fetch(`${API_BASE}/content/categories`);
     if (!response.ok) {
       throw new Error('Failed to fetch categories');
     }
@@ -180,23 +170,23 @@ export const categoryAPI = {
   },
 
   async getCodes(): Promise<string[]> {
-    const response = await fetch(`${API_BASE}/deliverables/categories/codes`);
+    const response = await fetch(`${API_BASE}/content/categories/codes`);
     if (!response.ok) {
       throw new Error('Failed to fetch category codes');
     }
     return response.json();
   },
 
-  async getById(id: number): Promise<DeliverableCategory> {
-    const response = await fetch(`${API_BASE}/deliverables/categories/${id}`);
+  async getById(id: number): Promise<ContentCategory> {
+    const response = await fetch(`${API_BASE}/content/categories/${id}`);
     if (!response.ok) {
       throw new Error('Failed to fetch category');
     }
     return response.json();
   },
 
-  async create(data: CreateCategoryDto): Promise<DeliverableCategory> {
-    const response = await fetch(`${API_BASE}/deliverables/categories`, {
+  async create(data: CreateCategoryDto): Promise<ContentCategory> {
+    const response = await fetch(`${API_BASE}/content/categories`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -209,8 +199,8 @@ export const categoryAPI = {
     return response.json();
   },
 
-  async update(id: number, data: UpdateCategoryDto): Promise<DeliverableCategory> {
-    const response = await fetch(`${API_BASE}/deliverables/categories/${id}`, {
+  async update(id: number, data: UpdateCategoryDto): Promise<ContentCategory> {
+    const response = await fetch(`${API_BASE}/content/categories/${id}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -224,7 +214,7 @@ export const categoryAPI = {
   },
 
   async delete(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE}/deliverables/categories/${id}`, {
+    const response = await fetch(`${API_BASE}/content/categories/${id}`, {
       method: 'DELETE',
     });
     if (!response.ok) {
@@ -233,7 +223,7 @@ export const categoryAPI = {
   },
 
   async hardDelete(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE}/deliverables/categories/${id}/hard`, {
+    const response = await fetch(`${API_BASE}/content/categories/${id}/hard`, {
       method: 'DELETE',
     });
     if (!response.ok) {
@@ -242,7 +232,7 @@ export const categoryAPI = {
   },
 
   async initializeDefaults(): Promise<void> {
-    const response = await fetch(`${API_BASE}/deliverables/categories/initialize-defaults`, {
+    const response = await fetch(`${API_BASE}/content/categories/initialize-defaults`, {
       method: 'POST',
     });
     if (!response.ok) {
@@ -277,3 +267,10 @@ export const categoryAPI = {
     return this.getCodes();
   }
 };
+
+// Export contentService for components that need it
+export const contentService = contentAPI;
+
+// Legacy backward compatibility exports (deprecated)
+export const deliverableAPI = contentAPI;
+export const deliverableApi = contentAPI;

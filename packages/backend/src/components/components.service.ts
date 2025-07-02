@@ -4,7 +4,7 @@ import { MusicType, ComponentType } from "@prisma/client";
 
 @Injectable()
 export class ComponentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(createComponentDto: {
     name: string;
@@ -42,9 +42,9 @@ export class ComponentsService {
     const component = await this.prisma.componentLibrary.findUnique({
       where: { id },
       include: {
-        coverage_scenes: {
+        coverage: {
           include: {
-            coverage_scene: true,
+            coverage: true,
           },
         },
         music_options: true,
@@ -61,9 +61,9 @@ export class ComponentsService {
   async findAllWithRelations() {
     return this.prisma.componentLibrary.findMany({
       include: {
-        coverage_scenes: {
+        coverage: {
           include: {
-            coverage_scene: true,
+            coverage: true,
           },
         },
         music_options: true,
@@ -139,7 +139,7 @@ export class ComponentsService {
 
   // Coverage Scene Methods
   async getAvailableCoverageScenes() {
-    return this.prisma.coverage_scenes.findMany({
+    return (this.prisma as any).coverage.findMany({
       orderBy: { name: "asc" },
     });
   }
@@ -153,17 +153,17 @@ export class ComponentsService {
     const sceneIds = coverageScenes.map((scene) => scene.coverage_scene_id);
 
     // Remove existing associations
-    await this.prisma.componentCoverageScene.deleteMany({
+    await (this.prisma as any).componentCoverage.deleteMany({
       where: { component_id: componentId },
     });
 
     // Add new associations
     const associations = sceneIds.map((sceneId) => ({
       component_id: componentId,
-      coverage_scene_id: sceneId,
+      coverage_id: sceneId,
     }));
 
-    await this.prisma.componentCoverageScene.createMany({
+    await (this.prisma as any).componentCoverage.createMany({
       data: associations,
     });
 
@@ -173,10 +173,10 @@ export class ComponentsService {
   async removeCoverageScene(componentId: number, sceneId: number) {
     await this.findOne(componentId);
 
-    await this.prisma.componentCoverageScene.deleteMany({
+    await (this.prisma as any).componentCoverage.deleteMany({
       where: {
         component_id: componentId,
-        coverage_scene_id: sceneId,
+        coverage_id: sceneId,
       },
     });
 
@@ -238,16 +238,16 @@ export class ComponentsService {
   async getComponentStats() {
     const totalComponents = await this.prisma.componentLibrary.count();
     const coverageLinkedCount = await this.prisma.componentLibrary.count({
-      where: { type: "COVERAGE_LINKED" },
+      where: { is_coverage_linked: true },
     });
-    const editCount = await this.prisma.componentLibrary.count({
-      where: { type: "EDIT" },
+    const videoCount = await this.prisma.componentLibrary.count({
+      where: { type: "VIDEO" },
     });
 
     return {
       total: totalComponents,
       coverageLinked: coverageLinkedCount,
-      edit: editCount,
+      video: videoCount,
     };
   }
 

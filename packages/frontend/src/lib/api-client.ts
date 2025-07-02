@@ -22,15 +22,15 @@ class ApiClient {
 
   private getAuthHeaders(includeContentType: boolean = false): HeadersInit {
     const headers = new Headers();
-    
+
     if (includeContentType) {
       headers.append("Content-Type", "application/json");
     }
-    
+
     if (this.authToken) {
       headers.append("Authorization", `Bearer ${this.authToken}`);
     }
-    
+
     return headers;
   }
 
@@ -46,7 +46,7 @@ class ApiClient {
         }
         throw new Error('Authentication failed. Please log in again.');
       }
-      
+
       // Try to parse error response
       try {
         const errorData = await response.json();
@@ -61,7 +61,7 @@ class ApiClient {
     if (contentType && contentType.includes('application/json')) {
       return response.json();
     }
-    
+
     // For non-JSON responses (like DELETE operations that return nothing)
     return {} as T;
   }
@@ -71,9 +71,9 @@ class ApiClient {
       method: 'GET',
       headers: this.getAuthHeaders(),
     });
-    
+
     return this.handleResponse<T>(response);
-  }  async post<T>(endpoint: string, data?: unknown): Promise<T> {
+  } async post<T>(endpoint: string, data?: unknown): Promise<T> {
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'POST',
       headers: this.getAuthHeaders(true),
@@ -89,7 +89,7 @@ class ApiClient {
       headers: this.getAuthHeaders(true),
       body: data ? JSON.stringify(data) : undefined,
     });
-    
+
     return this.handleResponse<T>(response);
   }
 
@@ -98,7 +98,7 @@ class ApiClient {
       method: 'DELETE',
       headers: this.getAuthHeaders(),
     });
-    
+
     return this.handleResponse<T>(response);
   }
 
@@ -121,7 +121,7 @@ const getApiBaseURL = (): string => {
     // Server-side rendering
     return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
   }
-  
+
   // Client-side
   return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 };
@@ -218,10 +218,18 @@ export interface CoverageSceneData {
   description?: string;
 }
 
-export interface DeliverableData {
+export interface ContentData {
   id: number;
   name: string;
   description?: string;
+  type?: string;
+  version?: string;
+  includes_music?: boolean;
+  delivery_timeline?: number;
+  workflow_template_id?: number;
+  created_at?: string;
+  updated_at?: string;
+  is_active?: boolean;
 }
 
 export interface EditingStyleData {
@@ -236,7 +244,7 @@ export interface CreateCoverageSceneData {
   description?: string;
 }
 
-export interface CreateDeliverableData {
+export interface CreateContentData {
   name: string;
   description?: string;
 }
@@ -251,7 +259,7 @@ export interface UpdateCoverageSceneData {
   description?: string;
 }
 
-export interface UpdateDeliverableData {
+export interface UpdateContentData {
   name?: string;
   description?: string;
 }

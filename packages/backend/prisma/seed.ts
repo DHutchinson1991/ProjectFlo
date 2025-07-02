@@ -214,15 +214,15 @@ async function main() {
     ];
 
     for (const scene of scenes) {
-      await prisma.coverage_scenes.upsert({
+      await (prisma as any).coverage.upsert({
         where: { name: scene.name },
         update: { description: scene.description },
         create: scene,
       });
     }
 
-    // Deliverables
-    const deliverables = [
+    // Content Library
+    const contentLibrary = [
       {
         name: "Highlight Film (3-5 min)",
         description: "A short, cinematic film showcasing the best moments.",
@@ -253,11 +253,11 @@ async function main() {
       },
     ];
 
-    for (const deliverable of deliverables) {
-      await prisma.deliverables.upsert({
-        where: { name: deliverable.name },
-        update: { description: deliverable.description },
-        create: deliverable,
+    for (const content of contentLibrary) {
+      await prisma.contentLibrary.upsert({
+        where: { name: content.name },
+        update: { description: content.description },
+        create: content,
       });
     }
 
@@ -463,15 +463,16 @@ async function main() {
 
     console.log("✅ Sample Clients seeded.");
 
-    // --- Enhanced Deliverable System Seed Data ---
-    console.log("🎬 Seeding Enhanced Deliverable Components...");
+    // --- Enhanced Content System Seed Data ---
+    console.log("🎬 Seeding Enhanced Content Components...");
 
     // Video Components with realistic wedding videography tasks
     const ceremonyProcessional = await prisma.componentLibrary.create({
       data: {
         name: "Ceremony Processional",
         description: "Bridal party and bride entrance footage",
-        type: "COVERAGE_LINKED",
+        type: "VIDEO",
+        is_coverage_linked: true,
         complexity_score: 4,
         estimated_duration: 3,
         base_task_hours: 2.5,
@@ -482,7 +483,8 @@ async function main() {
       data: {
         name: "Vows Exchange",
         description: "Personal vows and ring exchange with audio enhancement",
-        type: "COVERAGE_LINKED",
+        type: "VIDEO",
+        is_coverage_linked: true,
         complexity_score: 6,
         estimated_duration: 4,
         base_task_hours: 3.5,
@@ -493,7 +495,8 @@ async function main() {
       data: {
         name: "Reception Dancing",
         description: "First dance and party dancing with multi-camera editing",
-        type: "COVERAGE_LINKED",
+        type: "VIDEO",
+        is_coverage_linked: true,
         complexity_score: 7,
         estimated_duration: 5,
         base_task_hours: 4.0,
@@ -504,7 +507,7 @@ async function main() {
       data: {
         name: "Opening Title Sequence",
         description: "Branded opening with couple names and graphics",
-        type: "EDIT",
+        type: "GRAPHICS",
         complexity_score: 3,
         estimated_duration: 1,
         base_task_hours: 2.0,
@@ -515,7 +518,7 @@ async function main() {
       data: {
         name: "Transition Graphics",
         description: "Scene transitions and lower thirds",
-        type: "EDIT",
+        type: "GRAPHICS",
         complexity_score: 4,
         estimated_duration: 2,
         base_task_hours: 1.5,
@@ -638,15 +641,15 @@ async function main() {
       },
     });
 
-    console.log("📦 Creating Enhanced Deliverable Templates...");
+    console.log("📦 Creating Enhanced Content Templates...");
 
-    // Update existing deliverables with component-based configuration
-    const featureFilm = await prisma.deliverables.findFirst({
+    // Update existing content with component-based configuration
+    const featureFilm = await prisma.contentLibrary.findFirst({
       where: { name: "Feature Film (10-15 min)" },
     });
 
     if (featureFilm) {
-      await prisma.deliverables.update({
+      await prisma.contentLibrary.update({
         where: { id: featureFilm.id },
         data: {
           type: "STANDARD",
@@ -692,12 +695,12 @@ async function main() {
       });
     }
 
-    const highlightReel = await prisma.deliverables.findFirst({
+    const highlightReel = await prisma.contentLibrary.findFirst({
       where: { name: "Highlight Film (3-5 min)" },
     });
 
     if (highlightReel) {
-      await prisma.deliverables.update({
+      await prisma.contentLibrary.update({
         where: { id: highlightReel.id },
         data: {
           type: "STANDARD",
@@ -726,42 +729,42 @@ async function main() {
     }
 
     // Connect components to coverage scenes
-    const ceremonyScene = await prisma.coverage_scenes.findFirst({
+    const ceremonyScene = await (prisma as any).coverage.findFirst({
       where: { name: "Ceremony" },
     });
 
     if (ceremonyScene) {
-      await prisma.componentCoverageScene.createMany({
+      await (prisma as any).componentCoverage.createMany({
         data: [
           {
             component_id: ceremonyProcessional.id,
-            coverage_scene_id: ceremonyScene.id,
+            coverage_id: ceremonyScene.id,
           },
           {
             component_id: vowsExchange.id,
-            coverage_scene_id: ceremonyScene.id,
+            coverage_id: ceremonyScene.id,
           },
         ],
       });
     }
 
-    const receptionScene = await prisma.coverage_scenes.findFirst({
+    const receptionScene = await (prisma as any).coverage.findFirst({
       where: { name: "Reception" },
     });
 
     if (receptionScene) {
-      await prisma.componentCoverageScene.create({
+      await (prisma as any).componentCoverage.create({
         data: {
           component_id: receptionDancing.id,
-          coverage_scene_id: receptionScene.id,
+          coverage_id: receptionScene.id,
         },
       });
     }
 
-    console.log("✅ Enhanced deliverable system seeded successfully!");
+    console.log("✅ Enhanced content system seeded successfully!");
     console.log(`   • Created ${5} video components with task recipes`);
     console.log(`   • Added ${5} pricing modifiers for admin control`);
-    console.log(`   • Updated deliverables with component associations`);
+    console.log(`   • Updated content with component associations`);
     console.log(`   • Connected components to coverage scenes`);
     console.log("");
 

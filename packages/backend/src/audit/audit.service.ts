@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma.service';
 import { JsonValue } from '@prisma/client/runtime/library';
 
 interface CreateVersionParams {
-  deliverableId: number;
+  contentId: number;
   changeDescription: string;
   changedById: number;
   changeType: string;
@@ -16,14 +16,14 @@ export class AuditService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Create a new version entry when a deliverable is modified
+   * Create a new version entry when content is modified
    */
-  async createDeliverableVersion(params: CreateVersionParams) {
-    const { deliverableId, changeDescription, changedById, changeType, previousVersion, newVersion } = params;
+  async createContentVersion(params: CreateVersionParams) {
+    const { contentId, changeDescription, changedById, changeType, previousVersion, newVersion } = params;
 
-    // Get the current version number for this deliverable
-    const latestVersion = await this.prisma.deliverableVersion.findFirst({
-      where: { deliverable_id: deliverableId },
+    // Get the current version number for this content
+    const latestVersion = await this.prisma.contentVersion.findFirst({
+      where: { content_id: contentId },
       orderBy: { version_number: 'desc' }
     });
 
@@ -31,31 +31,31 @@ export class AuditService {
       (parseInt(latestVersion.version_number) + 1).toString() : 
       '1';
 
-    // Get current deliverable snapshot
-    const deliverable = await this.prisma.deliverables.findUnique({
-      where: { id: deliverableId }
+    // Get current content snapshot
+    const content = await this.prisma.contentLibrary.findUnique({
+      where: { id: contentId }
     });
 
-    if (!deliverable) {
-      throw new Error('Deliverable not found');
+    if (!content) {
+      throw new Error('Content not found');
     }
 
     // Create version record
-    const version = await this.prisma.deliverableVersion.create({
+    const version = await this.prisma.contentVersion.create({
       data: {
-        deliverable_id: deliverableId,
+        content_id: contentId,
         version_number: nextVersionNum,
         change_summary: changeDescription,
         changed_by_id: changedById,
-        components_snapshot: JSON.parse(JSON.stringify(deliverable)),
+        components_snapshot: JSON.parse(JSON.stringify(content)),
         pricing_snapshot: {}
       }
     });
 
     // Create detailed change log entry
-    await this.prisma.deliverableChangeLog.create({
+    await this.prisma.contentChangeLog.create({
       data: {
-        deliverable_id: deliverableId,
+        content_id: contentId,
         change_type: changeType,
         changed_by_id: changedById,
         old_value: previousVersion ? JSON.parse(JSON.stringify(previousVersion)) : null,
@@ -67,11 +67,11 @@ export class AuditService {
   }
 
   /**
-   * Get version history for a deliverable
+   * Get version history for content
    */
-  async getDeliverableVersionHistory(deliverableId: number) {
-    return this.prisma.deliverableVersion.findMany({
-      where: { deliverable_id: deliverableId },
+  async getContentVersionHistory(contentId: number) {
+    return this.prisma.contentVersion.findMany({
+      where: { content_id: contentId },
       include: {
         changed_by: {
           select: {
@@ -90,11 +90,11 @@ export class AuditService {
   }
 
   /**
-   * Get detailed change log for a deliverable
+   * Get detailed change log for content
    */
-  async getDeliverableChangeLog(deliverableId: number) {
-    return this.prisma.deliverableChangeLog.findMany({
-      where: { deliverable_id: deliverableId },
+  async getContentChangeLog(contentId: number) {
+    return this.prisma.contentChangeLog.findMany({
+      where: { content_id: contentId },
       include: {
         changed_by: {
           select: {
@@ -115,12 +115,12 @@ export class AuditService {
   /**
    * Get audit statistics for reporting
    */
-  async getAuditStats(deliverableId?: number) {
-    const whereClause = deliverableId ? { deliverable_id: deliverableId } : {};
+  async getAuditStats(contentId?: number) {
+    const whereClause = contentId ? { content_id: contentId } : {};
 
     const [totalVersions, totalChanges] = await Promise.all([
-      this.prisma.deliverableVersion.count({ where: whereClause }),
-      this.prisma.deliverableChangeLog.count({ where: whereClause })
+      this.prisma.contentVersion.count({ where: whereClause }),
+      this.prisma.contentChangeLog.count({ where: whereClause })
     ]);
 
     return {

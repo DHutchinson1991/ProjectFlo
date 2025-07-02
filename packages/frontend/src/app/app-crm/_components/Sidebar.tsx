@@ -18,13 +18,10 @@ import Divider from "@mui/material/Divider";
 
 // Icons
 import DashboardIcon from "@mui/icons-material/Dashboard";
-import SettingsIcon from "@mui/icons-material/Settings";
 import PeopleIcon from "@mui/icons-material/People";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import BusinessCenterIcon from "@mui/icons-material/BusinessCenter";
-import ContactsIcon from "@mui/icons-material/Contacts";
-import TaskIcon from "@mui/icons-material/Task";
 
 // Theme Provider
 import { useTheme } from "../../providers/ThemeProvider";
@@ -36,8 +33,6 @@ interface SidebarProps {
 // These items appear in the main navigation section.
 const navItems = [
   { text: "Dashboard", icon: <DashboardIcon />, path: "/app-crm" },
-  { text: "Tasks", icon: <TaskIcon />, path: "/app-crm/tasks" },
-  { text: "Contacts", icon: <ContactsIcon />, path: "/app-crm/contacts" },
   // Deliverables will be added here in Phase 2
 ];
 
@@ -50,11 +45,6 @@ const settingsNavItems = [
     text: "Services",
     icon: <BusinessCenterIcon />,
     path: "/app-crm/settings/services",
-  },
-  {
-    text: "General",
-    icon: <SettingsIcon />,
-    path: "/app-crm/settings/general",
   },
 ];
 

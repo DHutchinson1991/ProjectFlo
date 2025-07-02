@@ -24,7 +24,7 @@ import {
   Save as SaveIcon,
   CloudDownload as ExportIcon,
 } from "@mui/icons-material";
-import VisualTimelineBuilder from "./VisualTimelineBuilder";
+import FilmBuilder from "../settings/services/content/[id]/components/FilmBuilder";
 import TimelineTemplateManager from "./TimelineTemplateManager";
 
 interface TimelineComponent {
@@ -50,7 +50,7 @@ interface TimelineTemplate {
 }
 
 interface AdvancedTimelineManagerProps {
-  entityType: "component" | "deliverable" | "coverage_scene";
+  entityType: "component" | "content" | "coverage_scene";
   entityId: number;
   entityName: string;
 }
@@ -95,7 +95,7 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
 
   // Load existing timeline data when component mounts
   useEffect(() => {
-    if (entityType === "deliverable") {
+    if (entityType === "content") {
       loadTimelineData();
     }
   }, [entityType, entityId]);
@@ -106,7 +106,7 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
       setError(null);
 
       const response = await fetch(
-        `http://localhost:3002/timeline/deliverables/${entityId}/components`,
+        `http://localhost:3002/timeline/content/${entityId}/components`,
       );
       if (response.ok) {
         const backendComponents = await response.json();
@@ -153,8 +153,8 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
   };
 
   const handleTimelineSave = async (components: TimelineComponent[]) => {
-    if (entityType !== "deliverable") {
-      setError("Timeline save is only supported for deliverables");
+    if (entityType !== "content") {
+      setError("Timeline save is only supported for content");
       return;
     }
 
@@ -165,7 +165,7 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
       // Save each component to the backend using the proper timeline endpoints
       for (const component of components) {
         const timelineData = {
-          deliverable_id: entityId,
+          content_id: entityId,
           component_id: component.id,
           layer_id: component.track_id,
           start_time_seconds: component.start_time,
@@ -381,22 +381,22 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
     <div class="timeline-visual">
         <h3>Visual Timeline</h3>
         ${Array.from(new Set(timelineComponents.map((c) => c.track_id)))
-          .sort()
-          .map((trackId) => {
-            const trackComponents = timelineComponents.filter(
-              (c) => c.track_id === trackId,
-            );
-            const maxDuration = Math.max(
-              ...timelineComponents.map((c) => c.start_time + c.duration),
-              100,
-            );
+        .sort()
+        .map((trackId) => {
+          const trackComponents = timelineComponents.filter(
+            (c) => c.track_id === trackId,
+          );
+          const maxDuration = Math.max(
+            ...timelineComponents.map((c) => c.start_time + c.duration),
+            100,
+          );
 
-            return `
+          return `
             <div class="track">
                 <strong>Track ${trackId}</strong>
                 ${trackComponents
-                  .map(
-                    (comp) => `
+              .map(
+                (comp) => `
                     <div class="component-block component-${comp.component_type}" 
                          style="left: ${(comp.start_time / maxDuration) * 80}%; 
                                 width: ${(comp.duration / maxDuration) * 80}%;
@@ -404,12 +404,12 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
                         ${comp.name}
                     </div>
                 `,
-                  )
-                  .join("")}
+              )
+              .join("")}
             </div>
           `;
-          })
-          .join("")}
+        })
+        .join("")}
     </div>
 
     <table class="components-table">
@@ -425,8 +425,8 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
         </thead>
         <tbody>
             ${timelineComponents
-              .map(
-                (comp) => `
+        .map(
+          (comp) => `
                 <tr class="component-${comp.component_type}">
                     <td>${comp.name}</td>
                     <td>${comp.component_type}</td>
@@ -436,8 +436,8 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
                     <td>${comp.description || "-"}</td>
                 </tr>
             `,
-              )
-              .join("")}
+        )
+        .join("")}
         </tbody>
     </table>
 </body>
@@ -488,21 +488,20 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
     <entity_name>${data.entity_name}</entity_name>
     <timestamp>${data.timestamp}</timestamp>
   </metadata>
-  ${
-    data.template
-      ? `
+  ${data.template
+        ? `
   <template>
     <id>${data.template.id}</id>
     <name>${data.template.name}</name>
     <category>${data.template.category}</category>
   </template>
   `
-      : ""
-  }
+        : ""
+      }
   <components>
     ${data.components
-      .map(
-        (comp: TimelineComponent) => `
+        .map(
+          (comp: TimelineComponent) => `
     <component>
       <id>${comp.id}</id>
       <name>${comp.name}</name>
@@ -512,8 +511,8 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
       <type>${comp.component_type}</type>
     </component>
     `,
-      )
-      .join("")}
+        )
+        .join("")}
   </components>
 </timeline>`;
   };
@@ -525,7 +524,7 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             {" "}
             <TimelineIcon color="primary" />
-            <Typography variant="h6">Deliverable Component Builder</Typography>
+            <Typography variant="h6">Content Component Builder</Typography>
             <Chip
               label={`For ${entityName}`}
               size="small"
@@ -643,7 +642,7 @@ const AdvancedTimelineManager: React.FC<AdvancedTimelineManagerProps> = ({
 
             <TabPanel value={currentTab} index={1}>
               {currentTemplate ? (
-                <VisualTimelineBuilder
+                <FilmBuilder
                   initialComponents={timelineComponents}
                   onSave={(components) => {
                     setTimelineComponents(components);

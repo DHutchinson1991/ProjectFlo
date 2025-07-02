@@ -312,6 +312,64 @@ npx prisma db seed       # Seed database
 npx prisma studio        # Open database browser
 ```
 
+### **🚨 Important Prisma & Server Management Guidelines:**
+
+#### **Always Use `npx prisma generate` (NOT `prisma generate`):**
+
+```bash
+# ✅ CORRECT - Always use npx:
+cd "c:\Users\info\Documents\Website Files\ProjectFlo\packages\backend"
+npx prisma generate
+
+# ❌ WRONG - Don't use global prisma:
+prisma generate   # This may use wrong version or fail
+
+# Why npx? It ensures you use the project's specific Prisma version
+# and runs from the correct directory context
+```
+
+#### **Kill Backend Server Before Running Scripts:**
+
+```bash
+# 🛑 ALWAYS kill the backend server before running database scripts:
+# In the terminal running the backend (Ctrl+C to stop):
+# Backend server at http://localhost:3002
+
+# Or if you need to force kill:
+# Windows Task Manager > Find Node.js processes > End task
+# Or use command:
+taskkill /F /IM node.exe
+
+# After killing server, you can safely run:
+cd "c:\Users\info\Documents\Website Files\ProjectFlo\packages\backend"
+npx prisma generate                    # Regenerate client
+node seed-first-dance-components.js    # Run scripts
+node cleanup-first-dance-components.js # Clean up data
+# ... other scripts
+
+# Then restart the server:
+npm run start:dev
+```
+
+#### **Schema Changes Workflow:**
+
+```bash
+# 1. Stop the backend server (Ctrl+C)
+cd "c:\Users\info\Documents\Website Files\ProjectFlo\packages\backend"
+
+# 2. Make schema changes in prisma/schema.prisma
+
+# 3. Generate new migration and client:
+npx prisma migrate dev --name "describe-your-changes"
+npx prisma generate
+
+# 4. Run any data migration scripts:
+node your-migration-script.js
+
+# 5. Restart the server:
+npm run start:dev
+```
+
 ### **Testing & Validation:**
 
 ```bash
@@ -626,6 +684,24 @@ pnpm dev
 # ✅ Health check:            curl -s http://localhost:3001 > /dev/null && echo "✅ Frontend OK"
 # 🔄 Emergency reset:         taskkill /F /IM node.exe && cd "c:\...\ProjectFlo"
 # 🛑 Stop servers:            Ctrl+C (in terminal running pnpm dev)
+```
+
+## **🚨 CRITICAL REMINDERS:**
+
+### **Always Remember:**
+- ✅ Use `npx prisma generate` (NOT `prisma generate`)
+- ✅ Kill backend server before running database scripts
+- ✅ Check your location with `pwd` before running commands
+- ✅ Use full paths when navigating: `cd "c:\Users\info\Documents\Website Files\ProjectFlo"`
+- ✅ Start from root directory for most operations
+
+### **Before Running Scripts:**
+```bash
+# 1. Stop backend server (Ctrl+C)
+# 2. Navigate to backend: cd "c:\Users\info\Documents\Website Files\ProjectFlo\packages\backend"
+# 3. Regenerate Prisma: npx prisma generate
+# 4. Run your script: node your-script.js
+# 5. Restart server: npm run start:dev
 ```
 
 ---

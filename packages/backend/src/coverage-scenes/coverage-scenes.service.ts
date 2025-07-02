@@ -2,15 +2,14 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from '../prisma.service';
 import { CreateCoverageSceneDto } from './dto/create-coverage-scene.dto';
 import { UpdateCoverageSceneDto } from './dto/update-coverage-scene.dto';
-import { coverage_scenes } from '@prisma/client';
 
 @Injectable()
 export class CoverageScenes {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
-  async create(createCoverageSceneDto: CreateCoverageSceneDto): Promise<coverage_scenes> {
+  async create(createCoverageSceneDto: CreateCoverageSceneDto) {
     try {
-      return await this.prisma.coverage_scenes.create({
+      return await (this.prisma as any).coverage.create({
         data: createCoverageSceneDto,
       });
     } catch (error) {
@@ -21,16 +20,16 @@ export class CoverageScenes {
     }
   }
 
-  async findAll(): Promise<coverage_scenes[]> {
-    return this.prisma.coverage_scenes.findMany({
+  async findAll() {
+    return (this.prisma as any).coverage.findMany({
       orderBy: {
         name: 'asc',
       },
     });
   }
 
-  async findOne(id: number): Promise<coverage_scenes> {
-    const coverageScene = await this.prisma.coverage_scenes.findUnique({
+  async findOne(id: number) {
+    const coverageScene = await (this.prisma as any).coverage.findUnique({
       where: { id },
     });
 
@@ -41,9 +40,9 @@ export class CoverageScenes {
     return coverageScene;
   }
 
-  async update(id: number, updateCoverageSceneDto: UpdateCoverageSceneDto): Promise<coverage_scenes> {
+  async update(id: number, updateCoverageSceneDto: UpdateCoverageSceneDto) {
     try {
-      return await this.prisma.coverage_scenes.update({
+      return await (this.prisma as any).coverage.update({
         where: { id },
         data: updateCoverageSceneDto,
       });
@@ -60,7 +59,7 @@ export class CoverageScenes {
 
   async remove(id: number): Promise<void> {
     try {
-      await this.prisma.coverage_scenes.delete({
+      await (this.prisma as any).coverage.delete({
         where: { id },
       });
     } catch (error) {

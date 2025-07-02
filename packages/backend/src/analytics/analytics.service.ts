@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 interface UsageData {
-  deliverable_id?: number;
+  content_id?: number;
   build_id?: number;
   actual_duration_seconds?: number;
   estimated_duration_seconds?: number;
@@ -10,7 +10,7 @@ interface UsageData {
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // Component Usage Analytics
   async incrementComponentUsage(componentId: number) {
@@ -91,6 +91,7 @@ export class AnalyticsService {
         id: true,
         name: true,
         type: true,
+        is_coverage_linked: true,
         usage_count: true,
         performance_score: true,
         computed_task_count: true,
@@ -104,8 +105,8 @@ export class AnalyticsService {
 
     // Calculate overview statistics
     const totalComponents = components.length;
-    const coverageLinkedCount = components.filter(c => c.type === 'COVERAGE_LINKED').length;
-    const editCount = components.filter(c => c.type === 'EDIT').length;
+    const coverageLinkedCount = components.filter(c => c.is_coverage_linked === true).length;
+    const videoCount = components.filter(c => c.type === 'VIDEO').length;
     const totalUsage = components.reduce((sum, c) => sum + (c.usage_count || 0), 0);
     const averagePerformanceScore = components.reduce((sum, c) => sum + (Number(c.performance_score) || 0), 0) / totalComponents;
 
@@ -113,7 +114,7 @@ export class AnalyticsService {
       overview: {
         total_components: totalComponents,
         coverage_linked_count: coverageLinkedCount,
-        edit_count: editCount,
+        video_count: videoCount,
         total_usage: totalUsage,
         average_performance_score: Math.round(averagePerformanceScore * 10) / 10,
       },
@@ -131,7 +132,7 @@ export class AnalyticsService {
     await this.prisma.componentUsageAnalytics.create({
       data: {
         component_id: componentId,
-        used_in_deliverable_id: usageData.deliverable_id,
+        used_in_content_id: usageData.content_id,
         used_in_build_id: usageData.build_id,
         actual_duration_seconds: usageData.actual_duration_seconds,
         estimated_duration_seconds: usageData.estimated_duration_seconds,
