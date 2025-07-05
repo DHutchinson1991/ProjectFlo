@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
@@ -10,22 +10,14 @@ import Container from "@mui/material/Container";
 import Paper from "@mui/material/Paper";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
-import { useAuth } from "../providers/AuthProvider";
+import { api } from "../../lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, user, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (user && !authLoading) {
-      router.push("/app-crm");
-    }
-  }, [user, authLoading, router]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -33,8 +25,20 @@ export default function LoginPage() {
     setError("");
 
     try {
-      await login({ email, password });
-      // The useEffect hook will now handle the redirect when the 'user' state updates.
+      // Use the unified API service
+      const response = await api.auth.login({ email, password });
+
+      if (response.access_token) {
+        // Store the token and user info in localStorage
+        localStorage.setItem("authToken", response.access_token);
+        localStorage.setItem("userProfile", JSON.stringify(response.user));
+        api.auth.setToken(response.access_token);
+
+        // Redirect to root - let the root page handle role-based routing
+        router.push("/");
+      } else {
+        throw new Error("Login failed. Please check your credentials.");
+      }
     } catch (err) {
       console.error("Login error:", err);
       setError(
@@ -44,24 +48,6 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
-
-  // Show loading spinner while checking authentication state
-  if (authLoading) {
-    return (
-      <Container component="main" maxWidth="xs">
-        <Box
-          sx={{
-            marginTop: 8,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-          }}
-        >
-          <CircularProgress />
-        </Box>
-      </Container>
-    );
-  }
 
   return (
     <Container component="main" maxWidth="xs">
@@ -110,6 +96,8 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             disabled={isLoading}
           />
+          {/* TODO: Add Remember me checkbox if needed */}
+          {/* TODO: Add Forgot password link if needed */}
           <Button
             type="submit"
             fullWidth
@@ -123,6 +111,7 @@ export default function LoginPage() {
               "Sign In"
             )}
           </Button>
+          {/* TODO: Add Sign up link if needed */}
         </Box>
       </Paper>
     </Container>

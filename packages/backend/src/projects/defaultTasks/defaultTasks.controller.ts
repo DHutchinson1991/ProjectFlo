@@ -20,9 +20,7 @@ import {
 
 @Controller("api/entities")
 export class DefaultTasksController {
-  constructor(
-    private readonly defaultTasksService: DefaultTasksService,
-  ) { }
+  constructor(private readonly defaultTasksService: DefaultTasksService) {}
 
   // Get all default tasks for an entity
   @Get(":type/:id/default-tasks")
@@ -31,9 +29,9 @@ export class DefaultTasksController {
     @Param("id", ParseIntPipe) entityId: number,
   ) {
     // Validate entity type
-    if (!["component", "deliverable", "coverage_scene"].includes(entityType)) {
+    if (!["scene", "deliverable"].includes(entityType)) {
       throw new HttpException(
-        "Invalid entity type. Must be: component, deliverable, or coverage_scene",
+        "Invalid entity type. Must be: scene or deliverable",
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -68,9 +66,9 @@ export class DefaultTasksController {
     @Body(ValidationPipe) createTaskDto: CreateDefaultTaskDto,
   ) {
     // Validate entity type
-    if (!["component", "deliverable", "coverage_scene"].includes(entityType)) {
+    if (!["scene", "deliverable"].includes(entityType)) {
       throw new HttpException(
-        "Invalid entity type. Must be: component, deliverable, or coverage_scene",
+        "Invalid entity type. Must be: scene or deliverable",
         HttpStatus.BAD_REQUEST,
       );
     }

@@ -5,19 +5,19 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
-  CreateTimelineComponentDto,
-  UpdateTimelineComponentDto,
+  CreateTimelineSceneDto,
+  UpdateTimelineSceneDto,
   CreateTimelineLayerDto,
 } from "./timeline.controller";
 
-// Define a type for timeline components used in analytics/validation
-export interface TimelineComponent {
+// Define a type for timeline scenes used in analytics/validation
+export interface TimelineScene {
   id: number;
-  content_id: number;
+  film_id: number;
   layer_id: number;
   start_time_seconds: number;
   duration_seconds: number;
-  component: { name: string };
+  scene: { name: string };
   layer: { name: string; order_index: number };
   // Add other properties as needed
 }
@@ -25,14 +25,14 @@ export interface TimelineComponent {
 // Define return type for timeline analytics
 export interface TimelineAnalytics {
   totalDuration: number;
-  totalComponents: number;
+  totalScenes: number;
   layerStats: Record<string, { count: number; totalDuration: number }>;
-  componentStats: Record<string, { count: number; totalDuration: number }>;
+  sceneStats: Record<string, { count: number; totalDuration: number }>;
   timelineHealth: {
     hasGaps: { start: number; end: number; duration: number }[];
     hasOverlaps: {
-      component1: TimelineComponent;
-      component2: TimelineComponent;
+      scene1: TimelineScene;
+      scene2: TimelineScene;
       overlapDuration: number;
     }[];
   };
@@ -40,10 +40,10 @@ export interface TimelineAnalytics {
 
 @Injectable()
 export class TimelineService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
-  // Timeline Components
-  async createTimelineComponent(createDto: CreateTimelineComponentDto) {
+  // Timeline Scenes
+  async createTimelineScene(createDto: CreateTimelineSceneDto) {
     // Validate that the timecode aligns to 5-second snapping
     if (createDto.start_time_seconds % 5 !== 0) {
       throw new ConflictException(
@@ -52,35 +52,35 @@ export class TimelineService {
     }
 
     // Check for overlaps on the same layer
-    const existingComponent = await this.prisma.timelineComponent.findFirst({
+    const existingScene = await this.prisma.timelineScene.findFirst({
       where: {
-        content_id: createDto.content_id,
+        film_id: createDto.film_id,
         layer_id: createDto.layer_id,
         start_time_seconds: createDto.start_time_seconds,
       },
     });
 
-    if (existingComponent) {
+    if (existingScene) {
       throw new ConflictException(
-        "Another component already exists at this position",
+        "Another scene already exists at this position",
       );
     }
 
-    return this.prisma.timelineComponent.create({
+    return this.prisma.timelineScene.create({
       data: createDto,
       include: {
-        component: true,
+        scene: true,
         layer: true,
-        content: true,
+        film: true,
       },
     });
   }
 
-  async getTimelineComponentsForContent(contentId: number) {
-    return this.prisma.timelineComponent.findMany({
-      where: { content_id: contentId },
+  async getTimelineScenesForContent(contentId: number) {
+    return this.prisma.timelineScene.findMany({
+      where: { film_id: contentId },
       include: {
-        component: true,
+        scene: true,
         layer: true,
       },
       orderBy: [
@@ -90,27 +90,24 @@ export class TimelineService {
     });
   }
 
-  async getTimelineComponent(id: number) {
-    const component = await this.prisma.timelineComponent.findUnique({
+  async getTimelineScene(id: number) {
+    const scene = await this.prisma.timelineScene.findUnique({
       where: { id },
       include: {
-        component: true,
+        scene: true,
         layer: true,
-        content: true,
+        film: true,
       },
     });
 
-    if (!component) {
-      throw new NotFoundException("Timeline component not found");
+    if (!scene) {
+      throw new NotFoundException("Timeline scene not found");
     }
 
-    return component;
+    return scene;
   }
 
-  async updateTimelineComponent(
-    id: number,
-    updateDto: UpdateTimelineComponentDto,
-  ) {
+  async updateTimelineScene(id: number, updateDto: UpdateTimelineSceneDto) {
     // Validate 5-second snapping if start_time is being updated
     if (
       updateDto.start_time_seconds &&
@@ -123,45 +120,45 @@ export class TimelineService {
 
     // Check for overlaps if position is changing
     if (updateDto.start_time_seconds || updateDto.layer_id) {
-      const current = await this.getTimelineComponent(id);
+      const current = await this.getTimelineScene(id);
       const newStartTime =
         updateDto.start_time_seconds ?? current.start_time_seconds;
       const newLayerId = updateDto.layer_id ?? current.layer_id;
 
-      const existingComponent = await this.prisma.timelineComponent.findFirst({
+      const existingScene = await this.prisma.timelineScene.findFirst({
         where: {
-          content_id: current.content_id,
+          film_id: current.film_id,
           layer_id: newLayerId,
           start_time_seconds: newStartTime,
           NOT: { id },
         },
       });
 
-      if (existingComponent) {
+      if (existingScene) {
         throw new ConflictException(
-          "Another component already exists at this position",
+          "Another scene already exists at this position",
         );
       }
     }
 
-    return this.prisma.timelineComponent.update({
+    return this.prisma.timelineScene.update({
       where: { id },
       data: updateDto,
       include: {
-        component: true,
+        scene: true,
         layer: true,
-        content: true,
+        film: true,
       },
     });
   }
 
-  async removeTimelineComponent(id: number) {
+  async removeTimelineScene(id: number) {
     try {
-      return await this.prisma.timelineComponent.delete({
+      return await this.prisma.timelineScene.delete({
         where: { id },
       });
     } catch {
-      throw new NotFoundException("Timeline component not found");
+      throw new NotFoundException("Timeline scene not found");
     }
   }
 
@@ -195,14 +192,12 @@ export class TimelineService {
 
   async removeTimelineLayer(id: number) {
     // Check if layer is in use
-    const componentCount = await this.prisma.timelineComponent.count({
+    const sceneCount = await this.prisma.timelineScene.count({
       where: { layer_id: id },
     });
 
-    if (componentCount > 0) {
-      throw new ConflictException(
-        "Cannot delete layer that contains components",
-      );
+    if (sceneCount > 0) {
+      throw new ConflictException("Cannot delete layer that contains scenes");
     }
 
     try {
@@ -215,40 +210,36 @@ export class TimelineService {
   }
 
   // Timeline Analytics
-  async getTimelineAnalytics(
-    contentId: number,
-  ): Promise<TimelineAnalytics> {
-    const components = (await this.getTimelineComponentsForContent(
-      contentId,
-    )) as TimelineComponent[];
+  async getTimelineAnalytics(contentId: number): Promise<TimelineAnalytics> {
+    const scenes = await this.getTimelineScenesForContent(contentId);
 
     // Calculate timeline statistics
     const totalDuration = Math.max(
-      ...components.map((c) => c.start_time_seconds + c.duration_seconds),
+      ...scenes.map((c) => c.start_time_seconds + c.duration_seconds),
       0,
     );
 
-    const layerStats = components.reduce(
-      (acc, component) => {
-        const layerName = component.layer.name;
+    const layerStats = scenes.reduce(
+      (acc, scene) => {
+        const layerName = scene.layer.name;
         if (!acc[layerName]) {
           acc[layerName] = { count: 0, totalDuration: 0 };
         }
         acc[layerName].count++;
-        acc[layerName].totalDuration += component.duration_seconds;
+        acc[layerName].totalDuration += scene.duration_seconds;
         return acc;
       },
       {} as Record<string, { count: number; totalDuration: number }>,
     );
 
-    const componentStats = components.reduce(
-      (acc, component) => {
-        const componentName = component.component.name;
-        if (!acc[componentName]) {
-          acc[componentName] = { count: 0, totalDuration: 0 };
+    const sceneStats = scenes.reduce(
+      (acc, scene) => {
+        const sceneName = scene.scene.name;
+        if (!acc[sceneName]) {
+          acc[sceneName] = { count: 0, totalDuration: 0 };
         }
-        acc[componentName].count++;
-        acc[componentName].totalDuration += component.duration_seconds;
+        acc[sceneName].count++;
+        acc[sceneName].totalDuration += scene.duration_seconds;
         return acc;
       },
       {} as Record<string, { count: number; totalDuration: number }>,
@@ -256,57 +247,55 @@ export class TimelineService {
 
     return {
       totalDuration,
-      totalComponents: components.length,
+      totalScenes: scenes.length,
       layerStats,
-      componentStats,
+      sceneStats,
       timelineHealth: {
-        hasGaps: this.detectTimelineGaps(components),
-        hasOverlaps: this.detectTimelineOverlaps(components),
+        hasGaps: this.detectTimelineGaps(scenes),
+        hasOverlaps: this.detectTimelineOverlaps(scenes),
       },
     };
   }
 
   // Timeline Validation
   async validateTimeline(contentId: number) {
-    const components = (await this.getTimelineComponentsForContent(
-      contentId,
-    )) as TimelineComponent[];
+    const scenes = await this.getTimelineScenesForContent(contentId);
 
     const issues: string[] = [];
 
     // Check for gaps
-    const gaps = this.detectTimelineGaps(components);
+    const gaps = this.detectTimelineGaps(scenes);
     if (gaps.length > 0) {
       issues.push(`Found ${gaps.length} gaps in timeline`);
     }
 
     // Check for overlaps
-    const overlaps = this.detectTimelineOverlaps(components);
+    const overlaps = this.detectTimelineOverlaps(scenes);
     if (overlaps.length > 0) {
-      issues.push(`Found ${overlaps.length} overlapping components`);
+      issues.push(`Found ${overlaps.length} overlapping scenes`);
     }
 
-    // Components without workflow tasks will now be managed by UniversalWorkflowManager
+    // Scenes without workflow tasks will now be managed by UniversalWorkflowManager
     // This validation is less relevant since task management is handled by workflows
-    const componentsWithoutWorkflow = []; // Could be enhanced to check workflow assignments
-    if (componentsWithoutWorkflow.length > 0) {
+    const scenesWithoutWorkflow = []; // Could be enhanced to check workflow assignments
+    if (scenesWithoutWorkflow.length > 0) {
       issues.push(
-        `${componentsWithoutWorkflow.length} components may need workflow assignment`,
+        `${scenesWithoutWorkflow.length} scenes may need workflow assignment`,
       );
     }
 
     return {
       isValid: issues.length === 0,
       issues,
-      totalComponents: components.length,
+      totalScenes: scenes.length,
     };
   }
 
   private detectTimelineGaps(
-    components: TimelineComponent[],
+    scenes: TimelineScene[],
   ): { start: number; end: number; duration: number }[] {
-    // Sort components by layer and start time
-    const sortedComponents = components.sort((a, b) => {
+    // Sort scenes by layer and start time
+    const sortedScenes = scenes.sort((a, b) => {
       if (a.layer_id !== b.layer_id) return a.layer_id - b.layer_id;
       return a.start_time_seconds - b.start_time_seconds;
     });
@@ -314,67 +303,63 @@ export class TimelineService {
     const gaps: { start: number; end: number; duration: number }[] = [];
     let lastEndTime = 0;
 
-    for (const component of sortedComponents) {
-      if (component.start_time_seconds > lastEndTime) {
+    for (const scene of sortedScenes) {
+      if (scene.start_time_seconds > lastEndTime) {
         gaps.push({
           start: lastEndTime,
-          end: component.start_time_seconds,
-          duration: component.start_time_seconds - lastEndTime,
+          end: scene.start_time_seconds,
+          duration: scene.start_time_seconds - lastEndTime,
         });
       }
       lastEndTime = Math.max(
         lastEndTime,
-        component.start_time_seconds + component.duration_seconds,
+        scene.start_time_seconds + scene.duration_seconds,
       );
     }
 
     return gaps;
   }
 
-  private detectTimelineOverlaps(components: TimelineComponent[]): {
-    component1: TimelineComponent;
-    component2: TimelineComponent;
+  private detectTimelineOverlaps(scenes: TimelineScene[]): {
+    scene1: TimelineScene;
+    scene2: TimelineScene;
     overlapDuration: number;
   }[] {
     const overlaps: {
-      component1: TimelineComponent;
-      component2: TimelineComponent;
+      scene1: TimelineScene;
+      scene2: TimelineScene;
       overlapDuration: number;
     }[] = [];
 
     // Group by layer
-    const layerGroups = components.reduce(
-      (acc, component) => {
-        if (!acc[component.layer_id]) acc[component.layer_id] = [];
-        acc[component.layer_id].push(component);
+    const layerGroups = scenes.reduce(
+      (acc, scene) => {
+        if (!acc[scene.layer_id]) acc[scene.layer_id] = [];
+        acc[scene.layer_id].push(scene);
         return acc;
       },
-      {} as Record<number, TimelineComponent[]>,
+      {} as Record<number, TimelineScene[]>,
     );
 
     // Check for overlaps within each layer
-    Object.values(layerGroups).forEach(
-      (layerComponents: TimelineComponent[]) => {
-        layerComponents.sort(
-          (a, b) => a.start_time_seconds - b.start_time_seconds,
-        );
+    Object.values(layerGroups).forEach((layerScenes: TimelineScene[]) => {
+      layerScenes.sort((a, b) => a.start_time_seconds - b.start_time_seconds);
 
-        for (let i = 0; i < layerComponents.length - 1; i++) {
-          const current = layerComponents[i];
-          const next = layerComponents[i + 1];
+      for (let i = 0; i < layerScenes.length - 1; i++) {
+        const current = layerScenes[i];
+        const next = layerScenes[i + 1];
 
-          const currentEnd =
-            current.start_time_seconds + current.duration_seconds;
-          if (currentEnd > next.start_time_seconds) {
-            overlaps.push({
-              component1: current,
-              component2: next,
-              overlapDuration: currentEnd - next.start_time_seconds,
-            });
-          }
+        const currentEnd =
+          current.start_time_seconds + current.duration_seconds;
+        if (currentEnd > next.start_time_seconds) {
+          overlaps.push({
+            scene1: current,
+            scene2: next,
+            overlapDuration: currentEnd - next.start_time_seconds,
+          });
         }
-      },
-    );
+      }
+    });
 
     return overlaps;
   }

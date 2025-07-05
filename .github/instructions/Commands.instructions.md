@@ -82,35 +82,7 @@ pwd && cd packages/backend && pwd  # Show before and after
 - `npm run test:watch` - Run tests in watch mode
 - `npm run test:cov` - Run tests with coverage
 - `npm run test:debug` - Run tests in debug mode
-- `npm run test:e2e` - Run all end-to-end tests
-
-#### **Running Individual E2E Tests:**
-
-- `npm run test:e2e:contacts-api` - Run only Contacts API e2e tests
-- `npm run test:e2e:contributors-api` - Run only Contributors API e2e tests
-- `npm run test:e2e:roles-api` - Run only Roles API e2e tests
-- `npm run test:e2e:components-api` - Run only Components API e2e tests
-
-#### **Running Tests & Waiting for Completion:**
-
-```bash
-# Run a test and wait for completion before proceeding
-# The echo statements help you identify when tests start and finish
-echo "Starting Contacts API tests..."
-npm run test:e2e:contacts-api
-echo "Contacts API tests completed!"
-
-# For running multiple tests in sequence and waiting for each to complete
-echo "Starting test sequence..."
-npm run test:e2e:contacts-api && echo "Contacts tests done!" && \
-npm run test:e2e:contributors-api && echo "Contributors tests done!" && \
-npm run test:e2e:roles-api && echo "Roles tests done!"
-echo "All tests completed!"
-
-# To capture test output to a file while still displaying in terminal
-npm run test:e2e:contacts-api | tee test-results.log
-echo "Tests completed and results saved to test-results.log"
-```
+- `npm run test:e2e` - Run end-to-end tests
 
 ### **Database & Prisma:**
 
@@ -119,27 +91,6 @@ echo "Tests completed and results saved to test-results.log"
 - `npx prisma db seed` - Seed database
 - `npx prisma studio` - Open Prisma Studio (database browser)
 - `npx prisma db push` - Push schema to database
-
-### **Database Setup & Testing Workflow:**
-
-```bash
-# Common workflow for database setup and testing
-echo "Setting up database..."
-npx prisma migrate dev --name init
-npx prisma generate
-npx prisma db seed
-echo "Database setup complete!"
-
-# Run tests immediately after database setup
-echo "Running e2e tests..."
-npm run test:e2e
-echo "E2E tests completed!"
-
-# OR run a specific API test after database setup
-echo "Running specific API test..."
-npm run test:e2e:contacts-api
-echo "API test completed!"
-```
 
 ### **Custom Scripts (run with `node`):**
 
@@ -417,6 +368,21 @@ node your-migration-script.js
 
 # 5. Restart the server:
 npm run start:dev
+```
+
+### **Testing & Validation:**
+
+```bash
+# From backend directory
+node test-api-endpoints.js     # Test all APIs
+node verify-database.js        # Check database
+node test-phase2a-backend.js   # Test Phase 2A features
+
+# Enhanced API testing with jq (from backend directory)
+cd packages/backend
+curl -s http://localhost:3002/components | ./jq.exe 'length'
+curl -s http://localhost:3002/timeline/layers | ./jq.exe 'sort_by(.order_index)'
+curl -s "http://localhost:3002/api/entities/component/1/default-tasks" | ./jq.exe '.data'
 ```
 
 ---
@@ -723,6 +689,7 @@ pnpm dev
 ## **🚨 CRITICAL REMINDERS:**
 
 ### **Always Remember:**
+
 - ✅ Use `npx prisma generate` (NOT `prisma generate`)
 - ✅ Kill backend server before running database scripts
 - ✅ Check your location with `pwd` before running commands
@@ -730,6 +697,7 @@ pnpm dev
 - ✅ Start from root directory for most operations
 
 ### **Before Running Scripts:**
+
 ```bash
 # 1. Stop backend server (Ctrl+C)
 # 2. Navigate to backend: cd "c:\Users\info\Documents\Website Files\ProjectFlo\packages\backend"
@@ -737,3 +705,7 @@ pnpm dev
 # 4. Run your script: node your-script.js
 # 5. Restart server: npm run start:dev
 ```
+
+---
+
+**The most common command you'll use is `pnpm dev` from the root directory to start both servers for development!**

@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
-import { JsonValue } from '@prisma/client/runtime/library';
+import { JsonValue } from "@prisma/client/runtime/library";
 
 interface CreateVersionParams {
   contentId: number;
@@ -13,54 +13,63 @@ interface CreateVersionParams {
 
 @Injectable()
 export class AuditService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Create a new version entry when content is modified
    */
   async createContentVersion(params: CreateVersionParams) {
-    const { contentId, changeDescription, changedById, changeType, previousVersion, newVersion } = params;
+    const {
+      contentId,
+      changeDescription,
+      changedById,
+      changeType,
+      previousVersion,
+      newVersion,
+    } = params;
 
     // Get the current version number for this content
-    const latestVersion = await this.prisma.contentVersion.findFirst({
-      where: { content_id: contentId },
-      orderBy: { version_number: 'desc' }
+    const latestVersion = await this.prisma.filmVersion.findFirst({
+      where: { film_id: contentId },
+      orderBy: { version_number: "desc" },
     });
 
-    const nextVersionNum = latestVersion ?
-      (parseInt(latestVersion.version_number) + 1).toString() :
-      '1';
+    const nextVersionNum = latestVersion
+      ? (parseInt(latestVersion.version_number) + 1).toString()
+      : "1";
 
     // Get current content snapshot
-    const content = await this.prisma.contentLibrary.findUnique({
-      where: { id: contentId }
+    const content = await this.prisma.filmLibrary.findUnique({
+      where: { id: contentId },
     });
 
     if (!content) {
-      throw new Error('Content not found');
+      throw new Error("Content not found");
     }
 
     // Create version record
-    const version = await this.prisma.contentVersion.create({
+    const version = await this.prisma.filmVersion.create({
       data: {
-        content_id: contentId,
+        film_id: contentId,
         version_number: nextVersionNum,
         change_summary: changeDescription,
         changed_by_id: changedById,
-        components_snapshot: JSON.parse(JSON.stringify(content)),
-        pricing_snapshot: {}
-      }
+        scenes_snapshot: JSON.parse(JSON.stringify(content)),
+        pricing_snapshot: {},
+      },
     });
 
     // Create detailed change log entry
-    await this.prisma.contentChangeLog.create({
+    await this.prisma.filmChangeLog.create({
       data: {
-        content_id: contentId,
+        film_id: contentId,
         change_type: changeType,
         changed_by_id: changedById,
-        old_value: previousVersion ? JSON.parse(JSON.stringify(previousVersion)) : null,
-        new_value: newVersion ? JSON.parse(JSON.stringify(newVersion)) : null
-      }
+        old_value: previousVersion
+          ? JSON.parse(JSON.stringify(previousVersion))
+          : null,
+        new_value: newVersion ? JSON.parse(JSON.stringify(newVersion)) : null,
+      },
     });
 
     return version;
@@ -70,8 +79,8 @@ export class AuditService {
    * Get version history for content
    */
   async getContentVersionHistory(contentId: number) {
-    return this.prisma.contentVersion.findMany({
-      where: { content_id: contentId },
+    return this.prisma.filmVersion.findMany({
+      where: { film_id: contentId },
       include: {
         changed_by: {
           select: {
@@ -79,13 +88,13 @@ export class AuditService {
             contact: {
               select: {
                 first_name: true,
-                last_name: true
-              }
-            }
-          }
-        }
+                last_name: true,
+              },
+            },
+          },
+        },
       },
-      orderBy: { version_number: 'desc' }
+      orderBy: { version_number: "desc" },
     });
   }
 
@@ -93,8 +102,8 @@ export class AuditService {
    * Get detailed change log for content
    */
   async getContentChangeLog(contentId: number) {
-    return this.prisma.contentChangeLog.findMany({
-      where: { content_id: contentId },
+    return this.prisma.filmChangeLog.findMany({
+      where: { film_id: contentId },
       include: {
         changed_by: {
           select: {
@@ -102,13 +111,13 @@ export class AuditService {
             contact: {
               select: {
                 first_name: true,
-                last_name: true
-              }
-            }
-          }
-        }
+                last_name: true,
+              },
+            },
+          },
+        },
       },
-      orderBy: { created_at: 'desc' }
+      orderBy: { created_at: "desc" },
     });
   }
 
@@ -116,16 +125,16 @@ export class AuditService {
    * Get audit statistics for reporting
    */
   async getAuditStats(contentId?: number) {
-    const whereClause = contentId ? { content_id: contentId } : {};
+    const whereClause = contentId ? { film_id: contentId } : {};
 
     const [totalVersions, totalChanges] = await Promise.all([
-      this.prisma.contentVersion.count({ where: whereClause }),
-      this.prisma.contentChangeLog.count({ where: whereClause })
+      this.prisma.filmVersion.count({ where: whereClause }),
+      this.prisma.filmChangeLog.count({ where: whereClause }),
     ]);
 
     return {
       totalVersions,
-      totalChanges
+      totalChanges,
     };
   }
 }

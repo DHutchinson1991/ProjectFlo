@@ -1,7 +1,7 @@
 "use client";
 
-import { UnauthorizedPage } from "../components/UnauthorizedPage";
+import { UnauthorizedPage } from "../components";
 
 export default function UnauthorizedRoute() {
-    return <UnauthorizedPage />;
+  return <UnauthorizedPage />;
 }

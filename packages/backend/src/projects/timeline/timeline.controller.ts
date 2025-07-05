@@ -11,16 +11,16 @@ import {
 import { TimelineService, TimelineAnalytics } from "./timeline.service";
 
 // DTOs for Timeline management
-export class CreateTimelineComponentDto {
-  content_id: number;
-  component_id: number;
+export class CreateTimelineSceneDto {
+  film_id: number;
+  scene_id: number;
   layer_id: number;
   start_time_seconds: number;
   duration_seconds: number;
   notes?: string;
 }
 
-export class UpdateTimelineComponentDto {
+export class UpdateTimelineSceneDto {
   start_time_seconds?: number;
   duration_seconds?: number;
   layer_id?: number;
@@ -37,39 +37,35 @@ export class CreateTimelineLayerDto {
 
 @Controller("timeline")
 export class TimelineController {
-  constructor(private readonly timelineService: TimelineService) { }
+  constructor(private readonly timelineService: TimelineService) {}
 
-  // Timeline Components
-  @Post("components")
-  createTimelineComponent(@Body() createDto: CreateTimelineComponentDto) {
-    return this.timelineService.createTimelineComponent(createDto);
+  // Timeline Scenes
+  @Post("scenes")
+  createTimelineScene(@Body() createDto: CreateTimelineSceneDto) {
+    return this.timelineService.createTimelineScene(createDto);
   }
 
-  @Get("content/:id/components")
-  getTimelineComponentsForContent(
-    @Param("id", ParseIntPipe) contentId: number,
-  ) {
-    return this.timelineService.getTimelineComponentsForContent(
-      contentId,
-    );
+  @Get("content/:id/scenes")
+  getTimelineScenesForContent(@Param("id", ParseIntPipe) contentId: number) {
+    return this.timelineService.getTimelineScenesForContent(contentId);
   }
 
-  @Get("components/:id")
-  getTimelineComponent(@Param("id", ParseIntPipe) id: number) {
-    return this.timelineService.getTimelineComponent(id);
+  @Get("scenes/:id")
+  getTimelineScene(@Param("id", ParseIntPipe) id: number) {
+    return this.timelineService.getTimelineScene(id);
   }
 
-  @Patch("components/:id")
-  updateTimelineComponent(
+  @Patch("scenes/:id")
+  updateTimelineScene(
     @Param("id", ParseIntPipe) id: number,
-    @Body() updateDto: UpdateTimelineComponentDto,
+    @Body() updateDto: UpdateTimelineSceneDto,
   ) {
-    return this.timelineService.updateTimelineComponent(id, updateDto);
+    return this.timelineService.updateTimelineScene(id, updateDto);
   }
 
-  @Delete("components/:id")
-  removeTimelineComponent(@Param("id", ParseIntPipe) id: number) {
-    return this.timelineService.removeTimelineComponent(id);
+  @Delete("scenes/:id")
+  removeTimelineScene(@Param("id", ParseIntPipe) id: number) {
+    return this.timelineService.removeTimelineScene(id);
   }
 
   // Timeline Layers

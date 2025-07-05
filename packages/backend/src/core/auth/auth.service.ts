@@ -1,4 +1,4 @@
-// packages/backend/src/auth/auth.service.ts
+// packages/backend/src/core/auth/auth.service.ts
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { JwtService } from "@nestjs/jwt";
@@ -9,7 +9,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-  ) { }
+  ) {}
 
   async signIn(
     email: string,
