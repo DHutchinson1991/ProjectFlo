@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Query,
 } from "@nestjs/common";
 import { RolesService } from "./roles.service";
 import { CreateRoleDto } from "./dto/create-role.dto";
@@ -31,9 +32,9 @@ export class RolesController {
   }
 
   @Get()
-  findAll() {
+  findAll(@Query('brandId', new ParseIntPipe({ optional: true })) brandId?: number) {
     // Remains accessible to any authenticated user
-    return this.rolesService.findAll();
+    return this.rolesService.findAll(brandId);
   }
 
   @Get(":id")

@@ -1,0 +1,83 @@
+/**
+ * Brand-related types for ProjectFlo
+ */
+
+export interface Brand {
+    id: number;
+    name: string;
+    display_name?: string;
+    description?: string;
+    business_type?: string;
+    website?: string;
+    email?: string;
+    phone?: string;
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    state?: string;
+    country: string;
+    postal_code?: string;
+    timezone: string;
+    currency: string;
+    logo_url?: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface BrandSetting {
+    id: number;
+    brand_id: number;
+    key: string;
+    value: string;
+    data_type: string;
+    category?: string;
+    description?: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface UserBrand {
+    id: number;
+    user_id: number;
+    brand_id: number;
+    role: 'Owner' | 'Admin' | 'Manager' | 'Member';
+    is_active: boolean;
+    joined_at: string;
+    brand: Brand;
+}
+
+export interface BrandContextType {
+    // Current brand state
+    currentBrand: Brand | null;
+    availableBrands: Brand[];
+    isLoading: boolean;
+    error: string | null;
+
+    // Actions
+    switchBrand: (brandId: number) => Promise<void>;
+    refreshBrands: () => Promise<void>;
+
+    // Utils
+    isBrandSelected: boolean;
+    getCurrentBrandId: () => number | null;
+}
+
+export interface BrandSwitchResponse {
+    brand: Brand;
+    role: string;
+    permissions: string[];
+}
+
+// API Response types
+export interface BrandApiResponse extends Brand {
+    user_brands?: UserBrand[];
+    brand_settings?: BrandSetting[];
+    _count?: {
+        projects: number;
+        contacts: number;
+        filmLibrary: number;
+        scenes: number;
+    };
+}

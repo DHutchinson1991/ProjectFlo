@@ -40,7 +40,7 @@ export interface TimelineAnalytics {
 
 @Injectable()
 export class TimelineService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // Timeline Scenes
   async createTimelineScene(createDto: CreateTimelineSceneDto) {
@@ -362,5 +362,306 @@ export class TimelineService {
     });
 
     return overlaps;
+  }
+
+  // Scene + Media Component Timeline Methods
+
+  /**
+   * Place a scene on the timeline with all its media components
+   */
+  async placeSceneOnTimeline(
+    filmId: number,
+    sceneId: number,
+    layerId: number,
+    startTimeSeconds: number,
+    durationOverride?: number
+  ) {
+    // Validate 5-second snapping
+    if (startTimeSeconds % 5 !== 0) {
+      throw new ConflictException(
+        "Start time must be aligned to 5-second intervals",
+      );
+    }
+
+    // Get the scene with its media components
+    const scene = await this.prisma.scenesLibrary.findUnique({
+      where: { id: sceneId },
+      include: {
+        media_components: true
+      }
+    });
+
+    if (!scene) {
+      throw new NotFoundException(`Scene with ID ${sceneId} not found`);
+    }
+
+    // Calculate duration (use override or scene's estimated duration)
+    const duration = durationOverride || scene.estimated_duration || 60;
+
+    // Check for overlaps on the same layer
+    const endTime = startTimeSeconds + duration;
+    const overlappingScenes = await this.prisma.timelineScene.findMany({
+      where: {
+        film_id: filmId,
+        layer_id: layerId,
+      }
+    });
+
+    // Check for overlaps manually since we need to calculate end times
+    const hasOverlap = overlappingScenes.some(existing => {
+      const existingEnd = existing.start_time_seconds + existing.duration_seconds;
+
+      // Check if new scene overlaps with existing scene
+      return (
+        // New scene starts before existing ends and ends after existing starts
+        (startTimeSeconds < existingEnd && endTime > existing.start_time_seconds)
+      );
+    });
+
+    if (hasOverlap) {
+      throw new ConflictException(
+        "Scene placement would overlap with existing scene on this layer",
+      );
+    }
+
+    // Create the timeline scene entry
+    const timelineScene = await this.prisma.timelineScene.create({
+      data: {
+        film_id: filmId,
+        scene_id: sceneId,
+        layer_id: layerId,
+        start_time_seconds: startTimeSeconds,
+        duration_seconds: duration,
+        order_index: await this.getNextOrderIndex(filmId, layerId),
+      },
+      include: {
+        scene: {
+          include: {
+            media_components: true
+          }
+        },
+        layer: true,
+        film: true,
+      },
+    });
+
+    return {
+      timeline_scene: timelineScene,
+      placement_info: {
+        start_time: startTimeSeconds,
+        end_time: endTime,
+        duration: duration,
+        formatted_start: this.formatTimecode(startTimeSeconds),
+        formatted_end: this.formatTimecode(endTime),
+        formatted_duration: this.formatTimecode(duration),
+      },
+      media_components: scene.media_components.map(component => ({
+        id: component.id,
+        media_type: component.media_type,
+        is_primary: component.is_primary,
+        duration_seconds: component.duration_seconds,
+        music_type: component.music_type,
+        notes: component.notes,
+        timeline_span: {
+          start: startTimeSeconds,
+          end: startTimeSeconds + Math.min(component.duration_seconds, duration),
+          formatted_start: this.formatTimecode(startTimeSeconds),
+          formatted_end: this.formatTimecode(startTimeSeconds + Math.min(component.duration_seconds, duration))
+        }
+      }))
+    };
+  }
+
+  /**
+   * Get timeline view with scenes and their media components
+   */
+  async getTimelineWithMediaComponents(filmId: number) {
+    const timelineScenes = await this.prisma.timelineScene.findMany({
+      where: { film_id: filmId },
+      include: {
+        scene: {
+          include: {
+            media_components: {
+              orderBy: [
+                { is_primary: 'desc' },
+                { media_type: 'asc' }
+              ]
+            }
+          }
+        },
+        layer: true,
+      },
+      orderBy: [
+        { layer: { order_index: "asc" } },
+        { start_time_seconds: "asc" },
+      ],
+    });
+
+    // Group by layers for easier frontend rendering
+    const layers = await this.prisma.timelineLayer.findMany({
+      orderBy: { order_index: 'asc' }
+    });
+
+    const timelineData = layers.map(layer => ({
+      layer: {
+        id: layer.id,
+        name: layer.name,
+        order_index: layer.order_index,
+        color_hex: layer.color_hex,
+        is_active: layer.is_active
+      },
+      scenes: timelineScenes
+        .filter(ts => ts.layer_id === layer.id)
+        .map(ts => ({
+          id: ts.id,
+          start_time_seconds: ts.start_time_seconds,
+          duration_seconds: ts.duration_seconds,
+          end_time_seconds: ts.start_time_seconds + ts.duration_seconds,
+          order_index: ts.order_index,
+          notes: ts.notes,
+          formatted_start: this.formatTimecode(ts.start_time_seconds),
+          formatted_end: this.formatTimecode(ts.start_time_seconds + ts.duration_seconds),
+          formatted_duration: this.formatTimecode(ts.duration_seconds),
+          scene: {
+            id: ts.scene.id,
+            name: ts.scene.name,
+            type: ts.scene.type,
+            description: ts.scene.description,
+            complexity_score: ts.scene.complexity_score,
+            media_components: ts.scene.media_components.map(component => ({
+              id: component.id,
+              media_type: component.media_type,
+              duration_seconds: component.duration_seconds,
+              is_primary: component.is_primary,
+              music_type: component.music_type,
+              notes: component.notes,
+              timeline_position: {
+                start: ts.start_time_seconds,
+                end: ts.start_time_seconds + Math.min(component.duration_seconds, ts.duration_seconds),
+                relative_start: 0, // Always starts with the scene
+                relative_end: Math.min(component.duration_seconds, ts.duration_seconds)
+              }
+            }))
+          }
+        }))
+    }));
+
+    return {
+      film_id: filmId,
+      total_scenes: timelineScenes.length,
+      total_duration: Math.max(...timelineScenes.map(ts => ts.start_time_seconds + ts.duration_seconds), 0),
+      layers: timelineData
+    };
+  }
+
+  /**
+   * Move a scene to a new position on the timeline
+   */
+  async moveSceneOnTimeline(
+    timelineSceneId: number,
+    newStartTime: number,
+    newLayerId?: number
+  ) {
+    // Validate 5-second snapping
+    if (newStartTime % 5 !== 0) {
+      throw new ConflictException(
+        "Start time must be aligned to 5-second intervals",
+      );
+    }
+
+    const timelineScene = await this.getTimelineScene(timelineSceneId);
+    const layerId = newLayerId || timelineScene.layer_id;
+
+    // Check for conflicts at new position
+    const endTime = newStartTime + timelineScene.duration_seconds;
+    const conflictingScene = await this.prisma.timelineScene.findFirst({
+      where: {
+        film_id: timelineScene.film_id,
+        layer_id: layerId,
+        id: { not: timelineSceneId },
+        OR: [
+          {
+            AND: [
+              { start_time_seconds: { lt: endTime } },
+              { start_time_seconds: { gte: newStartTime } }
+            ]
+          },
+          {
+            start_time_seconds: { lte: newStartTime },
+            // Check if the existing scene extends past our start time
+          }
+        ]
+      },
+      include: {
+        scene: true
+      }
+    });
+
+    if (conflictingScene) {
+      const conflictEnd = conflictingScene.start_time_seconds + conflictingScene.duration_seconds;
+      if (conflictEnd > newStartTime) {
+        throw new ConflictException(
+          `Cannot move scene: would conflict with "${conflictingScene.scene.name}" at ${this.formatTimecode(conflictingScene.start_time_seconds)}`
+        );
+      }
+    }
+
+    // Update the timeline scene
+    const updatedScene = await this.prisma.timelineScene.update({
+      where: { id: timelineSceneId },
+      data: {
+        start_time_seconds: newStartTime,
+        layer_id: layerId,
+        order_index: newLayerId ? await this.getNextOrderIndex(timelineScene.film_id, layerId) : timelineScene.order_index
+      },
+      include: {
+        scene: {
+          include: {
+            media_components: true
+          }
+        },
+        layer: true,
+        film: true,
+      },
+    });
+
+    return {
+      timeline_scene: updatedScene,
+      new_position: {
+        start_time: newStartTime,
+        end_time: newStartTime + updatedScene.duration_seconds,
+        formatted_start: this.formatTimecode(newStartTime),
+        formatted_end: this.formatTimecode(newStartTime + updatedScene.duration_seconds),
+      },
+      media_components: updatedScene.scene.media_components.map(component => ({
+        id: component.id,
+        media_type: component.media_type,
+        new_timeline_span: {
+          start: newStartTime,
+          end: newStartTime + Math.min(component.duration_seconds, updatedScene.duration_seconds)
+        }
+      }))
+    };
+  }
+
+  /**
+   * Get next order index for a layer
+   */
+  private async getNextOrderIndex(filmId: number, layerId: number): Promise<number> {
+    const lastScene = await this.prisma.timelineScene.findFirst({
+      where: { film_id: filmId, layer_id: layerId },
+      orderBy: { order_index: 'desc' }
+    });
+
+    return (lastScene?.order_index || 0) + 1;
+  }
+
+  /**
+   * Format seconds to MM:SS timecode
+   */
+  private formatTimecode(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   }
 }

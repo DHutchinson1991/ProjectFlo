@@ -12,9 +12,10 @@ import { ScenesModule } from "./content/scenes/scenes.module";
 import { FilmsModule } from "./content/films/films.module";
 // Projects Domain
 import { TimelineModule } from "./projects/timeline/timeline.module";
-import { DefaultTasksModule } from "./projects/defaultTasks/defaultTasks.module";
 // Business Domain
 import { AuditModule } from "./business/audit/audit.module";
+import { BrandsModule } from "./business/brands/brands.module";
+import { TaskLibraryModule } from "./business/task-library/task-library.module";
 // Shared Services
 import { PrismaModule } from "./prisma/prisma.module";
 
@@ -32,10 +33,11 @@ import { PrismaModule } from "./prisma/prisma.module";
     FilmsModule,
     ScenesModule,
     AuditModule,
+    BrandsModule,
+    TaskLibraryModule,
     TimelineModule,
-    DefaultTasksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

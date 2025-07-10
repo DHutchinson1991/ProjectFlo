@@ -55,8 +55,15 @@ export class ContributorsService {
     });
   }
 
-  findAll() {
+  findAll(brandId?: number) {
+    const whereClause = brandId ? {
+      contact: {
+        brand_id: brandId
+      }
+    } : {};
+
     return this.prisma.contributors.findMany({
+      where: whereClause,
       include: {
         contact: true,
         role: true,
@@ -79,7 +86,7 @@ export class ContributorsService {
   }
 
   async update(id: number, updateContributorDto: UpdateContributorDto) {
-    const { email, first_name, last_name, role_id, contributor_type, password } = updateContributorDto;
+    const { email, first_name, last_name, role_id, contributor_type, password, default_hourly_rate } = updateContributorDto;
 
     const dataForContributorUpdate: Prisma.contributorsUpdateInput = {};
 
@@ -96,6 +103,10 @@ export class ContributorsService {
 
     if (contributor_type !== undefined) {
       dataForContributorUpdate.contributor_type = contributor_type;
+    }
+
+    if (default_hourly_rate !== undefined) {
+      dataForContributorUpdate.default_hourly_rate = default_hourly_rate;
     }
 
     const contactDataForUpdate: Prisma.contactsUpdateInput = {};

@@ -8,14 +8,28 @@ import { Prisma, contacts } from '@prisma/client'; // Import Prisma namespace an
 export class ContactsService {
   constructor(private prisma: PrismaService) { }
 
-  async create(createContactDto: CreateContactDto): Promise<contacts> {
+  async create(createContactDto: CreateContactDto, brandId?: number | null): Promise<contacts> {
+    const data = {
+      ...createContactDto,
+      brand_id: brandId !== undefined ? brandId : createContactDto.brand_id,
+    };
+
     return this.prisma.contacts.create({
-      data: createContactDto,
+      data,
     });
   }
 
-  async findAll(): Promise<contacts[]> {
-    return this.prisma.contacts.findMany();
+  async findAll(brandId?: number | null): Promise<contacts[]> {
+    const where = brandId !== null && brandId !== undefined
+      ? { brand_id: brandId }
+      : {}; // If brandId is null or undefined, return all contacts (for global admin)
+
+    return this.prisma.contacts.findMany({
+      where,
+      orderBy: {
+        id: 'desc',
+      },
+    });
   }
 
   async findOne(id: number): Promise<contacts | null> {

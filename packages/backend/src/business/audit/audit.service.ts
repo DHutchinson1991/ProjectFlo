@@ -13,7 +13,7 @@ interface CreateVersionParams {
 
 @Injectable()
 export class AuditService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Create a new version entry when content is modified

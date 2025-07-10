@@ -37,7 +37,7 @@ export class CreateTimelineLayerDto {
 
 @Controller("timeline")
 export class TimelineController {
-  constructor(private readonly timelineService: TimelineService) {}
+  constructor(private readonly timelineService: TimelineService) { }
 
   // Timeline Scenes
   @Post("scenes")

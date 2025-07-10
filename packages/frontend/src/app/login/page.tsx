@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
@@ -10,14 +10,22 @@ import Container from "@mui/material/Container";
 import Paper from "@mui/material/Paper";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
-import { api } from "../../lib/api";
+import { useAuth } from "../providers/AuthProvider";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login, isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Redirect if the user is already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/");
+    }
+  }, [isAuthenticated, router]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -25,26 +33,16 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // Use the unified API service
-      const response = await api.auth.login({ email, password });
+      // Use the AuthProvider's login function
+      await login({ email, password });
 
-      if (response.access_token) {
-        // Store the token and user info in localStorage
-        localStorage.setItem("authToken", response.access_token);
-        localStorage.setItem("userProfile", JSON.stringify(response.user));
-        api.auth.setToken(response.access_token);
-
-        // Redirect to root - let the root page handle role-based routing
-        router.push("/");
-      } else {
-        throw new Error("Login failed. Please check your credentials.");
-      }
+      // The redirect will be handled by the useEffect above
+      // when isAuthenticated changes
     } catch (err) {
       console.error("Login error:", err);
       setError(
         err instanceof Error ? err.message : "An unknown error occurred",
       );
-    } finally {
       setIsLoading(false);
     }
   };

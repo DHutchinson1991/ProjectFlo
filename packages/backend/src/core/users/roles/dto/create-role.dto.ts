@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber } from 'class-validator';
 
 export class CreateRoleDto {
   @IsString()
@@ -8,4 +8,8 @@ export class CreateRoleDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsOptional()
+  @IsNumber()
+  brand_id?: number;
 }

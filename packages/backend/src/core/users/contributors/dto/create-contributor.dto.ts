@@ -27,4 +27,8 @@ export class CreateContributorDto {
   @IsEnum(contributors_type)
   @IsOptional()
   contributor_type?: contributors_type;
+
+  @IsNumber()
+  @IsOptional()
+  default_hourly_rate?: number;
 }

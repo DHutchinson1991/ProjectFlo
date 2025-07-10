@@ -13,8 +13,10 @@ export class RolesService {
     return this.prisma.roles.create({ data: createRoleDto });
   }
 
-  async findAll(): Promise<Role[]> {
-    return this.prisma.roles.findMany();
+  async findAll(brandId?: number): Promise<Role[]> {
+    return this.prisma.roles.findMany({
+      where: brandId ? { brand_id: brandId } : {},
+    });
   }
 
   async findOne(id: number): Promise<Role | null> {

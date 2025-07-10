@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, HttpCode, HttpStatus, UseGuards, Query } from '@nestjs/common';
 import { ContactsService } from './contacts.service';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
@@ -13,13 +13,15 @@ export class ContactsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() createContactDto: CreateContactDto) { // Accessible to any authenticated user
-    return this.contactsService.create(createContactDto);
+  create(@Body() createContactDto: CreateContactDto, @Query('brandId') brandId?: string) {
+    const parsedBrandId = brandId ? parseInt(brandId, 10) : null;
+    return this.contactsService.create(createContactDto, parsedBrandId);
   }
 
   @Get()
-  findAll() { // Accessible to any authenticated user
-    return this.contactsService.findAll();
+  findAll(@Query('brandId') brandId?: string) {
+    const parsedBrandId = brandId ? parseInt(brandId, 10) : null;
+    return this.contactsService.findAll(parsedBrandId);
   }
 
   @Get(':id')
@@ -28,14 +30,14 @@ export class ContactsController {
   }
 
   @Patch(':id')
-  @Roles('Admin') // Only users with the 'Admin' role can update
+  @Roles('Admin', 'Global Admin') // Allow Admin or Global Admin roles to update
   @UseGuards(RolesGuard)
   update(@Param('id', ParseIntPipe) id: number, @Body() updateContactDto: UpdateContactDto) {
     return this.contactsService.update(id, updateContactDto);
   }
 
   @Delete(':id')
-  @Roles('Admin') // Only users with the 'Admin' role can delete
+  @Roles('Admin', 'Global Admin') // Allow Admin or Global Admin roles to delete
   @UseGuards(RolesGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseIntPipe) id: number) {

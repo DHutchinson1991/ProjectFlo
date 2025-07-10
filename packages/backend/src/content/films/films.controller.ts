@@ -9,14 +9,16 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  Query,
 } from "@nestjs/common";
 import { FilmsService } from "./films.service";
 import { CreateFilmDto } from "./dto/create-film.dto";
 import { UpdateFilmDto } from "./dto/update-film.dto";
+import { MusicType } from "@prisma/client";
 
 @Controller("films")
 export class FilmsController {
-  constructor(private readonly filmsService: FilmsService) {}
+  constructor(private readonly filmsService: FilmsService) { }
 
   @Post()
   create(@Body() createFilmDto: CreateFilmDto) {
@@ -24,8 +26,8 @@ export class FilmsController {
   }
 
   @Get()
-  findAll() {
-    return this.filmsService.findAll();
+  findAll(@Query('brandId', new ParseIntPipe({ optional: true })) brandId?: number) {
+    return this.filmsService.findAll(brandId);
   }
 
   @Get(":id")
@@ -47,42 +49,78 @@ export class FilmsController {
     return this.filmsService.delete(id);
   }
 
-  // TODO: Implement scenes and build functionality
-  /*
-  @Post(':id/scenes')
-  updateScenes(
+  // Scene management endpoints - uses local copies for film-specific edits
+  @Post(':id/scenes/assign')
+  assignScene(
     @Param('id', ParseIntPipe) filmId: number,
-    @Body() scenes: Array<{
+    @Body() assignSceneDto: {
       scene_id: number;
-      order_index: number;
+      order_index?: number;
       editing_style?: string;
-      duration_override?: number;
-    }>,
+    },
   ) {
-    return this.filmsService.updateScenes(filmId, scenes);
+    return this.filmsService.assignSceneToFilm(
+      filmId,
+      assignSceneDto.scene_id,
+      assignSceneDto.order_index,
+      assignSceneDto.editing_style
+    );
   }
 
   @Get(':id/scenes')
-  getScenes(@Param('id', ParseIntPipe) filmId: number) {
-    return this.filmsService.getScenes(filmId);
+  getFilmScenes(@Param('id', ParseIntPipe) filmId: number) {
+    return this.filmsService.getFilmWithLocalScenes(filmId);
   }
- 
-  @Post('builds/:buildId/:filmId')
-  createBuildFilm(
-    @Param('buildId', ParseIntPipe) buildId: number,
-    @Param('filmId', ParseIntPipe) filmId: number,
+
+  @Get(':id/available-scenes')
+  getAvailableScenes(
+    @Param('id', ParseIntPipe) filmId: number,
+    @Query('brandId', new ParseIntPipe({ optional: true })) brandId?: number
   ) {
-    return this.filmsService.createBuildFilm(buildId, filmId);
+    return this.filmsService.getAvailableScenesForFilm(filmId, brandId);
   }
- 
-  @Get('builds/:buildId')
-  findBuildFilm(@Param('buildId', ParseIntPipe) buildId: number) {
-    return this.filmsService.getBuildFilm(buildId);
+
+  @Patch(':id/scenes/:sceneId')
+  updateFilmScene(
+    @Param('id', ParseIntPipe) filmId: number,
+    @Param('sceneId', ParseIntPipe) localSceneId: number,
+    @Body() updateData: {
+      name?: string;
+      description?: string;
+      editing_style?: string;
+      duration_override?: number;
+      order_index?: number;
+    },
+  ) {
+    return this.filmsService.updateFilmLocalScene(filmId, localSceneId, updateData);
   }
- 
-  @Get('build-film/:id')
-  findBuildFilmItem(@Param('id', ParseIntPipe) id: number) {
-    return this.filmsService.getBuildFilmItem(id);
+
+  @Patch(':id/scenes/:sceneId/components/:componentId')
+  updateFilmSceneComponent(
+    @Param('id', ParseIntPipe) filmId: number,
+    @Param('sceneId', ParseIntPipe) localSceneId: number,
+    @Param('componentId', ParseIntPipe) componentId: number,
+    @Body() updateData: {
+      duration_seconds?: number;
+      is_primary?: boolean;
+      music_type?: MusicType | null;
+      notes?: string;
+    },
+  ) {
+    return this.filmsService.updateFilmLocalSceneMediaComponent(
+      filmId,
+      localSceneId,
+      componentId,
+      updateData
+    );
   }
-  */
+
+  @Delete(':id/scenes/:sceneId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeSceneFromFilm(
+    @Param('id', ParseIntPipe) filmId: number,
+    @Param('sceneId', ParseIntPipe) localSceneId: number,
+  ) {
+    return this.filmsService.removeSceneFromFilm(filmId, localSceneId);
+  }
 }

@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards, // Import UseGuards
   ParseIntPipe, // Import ParseIntPipe
+  Query, // Import Query
 } from "@nestjs/common";
 import { ContributorsService } from "./contributors.service";
 import { CreateContributorDto } from "./dto/create-contributor.dto";
@@ -22,15 +23,16 @@ export class ContributorsController {
   constructor(private readonly contributorsService: ContributorsService) { }
 
   @Post()
-  @Roles("Admin") // Only users with the 'Admin' role can create
+  @Roles("Admin", "Global Admin") // Allow Admin or Global Admin roles to create
   @UseGuards(RolesGuard)
   create(@Body() createContributorDto: CreateContributorDto) {
     return this.contributorsService.create(createContributorDto);
   }
 
   @Get()
-  findAll() {
-    return this.contributorsService.findAll();
+  findAll(@Query('brandId') brandId?: string) {
+    const brandIdNumber = brandId ? parseInt(brandId, 10) : undefined;
+    return this.contributorsService.findAll(brandIdNumber);
   }
 
   @Get(":id")
@@ -39,7 +41,7 @@ export class ContributorsController {
   }
 
   @Patch(":id")
-  @Roles("Admin") // Only users with the 'Admin' role can update
+  @Roles("Admin", "Global Admin") // Allow Admin or Global Admin roles to update
   @UseGuards(RolesGuard)
   update(
     @Param("id", ParseIntPipe) id: number,
@@ -49,7 +51,7 @@ export class ContributorsController {
   }
 
   @Delete(":id")
-  @Roles("Admin") // Only users with the 'Admin' role can delete
+  @Roles("Admin", "Global Admin") // Allow Admin or Global Admin roles to delete
   @UseGuards(RolesGuard)
   remove(@Param("id", ParseIntPipe) id: number) {
     return this.contributorsService.remove(id);

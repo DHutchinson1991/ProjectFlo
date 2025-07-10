@@ -7,53 +7,52 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  Query,
 } from "@nestjs/common";
 import { ScenesService } from "./scenes.service";
 import { MediaType, MusicType } from "@prisma/client";
+import { CreateSceneDto } from "./dto/create-scene.dto";
+import { UpdateSceneDto } from "./dto/update-scene.dto";
 
-// DTOs
-export class CreateSceneDto {
-  name: string;
-  description?: string;
-  type: MediaType;
-  complexity_score?: number;
-  estimated_duration?: number;
-  default_editing_style?: string;
-  base_task_hours?: number;
-}
-
-export class UpdateSceneDto {
-  name?: string;
-  description?: string;
-  type?: MediaType;
-  complexity_score?: number;
-  estimated_duration?: number;
-  default_editing_style?: string;
-  base_task_hours?: number;
-}
-
-export class SceneMusicOptionDto {
+// Music component DTO (updated for unified structure)
+export class SceneMusicComponentDto {
   music_type: MusicType;
   weight?: number;
+  duration_seconds?: number;
+}
+
+// Media component DTO for broader use
+export class SceneMediaComponentDto {
+  media_type: 'VIDEO' | 'AUDIO' | 'MUSIC';
+  duration_seconds: number;
+  is_primary?: boolean;
+  volume_level?: number;
+  sync_offset?: number;
+  music_type?: string;
+  music_weight?: number;
+  notes?: string;
 }
 
 @Controller("scenes")
 export class ScenesController {
-  constructor(private readonly scenesService: ScenesService) {}
+  constructor(private readonly scenesService: ScenesService) { }
 
   @Post()
-  create(@Body() createSceneDto: CreateSceneDto) {
-    return this.scenesService.create(createSceneDto);
+  create(@Body() createSceneDto: CreateSceneDto, @Query('brandId') brandId?: string) {
+    const parsedBrandId = brandId ? parseInt(brandId, 10) : null;
+    return this.scenesService.create(createSceneDto, parsedBrandId);
   }
 
   @Get()
-  findAll() {
-    return this.scenesService.findAll();
+  findAll(@Query('brandId') brandId?: string) {
+    const parsedBrandId = brandId ? parseInt(brandId, 10) : null;
+    return this.scenesService.findAll(parsedBrandId);
   }
 
   @Get("with-relations")
-  findAllWithRelations() {
-    return this.scenesService.findAllWithRelations();
+  findAllWithRelations(@Query('brandId') brandId?: string) {
+    const parsedBrandId = brandId ? parseInt(brandId, 10) : null;
+    return this.scenesService.findAllWithRelations(parsedBrandId);
   }
 
   @Get(":id/with-relations")
@@ -106,29 +105,42 @@ export class ScenesController {
     return this.scenesService.bulkUpdateTaskHours(updates);
   }
 
-  // MUSIC OPTIONS ENDPOINTS
+  // MUSIC COMPONENT ENDPOINTS (Updated for unified structure)
 
   @Post(":id/music-options")
   addMusicOptions(
     @Param("id", ParseIntPipe) id: number,
-    @Body() musicOptions: SceneMusicOptionDto[],
+    @Body() musicOptions: SceneMusicComponentDto[],
   ) {
     return this.scenesService.addMusicOptions(id, musicOptions);
   }
 
-  @Delete(":id/music-options/:optionId")
+  @Delete(":id/music-options/:componentId")
   removeMusicOption(
     @Param("id", ParseIntPipe) id: number,
-    @Param("optionId", ParseIntPipe) optionId: number,
+    @Param("componentId", ParseIntPipe) componentId: number,
   ) {
-    return this.scenesService.removeMusicOption(id, optionId);
+    return this.scenesService.removeMusicOption(id, componentId);
   }
 
-  @Patch("music-options/:optionId/weight")
-  updateMusicOptionWeight(
-    @Param("optionId", ParseIntPipe) optionId: number,
-    @Body() { weight }: { weight: number },
+  @Patch("music-options/:componentId")
+  updateMusicComponent(
+    @Param("componentId", ParseIntPipe) componentId: number,
+    @Body() updateData: { music_type?: string; duration_seconds?: number; notes?: string },
   ) {
-    return this.scenesService.updateMusicOptionWeight(optionId, weight);
+    return this.scenesService.updateMusicComponent(componentId, updateData);
+  }
+
+  @Get(":id/music-components")
+  getMusicComponents(@Param("id", ParseIntPipe) id: number) {
+    return this.scenesService.getMusicComponents(id);
+  }
+
+  @Post(":id/media-components")
+  addMediaComponent(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() componentData: SceneMediaComponentDto,
+  ) {
+    return this.scenesService.addMediaComponent(id, componentData);
   }
 }
