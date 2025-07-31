@@ -9,6 +9,7 @@ import {
   UseGuards, // Import UseGuards
   ParseIntPipe, // Import ParseIntPipe
   Query, // Import Query
+  Headers, // Import Headers
 } from "@nestjs/common";
 import { ContributorsService } from "./contributors.service";
 import { CreateContributorDto } from "./dto/create-contributor.dto";
@@ -30,8 +31,20 @@ export class ContributorsController {
   }
 
   @Get()
-  findAll(@Query('brandId') brandId?: string) {
-    const brandIdNumber = brandId ? parseInt(brandId, 10) : undefined;
+  findAll(
+    @Query('brandId') brandId?: string,
+    @Headers('x-brand-context') brandContext?: string
+  ) {
+    // Debug logging
+    console.log('🔍 Contributors API - Query brandId:', brandId);
+    console.log('🔍 Contributors API - Header brandContext:', brandContext);
+
+    // Use brand context header if available, otherwise fall back to query parameter
+    const effectiveBrandId = brandContext || brandId;
+    const brandIdNumber = effectiveBrandId ? parseInt(effectiveBrandId, 10) : undefined;
+
+    console.log('🔍 Contributors API - Effective brandId:', brandIdNumber);
+
     return this.contributorsService.findAll(brandIdNumber);
   }
 

@@ -343,11 +343,24 @@ export const useDragAndDrop = (
     }, []);
 
     const scrollToTime = useCallback(
-        (time: number) => {
+        (time: number, totalDuration?: number) => {
             const pixelPosition = time * viewState.zoomLevel;
-            const centeredPosition = pixelPosition - viewState.viewportWidth / 2;
-            const clampedPosition = Math.max(0, centeredPosition);
-            updateViewportLeft(clampedPosition);
+            const halfViewport = viewState.viewportWidth / 2;
+
+            // Calculate the maximum scroll position (timeline end - viewport width)
+            const timelineWidth = (totalDuration || 60) * viewState.zoomLevel;
+            const maxScrollLeft = Math.max(0, timelineWidth - viewState.viewportWidth);
+
+            // Try to center the playhead, but clamp to valid range
+            let targetPosition = pixelPosition - halfViewport;
+
+            // Ensure we don't scroll past the beginning
+            targetPosition = Math.max(0, targetPosition);
+
+            // Ensure we don't scroll past the end - keeps playhead visible when at timeline end
+            targetPosition = Math.min(maxScrollLeft, targetPosition);
+
+            updateViewportLeft(targetPosition);
         },
         [viewState.zoomLevel, viewState.viewportWidth, updateViewportLeft],
     );

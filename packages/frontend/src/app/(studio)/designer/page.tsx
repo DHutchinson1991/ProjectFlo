@@ -15,6 +15,7 @@ import {
     MovieFilter as ScenesIcon,
     Add as AddIcon,
     Movie as ContentIcon,
+    Videocam as CoverageIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
 
@@ -121,6 +122,51 @@ export default function DesignerPage() {
                     </Card>
                 </Grid>
 
+                <Grid item xs={12} md={6} lg={4}>
+                    <Card
+                        elevation={2}
+                        sx={{
+                            height: "100%",
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                                elevation: 4,
+                                transform: "translateY(-4px)",
+                            },
+                        }}
+                    >
+                        <CardActionArea
+                            component={Link}
+                            href="/designer/coverage"
+                            sx={{ height: "100%" }}
+                        >
+                            <CardContent sx={{ p: 3, height: "100%" }}>
+                                <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                                    <CoverageIcon
+                                        sx={{
+                                            fontSize: 32,
+                                            color: "warning.main",
+                                            mr: 2,
+                                        }}
+                                    />
+                                    <Typography variant="h6" component="h2">
+                                        Coverage Library
+                                    </Typography>
+                                </Box>
+                                <Typography variant="body2" color="text.secondary" paragraph>
+                                    Manage event coverage types and templates. Perfect for
+                                    weddings, corporate events, and specialized shoots.
+                                </Typography>
+                                <Chip
+                                    label="New"
+                                    color="warning"
+                                    size="small"
+                                    sx={{ mt: 1 }}
+                                />
+                            </CardContent>
+                        </CardActionArea>
+                    </Card>
+                </Grid>
+
                 {/* Quick Actions */}
                 <Grid item xs={12}>
                     <Box sx={{ mt: 4 }}>
@@ -145,6 +191,15 @@ export default function DesignerPage() {
                                 sx={{ minWidth: 160 }}
                             >
                                 Create Film
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                startIcon={<CoverageIcon />}
+                                component={Link}
+                                href="/designer/coverage"
+                                sx={{ minWidth: 160 }}
+                            >
+                                Coverage Library
                             </Button>
                         </Box>
                     </Box>

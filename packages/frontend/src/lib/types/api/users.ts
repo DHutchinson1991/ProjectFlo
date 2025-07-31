@@ -19,6 +19,28 @@ export interface ContributorApiResponse {
     default_hourly_rate?: string | number; // Backend returns Decimal as string
     contact: ContactApiResponse;
     role: RoleApiResponse;
+    contributor_job_roles?: ContributorJobRoleApiResponse[];
+}
+
+export interface ContributorJobRoleApiResponse {
+    id: number;
+    contributor_id: number;
+    job_role_id: number;
+    is_primary: boolean;
+    assigned_at: string;
+    assigned_by?: number | null;
+    job_role: JobRoleApiResponse;
+}
+
+export interface JobRoleApiResponse {
+    id: number;
+    name: string;
+    display_name: string;
+    description?: string;
+    category: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface ContactApiResponse {

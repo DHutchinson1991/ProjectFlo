@@ -67,17 +67,22 @@ const ContentBuilderScenesLibrary: React.FC<ContentBuilderScenesLibraryProps> = 
                 height: "100%",
                 display: "flex",
                 flexDirection: "column",
-                bgcolor: "rgba(8, 8, 12, 0.85)",
-                borderRadius: 2,
-                border: "1px solid rgba(255, 255, 255, 0.1)",
+                bgcolor: "#1a1a1a",
                 overflow: "hidden",
+                overflowX: "hidden", // Explicitly prevent horizontal scroll
+                borderRight: "1px solid #333",
+                borderLeft: "1px solid #333",
+                borderRadius: 0, // Remove border radius for sidebar
+                boxSizing: "border-box", // Ensure padding doesn't cause overflow
+                width: "100%", // Take full width of parent container
+                minWidth: 0, // Allow shrinking if needed
             }}
         >
             {/* Header */}
             <Box
                 sx={{
-                    p: 2,
-                    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                    p: 1.5, // Reduce padding for sidebar
+                    borderBottom: "1px solid #333",
                     flexShrink: 0,
                 }}
             >
@@ -86,8 +91,8 @@ const ContentBuilderScenesLibrary: React.FC<ContentBuilderScenesLibraryProps> = 
                     sx={{
                         color: "white",
                         fontWeight: 600,
-                        fontSize: "1rem",
-                        mb: 2,
+                        fontSize: "0.9rem", // Smaller font for sidebar
+                        mb: 1.5,
                     }}
                 >
                     {title}
@@ -111,8 +116,24 @@ const ContentBuilderScenesLibrary: React.FC<ContentBuilderScenesLibraryProps> = 
             <Box
                 sx={{
                     flex: 1,
-                    p: 2,
-                    overflow: "hidden",
+                    p: 1.5, // Reduce padding for sidebar
+                    overflowY: "auto",
+                    overflowX: "hidden", // Prevent horizontal scroll
+                    width: "100%", // Take full width
+                    boxSizing: "border-box", // Include padding in width calculation
+                    minWidth: 0, // Allow shrinking
+                    position: "relative", // Establish positioning context
+                    // Prevent any layout shifts during drag operations
+                    transform: "none",
+                    willChange: "auto",
+                    // Lock the container from any movement
+                    left: 0,
+                    right: 0,
+                    // Prevent text selection during drag which can cause layout shifts
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                    MozUserSelect: "none",
+                    msUserSelect: "none",
                 }}
             >
                 {filteredScenes.length > 0 ? (
@@ -121,7 +142,6 @@ const ContentBuilderScenesLibrary: React.FC<ContentBuilderScenesLibraryProps> = 
                         selectedSceneId={selectedSceneId}
                         onSceneSelect={onSceneSelect}
                         readOnly={readOnly}
-                        gridCols={2}
                     />
                 ) : (
                     <Box

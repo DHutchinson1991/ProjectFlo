@@ -5,6 +5,8 @@
  * These represent how we want to work with user data in our application.
  */
 
+import { ContributorJobRole } from '../job-roles';
+
 // ============================================================================
 // DOMAIN MODELS (Frontend-friendly interfaces)
 // ============================================================================
@@ -19,6 +21,9 @@ export interface Contact {
     type?: string;
     brand_id?: number;
     archived_at?: string | null;
+
+    // Computed properties for convenience
+    full_name: string;
 }
 
 export interface Role {
@@ -38,7 +43,8 @@ export interface Contributor {
 
     // Related entities
     contact: Contact;
-    role: Role;
+    role?: Role | null;
+    contributor_job_roles?: ContributorJobRole[];
 
     // Computed properties for convenience
     email: string;

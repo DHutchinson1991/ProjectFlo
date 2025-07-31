@@ -16,8 +16,29 @@ import { TimelineModule } from "./projects/timeline/timeline.module";
 import { AuditModule } from "./business/audit/audit.module";
 import { BrandsModule } from "./business/brands/brands.module";
 import { TaskLibraryModule } from "./business/task-library/task-library.module";
+// Equipment Domain
+import { EquipmentModule } from "./equipment/equipment.module";
+// Calendar Domain
+import { CalendarModule } from "./calendar/calendar.module";
+// Projects Management
+import { ProjectsModule } from "./projects/projects.module";
+// Lead Management
+import { InquiriesModule } from "./inquiries/inquiries.module";
+import { ClientsModule } from "./clients/clients.module";
+import { ProposalsModule } from "./proposals/proposals.module";
+import { ActivityLogsModule } from "./activity-logs/activity-logs.module";
 // Shared Services
 import { PrismaModule } from "./prisma/prisma.module";
+import { ContractsModule } from './contracts/contracts.module';
+import { InvoicesModule } from './invoices/invoices.module';
+import { EstimatesModule } from './estimates/estimates.module';
+import { QuotesModule } from './quotes/quotes.module';
+import { JobRolesModule } from './job-roles/job-roles.module';
+import { CoverageModule } from './coverage/coverage.module';
+import { MomentsModule } from './moments/moments.module';
+import { MusicModule } from './music/music.module';
+import { SubjectsModule } from './content/subjects/subjects.module';
+import { LocationsModule } from './locations/locations.module';
 
 @Module({
   imports: [
@@ -35,7 +56,24 @@ import { PrismaModule } from "./prisma/prisma.module";
     AuditModule,
     BrandsModule,
     TaskLibraryModule,
+    EquipmentModule,
+    CalendarModule,
     TimelineModule,
+    ProjectsModule,
+    InquiriesModule,
+    ClientsModule,
+    ProposalsModule,
+    ActivityLogsModule,
+    ContractsModule,
+    InvoicesModule,
+    EstimatesModule,
+    QuotesModule,
+    JobRolesModule,
+    CoverageModule,
+    MomentsModule,
+    MusicModule,
+    SubjectsModule,
+    LocationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

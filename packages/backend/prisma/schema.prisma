@@ -8,36 +8,39 @@ datasource db {
 }
 
 model brands {
-  id            Int      @id @default(autoincrement())
-  name          String   @unique
-  display_name  String?
-  description   String?
-  business_type String?
-  website       String?
-  email         String?
-  phone         String?
-  address_line1 String?
-  address_line2 String?
-  city          String?
-  state         String?
-  country       String   @default("United States")
-  postal_code   String?
-  timezone      String   @default("America/New_York")
-  currency      String   @default("USD")
-  logo_url      String?
-  is_active     Boolean  @default(true)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-
-  // Relations
-  user_brands    user_brands[]
-  projects       projects[]
-  contacts       contacts[]
-  filmLibrary    filmLibrary[]
-  scenes         ScenesLibrary[]
-  roles          roles[]
-  brand_settings brand_settings[]
-  task_library   task_library[]
+  id                 Int                @id @default(autoincrement())
+  name               String             @unique
+  display_name       String?
+  description        String?
+  business_type      String?
+  website            String?
+  email              String?
+  phone              String?
+  address_line1      String?
+  address_line2      String?
+  city               String?
+  state              String?
+  country            String             @default("United States")
+  postal_code        String?
+  timezone           String             @default("America/New_York")
+  currency           String             @default("USD")
+  logo_url           String?
+  is_active          Boolean            @default(true)
+  created_at         DateTime           @default(now())
+  updated_at         DateTime           @updatedAt
+  brand_settings     brand_settings[]
+  contacts           contacts[]
+  equipment          equipment[]
+  filmLibrary        filmLibrary[]
+  floor_plan_objects FloorPlanObjects[]
+  locations          LocationsLibrary[]
+  music_library      MusicLibrary[]
+  projects           projects[]
+  roles              roles[]
+  scenes             ScenesLibrary[]
+  subjects           SubjectsLibrary[]
+  task_library       task_library[]
+  user_brands        user_brands[]
 
   @@map("brands")
 }
@@ -45,10 +48,10 @@ model brands {
 model brand_settings {
   id          Int      @id @default(autoincrement())
   brand_id    Int
-  key         String // Setting key (e.g., "default_timezone", "client_portal_enabled")
-  value       String // Setting value as JSON string
-  data_type   String   @default("string") // "string", "boolean", "number", "json"
-  category    String? // "general", "branding", "workflow", "pricing", etc.
+  key         String
+  value       String
+  data_type   String   @default("string")
+  category    String?
   description String?
   is_active   Boolean  @default(true)
   created_at  DateTime @default(now())
@@ -62,16 +65,14 @@ model brand_settings {
 }
 
 model user_brands {
-  id        Int      @id @default(autoincrement())
+  id        Int          @id @default(autoincrement())
   user_id   Int
   brand_id  Int
-  role      String   @default("Member") // Owner, Admin, Manager, Member
-  is_active Boolean  @default(true)
-  joined_at DateTime @default(now())
-
-  // Relations
-  user  contributors @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  brand brands       @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  role      String       @default("Member")
+  is_active Boolean      @default(true)
+  joined_at DateTime     @default(now())
+  brand     brands       @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  user      contributors @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, brand_id])
   @@index([user_id])
@@ -92,9 +93,10 @@ model contacts {
   activities         activities[]
   client             clients?
   communications_log communications_log[]
-  contributor        contributors?
-  inquiries          inquiries[]
   brand              brands?              @relation(fields: [brand_id], references: [id])
+  contributor        contributors?
+  event_attendees    event_attendees[]
+  inquiries          inquiries[]
 
   @@index([email])
   @@index([type])
@@ -106,14 +108,31 @@ model coverage {
   id                         Int                          @id @default(autoincrement())
   name                       String                       @unique
   description                String?
-  workflow_template_id       Int? // Link to coverage-specific workflow
+  workflow_template_id       Int?
+  recording_equipment        Json?
+  aperture                   String?
+  audio_equipment            AudioEquipment?
+  camera_movement            CameraMovement?
+  is_active                  Boolean                      @default(true)
+  lens_focal_length          String?
+  notes                      String?
+  shot_type                  ShotType?
+  subject                    String?
+  coverage_type              CoverageType?
+  audio_pattern              String?
+  frequency_response         String?
+  equipment_assignments      Json?
+  operator_id                Int?
+  is_template                Boolean                      @default(false)
+  video_style_type           VideoStyleType?
   build_coverage_assignments build_coverage_assignments[]
+  build_scenes               build_scenes[]
+  operator                   contributors?                @relation("CoverageOperator", fields: [operator_id], references: [id])
+  workflow_template          workflow_templates?          @relation(fields: [workflow_template_id], references: [id])
+  project_assets             project_assets[]
   scene_coverage             SceneCoverage[]
   template_defaults          SceneTemplateDefaults[]
-  project_assets             project_assets[]
   task_generation_rules      task_generation_rules[]
-  workflow_template          workflow_templates?          @relation(fields: [workflow_template_id], references: [id])
-  build_scenes               build_scenes[]
 
   @@map("coverage")
 }
@@ -134,7 +153,7 @@ model filmLibrary {
   id                   Int                      @id @default(autoincrement())
   name                 String                   @unique
   description          String?
-  workflow_template_id Int? // Link to workflow template
+  workflow_template_id Int?
   brand_id             Int?
   created_at           DateTime                 @default(now())
   default_music_type   MusicType?
@@ -144,19 +163,19 @@ model filmLibrary {
   type                 FilmType                 @default(STANDARD)
   updated_at           DateTime                 @updatedAt
   version              String                   @default("1.0")
-  workflow_template    workflow_templates?      @relation(fields: [workflow_template_id], references: [id])
-  brand                brands?                  @relation(fields: [brand_id], references: [id])
   build_films          build_films[]
-  template_defaults    SceneTemplateDefaults[]
-  usage_analytics      SceneUsageAnalytics[]
   assigned_scenes      FilmAssignedScenes[]
-  local_scenes         FilmLocalScenes[]
   change_logs          FilmChangeLog[]
+  brand                brands?                  @relation(fields: [brand_id], references: [id])
+  workflow_template    workflow_templates?      @relation(fields: [workflow_template_id], references: [id])
+  local_scenes         FilmLocalScenes[]
   music_tracks         FilmMusicTrack[]
   versions             FilmVersion[]
+  template_defaults    SceneTemplateDefaults[]
+  usage_analytics      SceneUsageAnalytics[]
   timeline_changes     TimelineChangeLog[]
-  timeline_scenes      TimelineScene[]
   timeline_sessions    TimelineEditingSession[]
+  timeline_scenes      TimelineScene[]
 
   @@index([brand_id])
   @@map("film_library")
@@ -166,49 +185,94 @@ model editing_styles {
   id                         Int                          @id @default(autoincrement())
   name                       String                       @unique
   description                String?
-  workflow_template_id       Int? // Link to editing-style-specific workflow  build_scenes               build_scenes[]
-  template_defaults          SceneTemplateDefaults[]
+  workflow_template_id       Int?
+  build_scenes               build_scenes[]
   editing_style_requirements editing_style_requirements[]
   workflow_template          workflow_templates?          @relation(fields: [workflow_template_id], references: [id])
-  build_scenes               build_scenes[]
+  template_defaults          SceneTemplateDefaults[]
 
   @@map("editing_styles")
 }
 
 model ScenesLibrary {
-  id                      Int                   @id @default(autoincrement())
-  name                    String
-  description             String?
-  type                    MediaType
-  is_coverage_linked      Boolean               @default(false)
-  workflow_template_id    Int? // Link to scene-specific workflow
-  brand_id                Int?
-  complexity_score        Int                   @default(5)
-  estimated_duration      Int?
-  default_editing_style   String?
-  base_task_hours         Decimal               @default(0.00) @db.Decimal(5, 2)
-  created_at              DateTime              @default(now())
-  updated_at              DateTime              @updatedAt
-  usage_count             Int?                  @default(0)
-  last_used_at            DateTime?
-  average_actual_duration Decimal?              @db.Decimal(8, 2)
-  performance_score       Decimal?              @default(5.0) @db.Decimal(3, 2)
-  computed_task_count     Int?
-  computed_total_hours    Decimal?              @db.Decimal(8, 2)
-  workflow_template       workflow_templates?   @relation(fields: [workflow_template_id], references: [id])
-  brand                   brands?               @relation(fields: [brand_id], references: [id])
-  coverage                SceneCoverage[]
-  dependent_scenes        SceneDependency[]     @relation("DependentScene")
-  parent_dependencies     SceneDependency[]     @relation("ParentDependency")
-  usage_analytics         SceneUsageAnalytics[]
-  film_assignments        FilmAssignedScenes[]
-  film_local_copies       FilmLocalScenes[]     @relation("FilmLocalToOriginal")
-  timeline_changes        TimelineChangeLog[]
-  timeline_scenes         TimelineScene[]
-  media_components        SceneMediaComponent[]
+  id                        Int                   @id @default(autoincrement())
+  name                      String
+  description               String?
+  type                      MediaType
+  is_coverage_linked        Boolean               @default(false)
+  workflow_template_id      Int?
+  brand_id                  Int?
+  complexity_score          Int                   @default(5)
+  estimated_duration        Int?
+  default_editing_style     String?
+  base_task_hours           Decimal               @default(0.00) @db.Decimal(5, 2)
+  created_at                DateTime              @default(now())
+  updated_at                DateTime              @updatedAt
+  usage_count               Int?                  @default(0)
+  last_used_at              DateTime?
+  average_actual_duration   Decimal?              @db.Decimal(8, 2)
+  performance_score         Decimal?              @default(5.0) @db.Decimal(3, 2)
+  computed_task_count       Int?
+  computed_total_hours      Decimal?              @db.Decimal(8, 2)
+  default_coverage_duration Int?                  @default(30)
+  film_assignments          FilmAssignedScenes[]
+  film_local_copies         FilmLocalScenes[]     @relation("FilmLocalToOriginal")
+  coverage                  SceneCoverage[]
+  dependent_scenes          SceneDependency[]     @relation("DependentScene")
+  parent_dependencies       SceneDependency[]     @relation("ParentDependency")
+  location_space            SceneLocationSpace?
+  media_components          SceneMediaComponent[]
+  moments                   SceneMoments[]
+  scene_subjects            SceneSubjects[]
+  usage_analytics           SceneUsageAnalytics[]
+  brand                     brands?               @relation(fields: [brand_id], references: [id])
+  workflow_template         workflow_templates?   @relation(fields: [workflow_template_id], references: [id])
+  timeline_changes          TimelineChangeLog[]
+  timeline_scenes           TimelineScene[]
 
   @@index([brand_id])
   @@map("scenes_library")
+}
+
+model SubjectsLibrary {
+  id               Int             @id @default(autoincrement())
+  first_name       String
+  last_name        String?
+  context_role     String
+  hair_color       String?
+  hair_style       String?
+  skin_tone        String?
+  height           String?
+  eye_color        String?
+  appearance_notes String?
+  brand_id         Int?
+  is_active        Boolean         @default(true)
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
+  scene_subjects   SceneSubjects[]
+  brand            brands?         @relation(fields: [brand_id], references: [id])
+
+  @@index([brand_id])
+  @@index([context_role])
+  @@map("subjects_library")
+}
+
+model SceneSubjects {
+  id         Int             @id @default(autoincrement())
+  scene_id   Int
+  subject_id Int
+  priority   SubjectPriority @default(SECONDARY)
+  notes      String?
+  created_at DateTime        @default(now())
+  updated_at DateTime        @updatedAt
+  scene      ScenesLibrary   @relation(fields: [scene_id], references: [id], onDelete: Cascade)
+  subject    SubjectsLibrary @relation(fields: [subject_id], references: [id], onDelete: Cascade)
+
+  @@unique([scene_id, subject_id])
+  @@index([scene_id])
+  @@index([subject_id])
+  @@index([priority])
+  @@map("scene_subjects")
 }
 
 model FilmAssignedScenes {
@@ -221,60 +285,54 @@ model FilmAssignedScenes {
   calculated_base_price Decimal?      @db.Decimal(10, 2)
   created_at            DateTime      @default(now())
   updated_at            DateTime      @updatedAt
-  scene                 ScenesLibrary @relation(fields: [scene_id], references: [id])
   film                  filmLibrary   @relation(fields: [film_id], references: [id], onDelete: Cascade)
+  scene                 ScenesLibrary @relation(fields: [scene_id], references: [id])
 
   @@id([film_id, scene_id])
   @@map("film_assigned_scenes")
 }
 
-// Local film scenes - copies of library scenes that can be edited independently
 model FilmLocalScenes {
-  id                    Int       @id @default(autoincrement())
+  id                    Int                            @id @default(autoincrement())
   film_id               Int
-  original_scene_id     Int? // Reference to the original scene in the library
+  original_scene_id     Int?
   name                  String
   type                  MediaType
   description           String?
-  complexity_score      Int?      @default(5)
-  estimated_duration    Int?      @default(60)
+  complexity_score      Int?                           @default(5)
+  estimated_duration    Int?                           @default(60)
   default_editing_style String?
-  base_task_hours       Decimal?  @db.Decimal(5, 2)
+  base_task_hours       Decimal?                       @db.Decimal(5, 2)
   order_index           Int
   editing_style         String?
   duration_override     Int?
-  calculated_task_hours Decimal?  @db.Decimal(5, 2)
-  calculated_base_price Decimal?  @db.Decimal(10, 2)
-  created_at            DateTime  @default(now())
-  updated_at            DateTime  @updatedAt
-
-  // Relations
-  film             filmLibrary                    @relation(fields: [film_id], references: [id], onDelete: Cascade)
-  original_scene   ScenesLibrary?                 @relation("FilmLocalToOriginal", fields: [original_scene_id], references: [id])
-  media_components FilmLocalSceneMediaComponent[]
+  calculated_task_hours Decimal?                       @db.Decimal(5, 2)
+  calculated_base_price Decimal?                       @db.Decimal(10, 2)
+  created_at            DateTime                       @default(now())
+  updated_at            DateTime                       @updatedAt
+  media_components      FilmLocalSceneMediaComponent[]
+  film                  filmLibrary                    @relation(fields: [film_id], references: [id], onDelete: Cascade)
+  original_scene        ScenesLibrary?                 @relation("FilmLocalToOriginal", fields: [original_scene_id], references: [id])
 
   @@index([film_id])
   @@index([original_scene_id])
   @@map("film_local_scenes")
 }
 
-// Local film scene media components - copies of scene media components that can be edited independently
 model FilmLocalSceneMediaComponent {
-  id                    Int        @id @default(autoincrement())
+  id                    Int                  @id @default(autoincrement())
   film_local_scene_id   Int
-  original_component_id Int? // Reference to the original component in the library
-  media_type            String // 'VIDEO', 'AUDIO', 'MUSIC'
+  original_component_id Int?
+  media_type            String
   duration_seconds      Int
-  is_primary            Boolean    @default(false)
+  is_primary            Boolean              @default(false)
   music_type            MusicType?
-  music_weight          Int?       @default(5)
+  music_weight          Int?                 @default(5)
   notes                 String?
-  created_at            DateTime   @default(now())
-  updated_at            DateTime   @updatedAt
-
-  // Relations
-  film_local_scene   FilmLocalScenes      @relation(fields: [film_local_scene_id], references: [id], onDelete: Cascade)
-  original_component SceneMediaComponent? @relation("FilmLocalToOriginalComponent", fields: [original_component_id], references: [id])
+  created_at            DateTime             @default(now())
+  updated_at            DateTime             @updatedAt
+  film_local_scene      FilmLocalScenes      @relation(fields: [film_local_scene_id], references: [id], onDelete: Cascade)
+  original_component    SceneMediaComponent? @relation("FilmLocalToOriginalComponent", fields: [original_component_id], references: [id])
 
   @@index([film_local_scene_id])
   @@index([original_component_id])
@@ -282,13 +340,89 @@ model FilmLocalSceneMediaComponent {
 }
 
 model SceneCoverage {
-  scene_id    Int
-  coverage_id Int
-  scene       ScenesLibrary @relation(fields: [scene_id], references: [id], onDelete: Cascade)
-  coverage    coverage      @relation(fields: [coverage_id], references: [id])
+  scene_id       Int
+  coverage_id    Int
+  priority_order Int           @default(1)
+  moment_id      Int?
+  assignment     String?
+  coverage       coverage      @relation(fields: [coverage_id], references: [id])
+  moment         SceneMoments? @relation(fields: [moment_id], references: [id])
+  scene          ScenesLibrary @relation(fields: [scene_id], references: [id], onDelete: Cascade)
 
   @@id([scene_id, coverage_id])
   @@map("scene_coverage")
+}
+
+model MomentTemplates {
+  id               Int                     @id @default(autoincrement())
+  name             String
+  description      String?
+  scene_type       String?
+  order_index      Int                     @default(0)
+  default_duration Int?                    @default(60)
+  is_active        Boolean                 @default(true)
+  created_at       DateTime                @default(now())
+  updated_at       DateTime                @updatedAt
+  project_defaults ProjectMomentDefaults[]
+  scene_moments    SceneMoments[]
+
+  @@map("moment_templates")
+}
+
+model ProjectMomentDefaults {
+  id               Int             @id @default(autoincrement())
+  project_id       Int
+  template_id      Int
+  name             String
+  description      String?
+  order_index      Int             @default(0)
+  default_duration Int?            @default(60)
+  is_active        Boolean         @default(true)
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
+  project          projects        @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  template         MomentTemplates @relation(fields: [template_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_id, template_id])
+  @@map("project_moment_defaults")
+}
+
+model SceneMoments {
+  id             Int               @id @default(autoincrement())
+  scene_id       Int
+  project_id     Int?
+  template_id    Int?
+  name           String
+  description    String?
+  order_index    Int               @default(0)
+  duration       Int?              @default(60)
+  is_active      Boolean           @default(true)
+  created_at     DateTime          @default(now())
+  updated_at     DateTime          @updatedAt
+  coverage_items SceneCoverage[]
+  music          SceneMomentMusic?
+  project        projects?         @relation(fields: [project_id], references: [id])
+  scene          ScenesLibrary     @relation(fields: [scene_id], references: [id], onDelete: Cascade)
+  template       MomentTemplates?  @relation(fields: [template_id], references: [id])
+
+  @@unique([scene_id, order_index])
+  @@map("scene_moments")
+}
+
+model SceneMomentMusic {
+  id         Int          @id @default(autoincrement())
+  moment_id  Int          @unique
+  music_name String?
+  artist     String?
+  duration   Int?
+  music_type MusicType    @default(NONE)
+  file_path  String?
+  notes      String?
+  created_at DateTime     @default(now())
+  updated_at DateTime     @updatedAt
+  moment     SceneMoments @relation(fields: [moment_id], references: [id], onDelete: Cascade)
+
+  @@map("scene_moment_music")
 }
 
 model FilmMusicTrack {
@@ -302,6 +436,26 @@ model FilmMusicTrack {
   film        filmLibrary @relation(fields: [film_id], references: [id], onDelete: Cascade)
 
   @@map("film_music_tracks")
+}
+
+model MusicLibrary {
+  id                Int       @id @default(autoincrement())
+  music_name        String?
+  artist            String?
+  duration          Int?
+  music_type        MusicType @default(MODERN)
+  file_path         String?
+  notes             String?
+  project_id        Int?
+  brand_id          Int?
+  is_active         Boolean   @default(true)
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  assignment_number String?
+  brand             brands?   @relation(fields: [brand_id], references: [id])
+  project           projects? @relation(fields: [project_id], references: [id])
+
+  @@map("music_library")
 }
 
 model PricingModifier {
@@ -382,9 +536,9 @@ model task_templates {
   average_duration_hours      Decimal?                      @db.Decimal(8, 2)
   contributor_skill_rates     contributor_skill_rates[]
   contributor_task_benchmarks contributor_task_benchmarks[]
-  tasks                       tasks[]
-  task_generation_rules       task_generation_rules[]
   entity_default_tasks        entity_default_tasks[]
+  task_generation_rules       task_generation_rules[]
+  tasks                       tasks[]
 
   @@map("task_templates")
 }
@@ -423,10 +577,10 @@ model role_permissions {
 }
 
 model inquiries {
-  id                  Int              @id @default(autoincrement())
+  id                  Int               @id @default(autoincrement())
   contact_id          Int
   wedding_date        DateTime?
-  status              inquiries_status @default(New)
+  status              inquiries_status  @default(New)
   notes               String?
   venue_details       String?
   follow_up_due_date  DateTime?
@@ -434,25 +588,46 @@ model inquiries {
   lead_source_details String?
   campaign_id         String?
   archived_at         DateTime?
+  workflow_status     Json?
   activities          activities[]
+  activity_logs       activity_logs[]
   build               builds?
+  calendar_events     calendar_events[]
   client              clients?
+  contracts           contracts[]
   documents           documents[]
-  contact             contacts         @relation(fields: [contact_id], references: [id])
+  estimates           estimates[]
+  contact             contacts          @relation(fields: [contact_id], references: [id])
+  invoices            invoices[]
+  proposals           proposals[]
+  quotes              quotes[]
 
   @@map("inquiries")
 }
 
+model activity_logs {
+  id          Int       @id @default(autoincrement())
+  inquiry_id  Int
+  type        String
+  description String
+  created_at  DateTime  @default(now())
+  inquiry     inquiries @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
+
 model clients {
-  id          Int           @id @default(autoincrement())
-  contact_id  Int           @unique
-  inquiry_id  Int?          @unique
-  archived_at DateTime?
-  builds      builds[]
-  client_user client_users?
-  contact     contacts      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
-  inquiry     inquiries?    @relation(fields: [inquiry_id], references: [id])
-  projects    projects[]
+  id                     Int                      @id @default(autoincrement())
+  contact_id             Int                      @unique
+  inquiry_id             Int?                     @unique
+  archived_at            DateTime?
+  builds                 builds[]
+  client_user            client_users?
+  contact                contacts                 @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  inquiry                inquiries?               @relation(fields: [inquiry_id], references: [id])
+  equipment_availability equipment_availability[]
+  equipment_rentals      equipment_rentals[]
+  projects               projects[]
 
   @@map("clients")
 }
@@ -484,16 +659,26 @@ model projects {
   calendar_events         calendar_events[]
   client_feedback_surveys client_feedback_surveys[]
   communications_log      communications_log[]
+  contracts               contracts[]
   documents               documents[]
+  equipment_availability  equipment_availability[]
+  equipment_rentals       equipment_rentals[]
+  estimates               estimates[]
+  floor_plans             FloorPlans[]
+  generated_task_logs     generated_task_log[]
   invoices                invoices[]
+  music_library           MusicLibrary[]
   project_assets          project_assets[]
   project_assignments     project_assignments[]
   project_expenses        project_expenses[]
+  moment_defaults         ProjectMomentDefaults[]
+  brand                   brands?                   @relation(fields: [brand_id], references: [id])
   client                  clients                   @relation(fields: [client_id], references: [id])
   workflow_template       workflow_templates?       @relation(fields: [workflow_template_id], references: [id])
-  brand                   brands?                   @relation(fields: [brand_id], references: [id])
+  proposals               proposals[]
+  quotes                  quotes[]
+  scene_moments           SceneMoments[]
   tasks                   tasks[]
-  generated_task_logs     generated_task_log[]
 
   @@unique([client_id, wedding_date])
   @@index([wedding_date])
@@ -502,34 +687,46 @@ model projects {
 }
 
 model contributors {
-  id                          Int                           @id @default(autoincrement())
-  contact_id                  Int                           @unique
-  role_id                     Int?
-  contributor_type            contributors_type?
-  password_hash               String
-  archived_at                 DateTime?
-  default_hourly_rate         Decimal                       @default(0.00) @db.Decimal(8, 2)
-  activities_assigned         activities[]
-  audit_logs                  audit_log[]
-  calendar_events             calendar_events[]
-  calendar_sync_token         calendar_sync_tokens?
-  scene_dependencies_created  SceneDependency[]
-  usage_analytics_created     SceneUsageAnalytics[]
-  contributor_skill_rates     contributor_skill_rates[]
-  contributor_task_benchmarks contributor_task_benchmarks[]
-  task_library_benchmarks     task_library_benchmarks[]
-  contact                     contacts                      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
-  role                        roles?                        @relation(fields: [role_id], references: [id], onDelete: Restrict)
-  film_changes_made           FilmChangeLog[]               @relation("FilmChangeUser")
-  film_versions_created       FilmVersion[]                 @relation("FilmVersionCreator")
-  notifications_received      notifications[]
-  project_assignments         project_assignments[]
-  task_comments_made          task_comments[]
-  tasks_assigned              tasks[]                       @relation("AssignedTasks")
-  timeline_changes_made       TimelineChangeLog[]
-  timeline_scenes_created     TimelineScene[]
-  timeline_sessions           TimelineEditingSession[]
-  user_brands                 user_brands[]
+  id                             Int                           @id @default(autoincrement())
+  contact_id                     Int                           @unique
+  role_id                        Int?
+  contributor_type               contributors_type?
+  password_hash                  String
+  archived_at                    DateTime?
+  default_hourly_rate            Decimal                       @default(0.00) @db.Decimal(8, 2)
+  activities_assigned            activities[]
+  audit_logs                     audit_log[]
+  calendar_events                calendar_events[]
+  calendar_settings              calendar_settings?
+  calendar_sync_token            calendar_sync_tokens?
+  job_roles_assigned             contributor_job_roles[]       @relation("JobRoleAssignedBy")
+  contributor_job_roles          contributor_job_roles[]
+  contributor_skill_rates        contributor_skill_rates[]
+  contributor_task_benchmarks    contributor_task_benchmarks[]
+  contact                        contacts                      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  role                           roles?                        @relation(fields: [role_id], references: [id], onDelete: Restrict)
+  coverage_assignments           coverage[]                    @relation("CoverageOperator")
+  equipment_created              equipment[]                   @relation("EquipmentCreatedBy")
+  equipment_booked               equipment_availability[]      @relation("EquipmentBookedBy")
+  equipment_availability_created equipment_availability[]      @relation("EquipmentAvailabilityCreatedBy")
+  equipment_maintenance          equipment_maintenance[]
+  equipment_rented               equipment_rentals[]
+  event_attendees                event_attendees[]
+  film_changes_made              FilmChangeLog[]               @relation("FilmChangeUser")
+  film_versions_created          FilmVersion[]                 @relation("FilmVersionCreator")
+  floor_plans_created            FloorPlans[]                  @relation("FloorPlanCreatedBy")
+  venue_floor_plans_updated      LocationsLibrary[]            @relation("VenueFloorPlanUpdater")
+  notifications_received         notifications[]
+  project_assignments            project_assignments[]
+  scene_dependencies_created     SceneDependency[]
+  usage_analytics_created        SceneUsageAnalytics[]
+  task_comments_made             task_comments[]
+  task_library_benchmarks        task_library_benchmarks[]
+  tasks_assigned                 tasks[]                       @relation("AssignedTasks")
+  timeline_changes_made          TimelineChangeLog[]
+  timeline_sessions              TimelineEditingSession[]
+  timeline_scenes_created        TimelineScene[]
+  user_brands                    user_brands[]
 
   @@map("contributors")
 }
@@ -544,6 +741,40 @@ model contributor_skill_rates {
 
   @@unique([contributor_id, task_template_id])
   @@map("contributor_skill_rates")
+}
+
+model job_roles {
+  id                    Int                     @id @default(autoincrement())
+  name                  String                  @unique
+  description           String?
+  display_name          String?
+  category              String?
+  is_active             Boolean                 @default(true)
+  created_at            DateTime                @default(now())
+  updated_at            DateTime                @updatedAt
+  contributor_job_roles contributor_job_roles[]
+
+  @@index([category])
+  @@index([is_active])
+  @@map("job_roles")
+}
+
+model contributor_job_roles {
+  id               Int           @id @default(autoincrement())
+  contributor_id   Int
+  job_role_id      Int
+  is_primary       Boolean       @default(false)
+  assigned_at      DateTime      @default(now())
+  assigned_by      Int?
+  assigned_by_user contributors? @relation("JobRoleAssignedBy", fields: [assigned_by], references: [id])
+  contributor      contributors  @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  job_role         job_roles     @relation(fields: [job_role_id], references: [id], onDelete: Cascade)
+
+  @@unique([contributor_id, job_role_id])
+  @@index([contributor_id])
+  @@index([job_role_id])
+  @@index([is_primary])
+  @@map("contributor_job_roles")
 }
 
 model project_assignments {
@@ -627,9 +858,9 @@ model build_films {
   id           Int            @id @default(autoincrement())
   build_id     Int
   film_id      Int
-  build_scenes build_scenes[]
   build        builds         @relation(fields: [build_id], references: [id], onDelete: Cascade)
   film         filmLibrary    @relation(fields: [film_id], references: [id])
+  build_scenes build_scenes[]
 
   @@map("build_films")
 }
@@ -706,6 +937,7 @@ model tasks {
   assigned_to_contributor_id  Int?
   is_client_visible           Boolean?             @default(false)
   rate_at_time_of_assignment  Decimal              @default(0.00) @db.Decimal(8, 2)
+  generated_task_logs         generated_task_log[]
   task_comments               task_comments[]
   task_dependencies_blocking  task_dependencies[]  @relation("BlockingTasks")
   task_dependencies_dependent task_dependencies[]  @relation("DependentTasks")
@@ -713,7 +945,6 @@ model tasks {
   build_scene                 build_scenes         @relation(fields: [build_scene_id], references: [id], onDelete: Cascade)
   project                     projects             @relation(fields: [project_id], references: [id], onDelete: Cascade)
   task_template               task_templates       @relation(fields: [task_template_id], references: [id])
-  generated_task_logs         generated_task_log[]
 
   @@index([status])
   @@index([due_date])
@@ -722,20 +953,102 @@ model tasks {
 }
 
 model calendar_events {
-  id             Int                 @id @default(autoincrement())
-  contributor_id Int
-  project_id     Int?
-  title          String
-  start_time     DateTime
-  end_time       DateTime
-  is_all_day     Boolean             @default(false)
-  event_type     calendar_event_type
-  description    String?
-  contributor    contributors        @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
-  project        projects?           @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  id              Int                 @id @default(autoincrement())
+  contributor_id  Int
+  project_id      Int?
+  title           String
+  start_time      DateTime
+  end_time        DateTime
+  is_all_day      Boolean             @default(false)
+  event_type      calendar_event_type
+  description     String?
+  location        String?
+  created_at      DateTime            @default(now())
+  updated_at      DateTime            @updatedAt
+  inquiry_id      Int?
+  meeting_type    meeting_type?
+  meeting_url     String?
+  outcome_notes   String?
+  contributor     contributors        @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  inquiry         inquiries?          @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project         projects?           @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  event_attendees event_attendees[]
+  event_reminders event_reminders[]
+  event_tags      event_tags[]
 
   @@index([contributor_id, start_time, end_time])
   @@map("calendar_events")
+}
+
+model tags {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  color       String
+  description String?
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+  event_tags  event_tags[]
+
+  @@map("tags")
+}
+
+model event_tags {
+  id       Int             @id @default(autoincrement())
+  event_id Int
+  tag_id   Int
+  event    calendar_events @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  tag      tags            @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, tag_id])
+  @@map("event_tags")
+}
+
+model event_attendees {
+  id             Int                   @id @default(autoincrement())
+  event_id       Int
+  contributor_id Int?
+  contact_id     Int?
+  email          String?
+  name           String?
+  status         event_attendee_status @default(PENDING)
+  created_at     DateTime              @default(now())
+  contact        contacts?             @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  contributor    contributors?         @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  event          calendar_events       @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, contributor_id])
+  @@unique([event_id, contact_id])
+  @@unique([event_id, email])
+  @@map("event_attendees")
+}
+
+model event_reminders {
+  id            Int                   @id @default(autoincrement())
+  event_id      Int
+  reminder_time DateTime
+  method        event_reminder_method @default(EMAIL)
+  is_sent       Boolean               @default(false)
+  created_at    DateTime              @default(now())
+  event         calendar_events       @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@map("event_reminders")
+}
+
+model calendar_settings {
+  id                     Int          @id @default(autoincrement())
+  contributor_id         Int          @unique
+  default_view           String       @default("WEEK")
+  working_hours_start    String       @default("09:00")
+  working_hours_end      String       @default("17:00")
+  timezone               String       @default("America/New_York")
+  show_weekends          Boolean      @default(true)
+  first_day_of_week      Int          @default(0)
+  default_event_duration Int          @default(60)
+  created_at             DateTime     @default(now())
+  updated_at             DateTime     @updatedAt
+  contributor            contributors @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+
+  @@map("calendar_settings")
 }
 
 model project_assets {
@@ -752,37 +1065,49 @@ model project_assets {
 }
 
 model contributor_task_benchmarks {
-  id                        Int      @id @default(autoincrement())
+  id                        Int            @id @default(autoincrement())
   contributor_id            Int
   task_template_id          Int
-  contributor_default_hours Decimal? @db.Decimal(8, 2)
-  contributor_average_hours Decimal? @db.Decimal(8, 2)
-  contributor_best_hours    Decimal? @db.Decimal(8, 2)
-  completed_count           Int      @default(0)
-  created_at                DateTime @default(now())
-  updated_at                DateTime @updatedAt
-
-  // Relations
-  contributor   contributors   @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
-  task_template task_templates @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
+  contributor_default_hours Decimal?       @db.Decimal(8, 2)
+  contributor_average_hours Decimal?       @db.Decimal(8, 2)
+  contributor_best_hours    Decimal?       @db.Decimal(8, 2)
+  completed_count           Int            @default(0)
+  created_at                DateTime       @default(now())
+  updated_at                DateTime       @updatedAt
+  contributor               contributors   @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  task_template             task_templates @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
 
   @@unique([task_template_id, contributor_id])
   @@map("contributor_task_benchmarks")
 }
 
 model invoices {
-  id             Int        @id @default(autoincrement())
-  project_id     Int
-  invoice_number String?    @unique
-  issue_date     DateTime?
-  due_date       DateTime?
-  total_amount   Decimal    @db.Decimal(10, 2)
-  amount_paid    Decimal?   @default(0.00) @db.Decimal(10, 2)
-  status         String?
-  project        projects   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  id             Int             @id @default(autoincrement())
+  project_id     Int?
+  invoice_number String          @unique
+  issue_date     DateTime
+  due_date       DateTime
+  amount_paid    Decimal?        @default(0.00) @db.Decimal(10, 2)
+  status         String          @default("Draft")
+  amount         Decimal         @db.Decimal(10, 2)
+  inquiry_id     Int
+  items          invoice_items[]
+  inquiry        inquiries       @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project        projects?       @relation(fields: [project_id], references: [id])
   payments       payments[]
 
   @@map("invoices")
+}
+
+model invoice_items {
+  id          Int      @id @default(autoincrement())
+  invoice_id  Int
+  description String
+  quantity    Decimal  @default(1) @db.Decimal(10, 2)
+  unit_price  Decimal  @db.Decimal(10, 2)
+  invoice     invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
 }
 
 model payments {
@@ -808,6 +1133,65 @@ model project_expenses {
   project      projects  @relation(fields: [project_id], references: [id], onDelete: Cascade)
 
   @@map("project_expenses")
+}
+
+model estimates {
+  id              Int              @id @default(autoincrement())
+  inquiry_id      Int
+  project_id      Int?
+  estimate_number String           @unique
+  status          String           @default("Draft")
+  issue_date      DateTime
+  expiry_date     DateTime
+  total_amount    Decimal          @db.Decimal(10, 2)
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @updatedAt
+  items           estimate_items[]
+  inquiry         inquiries        @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project         projects?        @relation(fields: [project_id], references: [id])
+
+  @@map("estimates")
+}
+
+model estimate_items {
+  id          Int       @id @default(autoincrement())
+  estimate_id Int
+  description String
+  quantity    Decimal   @default(1) @db.Decimal(10, 2)
+  unit_price  Decimal   @db.Decimal(10, 2)
+  estimate    estimates @relation(fields: [estimate_id], references: [id], onDelete: Cascade)
+
+  @@map("estimate_items")
+}
+
+model quotes {
+  id                 Int           @id @default(autoincrement())
+  inquiry_id         Int
+  project_id         Int?
+  quote_number       String        @unique
+  status             String        @default("Draft")
+  issue_date         DateTime
+  expiry_date        DateTime
+  total_amount       Decimal       @db.Decimal(10, 2)
+  consultation_notes String?
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @updatedAt
+  items              quote_items[]
+  inquiry            inquiries     @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project            projects?     @relation(fields: [project_id], references: [id])
+
+  @@map("quotes")
+}
+
+model quote_items {
+  id          Int     @id @default(autoincrement())
+  quote_id    Int
+  description String
+  quantity    Decimal @default(1) @db.Decimal(10, 2)
+  unit_price  Decimal @db.Decimal(10, 2)
+  quote       quotes  @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+
+  @@map("quote_items")
 }
 
 model audit_log {
@@ -892,6 +1276,40 @@ model documents {
   @@map("documents")
 }
 
+model proposals {
+  id         Int       @id @default(autoincrement())
+  project_id Int?
+  title      String    @default("New Proposal")
+  status     String    @default("Draft")
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  content    Json?
+  inquiry_id Int
+  sent_at    DateTime?
+  version    Int       @default(1)
+  inquiry    inquiries @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project    projects? @relation(fields: [project_id], references: [id])
+
+  @@map("proposals")
+}
+
+model contracts {
+  id          Int       @id @default(autoincrement())
+  project_id  Int?
+  title       String    @default("New Contract")
+  status      String    @default("Draft")
+  signed_date DateTime?
+  content     Json?
+  inquiry_id  Int
+  created_at  DateTime  @default(now())
+  sent_at     DateTime?
+  updated_at  DateTime  @updatedAt
+  inquiry     inquiries @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project     projects? @relation(fields: [project_id], references: [id])
+
+  @@map("contracts")
+}
+
 model client_feedback_surveys {
   id                  Int       @id @default(autoincrement())
   project_id          Int
@@ -954,10 +1372,10 @@ model TimelineScene {
   created_at         DateTime      @default(now())
   updated_at         DateTime      @updatedAt
   created_by_id      Int?
-  scene              ScenesLibrary @relation(fields: [scene_id], references: [id], onDelete: Cascade)
   created_by         contributors? @relation(fields: [created_by_id], references: [id])
   film               filmLibrary   @relation(fields: [film_id], references: [id], onDelete: Cascade)
   layer              TimelineLayer @relation(fields: [layer_id], references: [id])
+  scene              ScenesLibrary @relation(fields: [scene_id], references: [id], onDelete: Cascade)
 
   @@unique([film_id, layer_id, start_time_seconds])
   @@map("timeline_scenes")
@@ -1024,11 +1442,465 @@ model TimelineChangeLog {
   changed_at    DateTime                @default(now())
   session_id    Int?
   changed_by    contributors            @relation(fields: [changed_by_id], references: [id])
-  scene         ScenesLibrary?          @relation(fields: [scene_id], references: [id])
   film          filmLibrary             @relation(fields: [film_id], references: [id], onDelete: Cascade)
+  scene         ScenesLibrary?          @relation(fields: [scene_id], references: [id])
   session       TimelineEditingSession? @relation(fields: [session_id], references: [id])
 
   @@map("timeline_change_log")
+}
+
+model workflow_templates {
+  id             Int               @id @default(autoincrement())
+  name           String            @unique
+  description    String?
+  is_active      Boolean           @default(true)
+  created_at     DateTime          @default(now())
+  updated_at     DateTime          @updatedAt
+  coverage       coverage[]
+  editing_styles editing_styles[]
+  filmLibrary    filmLibrary[]
+  projects       projects[]
+  scenes         ScenesLibrary[]
+  stages         workflow_stages[]
+
+  @@map("workflow_templates")
+}
+
+model workflow_stages {
+  id                    Int                     @id @default(autoincrement())
+  workflow_template_id  Int
+  name                  String
+  description           String?
+  order_index           Int
+  is_active             Boolean                 @default(true)
+  created_at            DateTime                @default(now())
+  updated_at            DateTime                @updatedAt
+  task_generation_rules task_generation_rules[]
+  workflow_template     workflow_templates      @relation(fields: [workflow_template_id], references: [id], onDelete: Cascade)
+
+  @@unique([workflow_template_id, order_index])
+  @@map("workflow_stages")
+}
+
+model task_generation_rules {
+  id                  Int             @id @default(autoincrement())
+  workflow_stage_id   Int
+  task_template_id    Int
+  scene_type          MediaType?
+  coverage_id         Int?
+  is_required         Boolean         @default(true)
+  auto_assign_to_role String?
+  conditions          Json?
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
+  coverage            coverage?       @relation(fields: [coverage_id], references: [id])
+  task_template       task_templates  @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
+  workflow_stage      workflow_stages @relation(fields: [workflow_stage_id], references: [id], onDelete: Cascade)
+
+  @@map("task_generation_rules")
+}
+
+model generated_task_log {
+  id                      Int      @id @default(autoincrement())
+  project_id              Int
+  task_generation_rule_id Int
+  task_id                 Int
+  generated_at            DateTime @default(now())
+  project                 projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  task                    tasks    @relation(fields: [task_id], references: [id], onDelete: Cascade)
+
+  @@map("generated_task_log")
+}
+
+model entity_default_tasks {
+  id               Int             @id @default(autoincrement())
+  entity_type      String
+  entity_id        Int
+  task_template_id Int?
+  task_name        String
+  estimated_hours  Decimal         @default(0) @db.Decimal(4, 2)
+  order_index      Int
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
+  task_template    task_templates? @relation(fields: [task_template_id], references: [id])
+
+  @@unique([entity_type, entity_id, order_index])
+  @@index([entity_type, entity_id])
+  @@map("entity_default_tasks")
+}
+
+model task_library {
+  id                       Int                        @id @default(autoincrement())
+  name                     String
+  description              String?
+  phase                    project_phase
+  effort_hours             Decimal?                   @db.Decimal(8, 2)
+  recorded_hours           Decimal?                   @db.Decimal(8, 2)
+  skills_needed            String[]
+  pricing_type             pricing_type_options       @default(Hourly)
+  fixed_price              Decimal?                   @db.Decimal(10, 2)
+  hourly_rate              Decimal?                   @db.Decimal(8, 2)
+  complexity_score         Int?                       @default(1)
+  notes                    String?
+  order_index              Int                        @default(0)
+  brand_id                 Int
+  is_active                Boolean                    @default(true)
+  created_at               DateTime                   @default(now())
+  updated_at               DateTime                   @updatedAt
+  brand                    brands                     @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  task_library_benchmarks  task_library_benchmarks[]
+  task_library_skill_rates task_library_skill_rates[]
+
+  @@index([brand_id])
+  @@index([phase])
+  @@index([is_active])
+  @@index([phase, order_index])
+  @@map("task_library")
+}
+
+model task_library_benchmarks {
+  id                        Int          @id @default(autoincrement())
+  task_library_id           Int
+  contributor_id            Int
+  contributor_default_hours Decimal?     @db.Decimal(8, 2)
+  contributor_average_hours Decimal?     @db.Decimal(8, 2)
+  contributor_best_hours    Decimal?     @db.Decimal(8, 2)
+  completed_count           Int          @default(0)
+  created_at                DateTime     @default(now())
+  updated_at                DateTime     @updatedAt
+  contributor               contributors @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
+  task_library              task_library @relation(fields: [task_library_id], references: [id], onDelete: Cascade)
+
+  @@unique([task_library_id, contributor_id])
+  @@map("task_library_benchmarks")
+}
+
+model task_library_skill_rates {
+  id              Int          @id @default(autoincrement())
+  task_library_id Int
+  skill_name      String
+  skill_level     String
+  hourly_rate     Decimal      @db.Decimal(8, 2)
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+  task_library    task_library @relation(fields: [task_library_id], references: [id], onDelete: Cascade)
+
+  @@unique([task_library_id, skill_name, skill_level])
+  @@map("task_library_skill_rates")
+}
+
+model SceneMediaComponent {
+  id                Int                            @id @default(autoincrement())
+  scene_id          Int
+  media_type        MediaType
+  duration_seconds  Int
+  is_primary        Boolean                        @default(false)
+  music_type        String?
+  notes             String?
+  created_at        DateTime                       @default(now())
+  updated_at        DateTime                       @updatedAt
+  film_local_copies FilmLocalSceneMediaComponent[] @relation("FilmLocalToOriginalComponent")
+  scene             ScenesLibrary                  @relation(fields: [scene_id], references: [id], onDelete: Cascade)
+
+  @@index([scene_id])
+  @@index([media_type])
+  @@index([music_type])
+  @@map("scene_media_components")
+}
+
+model equipment {
+  id                   Int                      @id @default(autoincrement())
+  item_name            String
+  item_code            String?
+  category             EquipmentCategory
+  type                 EquipmentType
+  brand_name           String?
+  model                String?
+  description          String?
+  quantity             Int                      @default(1)
+  condition            EquipmentCondition       @default(GOOD)
+  availability_status  EquipmentAvailability    @default(AVAILABLE)
+  vendor               String?
+  rental_price_per_day Decimal?                 @db.Decimal(10, 2)
+  purchase_price       Decimal?                 @db.Decimal(10, 2)
+  purchase_date        DateTime?
+  weight_kg            Decimal?                 @db.Decimal(8, 2)
+  power_usage_watts    Int?
+  dimensions           String?
+  specifications       Json?
+  attachment_type      String?
+  compatibility        String?
+  serial_number        String?
+  warranty_expiry      DateTime?
+  last_maintenance     DateTime?
+  next_maintenance_due DateTime?
+  location             String?
+  brand_id             Int?
+  is_active            Boolean                  @default(true)
+  created_at           DateTime                 @default(now())
+  updated_at           DateTime                 @updatedAt
+  created_by_id        Int?
+  brand                brands?                  @relation(fields: [brand_id], references: [id])
+  created_by           contributors?            @relation("EquipmentCreatedBy", fields: [created_by_id], references: [id])
+  availability_slots   equipment_availability[]
+  maintenance_logs     equipment_maintenance[]
+  rental_bookings      equipment_rentals[]
+
+  @@index([brand_id])
+  @@index([category])
+  @@index([type])
+  @@index([availability_status])
+  @@index([item_code])
+  @@map("equipment")
+}
+
+model equipment_rentals {
+  id                 Int                     @id @default(autoincrement())
+  equipment_id       Int
+  project_id         Int?
+  rented_by_id       Int?
+  client_id          Int?
+  rental_start_date  DateTime
+  rental_end_date    DateTime
+  actual_return_date DateTime?
+  rental_rate        Decimal                 @db.Decimal(10, 2)
+  total_cost         Decimal                 @db.Decimal(10, 2)
+  deposit_amount     Decimal?                @db.Decimal(10, 2)
+  status             equipment_rental_status @default(BOOKED)
+  notes              String?
+  created_at         DateTime                @default(now())
+  updated_at         DateTime                @updatedAt
+  client             clients?                @relation(fields: [client_id], references: [id])
+  equipment          equipment               @relation(fields: [equipment_id], references: [id])
+  project            projects?               @relation(fields: [project_id], references: [id])
+  rented_by          contributors?           @relation(fields: [rented_by_id], references: [id])
+
+  @@index([equipment_id])
+  @@index([project_id])
+  @@index([rental_start_date])
+  @@index([status])
+  @@map("equipment_rentals")
+}
+
+model equipment_maintenance {
+  id               Int                        @id @default(autoincrement())
+  equipment_id     Int
+  maintenance_type equipment_maintenance_type
+  description      String
+  cost             Decimal?                   @db.Decimal(10, 2)
+  performed_by     String?
+  performed_date   DateTime
+  next_due_date    DateTime?
+  notes            String?
+  created_at       DateTime                   @default(now())
+  created_by_id    Int?
+  created_by       contributors?              @relation(fields: [created_by_id], references: [id])
+  equipment        equipment                  @relation(fields: [equipment_id], references: [id])
+
+  @@index([equipment_id])
+  @@index([maintenance_type])
+  @@index([performed_date])
+  @@map("equipment_maintenance")
+}
+
+model equipment_availability {
+  id              Int                           @id @default(autoincrement())
+  equipment_id    Int
+  start_date      DateTime
+  end_date        DateTime
+  all_day         Boolean                       @default(true)
+  status          equipment_availability_status @default(AVAILABLE)
+  title           String?
+  description     String?
+  project_id      Int?
+  booked_by_id    Int?
+  client_id       Int?
+  booking_notes   String?
+  internal_notes  String?
+  recurring_rule  String?
+  recurring_until DateTime?
+  created_at      DateTime                      @default(now())
+  updated_at      DateTime                      @updatedAt
+  created_by_id   Int?
+  booked_by       contributors?                 @relation("EquipmentBookedBy", fields: [booked_by_id], references: [id])
+  client          clients?                      @relation(fields: [client_id], references: [id])
+  created_by      contributors?                 @relation("EquipmentAvailabilityCreatedBy", fields: [created_by_id], references: [id])
+  equipment       equipment                     @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
+  project         projects?                     @relation(fields: [project_id], references: [id])
+
+  @@index([equipment_id])
+  @@index([start_date])
+  @@index([end_date])
+  @@index([status], map: "equipment_availability_slots_status_idx")
+  @@index([project_id])
+  @@map("equipment_availability")
+}
+
+model LocationsLibrary {
+  id                          Int                  @id @default(autoincrement())
+  name                        String
+  address_line1               String?
+  address_line2               String?
+  city                        String?
+  state                       String?
+  country                     String               @default("United States")
+  postal_code                 String?
+  contact_name                String?
+  contact_phone               String?
+  contact_email               String?
+  capacity                    Int?
+  notes                       String?
+  brand_id                    Int?
+  is_active                   Boolean              @default(true)
+  created_at                  DateTime             @default(now())
+  updated_at                  DateTime             @updatedAt
+  venue_floor_plan_data       Json?
+  venue_floor_plan_updated_at DateTime?
+  venue_floor_plan_updated_by Int?
+  venue_floor_plan_version    Int                  @default(1)
+  spaces                      LocationSpaces[]
+  brand                       brands?              @relation(fields: [brand_id], references: [id])
+  venue_floor_plan_updater    contributors?        @relation("VenueFloorPlanUpdater", fields: [venue_floor_plan_updated_by], references: [id])
+  scene_locations             SceneLocationSpace[]
+
+  @@index([brand_id])
+  @@map("locations_library")
+}
+
+model LocationSpaces {
+  id                Int                  @id @default(autoincrement())
+  location_id       Int
+  name              String
+  space_type        String
+  capacity          Int?
+  dimensions_length Decimal?             @db.Decimal(8, 2)
+  dimensions_width  Decimal?             @db.Decimal(8, 2)
+  dimensions_height Decimal?             @db.Decimal(8, 2)
+  metadata          Json?
+  notes             String?
+  is_active         Boolean              @default(true)
+  created_at        DateTime             @default(now())
+  updated_at        DateTime             @updatedAt
+  floor_plans       FloorPlans[]
+  location          LocationsLibrary     @relation(fields: [location_id], references: [id], onDelete: Cascade)
+  scene_locations   SceneLocationSpace[]
+
+  @@index([location_id])
+  @@map("location_spaces")
+}
+
+model FloorPlans {
+  id            Int            @id @default(autoincrement())
+  space_id      Int
+  project_id    Int?
+  name          String
+  version       Int            @default(1)
+  fabric_data   Json
+  layers_data   Json?
+  is_default    Boolean        @default(false)
+  is_active     Boolean        @default(true)
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  created_by_id Int?
+  created_by    contributors?  @relation("FloorPlanCreatedBy", fields: [created_by_id], references: [id])
+  project       projects?      @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  space         LocationSpaces @relation(fields: [space_id], references: [id], onDelete: Cascade)
+
+  @@unique([space_id, project_id, version])
+  @@index([space_id])
+  @@index([project_id])
+  @@map("floor_plans")
+}
+
+model FloorPlanObjects {
+  id              Int      @id @default(autoincrement())
+  name            String
+  category        String
+  object_type     String
+  fabric_template Json
+  thumbnail_url   String?
+  brand_id        Int?
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  brand           brands?  @relation(fields: [brand_id], references: [id])
+
+  @@index([brand_id])
+  @@index([category])
+  @@map("floor_plan_objects")
+}
+
+model SceneLocationSpace {
+  id          Int              @id @default(autoincrement())
+  scene_id    Int              @unique
+  location_id Int
+  space_id    Int
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+  location    LocationsLibrary @relation(fields: [location_id], references: [id], onDelete: Cascade)
+  scene       ScenesLibrary    @relation(fields: [scene_id], references: [id], onDelete: Cascade)
+  space       LocationSpaces   @relation(fields: [space_id], references: [id], onDelete: Cascade)
+
+  @@index([location_id])
+  @@index([space_id])
+  @@map("scene_location_space")
+}
+
+enum SubjectPriority {
+  PRIMARY
+  SECONDARY
+  BACKGROUND
+}
+
+enum CoverageType {
+  VIDEO
+  AUDIO
+}
+
+enum ShotType {
+  ESTABLISHING_SHOT
+  WIDE_SHOT
+  MEDIUM_SHOT
+  TWO_SHOT
+  CLOSE_UP
+  EXTREME_CLOSE_UP
+  DETAIL_SHOT
+  REACTION_SHOT
+  OVER_SHOULDER
+  CUTAWAY
+  INSERT_SHOT
+  MASTER_SHOT
+}
+
+enum CameraMovement {
+  STATIC
+  PAN
+  TRACKING
+  GIMBAL_STABILIZED
+  HANDHELD
+  TILT
+  ZOOM
+  DOLLY
+  CRANE
+  DRONE
+  STEADICAM
+}
+
+enum AudioEquipment {
+  LAPEL_MIC
+  WIRELESS_MIC
+  AMBIENT_MIC
+  RECORDER
+  BOOM_MIC
+  MIXING_BOARD
+  HANDHELD_MIC
+  SHOTGUN_MIC
+}
+
+enum VideoStyleType {
+  FULL
+  MONTAGE
+  CINEMATIC
 }
 
 enum contacts_type {
@@ -1106,6 +1978,29 @@ enum calendar_event_type {
   HOLIDAY
   EXTERNAL_SYNC
   PERSONAL
+  DISCOVERY_CALL
+  CONSULTATION
+}
+
+enum meeting_type {
+  ONLINE
+  PHONE_CALL
+  IN_PERSON
+  VIDEO_CALL
+}
+
+enum event_attendee_status {
+  PENDING
+  ACCEPTED
+  DECLINED
+  TENTATIVE
+}
+
+enum event_reminder_method {
+  EMAIL
+  SMS
+  PUSH_NOTIFICATION
+  POPUP
 }
 
 enum project_asset_type {
@@ -1191,180 +2086,102 @@ enum PricingModifierType {
   FILM_OVERRIDE
 }
 
-// Workflow Management Models
-model workflow_templates {
-  id             Int               @id @default(autoincrement())
-  name           String            @unique
-  description    String?
-  is_active      Boolean           @default(true)
-  created_at     DateTime          @default(now())
-  updated_at     DateTime          @updatedAt
-  stages         workflow_stages[]
-  projects       projects[]
-  filmLibrary    filmLibrary[] // Films that use this workflow
-  scenes         ScenesLibrary[] // Scenes that use this workflow
-  coverage       coverage[] // Coverage that uses this workflow
-  editing_styles editing_styles[] // Editing styles that use this workflow
-
-  @@map("workflow_templates")
+enum EquipmentCategory {
+  CAMERA
+  LENS
+  AUDIO
+  LIGHTING
+  GRIP
+  POWER
+  STORAGE
+  STREAMING
+  ACCESSORIES
+  DECORATIVE
+  BACKGROUNDS
+  CABLES
+  OTHER
 }
 
-model workflow_stages {
-  id                    Int                     @id @default(autoincrement())
-  workflow_template_id  Int
-  name                  String
-  description           String?
-  order_index           Int
-  is_active             Boolean                 @default(true)
-  created_at            DateTime                @default(now())
-  updated_at            DateTime                @updatedAt
-  workflow_template     workflow_templates      @relation(fields: [workflow_template_id], references: [id], onDelete: Cascade)
-  task_generation_rules task_generation_rules[]
-
-  @@unique([workflow_template_id, order_index])
-  @@map("workflow_stages")
+enum EquipmentType {
+  MIRRORLESS
+  DSLR
+  ACTION_CAM
+  DRONE
+  SMARTPHONE
+  EF_MOUNT
+  EF_S_MOUNT
+  SONY_E_MOUNT
+  NIKON_AF_S
+  CANON_RF
+  RECORDER
+  LAVALIER
+  CONDENSER
+  HEADPHONES
+  PA_SPEAKER
+  MIXER
+  INTERFACE
+  CABLES_AUDIO
+  DECKS
+  LED
+  STAGE_LIGHTING
+  T_BARS
+  DIFFUSION
+  STANDS
+  TRIPOD
+  MONOPOD
+  GIMBAL
+  SLIDER
+  MOUNT
+  BATTERY
+  CHARGER
+  GENERATOR
+  MEMORY_CARD
+  STREAMING_DEVICE
+  AUTOCUE
+  SYNC_DEVICE
+  GREEN_SCREEN
+  SMOKE_MACHINE
+  OTHER_EQUIPMENT
 }
 
-model task_generation_rules {
-  id                  Int             @id @default(autoincrement())
-  workflow_stage_id   Int
-  task_template_id    Int
-  scene_type          MediaType?
-  coverage_id         Int?
-  is_required         Boolean         @default(true)
-  auto_assign_to_role String?
-  conditions          Json? // JSON conditions for when to generate this task
-  created_at          DateTime        @default(now())
-  updated_at          DateTime        @updatedAt
-  workflow_stage      workflow_stages @relation(fields: [workflow_stage_id], references: [id], onDelete: Cascade)
-  task_template       task_templates  @relation(fields: [task_template_id], references: [id], onDelete: Cascade)
-  coverage            coverage?       @relation(fields: [coverage_id], references: [id])
-
-  @@map("task_generation_rules")
+enum EquipmentCondition {
+  NEW
+  EXCELLENT
+  GOOD
+  FAIR
+  NEEDS_REPAIR
+  OUT_OF_SERVICE
 }
 
-model generated_task_log {
-  id                      Int      @id @default(autoincrement())
-  project_id              Int
-  task_generation_rule_id Int
-  task_id                 Int
-  generated_at            DateTime @default(now())
-  project                 projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  task                    tasks    @relation(fields: [task_id], references: [id], onDelete: Cascade)
-
-  @@map("generated_task_log")
+enum EquipmentAvailability {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+  RESERVED
+  UNAVAILABLE
 }
 
-// Entity Default Tasks - For storing default task lists for Scenes, Films, Coverage
-model entity_default_tasks {
-  id               Int      @id @default(autoincrement())
-  entity_type      String // 'scenes', 'films', 'coverage'
-  entity_id        Int
-  task_template_id Int? // Optional reference to task template
-  task_name        String
-  estimated_hours  Decimal  @default(0) @db.Decimal(4, 2)
-  order_index      Int
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-
-  // Optional relation to task template if task was created from template
-  task_template task_templates? @relation(fields: [task_template_id], references: [id], onDelete: SetNull)
-
-  @@unique([entity_type, entity_id, order_index])
-  @@index([entity_type, entity_id])
-  @@map("entity_default_tasks")
+enum equipment_rental_status {
+  BOOKED
+  ACTIVE
+  RETURNED
+  OVERDUE
+  CANCELLED
 }
 
-// Tasks Library - For managing task definitions and settings
-model task_library {
-  id               Int                  @id @default(autoincrement())
-  name             String
-  description      String?
-  phase            project_phase
-  effort_hours     Decimal?             @db.Decimal(8, 2)
-  recorded_hours   Decimal?             @db.Decimal(8, 2)
-  skills_needed    String[] // Array of skill names
-  pricing_type     pricing_type_options @default(Hourly)
-  fixed_price      Decimal?             @db.Decimal(10, 2)
-  hourly_rate      Decimal?             @db.Decimal(8, 2)
-  complexity_score Int?                 @default(1)
-  notes            String?
-  order_index      Int                  @default(0) // Order within phase
-  brand_id         Int
-  is_active        Boolean              @default(true)
-  created_at       DateTime             @default(now())
-  updated_at       DateTime             @updatedAt
-
-  // Relations
-  brand                    brands                     @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  task_library_benchmarks  task_library_benchmarks[]
-  task_library_skill_rates task_library_skill_rates[]
-
-  @@index([brand_id])
-  @@index([phase])
-  @@index([is_active])
-  @@index([phase, order_index])
-  @@map("task_library")
+enum equipment_maintenance_type {
+  ROUTINE
+  REPAIR
+  UPGRADE
+  CALIBRATION
+  CLEANING
+  INSPECTION
 }
 
-// Task Library Benchmarks - For contributor-specific performance data
-model task_library_benchmarks {
-  id                        Int      @id @default(autoincrement())
-  task_library_id           Int
-  contributor_id            Int
-  contributor_default_hours Decimal? @db.Decimal(8, 2)
-  contributor_average_hours Decimal? @db.Decimal(8, 2)
-  contributor_best_hours    Decimal? @db.Decimal(8, 2)
-  completed_count           Int      @default(0)
-  created_at                DateTime @default(now())
-  updated_at                DateTime @updatedAt
-
-  // Relations
-  task_library task_library @relation(fields: [task_library_id], references: [id], onDelete: Cascade)
-  contributor  contributors @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
-
-  @@unique([task_library_id, contributor_id])
-  @@map("task_library_benchmarks")
-}
-
-// Task Library Skill Rates - For skill-based pricing
-model task_library_skill_rates {
-  id              Int      @id @default(autoincrement())
-  task_library_id Int
-  skill_name      String
-  skill_level     String // "Beginner", "Intermediate", "Advanced", "Expert"
-  hourly_rate     Decimal  @db.Decimal(8, 2)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
-
-  // Relations
-  task_library task_library @relation(fields: [task_library_id], references: [id], onDelete: Cascade)
-
-  @@unique([task_library_id, skill_name, skill_level])
-  @@map("task_library_skill_rates")
-}
-
-// Scene Media Components - allows scenes to have multiple media types
-model SceneMediaComponent {
-  id               Int       @id @default(autoincrement())
-  scene_id         Int
-  media_type       MediaType // VIDEO, AUDIO, MUSIC
-  duration_seconds Int
-  is_primary       Boolean   @default(false) // One component should be primary
-
-  // Music-specific fields (only used when media_type = MUSIC)
-  music_type String? // Maps to MusicType enum values: ORCHESTRAL, PIANO, etc.
-
-  notes      String?
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  // Relations
-  scene             ScenesLibrary                  @relation(fields: [scene_id], references: [id], onDelete: Cascade)
-  film_local_copies FilmLocalSceneMediaComponent[] @relation("FilmLocalToOriginalComponent")
-
-  @@index([scene_id])
-  @@index([media_type])
-  @@index([music_type])
-  @@map("scene_media_components")
+enum equipment_availability_status {
+  AVAILABLE
+  BOOKED
+  IN_USE
+  UNAVAILABLE
+  TENTATIVE
 }

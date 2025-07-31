@@ -60,7 +60,7 @@ export const isValidDrop = (
         ? draggedItem.scene_type
         : draggedItem.type;
 
-    if (!isSceneCompatibleWithTrack(sceneType, targetTrack.track_type)) {
+    if (!sceneType || !isSceneCompatibleWithTrack(sceneType, targetTrack.track_type)) {
         return false;
     }
 

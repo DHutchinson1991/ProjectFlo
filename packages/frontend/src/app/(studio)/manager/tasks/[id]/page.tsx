@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useBrand } from "@/app/providers/BrandProvider";
 import {
     Box,
     Typography,
@@ -136,6 +137,7 @@ export default function TaskEditPage() {
     const router = useRouter();
     const params = useParams();
     const { mode } = useTheme();
+    const { currentBrand } = useBrand();
     const taskId = params.id as string;
     const isNewTask = taskId === 'new';
     const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -273,7 +275,13 @@ export default function TaskEditPage() {
         try {
             setSaving(true);
             if (isNewTask) {
-                const newTask = await api.taskLibrary.create(formData);
+                // Add brand_id when creating a new task
+                if (!currentBrand?.id) {
+                    setSnackbar({ open: true, message: 'No brand selected. Cannot create task.', severity: 'error' });
+                    return;
+                }
+                const taskData = { ...formData, brand_id: currentBrand.id };
+                const newTask = await api.taskLibrary.create(taskData);
                 setSnackbar({ open: true, message: 'Task created successfully', severity: 'success' });
                 router.push(`/manager/tasks/${newTask.id}`);
             } else {

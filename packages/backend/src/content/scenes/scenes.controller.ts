@@ -143,4 +143,32 @@ export class ScenesController {
   ) {
     return this.scenesService.addMediaComponent(id, componentData);
   }
+
+  // SCENE-COVERAGE RELATIONSHIP ENDPOINTS
+
+  @Post(":id/coverage")
+  addCoverageToScene(
+    @Param("id", ParseIntPipe) sceneId: number,
+    @Body() body: { coverageIds: number[] },
+  ) {
+    return this.scenesService.addCoverageToScene(sceneId, body.coverageIds);
+  }
+
+  @Get(":id/coverage")
+  getSceneCoverage(@Param("id", ParseIntPipe) sceneId: number) {
+    return this.scenesService.getSceneCoverage(sceneId);
+  }
+
+  @Delete(":id/coverage/:coverageId")
+  removeCoverageFromScene(
+    @Param("id", ParseIntPipe) sceneId: number,
+    @Param("coverageId", ParseIntPipe) coverageId: number,
+  ) {
+    return this.scenesService.removeCoverageFromScene(sceneId, coverageId);
+  }
+
+  @Delete(":id/coverage")
+  removeAllCoverageFromScene(@Param("id", ParseIntPipe) sceneId: number) {
+    return this.scenesService.removeAllCoverageFromScene(sceneId);
+  }
 }

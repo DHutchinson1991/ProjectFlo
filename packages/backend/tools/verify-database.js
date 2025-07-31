@@ -6,14 +6,19 @@ async function verifyDatabase() {
   try {
     console.log("🔍 Verifying database state...\n");
 
-    // Check key counts for main tables
-    const contacts = await prisma.contacts.count();
-    const scenes = await prisma.scenesLibrary.count();
-    const coverage = await prisma.coverage.count();
-    const timelineLayers = await prisma.timeline_layers.count();
-    const contributors = await prisma.contributors.count();
-    const roles = await prisma.roles.count();
-    const projects = await prisma.projects.count();
+    // Check key counts for main tables with error handling
+    const contacts = await prisma.contacts.count().catch(() => 0);
+    const scenes = await prisma.scenesLibrary.count().catch(() => 0);
+    const coverage = await prisma.coverage.count().catch(() => 0);
+    const timelineLayers = await prisma.timeline_layers.count().catch(() => 0);
+    const contributors = await prisma.contributors.count().catch(() => 0);
+    const roles = await prisma.roles.count().catch(() => 0);
+    const projects = await prisma.projects.count().catch(() => 0);
+
+    // Check calendar tables
+    const calendarEvents = await prisma.calendar_events.count().catch(() => 0);
+    const tags = await prisma.tags.count().catch(() => 0);
+    const calendarSettings = await prisma.calendar_settings.count().catch(() => 0);
 
     console.log("📊 Database Statistics:");
     console.log(`   Contacts: ${contacts}`);
@@ -22,7 +27,10 @@ async function verifyDatabase() {
     console.log(`   Timeline Layers: ${timelineLayers}`);
     console.log(`   Contributors: ${contributors}`);
     console.log(`   Roles: ${roles}`);
-    console.log(`   Projects: ${projects}\n`);
+    console.log(`   Projects: ${projects}`);
+    console.log(`   Calendar Events: ${calendarEvents}`);
+    console.log(`   Calendar Tags: ${tags}`);
+    console.log(`   Calendar Settings: ${calendarSettings}\n`);
 
     // Check for essential data
     if (timelineLayers === 0) {

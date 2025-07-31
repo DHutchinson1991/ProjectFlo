@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Box, Button, CircularProgress, Typography, Chip } from "@mui/material";
+import { Box, Button, CircularProgress, Typography } from "@mui/material";
 import {
     Save as SaveIcon,
     CloudDone as SavedIcon,
@@ -20,8 +20,8 @@ interface SaveControlsProps {
 const SaveControls: React.FC<SaveControlsProps> = ({
     saveState,
     onSave,
-    onAutoSaveToggle,
-    autoSaveEnabled = true,
+    onAutoSaveToggle, // eslint-disable-line @typescript-eslint/no-unused-vars
+    autoSaveEnabled, // eslint-disable-line @typescript-eslint/no-unused-vars
     readOnly = false,
 }) => {
     const formatLastSaved = (date?: Date) => {
@@ -46,133 +46,136 @@ const SaveControls: React.FC<SaveControlsProps> = ({
             sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 2,
-                p: 2,
-                bgcolor: "rgba(8, 8, 12, 0.9)",
-                borderRadius: 2,
-                border: "1px solid rgba(255, 255, 255, 0.1)",
+                gap: 1.5,
+                // Remove background styling - handled by parent container
             }}
         >
-            {/* Save Button */}
+            {/* Compact Save Button */}
             <Button
                 variant="contained"
                 onClick={onSave}
                 disabled={readOnly || saveState.isSaving || !saveState.hasUnsavedChanges}
                 startIcon={
                     saveState.isSaving ? (
-                        <CircularProgress size={16} sx={{ color: "white" }} />
+                        <CircularProgress size={14} sx={{ color: "rgba(255, 255, 255, 0.8)" }} />
                     ) : saveState.hasUnsavedChanges ? (
-                        <SaveIcon />
+                        <SaveIcon sx={{ fontSize: 16 }} />
                     ) : (
-                        <SavedIcon />
+                        <SavedIcon sx={{ fontSize: 16 }} />
                     )
                 }
                 sx={{
                     bgcolor: saveState.hasUnsavedChanges
-                        ? "rgba(123, 97, 255, 0.8)"
-                        : "rgba(76, 175, 80, 0.8)",
-                    color: "white",
-                    fontSize: "0.875rem",
-                    px: 2,
-                    py: 1,
+                        ? "rgba(255, 193, 7, 0.15)" // Amber warning color, subtle
+                        : "rgba(76, 175, 80, 0.15)", // Green success color, subtle
+                    color: saveState.hasUnsavedChanges
+                        ? "rgba(255, 193, 7, 0.9)"
+                        : "rgba(76, 175, 80, 0.9)",
+                    fontSize: "0.75rem",
+                    fontWeight: 500,
+                    px: 1.5,
+                    py: 0.5,
+                    height: "28px", // Smaller height to match compact design
+                    minWidth: "72px", // Compact width
+                    borderRadius: 1,
+                    border: saveState.hasUnsavedChanges
+                        ? "1px solid rgba(255, 193, 7, 0.2)"
+                        : "1px solid rgba(76, 175, 80, 0.2)",
+                    textTransform: "none",
+                    backdropFilter: "blur(4px)",
+                    transition: "all 0.2s ease-in-out",
                     "&:hover": {
                         bgcolor: saveState.hasUnsavedChanges
-                            ? "rgba(123, 97, 255, 0.9)"
-                            : "rgba(76, 175, 80, 0.9)",
+                            ? "rgba(255, 193, 7, 0.25)"
+                            : "rgba(76, 175, 80, 0.25)",
+                        borderColor: saveState.hasUnsavedChanges
+                            ? "rgba(255, 193, 7, 0.4)"
+                            : "rgba(76, 175, 80, 0.4)",
+                        transform: "translateY(-1px)",
+                        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
                     },
                     "&:disabled": {
-                        bgcolor: "rgba(255, 255, 255, 0.1)",
-                        color: "rgba(255, 255, 255, 0.5)",
+                        bgcolor: "rgba(255, 255, 255, 0.03)",
+                        color: "rgba(255, 255, 255, 0.3)",
+                        borderColor: "rgba(255, 255, 255, 0.05)",
+                        transform: "none",
+                        boxShadow: "none",
                     },
                 }}
             >
                 {saveState.isSaving
-                    ? "Saving..."
+                    ? "Saving"
                     : saveState.hasUnsavedChanges
-                        ? "Save Changes"
+                        ? "Save"
                         : "Saved"}
             </Button>
 
-            {/* Save Status */}
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                {saveState.hasUnsavedChanges && !saveState.isSaving && (
-                    <Chip
-                        icon={<UnsavedIcon sx={{ fontSize: 14 }} />}
-                        label="Unsaved Changes"
-                        size="small"
-                        sx={{
-                            bgcolor: "rgba(255, 152, 0, 0.2)",
-                            color: "rgba(255, 152, 0, 0.9)",
-                            border: "1px solid rgba(255, 152, 0, 0.3)",
-                            fontSize: "0.7rem",
-                            height: 24,
-                        }}
-                    />
-                )}
+            {/* Compact Status Indicators */}
+            {(saveState.hasUnsavedChanges || saveState.saveError) && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    {saveState.hasUnsavedChanges && !saveState.isSaving && (
+                        <Box sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 0.5,
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: 0.5,
+                            bgcolor: "rgba(255, 193, 7, 0.1)",
+                            border: "1px solid rgba(255, 193, 7, 0.2)",
+                        }}>
+                            <UnsavedIcon sx={{
+                                fontSize: 12,
+                                color: "rgba(255, 193, 7, 0.8)"
+                            }} />
+                            <Typography sx={{
+                                fontSize: "0.65rem",
+                                fontWeight: 500,
+                                color: "rgba(255, 193, 7, 0.9)",
+                                lineHeight: 1,
+                            }}>
+                                Unsaved
+                            </Typography>
+                        </Box>
+                    )}
 
-                {saveState.saveError && (
-                    <Chip
-                        label={saveState.saveError}
-                        size="small"
-                        sx={{
-                            bgcolor: "rgba(244, 67, 54, 0.2)",
-                            color: "rgba(244, 67, 54, 0.9)",
-                            border: "1px solid rgba(244, 67, 54, 0.3)",
-                            fontSize: "0.7rem",
-                            height: 24,
-                        }}
-                    />
-                )}
-            </Box>
-
-            {/* Last Saved Info */}
-            <Typography
-                variant="caption"
-                sx={{
-                    color: "rgba(255, 255, 255, 0.6)",
-                    fontSize: "0.7rem",
-                }}
-            >
-                Last saved: {formatLastSaved(saveState.lastSavedAt || undefined)}
-            </Typography>
-
-            {/* Auto Save Toggle */}
-            {onAutoSaveToggle && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Typography
-                        variant="caption"
-                        sx={{
-                            color: "rgba(255, 255, 255, 0.6)",
-                            fontSize: "0.7rem",
-                        }}
-                    >
-                        Auto-save:
-                    </Typography>
-                    <Chip
-                        label={autoSaveEnabled ? "ON" : "OFF"}
-                        size="small"
-                        onClick={!readOnly ? onAutoSaveToggle : undefined}
-                        sx={{
-                            bgcolor: autoSaveEnabled
-                                ? "rgba(76, 175, 80, 0.2)"
-                                : "rgba(158, 158, 158, 0.2)",
-                            color: autoSaveEnabled
-                                ? "rgba(76, 175, 80, 0.9)"
-                                : "rgba(158, 158, 158, 0.9)",
-                            border: autoSaveEnabled
-                                ? "1px solid rgba(76, 175, 80, 0.3)"
-                                : "1px solid rgba(158, 158, 158, 0.3)",
-                            fontSize: "0.65rem",
-                            height: 20,
-                            cursor: readOnly ? "default" : "pointer",
-                            "&:hover": readOnly ? {} : {
-                                bgcolor: autoSaveEnabled
-                                    ? "rgba(76, 175, 80, 0.3)"
-                                    : "rgba(158, 158, 158, 0.3)",
-                            },
-                        }}
-                    />
+                    {saveState.saveError && (
+                        <Box sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 0.5,
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: 0.5,
+                            bgcolor: "rgba(244, 67, 54, 0.1)",
+                            border: "1px solid rgba(244, 67, 54, 0.2)",
+                        }}>
+                            <Typography sx={{
+                                fontSize: "0.65rem",
+                                fontWeight: 500,
+                                color: "rgba(244, 67, 54, 0.9)",
+                                lineHeight: 1,
+                            }}>
+                                Error
+                            </Typography>
+                        </Box>
+                    )}
                 </Box>
+            )}
+
+            {/* Compact Last Saved Info - only show if no unsaved changes */}
+            {!saveState.hasUnsavedChanges && !saveState.saveError && saveState.lastSavedAt && (
+                <Typography
+                    variant="caption"
+                    sx={{
+                        color: "rgba(255, 255, 255, 0.4)",
+                        fontSize: "0.6rem",
+                        fontWeight: 400,
+                        lineHeight: 1,
+                    }}
+                >
+                    {formatLastSaved(saveState.lastSavedAt || undefined)}
+                </Typography>
             )}
         </Box>
     );

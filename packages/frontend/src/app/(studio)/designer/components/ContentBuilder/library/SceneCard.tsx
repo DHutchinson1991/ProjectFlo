@@ -28,7 +28,7 @@ const SceneCard: React.FC<SceneCardProps> = ({
     onClick,
     readOnly = false,
 }) => {
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: `library-scene-${scene.id}`,
         data: {
             type: 'library-scene',
@@ -52,21 +52,16 @@ const SceneCard: React.FC<SceneCardProps> = ({
     const icon = getSceneIconComponent(primaryMediaType, iconComponents);
     const sceneColor = getSceneColor(primaryMediaType);
 
-    const style = transform ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        zIndex: isDragging ? 1000 : 1,
-        opacity: isDragging ? 0.4 : 1, // More transparent when dragging
-    } : undefined;
-
     return (
         <Box
             ref={setNodeRef}
-            style={style}
             {...(readOnly ? {} : listeners)}
             {...(readOnly ? {} : attributes)}
             onClick={onClick}
             sx={{
                 position: "relative",
+                width: "100%",
+                minHeight: "120px", // Ensure consistent height
                 p: 2,
                 borderRadius: 2,
                 bgcolor: isSelected
@@ -76,8 +71,16 @@ const SceneCard: React.FC<SceneCardProps> = ({
                     ? "2px solid rgba(123, 97, 255, 0.6)"
                     : "1px solid rgba(255, 255, 255, 0.1)",
                 cursor: readOnly ? "default" : "grab",
-                transition: "all 0.2s ease-in-out",
-                "&:hover": readOnly ? {} : {
+                transition: isDragging ? "none" : "all 0.2s ease-in-out",
+                boxSizing: "border-box",
+                overflow: "hidden",
+                // When dragging, make the card semi-transparent but keep it in place
+                // The DragOverlay will handle the visual drag representation
+                opacity: isDragging ? 0.5 : 1,
+                // Ensure no layout shifts during drag
+                isolation: "isolate",
+                contain: "layout style", // CSS containment for stable layout
+                "&:hover": readOnly || isDragging ? {} : {
                     transform: "translateY(-2px)",
                     bgcolor: isSelected
                         ? "rgba(123, 97, 255, 0.3)"
@@ -85,7 +88,7 @@ const SceneCard: React.FC<SceneCardProps> = ({
                     border: "1px solid rgba(123, 97, 255, 0.4)",
                     boxShadow: "0 4px 12px rgba(123, 97, 255, 0.15)",
                 },
-                "&:active": readOnly ? {} : {
+                "&:active": readOnly || isDragging ? {} : {
                     cursor: "grabbing",
                     transform: "translateY(0)",
                 },

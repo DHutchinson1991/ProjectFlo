@@ -30,6 +30,11 @@ export class CreateSceneDto {
     estimated_duration?: number;
 
     @IsOptional()
+    @IsNumber()
+    @Min(5)
+    default_coverage_duration?: number;
+
+    @IsOptional()
     @IsString()
     default_editing_style?: string;
 

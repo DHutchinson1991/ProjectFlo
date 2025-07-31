@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Box, IconButton, Slider, Typography } from "@mui/material";
+import { Box, IconButton, Typography } from "@mui/material";
 import {
     PlayArrow as PlayIcon,
     Pause as PauseIcon,
@@ -25,7 +25,7 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
     onPlay,
     onPause,
     onStop,
-    onSeek,
+    onSeek, // eslint-disable-line @typescript-eslint/no-unused-vars
     onSpeedChange,
     readOnly = false,
 }) => {
@@ -36,11 +36,8 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 2,
-                p: 2,
-                bgcolor: "rgba(8, 8, 12, 0.9)",
-                borderRadius: 2,
-                border: "1px solid rgba(255, 255, 255, 0.1)",
+                gap: 1.5,
+                // Remove background styling - handled by parent container
             }}
         >
             {/* Playback Buttons */}
@@ -51,11 +48,18 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
                     size="small"
                     sx={{
                         color: "rgba(255, 255, 255, 0.8)",
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: 1.5,
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                        bgcolor: "rgba(255, 255, 255, 0.05)",
                         "&:hover": {
                             bgcolor: "rgba(255, 255, 255, 0.1)",
+                            borderColor: "rgba(255, 255, 255, 0.2)",
                         },
                         "&:disabled": {
                             color: "rgba(255, 255, 255, 0.3)",
+                            bgcolor: "rgba(255, 255, 255, 0.02)",
                         },
                     }}
                 >
@@ -66,65 +70,54 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
                     onClick={playbackState.isPlaying ? onPause : onPlay}
                     disabled={readOnly}
                     sx={{
-                        color: "rgba(123, 97, 255, 0.9)",
-                        bgcolor: "rgba(123, 97, 255, 0.1)",
+                        color: playbackState.isPlaying ? "rgba(255, 255, 255, 0.9)" : "rgba(123, 97, 255, 0.9)",
+                        bgcolor: playbackState.isPlaying ? "rgba(244, 67, 54, 0.15)" : "rgba(123, 97, 255, 0.15)",
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: 1.5,
+                        border: playbackState.isPlaying
+                            ? "1px solid rgba(244, 67, 54, 0.3)"
+                            : "1px solid rgba(123, 97, 255, 0.3)",
                         "&:hover": {
-                            bgcolor: "rgba(123, 97, 255, 0.2)",
+                            bgcolor: playbackState.isPlaying ? "rgba(244, 67, 54, 0.25)" : "rgba(123, 97, 255, 0.25)",
+                            borderColor: playbackState.isPlaying
+                                ? "rgba(244, 67, 54, 0.5)"
+                                : "rgba(123, 97, 255, 0.5)",
                         },
                         "&:disabled": {
                             color: "rgba(255, 255, 255, 0.3)",
-                            bgcolor: "transparent",
+                            bgcolor: "rgba(255, 255, 255, 0.02)",
+                            borderColor: "rgba(255, 255, 255, 0.1)",
                         },
                     }}
                 >
                     {playbackState.isPlaying ? (
-                        <PauseIcon fontSize="small" />
+                        <PauseIcon fontSize="medium" />
                     ) : (
-                        <PlayIcon fontSize="small" />
+                        <PlayIcon fontSize="medium" />
                     )}
                 </IconButton>
             </Box>
 
-            {/* Timeline Scrubber */}
-            <Box sx={{ flex: 1, mx: 2 }}>
-                <Slider
-                    value={playbackState.currentTime}
-                    min={0}
-                    max={playbackState.totalDuration || 100}
-                    onChange={(_, value) => onSeek(value as number)}
-                    disabled={readOnly}
-                    size="small"
-                    sx={{
-                        color: "rgba(123, 97, 255, 0.8)",
-                        height: 4,
-                        "& .MuiSlider-track": {
-                            bgcolor: "rgba(123, 97, 255, 0.8)",
-                            border: "none",
-                        },
-                        "& .MuiSlider-rail": {
-                            bgcolor: "rgba(255, 255, 255, 0.2)",
-                        },
-                        "& .MuiSlider-thumb": {
-                            bgcolor: "rgba(123, 97, 255, 0.9)",
-                            width: 12,
-                            height: 12,
-                            "&:hover": {
-                                boxShadow: "0 0 0 8px rgba(123, 97, 255, 0.16)",
-                            },
-                        },
-                    }}
-                />
-            </Box>
-
             {/* Time Display */}
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+                px: 1.5,
+                py: 0.5,
+                bgcolor: "rgba(0, 0, 0, 0.3)",
+                borderRadius: 1,
+                border: "1px solid rgba(255, 255, 255, 0.05)",
+            }}>
                 <Typography
                     variant="caption"
                     sx={{
-                        color: "rgba(255, 255, 255, 0.8)",
+                        color: "rgba(255, 255, 255, 0.9)",
                         fontSize: "0.75rem",
                         fontFamily: "monospace",
-                        minWidth: 60,
+                        fontWeight: 500,
+                        minWidth: 48,
                     }}
                 >
                     {formatTime(playbackState.currentTime)}
@@ -132,8 +125,9 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
                 <Typography
                     variant="caption"
                     sx={{
-                        color: "rgba(255, 255, 255, 0.5)",
+                        color: "rgba(255, 255, 255, 0.4)",
                         fontSize: "0.75rem",
+                        mx: 0.5,
                     }}
                 >
                     /
@@ -141,10 +135,11 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
                 <Typography
                     variant="caption"
                     sx={{
-                        color: "rgba(255, 255, 255, 0.8)",
+                        color: "rgba(255, 255, 255, 0.7)",
                         fontSize: "0.75rem",
                         fontFamily: "monospace",
-                        minWidth: 60,
+                        fontWeight: 500,
+                        minWidth: 48,
                     }}
                 >
                     {formatTime(playbackState.totalDuration)}
@@ -153,12 +148,22 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
 
             {/* Speed Control */}
             {onSpeedChange && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.75,
+                    px: 1.5,
+                    py: 0.5,
+                    bgcolor: "rgba(0, 0, 0, 0.3)",
+                    borderRadius: 1,
+                    border: "1px solid rgba(255, 255, 255, 0.05)",
+                }}>
                     <Typography
                         variant="caption"
                         sx={{
-                            color: "rgba(255, 255, 255, 0.6)",
+                            color: "rgba(255, 255, 255, 0.7)",
                             fontSize: "0.7rem",
+                            fontWeight: 500,
                         }}
                     >
                         Speed:
@@ -168,12 +173,16 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
                         onChange={(e) => onSpeedChange(Number(e.target.value))}
                         disabled={readOnly}
                         style={{
-                            backgroundColor: "rgba(8, 8, 12, 0.9)",
-                            color: "rgba(255, 255, 255, 0.8)",
-                            border: "1px solid rgba(255, 255, 255, 0.2)",
+                            backgroundColor: "rgba(0, 0, 0, 0.4)",
+                            color: "rgba(255, 255, 255, 0.9)",
+                            border: "1px solid rgba(255, 255, 255, 0.15)",
                             borderRadius: 4,
-                            padding: "2px 6px",
+                            padding: "3px 8px",
                             fontSize: "0.7rem",
+                            fontWeight: 500,
+                            height: "24px",
+                            minWidth: "50px",
+                            outline: "none",
                         }}
                     >
                         {speedOptions.map(speed => (

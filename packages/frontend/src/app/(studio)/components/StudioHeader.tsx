@@ -80,6 +80,16 @@ export default function StudioHeader() {
         return "User";
     };
 
+    // Get current date in a nice format
+    const getCurrentDay = () => {
+        const today = new Date();
+        return today.getDate().toString();
+    };
+
+    const handleNavigateToCalendar = () => {
+        router.push('/calendar');
+    };
+
     return (
         <AppBar
             position="fixed"
@@ -137,6 +147,93 @@ export default function StudioHeader() {
                 </Box>
 
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    {/* Calendar Button */}
+                    <Tooltip title="Go to Calendar" arrow>
+                        <Box
+                            onClick={handleNavigateToCalendar}
+                            sx={{
+                                position: "relative",
+                                width: 40,
+                                height: 40,
+                                cursor: "pointer",
+                                borderRadius: 2,
+                                transition: "all 0.2s ease",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                "&:hover": {
+                                    backgroundColor: "rgba(255, 255, 255, 0.05)",
+                                    transform: "translateY(-1px)",
+                                },
+                            }}
+                        >
+                            {/* Calendar Outline */}
+                            <Box
+                                sx={{
+                                    position: "relative",
+                                    width: 28,
+                                    height: 28,
+                                    border: "2px solid",
+                                    borderColor: "text.secondary",
+                                    borderRadius: 1,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                }}
+                            >
+                                {/* Calendar Top Line */}
+                                <Box
+                                    sx={{
+                                        position: "absolute",
+                                        top: 4,
+                                        left: 4,
+                                        right: 4,
+                                        height: "1px",
+                                        backgroundColor: "text.secondary",
+                                    }}
+                                />
+
+                                {/* Calendar Rings */}
+                                <Box
+                                    sx={{
+                                        position: "absolute",
+                                        top: -4,
+                                        left: 6,
+                                        width: "2px",
+                                        height: 8,
+                                        backgroundColor: "text.secondary",
+                                        borderRadius: 1,
+                                    }}
+                                />
+                                <Box
+                                    sx={{
+                                        position: "absolute",
+                                        top: -4,
+                                        right: 6,
+                                        width: "2px",
+                                        height: 8,
+                                        backgroundColor: "text.secondary",
+                                        borderRadius: 1,
+                                    }}
+                                />
+
+                                {/* Day Number */}
+                                <Typography
+                                    variant="caption"
+                                    sx={{
+                                        color: "text.primary",
+                                        fontSize: "0.75rem",
+                                        fontWeight: 600,
+                                        lineHeight: 1,
+                                        mt: 0.5,
+                                    }}
+                                >
+                                    {getCurrentDay()}
+                                </Typography>
+                            </Box>
+                        </Box>
+                    </Tooltip>
+
                     <IconButton
                         size="large"
                         aria-label="notifications"

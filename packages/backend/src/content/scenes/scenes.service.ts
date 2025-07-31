@@ -454,4 +454,121 @@ export class ScenesService {
     const remainingSeconds = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   }
+
+  // Scene-Coverage Relationship Methods
+
+  /**
+   * Add coverage items to a scene
+   */
+  async addCoverageToScene(sceneId: number, coverageIds: number[]) {
+    // Verify scene exists
+    const scene = await this.findOne(sceneId);
+    if (!scene) {
+      throw new NotFoundException(`Scene with ID ${sceneId} not found`);
+    }
+
+    // Verify all coverage items exist
+    const coverageItems = await this.prisma.coverage.findMany({
+      where: { id: { in: coverageIds } }
+    });
+
+    if (coverageItems.length !== coverageIds.length) {
+      const foundIds = coverageItems.map(c => c.id);
+      const missingIds = coverageIds.filter(id => !foundIds.includes(id));
+      throw new NotFoundException(`Coverage items not found: ${missingIds.join(', ')}`);
+    }
+
+    // Create scene-coverage relationships (ignore duplicates)
+    const sceneCoverageData = coverageIds.map(coverageId => ({
+      scene_id: sceneId,
+      coverage_id: coverageId
+    }));
+
+    await this.prisma.sceneCoverage.createMany({
+      data: sceneCoverageData,
+      skipDuplicates: true
+    });
+
+    return {
+      success: true,
+      message: `Added ${coverageIds.length} coverage items to scene`,
+      scene_id: sceneId,
+      coverage_ids: coverageIds
+    };
+  }
+
+  /**
+   * Remove coverage from a scene
+   */
+  async removeCoverageFromScene(sceneId: number, coverageId: number) {
+    const deleted = await this.prisma.sceneCoverage.deleteMany({
+      where: {
+        scene_id: sceneId,
+        coverage_id: coverageId
+      }
+    });
+
+    if (deleted.count === 0) {
+      throw new NotFoundException(`Coverage ${coverageId} not found for scene ${sceneId}`);
+    }
+
+    return {
+      success: true,
+      message: `Removed coverage item from scene`,
+      scene_id: sceneId,
+      coverage_id: coverageId
+    };
+  }
+
+  /**
+   * Get all coverage items for a scene
+   */
+  async getSceneCoverage(sceneId: number) {
+    // Verify scene exists
+    const scene = await this.findOne(sceneId);
+    if (!scene) {
+      throw new NotFoundException(`Scene with ID ${sceneId} not found`);
+    }
+
+    const sceneCoverage = await this.prisma.sceneCoverage.findMany({
+      where: { scene_id: sceneId },
+      include: {
+        coverage: {
+          include: {
+            workflow_template: true,
+            task_generation_rules: true,
+            // Include operator relationship to get contributor details
+            operator: {
+              include: {
+                contact: true,
+                role: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    return {
+      scene_id: sceneId,
+      scene_name: scene.name,
+      coverage_items: sceneCoverage.map(sc => sc.coverage)
+    };
+  }
+
+  /**
+   * Remove all coverage from a scene
+   */
+  async removeAllCoverageFromScene(sceneId: number) {
+    const deleted = await this.prisma.sceneCoverage.deleteMany({
+      where: { scene_id: sceneId }
+    });
+
+    return {
+      success: true,
+      message: `Removed ${deleted.count} coverage items from scene`,
+      scene_id: sceneId,
+      removed_count: deleted.count
+    };
+  }
 }

@@ -15,6 +15,7 @@ import {
     People as UsersIcon,
     Business as BrandsIcon,
     Assignment as TasksIcon,
+    Inventory as EquipmentIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
 
@@ -205,6 +206,51 @@ export default function ManagerPage() {
                                 <Chip
                                     label="Project Management"
                                     color="info"
+                                    size="small"
+                                    sx={{ mt: 1 }}
+                                />
+                            </CardContent>
+                        </CardActionArea>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} md={6} lg={4}>
+                    <Card
+                        elevation={2}
+                        sx={{
+                            height: "100%",
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                                elevation: 4,
+                                transform: "translateY(-4px)",
+                            },
+                        }}
+                    >
+                        <CardActionArea
+                            component={Link}
+                            href="/manager/equipment"
+                            sx={{ height: "100%" }}
+                        >
+                            <CardContent sx={{ p: 3, height: "100%" }}>
+                                <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                                    <EquipmentIcon
+                                        sx={{
+                                            fontSize: 32,
+                                            color: "warning.main",
+                                            mr: 2,
+                                        }}
+                                    />
+                                    <Typography variant="h6" component="h2">
+                                        Equipment Management
+                                    </Typography>
+                                </Box>
+                                <Typography variant="body2" color="text.secondary" paragraph>
+                                    Manage equipment inventory, track rentals, schedule maintenance,
+                                    and monitor equipment condition and availability.
+                                </Typography>
+                                <Chip
+                                    label="Inventory"
+                                    color="warning"
                                     size="small"
                                     sx={{ mt: 1 }}
                                 />

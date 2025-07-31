@@ -52,10 +52,10 @@ interface User {
     email: string;
     first_name?: string;
     last_name?: string;
-    role: {
+    role?: {
         id: number;
         name: string;
-    };
+    } | null;
     contributor_type?: string;
     status?: "active" | "inactive" | "pending";
     last_login?: string;
@@ -136,7 +136,7 @@ export default function UsersPage() {
                 first_name: user.first_name || "",
                 last_name: user.last_name || "",
                 password: "",
-                role_id: user.role.id.toString(),
+                role_id: user.role?.id?.toString() || "",
                 contributor_type: user.contributor_type || "Internal",
             });
         } else {
@@ -437,7 +437,7 @@ export default function UsersPage() {
                             </Avatar>
                             <Box>
                                 <Typography variant="h6">
-                                    {users.filter((u) => u.role.name === "Admin").length}
+                                    {users.filter((u) => u.role?.name === "Admin").length}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
                                     Administrators
@@ -498,8 +498,8 @@ export default function UsersPage() {
                                         </TableCell>
                                         <TableCell>
                                             <Chip
-                                                icon={getRoleIcon(user.role.name)}
-                                                label={user.role.name}
+                                                icon={getRoleIcon(user.role?.name || 'Unknown')}
+                                                label={user.role?.name || 'No Role'}
                                                 size="small"
                                                 variant="outlined"
                                             />

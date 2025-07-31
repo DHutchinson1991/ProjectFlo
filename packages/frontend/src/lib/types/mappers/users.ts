@@ -8,7 +8,9 @@
 import {
     ContributorApiResponse,
     ContactApiResponse,
-    RoleApiResponse
+    RoleApiResponse,
+    ContributorJobRoleApiResponse,
+    JobRoleApiResponse
 } from "../api/users";
 
 import {
@@ -16,6 +18,8 @@ import {
     Contact,
     Role
 } from "../domains/users";
+
+import { JobRole, ContributorJobRole } from "../job-roles";
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -63,6 +67,36 @@ function generateFullName(firstName?: string, lastName?: string, email?: string)
 // ============================================================================
 
 /**
+ * Maps backend JobRole API response to frontend JobRole domain model
+ */
+export function mapJobRoleResponse(apiResponse: JobRoleApiResponse): JobRole {
+    return {
+        id: apiResponse.id,
+        name: apiResponse.name,
+        display_name: apiResponse.display_name,
+        description: apiResponse.description,
+        category: apiResponse.category,
+        is_active: apiResponse.is_active,
+        created_at: apiResponse.created_at,
+        updated_at: apiResponse.updated_at
+    };
+}
+
+/**
+ * Maps backend ContributorJobRole API response to frontend ContributorJobRole domain model
+ */
+export function mapContributorJobRoleResponse(apiResponse: ContributorJobRoleApiResponse): ContributorJobRole {
+    return {
+        id: apiResponse.id,
+        contributor_id: apiResponse.contributor_id,
+        job_role_id: apiResponse.job_role_id,
+        created_at: apiResponse.assigned_at, // Map assigned_at to created_at for domain model
+        updated_at: apiResponse.assigned_at, // Use assigned_at as updated_at if not provided
+        job_role: mapJobRoleResponse(apiResponse.job_role)
+    };
+}
+
+/**
  * Maps backend Role API response to frontend Role domain model
  */
 export function mapRoleResponse(apiResponse: RoleApiResponse): Role {
@@ -88,6 +122,10 @@ export function mapContactResponse(apiResponse: ContactApiResponse): Contact {
         type: apiResponse.type,
         brand_id: nullToUndefined(apiResponse.brand_id),
         archived_at: apiResponse.archived_at,
+        full_name: generateFullName(
+            nullToUndefined(apiResponse.first_name),
+            nullToUndefined(apiResponse.last_name)
+        ),
     };
 }
 
@@ -96,7 +134,10 @@ export function mapContactResponse(apiResponse: ContactApiResponse): Contact {
  */
 export function mapContributorResponse(apiResponse: ContributorApiResponse): Contributor {
     const contact = mapContactResponse(apiResponse.contact);
-    const role = mapRoleResponse(apiResponse.role);
+    const role = apiResponse.role ? mapRoleResponse(apiResponse.role) : null;
+    const contributorJobRoles = apiResponse.contributor_job_roles
+        ? apiResponse.contributor_job_roles.map(mapContributorJobRoleResponse)
+        : [];
 
     return {
         // Core contributor data
@@ -110,6 +151,7 @@ export function mapContributorResponse(apiResponse: ContributorApiResponse): Con
         // Related entities
         contact,
         role,
+        contributor_job_roles: contributorJobRoles,
 
         // Computed convenience properties
         email: contact.email,

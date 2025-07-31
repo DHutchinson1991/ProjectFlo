@@ -260,7 +260,7 @@ export default function FilmDetailPage({ params }: { params: { id: string } }) {
     }
 
     return (
-        <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+        <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
             {/* Header Section */}
             <Box sx={{ borderBottom: 1, borderColor: "divider", p: 3 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 3, mb: 2 }}>
@@ -290,7 +290,7 @@ export default function FilmDetailPage({ params }: { params: { id: string } }) {
             </Box>
 
             {/* Content Builder */}
-            <Box sx={{ flex: 1, overflow: "hidden" }}>
+            <Box sx={{ flex: 1, overflow: "visible" }}>
                 <ContentBuilder
                     initialScenes={filmScenes}
                     onSave={handleSave}

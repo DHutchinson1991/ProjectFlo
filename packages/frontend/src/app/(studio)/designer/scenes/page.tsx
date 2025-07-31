@@ -402,7 +402,7 @@ export default function ScenesLibraryPage() {
                                                 variant="subtitle2"
                                                 fontWeight="bold"
                                                 component="a"
-                                                href={`/scenes/${scene.id}`}
+                                                href={`/designer/scenes/${scene.id}`}
                                                 sx={{
                                                     textDecoration: "none",
                                                     color: "primary.main",

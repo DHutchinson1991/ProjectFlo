@@ -15,8 +15,11 @@ import {
     Settings as SettingsIcon,
     Palette as PaletteIcon,
     ManageAccounts as ManageAccountsIcon,
+    Folder as ProjectIcon,
+    ContactMail as InquiriesIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
+import { ProjectSelector } from "./ProjectSelector";
 
 const studioNavItems = [
     {
@@ -25,12 +28,32 @@ const studioNavItems = [
         icon: <DashboardIcon />,
     },
     {
+        title: "Sales",
+        href: "/sales",
+        icon: <InquiriesIcon />,
+        subItems: [
+            { title: "Lead Inquiries", href: "/sales/inquiries" },
+            { title: "Lead Pipeline", href: "/sales/pipeline" },
+            { title: "Clients", href: "/sales/clients" },
+        ],
+    },
+    {
+        title: "Projects",
+        href: "/projects",
+        icon: <ProjectIcon />,
+        subItems: [
+            { title: "Project Management", href: "/projects" },
+            { title: "Active Project", href: "/projects/active" },
+        ],
+    },
+    {
         title: "Designer",
         href: "/designer",
         icon: <PaletteIcon />,
         subItems: [
             { title: "Scenes Library", href: "/designer/scenes" },
             { title: "Film Manager", href: "/designer/films" },
+            { title: "Coverage Library", href: "/designer/coverage" },
         ],
     },
     {
@@ -41,6 +64,8 @@ const studioNavItems = [
             { title: "Roles", href: "/manager/roles" },
             { title: "Users", href: "/manager/users" },
             { title: "Brands", href: "/manager/brands" },
+            { title: "Equipment Library", href: "/manager/equipment" },
+            { title: "Locations", href: "/manager/locations" },
             { title: "Tasks", href: "/manager/tasks" },
         ],
     },
@@ -57,6 +82,12 @@ export default function StudioSidebar() {
     const isActiveItem = (href: string) => {
         if (href === "/dashboard") {
             return pathname === "/dashboard" || pathname === "/";
+        }
+        if (href === "/sales") {
+            return pathname.startsWith("/sales");
+        }
+        if (href === "/projects") {
+            return pathname.startsWith("/projects");
         }
         if (href === "/designer") {
             return pathname.startsWith("/designer");
@@ -86,7 +117,12 @@ export default function StudioSidebar() {
                 zIndex: 1200,
             }}
         >
-            <List sx={{ px: 1, pt: 2, pb: 2 }}>
+            {/* Project Selector at the top */}
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+                <ProjectSelector />
+            </Box>
+
+            <List sx={{ px: 1, pt: 0, pb: 2 }}>
                 {studioNavItems.map((item) => (
                     <Box key={item.title}>
                         <ListItem

@@ -1,16 +1,16 @@
 "use client";
 
 import React from "react";
-import { Box, Typography, Select, MenuItem, FormControl } from "@mui/material";
+import { Box } from "@mui/material";
 import { TimelineScene } from "../types/sceneTypes";
 import { TimelineTrack, PlaybackState } from "../types/timelineTypes";
 import { ViewState } from "../types/dragDropTypes";
 import { DragState } from "../types/dragDropTypes";
 import { SceneGroup } from "../types/sceneTypes";
-import { formatTime } from "../utils";
 import TimelinePlayhead from "./TimelinePlayhead";
 import TimelineSnapGrid from "./TimelineSnapGrid";
 import TimelineDropZones from "./TimelineDropZones";
+import TimelineBottomControls from "./TimelineBottomControls";
 
 interface ContentBuilderTimelineProps {
     scenes: TimelineScene[];
@@ -31,6 +31,12 @@ interface ContentBuilderTimelineProps {
     sceneGroups?: Map<string, SceneGroup>;
     getGroupForScene?: (scene: TimelineScene) => SceneGroup | null;
     isSceneInCollapsedGroup?: (scene: TimelineScene) => boolean;
+    // New zoom and snap control props
+    onZoomChange: (zoom: number) => void;
+    onSnapToggle: () => void;
+    onFitToView?: () => void;
+    onTimelineClick?: (time: number) => void;
+    scrollToTime?: (time: number) => void;
 }
 
 const ContentBuilderTimeline: React.FC<ContentBuilderTimelineProps> = ({
@@ -50,9 +56,16 @@ const ContentBuilderTimeline: React.FC<ContentBuilderTimelineProps> = ({
     readOnly = false,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     sceneGroups,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     getGroupForScene,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     isSceneInCollapsedGroup,
+    // New zoom and snap handlers
+    onZoomChange,
+    onSnapToggle,
+    onFitToView,
+    onTimelineClick,
+    scrollToTime,
 }) => {
     // State for snap interval
     const [snapInterval, setSnapInterval] = React.useState<number>(5);
@@ -70,6 +83,7 @@ const ContentBuilderTimeline: React.FC<ContentBuilderTimelineProps> = ({
 
     // Calculate timeline height based on tracks with gap
     const totalTracksHeight = tracks.length * 40 + 8; // Add 8px for the gap
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const timelineHeight = tracks.length > 0
         ? 16 + // Top padding above tracks
         tracks.length * 40 + // All track heights (40px each)
@@ -116,15 +130,14 @@ const ContentBuilderTimeline: React.FC<ContentBuilderTimelineProps> = ({
         >
             <Box
                 sx={{
-                    height: `${timelineHeight}px`,
+                    height: "100%", // Use full available height instead of calculated
                     display: "flex",
                     flexDirection: "column",
                     overflow: "hidden",
                     position: "relative",
                     bgcolor: "rgba(8, 8, 12, 0.85)",
                     borderRadius: "11px",
-                    width: "100%",
-                    maxWidth: "100%",
+
                     boxSizing: "border-box",
                     transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
@@ -156,6 +169,7 @@ const ContentBuilderTimeline: React.FC<ContentBuilderTimelineProps> = ({
                     >
                         <Box
                             ref={timelineRef}
+                            data-timeline-container
                             sx={{
                                 position: "relative",
                                 width: Math.max(timelineWidth, viewportWidth),
@@ -195,84 +209,26 @@ const ContentBuilderTimeline: React.FC<ContentBuilderTimelineProps> = ({
                                 playbackState={playbackState}
                                 viewState={viewState}
                                 totalTracksHeight={totalTracksHeight}
+                                onTimelineClick={onTimelineClick}
+                                readOnly={readOnly}
+                                scrollToTime={scrollToTime}
                             />
                         </Box>
                     </Box>
                 </Box>
 
-                {/* Timeline Info */}
-                <Box
-                    sx={{
-                        px: 2,
-                        py: 1,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        bgcolor: "transparent",
-                        borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-                        minHeight: 32,
-                        flexShrink: 0,
-                    }}
-                >
-                    <Typography
-                        variant="caption"
-                        sx={{
-                            fontSize: "0.7rem",
-                            color: "rgba(255, 255, 255, 0.7)",
-                        }}
-                    >
-                        {scenes.length} scenes • {formatTime(effectiveTimelineDuration)} •{" "}
-                        {Math.round((viewState.zoomLevel / 10) * 100)}% zoom
-                    </Typography>
-
-                    {/* Snap Interval Dropdown */}
-                    <FormControl size="small" sx={{ minWidth: 80 }}>
-                        <Select
-                            value={snapInterval}
-                            onChange={(e) => setSnapInterval(Number(e.target.value))}
-                            variant="outlined"
-                            sx={{
-                                height: 20,
-                                fontSize: "0.65rem",
-                                color: "rgba(255, 255, 255, 0.8)",
-                                "& .MuiOutlinedInput-notchedOutline": {
-                                    borderColor: "rgba(255, 255, 255, 0.15)",
-                                },
-                                "&:hover .MuiOutlinedInput-notchedOutline": {
-                                    borderColor: "rgba(255, 255, 255, 0.25)",
-                                },
-                                "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                                    borderColor: "rgba(255, 255, 255, 0.35)",
-                                },
-                                "& .MuiSelect-icon": {
-                                    color: "rgba(255, 255, 255, 0.8)",
-                                },
-                            }}
-                            MenuProps={{
-                                PaperProps: {
-                                    sx: {
-                                        bgcolor: "rgba(8, 8, 12, 0.95)",
-                                        border: "1px solid rgba(255, 255, 255, 0.15)",
-                                        "& .MuiMenuItem-root": {
-                                            fontSize: "0.65rem",
-                                            color: "rgba(255, 255, 255, 0.8)",
-                                            "&:hover": {
-                                                bgcolor: "rgba(255, 255, 255, 0.1)",
-                                            },
-                                        },
-                                    },
-                                },
-                            }}
-                        >
-                            <MenuItem value={0}>No Snap</MenuItem>
-                            <MenuItem value={1}>1s</MenuItem>
-                            <MenuItem value={5}>5s</MenuItem>
-                            <MenuItem value={10}>10s</MenuItem>
-                            <MenuItem value={15}>15s</MenuItem>
-                            <MenuItem value={60}>60s</MenuItem>
-                        </Select>
-                    </FormControl>
-                </Box>
+                {/* Timeline Bottom Controls */}
+                <TimelineBottomControls
+                    viewState={viewState}
+                    onZoomChange={onZoomChange}
+                    onSnapToggle={onSnapToggle}
+                    onFitToView={onFitToView}
+                    snapInterval={snapInterval}
+                    onSnapIntervalChange={setSnapInterval}
+                    effectiveTimelineDuration={effectiveTimelineDuration}
+                    sceneCount={scenes.length}
+                    readOnly={readOnly}
+                />
             </Box>
         </Box>
     );

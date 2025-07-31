@@ -78,10 +78,10 @@ const ContentBuilderControls: React.FC<ContentBuilderControlsProps> = ({
             sx={{
                 display: "flex",
                 flexDirection: layout === "horizontal" ? "row" : "column",
-                gap: 2,
-                p: 2,
+                gap: 1,
+                p: 1,
                 bgcolor: "rgba(8, 8, 12, 0.85)",
-                borderRadius: 2,
+                borderRadius: 1,
                 border: "1px solid rgba(255, 255, 255, 0.1)",
                 flexWrap: layout === "horizontal" ? "wrap" : "nowrap",
             }}

@@ -12,8 +12,14 @@
 // User domain types
 export * from "./domains/users";
 
+// Sales domain types (inquiries and clients)
+export * from "./domains/sales";
+
 // Brand and organization types
 export * from "./brand";
+
+// Job roles types
+export * from "./job-roles";
 
 // Authentication and authorization types
 export type { LoginCredentials, AuthResponse, UserProfile, AuthContextType, AuthProviderProps } from "./auth";
@@ -28,6 +34,12 @@ export * from "./timeline";
 // Task library and project management types
 export * from "./task-library";
 
+// Equipment management types
+export * from "./equipment";
+
+// Subjects management types
+export * from "./subjects";
+
 // UI and component prop types
 export * from "./ui";
 
@@ -40,6 +52,8 @@ export * from "./common";
 
 // API response types (backend structure)
 export * from "./api/users";
+export * from "./api/sales";
 
 // API mappers (transform backend to frontend)
 export * from "./mappers/users";
+export * from "./mappers/sales";

@@ -207,7 +207,7 @@ export default function Home() {
             setEditFirstName(contributorToEdit.contact.first_name || "");
             setEditLastName(contributorToEdit.contact.last_name || "");
             setEditPassword("");
-            setEditSelectedRoleId(contributorToEdit.role.id);
+            setEditSelectedRoleId(contributorToEdit.role?.id || 0);
             setIsEditModalOpen(true);
         } else {
             alert("Could not find contributor to edit.");
@@ -227,7 +227,7 @@ export default function Home() {
             email: editEmail !== editingContributor.contact.email ? editEmail : undefined,
             first_name: editFirstName !== (editingContributor.contact.first_name || "") ? editFirstName : undefined,
             last_name: editLastName !== (editingContributor.contact.last_name || "") ? editLastName : undefined,
-            role_id: Number(editSelectedRoleId) !== editingContributor.role.id ? Number(editSelectedRoleId) : undefined,
+            role_id: Number(editSelectedRoleId) !== editingContributor.role?.id ? Number(editSelectedRoleId) : undefined,
             ...(editPassword && { password: editPassword }),
         };
 

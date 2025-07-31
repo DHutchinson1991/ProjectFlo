@@ -3,3 +3,4 @@ export * from './sceneTypes';
 export * from './timelineTypes';
 export * from './dragDropTypes';
 export * from './controlTypes';
+export * from './playbackTypes';

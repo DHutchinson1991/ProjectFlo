@@ -51,6 +51,7 @@ import { api } from "@/lib/api";
 import { Contributor, UpdateContributorDto, UpdateContactDto, Role, getUserInitials, getUserDisplayName } from "@/lib/types";
 import { useTheme } from "@/app/theme/ThemeProvider";
 import { useAuth } from "@/app/providers/AuthProvider";
+import JobRolesManager from "./components/JobRolesManager";
 
 // Types
 interface EditFormData {
@@ -556,6 +557,11 @@ export default function UserProfilePage() {
                             iconPosition="start"
                         />
                         <Tab
+                            label="Jobs & Skills"
+                            icon={<WorkIcon />}
+                            iconPosition="start"
+                        />
+                        <Tab
                             label="Activity & Logs"
                             icon={<HistoryIcon />}
                             iconPosition="start"
@@ -769,12 +775,12 @@ export default function UserProfilePage() {
                                             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                                                 <Chip
                                                     icon={<WorkIcon />}
-                                                    label={user.role.name}
+                                                    label={user.role?.name || 'No Role'}
                                                     color="primary"
                                                     variant="outlined"
                                                     sx={{ fontWeight: 600, fontSize: "0.875rem" }}
                                                 />
-                                                {user.role.description && (
+                                                {user.role?.description && (
                                                     <Typography variant="body2" color="text.secondary">
                                                         {user.role.description}
                                                     </Typography>
@@ -954,7 +960,7 @@ export default function UserProfilePage() {
                                         <Grid item xs={12} md={4}>
                                             <Box sx={{ p: 2, bgcolor: "success.light", color: "success.contrastText", borderRadius: 1, textAlign: "center" }}>
                                                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                                                    {user.role.name === "Admin" || user.role.name === "Global Admin" ? "Full" : "Limited"}
+                                                    {user.role?.name === "Admin" || user.role?.name === "Global Admin" ? "Full" : "Limited"}
                                                 </Typography>
                                                 <Typography variant="body2">
                                                     System Access
@@ -964,7 +970,7 @@ export default function UserProfilePage() {
                                         <Grid item xs={12} md={4}>
                                             <Box sx={{ p: 2, bgcolor: "info.light", color: "info.contrastText", borderRadius: 1, textAlign: "center" }}>
                                                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                                                    {user.role.name === "Admin" || user.role.name === "Global Admin" ? "Yes" : "No"}
+                                                    {user.role?.name === "Admin" || user.role?.name === "Global Admin" ? "Yes" : "No"}
                                                 </Typography>
                                                 <Typography variant="body2">
                                                     User Management
@@ -974,7 +980,7 @@ export default function UserProfilePage() {
                                         <Grid item xs={12} md={4}>
                                             <Box sx={{ p: 2, bgcolor: "warning.light", color: "warning.contrastText", borderRadius: 1, textAlign: "center" }}>
                                                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                                                    {user.role.name === "Global Admin" ? "Yes" : "No"}
+                                                    {user.role?.name === "Global Admin" ? "Yes" : "No"}
                                                 </Typography>
                                                 <Typography variant="body2">
                                                     Global Settings
@@ -987,8 +993,13 @@ export default function UserProfilePage() {
                         </Grid>
                     </TabPanel>
 
-                    {/* Tab 3: Activity & Logs */}
+                    {/* Tab 3: Jobs & Skills */}
                     <TabPanel value={tabValue} index={2}>
+                        <JobRolesManager contributorId={user.id} />
+                    </TabPanel>
+
+                    {/* Tab 4: Activity & Logs */}
+                    <TabPanel value={tabValue} index={3}>
                         <Card sx={{
                             background: mode === "dark" ? "#1a1a1a" : "#ffffff",
                             border: mode === "dark" ? "1px solid #333" : "1px solid #e0e0e0",

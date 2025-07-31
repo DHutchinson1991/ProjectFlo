@@ -57,9 +57,18 @@ export class ContributorsService {
 
   findAll(brandId?: number) {
     const whereClause = brandId ? {
-      contact: {
-        brand_id: brandId
-      }
+      OR: [
+        {
+          contact: {
+            brand_id: brandId
+          }
+        },
+        {
+          contact: {
+            brand_id: null // Include Global Admins (no brand restriction)
+          }
+        }
+      ]
     } : {};
 
     return this.prisma.contributors.findMany({
@@ -67,6 +76,11 @@ export class ContributorsService {
       include: {
         contact: true,
         role: true,
+        contributor_job_roles: {
+          include: {
+            job_role: true
+          }
+        }
       },
     });
   }
@@ -76,7 +90,12 @@ export class ContributorsService {
       where: { id },
       include: {
         contact: true,
-        role: true
+        role: true,
+        contributor_job_roles: {
+          include: {
+            job_role: true
+          }
+        }
       },
     });
     if (!contributor) {
