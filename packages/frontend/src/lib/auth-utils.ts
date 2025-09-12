@@ -1,6 +1,6 @@
 /**
  * Authentication Utilities for Development
- * 
+ *
  * Provides convenient methods for debugging and working with authService
  * in development environments.
  */

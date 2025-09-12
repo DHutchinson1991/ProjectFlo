@@ -19,11 +19,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "test:e2e:contacts": "jest --config ./test/jest-e2e.json -t 'Contacts API'",
-    "test:e2e:contacts-api": "jest --config ./test/jest-e2e.json ./test/contacts-api.e2e-spec.ts",
-    "test:e2e:contributors-api": "jest --config ./test/jest-e2e.json ./test/contributors-api.e2e-spec.ts",
-    "test:e2e:roles-api": "jest --config ./test/jest-e2e.json ./test/roles-api.e2e-spec.ts",
-    "test:e2e:components-api": "jest --config ./test/jest-e2e.json ./test/components-api.e2e-spec.ts"
+    "test:e2e:specific": "jest --config ./test/jest-e2e.json --testNamePattern"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

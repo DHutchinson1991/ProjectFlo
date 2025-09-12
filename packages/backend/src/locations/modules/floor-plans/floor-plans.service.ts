@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { CreateFloorPlanDto, UpdateFloorPlanDto } from '../../dto';
 
 /**
@@ -53,7 +54,7 @@ export class FloorPlansService {
                 project: {
                     select: {
                         id: true,
-                        name: true,
+                        project_name: true,
                     },
                 },
             },
@@ -95,7 +96,7 @@ export class FloorPlansService {
                 project: {
                     select: {
                         id: true,
-                        name: true,
+                        project_name: true,
                     },
                 },
             },
@@ -128,7 +129,7 @@ export class FloorPlansService {
                 project: {
                     select: {
                         id: true,
-                        name: true,
+                        project_name: true,
                     },
                 },
             },
@@ -200,7 +201,6 @@ export class FloorPlansService {
             const project = await this.prisma.projects.findFirst({
                 where: {
                     id: projectId,
-                    is_active: true,
                 },
             });
 
@@ -228,8 +228,12 @@ export class FloorPlansService {
             project_id: projectId || originalFloorPlan.project_id,
             name: `${originalFloorPlan.name} (Copy)`,
             version: nextVersion,
-            fabric_data: originalFloorPlan.fabric_data,
-            layers_data: originalFloorPlan.layers_data,
+            // Ensure JSON input types are correct for Prisma writes
+            fabric_data: originalFloorPlan.fabric_data as Prisma.InputJsonValue,
+            layers_data:
+                originalFloorPlan.layers_data === null
+                    ? Prisma.JsonNull
+                    : (originalFloorPlan.layers_data as Prisma.InputJsonValue),
             is_default: false,
             is_active: true,
             created_by_id: originalFloorPlan.created_by_id,

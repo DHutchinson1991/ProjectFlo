@@ -1,11 +1,13 @@
 // Moonrise Films Task Library Setup - Comprehensive Task Templates
 // Creates: Complete task library for wedding videography workflow
 import { PrismaClient, $Enums } from "@prisma/client";
+import { createSeedLogger, SeedType, SeedSummary } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
-export async function createMoonriseTaskLibrary(brandId: number) {
-    console.log("📋 Creating Task Library...");
+export async function createMoonriseTaskLibrary(brandId: number): Promise<number> {
+    logger.sectionHeader('Task Library');
 
     const taskLibraryItems = [
         // LEAD PHASE
@@ -412,6 +414,8 @@ export async function createMoonriseTaskLibrary(brandId: number) {
         },
     ];
 
+    let created = 0;
+    let skipped = 0;
     for (const task of taskLibraryItems) {
         const existing = await prisma.task_library.findFirst({
             where: {
@@ -424,15 +428,21 @@ export async function createMoonriseTaskLibrary(brandId: number) {
             await prisma.task_library.create({
                 data: task,
             });
+            created++;
+            logger.created(`Task: ${task.name}`, `${$Enums.project_phase[task.phase]} phase`);
+        }
+        else {
+            skipped++;
+            logger.skipped(`Task exists: ${task.name}`, `${$Enums.project_phase[task.phase]} phase`);
         }
     }
-
-    console.log(`  ✓ Created ${taskLibraryItems.length} task library items`);
+    const summary: SeedSummary = { created, updated: 0, skipped, total: created + skipped };
+    logger.summary('Task library items', summary);
     return taskLibraryItems.length;
 }
 
 async function main() {
-    console.log("📋 Seeding Moonrise Films Task Library...");
+    logger.sectionHeader('Seeding Moonrise Films Task Library');
 
     try {
         // Find the Moonrise Films brand
@@ -445,9 +455,9 @@ async function main() {
         }
 
         const taskCount = await createMoonriseTaskLibrary(brand.id);
-        console.log(`✅ Task library setup complete! Created ${taskCount} task items`);
+        logger.success(`Task library setup complete! Created ${taskCount} task items`);
     } catch (error) {
-        console.error("❌ Task library setup failed:", error);
+        logger.error(`Task library setup failed: ${String(error)}`);
         throw error;
     }
 }
@@ -455,7 +465,7 @@ async function main() {
 if (require.main === module) {
     main()
         .catch((e) => {
-            console.error("❌ Task library setup failed:", e);
+            logger.error(`Task library setup failed: ${String(e)}`);
             process.exit(1);
         })
         .finally(async () => {

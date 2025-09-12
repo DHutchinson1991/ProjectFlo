@@ -1,11 +1,13 @@
 // Moonrise Films - Music Library Seed
 // Creates wedding music templates for Moonrise Films brand
 import { PrismaClient, MusicType } from "@prisma/client";
+import { createSeedLogger, SeedType } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
 export async function createMoonriseMusicLibrary() {
-    console.log("🎵 Creating Moonrise Films Music Library...");
+    logger.sectionHeader('Music Library');
 
     try {
         // Get the Moonrise Films brand
@@ -14,18 +16,18 @@ export async function createMoonriseMusicLibrary() {
         });
 
         if (!brand) {
-            console.log("❌ Moonrise Films brand not found!");
-            console.log("💡 Please run the Moonrise brand setup first");
+            logger.error('Moonrise Films brand not found!');
+            logger.info('Please run the Moonrise brand setup first');
             throw new Error("Moonrise Films brand not found");
         }
 
-        console.log(`🏢 Found Moonrise Films brand (ID: ${brand.id})`);
+        logger.success(`Found Moonrise Films brand (ID: ${brand.id})`);
 
         // Clear existing music for this brand
         const deleted = await prisma.musicLibrary.deleteMany({
             where: { brand_id: brand.id }
         });
-        console.log(`🗑️ Cleared ${deleted.count} existing music templates for Moonrise Films`);
+        logger.info(`Cleared ${deleted.count} existing music templates for Moonrise Films`);
 
         // Wedding music templates for Moonrise Films
         const musicTemplates = [
@@ -175,18 +177,33 @@ export async function createMoonriseMusicLibrary() {
             music_type: MusicType;
         }> = [];
         let successCount = 0;
+        let skippedCount = 0;
         let errorCount = 0;
 
         for (const template of musicTemplates) {
             try {
-                const created = await prisma.musicLibrary.create({
-                    data: template
+                // Check if music template already exists by assignment_number
+                const existing = await prisma.musicLibrary.findFirst({
+                    where: {
+                        assignment_number: template.assignment_number,
+                        brand_id: brand.id
+                    }
                 });
-                createdMusic.push(created);
-                console.log(`✅ Created music template: ${template.assignment_number} - ${template.music_name}`);
-                successCount++;
+
+                if (existing) {
+                    logger.skipped(`Music template "${template.assignment_number} - ${template.music_name}" already exists (ID: ${existing.id})`, undefined, 'verbose');
+                    createdMusic.push(existing);
+                    skippedCount++;
+                } else {
+                    const created = await prisma.musicLibrary.create({
+                        data: template
+                    });
+                    createdMusic.push(created);
+                    logger.created(`Music template: ${template.assignment_number} - ${template.music_name}`, 'verbose');
+                    successCount++;
+                }
             } catch (error) {
-                console.error(`❌ Failed to create music template ${template.assignment_number}:`, error.message);
+                logger.error(`Failed to process music template ${template.assignment_number}: ${String(error)}`);
                 errorCount++;
             }
         }
@@ -196,6 +213,7 @@ export async function createMoonriseMusicLibrary() {
             music: createdMusic,
             total: createdMusic.length,
             success: successCount,
+            skipped: skippedCount,
             errors: errorCount,
             ceremony: createdMusic.filter(m =>
                 m.assignment_number?.includes('M002') || // Processional
@@ -222,64 +240,37 @@ export async function createMoonriseMusicLibrary() {
             )
         };
 
-        console.log(`🎵 Successfully created ${result.success} music templates for Moonrise Films`);
-        if (result.errors > 0) {
-            console.log(`⚠️ ${result.errors} music templates failed to create`);
-        }
+        logger.summary('Music templates', { created: successCount, updated: 0, skipped: skippedCount, total: result.total });
 
         return result;
 
     } catch (error) {
-        console.error("❌ Failed to create Moonrise music library:", error);
+        logger.error(`Failed to create Moonrise music library: ${String(error)}`);
         throw error;
     }
 }
 
 async function main() {
-    console.log("🎬 Moonrise Films - Music Library Seed");
-    console.log("=====================================");
+    logger.sectionHeader('Moonrise Films - Music Library Seed');
 
     try {
         const result = await createMoonriseMusicLibrary();
 
-        console.log("\n🎉 =======================================");
-        console.log("✅ Moonrise Music Library Seeded Successfully!");
-        console.log("📊 Summary:");
-        console.log(`   🏢 Brand: Moonrise Films`);
-        console.log(`   🎵 Total Music Templates: ${result.total}`);
-        console.log(`   ✅ Successfully Created: ${result.success}`);
+        logger.sectionDivider('Summary');
+        logger.success('Moonrise Music Library Seeded Successfully!');
+        logger.info(`Brand: Moonrise Films`);
+        logger.info(`Total Music Templates: ${result.total}`);
+        logger.info(`Successfully Created: ${result.success}`);
         if (result.errors > 0) {
-            console.log(`   ❌ Errors: ${result.errors}`);
+            logger.warning(`Errors: ${result.errors}`);
         }
-        console.log(`   💒 Ceremony Music: ${result.ceremony.length} templates`);
-        console.log(`   🎉 Reception Music: ${result.reception.length} templates`);
-        console.log(`   💃 Dance Music: ${result.dances.length} templates`);
-        console.log(`   ✨ Special Moments: ${result.special.length} templates`);
-        console.log("");
-
-        console.log("🎵 Music Templates Created:");
-        console.log("   💒 Ceremony Music:");
-        result.ceremony.forEach(m => console.log(`      • ${m.assignment_number}: ${m.music_name} (${m.duration}s)`));
-
-        console.log("\n   🎉 Reception Music:");
-        result.reception.forEach(m => console.log(`      • ${m.assignment_number}: ${m.music_name} (${m.duration}s)`));
-
-        console.log("\n   💃 Dance Music:");
-        result.dances.forEach(m => console.log(`      • ${m.assignment_number}: ${m.music_name} (${m.duration}s)`));
-
-        console.log("\n   ✨ Special Moments:");
-        result.special.forEach(m => console.log(`      • ${m.assignment_number}: ${m.music_name} (${m.duration}s)`));
-
-        console.log("\n🎬 Ready for Wedding Music Planning!");
-        console.log("💡 Use these music templates for:");
-        console.log("   • Ceremony moments (Prelude, Processional, Recessional)");
-        console.log("   • Reception activities (Cocktail hour, Dinner, Dancing)");
-        console.log("   • Special dances (First dance, Father-daughter, Mother-son)");
-        console.log("   • Key moments (Cake cutting, Bouquet toss, Grand exit)");
-        console.log("=====================================");
+        logger.info(`Ceremony Music: ${result.ceremony.length} templates`);
+        logger.info(`Reception Music: ${result.reception.length} templates`);
+        logger.info(`Dance Music: ${result.dances.length} templates`);
+        logger.info(`Special Moments: ${result.special.length} templates`);
 
     } catch (error) {
-        console.error("❌ Moonrise music library seeding failed:", error);
+        logger.error(`Moonrise music library seeding failed: ${String(error)}`);
         throw error;
     }
 }
@@ -290,7 +281,7 @@ export default main;
 if (require.main === module) {
     main()
         .catch((e) => {
-            console.error("❌ Moonrise music library seeding failed:", e);
+            logger.error(`Moonrise music library seeding failed: ${String(e)}`);
             process.exit(1);
         })
         .finally(async () => {

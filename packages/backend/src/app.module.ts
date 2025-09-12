@@ -34,7 +34,6 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { EstimatesModule } from './estimates/estimates.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { JobRolesModule } from './job-roles/job-roles.module';
-import { CoverageModule } from './coverage/coverage.module';
 import { MomentsModule } from './moments/moments.module';
 import { MusicModule } from './music/music.module';
 import { SubjectsModule } from './content/subjects/subjects.module';
@@ -69,7 +68,6 @@ import { LocationsModule } from './locations/locations.module';
     EstimatesModule,
     QuotesModule,
     JobRolesModule,
-    CoverageModule,
     MomentsModule,
     MusicModule,
     SubjectsModule,

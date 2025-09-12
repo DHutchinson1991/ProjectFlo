@@ -1,11 +1,13 @@
 // Moonrise Films Projects Setup - Sample Wedding Projects
 // Creates: Sample wedding projects with clients for Moonrise Films
-import { PrismaClient, $Enums } from "@prisma/client";
+import { PrismaClient, $Enums, type brands as Brand, type clients as Client, type projects as Project, type contacts as Contact } from "@prisma/client";
+import { createSeedLogger, SeedType, SeedSummary } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
-export async function createMoonriseProjects() {
-    console.log("🎬 Creating Sample Projects for Moonrise Films...");
+export async function createMoonriseProjects(): Promise<{ brand: Brand; clients: Client[]; projects: Project[]; contacts: Contact[]; summary: SeedSummary }> {
+    logger.sectionHeader('Creating Sample Projects for Moonrise Films');
 
     // Find Moonrise Films brand
     const moonriseBrand = await prisma.brands.findFirst({
@@ -13,13 +15,14 @@ export async function createMoonriseProjects() {
     });
 
     if (!moonriseBrand) {
+        logger.error('Moonrise Films brand not found. Please run moonrise-brand-setup.ts first.');
         throw new Error("Moonrise Films brand not found. Please run moonrise-brand-setup.ts first.");
     }
 
-    console.log(`✅ Found Moonrise Films brand (ID: ${moonriseBrand.id})`);
+    logger.success(`Found Moonrise Films brand (ID: ${moonriseBrand.id})`);
 
     // Create sample client contacts first
-    console.log("👥 Creating sample client contacts...");
+    logger.sectionDivider('Creating sample client contacts');
 
     const sarahContact = await prisma.contacts.upsert({
         where: { email: "sarah.johnson@email.com" },
@@ -76,10 +79,10 @@ export async function createMoonriseProjects() {
         }
     });
 
-    console.log(`✅ Created clients: ${sarahContact.first_name} ${sarahContact.last_name} and ${emilyContact.first_name} ${emilyContact.last_name}`);
+    logger.success(`Clients ready: ${sarahContact.first_name} ${sarahContact.last_name} and ${emilyContact.first_name} ${emilyContact.last_name}`);
 
     // Create sample wedding projects
-    console.log("💒 Creating sample wedding projects...");
+    logger.sectionDivider('Creating sample wedding projects');
 
     // Check if projects already exist to avoid duplicates
     const existingProject1 = await prisma.projects.findFirst({
@@ -98,6 +101,9 @@ export async function createMoonriseProjects() {
 
     let project1, project2;
 
+    let created = 0;
+    let skipped = 0;
+
     if (!existingProject1) {
         project1 = await prisma.projects.create({
             data: {
@@ -109,10 +115,12 @@ export async function createMoonriseProjects() {
                 phase: "PLANNING"
             }
         });
-        console.log(`✅ Created project: "${project1.project_name}" (ID: ${project1.id})`);
+        created += 1;
+        logger.created(`Project: "${project1.project_name}" (ID: ${project1.id})`);
     } else {
         project1 = existingProject1;
-        console.log(`ℹ️ Project "${project1.project_name}" already exists (ID: ${project1.id})`);
+        skipped += 1;
+        logger.skipped(`Project "${project1.project_name}" already exists (ID: ${project1.id})`);
     }
 
     if (!existingProject2) {
@@ -126,38 +134,39 @@ export async function createMoonriseProjects() {
                 phase: "PLANNING"
             }
         });
-        console.log(`✅ Created project: "${project2.project_name}" (ID: ${project2.id})`);
+        created += 1;
+        logger.created(`Project: "${project2.project_name}" (ID: ${project2.id})`);
     } else {
         project2 = existingProject2;
-        console.log(`ℹ️ Project "${project2.project_name}" already exists (ID: ${project2.id})`);
+        skipped += 1;
+        logger.skipped(`Project "${project2.project_name}" already exists (ID: ${project2.id})`);
     }
 
-    console.log(`✅ Created 2 sample clients and 2 wedding projects for Moonrise Films`);
+    const summary: SeedSummary = { created, updated: 0, skipped, total: created + skipped };
+    logger.summary('Projects', summary);
 
     return {
         brand: moonriseBrand,
         clients: [client1, client2],
         projects: [project1, project2],
-        contacts: [sarahContact, emilyContact]
+        contacts: [sarahContact, emilyContact],
+        summary
     };
 }
 
 async function main() {
-    console.log("🎬 Seeding Moonrise Films Projects...");
-    console.log("");
+    logger.sectionHeader('Seeding Moonrise Films Projects');
 
     try {
         const results = await createMoonriseProjects();
-
-        console.log("");
-        console.log("🎉 Moonrise Projects seeding completed successfully!");
-        console.log(`📊 Summary:`);
-        console.log(`   • ${results.clients.length} sample clients created`);
-        console.log(`   • ${results.projects.length} wedding projects created for Moonrise Films`);
-        console.log("");
+        logger.sectionDivider('Summary');
+        logger.success('Moonrise Projects seeding completed successfully!');
+        logger.info(`${results.clients.length} sample clients processed`);
+        logger.info(`${results.projects.length} projects processed`);
+        logger.info(`Created: ${results.summary.created}, Skipped: ${results.summary.skipped}`);
 
     } catch (error) {
-        console.error("❌ Error seeding Moonrise projects:", error);
+        logger.error(`Error seeding Moonrise projects: ${String(error)}`);
         throw error;
     }
 }
@@ -165,7 +174,7 @@ async function main() {
 if (require.main === module) {
     main()
         .catch((e) => {
-            console.error("❌ Moonrise projects setup failed:", e);
+            logger.error(`Moonrise projects setup failed: ${String(e)}`);
             process.exit(1);
         })
         .finally(async () => {

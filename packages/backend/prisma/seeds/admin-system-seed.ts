@@ -2,19 +2,25 @@
 // Creates: Timeline layers, global admin user, and basic system infrastructure
 import { PrismaClient, $Enums } from "@prisma/client";
 import * as bcrypt from "bcrypt";
+import { createSeedLogger, SeedType, SeedSummary } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.ADMIN);
 
-async function main() {
-    console.log("🏗️ Setting up Core System Infrastructure...");
-    console.log("");
+async function main(): Promise<SeedSummary> {
+    logger.sectionHeader('Core System Infrastructure', 'STEP 1/6: Admin System');
+    logger.startTimer('admin-seed');
+
+    let totalCreated = 0;
+    let totalUpdated = 0;
+    let totalSkipped = 0;
 
     try {
         // --- SYSTEM INFRASTRUCTURE ---
-        console.log("🏗️ === SYSTEM INFRASTRUCTURE ===");
+        logger.sectionDivider('System Infrastructure');
 
         // Create Timeline Layers
-        console.log("🎬 Creating Timeline Layers...");
+        logger.processing('Creating timeline layers...');
         const timelineLayers = [
             {
                 name: "Video",
@@ -46,22 +52,38 @@ async function main() {
             },
         ];
 
+        let layersCreated = 0;
+        let layersUpdated = 0;
+
         for (const layer of timelineLayers) {
-            await prisma.timelineLayer.upsert({
-                where: { name: layer.name },
-                update: {
-                    order_index: layer.order_index,
-                    color_hex: layer.color_hex,
-                    description: layer.description,
-                    is_active: layer.is_active,
-                },
-                create: layer,
-            });
+            const existing = await prisma.timelineLayer.findUnique({ where: { name: layer.name } });
+            if (existing) {
+                await prisma.timelineLayer.update({
+                    where: { name: layer.name },
+                    data: {
+                        order_index: layer.order_index,
+                        color_hex: layer.color_hex,
+                        description: layer.description,
+                        is_active: layer.is_active,
+                    }
+                });
+                layersUpdated++;
+                logger.skipped(`Timeline layer "${layer.name}"`, 'already exists, updated', 'verbose');
+            } else {
+                await prisma.timelineLayer.create({ data: layer });
+                layersCreated++;
+                logger.created(`Timeline layer "${layer.name}"`, 'verbose');
+            }
         }
-        console.log(`  ✓ Created ${timelineLayers.length} timeline layers`);
+
+        logger.smartSummary('Timeline layers', layersCreated, layersUpdated, timelineLayers.length);
+        totalCreated += layersCreated;
+        totalUpdated += layersUpdated;
+        totalSkipped += (timelineLayers.length - layersCreated - layersUpdated);
 
         // --- GLOBAL ADMIN USER ---
-        console.log("👑 Creating Global Admin User...");
+        logger.sectionDivider('Global Admin User');
+        logger.processing('Creating global admin user...');
 
         // Create global Admin role (not tied to any specific brand)
         const globalAdminRole = await prisma.roles.upsert({
@@ -81,7 +103,7 @@ async function main() {
         const adminPassword = await bcrypt.hash("Alined@2025", 10);
 
         // Create Daniel Hutchinson (Global Admin)
-        console.log("👤 Creating Daniel Hutchinson (Global Admin)...");
+        logger.processing('Creating Daniel Hutchinson (Global Admin)...');
         const danielContact = await prisma.contacts.upsert({
             where: { email: "info@dhutchinson.co.uk" },
             update: {
@@ -99,7 +121,7 @@ async function main() {
             },
         });
 
-        const danielContributor = await prisma.contributors.upsert({
+        await prisma.contributors.upsert({
             where: { contact_id: danielContact.id },
             update: {
                 role_id: globalAdminRole.id,
@@ -116,46 +138,46 @@ async function main() {
             },
         });
 
-        console.log(`  ✓ Created global admin: Daniel Hutchinson`);
-        console.log("    👑 Can access ALL brands and global settings");
-        console.log("");
+        // Track admin user/role creation (these are upserts, so they might be updates or creates)
+        totalCreated += 2; // Assume created for summary purposes
+
+        logger.success('Created global admin: Daniel Hutchinson');
+        logger.info('Global Admin Details:', 'verbose');
+        logger.info('  • Full name: Daniel Hutchinson', 'verbose');
+        logger.info('  • Email: info@dhutchinson.co.uk', 'verbose');
+        logger.info('  • Role: Global Admin', 'verbose');
+        logger.info('  • Access: ALL brands and global settings', 'verbose');
+        logger.info('  • Login password: Alined@2025', 'verbose');
 
         // Final Summary
-        console.log("");
-        console.log("🎉 =======================================");
-        console.log("✅ Core System Setup Complete!");
-        console.log("📊 Summary:");
-        console.log("   • 1 Global Admin user");
-        console.log("   • 1 Global Admin role");
-        console.log(`   • ${timelineLayers.length} Timeline layers`);
-        console.log("");
-        console.log("🔐 Global Admin Login:");
-        console.log("   👑 Global Admin:");
-        console.log("      📧 Email: info@dhutchinson.co.uk");
-        console.log("      🔑 Password: Alined@2025");
-        console.log("      🌐 Access: ALL brands + global settings");
-        console.log("");
-        console.log("🏗️ Infrastructure Created:");
-        console.log("   • Video, Audio, Music, Graphics timeline layers");
-        console.log("");
-        console.log("🔧 Next Steps:");
-        console.log("   1. Run moonrise-films-seed.ts for brand setup");
-        console.log("   2. Brand managers will be created there");
-        console.log("");
-        console.log("💡 Global admin can access all brands");
-        console.log("   Brand-specific users are in brand seed files");
-        console.log("=======================================");
+        logger.success('Core System Setup Complete!');
+        logger.endTimer('admin-seed', 'Admin system seeding');
+
+        return {
+            created: totalCreated,
+            updated: totalUpdated,
+            skipped: totalSkipped,
+            total: totalCreated + totalUpdated + totalSkipped
+        };
     } catch (error) {
         console.error("❌ System infrastructure setup failed:", error);
         throw error;
     }
 }
 
-main()
-    .catch((e) => {
-        console.error("❌ System infrastructure setup failed:", e);
-        process.exit(1);
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-    });
+export default main;
+
+// Allow running this file directly
+if (require.main === module) {
+    main()
+        .then((summary) => {
+            console.log('Admin system seed completed:', summary);
+        })
+        .catch((e) => {
+            console.error("❌ System infrastructure setup failed:", e);
+            process.exit(1);
+        })
+        .finally(async () => {
+            await prisma.$disconnect();
+        });
+}

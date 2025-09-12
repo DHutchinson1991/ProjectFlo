@@ -1,11 +1,13 @@
 import { PrismaClient } from '@prisma/client';
+import { createSeedLogger, SeedType } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
 async function seedMomentTemplates() {
-    try {
-        console.log('🌱 Seeding moment templates...');
+    logger.sectionHeader('Moment Templates');
 
+    try {
         // Wedding Ceremony moments
         const ceremonyMoments = [
             { name: 'Pre-Ceremony Setup', description: 'Venue preparation and guest arrival', order_index: 1, default_duration: 300 },
@@ -22,61 +24,82 @@ async function seedMomentTemplates() {
         const firstDanceMoments = [
             { name: 'Music Setup', description: 'Audio setup and sound check for first dance', order_index: 1, default_duration: 120 },
             { name: 'Dance Introduction', description: 'MC announces the first dance', order_index: 2, default_duration: 60 },
-            { name: 'First Dance', description: 'Couple\'s first dance as married', order_index: 3, default_duration: 240 },
+            { name: 'First Dance', description: "Couple's first dance as married", order_index: 3, default_duration: 240 },
             { name: 'Guest Reaction', description: 'Capturing guest emotions and reactions', order_index: 4, default_duration: 90 },
             { name: 'Dance Conclusion', description: 'End of song and applause', order_index: 5, default_duration: 60 }
         ];
 
-        // Create moment templates for ceremony
-        const ceremonyTemplates = await Promise.all(
-            ceremonyMoments.map(moment =>
-                prisma.momentTemplates.create({
+        let createdCount = 0;
+        let skippedCount = 0;
+
+        // Create moment templates for ceremony with duplicate checking
+        const ceremonyTemplates: Awaited<ReturnType<typeof prisma.momentTemplates.create>>[] = [];
+        for (const moment of ceremonyMoments) {
+            const existing = await prisma.momentTemplates.findFirst({
+                where: {
+                    scene_type: 'CEREMONY',
+                    order_index: moment.order_index
+                }
+            });
+
+            if (existing) {
+                logger.skipped(`Ceremony moment "${moment.name}" already exists (ID: ${existing.id})`, undefined, 'verbose');
+                ceremonyTemplates.push(existing);
+                skippedCount++;
+            } else {
+                const created = await prisma.momentTemplates.create({
                     data: {
                         ...moment,
                         scene_type: 'CEREMONY'
                     }
-                })
-            )
-        );
+                });
+                logger.created(`Ceremony moment: ${moment.name}`, 'verbose');
+                ceremonyTemplates.push(created);
+                createdCount++;
+            }
+        }
 
-        // Create moment templates for first dance
-        const firstDanceTemplates = await Promise.all(
-            firstDanceMoments.map(moment =>
-                prisma.momentTemplates.create({
+        // Create moment templates for first dance with duplicate checking
+        const firstDanceTemplates: Awaited<ReturnType<typeof prisma.momentTemplates.create>>[] = [];
+        for (const moment of firstDanceMoments) {
+            const existing = await prisma.momentTemplates.findFirst({
+                where: {
+                    scene_type: 'FIRST_DANCE',
+                    order_index: moment.order_index
+                }
+            });
+
+            if (existing) {
+                logger.skipped(`First dance moment "${moment.name}" already exists (ID: ${existing.id})`, undefined, 'verbose');
+                firstDanceTemplates.push(existing);
+                skippedCount++;
+            } else {
+                const created = await prisma.momentTemplates.create({
                     data: {
                         ...moment,
                         scene_type: 'FIRST_DANCE'
                     }
-                })
-            )
-        );
+                });
+                logger.created(`First dance moment: ${moment.name}`, 'verbose');
+                firstDanceTemplates.push(created);
+                createdCount++;
+            }
+        }
 
-        console.log('✅ Moment templates created successfully:');
-        console.log(`   📿 Ceremony moments: ${ceremonyTemplates.length}`);
-        console.log(`   💃 First Dance moments: ${firstDanceTemplates.length}`);
-        console.log(`   📊 Total templates: ${ceremonyTemplates.length + firstDanceTemplates.length}`);
-
-        // Display created templates
-        console.log('\n🎯 Created moment templates:');
-
-        console.log('\n📿 CEREMONY MOMENTS:');
-        ceremonyTemplates.forEach((template) => {
-            console.log(`   ${template.order_index}. ${template.name} (${template.default_duration}s) - ${template.description}`);
-        });
-
-        console.log('\n💃 FIRST DANCE MOMENTS:');
-        firstDanceTemplates.forEach((template) => {
-            console.log(`   ${template.order_index}. ${template.name} (${template.default_duration}s) - ${template.description}`);
-        });
+        // Summary
+        const total = ceremonyTemplates.length + firstDanceTemplates.length;
+        logger.summary('Moment templates', { created: createdCount, updated: 0, skipped: skippedCount, total });
+        logger.info(`Ceremony moments: ${ceremonyTemplates.length}`);
+        logger.info(`First Dance moments: ${firstDanceTemplates.length}`);
 
         return {
             ceremonyCount: ceremonyTemplates.length,
             firstDanceCount: firstDanceTemplates.length,
-            total: ceremonyTemplates.length + firstDanceTemplates.length
+            total
         };
 
     } catch (error) {
-        console.error('❌ Error seeding moment templates:', error);
+        logger.error(`Error seeding moment templates: ${String(error)}`);
         throw error;
     }
 }
@@ -85,10 +108,10 @@ async function seedMomentTemplates() {
 async function main() {
     try {
         const results = await seedMomentTemplates();
-        console.log('\n🎉 Moment template seeding completed successfully!');
-        console.log(`📊 Final summary: ${results.total} moment templates created`);
+        logger.success('Moment template seeding completed successfully!');
+        logger.info(`Final summary: ${results.total} moment templates created`);
     } catch (error) {
-        console.error('💥 Seeding failed:', error);
+        logger.error(`Seeding failed: ${String(error)}`);
         process.exit(1);
     } finally {
         await prisma.$disconnect();

@@ -1,11 +1,13 @@
 // Moonrise Films Scenes Setup - Wedding Scenes and Media Components
 // Creates: Scene library items with video, audio, and music components
 import { PrismaClient, $Enums } from "@prisma/client";
+import { createSeedLogger, SeedType } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
 export async function createMoonriseScenes(brandId: number) {
-    console.log("🎬 Creating Wedding Scenes with Media Components...");
+    logger.sectionHeader('Scenes Setup', 'Wedding Scenes + Media Components');
 
     // Create First Dance Scene
     let firstDanceScene = await prisma.scenesLibrary.findFirst({
@@ -133,15 +135,15 @@ export async function createMoonriseScenes(brandId: number) {
         }
     }
 
-    console.log(`  ✓ Created 2 wedding scenes:`);
-    console.log(`    🎬 First Dance (4 min) - Video + Audio + Music`);
-    console.log(`    💒 Ceremony (30 min) - Video + Audio + Music`);
+    logger.success('Created 2 wedding scenes:');
+    logger.info('• First Dance (4 min) - Video + Audio + Music');
+    logger.info('• Ceremony (30 min) - Video + Audio + Music');
 
     return { firstDanceScene, ceremonyScene };
 }
 
 async function main() {
-    console.log("🎬 Seeding Moonrise Films Scenes...");
+    logger.sectionHeader('Seeding Moonrise Films Scenes');
 
     try {
         // Find the Moonrise Films brand
@@ -154,7 +156,7 @@ async function main() {
         }
 
         await createMoonriseScenes(brand.id);
-        console.log(`✅ Scenes setup complete! Created 2 wedding scenes`);
+        logger.success('Scenes setup complete! Created 2 wedding scenes');
     } catch (error) {
         console.error("❌ Scenes setup failed:", error);
         throw error;

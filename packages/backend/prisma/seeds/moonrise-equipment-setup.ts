@@ -1,21 +1,25 @@
 import { PrismaClient, EquipmentCategory, EquipmentType, EquipmentCondition, EquipmentAvailability } from '@prisma/client';
+import { createSeedLogger, SeedType, type SeedSummary } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.EQUIPMENT);
 
-async function seedEquipment() {
-    console.log('🎬 Seeding equipment...');
+async function seedEquipment(): Promise<SeedSummary | void> {
+    logger.sectionHeader('Equipment Setup', 'STEP 14/14: Equipment');
+    logger.startTimer('equipment-seed');
 
     // Get the Moonrise Films brand specifically for equipment assignment
     const brand = await prisma.brands.findFirst({
         where: { name: "Moonrise Films" }
     });
     if (!brand) {
-        console.log('⚠️ Moonrise Films brand not found, skipping equipment seeding');
-        console.log('   Make sure moonrise-films-seed runs before equipment-seed');
+        logger.warning('Moonrise Films brand not found, skipping equipment seeding');
+        logger.info('Make sure moonrise-films-seed runs before equipment-seed');
         return;
     }
 
-    console.log(`✅ Assigning equipment to: ${brand.display_name} (${brand.name})`);
+    logger.success(`Assigning equipment to: ${brand.display_name} (${brand.name})`);
+    logger.sectionDivider('Processing Equipment Items');
 
     // Define equipment data with proper enum types
     const equipmentData = [
@@ -450,25 +454,52 @@ async function seedEquipment() {
         }
     ];
 
-    // Create equipment records
+    // Create equipment records with duplicate checking
+    let createdCount = 0;
+    let skippedCount = 0;
+
     for (const equipment of equipmentData) {
         try {
-            const created = await prisma.equipment.create({
-                data: {
-                    ...equipment,
-                    purchase_date: new Date('2023-01-15'), // Set a default purchase date
-                    last_maintenance: new Date('2024-01-01'),
-                    next_maintenance_due: new Date('2024-12-31')
+            // Check if equipment already exists by item_code
+            const existing = await prisma.equipment.findFirst({
+                where: {
+                    item_code: equipment.item_code,
+                    brand_id: brand.id
                 }
             });
-            console.log(`✅ Created equipment: ${created.item_name}`);
+
+            if (existing) {
+                logger.skipped(`${equipment.item_name} (${equipment.item_code})`, 'already exists', 'verbose');
+                skippedCount++;
+            } else {
+                await prisma.equipment.create({
+                    data: {
+                        ...equipment,
+                        purchase_date: new Date('2023-01-15'), // Set a default purchase date
+                        last_maintenance: new Date('2024-01-01'),
+                        next_maintenance_due: new Date('2024-12-31')
+                    }
+                });
+                logger.created(`${equipment.item_name} (${equipment.item_code})`, 'verbose');
+                createdCount++;
+            }
         } catch (error) {
-            console.error(`❌ Error creating equipment ${equipment.item_name}:`, error);
+            logger.error(`Failed to process equipment ${equipment.item_name}: ${error}`);
         }
     }
 
-    console.log(`🎬 Equipment seeding completed for ${brand.display_name}!`);
+    // Full summary with totals
+    const summary: SeedSummary = { created: createdCount, updated: 0, skipped: skippedCount, total: createdCount + skippedCount };
+    logger.summary('Equipment items', summary);
+
+    logger.endTimer('equipment-seed', 'Equipment seeding');
+    logger.success(`Equipment seeding completed for ${brand.display_name}!`);
+
+    return summary;
 }
+
+// Export the seed function for use in other modules
+export { seedEquipment };
 
 // Run the seed function
 seedEquipment()

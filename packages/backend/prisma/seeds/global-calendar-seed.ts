@@ -1,13 +1,14 @@
-import { PrismaClient, calendar_event_type, $Enums } from '@prisma/client';
+import { PrismaClient, calendar_event_type } from '@prisma/client';
+import { createSeedLogger, SeedType, SeedSummary } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.CALENDAR);
 
-async function seedCalendar() {
-    console.log('🌱 Seeding calendar system...');
+async function seedCalendar(): Promise<SeedSummary> {
+    logger.sectionHeader('Calendar System Setup', 'STEP 6/6: Calendar');
+    logger.startTimer('calendar-seed');
 
     try {
-        // Skip cleanup - we'll handle this with db push/reset
-
         // Find the global admin contributor to use for calendar events
         const globalAdmin = await prisma.contributors.findFirst({
             include: {
@@ -21,10 +22,10 @@ async function seedCalendar() {
         });
 
         if (!globalAdmin) {
-            console.log('⚠️ No global admin found yet, creating basic calendar setup...');
+            logger.warning('No global admin found yet, creating basic calendar setup');
+            logger.processing('Creating video production tags...');
 
-            // Still create tags and basic calendar infrastructure
-            console.log('🏷️ Creating video production tags...');
+            // Create tags with duplicate checking
             const videoProductionTags = [
                 { name: 'Meeting', color: '#1976d2', description: 'Client meetings, team meetings, consultations' },
                 { name: 'Shoot', color: '#d32f2f', description: 'Filming sessions, photography, on-location work' },
@@ -34,47 +35,46 @@ async function seedCalendar() {
                 { name: 'Client', color: '#0288d1', description: 'Client-related events, deliveries, reviews' }
             ];
 
-            const createdTags: any[] = [];
+            let tagsCreated = 0;
+            let tagsSkipped1 = 0;
+
             for (const tagData of videoProductionTags) {
-                try {
-                    const tag = await prisma.tags.create({ data: tagData });
-                    createdTags.push(tag);
-                    console.log(`   ✅ Created tag: "${tag.name}"`);
-                } catch (error: any) {
-                    if (error.code === 'P2002') {
-                        // Tag already exists, get it
-                        const existingTag = await prisma.tags.findUnique({ where: { name: tagData.name } });
-                        if (existingTag) {
-                            createdTags.push(existingTag);
-                            console.log(`   ℹ️  Using existing tag: "${existingTag.name}"`);
-                        }
-                    } else {
-                        throw error;
-                    }
+                const existing = await prisma.tags.findUnique({ where: { name: tagData.name } });
+                if (existing) {
+                    tagsSkipped1++;
+                    logger.skipped(`Tag "${tagData.name}"`, 'already exists', 'verbose');
+                } else {
+                    await prisma.tags.create({ data: tagData });
+                    tagsCreated++;
+                    logger.created(`Tag "${tagData.name}"`, undefined, 'verbose');
                 }
             }
 
-            console.log('\n📊 Basic Calendar System Summary:');
-            console.log(`   🏷️  Tags: ${createdTags.length}`);
-            console.log('   📅 Events: 0 (will be created after contributors are seeded)');
-            console.log('\n🎬 Basic Calendar System Ready!');
-            return;
+            logger.smartSummary('Calendar tags', tagsCreated, tagsSkipped1, videoProductionTags.length);
+            logger.info('Events will be created after contributors are seeded');
+            logger.success('Basic calendar system ready');
+            return {
+                created: tagsCreated,
+                updated: 0,
+                skipped: tagsSkipped1,
+                total: tagsCreated + tagsSkipped1
+            };
         }
 
-        console.log(`📋 Using global admin (ID: ${globalAdmin.id}) for calendar events...`);
+        logger.success(`Using global admin (ID: ${globalAdmin.id}) for calendar events`);
 
         // Find all contributors for calendar events and settings
         const allContributors = await prisma.contributors.findMany({
             orderBy: { id: 'asc' }
         });
 
-        console.log(`👥 Found ${allContributors.length} contributors for calendar setup`);
+        logger.info(`Found ${allContributors.length} contributors for calendar setup`);
         if (allContributors.length < 3) {
-            console.log('⚠️ Need at least 3 contributors for full calendar demo, using available contributors...');
+            logger.warning('Need at least 3 contributors for full calendar demo, using available contributors');
         }
 
-        // Create video production tags
-        console.log('🏷️ Creating video production tags...');
+        // Create video production tags with duplicate checking
+        logger.processing('Creating video production tags...');
         const videoProductionTags = [
             { name: 'Meeting', color: '#1976d2', description: 'Client meetings, team meetings, consultations' },
             { name: 'Shoot', color: '#d32f2f', description: 'Filming sessions, photography, on-location work' },
@@ -84,28 +84,29 @@ async function seedCalendar() {
             { name: 'Client', color: '#0288d1', description: 'Client-related events, deliveries, reviews' }
         ];
 
-        const createdTags: any[] = [];
+        const createdTags: { id: number; name: string; color: string; description: string | null }[] = [];
+        let tagsCreated = 0;
+        let tagsSkipped2 = 0;
+
         for (const tagData of videoProductionTags) {
-            try {
+            const existing = await prisma.tags.findUnique({ where: { name: tagData.name } });
+            if (existing) {
+                createdTags.push(existing);
+                tagsSkipped2++;
+                logger.skipped(`Tag "${tagData.name}"`, 'already exists', 'verbose');
+            } else {
                 const tag = await prisma.tags.create({ data: tagData });
                 createdTags.push(tag);
-                console.log(`   ✅ Created tag: "${tag.name}"`);
-            } catch (error: any) {
-                if (error.code === 'P2002') {
-                    // Tag already exists, get it
-                    const existingTag = await prisma.tags.findUnique({ where: { name: tagData.name } });
-                    if (existingTag) {
-                        createdTags.push(existingTag);
-                        console.log(`   ℹ️  Using existing tag: "${existingTag.name}"`);
-                    }
-                } else {
-                    throw error;
-                }
+                tagsCreated++;
+                logger.created(`Tag "${tagData.name}"`, undefined, 'verbose');
             }
         }
 
+        logger.smartSummary('Calendar tags', tagsCreated, tagsSkipped2, videoProductionTags.length);
+
         // Create realistic calendar events for video production workflow
-        console.log('\n📅 Creating video production calendar events...');
+        logger.sectionDivider('Creating Events');
+        logger.processing('Creating video production calendar events...');
 
         // Use available contributors for events (cycling through them if we have fewer than needed)
         const getContributorId = (index: number) => {
@@ -275,23 +276,50 @@ async function seedCalendar() {
             }
         ];
 
-        const createdEvents: any[] = [];
+        const createdEvents: Array<{
+            id: number;
+            title: string;
+            contributor_id: number;
+            start_time: Date;
+            requestedTags?: string[];
+        }> = [];
+        let eventsCreated = 0;
+        let eventsSkipped = 0;
+
         for (const eventData of calendarEvents) {
             const { tags, ...eventWithoutTags } = eventData;
-            // Fix event_type to be proper enum
-            const eventToCreate = {
-                ...eventWithoutTags,
-                event_type: eventWithoutTags.event_type as calendar_event_type
-            };
-            const event = await prisma.calendar_events.create({
-                data: eventToCreate
+
+            // Check if event already exists by title, contributor, and start time
+            const existingEvent = await prisma.calendar_events.findFirst({
+                where: {
+                    title: eventWithoutTags.title,
+                    contributor_id: eventWithoutTags.contributor_id,
+                    start_time: eventWithoutTags.start_time
+                }
             });
-            createdEvents.push({ ...event, requestedTags: tags });
-            console.log(`   ✅ Created: "${event.title}"`);
+
+            if (existingEvent) {
+                createdEvents.push({ ...existingEvent, requestedTags: tags });
+                eventsSkipped++;
+            } else {
+                // Fix event_type to be proper enum
+                const eventToCreate = {
+                    ...eventWithoutTags,
+                    event_type: eventWithoutTags.event_type as calendar_event_type
+                };
+                const event = await prisma.calendar_events.create({
+                    data: eventToCreate
+                });
+                createdEvents.push({ ...event, requestedTags: tags });
+                eventsCreated++;
+            }
         }
 
+        logger.smartSummary('Calendar events', eventsCreated, eventsSkipped, calendarEvents.length);
+
         // Create calendar settings for all contributors
-        console.log('\n⚙️ Creating calendar settings...');
+        logger.sectionDivider('Calendar Settings');
+        logger.processing('Creating calendar settings...');
 
         // Create settings for each available contributor
         interface CalendarSetting {
@@ -351,14 +379,15 @@ async function seedCalendar() {
 
             if (!existingSettings) {
                 await prisma.calendar_settings.create({ data: setting });
-                console.log(`   ✅ Settings for contributor ${setting.contributor_id}`);
+                logger.created(`Calendar settings for contributor ${setting.contributor_id}`, undefined, 'verbose');
             } else {
-                console.log(`   ℹ️  Settings already exist for contributor ${setting.contributor_id}`);
+                logger.skipped(`Calendar settings for contributor ${setting.contributor_id}`, 'already exists', 'verbose');
             }
         }
 
         // Create task library for video production workflow
-        console.log('\n📋 Creating task library...');
+        logger.sectionDivider('Task Library');
+        logger.processing('Creating task library...');
 
         // First, get the Moonrise Films brand for tasks
         const moonriseBrand = await prisma.brands.findFirst({
@@ -366,7 +395,7 @@ async function seedCalendar() {
         });
 
         if (!moonriseBrand) {
-            console.log('⚠️ Moonrise Films brand not found, skipping task creation');
+            logger.warning('Moonrise Films brand not found, skipping task creation');
         } else {
             const taskLibraryItems = [
                 // LEAD PHASE
@@ -671,33 +700,56 @@ async function seedCalendar() {
                     await prisma.task_library.create({
                         data: task,
                     });
-                    console.log(`   ✅ Created task: "${task.name}" (${task.effort_hours}h)`);
+                    logger.created(`Task "${task.name}" (${task.effort_hours}h)`, undefined, 'verbose');
+                } else {
+                    logger.skipped(`Task "${task.name}"`, 'already exists', 'verbose');
                 }
             }
-            console.log(`   📋 Task library complete: ${taskLibraryItems.length} tasks created`);
+            logger.success(`Task library complete: ${taskLibraryItems.length} tasks processed`);
         }
 
-        // Add event tags
-        console.log('\n🏷️ Adding event tags...');
+        // Add event tags with duplicate checking
+        logger.sectionDivider('Event Tags');
+        logger.processing('Adding event tags...');
+        let tagsAdded = 0;
+        let tagsSkipped3 = 0;
+
         for (const event of createdEvents) {
             if (event.requestedTags && event.requestedTags.length > 0) {
                 for (const tagName of event.requestedTags) {
                     const tag = createdTags.find(t => t.name === tagName);
                     if (tag) {
-                        await prisma.event_tags.create({
-                            data: {
-                                event_id: event.id,
-                                tag_id: tag.id
+                        // Check if tag relationship already exists
+                        const existingTagRelation = await prisma.event_tags.findUnique({
+                            where: {
+                                event_id_tag_id: {
+                                    event_id: event.id,
+                                    tag_id: tag.id
+                                }
                             }
                         });
-                        console.log(`   ✅ Tagged "${event.title}" → ${tagName}`);
+
+                        if (!existingTagRelation) {
+                            await prisma.event_tags.create({
+                                data: {
+                                    event_id: event.id,
+                                    tag_id: tag.id
+                                }
+                            });
+                            tagsAdded++;
+                        } else {
+                            tagsSkipped3++;
+                        }
                     }
                 }
             }
         }
 
-        // Add event attendees
-        console.log('\n👥 Adding event attendees...');
+        logger.smartSummary('Event tags', tagsAdded, tagsSkipped3, createdEvents.length * 2); // Rough estimate
+
+        // Add event attendees with duplicate checking
+        logger.sectionDivider('Event Attendees');
+        logger.processing('Adding event attendees...');
 
         // Create attendee assignments using actual contributor IDs
         const contributorIds = allContributors.map(c => c.id);
@@ -711,6 +763,9 @@ async function seedCalendar() {
             { eventTitle: 'Team Weekly Standup', attendees: contributorIds.slice(0, 3) },
             { eventTitle: 'Rough Cut Review - Wedding Footage', attendees: contributorIds.slice(0, 2) }
         ];
+
+        let attendeesAdded = 0;
+        let attendeesSkipped = 0;
 
         for (const assignment of attendeeAssignments) {
             const event = createdEvents.find(e => e.title === assignment.eventTitle);
@@ -735,14 +790,19 @@ async function seedCalendar() {
                                 status: status
                             }
                         });
+                        attendeesAdded++;
+                    } else {
+                        attendeesSkipped++;
                     }
                 }
-                console.log(`   ✅ Added ${assignment.attendees.length} attendees to "${event.title}"`);
             }
         }
 
-        // Add event reminders for important events
-        console.log('\n⏰ Adding event reminders...');
+        logger.smartSummary('Event attendees', attendeesAdded, attendeesSkipped, attendeeAssignments.length * 3); // Rough estimate
+
+        // Add event reminders for important events with duplicate checking
+        logger.sectionDivider('Event Reminders');
+        logger.processing('Adding event reminders...');
         const reminderEvents = [
             { title: 'Project Kickoff Meeting - Anderson Music Video', minutesBefore: [60, 15] },
             { title: 'Wedding Shoot - Smith Family', minutesBefore: [1440, 60] }, // 24 hours and 1 hour
@@ -751,24 +811,44 @@ async function seedCalendar() {
             { title: 'Final Delivery - Corporate Video', minutesBefore: [60] }
         ];
 
+        let remindersAdded = 0;
+        let remindersSkipped = 0;
+
         for (const reminderConfig of reminderEvents) {
             const event = createdEvents.find(e => e.title === reminderConfig.title);
             if (event) {
                 for (const minutes of reminderConfig.minutesBefore) {
                     const reminderTime = new Date(new Date(event.start_time).getTime() - minutes * 60 * 1000);
-                    await prisma.event_reminders.create({
-                        data: {
+
+                    // Check if reminder already exists
+                    const existingReminder = await prisma.event_reminders.findFirst({
+                        where: {
                             event_id: event.id,
                             reminder_time: reminderTime,
                             method: 'EMAIL'
                         }
                     });
+
+                    if (!existingReminder) {
+                        await prisma.event_reminders.create({
+                            data: {
+                                event_id: event.id,
+                                reminder_time: reminderTime,
+                                method: 'EMAIL'
+                            }
+                        });
+                        remindersAdded++;
+                    } else {
+                        remindersSkipped++;
+                    }
                 }
-                console.log(`   ✅ Added ${reminderConfig.minutesBefore.length} reminders for "${event.title}"`);
             }
         }
 
+        logger.smartSummary('Event reminders', remindersAdded, remindersSkipped, reminderEvents.length * 2); // Rough estimate
+
         // Show final statistics
+        logger.sectionDivider('Final Summary');
         const eventCount = await prisma.calendar_events.count();
         const tagCount = await prisma.tags.count();
         const attendeeCount = await prisma.event_attendees.count();
@@ -776,21 +856,33 @@ async function seedCalendar() {
         const settingsCount = await prisma.calendar_settings.count();
         const taskCount = await prisma.task_library.count();
 
-        console.log('\n📊 Calendar System Summary:');
-        console.log(`   📅 Events: ${eventCount}`);
-        console.log(`   🏷️  Tags: ${tagCount}`);
-        console.log(`   👥 Attendees: ${attendeeCount}`);
-        console.log(`   ⏰ Reminders: ${reminderCount}`);
-        console.log(`   ⚙️  Settings: ${settingsCount}`);
-        console.log(`   📋 Tasks: ${taskCount}`);
+        logger.success(`Calendar system seeding completed`);
+        logger.endTimer('calendar-seed', 'Calendar seeding');
+        logger.info(`📅 Events: ${eventCount}`);
+        logger.info(`🏷️  Tags: ${tagCount}`);
+        logger.info(`👥 Attendees: ${attendeeCount}`);
+        logger.info(`⏰ Reminders: ${reminderCount}`);
+        logger.info(`⚙️  Settings: ${settingsCount}`);
+        logger.info(`📋 Tasks: ${taskCount}`);
 
-        console.log('\n🎬 Video Production Calendar & Task Library Ready!');
+        logger.success('Video Production Calendar & Task Library Ready!');
 
+        return {
+            created: eventsCreated + tagsCreated + attendeesAdded + remindersAdded,
+            updated: 0,
+            skipped: eventsSkipped + tagsSkipped2 + attendeesSkipped + remindersSkipped,
+            total: (eventsCreated + tagsCreated + attendeesAdded + remindersAdded) + (eventsSkipped + tagsSkipped2 + attendeesSkipped + remindersSkipped)
+        };
     } catch (error) {
         console.error('❌ Error seeding calendar:', error);
         throw error;
     }
 }
 
+// Export the function for use in other modules
+export { seedCalendar };
+
 // Run this seed
-seedCalendar().catch(console.error);
+if (require.main === module) {
+    seedCalendar().catch(console.error);
+}

@@ -1,11 +1,13 @@
 // Moonrise Films Film Library Setup - Film Items and Deliverables
 // Creates: Film library items for wedding videography
 import { PrismaClient, $Enums } from "@prisma/client";
+import { createSeedLogger, SeedType } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
 export async function createMoonriseFilmLibrary(brandId: number) {
-    console.log("📚 Creating Film Library...");
+    logger.sectionHeader('Film Library');
 
     const filmItems = [
         {
@@ -44,12 +46,12 @@ export async function createMoonriseFilmLibrary(brandId: number) {
         });
     }
 
-    console.log(`  ✓ Created ${filmItems.length} film items`);
+    logger.success(`Created ${filmItems.length} film items`);
     return filmItems.length;
 }
 
 async function main() {
-    console.log("📚 Seeding Moonrise Films Film Library...");
+    logger.sectionHeader('Seeding Moonrise Films Film Library');
 
     try {
         // Find the Moonrise Films brand
@@ -62,7 +64,7 @@ async function main() {
         }
 
         const filmCount = await createMoonriseFilmLibrary(brand.id);
-        console.log(`✅ Film library setup complete! Created ${filmCount} film items`);
+        logger.success(`Film library setup complete! Created ${filmCount} film items`);
     } catch (error) {
         console.error("❌ Film library setup failed:", error);
         throw error;

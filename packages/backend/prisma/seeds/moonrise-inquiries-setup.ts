@@ -1,23 +1,15 @@
 // Moonrise Films Inquiries Setup - Wedding Inquiries & Leads
 // Creates: Sample wedding inquiries for Moonrise Films
-import { PrismaClient, $Enums, inquiries } from "@prisma/client";
+import { PrismaClient, $Enums, type inquiries as Inquiry, type contacts as Contact, type brands as Brand } from "@prisma/client";
+import { createSeedLogger, SeedType, SeedSummary } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
-interface ContactType {
-    id: number;
-    email: string;
-    first_name: string | null;
-    last_name: string | null;
-    phone_number: string | null;
-    company_name: string | null;
-    type: $Enums.contacts_type;
-    brand_id: number | null;
-    archived_at: Date | null;
-}
+// Using Prisma Contact type directly; no custom ContactType needed
 
-export async function createMoonriseInquiries() {
-    console.log("📧 Creating Sample Inquiries for Moonrise Films...");
+export async function createMoonriseInquiries(): Promise<{ brand: Brand; contacts: Contact[]; inquiries: Inquiry[]; statusCounts: Record<string, number>; summary: SeedSummary }> {
+    logger.sectionHeader('Creating Sample Inquiries for Moonrise Films');
 
     // Find Moonrise Films brand
     const moonriseBrand = await prisma.brands.findFirst({
@@ -25,13 +17,14 @@ export async function createMoonriseInquiries() {
     });
 
     if (!moonriseBrand) {
+        logger.error('Moonrise Films brand not found. Please run moonrise-brand-setup.ts first.');
         throw new Error("Moonrise Films brand not found. Please run moonrise-brand-setup.ts first.");
     }
 
-    console.log(`✅ Found Moonrise Films brand (ID: ${moonriseBrand.id})`);
+    logger.success(`Found Moonrise Films brand (ID: ${moonriseBrand.id})`);
 
     // Create sample inquiry contacts
-    console.log("👥 Creating inquiry contacts...");
+    logger.sectionDivider('Creating inquiry contacts');
 
     const inquiryContacts = [
         {
@@ -66,7 +59,7 @@ export async function createMoonriseInquiries() {
         }
     ];
 
-    const contacts: ContactType[] = [];
+    const contacts: Contact[] = [];
     for (const contactData of inquiryContacts) {
         const contact = await prisma.contacts.upsert({
             where: { email: contactData.email },
@@ -80,10 +73,10 @@ export async function createMoonriseInquiries() {
         contacts.push(contact);
     }
 
-    console.log(`✅ Created ${contacts.length} inquiry contacts`);
+    logger.success(`Upserted ${contacts.length} inquiry contacts`);
 
     // Create wedding inquiries
-    console.log("💍 Creating wedding inquiries...");
+    logger.sectionDivider('Creating wedding inquiries');
 
     const inquiryData = [
         {
@@ -123,7 +116,9 @@ export async function createMoonriseInquiries() {
         }
     ];
 
-    const inquiries: inquiries[] = [];
+    const inquiries: Inquiry[] = [];
+    let created = 0;
+    let skipped = 0;
     for (const inquiry of inquiryData) {
         // Check if inquiry already exists
         const existingInquiry = await prisma.inquiries.findFirst({
@@ -138,12 +133,19 @@ export async function createMoonriseInquiries() {
                 data: inquiry
             });
             inquiries.push(newInquiry);
+            created += 1;
+            const dateText = newInquiry.wedding_date ? newInquiry.wedding_date.toISOString().slice(0, 10) : 'no-date';
+            logger.created(`Inquiry for contact ${newInquiry.contact_id} on ${dateText}`);
         } else {
             inquiries.push(existingInquiry);
+            skipped += 1;
+            const dateText = existingInquiry.wedding_date ? existingInquiry.wedding_date.toISOString().slice(0, 10) : 'no-date';
+            logger.skipped(`Inquiry for contact ${existingInquiry.contact_id} on ${dateText}`);
         }
     }
 
-    console.log(`✅ Created ${inquiries.length} wedding inquiries`);
+    const summary: SeedSummary = { created, updated: 0, skipped, total: created + skipped };
+    logger.summary('Inquiries', summary);
 
     // Summary by status
     const statusCounts = inquiries.reduce((acc, inquiry) => {
@@ -151,37 +153,33 @@ export async function createMoonriseInquiries() {
         return acc;
     }, {} as Record<string, number>);
 
-    console.log(`📊 Inquiry Status Summary:`);
+    logger.sectionDivider('Inquiry Status Summary');
     Object.entries(statusCounts).forEach(([status, count]) => {
-        console.log(`   • ${status}: ${count} inquiries`);
+        logger.info(`${status}: ${count}`);
     });
 
     return {
         brand: moonriseBrand,
         contacts,
         inquiries,
-        statusCounts
+        statusCounts,
+        summary
     };
 }
 
 async function main() {
-    console.log("📧 Seeding Moonrise Films Inquiries...");
-    console.log("");
+    logger.sectionHeader('Seeding Moonrise Films Inquiries');
 
     try {
         const results = await createMoonriseInquiries();
-
-        console.log("");
-        console.log("🎉 Moonrise Inquiries seeding completed successfully!");
-        console.log(`📊 Summary:`);
-        console.log(`   • ${results.contacts.length} inquiry contacts created`);
-        console.log(`   • ${results.inquiries.length} wedding inquiries created for Moonrise Films`);
-        console.log(`   • Lead sources: Instagram, Referral, Website, Wedding Expo, Google Search`);
-        console.log(`   • Venues: Grand Ballroom, Lakeside Resort, Mountain View Lodge, Historic Manor, Beachfront Resort`);
-        console.log("");
+        logger.sectionDivider('Summary');
+        logger.success('Moonrise Inquiries seeding completed successfully!');
+        logger.info(`${results.contacts.length} inquiry contacts processed`);
+        logger.info(`${results.inquiries.length} inquiries processed`);
+        logger.info(`Created: ${results.summary.created}, Skipped: ${results.summary.skipped}`);
 
     } catch (error) {
-        console.error("❌ Error seeding Moonrise inquiries:", error);
+        logger.error(`Error seeding Moonrise inquiries: ${String(error)}`);
         throw error;
     }
 }
@@ -189,7 +187,7 @@ async function main() {
 if (require.main === module) {
     main()
         .catch((e) => {
-            console.error("❌ Moonrise inquiries setup failed:", e);
+            logger.error(`Moonrise inquiries setup failed: ${String(e)}`);
             process.exit(1);
         })
         .finally(async () => {

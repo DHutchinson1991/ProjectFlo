@@ -1,11 +1,13 @@
 // Moonrise Films Brand Setup - Core Brand Creation
 // Creates: Brand entity, settings, and basic configuration
 import { PrismaClient } from "@prisma/client";
+import { createSeedLogger, SeedType } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
 export async function createMoonriseBrand() {
-    console.log("🏢 Creating Moonrise Films Brand...");
+    logger.sectionHeader('Brand Setup', 'Moonrise Films');
 
     const moonriseBrand = await prisma.brands.upsert({
         where: { name: "Moonrise Films" },
@@ -97,16 +99,16 @@ export async function createMoonriseBrand() {
         });
     }
 
-    console.log(`  ✓ Created Moonrise Films brand with settings`);
+    logger.success('Created Moonrise Films brand with settings');
     return moonriseBrand;
 }
 
 async function main() {
-    console.log("🏢 Seeding Moonrise Films Brand Setup...");
+    logger.sectionHeader('Seeding Moonrise Films Brand Setup');
 
     try {
         const brand = await createMoonriseBrand();
-        console.log(`✅ Brand setup complete! Brand ID: ${brand.id}`);
+        logger.success(`Brand setup complete! Brand ID: ${brand.id}`);
     } catch (error) {
         console.error("❌ Brand setup failed:", error);
         throw error;

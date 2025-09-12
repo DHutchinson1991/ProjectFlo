@@ -4,66 +4,38 @@ import { createLayer5Brand } from './layer5-brand-setup';
 import { createLayer5Team } from './layer5-team-setup';
 import { createLayer5Clients } from './layer5-clients-setup';
 import { PrismaClient } from "@prisma/client";
+import { createSeedLogger, SeedType, SeedSummary } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.LAYER5);
 
-async function main() {
-    console.log("🏢 Seeding Layer5 Corporate Videography - Complete Setup...");
-    console.log("===============================================");
+async function main(): Promise<SeedSummary> {
+    logger.sectionHeader('Layer5 Corporate Videography - Complete Setup');
 
     try {
+        const aggregate: SeedSummary = { created: 0, updated: 0, skipped: 0, total: 0 };
         // 1. Create Brand
-        console.log("\n🏢 STEP 1: Brand Setup");
+        logger.sectionDivider('STEP 1: Brand Setup');
         const brand = await createLayer5Brand();
 
         // 2. Create Team
-        console.log("\n👥 STEP 2: Team Setup");
+        logger.sectionDivider('STEP 2: Team Setup');
         const team = await createLayer5Team(brand.id);
 
         // 3. Create Sample Clients
-        console.log("\n🏢 STEP 3: Sample Clients Setup");
+        logger.sectionDivider('STEP 3: Sample Clients Setup');
         const clients = await createLayer5Clients();
 
         // Final Summary
-        console.log("\n🎉 =======================================");
-        console.log("✅ Layer5 Corporate Videography Complete Setup Finished!");
-        console.log("📊 Summary:");
-        console.log(`   • 1 brand (${brand.name})`);
-        console.log(`   • ${team.teamMembers.length} team members`);
-        console.log(`   • ${clients.clients.length} sample corporate clients`);
-        console.log("");
-        console.log("🏢 Brand: Layer5 Corporate Videography");
-        console.log("");
-        console.log("👥 Team Members:");
-        console.log("   🎬 Creative Director: Sarah Chen (sarah.chen@layer5video.com)");
-        console.log("   📹 Senior Videographer: Marcus Rodriguez (marcus.rodriguez@layer5video.com)");
-        console.log("   ✂️ Lead Editor: Emma Thompson (emma.thompson@layer5video.com)");
-        console.log("   📋 Producer: David Kim (david.kim@layer5video.com)");
-        console.log("");
-        console.log("🏢 Sample Clients:");
-        console.log("   • TechCorp Solutions");
-        console.log("   • Healthcare Innovations Inc");
-        console.log("   • Sustainable Energy Partners");
-        console.log("");
-        console.log("🔐 Team Member Login Credentials:");
-        console.log("   📧 All members: [email] | 🔑 Password: [firstname]123");
-        console.log("");
-        console.log("🌐 Global Access:");
-        console.log("   🌟 Global Admin: Daniel Hutchinson (from admin seed)");
-        console.log("   📧 Global: info@dhutchinson.co.uk | 🔑 Password: Alined@2025");
-        console.log("   🌟 Can access ALL brands including Layer5");
-        console.log("");
-        console.log("🎬 Services Focus:");
-        console.log("   • Corporate Brand Videos");
-        console.log("   • Training & Educational Content");
-        console.log("   • Executive Communications");
-        console.log("   • Product Demonstrations");
-        console.log("   • Company Culture Videos");
-        console.log("   • Event Coverage");
-        console.log("");
-        console.log("✨ Ready for professional corporate video production!");
-        console.log("===============================================");
+        logger.sectionDivider('Summary');
+        logger.success('Layer5 Corporate Videography Complete Setup Finished!');
+        logger.info(`• 1 brand (${brand.name})`);
+        logger.info(`• ${team.teamMembers.length} team members`);
+        logger.info(`• ${clients.clients.length} sample corporate clients`);
+        logger.info(`• Aggregate changes this run — Created: ${aggregate.created}, Updated: ${aggregate.updated}, Skipped: ${aggregate.skipped}, Total: ${aggregate.total}`);
 
+        // Neutral summary; rely on detailed sub-seed logging
+        return aggregate;
     } catch (error) {
         console.error("❌ Layer5 setup failed:", error);
         throw error;

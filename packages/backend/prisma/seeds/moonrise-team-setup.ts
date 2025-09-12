@@ -1,12 +1,14 @@
 // Moonrise Films Team Setup - Contributors and Roles
 // Creates: Team members, roles, and user-brand associations
 import { PrismaClient, $Enums } from "@prisma/client";
+import { createSeedLogger, SeedType } from '../utils/seed-logger';
 import * as bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
 export async function createMoonriseTeam(brandId: number) {
-    console.log("👥 Creating Moonrise Films Team...");
+    logger.sectionHeader('Team Setup');
 
     // Create Manager role for Moonrise Films
     const managerRole = await prisma.roles.upsert({
@@ -26,7 +28,7 @@ export async function createMoonriseTeam(brandId: number) {
     const managerPassword = await bcrypt.hash("Manager@2025", 10);
 
     // Create Andy Galloway (Manager)
-    console.log("👤 Creating Andy Galloway (Manager)...");
+    logger.info("Creating Andy Galloway (Manager)...");
     const andyContact = await prisma.contacts.upsert({
         where: { email: "andy.galloway@projectflo.co.uk" },
         update: {
@@ -82,7 +84,7 @@ export async function createMoonriseTeam(brandId: number) {
     });
 
     // Create Corri Lee (Manager)
-    console.log("👤 Creating Corri Lee (Manager)...");
+    logger.info("Creating Corri Lee (Manager)...");
     const corriContact = await prisma.contacts.upsert({
         where: { email: "corri.lee@projectflo.co.uk" },
         update: {
@@ -137,9 +139,9 @@ export async function createMoonriseTeam(brandId: number) {
         },
     });
 
-    console.log(`  ✓ Created 2 team members for Moonrise Films`);
-    console.log("  👥 Managers: Andy Galloway, Corri Lee");
-    console.log("  🌐 Global admin (Daniel) has access via admin system");
+    logger.success('Created 2 team members for Moonrise Films');
+    logger.info('Managers: Andy Galloway, Corri Lee');
+    logger.info('Global admin (Daniel) has access via admin system');
 
     return {
         managerRole,
@@ -151,7 +153,7 @@ export async function createMoonriseTeam(brandId: number) {
 }
 
 async function main() {
-    console.log("👥 Seeding Moonrise Films Team...");
+    logger.sectionHeader('Seeding Moonrise Films Team');
 
     try {
         // Find the Moonrise Films brand
@@ -164,7 +166,7 @@ async function main() {
         }
 
         const team = await createMoonriseTeam(brand.id);
-        console.log(`✅ Team setup complete! Created ${team.teamMembers.length} team members`);
+        logger.success(`Team setup complete! Created ${team.teamMembers.length} team members`);
     } catch (error) {
         console.error("❌ Team setup failed:", error);
         throw error;

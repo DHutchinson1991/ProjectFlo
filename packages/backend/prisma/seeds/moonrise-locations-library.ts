@@ -1,11 +1,13 @@
 // Moonrise Films Locations Library - Shropshire Wedding Venues
 // Creates: 5 premium Shropshire wedding venues with detailed information and example spaces
 import { PrismaClient } from "@prisma/client";
+import { createSeedLogger, SeedType } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
 export async function seedMoonriseLocationsLibrary() {
-    console.log("🏰 Seeding Moonrise Films Locations Library - Shropshire Wedding Venues...");
+    logger.sectionHeader('Locations Library - Shropshire Wedding Venues');
 
     // First, get the Moonrise Films brand ID
     const moonriseBrand = await prisma.brands.findUnique({
@@ -13,11 +15,11 @@ export async function seedMoonriseLocationsLibrary() {
     });
 
     if (!moonriseBrand) {
-        console.warn("⚠️ Moonrise Films brand not found. Please run moonrise-brand-setup first.");
+        logger.warning('Moonrise Films brand not found. Please run moonrise-brand-setup first.');
         return;
     }
 
-    console.log(`🎬 Found Moonrise Films brand (ID: ${moonriseBrand.id})`);
+    logger.success(`Found Moonrise Films brand (ID: ${moonriseBrand.id})`);
 
     // Define the 5 Shropshire wedding venues
     const shropshireVenues = [
@@ -109,58 +111,74 @@ export async function seedMoonriseLocationsLibrary() {
         }
     ];
 
-    // Create the venues and their spaces
+    // Create the venues and their spaces with duplicate checking
+    let createdVenuesCount = 0;
+    let skippedVenuesCount = 0;
+    let createdSpacesCount = 0;
+
     for (const venueData of shropshireVenues) {
         const { spaces, ...venueInfo } = venueData;
 
-        console.log(`🏛️ Creating venue: ${venueData.name}`);
-
-        const venue = await prisma.locationsLibrary.upsert({
+        // Check if venue already exists by name and brand
+        const existingVenue = await prisma.locationsLibrary.findFirst({
             where: {
-                // Create a unique constraint based on name and brand_id
-                id: -1 // This will always fail for where, so it will create
-            },
-            update: {},
-            create: {
-                ...venueInfo,
-                brand_id: moonriseBrand.id,
-                is_active: true
+                name: venueData.name,
+                brand_id: moonriseBrand.id
             }
         });
 
-        // Create spaces if they exist
-        if (spaces && spaces.length > 0) {
-            console.log(`  📍 Creating ${spaces.length} spaces for ${venueData.name}`);
-
-            for (const spaceData of spaces) {
-                await prisma.locationSpaces.create({
-                    data: {
-                        ...spaceData,
-                        location_id: venue.id,
-                        is_active: true
-                    }
-                });
-                console.log(`    ✅ Created space: ${spaceData.name}`);
-            }
+        let venue;
+        if (existingVenue) {
+            logger.skipped(`Venue "${venueData.name}" already exists (ID: ${existingVenue.id})`, undefined, 'verbose');
+            venue = existingVenue;
+            skippedVenuesCount++;
+        } else {
+            venue = await prisma.locationsLibrary.create({
+                data: {
+                    ...venueInfo,
+                    brand_id: moonriseBrand.id,
+                    is_active: true
+                }
+            });
+            logger.created(`Venue: ${venueData.name} (ID: ${venue.id})`, 'verbose');
+            createdVenuesCount++;
         }
 
-        console.log(`✅ Successfully created venue: ${venueData.name} (ID: ${venue.id})`);
-    }
+        // Create spaces if they exist and venue was newly created
+        if (spaces && spaces.length > 0) {
+            if (existingVenue) {
+                logger.info(`Skipping spaces for existing venue: ${venueData.name}`);
+            } else {
+                logger.info(`Creating ${spaces.length} spaces for ${venueData.name}`);
 
-    console.log("🎉 Moonrise Films Locations Library seeding completed!");
-    console.log(`📊 Created ${shropshireVenues.length} Shropshire wedding venues`);
-    console.log(`📍 Created ${shropshireVenues.reduce((total, venue) => total + (venue.spaces?.length || 0), 0)} location spaces`);
+                for (const spaceData of spaces) {
+                    await prisma.locationSpaces.create({
+                        data: {
+                            ...spaceData,
+                            location_id: venue.id,
+                            is_active: true
+                        }
+                    });
+                    logger.created(`Space: ${spaceData.name}`, 'verbose');
+                    createdSpacesCount++;
+                }
+            }
+        }
+    }
+    logger.summary('Venues', { created: createdVenuesCount, updated: 0, skipped: skippedVenuesCount, total: createdVenuesCount + skippedVenuesCount });
+    logger.info(`Spaces created: ${createdSpacesCount}`);
+    logger.success('Moonrise Films Locations Library seeding completed!');
 }
 
 // Allow this file to be run directly
 if (require.main === module) {
     seedMoonriseLocationsLibrary()
         .catch((e) => {
-            console.error("❌ Error seeding Moonrise locations library:", e);
+            logger.error(`Error seeding Moonrise locations library: ${String(e)}`);
             process.exit(1);
         })
         .finally(async () => {
             await prisma.$disconnect();
-            console.log("🔌 Database connection closed.");
+            logger.info("Database connection closed.");
         });
 }

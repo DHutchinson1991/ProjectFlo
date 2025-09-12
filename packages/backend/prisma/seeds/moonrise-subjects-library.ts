@@ -1,11 +1,13 @@
 // Moonrise Films - Wedding Subjects Library Seed
 // Creates conventional wedding film subjects for Moonrise Films brand
 import { PrismaClient, SubjectsLibrary } from "@prisma/client";
+import { createSeedLogger, SeedType } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
 export async function createMoonriseSubjectsLibrary() {
-    console.log("👰 Creating Moonrise Films Wedding Subjects Library...");
+    logger.sectionHeader('Wedding Subjects Library');
 
     try {
         // Get the Moonrise Films brand
@@ -14,18 +16,18 @@ export async function createMoonriseSubjectsLibrary() {
         });
 
         if (!brand) {
-            console.log("❌ Moonrise Films brand not found!");
-            console.log("💡 Please run the Moonrise brand setup first");
+            logger.error('Moonrise Films brand not found!');
+            logger.info('Please run the Moonrise brand setup first');
             throw new Error("Moonrise Films brand not found");
         }
 
-        console.log(`🏢 Found Moonrise Films brand (ID: ${brand.id})`);
+        logger.success(`Found Moonrise Films brand (ID: ${brand.id})`);
 
         // Clear existing subjects for this brand
         const deleted = await prisma.subjectsLibrary.deleteMany({
             where: { brand_id: brand.id }
         });
-        console.log(`🗑️ Cleared ${deleted.count} existing subjects for Moonrise Films`);
+        logger.info(`Cleared ${deleted.count} existing subjects for Moonrise Films`);
 
         const weddingSubjects = [
             // Primary Couple
@@ -283,18 +285,35 @@ export async function createMoonriseSubjectsLibrary() {
 
         const createdSubjects: SubjectsLibrary[] = [];
         let successCount = 0;
+        let skippedCount = 0;
         let errorCount = 0;
 
         for (const subject of weddingSubjects) {
             try {
-                const created = await prisma.subjectsLibrary.create({
-                    data: subject
+                // Check if subject already exists by name and role combination
+                const existing = await prisma.subjectsLibrary.findFirst({
+                    where: {
+                        first_name: subject.first_name,
+                        last_name: subject.last_name,
+                        context_role: subject.context_role,
+                        brand_id: brand.id
+                    }
                 });
-                createdSubjects.push(created);
-                console.log(`✅ Created subject: ${subject.first_name} ${subject.last_name} (${subject.context_role})`);
-                successCount++;
-            } catch (error) {
-                console.error(`❌ Failed to create subject ${subject.first_name} ${subject.last_name}:`, error);
+
+                if (existing) {
+                    logger.skipped(`Subject "${subject.first_name} ${subject.last_name}" (${subject.context_role}) already exists (ID: ${existing.id})`, undefined, 'verbose');
+                    createdSubjects.push(existing);
+                    skippedCount++;
+                } else {
+                    const created = await prisma.subjectsLibrary.create({
+                        data: subject
+                    });
+                    createdSubjects.push(created);
+                    logger.created(`Subject: ${subject.first_name} ${subject.last_name} (${subject.context_role})`, 'verbose');
+                    successCount++;
+                }
+            } catch (err) {
+                logger.error(`Failed to process subject ${subject.first_name} ${subject.last_name}: ${String(err)}`);
                 errorCount++;
             }
         }
@@ -304,6 +323,7 @@ export async function createMoonriseSubjectsLibrary() {
             subjects: createdSubjects,
             total: createdSubjects.length,
             success: successCount,
+            skipped: skippedCount,
             errors: errorCount,
             primary: createdSubjects.filter(s => ['Bride', 'Groom'].includes(s.context_role)),
             bridalParty: createdSubjects.filter(s => ['Maid of Honor', 'Bridesmaid', 'Best Man', 'Groomsman'].includes(s.context_role)),
@@ -320,69 +340,38 @@ export async function createMoonriseSubjectsLibrary() {
             )
         };
 
-        console.log(`👰 Successfully created ${result.success} subjects for Moonrise Films`);
-        if (result.errors > 0) {
-            console.log(`⚠️ ${result.errors} subjects failed to create`);
-        }
-
+        logger.summary('Subjects', { created: successCount, updated: 0, skipped: skippedCount, total: result.total });
         return result;
 
-    } catch (error) {
-        console.error("❌ Failed to create Moonrise subjects library:", error);
-        throw error;
+    } catch (err) {
+        logger.error(`Failed to create Moonrise subjects library: ${String(err)}`);
+        throw err;
     }
 }
 
 async function main() {
-    console.log("🎬 Moonrise Films - Wedding Subjects Library Seed");
-    console.log("================================================");
+    logger.sectionHeader('Moonrise Films - Wedding Subjects Library Seed');
 
     try {
         const result = await createMoonriseSubjectsLibrary();
 
-        console.log("\n🎉 =======================================");
-        console.log("✅ Moonrise Wedding Subjects Library Seeded Successfully!");
-        console.log("📊 Summary:");
-        console.log(`   🏢 Brand: Moonrise Films`);
-        console.log(`   👥 Total Subjects: ${result.total}`);
-        console.log(`   ✅ Successfully Created: ${result.success}`);
+        logger.sectionDivider('Summary');
+        logger.success('Moonrise Wedding Subjects Library Seeded Successfully!');
+        logger.info(`Brand: Moonrise Films`);
+        logger.info(`Total Subjects: ${result.total}`);
+        logger.info(`Successfully Created: ${result.success}`);
         if (result.errors > 0) {
-            console.log(`   ❌ Errors: ${result.errors}`);
+            logger.warning(`Errors: ${result.errors}`);
         }
-        console.log(`   💑 Primary Couple: ${result.primary.length} (Bride & Groom)`);
-        console.log(`   👭 Bridal Party: ${result.bridalParty.length} members`);
-        console.log(`   👨‍👩‍👧‍👦 Family: ${result.family.length} family members`);
-        console.log(`   👶 Children: ${result.children.length} (Flower Girl & Ring Bearer)`);
-        console.log(`   💼 Vendors/Officials: ${result.vendors.length} key people`);
-        console.log("");
+        logger.info(`Primary Couple: ${result.primary.length} (Bride & Groom)`);
+        logger.info(`Bridal Party: ${result.bridalParty.length} members`);
+        logger.info(`Family: ${result.family.length} family members`);
+        logger.info(`Children: ${result.children.length} (Flower Girl & Ring Bearer)`);
+        logger.info(`Vendors/Officials: ${result.vendors.length} key people`);
 
-        console.log("👥 Key Subjects Created:");
-        console.log("   💑 Primary Couple:");
-        result.primary.forEach(s => console.log(`      • ${s.first_name} ${s.last_name} (${s.context_role})`));
-
-        console.log("\n   👭 Bridal Party:");
-        result.bridalParty.forEach(s => console.log(`      • ${s.first_name} ${s.last_name} (${s.context_role})`));
-
-        console.log("\n   👨‍👩‍👧‍👦 Family:");
-        result.family.forEach(s => console.log(`      • ${s.first_name} ${s.last_name} (${s.context_role})`));
-
-        console.log("\n   👶 Children:");
-        result.children.forEach(s => console.log(`      • ${s.first_name} ${s.last_name} (${s.context_role})`));
-
-        console.log("\n   💼 Key People:");
-        result.vendors.forEach(s => console.log(`      • ${s.first_name} ${s.last_name} (${s.context_role})`));
-
-        console.log("\n🎬 Ready for Wedding Scene Planning!");
-        console.log("💡 Use these subjects to assign to wedding scenes like:");
-        console.log("   • Ceremony scenes (Bride, Groom, Parents, Wedding Officiant)");
-        console.log("   • Reception scenes (Bridal Party, Family, Guests)");
-        console.log("   • Portrait sessions (Primary Couple, Bridal Party)");
-        console.log("   • Special moments (First Dance, Speeches, etc.)");
-        console.log("================================================");
-
-    } catch (error) {
-        console.error("❌ Moonrise subjects seeding failed:", error);
-        throw error;
+    } catch (err) {
+        logger.error(`Moonrise subjects seeding failed: ${String(err)}`);
+        throw err;
     }
 }
 
@@ -392,7 +381,7 @@ export default main;
 if (require.main === module) {
     main()
         .catch((e) => {
-            console.error("❌ Moonrise subjects seeding failed:", e);
+            logger.error(`Moonrise subjects seeding failed: ${String(e)}`);
             process.exit(1);
         })
         .finally(async () => {

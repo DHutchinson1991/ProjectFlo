@@ -1,11 +1,13 @@
 // Moonrise Films Coverage Library Setup - Wedding Video and Audio Coverage
 // Creates: Comprehensive video shot types and audio techniques for wedding production
 import { PrismaClient, $Enums } from "@prisma/client";
+import { createSeedLogger, SeedType, SeedSummary } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
+const logger = createSeedLogger(SeedType.MOONRISE);
 
-export async function createMoonriseCoverageLibrary() {
-    console.log('🎬 Creating Wedding Coverage Library...');
+export async function createMoonriseCoverageLibrary(): Promise<{ totalCoverage: number; videoCoverageCount: number; audioCoverageCount: number; summary: SeedSummary }> {
+    logger.sectionHeader('Coverage Library');
 
     // Clear existing coverage data
     await prisma.sceneCoverage.deleteMany();
@@ -308,32 +310,47 @@ export async function createMoonriseCoverageLibrary() {
         }
     ];
 
-    // Create all coverage items
+    // Create all coverage items with duplicate checking
     const allCoverage = [...videoCoverage, ...audioCoverage];
+    let coverageCreated = 0;
+    let coverageSkipped = 0;
 
     for (const coverage of allCoverage) {
         try {
-            await prisma.coverage.create({
-                data: coverage
+            // Check if coverage item already exists by name
+            const existing = await prisma.coverage.findFirst({
+                where: { name: coverage.name }
             });
-            console.log(`✅ Created coverage: ${coverage.name}`);
+
+            if (existing) {
+                coverageSkipped++;
+                logger.skipped(`Coverage exists: ${coverage.name}`, undefined, 'verbose');
+            } else {
+                await prisma.coverage.create({
+                    data: coverage
+                });
+                coverageCreated++;
+                logger.created(`Coverage created: ${coverage.name}`, 'verbose');
+            }
         } catch (error) {
-            console.error(`❌ Failed to create coverage ${coverage.name}:`, error.message);
+            logger.error(`Failed to process coverage ${coverage.name}: ${String(error)}`);
         }
     }
 
     const totalCoverage = await prisma.coverage.count();
-    console.log(`🎬 Created ${totalCoverage} coverage items`);
+    const summary: SeedSummary = { created: coverageCreated, updated: 0, skipped: coverageSkipped, total: coverageCreated + coverageSkipped };
+    logger.summary('Coverage items', summary);
 
     return {
         totalCoverage,
         videoCoverageCount: videoCoverage.length,
-        audioCoverageCount: audioCoverage.length
+        audioCoverageCount: audioCoverage.length,
+        summary
     };
 }
 
-export async function assignCoverageToScenes() {
-    console.log('🎯 Creating scene coverage assignments...');
+export async function assignCoverageToScenes(): Promise<SeedSummary> {
+    logger.sectionHeader('Scene Coverage Assignments');
 
     // Get created coverage for scene assignments
     const createdCoverage = await prisma.coverage.findMany();
@@ -347,7 +364,8 @@ export async function assignCoverageToScenes() {
         where: { name: "First Dance" }
     });
 
-    let assignmentCount = 0;
+    let created = 0;
+    let skipped = 0;
 
     // Ceremony Scene Coverage
     if (ceremonyScene) {
@@ -371,17 +389,32 @@ export async function assignCoverageToScenes() {
             const coverageItem = createdCoverage.find(c => c.name === ceremonyCoverage[i]);
             if (coverageItem) {
                 try {
-                    await prisma.sceneCoverage.create({
-                        data: {
-                            scene_id: ceremonyScene.id,
-                            coverage_id: coverageItem.id,
-                            priority_order: i + 1
+                    // Check if assignment already exists
+                    const existing = await prisma.sceneCoverage.findUnique({
+                        where: {
+                            scene_id_coverage_id: {
+                                scene_id: ceremonyScene.id,
+                                coverage_id: coverageItem.id
+                            }
                         }
                     });
-                    console.log(`✅ Assigned "${coverageItem.name}" to Ceremony`);
-                    assignmentCount++;
+
+                    if (!existing) {
+                        await prisma.sceneCoverage.create({
+                            data: {
+                                scene_id: ceremonyScene.id,
+                                coverage_id: coverageItem.id,
+                                priority_order: i + 1
+                            }
+                        });
+                        created++;
+                        logger.created(`Assigned to Ceremony: ${coverageItem.name}`, 'verbose');
+                    } else {
+                        skipped++;
+                        logger.skipped(`Already assigned (Ceremony): ${coverageItem.name}`, undefined, 'verbose');
+                    }
                 } catch (error) {
-                    console.error(`❌ Failed to assign coverage:`, error.message);
+                    logger.error(`Failed to assign coverage: ${String(error)}`);
                 }
             }
         }
@@ -404,40 +437,57 @@ export async function assignCoverageToScenes() {
             const coverageItem = createdCoverage.find(c => c.name === danceCoverage[i]);
             if (coverageItem) {
                 try {
-                    await prisma.sceneCoverage.create({
-                        data: {
-                            scene_id: firstDanceScene.id,
-                            coverage_id: coverageItem.id,
-                            priority_order: i + 1
+                    // Check if assignment already exists
+                    const existing = await prisma.sceneCoverage.findUnique({
+                        where: {
+                            scene_id_coverage_id: {
+                                scene_id: firstDanceScene.id,
+                                coverage_id: coverageItem.id
+                            }
                         }
                     });
-                    console.log(`✅ Assigned "${coverageItem.name}" to First Dance`);
-                    assignmentCount++;
+
+                    if (!existing) {
+                        await prisma.sceneCoverage.create({
+                            data: {
+                                scene_id: firstDanceScene.id,
+                                coverage_id: coverageItem.id,
+                                priority_order: i + 1
+                            }
+                        });
+                        created++;
+                        logger.created(`Assigned to First Dance: ${coverageItem.name}`, 'verbose');
+                    } else {
+                        skipped++;
+                        logger.skipped(`Already assigned (First Dance): ${coverageItem.name}`, undefined, 'verbose');
+                    }
                 } catch (error) {
-                    console.error(`❌ Failed to assign coverage:`, error.message);
+                    logger.error(`Failed to assign coverage: ${String(error)}`);
                 }
             }
         }
     }
 
-    console.log(`🔗 Created ${assignmentCount} scene coverage assignments`);
-    return assignmentCount;
+    const summary: SeedSummary = { created, updated: 0, skipped, total: created + skipped };
+    logger.summary('Scene coverage assignments', summary);
+    return summary;
 }
 
 async function main() {
-    console.log("🎬 Seeding Moonrise Films Coverage Library...");
+    logger.sectionHeader('Seeding Moonrise Films Coverage Library');
 
     try {
         const coverageStats = await createMoonriseCoverageLibrary();
-        const assignmentCount = await assignCoverageToScenes();
+        const assignmentSummary = await assignCoverageToScenes();
 
-        console.log(`\n✅ Coverage library setup complete!`);
-        console.log(`   📹 Created ${coverageStats.videoCoverageCount} video shots`);
-        console.log(`   🎤 Created ${coverageStats.audioCoverageCount} audio techniques`);
-        console.log(`   🔗 Created ${assignmentCount} scene assignments`);
-        console.log(`   🎬 Total coverage items: ${coverageStats.totalCoverage}`);
+        logger.sectionDivider('Summary');
+        logger.success('Coverage library setup complete!');
+        logger.info(`Video shots: ${coverageStats.videoCoverageCount}`);
+        logger.info(`Audio techniques: ${coverageStats.audioCoverageCount}`);
+        logger.info(`Scene assignments created: ${assignmentSummary.created}`);
+        logger.info(`Total coverage items: ${coverageStats.totalCoverage}`);
     } catch (error) {
-        console.error("❌ Coverage library setup failed:", error);
+        logger.error(`Coverage library setup failed: ${String(error)}`);
         throw error;
     }
 }
