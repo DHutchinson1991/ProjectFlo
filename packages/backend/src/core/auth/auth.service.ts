@@ -16,6 +16,7 @@ export class AuthService {
     pass: string,
   ): Promise<{
     access_token: string;
+    refresh_token: string;
     user: { id: number; email: string; roles: string[] };
   }> {
     // Step 1: Find the user by their unique email and include related data.
@@ -59,10 +60,58 @@ export class AuthService {
       roles: [userContact.contributor.role?.name || "User"], // Array of roles as expected by frontend
     };
 
-    // Step 5: Sign the payload and return the access token and user profile.
+    // Step 5: Sign the payload and return the access token, refresh token, and user profile.
+    const access_token = await this.jwtService.signAsync(payload);
+    const refresh_token = await this.jwtService.signAsync(payload, {
+      expiresIn: '7d', // Refresh token expires in 7 days
+    });
+
     return {
-      access_token: await this.jwtService.signAsync(payload),
+      access_token,
+      refresh_token,
       user,
     };
+  }
+
+  async refreshToken(refreshToken: string): Promise<{
+    access_token: string;
+    refresh_token: string;
+  }> {
+    try {
+      // Verify the refresh token
+      const payload = await this.jwtService.verifyAsync(refreshToken);
+
+      // Fetch the user to ensure they still exist
+      const contributor = await this.prisma.contributors.findUnique({
+        where: { id: payload.sub },
+        include: {
+          contact: true,
+          role: true,
+        },
+      });
+
+      if (!contributor) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      // Create new tokens
+      const newPayload = {
+        sub: contributor.id,
+        email: contributor.contact.email,
+        role: contributor.role?.name || "User",
+      };
+
+      const access_token = await this.jwtService.signAsync(newPayload);
+      const new_refresh_token = await this.jwtService.signAsync(newPayload, {
+        expiresIn: '7d',
+      });
+
+      return {
+        access_token,
+        refresh_token: new_refresh_token,
+      };
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
   }
 }

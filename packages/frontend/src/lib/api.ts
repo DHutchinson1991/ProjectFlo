@@ -176,6 +176,7 @@ function getCurrentBrandId(): number | null {
 class BaseApiClient {
   protected baseURL: string;
   protected authToken: string | null = null;
+  protected refreshToken: string | null = null;
   private onUnauthorized?: () => void;
 
   constructor(baseURL: string) {
@@ -188,8 +189,12 @@ class BaseApiClient {
     // Only run in browser environment, not during SSR
     if (typeof window !== "undefined") {
       const storedToken = localStorage.getItem("authToken");
+      const storedRefreshToken = localStorage.getItem("refreshToken");
       if (storedToken) {
         this.authToken = storedToken;
+      }
+      if (storedRefreshToken) {
+        this.refreshToken = storedRefreshToken;
       }
     }
   }
@@ -206,8 +211,24 @@ class BaseApiClient {
     }
   }
 
+  setRefreshToken(token: string | null) {
+    this.refreshToken = token;
+    // Persist refresh token changes to localStorage (browser only)
+    if (typeof window !== "undefined") {
+      if (token) {
+        localStorage.setItem("refreshToken", token);
+      } else {
+        localStorage.removeItem("refreshToken");
+      }
+    }
+  }
+
   getAuthToken(): string | null {
     return this.authToken;
+  }
+
+  getRefreshToken(): string | null {
+    return this.refreshToken;
   }
 
   // Method to refresh token from localStorage (useful for hot reloads)
@@ -259,8 +280,43 @@ class BaseApiClient {
   protected async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       if (response.status === 401) {
+        // Try to refresh token if we have a refresh token
+        if (this.refreshToken) {
+          try {
+            // Make refresh request
+            const refreshResponse = await fetch(`${this.baseURL}/auth/refresh`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh_token: this.refreshToken }),
+            });
+
+            if (refreshResponse.ok) {
+              const refreshData = await refreshResponse.json();
+              this.setAuthToken(refreshData.access_token);
+              this.setRefreshToken(refreshData.refresh_token);
+
+              // Retry the original request with new token
+              const url = response.url;
+              const originalRequest = new Request(url, {
+                method: response.headers.get('x-original-method') || 'GET',
+                headers: this.getAuthHeaders(),
+                body: response.headers.get('x-original-body') || undefined,
+              });
+
+              const retryResponse = await fetch(originalRequest);
+              return this.handleResponse<T>(retryResponse);
+            }
+          } catch (refreshError) {
+            // Refresh failed, proceed with logout
+            console.error('Token refresh failed:', refreshError);
+          }
+        }
+
+        // No refresh token or refresh failed
         this.setAuthToken(null);
+        this.setRefreshToken(null);
         localStorage.removeItem("authToken");
+        localStorage.removeItem("refreshToken");
         if (this.onUnauthorized) {
           this.onUnauthorized();
         }
@@ -338,14 +394,19 @@ class BaseApiClient {
 class ApiService extends BaseApiClient {
   // Authentication methods
   auth = {
-    login: (credentials: LoginCredentials): Promise<AuthResponse> =>
+    login: (credentials: LoginCredentials): Promise<AuthResponse & { refresh_token: string }> =>
       this.post("/auth/login", credentials, { skipBrandContext: true }),
 
     getProfile: (): Promise<UserProfile> =>
       this.get("/auth/profile", { skipBrandContext: true }),
 
+    refresh: (refreshToken: string): Promise<{ access_token: string; refresh_token: string }> =>
+      this.post("/auth/refresh", { refresh_token: refreshToken }, { skipBrandContext: true }),
+
     setToken: (token: string | null) => this.setAuthToken(token),
+    setRefreshToken: (token: string | null) => this.setRefreshToken(token),
     getToken: () => this.getAuthToken(),
+    getRefreshToken: () => this.getRefreshToken(),
     refreshToken: () => this.refreshTokenFromStorage(),
     onUnauthorized: (callback: () => void) =>
       this.setUnauthorizedCallback(callback),

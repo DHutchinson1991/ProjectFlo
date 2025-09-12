@@ -7,6 +7,7 @@ import React, {
     useState,
     useEffect,
     useCallback,
+    useRef,
 } from "react";
 import { authService } from "../../lib/api";
 import {
@@ -30,26 +31,64 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [token, setToken] = useState<string | null>(null);
+    const [refreshToken, setRefreshToken] = useState<string | null>(null);
+    const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const isAuthenticated = !!user;
 
     const logout = useCallback(() => {
-        // Clear token from API service (which also clears localStorage)
+        // Clear tokens from API service (which also clears localStorage)
         authService.setToken(null);
+        authService.setRefreshToken(null);
         localStorage.removeItem("userProfile");
         setToken(null);
+        setRefreshToken(null);
         setUser(null);
+
+        // Clear refresh interval
+        if (refreshIntervalRef.current) {
+            clearInterval(refreshIntervalRef.current);
+            refreshIntervalRef.current = null;
+        }
         // Navigation is now handled by ProtectedRoute, which will see the user is gone.
     }, []);
+
+    // Periodic token refresh function
+    const startPeriodicRefresh = useCallback(() => {
+        if (refreshIntervalRef.current) {
+            clearInterval(refreshIntervalRef.current);
+        }
+
+        // Refresh token every 45 minutes (before the 60-minute expiration)
+        refreshIntervalRef.current = setInterval(async () => {
+            if (refreshToken) {
+                try {
+                    const refreshResponse = await authService.refresh(refreshToken);
+                    authService.setToken(refreshResponse.access_token);
+                    authService.setRefreshToken(refreshResponse.refresh_token);
+                    setToken(refreshResponse.access_token);
+                    setRefreshToken(refreshResponse.refresh_token);
+                    console.log('Token refreshed successfully');
+                } catch (error) {
+                    console.error('Periodic token refresh failed:', error);
+                    logout();
+                }
+            }
+        }, 45 * 60 * 1000); // 45 minutes
+    }, [refreshToken, logout]);
 
     useEffect(() => {
         const initializeAuth = async () => {
             authService.onUnauthorized(() => logout());
 
-            // Refresh token from localStorage (important for hot reloads)
+            // Refresh tokens from localStorage (important for hot reloads)
             authService.refreshToken();
-            const storedToken = authService.getToken(); if (storedToken) {
+            const storedToken = authService.getToken();
+            const storedRefreshToken = authService.getRefreshToken();
+
+            if (storedToken && storedRefreshToken) {
                 setToken(storedToken);
+                setRefreshToken(storedRefreshToken);
 
                 try {
                     // Always fetch fresh profile data from API (don't use cached data for display)
@@ -66,6 +105,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
                     // Update with fresh data and cache it
                     setUser(freshUser);
                     localStorage.setItem("userProfile", JSON.stringify(freshUser));
+
+                    // Start periodic refresh
+                    startPeriodicRefresh();
                 } catch (error) {
                     console.error("Auth initialization failed, logging out:", error);
                     logout();
@@ -75,14 +117,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
         };
 
         initializeAuth();
-    }, [logout]);
+
+        // Cleanup interval on unmount
+        return () => {
+            if (refreshIntervalRef.current) {
+                clearInterval(refreshIntervalRef.current);
+            }
+        };
+    }, [logout, startPeriodicRefresh]);
 
     const login = async (credentials: LoginCredentials) => {
         // Let the UI component handle loading states and errors
         const response = await authService.login(credentials);
 
-        // Set token using API service (which also saves to localStorage)
+        // Set tokens using API service (which also saves to localStorage)
         authService.setToken(response.access_token);
+        authService.setRefreshToken(response.refresh_token);
 
         // Ensure consistent user data structure
         const userData = {
@@ -96,9 +146,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         localStorage.setItem("userProfile", JSON.stringify(userData));
         setToken(response.access_token);
+        setRefreshToken(response.refresh_token);
 
         // Update state. The LoginPage will see this change and redirect.
         setUser(userData);
+
+        // Start periodic refresh
+        startPeriodicRefresh();
     };
 
     const refreshAuth = async () => {
