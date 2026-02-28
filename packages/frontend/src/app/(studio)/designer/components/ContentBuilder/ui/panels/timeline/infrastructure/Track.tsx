@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Box, Typography } from "@mui/material";
+import { Box, Tooltip, Typography } from "@mui/material";
 import {
     Videocam as VideoIcon,
     VolumeUp as AudioIcon,
@@ -13,6 +13,7 @@ import { TimelineTrack as TimelineTrackType } from "@/lib/types/timeline";
 import { ViewState } from "@/lib/types/timeline";
 import { useContentBuilder } from "@/app/(studio)/designer/components/ContentBuilder/context/ContentBuilderContext";
 import { getEquipmentLabelForTrackName } from "@/lib/utils/equipmentAssignments";
+import TrackDefaultDialog from "./TrackDefaultDialog";
 
 interface TimelineTrackProps {
     track: TimelineTrackType;
@@ -29,7 +30,9 @@ const Track: React.FC<TimelineTrackProps> = ({
     viewState,
     children,
 }) => {
-    const { equipmentAssignmentsBySlot } = useContentBuilder();
+    const { equipmentAssignmentsBySlot, trackDefaults, setTrackDefault, scenes, packageSubjects } = useContentBuilder();
+    const [defaultDialogOpen, setDefaultDialogOpen] = React.useState(false);
+
     const { isOver, setNodeRef } = useDroppable({
         id: `timeline-track-${track.id}`,
         data: {
@@ -111,31 +114,39 @@ const Track: React.FC<TimelineTrackProps> = ({
                     },
                 }}
             >
-                <Box
-                    sx={{
-                        p: 0.5,
-                        borderRadius: 0.75,
-                        bgcolor: "rgba(0, 0, 0, 0.7)",
-                        color: track.color,
-                        display: "flex",
-                        alignItems: "center",
-                        width: 24,
-                        height: 24,
-                        justifyContent: "center",
-                        boxShadow: "0 2px 6px rgba(0,0,0,0.6)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        backdropFilter: "blur(4px)",
-                        transition: "all 0.2s ease-in-out",
-                        "&:hover": {
-                            transform: "scale(1.1)",
-                            boxShadow: "0 4px 10px rgba(0,0,0,0.7)",
-                            bgcolor: "rgba(0, 0, 0, 0.85)",
-                            border: "1px solid rgba(255,255,255,0.25)",
-                        },
-                    }}
-                >
-                    {getTrackIcon(track.track_type)}
-                </Box>
+                <Tooltip title="Set track default" placement="right">
+                    <Box
+                        onClick={() => setDefaultDialogOpen(true)}
+                        sx={{
+                            p: 0.5,
+                            borderRadius: 0.75,
+                            bgcolor: trackDefaults[track.id]
+                                ? `${track.color}30`
+                                : "rgba(0, 0, 0, 0.7)",
+                            color: track.color,
+                            display: "flex",
+                            alignItems: "center",
+                            width: 24,
+                            height: 24,
+                            justifyContent: "center",
+                            boxShadow: "0 2px 6px rgba(0,0,0,0.6)",
+                            border: trackDefaults[track.id]
+                                ? `1px solid ${track.color}80`
+                                : "1px solid rgba(255,255,255,0.15)",
+                            backdropFilter: "blur(4px)",
+                            transition: "all 0.2s ease-in-out",
+                            cursor: "pointer",
+                            "&:hover": {
+                                transform: "scale(1.1)",
+                                boxShadow: "0 4px 10px rgba(0,0,0,0.7)",
+                                bgcolor: `${track.color}30`,
+                                border: `1px solid ${track.color}60`,
+                            },
+                        }}
+                    >
+                        {getTrackIcon(track.track_type)}
+                    </Box>
+                </Tooltip>
 
                 {/* Track Text - Only Visible on Hover */}
                 <Box
@@ -196,6 +207,21 @@ const Track: React.FC<TimelineTrackProps> = ({
             </Box>
 
             {children}
+
+            {defaultDialogOpen && (
+                <TrackDefaultDialog
+                    open={defaultDialogOpen}
+                    track={track}
+                    currentDefault={trackDefaults[track.id]}
+                    packageSubjects={packageSubjects as Array<{ id: number; name: string }>}
+                    scenes={scenes}
+                    onClose={() => setDefaultDialogOpen(false)}
+                    onSaveDefault={(trackId, defaults) => {
+                        setTrackDefault(trackId, defaults);
+                        setDefaultDialogOpen(false);
+                    }}
+                />
+            )}
         </Box>
     );
 };

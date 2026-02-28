@@ -18,19 +18,54 @@ export class ServicePackagesService {
   }
 
   async findAll(brandId: number) {
-    return this.prisma.service_packages.findMany({
+    const packages = await this.prisma.service_packages.findMany({
       where: { brand_id: brandId, is_active: true },
       include: {
+        wedding_type: true, // Include wedding type info if this was created from template
         _count: {
-          select: { package_event_days: true },
+          select: {
+            package_event_days: true,
+            package_event_day_locations: true,
+          },
+        },
+        package_day_operators: {
+          include: {
+            equipment: {
+              include: {
+                equipment: { select: { category: true } },
+              },
+            },
+          },
         },
       },
+    });
+
+    // Compute equipment counts and distinct crew per package, strip bulky relations
+    return packages.map(({ package_day_operators, ...pkg }) => {
+      let cameraCount = 0;
+      let audioCount = 0;
+      const uniqueOperators = new Set<number>();
+      for (const op of package_day_operators) {
+        uniqueOperators.add(op.operator_template_id);
+        for (const eq of op.equipment) {
+          if (eq.equipment.category === 'CAMERA') cameraCount++;
+          else if (eq.equipment.category === 'AUDIO') audioCount++;
+        }
+      }
+      return {
+        ...pkg,
+        _equipmentCounts: { cameras: cameraCount, audio: audioCount },
+        _crewCount: uniqueOperators.size,
+      };
     });
   }
 
   async findOne(id: number, brandId: number) {
     const pkg = await this.prisma.service_packages.findFirst({
       where: { id, brand_id: brandId },
+      include: {
+        wedding_type: true, // Include wedding type template info
+      },
     });
     if (!pkg) throw new NotFoundException('Service Package not found');
     return pkg;

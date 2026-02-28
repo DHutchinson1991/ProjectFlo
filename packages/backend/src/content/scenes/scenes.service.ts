@@ -109,6 +109,13 @@ export class ScenesService {
                 template: true,
                 moments: {
                     include: {
+                        recording_setup: {
+                            include: {
+                                camera_assignments: {
+                                    include: { track: true },
+                                },
+                            },
+                        },
                         subjects: {
                             include: {
                                 subject: {
@@ -146,6 +153,20 @@ export class ScenesService {
             } : null,
             moments: s.moments.map(m => ({
                 ...m,
+                has_recording_setup: !!(m as any).recording_setup,
+                recording_setup: (m as any).recording_setup ? {
+                    id: (m as any).recording_setup.id,
+                    audio_track_ids: (m as any).recording_setup.audio_track_ids,
+                    graphics_enabled: (m as any).recording_setup.graphics_enabled,
+                    graphics_title: (m as any).recording_setup.graphics_title ?? null,
+                    camera_assignments: ((m as any).recording_setup.camera_assignments || []).map((a: any) => ({
+                        track_id: a.track_id,
+                        track_name: a.track?.name || String(a.track_id),
+                        track_type: a.track?.type ? String(a.track.type) : undefined,
+                        subject_ids: a.subject_ids,
+                        shot_type: a.shot_type ?? null,
+                    })),
+                } : null,
                 subjects: m.subjects.map(ms => ({
                     ...ms,
                     subject: ms.subject ? {
@@ -203,7 +224,13 @@ export class ScenesService {
                 moments: {
                     orderBy: { order_index: 'asc' },
                     include: {
-                        recording_setup: true,
+                        recording_setup: {
+                            include: {
+                                camera_assignments: {
+                                    include: { track: true },
+                                },
+                            },
+                        },
                         moment_music: true,
                         subjects: {
                             include: {
@@ -251,6 +278,20 @@ export class ScenesService {
                 order_index: m.order_index,
                 duration: m.duration,
                 created_at: m.created_at,
+                has_recording_setup: !!(m as any).recording_setup,
+                recording_setup: (m as any).recording_setup ? {
+                    id: (m as any).recording_setup.id,
+                    audio_track_ids: (m as any).recording_setup.audio_track_ids,
+                    graphics_enabled: (m as any).recording_setup.graphics_enabled,
+                    graphics_title: (m as any).recording_setup.graphics_title ?? null,
+                    camera_assignments: ((m as any).recording_setup.camera_assignments || []).map((a: any) => ({
+                        track_id: a.track_id,
+                        track_name: a.track?.name || String(a.track_id),
+                        track_type: a.track?.type ? String(a.track.type) : undefined,
+                        subject_ids: a.subject_ids,
+                        shot_type: a.shot_type ?? null,
+                    })),
+                } : null,
                 subjects: m.subjects.map(ms => ({
                     ...ms,
                     subject: ms.subject ? {

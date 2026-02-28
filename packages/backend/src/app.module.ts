@@ -44,6 +44,7 @@ import { FilmLocationsModule } from './content/film-locations/film-locations.mod
 import { LocationsModule } from './locations/locations.module';
 import { ServicePackagesModule } from './business/service-packages/service-packages.module';
 import { ServicePackageCategoriesModule } from './business/service-package-categories/service-package-categories.module';
+import { WeddingTypesModule } from './business/wedding-types/wedding-types.module';
 import { NeedsAssessmentsModule } from './needs-assessments/needs-assessments.module';
 import { ScheduleModule } from './content/schedule/schedule.module';
 
@@ -85,6 +86,7 @@ import { ScheduleModule } from './content/schedule/schedule.module';
     LocationsModule,
     ServicePackagesModule,
     ServicePackageCategoriesModule,
+    WeddingTypesModule,
     NeedsAssessmentsModule,
     ScheduleModule,
   ],

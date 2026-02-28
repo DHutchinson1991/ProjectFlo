@@ -7,6 +7,7 @@ import type { ApiClient } from "@/lib/api/api-client.types";
 import type { TimelineScene } from "@/lib/types/timeline";
 import type { TimelineSceneMoment } from "@/lib/types/domains/moments";
 import type { MomentRecordingSetupWithAssignments } from "@/lib/types/domains/recording-setup";
+import type { ShotType } from "@/types/coverage.types";
 
 interface UseSceneMomentInteractionsProps {
     zoomLevel: number;
@@ -54,6 +55,18 @@ export const useSceneMomentInteractions = ({
     const [dragScene, setDragScene] = React.useState<TimelineScene | null>(null);
 
     const updateSceneMoments = React.useCallback((scene: TimelineScene, nextMoments: SceneMomentWithSetup[]) => {
+        console.log('[useSceneMomentInteractions] updateSceneMoments called', {
+            sceneId: scene.id,
+            sceneName: scene.name,
+            momentsCount: nextMoments.length,
+            momentsWithSetup: nextMoments.filter(m => !!m.recording_setup).map(m => ({
+                id: m.id,
+                name: m.name,
+                recording_setup_keys: m.recording_setup ? Object.keys(m.recording_setup) : null,
+                camera_assignments_count: (m.recording_setup?.camera_assignments || []).length,
+            })),
+            hasOnUpdateScene: !!onUpdateScene,
+        });
         (scene as TimelineScene & { moments?: SceneMomentWithSetup[] }).moments = nextMoments;
         if (onUpdateScene) {
             onUpdateScene({ ...scene, moments: nextMoments } as TimelineScene);
@@ -145,16 +158,46 @@ export const useSceneMomentInteractions = ({
     const handleMomentSave = React.useCallback((updatedMoment: MomentEditorMoment) => {
         if (!activeSceneForEdit || !editingMoment) return;
 
+        console.group('[handleMomentSave] SAVE CALLED');
+        console.log('[handleMomentSave] updatedMoment from editor:', {
+            id: updatedMoment.id,
+            name: updatedMoment.name,
+            has_recording_setup: updatedMoment.has_recording_setup,
+            recording_setup: updatedMoment.recording_setup ? {
+                keys: Object.keys(updatedMoment.recording_setup),
+                camera_assignments_count: (updatedMoment.recording_setup.camera_assignments || []).length,
+            } : 'null/undefined',
+        });
+
         const moments = getSceneMoments(activeSceneForEdit);
+        console.log('[handleMomentSave] moments from activeSceneForEdit:', moments.map(m => ({
+            id: m.id,
+            name: m.name,
+            has_recording_setup: m.has_recording_setup,
+            recording_setup: m.recording_setup ? {
+                camera_assignments_count: (m.recording_setup.camera_assignments || []).length,
+                audio_track_ids: m.recording_setup.audio_track_ids,
+            } : 'null/undefined',
+        })));
+
         const updatedMoments = moments.map((moment) => {
             if (moment.id !== updatedMoment.id) return moment;
-            // Prefer updatedMoment's recording_setup (latest values) over stale local
-            const recordingSetup = updatedMoment.recording_setup ?? moment.recording_setup;
-            const hasRecordingSetup = typeof updatedMoment.has_recording_setup !== "undefined"
-                ? updatedMoment.has_recording_setup
-                : (typeof moment.has_recording_setup !== "undefined"
-                    ? moment.has_recording_setup
-                    : !!recordingSetup);
+            // Prefer fresh scene data (already refreshed by handleMomentRecordingSetupSave)
+            // over stale editor state. updatedMoment only carries name + duration changes.
+            const recordingSetup = moment.recording_setup ?? updatedMoment.recording_setup;
+            // has_recording_setup: true if fresh data has a setup, OR if it was already set
+            const hasRecordingSetup = !!recordingSetup
+                || !!moment.has_recording_setup
+                || !!updatedMoment.has_recording_setup;
+
+            console.log('[handleMomentSave] merging moment id=' + moment.id, {
+                freshSetup: !!moment.recording_setup,
+                staleSetup: !!updatedMoment.recording_setup,
+                resolvedSetup: !!recordingSetup,
+                hasRecordingSetup,
+                resolvedCameraAssignments: (recordingSetup?.camera_assignments || []).length,
+            });
+
             return {
                 ...moment,
                 ...updatedMoment,
@@ -162,6 +205,7 @@ export const useSceneMomentInteractions = ({
                 has_recording_setup: hasRecordingSetup,
             };
         });
+        console.groupEnd();
 
         updateSceneMoments(activeSceneForEdit, updatedMoments);
         setEditingMoment(null);
@@ -170,7 +214,7 @@ export const useSceneMomentInteractions = ({
 
     const handleMomentRecordingSetupSave = React.useCallback(async (
         momentId: number, 
-        data: { camera_track_ids?: number[]; camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null }>; audio_track_ids?: number[]; graphics_enabled?: boolean; graphics_title?: string | null }
+        data: { camera_track_ids?: number[]; camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: ShotType | null }>; audio_track_ids?: number[]; graphics_enabled?: boolean; graphics_title?: string | null }
     ) => {
         if (!activeSceneForEdit) return;
 
@@ -230,46 +274,80 @@ export const useSceneMomentInteractions = ({
         });
 
         // CRITICAL: Refetch the complete scene data to get updated subjects with role_template
+        console.log('[handleMomentRecordingSetupSave] About to refetch scene', activeSceneForEdit.id);
         const refreshedScene = await scenesApi.scenes.getById(activeSceneForEdit.id);
-        const refreshedMoments = refreshedScene.moments || [];
+        const refreshedMoments = (refreshedScene.moments || []) as SceneMomentWithSetup[];
+        console.log('[handleMomentRecordingSetupSave] Refreshed scene moments:', refreshedMoments.map((m) => ({
+            id: m.id,
+            name: m.name,
+            has_recording_setup: m.has_recording_setup,
+            recording_setup: m.recording_setup ? {
+                keys: Object.keys(m.recording_setup),
+                camera_assignments: m.recording_setup.camera_assignments,
+                audio_track_ids: m.recording_setup.audio_track_ids,
+            } : 'null',
+        })));
 
         const existingMoments = getSceneMoments(activeSceneForEdit);
-        const mergedMoments = refreshedMoments.map((moment: any) => {
+        const mergedMoments = refreshedMoments.map((moment) => {
             const existing = existingMoments.find((m) => m.id === moment.id);
+
+            // The scene getById endpoint does NOT return recording_setup on moments.
+            // For the moment we just saved, inject normalizedSetup directly from the upsert response.
+            // For all other moments, keep whichever data we already have locally.
+            const isSavedMoment = moment.id === momentId;
+            const resolvedSetup: MomentRecordingSetupWithAssignments | null = isSavedMoment
+                ? normalizedSetup
+                : (moment.recording_setup ?? existing?.recording_setup ?? null);
+
             return {
                 ...existing,
                 ...moment,
-                // Prefer fresh server data over stale local data
-                recording_setup: (moment as any).recording_setup ?? existing?.recording_setup ?? null,
-                has_recording_setup: typeof moment.has_recording_setup !== "undefined"
-                    ? moment.has_recording_setup
-                    : (existing?.has_recording_setup ?? !!(moment as any).recording_setup ?? !!existing?.recording_setup),
+                recording_setup: resolvedSetup,
+                has_recording_setup: isSavedMoment ? true : (
+                    typeof moment.has_recording_setup !== "undefined"
+                        ? moment.has_recording_setup
+                        : (existing?.has_recording_setup ?? !!resolvedSetup)
+                ),
             };
         });
 
-        if (typeof window !== "undefined" && (window as any).__debugMomentRoles) {
+        if (typeof window !== "undefined" && (window as Window & { __debugMomentRoles?: boolean }).__debugMomentRoles) {
             console.info("[MOMENT][DEBUG] Refreshed scene data", {
                 sceneId: activeSceneForEdit.id,
                 refreshedMomentCount: refreshedMoments.length,
                 mergedMomentCount: mergedMoments.length,
             });
-            const focus = mergedMoments.find((m: any) => m.id === momentId);
+            const focus = mergedMoments.find((m) => m.id === momentId);
+            const focusWithSubjects = focus as (SceneMomentWithSetup & {
+                subjects?: Array<{ subject?: { role?: { role_name?: string } } }>;
+            }) | undefined;
             console.info("[MOMENT][DEBUG] Focus moment after refresh", {
                 momentId,
-                subjects: focus?.subjects || [],
-                firstSubject: focus?.subjects?.[0],
-                firstSubjectRole: focus?.subjects?.[0]?.subject?.role,
-                firstSubjectRoleName: focus?.subjects?.[0]?.subject?.role?.role_name,
+                subjects: focusWithSubjects?.subjects || [],
+                firstSubject: focusWithSubjects?.subjects?.[0],
+                firstSubjectRole: focusWithSubjects?.subjects?.[0]?.subject?.role,
+                firstSubjectRoleName: focusWithSubjects?.subjects?.[0]?.subject?.role?.role_name,
             });
         }
 
+        console.log('[handleMomentRecordingSetupSave] mergedMoments before updateSceneMoments:', mergedMoments.map((m) => ({
+            id: m.id,
+            name: m.name,
+            has_recording_setup: m.has_recording_setup,
+            recording_setup: m.recording_setup ? {
+                camera_assignments_count: (m.recording_setup.camera_assignments || []).length,
+                audio_track_ids: m.recording_setup.audio_track_ids,
+            } : 'null',
+        })));
         updateSceneMoments(activeSceneForEdit, mergedMoments);
-        const updated = mergedMoments.find((moment: any) => moment.id === momentId);
+        const updated = mergedMoments.find((moment) => moment.id === momentId);
+        const updatedWithSubjects = updated as (SceneMomentWithSetup & { subjects?: unknown[] }) | undefined;
         console.info("[MOMENT] Local moment setup updated with fresh data", {
             momentId,
             has_recording_setup: updated?.has_recording_setup,
-            subjects_count: updated?.subjects?.length || 0,
-            camera_assignments: updated?.recording_setup?.camera_assignments?.map((assignment: any) => assignment.track_id),
+            subjects_count: updatedWithSubjects?.subjects?.length || 0,
+            camera_assignments: updated?.recording_setup?.camera_assignments?.map((assignment) => assignment.track_id),
             audio_track_ids: updated?.recording_setup?.audio_track_ids,
             graphics_enabled: updated?.recording_setup?.graphics_enabled,
             graphics_title: updated?.recording_setup?.graphics_title,

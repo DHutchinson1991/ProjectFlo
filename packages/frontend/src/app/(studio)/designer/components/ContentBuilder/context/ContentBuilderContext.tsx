@@ -17,9 +17,74 @@ import {
   useTimelineStorage,
 } from '@/hooks/content-builder';
 import { TimelineScene, TimelineTrack, DragState, PlaybackState, ViewState } from '@/lib/types/timeline';
-import { ScenesLibrary } from '@/lib/types/domains/scenes';
 import type { FilmEquipmentAssignmentsBySlot } from '@/types/film-equipment.types';
 import { api } from '@/lib/api';
+
+type PackageSubject = Record<string, unknown>;
+
+export interface TrackDefault {
+    subject_ids: number[];
+    shot_type: string;
+    audio_enabled?: boolean;
+}
+
+interface PackageActivity {
+  id: number;
+  package_event_day_id: number;
+}
+
+interface PackageOperatorAssignment {
+  package_activity_id?: number;
+}
+
+interface OperatorEquipmentItem {
+  equipment_id?: number;
+  equipment?: {
+    id?: number;
+    category?: string;
+  };
+}
+
+interface OperatorTemplateRef {
+  id?: number;
+  default_equipment?: OperatorEquipmentItem[];
+}
+
+interface PackageOperator {
+  id: number;
+  package_activity_id?: number;
+  event_day_template_id?: number;
+  operator_template_id?: number;
+  operator_template?: OperatorTemplateRef;
+  equipment?: OperatorEquipmentItem[];
+  activity_assignments?: PackageOperatorAssignment[];
+}
+
+interface PackageEventDay {
+  id: number;
+  _joinId?: number;
+}
+
+interface PackageFilmRef {
+  id: number;
+  film_id: number;
+}
+
+interface PackageFilmSchedule {
+  scene_schedules?: Array<{
+    scene_id: number;
+    package_activity_id?: number;
+  }>;
+}
+
+interface PackageLocation {
+  id: number;
+  event_day_template_id?: number;
+  location_id?: number;
+  package_activity_id?: number;
+  notes?: string;
+  order_index?: number;
+}
 
 interface ContentBuilderContextType {
   // Timeline State
@@ -74,9 +139,9 @@ interface ContentBuilderContextType {
   isSceneCompatibleWithTrack: (sceneType: string, trackType: string) => boolean;
   
   // Scene Operations
-  handleSceneDelete: (sceneId: string) => void;
+  handleSceneDelete: (sceneToDelete: TimelineScene) => void;
   handleReorderScene: (direction: 'left' | 'right', sceneName: string) => void;
-  deleteScene: (sceneId: string) => void;
+  deleteScene: (sceneId: string) => Promise<void>;
   reorderScene: (direction: 'left' | 'right', sceneName: string) => void;
   handleDeleteSceneGroup: (groupId: string) => void;
   handleSceneFromLibrary: (scene: unknown) => void;
@@ -88,13 +153,16 @@ interface ContentBuilderContextType {
   onSave?: (scenes: TimelineScene[], tracks: TimelineTrack[]) => void;
   timelineRef: React.RefObject<HTMLDivElement>;
   equipmentAssignmentsBySlot?: FilmEquipmentAssignmentsBySlot;
-  packageSubjects: any[];
-  packageActivities: any[];
-  packageOperators: any[];
+  packageSubjects: PackageSubject[];
+  packageActivities: PackageActivity[];
+  packageOperators: PackageOperator[];
   /** Pre-computed map: sceneId → { cameraCount, audioCount } based on the scene's linked activity */
   sceneActivityCrewMap: Map<number, { cameraCount: number; audioCount: number }>;
-  packageLocations: any[];
-  packageLocationLookup: Map<string, any>;
+  packageLocations: PackageLocation[];
+  packageLocationLookup: Map<string, PackageLocation>;
+  /** Per-track defaults: trackId → { subject_ids, shot_type, audio_enabled } */
+  trackDefaults: Record<number, TrackDefault>;
+  setTrackDefault: (trackId: number, defaults: TrackDefault) => void;
 }
 
 const ContentBuilderContext = createContext<ContentBuilderContextType | null>(null);
@@ -136,26 +204,53 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
   onSave,
   onChange,
   readOnly = false,
-  equipmentConfig,
   equipmentAssignmentsBySlot,
 }) => {
   // Timeline ref for drag and drop
   const timelineRef = useRef<HTMLDivElement>(null);
 
   // Package subjects for subject name resolution across all components
-  const [packageSubjects, setPackageSubjects] = React.useState<any[]>([]);
+  const [packageSubjects, setPackageSubjects] = React.useState<PackageSubject[]>([]);
   React.useEffect(() => {
     if (!packageId) return;
     let mounted = true;
     api.schedule.packageEventDaySubjects.getAll(packageId).then((subjects) => {
-      if (mounted) setPackageSubjects(subjects || []);
+      if (mounted) setPackageSubjects((subjects || []) as PackageSubject[]);
     }).catch(() => {});
     return () => { mounted = false; };
   }, [packageId]);
 
+  const [trackDefaults, setTrackDefaultsMap] = React.useState<Record<number, TrackDefault>>({});
+  const setTrackDefault = React.useCallback((trackId: number, defaults: TrackDefault) => {
+    setTrackDefaultsMap(prev => ({ ...prev, [trackId]: defaults }));
+  }, []);
+
+  const [packageLocations, setPackageLocations] = React.useState<PackageLocation[]>([]);
+  const [packageLocationLookup, setPackageLocationLookup] = React.useState<Map<string, PackageLocation>>(new Map());
+
+  React.useEffect(() => {
+    if (!packageId) return;
+    let mounted = true;
+    api.schedule.packageEventDayLocations.getAll(packageId).then((locations) => {
+      if (!mounted) return;
+      const safeLocations = (locations || []) as PackageLocation[];
+      setPackageLocations(safeLocations);
+      const lookup = new Map<string, PackageLocation>();
+      safeLocations.forEach((location) => {
+        lookup.set(String(location.id), location);
+      });
+      setPackageLocationLookup(lookup);
+    }).catch(() => {
+      if (!mounted) return;
+      setPackageLocations([]);
+      setPackageLocationLookup(new Map());
+    });
+    return () => { mounted = false; };
+  }, [packageId]);
+
   // Package activities, operators, and scene→crew map for activity-aware track filtering
-  const [packageActivities, setPackageActivities] = React.useState<any[]>([]);
-  const [packageOperators, setPackageOperators] = React.useState<any[]>([]);
+  const [packageActivities, setPackageActivities] = React.useState<PackageActivity[]>([]);
+  const [packageOperators, setPackageOperators] = React.useState<PackageOperator[]>([]);
   const [sceneActivityCrewMap, setSceneActivityCrewMap] = React.useState<Map<number, { cameraCount: number; audioCount: number }>>(new Map());
 
   React.useEffect(() => {
@@ -172,39 +267,39 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
         ]);
         if (!mounted) return;
 
-        setPackageActivities(activities || []);
-        setPackageOperators(operators || []);
+        setPackageActivities((activities || []) as PackageActivity[]);
+        setPackageOperators((operators || []) as PackageOperator[]);
 
         // Build mapping from PackageEventDay join-table ID → actual EventDayTemplate ID
         const joinToTemplateMap = new Map<number, number>();
-        (eventDays || []).forEach((d: any) => {
+        ((eventDays || []) as PackageEventDay[]).forEach((d) => {
           if (d._joinId != null) joinToTemplateMap.set(d._joinId, d.id);
         });
 
         // Find the PackageFilm entry for this film
         const numFilmId = typeof filmId === 'string' ? parseInt(filmId, 10) : filmId;
-        const matchingPF = (packageFilms || []).find((pf: any) => pf.film_id === numFilmId);
+        const matchingPF = ((packageFilms || []) as PackageFilmRef[]).find((pf) => pf.film_id === numFilmId);
         if (!matchingPF) return;
 
-        const pfData = await api.schedule.packageFilms.getSchedule(matchingPF.id);
+        const pfData = (await api.schedule.packageFilms.getSchedule(matchingPF.id)) as PackageFilmSchedule;
         if (!mounted || !pfData?.scene_schedules) return;
 
         // Pre-compute crew counts per activity
         const activityCrewCounts = new Map<number, { cameraCount: number; audioCount: number }>();
-        (activities || []).forEach((act: any) => {
+        ((activities || []) as PackageActivity[]).forEach((act) => {
           // Resolve the actual template ID (operators use event_day_template_id which is the EventDayTemplate.id)
           const activityEventDayId = joinToTemplateMap.get(act.package_event_day_id) ?? act.package_event_day_id;
           // Same 3-condition inheritance filter as MomentEditor
-          const matched = (operators || []).filter((o: any) => {
+          const matched = ((operators || []) as PackageOperator[]).filter((o) => {
             if (o.package_activity_id === act.id) return true;
-            if (o.activity_assignments?.some((a: any) => a.package_activity_id === act.id)) return true;
+            if (o.activity_assignments?.some((a) => a.package_activity_id === act.id)) return true;
             const hasNoAssignment = !o.package_activity_id && (!o.activity_assignments || o.activity_assignments.length === 0);
             if (hasNoAssignment && o.event_day_template_id === activityEventDayId) return true;
             return false;
           });
           // Deduplicate by operator_template_id
-          const seen = new Map<number, any>();
-          matched.forEach((o: any) => {
+          const seen = new Map<number, PackageOperator>();
+          matched.forEach((o) => {
             const templateId = o.operator_template_id ?? o.operator_template?.id ?? o.id;
             if (!seen.has(templateId)) seen.set(templateId, o);
           });
@@ -212,12 +307,12 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
 
           let cameraCount = 0;
           const audioIds = new Set<number>();
-          crew.forEach((op: any) => {
-            const equipment = op.equipment?.length > 0
+          crew.forEach((op) => {
+            const equipment = (op.equipment && op.equipment.length > 0
               ? op.equipment
-              : op.operator_template?.default_equipment || [];
+              : op.operator_template?.default_equipment) ?? [];
             let hasCamera = false;
-            equipment.forEach((eq: any) => {
+            equipment.forEach((eq) => {
               const cat = (eq.equipment?.category || '').toUpperCase();
               const eqId = eq.equipment_id ?? eq.equipment?.id;
               if (cat === 'CAMERA' && !hasCamera) hasCamera = true;
@@ -340,6 +435,12 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
   React.useEffect(() => {
     scenesLibrary.loadAvailableScenes();
   }, [scenesLibrary.loadAvailableScenes]);
+
+  React.useEffect(() => {
+    if (onChange) {
+      onChange(timelineState.scenes);
+    }
+  }, [timelineState.scenes, onChange]);
   
   // ✅ SHARE ALL HOOK RESULTS VIA CONTEXT
   const value: ContentBuilderContextType = {
@@ -401,6 +502,10 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
     packageActivities,
     packageOperators,
     sceneActivityCrewMap,
+    packageLocations,
+    packageLocationLookup,
+    trackDefaults,
+    setTrackDefault,
   };
 
   return (

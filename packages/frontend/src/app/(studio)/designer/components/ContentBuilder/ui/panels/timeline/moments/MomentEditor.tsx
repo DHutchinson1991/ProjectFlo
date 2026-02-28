@@ -72,6 +72,8 @@ interface MomentEditorProps {
     activitySubjects?: any[];
     /** All package operators (will be filtered to activity-inherited) */
     activityOperators?: any[];
+    /** Per-track defaults from the track icon click UI */
+    trackDefaults?: Record<number, { subject_ids: number[]; shot_type: string; audio_enabled?: boolean }>;
 }
 
 const MomentEditor: React.FC<MomentEditorProps> = ({
@@ -92,6 +94,7 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
     activity,
     activitySubjects = [],
     activityOperators = [],
+    trackDefaults = {},
 }) => {
     // Use the custom hook for form logic
     const {
@@ -305,6 +308,19 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
         const shotLookup = new Map(
             (fallbackSetup?.camera_assignments || []).map((assignment: any) => [assignment.track_id, assignment.shot_type || ""])
         );
+        // Fill in trackDefaults for tracks not present in existing recording setup
+        if (Object.keys(trackDefaults).length > 0) {
+            [...videoTracks, ...audioTracks].forEach((track) => {
+                const def = trackDefaults[track.id];
+                if (!def) return;
+                if (!assignmentLookup.has(track.id) && def.subject_ids?.length) {
+                    assignmentLookup.set(track.id, def.subject_ids);
+                }
+                if (!shotLookup.has(track.id) && def.shot_type) {
+                    shotLookup.set(track.id, def.shot_type);
+                }
+            });
+        }
 
         setSelectedCameraTrackIds(prev => (arraysEqual(prev, cameraIds) ? prev : cameraIds));
         setSelectedAudioTrackIds(prev => (arraysEqual(prev, audioIds) ? prev : audioIds));
@@ -337,7 +353,7 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
 
         prevOpenRef.current = open;
         prevMomentIdRef.current = momentId;
-    }, [moment, open, fallbackSetup, videoTracks, audioTracks, isSetupDirty]);
+    }, [moment, open, fallbackSetup, videoTracks, audioTracks, isSetupDirty, trackDefaults]);
 
     const toggleIdInList = (list: number[], id: number) => (
         list.includes(id) ? list.filter(value => value !== id) : [...list, id]

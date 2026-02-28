@@ -1145,6 +1145,17 @@ class ApiService extends BaseApiClient {
      delete: (brandId: number, id: number): Promise<void> => this.delete(`/brands/${brandId}/package-categories/${id}`),
   };
 
+  // ─── Wedding Types System ────────────────────────────────────────────
+
+  weddingTypes = {
+    getAll: (brandId: number): Promise<any[]> => this.get(`/wedding-types?brandId=${brandId}`),
+    getById: (id: number, brandId: number): Promise<any> => this.get(`/wedding-types/${id}?brandId=${brandId}`),
+    getSystemSeeded: (): Promise<any[]> => this.get(`/wedding-types/system-seeded`),
+    getBrandSpecific: (brandId: number): Promise<any[]> => this.get(`/wedding-types/brand-specific?brandId=${brandId}`),
+    createPackageFromTemplate: (weddingTypeId: number, data: { packageName: string; packageDescription?: string }, brandId: number): Promise<any> =>
+      this.post(`/wedding-types/${weddingTypeId}/create-package?brandId=${brandId}`, data),
+  };
+
   // ─── Operators System ────────────────────────────────────────────────
 
   operators = {

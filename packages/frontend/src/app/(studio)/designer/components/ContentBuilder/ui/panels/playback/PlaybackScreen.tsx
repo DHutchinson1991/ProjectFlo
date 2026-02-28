@@ -105,10 +105,34 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
 
     // Calculate current moment based on currentTime
     const { moment, sceneName } = useMemo(() => {
+        console.group('[PlaybackScreen] Computing moment');
+        console.log('[PlaybackScreen] currentScene:', currentScene ? {
+            id: (currentScene as any).id,
+            name: (currentScene as any).name,
+            start_time: (currentScene as any).start_time,
+            duration: (currentScene as any).duration,
+            hasOriginalScene: !!(currentScene as any).original_scene,
+            hasMoments: !!(currentScene as any).moments,
+            momentsCount: ((currentScene as any).moments || []).length,
+        } : null);
+        console.groupEnd();
+
         if (!currentScene) return { moment: null, sceneName: '' };
 
         const originalScene = (currentScene as any).original_scene || currentScene;
         const moments = originalScene.moments || [];
+
+        console.log('[PlaybackScreen] Moments from scene:', moments.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            duration: m.duration,
+            has_recording_setup: m.has_recording_setup,
+            recording_setup: m.recording_setup ? {
+                camera_assignments_count: (m.recording_setup.camera_assignments || []).length,
+                audio_track_ids: m.recording_setup.audio_track_ids,
+                graphics_enabled: m.recording_setup.graphics_enabled,
+            } : null,
+        })));
 
         if (moments.length === 0) return { moment: null, sceneName: currentScene?.name || '' };
 
@@ -130,6 +154,20 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
     }, [currentScene, currentTime]);
 
     const recordingSetup = (moment as any)?.recording_setup || (currentScene as any)?.recording_setup || null;
+
+    console.log('[PlaybackScreen] Active moment:', moment ? {
+        id: (moment as any).id,
+        name: (moment as any).name,
+        has_recording_setup: (moment as any).has_recording_setup,
+        recording_setup_raw: (moment as any).recording_setup,
+        recording_setup_keys: (moment as any).recording_setup ? Object.keys((moment as any).recording_setup) : null,
+    } : null);
+    console.log('[PlaybackScreen] recordingSetup resolved:', recordingSetup ? {
+        camera_assignments: recordingSetup.camera_assignments,
+        audio_track_ids: recordingSetup.audio_track_ids,
+        graphics_enabled: recordingSetup.graphics_enabled,
+    } : 'NULL — no cards will render');
+
     const momentSubjects = ((moment as any)?.subjects || []) as Array<{
         subject_id: number;
         subject?: { name?: string | null } | null;

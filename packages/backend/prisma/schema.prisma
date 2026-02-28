@@ -48,6 +48,7 @@ model brands {
   event_day_templates EventDayTemplate[]
   operator_templates  OperatorTemplate[]
   schedule_presets   SchedulePreset[]
+  wedding_types      WeddingType[]
 
   @@map("brands")
 }
@@ -2460,24 +2461,26 @@ enum equipment_availability_status {
 }
 
 model service_packages {
-  id          Int      @id @default(autoincrement())
-  brand_id    Int
-  name        String
-  description String?
-  category    String?  // Keeping for backward compat, or allows free text if no relation
-  category_id Int?     // New flexible relation
-  base_price  Decimal  @default(0) @db.Decimal(10, 2)
-  currency    String   @default("USD")
-  is_active   Boolean  @default(true)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  brand_id        Int
+  wedding_type_id Int?     // Which wedding type this package was created from (optional)
+  name            String
+  description     String?
+  category        String?  // Keeping for backward compat, or allows free text if no relation
+  category_id     Int?     // New flexible relation
+  base_price      Decimal  @default(0) @db.Decimal(10, 2)
+  currency        String   @default("USD")
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
   
   // JSON field to store the package contents (Films, coverage, add-ons)
   // Structure: { films: [id, id], line_items: [{description, price}] }
-  contents    Json?    
+  contents        Json?    
 
   brand            brands                      @relation(fields: [brand_id], references: [id], onDelete: Cascade)
   package_category service_package_categories? @relation(fields: [category_id], references: [id])
+  wedding_type     WeddingType?                @relation("CreatedFromWeddingType", fields: [wedding_type_id], references: [id], onDelete: SetNull)
   inquiries        inquiries[]
   package_films         PackageFilm[]
   package_event_days    PackageEventDay[]
@@ -2490,6 +2493,7 @@ model service_packages {
 
   @@index([brand_id])
   @@index([category_id])
+  @@index([wedding_type_id])
   @@map("service_packages")
 }
 
@@ -2556,6 +2560,161 @@ model EventDayTemplate {
   @@unique([brand_id, name])
   @@index([brand_id])
   @@map("event_day_templates")
+}
+
+// ─── Wedding Type Templates ──────────────────────────────────────────
+// System-seeded templates for pre-filled package creation workflows
+// (e.g., "Traditional British Wedding", "Indian Wedding", etc.)
+// Each wedding type has a standard set of activities suitable for that culture/style
+model WeddingType {
+  id                          Int           @id @default(autoincrement())
+  brand_id                    Int?          // Brand-specific override, NULL = system default
+  name                        String        // "Traditional British Wedding", "Indian Wedding", etc.
+  description                 String?
+  total_duration_hours        Int           // e.g., 10 for British, 14 for Indian
+  event_start_time            String        // "HH:MM" e.g., "14:00" or "12:00"
+  typical_guest_count         Int?          // Reference guide for this wedding type
+  is_system_seeded            Boolean       @default(true) // System defaults vs user-created
+  is_active                   Boolean       @default(true)
+  order_index                 Int           @default(0)
+  created_at                  DateTime      @default(now())
+  updated_at                  DateTime      @updatedAt
+
+  brand                       brands?       @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  activities                  WeddingTypeActivity[]
+  locations                   WeddingTypeLocation[]
+  subjects                    WeddingTypeSubject[]
+  service_packages_created    service_packages[] @relation("CreatedFromWeddingType")
+
+  @@unique([brand_id, name])
+  @@index([brand_id])
+  @@index([is_system_seeded])
+  @@index([is_active])
+  @@map("wedding_types")
+}
+
+// Activities within a wedding type template
+// These auto-populate into the package when created "from" this wedding type
+model WeddingTypeActivity {
+  id                          Int           @id @default(autoincrement())
+  wedding_type_id             Int
+  name                        String        // "Getting Ready", "Ceremony", "Reception", etc.
+  icon                        String?       // Icon identifier (e.g., "glam", "heart", "cake")
+  color                       String?       // Hex color for Gantt visualization
+  duration_minutes            Int           // Activity block duration (e.g., 60, 90)
+  start_time_offset_minutes   Int           // Minutes from event_start_time (e.g., 0, 60, 120)
+  order_index                 Int           @default(0)
+  description                 String?
+  created_at                  DateTime      @default(now())
+  updated_at                  DateTime      @updatedAt
+
+  wedding_type                WeddingType   @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
+  moments                     WeddingTypeActivityMoment[]
+  activity_locations          WeddingTypeActivityLocation[]
+  activity_subjects           WeddingTypeActivitySubject[]
+
+  @@unique([wedding_type_id, order_index])
+  @@index([wedding_type_id])
+  @@map("wedding_type_activities")
+}
+
+// Moments within a wedding type activity
+// These auto-populate into the PackageActivityMoment when package is created
+model WeddingTypeActivityMoment {
+  id                          Int           @id @default(autoincrement())
+  wedding_type_activity_id    Int
+  name                        String        // "Processional", "Vows", "First Dance", "Cutting Cake", etc.
+  duration_seconds            Int           @default(60) // Estimated moment duration
+  order_index                 Int           @default(0)
+  is_key_moment               Boolean       @default(false) // Mark for highlight reel inclusion
+  description                 String?
+  created_at                  DateTime      @default(now())
+  updated_at                  DateTime      @updatedAt
+
+  wedding_type_activity       WeddingTypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
+
+  @@unique([wedding_type_activity_id, order_index])
+  @@index([wedding_type_activity_id])
+  @@map("wedding_type_activity_moments")
+}
+
+// Locations for a wedding type template
+// e.g., "Bride's Home", "Venue", "Reception Hall", "Garden"
+model WeddingTypeLocation {
+  id                          Int           @id @default(autoincrement())
+  wedding_type_id             Int
+  name                        String        // "Bride's Getting Ready", "Ceremony Venue", "Reception Hall", etc.
+  location_type               String?       // "getting_ready", "ceremony", "reception", "photo", etc.
+  order_index                 Int           @default(0)
+  is_primary                  Boolean       @default(false) // Main/primary location for this type
+  created_at                  DateTime      @default(now())
+  updated_at                  DateTime      @updatedAt
+
+  wedding_type                WeddingType   @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
+  activity_locations          WeddingTypeActivityLocation[]
+
+  @@unique([wedding_type_id, order_index])
+  @@index([wedding_type_id])
+  @@map("wedding_type_locations")
+}
+
+// Subjects for a wedding type template
+// e.g., "Bride", "Groom", "Bridesmaids", "Family", "Guests"
+model WeddingTypeSubject {
+  id                          Int           @id @default(autoincrement())
+  wedding_type_id             Int
+  name                        String        // "Bride", "Groom", "Bridesmaids", "Groomsmen", "Parents", "Family", "Guests"
+  subject_type                String?       // "couple", "wedding_party", "family", "guests", "children", "pets"
+  typical_count               Int?          // For "Bridesmaids": 3, "Guests": 80, etc.
+  order_index                 Int           @default(0)
+  is_primary                  Boolean       @default(false) // Core/primary subject type
+  created_at                  DateTime      @default(now())
+  updated_at                  DateTime      @updatedAt
+
+  wedding_type                WeddingType   @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
+  activity_subjects           WeddingTypeActivitySubject[]
+
+  @@unique([wedding_type_id, order_index])
+  @@index([wedding_type_id])
+  @@map("wedding_type_subjects")
+}
+
+// Junction table: Activity -> Locations (many-to-many)
+model WeddingTypeActivityLocation {
+  id                          Int           @id @default(autoincrement())
+  wedding_type_activity_id    Int
+  wedding_type_location_id    Int
+  location_sequence_index     Int           @default(0)
+  duration_minutes_at_location Int?         // Time spent at this location during activity
+  created_at                  DateTime      @default(now())
+  updated_at                  DateTime      @updatedAt
+
+  wedding_type_activity       WeddingTypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
+  wedding_type_location       WeddingTypeLocation @relation(fields: [wedding_type_location_id], references: [id], onDelete: Cascade)
+
+  @@unique([wedding_type_activity_id, wedding_type_location_id])
+  @@index([wedding_type_activity_id])
+  @@index([wedding_type_location_id])
+  @@map("wedding_type_activity_locations")
+}
+
+// Junction table: Activity -> Subjects (many-to-many)
+model WeddingTypeActivitySubject {
+  id                          Int           @id @default(autoincrement())
+  wedding_type_activity_id    Int
+  wedding_type_subject_id     Int
+  presence_percentage         Int?          // How much of activity features this subject (0-100%)
+  is_primary_focus            Boolean       @default(false)
+  created_at                  DateTime      @default(now())
+  updated_at                  DateTime      @updatedAt
+
+  wedding_type_activity       WeddingTypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
+  wedding_type_subject        WeddingTypeSubject @relation(fields: [wedding_type_subject_id], references: [id], onDelete: Cascade)
+
+  @@unique([wedding_type_activity_id, wedding_type_subject_id])
+  @@index([wedding_type_activity_id])
+  @@index([wedding_type_subject_id])
+  @@map("wedding_type_activity_subjects")
 }
 
 // Film-level scene schedule defaults (1:1 with FilmScene)

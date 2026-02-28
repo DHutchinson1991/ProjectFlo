@@ -122,7 +122,7 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
     }, [onUpdateScene, scenes]);
 
     // ─── Package activities ───────────────────────────────────────────────
-    const { packageId } = useContentBuilder();
+    const { packageId, trackDefaults } = useContentBuilder();
     const [packageActivities, setPackageActivities] = React.useState<Array<{
         id: number;
         name: string;
@@ -268,6 +268,7 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
                 activity={momentActivity}
                 activitySubjects={packageSubjects}
                 activityOperators={packageOperators}
+                trackDefaults={trackDefaults}
             />
 
             <BeatEditor
