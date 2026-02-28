@@ -93,6 +93,8 @@ interface ContentBuilderContextType {
   packageOperators: any[];
   /** Pre-computed map: sceneId → { cameraCount, audioCount } based on the scene's linked activity */
   sceneActivityCrewMap: Map<number, { cameraCount: number; audioCount: number }>;
+  packageLocations: any[];
+  packageLocationLookup: Map<string, any>;
 }
 
 const ContentBuilderContext = createContext<ContentBuilderContextType | null>(null);

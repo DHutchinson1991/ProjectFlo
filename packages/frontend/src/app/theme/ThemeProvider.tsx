@@ -74,31 +74,39 @@ type ThemeContextType = {
 };
 
 const ThemeContext = createContext<ThemeContextType>({
-    mode: "light",
+    mode: "dark",
     toggleTheme: () => { },
 });
 
 // Hook to use theme context
 export const useTheme = () => useContext(ThemeContext);
 
+// Get initial theme mode (runs before component mounts)
+function getInitialMode(): PaletteMode {
+    if (typeof window === 'undefined') return 'dark';
+    
+    try {
+        const savedMode = localStorage.getItem("themeMode");
+        if (savedMode === "light" || savedMode === "dark") {
+            return savedMode;
+        }
+    } catch (e) {
+        // localStorage might not be available
+    }
+    
+    return 'dark'; // Default to dark mode
+}
+
 // Theme provider component
 export function ThemeProvider({ children }: { children: ReactNode }) {
-    // Initialize theme mode from localStorage or default to 'light'
-    const [mode, setMode] = useState<PaletteMode>("light");
+    // Initialize theme mode from localStorage or default to 'dark'
+    const [mode, setMode] = useState<PaletteMode>(getInitialMode);
 
-    // Effect to load saved theme preference
+    // Effect to sync with html element
     useEffect(() => {
-        const savedMode = localStorage.getItem("themeMode");
-        if (savedMode && (savedMode === "light" || savedMode === "dark")) {
-            setMode(savedMode);
-        } else {
-            // Check system preference
-            const prefersDark = window.matchMedia(
-                "(prefers-color-scheme: dark)",
-            ).matches;
-            setMode(prefersDark ? "dark" : "light");
-        }
-    }, []);
+        document.documentElement.style.colorScheme = mode;
+        document.documentElement.setAttribute('data-theme', mode);
+    }, [mode]);
 
     // Toggle theme function
     const toggleTheme = () => {
