@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     Box,
     Typography,
@@ -30,13 +29,11 @@ import {
     Delete as DeleteIcon,
 } from "@mui/icons-material";
 import { useBrand } from "../../../providers/BrandProvider";
-import { api } from "../../../../lib/api";
-import { FilmData } from "../../../../lib/types/media";
+import type { Film } from "../../../../lib/types/domains/film";
+import { useFilms } from "../../../../hooks/films/useFilms";
 
 // Types
-interface FilmTemplate extends FilmData {
-    template_defaults?: unknown[];
-}
+type FilmTemplate = Film;
 
 // Components
 function Loading({ message }: { message: string }) {
@@ -73,26 +70,7 @@ function DeleteConfirmDialog({
 
 export default function FilmsPage() {
     const { currentBrand } = useBrand();
-    const queryClient = useQueryClient();
-
-    // Query films with brand context
-    const {
-        data: films = [],
-        isLoading,
-        error,
-    } = useQuery({
-        queryKey: ["films", currentBrand?.id],
-        queryFn: () => api.films.getAll(),
-        enabled: !!currentBrand,
-    });
-
-    // Delete mutation
-    const deleteMutation = useMutation({
-        mutationFn: (id: number) => api.films.delete(id),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["films", currentBrand?.id] });
-        },
-    });
+    const { films, isLoading, error, deleteFilm } = useFilms(currentBrand?.id);
 
     // Menu and modal states
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -131,7 +109,7 @@ export default function FilmsPage() {
     const handleDeleteConfirm = async () => {
         if (!deletingContent) return;
         try {
-            await deleteMutation.mutateAsync(deletingContent.id);
+            await deleteFilm(deletingContent.id);
             setIsDeleteModalOpen(false);
             setDeletingContent(null);
         } catch (apiError) {
@@ -194,10 +172,10 @@ export default function FilmsPage() {
                         sx={{ fontSize: 48, color: "text.secondary", mb: 2 }}
                     />
                     <Typography variant="h6" gutterBottom>
-                        No Film Templates Found
+                        No Films Found
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                        Get started by creating your first film template
+                        Get started by creating your first film
                     </Typography>
                     <Button
                         component={Link}
@@ -205,7 +183,7 @@ export default function FilmsPage() {
                         variant="contained"
                         startIcon={<AddIcon />}
                     >
-                        Create Your First Film Template
+                        Create Your First Film
                     </Button>
                 </Card>
             ) : (
@@ -215,12 +193,10 @@ export default function FilmsPage() {
                             <TableHead>
                                 <TableRow>
                                     <TableCell>Template Name</TableCell>
-                                    <TableCell>Type</TableCell>
-                                    <TableCell>Status</TableCell>
-                                    <TableCell>Music</TableCell>
-                                    <TableCell>Delivery</TableCell>
                                     <TableCell>Scenes</TableCell>
-                                    <TableCell>Version</TableCell>
+                                    <TableCell>Subjects</TableCell>
+                                    <TableCell>Tracks</TableCell>
+                                    <TableCell>Updated</TableCell>
                                     <TableCell align="right">Actions</TableCell>
                                 </TableRow>
                             </TableHead>
@@ -247,64 +223,26 @@ export default function FilmsPage() {
                                                         {contentItem.name}
                                                     </Typography>
                                                 </Link>
-                                                {contentItem.description && (
-                                                    <Typography
-                                                        variant="body2"
-                                                        color="text.secondary"
-                                                        noWrap
-                                                    >
-                                                        {contentItem.description}
-                                                    </Typography>
-                                                )}
                                             </Box>
                                         </TableCell>
                                         <TableCell>
-                                            <Chip
-                                                label={contentItem.type}
-                                                size="small"
-                                                variant="outlined"
-                                                color="primary"
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={contentItem.is_active ? "Active" : "Inactive"}
-                                                size="small"
-                                                color={contentItem.is_active ? "success" : "default"}
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            {contentItem.includes_music ? (
-                                                <Chip
-                                                    label="Yes"
-                                                    size="small"
-                                                    variant="outlined"
-                                                    color="secondary"
-                                                />
-                                            ) : (
-                                                <Typography variant="body2" color="text.secondary">
-                                                    No
-                                                </Typography>
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
                                             <Typography variant="body2">
-                                                {contentItem.delivery_timeline
-                                                    ? `${contentItem.delivery_timeline} days`
-                                                    : "Not set"}
+                                                {contentItem.scenes?.length ?? 0}
                                             </Typography>
                                         </TableCell>
                                         <TableCell>
                                             <Typography variant="body2">
-                                                {contentItem.template_defaults &&
-                                                    contentItem.template_defaults.length > 0
-                                                    ? `${contentItem.template_defaults.length} scene${contentItem.template_defaults.length !== 1 ? "s" : ""}`
-                                                    : "0 scenes"}
+                                                {contentItem.subjects?.length ?? 0}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Typography variant="body2">
+                                                {contentItem.tracks?.length ?? 0}
                                             </Typography>
                                         </TableCell>
                                         <TableCell>
                                             <Typography variant="body2" color="text.secondary">
-                                                v{contentItem.version}
+                                                {new Date(contentItem.updated_at).toLocaleDateString()}
                                             </Typography>
                                         </TableCell>
                                         <TableCell align="right">

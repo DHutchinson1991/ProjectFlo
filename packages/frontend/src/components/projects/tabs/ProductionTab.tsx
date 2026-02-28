@@ -22,6 +22,8 @@ import {
     InputLabel,
     Select,
     MenuItem,
+    CircularProgress,
+    Divider,
 } from '@mui/material';
 import {
     Add as AddIcon,
@@ -36,8 +38,16 @@ import {
     Group as TeamIcon,
     Camera as CameraIcon,
     Mic as AudioIcon,
+    CalendarMonth as CalendarIcon,
+    Videocam as FilmIcon,
 } from '@mui/icons-material';
 import { Project } from '../../../app/(studio)/projects/types/project.types';
+import { api } from '@/lib/api';
+import { EventDayManager } from '@/components/schedule';
+import type { EventDayTemplate, EventDayFilmScene } from '@/components/schedule';
+import { VisualTimeline } from '@/components/schedule';
+import type { VisualTimelineScene } from '@/components/schedule';
+import { FilmSchedulePanel } from '@/components/films';
 
 interface ProductionShoot {
     id: number;
@@ -625,6 +635,276 @@ export default function ProductionTab({ project }: ProductionTabProps) {
                     </TableContainer>
                 </CardContent>
             </Card>
+
+            {/* ─── Film Schedule Section ────────────────────────────────────── */}
+            <ProjectFilmScheduleSection project={project} />
         </Box>
+    );
+}
+// ─── Project Film Schedule Section ──────────────────────────────────────
+
+interface ProjectFilmRecord {
+    id: number;
+    project_id: number;
+    film_id: number;
+    package_film_id?: number | null;
+    order_index: number;
+    film: {
+        id: number;
+        name: string;
+        brand_id: number;
+        scenes: any[];
+    };
+    scene_schedules: any[];
+}
+
+function ProjectFilmScheduleSection({ project }: { project: Project }) {
+    const [eventDays, setEventDays] = useState<EventDayTemplate[]>([]);
+    const [projectFilms, setProjectFilms] = useState<ProjectFilmRecord[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [expandedFilm, setExpandedFilm] = useState<number | null>(null);
+
+    const brandId = (project as any).brand_id ?? 1;
+
+    useEffect(() => {
+        loadScheduleData();
+    }, [project.id]);
+
+    const loadScheduleData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const [days, films] = await Promise.all([
+                api.schedule.eventDays.getAll(brandId),
+                api.schedule.projectFilms.getAll(project.id),
+            ]);
+            setEventDays(days);
+            setProjectFilms(films);
+        } catch (err: unknown) {
+            console.error('Failed to load project schedule:', err);
+            setError(err instanceof Error ? err.message : 'Failed to load schedule');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Build cross-film scene data for EventDayManager
+    const crossFilmScenes = React.useMemo(() => {
+        const map = new Map<number, EventDayFilmScene[]>();
+        for (const pf of projectFilms) {
+            if (!pf.film?.scenes) continue;
+            for (const sched of pf.scene_schedules || []) {
+                const dayId = sched.project_event_day?.event_day_template_id ?? sched.event_day_template_id;
+                if (!dayId) continue;
+                const scene = pf.film.scenes.find((s: any) => s.id === sched.scene_id);
+                if (!map.has(dayId)) map.set(dayId, []);
+                map.get(dayId)!.push({
+                    filmId: pf.film.id,
+                    filmName: pf.film.name,
+                    sceneId: sched.scene_id,
+                    sceneName: scene?.name ?? `Scene ${sched.scene_id}`,
+                    sceneMode: scene?.mode ?? 'MOMENTS',
+                    startTime: sched.scheduled_start_time,
+                    durationMinutes: sched.scheduled_duration_minutes,
+                    endTime: null,
+                });
+            }
+        }
+        return map;
+    }, [projectFilms]);
+
+    const handleRemoveFilm = async (projectFilmId: number) => {
+        try {
+            await api.schedule.projectFilms.delete(projectFilmId);
+            setProjectFilms(prev => prev.filter(pf => pf.id !== projectFilmId));
+        } catch (err) {
+            console.error('Failed to remove film from project:', err);
+        }
+    };
+
+    return (
+        <Card sx={{
+            mt: 3,
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            border: '1px solid rgba(52, 58, 68, 0.3)',
+            background: 'rgba(16, 18, 22, 0.95)',
+            backdropFilter: 'blur(10px)',
+        }}>
+            <CardContent sx={{ p: 4 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#f3f4f6', display: 'flex', alignItems: 'center' }}>
+                        <ScheduleIcon sx={{ mr: 2, color: '#f59e0b', fontSize: 28 }} />
+                        Film Schedule
+                    </Typography>
+                    <Chip
+                        label={`${projectFilms.length} film${projectFilms.length !== 1 ? 's' : ''}`}
+                        size="small"
+                        sx={{
+                            bgcolor: 'rgba(245,158,11,0.1)',
+                            color: '#f59e0b',
+                            border: '1px solid rgba(245,158,11,0.2)',
+                        }}
+                    />
+                </Box>
+
+                {loading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                        <CircularProgress size={24} sx={{ color: 'rgba(255,255,255,0.4)' }} />
+                    </Box>
+                ) : error ? (
+                    <Alert severity="info" sx={{ bgcolor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
+                        {error}. Schedule data will appear here when films are assigned to this project.
+                    </Alert>
+                ) : (
+                    <>
+                        {/* Event Day Manager - Cross-Film View */}
+                        <Box sx={{ mb: 3 }}>
+                            <EventDayManager
+                                brandId={brandId}
+                                eventDays={eventDays}
+                                crossFilmScenes={crossFilmScenes}
+                                onEventDaysChange={setEventDays}
+                            />
+                        </Box>
+
+                        {/* Combined Visual Timeline (all project films) */}
+                        {projectFilms.length > 0 && (
+                            <Box sx={{ mb: 3, p: 2, borderRadius: 2, border: '1px solid rgba(255,255,255,0.06)', bgcolor: 'rgba(0,0,0,0.2)' }}>
+                                <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', mb: 1.5 }}>
+                                    📅 Combined Shoot Timeline
+                                </Typography>
+                                <VisualTimeline
+                                    scenes={projectFilms.flatMap((pf) => {
+                                        const filmScenes = pf.film?.scenes || [];
+                                        return (pf.scene_schedules || []).map((sched: any) => {
+                                            const scene = filmScenes.find((s: any) => s.id === sched.scene_id);
+                                            const dayTemplate = sched.project_event_day?.event_day_template;
+                                            return {
+                                                scene_id: sched.scene_id,
+                                                scene_name: scene?.name ? `${pf.film?.name}: ${scene.name}` : `Scene ${sched.scene_id}`,
+                                                scene_mode: scene?.mode ?? null,
+                                                event_day_name: sched.project_event_day?.name ?? dayTemplate?.name ?? null,
+                                                event_day_template_id: dayTemplate?.id ?? sched.project_event_day?.event_day_template_id ?? null,
+                                                scheduled_start_time: sched.scheduled_start_time ?? null,
+                                                scheduled_duration_minutes: sched.scheduled_duration_minutes ?? null,
+                                                source: 'project' as const,
+                                            } satisfies VisualTimelineScene;
+                                        });
+                                    })}
+                                    eventDays={eventDays}
+                                />
+                            </Box>
+                        )}
+
+                        {projectFilms.length === 0 ? (
+                            <Box sx={{
+                                p: 4,
+                                textAlign: 'center',
+                                borderRadius: 2,
+                                border: '2px dashed rgba(245,158,11,0.2)',
+                                bgcolor: 'rgba(245,158,11,0.02)',
+                            }}>
+                                <CalendarIcon sx={{ fontSize: 40, color: 'rgba(245,158,11,0.3)', mb: 1 }} />
+                                <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem' }}>
+                                    No films assigned to this project yet.
+                                </Typography>
+                                <Typography sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.78rem', mt: 0.5 }}>
+                                    Films will be added here when a package is linked to this project.
+                                </Typography>
+                            </Box>
+                        ) : (
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                {projectFilms.map((pf) => (
+                                    <Card
+                                        key={pf.id}
+                                        sx={{
+                                            borderRadius: 2,
+                                            border: expandedFilm === pf.id
+                                                ? '1px solid rgba(245,158,11,0.3)'
+                                                : '1px solid rgba(255,255,255,0.08)',
+                                            bgcolor: 'rgba(255,255,255,0.02)',
+                                            overflow: 'hidden',
+                                            transition: 'all 0.2s ease',
+                                        }}
+                                    >
+                                        {/* Film header */}
+                                        <Box
+                                            sx={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 2,
+                                                px: 2.5,
+                                                py: 1.5,
+                                                cursor: 'pointer',
+                                                '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' },
+                                            }}
+                                            onClick={() => setExpandedFilm(
+                                                expandedFilm === pf.id ? null : pf.id
+                                            )}
+                                        >
+                                            <FilmIcon sx={{ fontSize: 20, color: '#648CFF' }} />
+                                            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', flex: 1 }}>
+                                                {pf.film?.name ?? `Film #${pf.film_id}`}
+                                            </Typography>
+                                            <Chip
+                                                label={`${pf.film?.scenes?.length ?? 0} scenes`}
+                                                size="small"
+                                                sx={{
+                                                    fontSize: '10px',
+                                                    height: 22,
+                                                    bgcolor: 'rgba(100,140,255,0.1)',
+                                                    color: '#648CFF',
+                                                }}
+                                            />
+                                            <Chip
+                                                label={`${pf.scene_schedules?.length ?? 0} scheduled`}
+                                                size="small"
+                                                sx={{
+                                                    fontSize: '10px',
+                                                    height: 22,
+                                                    bgcolor: 'rgba(245,158,11,0.1)',
+                                                    color: '#f59e0b',
+                                                }}
+                                            />
+                                            <IconButton
+                                                size="small"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRemoveFilm(pf.id);
+                                                }}
+                                                sx={{ color: 'rgba(244,67,54,0.5)', '&:hover': { color: '#f44336' } }}
+                                            >
+                                                <DeleteIcon sx={{ fontSize: 16 }} />
+                                            </IconButton>
+                                        </Box>
+
+                                        {/* Expanded schedule panel */}
+                                        {expandedFilm === pf.id && pf.film && (
+                                            <Box sx={{
+                                                borderTop: '1px solid rgba(255,255,255,0.06)',
+                                                height: 400,
+                                            }}>
+                                                <FilmSchedulePanel
+                                                    filmId={pf.film.id}
+                                                    scenes={pf.film.scenes || []}
+                                                    brandId={pf.film.brand_id}
+                                                    filmName={pf.film.name}
+                                                    mode="project"
+                                                    contextId={pf.id}
+                                                    showEventDayManager={false}
+                                                    onScheduleChange={loadScheduleData}
+                                                />
+                                            </Box>
+                                        )}
+                                    </Card>
+                                ))}
+                            </Box>
+                        )}
+                    </>
+                )}
+            </CardContent>
+        </Card>
     );
 }

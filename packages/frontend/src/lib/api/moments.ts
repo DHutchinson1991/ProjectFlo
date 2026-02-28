@@ -159,19 +159,33 @@ class MomentsApiService {
         }
         return response.json();
     }
+    // ==================== COVERAGE ASSIGNMENT ====================
 
-    // ==================== COVERAGE ASSIGNMENTS ====================
-
-    async normalizeSceneCoverage(sceneId: number): Promise<{ count: number }> {
-        const response = await fetch(`${API_BASE_URL}/moments/scenes/${sceneId}/normalize-coverage`, {
-            method: 'PATCH',
+    async assignCoverageToMoment(momentId: number, coverageId: number): Promise<SceneMoment> {
+        const response = await fetch(`${API_BASE_URL}/moments/${momentId}/coverage/${coverageId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to normalize scene coverage: ${response.status}`);
+            throw new Error(`Failed to assign coverage to moment: ${response.status}`);
         }
         return response.json();
     }
+
+    async removeCoverageFromMoment(momentId: number, coverageId: number): Promise<SceneMoment> {
+        const response = await fetch(`${API_BASE_URL}/moments/${momentId}/coverage/${coverageId}`, {
+            method: 'DELETE',
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to remove coverage from moment: ${response.status}`);
+        }
+        return response.json();
+    }
+    // ==================== COVERAGE ASSIGNMENTS ====================
 
     async updateSceneCoverageAssignments(sceneId: number): Promise<{ updated: number }> {
         const response = await fetch(`${API_BASE_URL}/moments/scenes/${sceneId}/update-assignments`, {

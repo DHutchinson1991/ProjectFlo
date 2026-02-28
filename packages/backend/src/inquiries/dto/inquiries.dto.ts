@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, IsDateString, IsEnum } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsDateString, IsEnum, IsInt } from 'class-validator';
 import { $Enums } from '@prisma/client';
 
 export class CreateInquiryDto {
@@ -35,6 +35,10 @@ export class CreateInquiryDto {
     @IsOptional()
     @IsString()
     lead_source_details?: string;
+
+    @IsOptional()
+    @IsInt()
+    selected_package_id?: number;
 }
 
 export class UpdateInquiryDto {
@@ -77,4 +81,8 @@ export class UpdateInquiryDto {
     @IsOptional()
     @IsString()
     lead_source_details?: string;
+
+    @IsOptional()
+    @IsInt()
+    selected_package_id?: number | null;
 }

@@ -1,4 +1,23 @@
-import { PartialType } from "@nestjs/mapped-types";
-import { CreateSceneDto } from "./create-scene.dto";
+import { IsString, IsOptional, IsNumber } from 'class-validator';
 
-export class UpdateSceneDto extends PartialType(CreateSceneDto) { }
+export class UpdateSceneDto {
+    @IsString()
+    @IsOptional()
+    name?: string;
+
+    @IsNumber()
+    @IsOptional()
+    scene_template_id?: number | null;
+
+    @IsNumber()
+    @IsOptional()
+    shot_count?: number | null;
+
+    @IsNumber()
+    @IsOptional()
+    duration_seconds?: number | null;
+
+    @IsNumber()
+    @IsOptional()
+    order_index?: number;
+}

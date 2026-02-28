@@ -13,11 +13,11 @@ applyTo: "**"
 pwd
 
 # You should be in ONE of these locations:
-# ✅ ROOT: /c/Users/info/Documents/Website Files/ProjectFlo
-# ✅ BACKEND: /c/Users/info/Documents/Website Files/ProjectFlo/packages/backend
-# ✅ FRONTEND: /c/Users/info/Documents/Website Files/ProjectFlo/packages/frontend
+# ✅ ROOT: c:\Users\works\Documents\Code Projects\ProjectFlo
+# ✅ BACKEND: c:\Users\works\Documents\Code Projects\ProjectFlo\packages\backend
+# ✅ FRONTEND: c:\Users\works\Documents\Code Projects\ProjectFlo\packages\frontend
 
-# ❌ AVOID being in: /c/Users/info/Documents/Website Files/ProjectFlo/packages
+# ❌ AVOID being in: c:\Users\works\Documents\Code Projects\ProjectFlo\packages
 # This is the packages folder itself - NOT where you want to be!
 ```
 
@@ -25,10 +25,7 @@ pwd
 
 ```bash
 # Lost? Get back to root directory:
-cd "c:\Users\info\Documents\Website Files\ProjectFlo"
-
-# Or use the home shortcut:
-cd ~/Documents/Website\ Files/ProjectFlo
+cd "c:\Users\works\Documents\Code Projects\ProjectFlo"
 
 # From anywhere, check if you're in the right place:
 ls -la | grep -E "(pnpm-workspace|package.json|packages/)"
@@ -39,11 +36,11 @@ ls -la | grep -E "(pnpm-workspace|package.json|packages/)"
 
 ```bash
 # Pattern 1: Always start from root
-cd "c:\Users\info\Documents\Website Files\ProjectFlo"  # Go to root first
-cd packages/backend                                     # Then navigate to backend
+cd "c:\Users\works\Documents\Code Projects\ProjectFlo"  # Go to root first
+cd packages/backend                                      # Then navigate to backend
 
 # Pattern 2: Use full paths (safest)
-cd "c:\Users\info\Documents\Website Files\ProjectFlo\packages\backend"
+cd "c:\Users\works\Documents\Code Projects\ProjectFlo\packages\backend"
 
 # Pattern 3: Check before moving
 pwd && cd packages/backend && pwd  # Show before and after
@@ -51,7 +48,7 @@ pwd && cd packages/backend && pwd  # Show before and after
 
 ## **🏠 ROOT DIRECTORY COMMANDS**
 
-**Location:** `c:\Users\info\Documents\Website Files\ProjectFlo\`
+**Location:** `c:\Users\works\Documents\Code Projects\ProjectFlo\`
 
 ### **Main Development Commands:**
 
@@ -61,6 +58,95 @@ pwd && cd packages/backend && pwd  # Show before and after
 - `pnpm format` - Format all code with Prettier
 - `pnpm lint` - Lint all packages
 - `pnpm lint:fix` - Lint and auto-fix all packages
+
+### **🚀 CRITICAL: Server Management Rules**
+
+**⚠️ IMPORTANT FOR AI ASSISTANT:**
+- **NEVER** attempt to start or stop servers using tools
+- **NEVER** run `pnpm dev`, `npm run start:dev`, or similar commands
+- **ALWAYS** instruct the user to start/stop servers manually
+- **ONLY** the user should manage server processes
+
+**When servers are needed:**
+1. Check if servers are running by asking the user OR testing with a simple API call
+2. If servers are not running, provide this instruction to the user:
+
+```
+Please start the servers by running this command in a terminal:
+
+cd "c:\Users\works\Documents\Code Projects\ProjectFlo"
+pnpm dev
+
+Leave this terminal running - do NOT close it or run other commands in it.
+Open a second terminal for testing/other commands.
+```
+
+3. Wait for the user to confirm servers are running before proceeding
+
+**When testing is needed:**
+- Always assume servers are running in a separate terminal
+- Run test commands in a different terminal
+- If tests fail due to connection errors, ask user to confirm servers are running
+
+### **🚀 How to Start Servers (FOR USER)**
+
+**IMPORTANT:** Servers run in the FOREGROUND and must NOT be interrupted!
+
+#### **Method 1: Start in VS Code Terminal (Recommended)**
+```bash
+# 1. Open a NEW terminal in VS Code (Terminal > New Terminal)
+# 2. Navigate to root:
+cd "c:\Users\works\Documents\Code Projects\ProjectFlo"
+
+# 3. Start servers:
+pnpm dev
+
+# 4. LEAVE THIS TERMINAL RUNNING - Do NOT run other commands here
+# 5. Open a SECOND terminal for testing/other commands
+```
+
+#### **Method 2: Start in Separate PowerShell Window**
+```powershell
+# From root directory, launch in new window:
+cd "c:\Users\works\Documents\Code Projects\ProjectFlo"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "pnpm dev"
+
+# This opens a new window - servers run there
+# Use your current terminal for testing
+```
+
+#### **What You'll See When Servers Start:**
+```
+[TIME] Starting compilation in watch mode...
+[0]
+[1]  ✓ Ready in 5.8s  (Frontend on http://localhost:3001)
+
+[TIME] Found 0 errors. Watching for file changes.
+[0]  ✓ Ready in 8.2s  (Backend on http://localhost:3002)
+```
+
+#### **Testing While Servers Run:**
+```bash
+# Open a SEPARATE terminal and test:
+Invoke-WebRequest -Uri "http://localhost:3002/films" -UseBasicParsing | Select-Object -ExpandProperty Content
+
+# Or use curl:
+curl http://localhost:3002/films
+
+# Health check:
+curl http://localhost:3002/films > $null 2>&1; if ($?) { "✅ Backend Running" } else { "❌ Backend Not Running" }
+```
+
+#### **⚠️ COMMON MISTAKES TO AVOID:**
+```bash
+# ❌ WRONG - Running commands in the same terminal stops servers:
+pnpm dev
+Start-Sleep -Seconds 10  # This INTERRUPTS the servers!
+
+# ✅ CORRECT - Use background flag OR separate terminal:
+# Option A: Let pnpm dev run uninterrupted in its own terminal
+# Option B: Open second terminal for all other commands
+```
 
 ---
 

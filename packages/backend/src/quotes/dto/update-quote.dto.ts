@@ -1,5 +1,5 @@
 import { QuoteStatus } from './create-quote.dto';
-import { IsString, IsDateString, IsArray, ValidateNested, IsNumber, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsDateString, IsArray, ValidateNested, IsNumber, IsOptional, IsEnum, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateQuoteItemDto {
@@ -8,11 +8,31 @@ export class UpdateQuoteItemDto {
 
     @IsOptional()
     @IsString()
+    category?: string;
+
+    @IsOptional()
+    @IsString()
     description?: string;
+
+    @IsOptional()
+    @IsDateString()
+    service_date?: string;
+
+    @IsOptional()
+    @IsString()
+    start_time?: string;
+
+    @IsOptional()
+    @IsString()
+    end_time?: string;
 
     @IsOptional()
     @IsNumber({ maxDecimalPlaces: 2 })
     quantity?: number;
+
+    @IsOptional()
+    @IsString()
+    unit?: string;
 
     @IsOptional()
     @IsNumber({ maxDecimalPlaces: 2 })
@@ -23,6 +43,38 @@ export class UpdateQuoteDto {
     @IsOptional()
     @IsString()
     quote_number?: string;
+
+    @IsOptional()
+    @IsString()
+    title?: string;
+
+    @IsOptional()
+    @IsNumber()
+    tax_rate?: number;
+
+    @IsOptional()
+    @IsNumber()
+    deposit_required?: number;
+
+    @IsOptional()
+    @IsString()
+    notes?: string;
+
+    @IsOptional()
+    @IsString()
+    terms?: string;
+
+    @IsOptional()
+    @IsString()
+    payment_method?: string;
+
+    @IsOptional()
+    @IsNumber()
+    installments?: number;
+
+    @IsOptional()
+    @IsBoolean()
+    is_primary?: boolean;
 
     @IsOptional()
     @IsDateString()

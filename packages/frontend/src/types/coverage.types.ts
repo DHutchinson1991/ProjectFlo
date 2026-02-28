@@ -64,8 +64,17 @@ export interface Coverage {
 
     // Common fields
     operator_id?: number;
+    job_role_id?: number;
+    resource_requirements?: { category: string; quantity: number }[];
     subject?: string; // e.g., "Bride", "Groom", "Both", "All Guests", "Officiant"
+    operator?: string; // DEPRECATED: Use job_role relationship
     notes?: string;
+    
+    // Relations
+    job_role?: {
+        id: number;
+        name: string;
+    };
 
     // Equipment assignments (JSON for flexibility)
     equipment_assignments?: Record<string, unknown>;
@@ -146,6 +155,8 @@ export interface CreateCoverageDto {
 
     // Common fields
     operator_id?: number;
+    job_role_id?: number;
+    resource_requirements?: { category: string; quantity: number }[];
     subject?: string;
     notes?: string;
     equipment_assignments?: Record<string, unknown>;

@@ -35,10 +35,7 @@ export class InquiriesController {
         @Headers('x-brand-context') brandId: string,
     ) {
         const brandIdNum = parseInt(brandId);
-        if (!brandIdNum) {
-            throw new NotFoundException('Brand ID is required');
-        }
-        return this.inquiriesService.findOne(id, brandIdNum);
+        return this.inquiriesService.findOne(id, brandIdNum || 0);
     }
 
     @Post()

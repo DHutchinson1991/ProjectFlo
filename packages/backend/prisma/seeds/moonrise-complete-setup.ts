@@ -2,17 +2,13 @@
 // Runs all moonrise seed modules in the correct order
 import { createMoonriseBrand } from './moonrise-brand-setup';
 import { createMoonriseTeam } from './moonrise-team-setup';
-import { createMoonriseScenes } from './moonrise-scenes-setup';
-import { createMoonriseFilmLibrary } from './moonrise-film-library';
 import { createMoonriseTaskLibrary } from './moonrise-task-library';
-import { createMoonriseCoverageLibrary, assignCoverageToScenes } from './moonrise-coverage-library';
 import { createMoonriseProjects } from './moonrise-projects-setup';
 import { createMoonriseInquiries } from './moonrise-inquiries-setup';
 import { seedMoonriseLocationsLibrary } from './moonrise-locations-library';
-import { createMoonriseSubjectsLibrary } from './moonrise-subjects-library';
-import { createMoonriseMusicLibrary } from './moonrise-music-library';
-import { seedMomentTemplates } from './moonrise-moment-templates';
 import { seedEquipment } from './moonrise-equipment-setup';
+import seedSubjectTemplates from './moonrise-00-subject-templates.seed';
+import seedSceneTemplates from './moonrise-01-scene-templates.seed';
 import { PrismaClient } from "@prisma/client";
 import { createSeedLogger, SeedType, SeedSummary, sumSummaries } from '../utils/seed-logger';
 
@@ -34,56 +30,36 @@ async function main(): Promise<SeedSummary> {
         logger.sectionDivider('STEP 2: Team Setup (2 managers total)');
         const team = await createMoonriseTeam(brand.id);
 
-        // 3. Create Scenes
-        logger.sectionDivider('STEP 3: Scenes Setup (2 scenes total)');
-        await createMoonriseScenes(brand.id);
+        // 3. Seed Global Subject Templates (new refactor)
+        logger.sectionDivider('STEP 3: Subject Templates (24 total)');
+        const subjectSummary = await seedSubjectTemplates();
+        aggregate = sumSummaries(aggregate, subjectSummary);
 
-        // 4. Create Film Library
-        logger.sectionDivider('STEP 4: Film Library Setup (2 films total)');
-        const filmCount = await createMoonriseFilmLibrary(brand.id);
+        // 4. Seed Scene Templates (new refactor)
+        logger.sectionDivider('STEP 4: Scene Templates (3 total)');
+        const sceneSummary = await seedSceneTemplates();
+        aggregate = sumSummaries(aggregate, sceneSummary);
 
         // 5. Create Task Library
         logger.sectionDivider('STEP 5: Task Library Setup (43 tasks total)');
         const taskCount = await createMoonriseTaskLibrary(brand.id);
 
-        // 6. Create Coverage Library
-        logger.sectionDivider('STEP 6: Coverage Library Setup (26 items total)');
-        const coverageStats = await createMoonriseCoverageLibrary();
-        aggregate = sumSummaries(aggregate, coverageStats.summary);
-
-        // 7. Assign Coverage to Scenes
-        logger.sectionDivider('STEP 7: Scene Coverage Assignments (21 assignments total)');
-        const assignmentSummary = await assignCoverageToScenes();
-        aggregate = sumSummaries(aggregate, assignmentSummary);
-
-        // 8. Create Sample Projects
-        logger.sectionDivider('STEP 8: Sample Projects Setup (2 projects total)');
+        // 6. Create Sample Projects
+        logger.sectionDivider('STEP 6: Sample Projects Setup (2 projects total)');
         const projectsResult = await createMoonriseProjects();
         aggregate = sumSummaries(aggregate, projectsResult.summary);
 
-        // 9. Create Sample Inquiries
-        logger.sectionDivider('STEP 9: Sample Inquiries Setup (5 inquiries total)');
+        // 7. Create Sample Inquiries
+        logger.sectionDivider('STEP 7: Sample Inquiries Setup (5 inquiries total)');
         const inquiriesResult = await createMoonriseInquiries();
         aggregate = sumSummaries(aggregate, inquiriesResult.summary);
 
-        // 10. Create Locations Library
-        logger.sectionDivider('STEP 10: Locations Library Setup (5 venues total)');
+        // 8. Create Locations Library
+        logger.sectionDivider('STEP 8: Locations Library Setup (5 venues total)');
         await seedMoonriseLocationsLibrary();
 
-        // 11. Create Subjects Library
-        logger.sectionDivider('STEP 11: Subjects Library Setup (20 subjects total)');
-        const subjectsResult = await createMoonriseSubjectsLibrary();
-
-        // 12. Create Music Library
-        logger.sectionDivider('STEP 12: Music Library Setup (15 templates total)');
-        const musicResult = await createMoonriseMusicLibrary();
-
-        // 13. Create Moment Templates
-        logger.sectionDivider('STEP 13: Moment Templates Setup (13 templates total)');
-        const momentsResult = await seedMomentTemplates();
-
-        // 14. Create Equipment
-        logger.sectionDivider('STEP 14: Equipment Setup (16 items total)');
+        // 9. Create Equipment (Music library removed - now using SceneMusic/MomentMusic in refactor v2)
+        logger.sectionDivider('STEP 10: Equipment Setup (16 items total)');
         const equipmentSummary = await seedEquipment();
         if (equipmentSummary) aggregate = sumSummaries(aggregate, equipmentSummary);
 
@@ -95,18 +71,14 @@ async function main(): Promise<SeedSummary> {
         logger.success('Moonrise Films Complete Setup Finished!');
         logger.info(`• 1 brand (${brand.name})`);
         logger.info(`• ${team.teamMembers.length} team members (Managers)`);
-        logger.info(`• 2 wedding scenes (First Dance + Ceremony)`);
-        logger.info(`• ${filmCount} film library items`);
         logger.info(`• ${taskCount} task library items`);
-        logger.info(`• ${coverageStats.totalCoverage} coverage items (${coverageStats.videoCoverageCount} video + ${coverageStats.audioCoverageCount} audio)`);
-        logger.info(`• ${assignmentSummary.created} scene coverage assignments`);
         logger.info(`• ${projectsResult.projects.length} sample wedding projects`);
         logger.info(`• ${inquiriesResult.inquiries.length} sample wedding inquiries`);
         logger.info(`• 5 Shropshire wedding venues with spaces`);
-        logger.info(`• ${subjectsResult.total} wedding subjects (${subjectsResult.primary.length} primary, ${subjectsResult.bridalParty.length} bridal party, ${subjectsResult.family.length} family)`);
-        logger.info(`• ${musicResult.total} music templates (${musicResult.ceremony.length} ceremony, ${musicResult.reception.length} reception, ${musicResult.dances.length} dances)`);
-        logger.info(`• ${momentsResult.total} moment templates (${momentsResult.ceremonyCount} ceremony + ${momentsResult.firstDanceCount} first dance)`);
-        logger.info(`• Equipment & specialized coverage library ready`);
+        logger.info(`• Subject templates seeded: ${subjectSummary.created + subjectSummary.updated}`);
+        logger.info(`• Scene templates seeded: ${sceneSummary.created + sceneSummary.updated}`);
+        logger.info(`• Equipment seeded for Moonrise Films`);
+        logger.info(`• Music library skipped (legacy model removed - use SceneMusic/MomentMusic in refactor v2)`);
         logger.info(`• Aggregate changes this run — Created: ${aggregate.created}, Updated: ${aggregate.updated}, Skipped: ${aggregate.skipped}, Total: ${aggregate.total}`);
 
         // Provide neutral summary as sub-seeds handle detailed counts

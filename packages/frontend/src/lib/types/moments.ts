@@ -35,6 +35,7 @@ export type MusicType = 'NONE' | 'SCENE_MATCHED' | 'ORCHESTRAL' | 'PIANO' | 'MOD
 export interface SceneMomentMusic {
     id: number;
     moment_id: number;
+    music_library_item_id?: number;
     music_name?: string;
     artist?: string;
     duration?: number;
@@ -134,13 +135,11 @@ export interface MomentsApiResponse<T> {
 }
 
 // Scene types for moment templates
-export type SceneType = 'CEREMONY' | 'FIRST_DANCE' | 'RECEPTION' | 'PORTRAIT_SESSION';
+export type SceneType = 'MOMENTS' | 'MONTAGE';
 
 export const SCENE_TYPE_OPTIONS: { value: SceneType; label: string }[] = [
-    { value: 'CEREMONY', label: 'Ceremony' },
-    { value: 'FIRST_DANCE', label: 'First Dance' },
-    { value: 'RECEPTION', label: 'Reception' },
-    { value: 'PORTRAIT_SESSION', label: 'Portrait Session' },
+    { value: 'MOMENTS', label: 'Moments' },
+    { value: 'MONTAGE', label: 'Montage' },
 ];
 
 // Music type options

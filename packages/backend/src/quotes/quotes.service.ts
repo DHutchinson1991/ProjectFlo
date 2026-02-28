@@ -17,6 +17,14 @@ export class QuotesService {
         );
 
         return await this.prisma.$transaction(async (tx) => {
+            // Handle Primary Exclusivity
+            if (createQuoteDto.is_primary) {
+                await tx.quotes.updateMany({
+                    where: { inquiry_id: inquiryId, is_primary: true },
+                    data: { is_primary: false }
+                });
+            }
+
             // Create the quote
             const quote = await tx.quotes.create({
                 data: {
@@ -28,6 +36,14 @@ export class QuotesService {
                     total_amount: new Decimal(totalAmount),
                     consultation_notes: createQuoteDto.consultation_notes || null,
                     status: createQuoteDto.status || 'Draft',
+                    title: createQuoteDto.title,
+                    tax_rate: createQuoteDto.tax_rate ? new Decimal(createQuoteDto.tax_rate) : new Decimal(0),
+                    deposit_required: createQuoteDto.deposit_required ? new Decimal(createQuoteDto.deposit_required) : null,
+                    notes: createQuoteDto.notes,
+                    terms: createQuoteDto.terms,
+                    payment_method: createQuoteDto.payment_method,
+                    installments: createQuoteDto.installments,
+                    is_primary: createQuoteDto.is_primary || false,
                 },
             });
 
@@ -38,6 +54,11 @@ export class QuotesService {
                         data: {
                             quote_id: quote.id,
                             description: item.description,
+                            category: item.category,
+                            unit: item.unit,
+                            service_date: item.service_date ? new Date(item.service_date) : null,
+                            start_time: item.start_time,
+                            end_time: item.end_time,
                             quantity: item.quantity,
                             unit_price: new Decimal(item.unit_price),
                         },
@@ -49,7 +70,7 @@ export class QuotesService {
             return {
                 ...quote,
                 total_amount: totalAmount,
-            } as Quote;
+            } as unknown as Quote; // Cast to unknown then Quote to suppress strict checks if needed
         });
     }
 
@@ -60,9 +81,14 @@ export class QuotesService {
                 items: {
                     select: {
                         id: true,
+                        category: true,
                         description: true,
                         quantity: true,
+                        unit: true,
                         unit_price: true,
+                        service_date: true,
+                        start_time: true,
+                        end_time: true,
                     },
                 },
             },
@@ -75,6 +101,7 @@ export class QuotesService {
             total_amount: Number(quote.total_amount),
             items: quote.items.map(item => ({
                 ...item,
+                quantity: Number(item.quantity),
                 unit_price: Number(item.unit_price),
             })),
         }));
@@ -90,9 +117,14 @@ export class QuotesService {
                 items: {
                     select: {
                         id: true,
+                        category: true,
                         description: true,
                         quantity: true,
+                        unit: true,
                         unit_price: true,
+                        service_date: true,
+                        start_time: true,
+                        end_time: true,
                     },
                 },
             },
@@ -108,6 +140,7 @@ export class QuotesService {
             total_amount: Number(quote.total_amount),
             items: quote.items.map(item => ({
                 ...item,
+                quantity: Number(item.quantity),
                 unit_price: Number(item.unit_price),
             })),
         };
@@ -118,6 +151,14 @@ export class QuotesService {
         await this.findOne(inquiryId, id);
 
         return await this.prisma.$transaction(async (tx) => {
+            // Handle Primary Exclusivity
+            if (updateQuoteDto.is_primary) {
+                await tx.quotes.updateMany({
+                    where: { inquiry_id: inquiryId, is_primary: true, id: { not: id } },
+                    data: { is_primary: false }
+                });
+            }
+
             let totalAmount: number | undefined;
 
             // If items are being updated, calculate new total
@@ -139,6 +180,11 @@ export class QuotesService {
                             data: {
                                 quote_id: id,
                                 description: item.description || '',
+                                category: item.category,
+                                unit: item.unit,
+                                service_date: item.service_date ? new Date(item.service_date) : null,
+                                start_time: item.start_time,
+                                end_time: item.end_time,
                                 quantity: item.quantity || 0,
                                 unit_price: new Decimal(item.unit_price || 0),
                             },
@@ -147,38 +193,26 @@ export class QuotesService {
                 );
             }
 
-            // Build update data with proper typing
-            const updateData: {
-                quote_number?: string;
-                issue_date?: Date;
-                expiry_date?: Date;
-                status?: string;
-                project_id?: number | null;
-                consultation_notes?: string | null;
-                total_amount?: Decimal;
-            } = {};
+            // Build update data
+            const updateData: any = {};
 
-            if (updateQuoteDto.quote_number) {
-                updateData.quote_number = updateQuoteDto.quote_number;
-            }
-            if (updateQuoteDto.issue_date) {
-                updateData.issue_date = new Date(updateQuoteDto.issue_date);
-            }
-            if (updateQuoteDto.expiry_date) {
-                updateData.expiry_date = new Date(updateQuoteDto.expiry_date);
-            }
-            if (updateQuoteDto.status) {
-                updateData.status = updateQuoteDto.status;
-            }
-            if (updateQuoteDto.consultation_notes !== undefined) {
-                updateData.consultation_notes = updateQuoteDto.consultation_notes;
-            }
-            if (updateQuoteDto.project_id !== undefined) {
-                updateData.project_id = updateQuoteDto.project_id;
-            }
-            if (totalAmount !== undefined) {
-                updateData.total_amount = new Decimal(totalAmount);
-            }
+            if (updateQuoteDto.quote_number) updateData.quote_number = updateQuoteDto.quote_number;
+            if (updateQuoteDto.issue_date) updateData.issue_date = new Date(updateQuoteDto.issue_date);
+            if (updateQuoteDto.expiry_date) updateData.expiry_date = new Date(updateQuoteDto.expiry_date);
+            if (updateQuoteDto.status) updateData.status = updateQuoteDto.status;
+            if (updateQuoteDto.consultation_notes !== undefined) updateData.consultation_notes = updateQuoteDto.consultation_notes;
+            if (updateQuoteDto.project_id !== undefined) updateData.project_id = updateQuoteDto.project_id;
+            if (totalAmount !== undefined) updateData.total_amount = new Decimal(totalAmount);
+
+            if (updateQuoteDto.title !== undefined) updateData.title = updateQuoteDto.title;
+            if (updateQuoteDto.tax_rate !== undefined) updateData.tax_rate = new Decimal(updateQuoteDto.tax_rate);
+            if (updateQuoteDto.deposit_required !== undefined) updateData.deposit_required = new Decimal(updateQuoteDto.deposit_required);
+            if (updateQuoteDto.notes !== undefined) updateData.notes = updateQuoteDto.notes;
+            if (updateQuoteDto.terms !== undefined) updateData.terms = updateQuoteDto.terms;
+            if (updateQuoteDto.payment_method !== undefined) updateData.payment_method = updateQuoteDto.payment_method;
+            if (updateQuoteDto.installments !== undefined) updateData.installments = updateQuoteDto.installments;
+            if (updateQuoteDto.is_primary !== undefined) updateData.is_primary = updateQuoteDto.is_primary;
+
 
             const updatedQuote = await tx.quotes.update({
                 where: { id },
@@ -187,9 +221,14 @@ export class QuotesService {
                     items: {
                         select: {
                             id: true,
+                            category: true,
                             description: true,
                             quantity: true,
+                            unit: true,
                             unit_price: true,
+                            service_date: true,
+                            start_time: true,
+                            end_time: true,
                         },
                     },
                 },
@@ -201,6 +240,7 @@ export class QuotesService {
                 total_amount: Number(updatedQuote.total_amount),
                 items: updatedQuote.items.map(item => ({
                     ...item,
+                    quantity: Number(item.quantity),
                     unit_price: Number(item.unit_price),
                 })),
             };
@@ -229,9 +269,14 @@ export class QuotesService {
                 items: {
                     select: {
                         id: true,
+                        category: true,
                         description: true,
                         quantity: true,
+                        unit: true,
                         unit_price: true,
+                        service_date: true,
+                        start_time: true,
+                        end_time: true,
                     },
                 },
             },

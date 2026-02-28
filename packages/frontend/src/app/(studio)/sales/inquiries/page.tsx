@@ -49,23 +49,6 @@ export default function InquiriesPage() {
     const [inquiries, setInquiries] = useState<Inquiry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Dialog states
-    const [createDialogOpen, setCreateDialogOpen] = useState(false);
-
-    // Form states
-    const [formData, setFormData] = useState<CreateInquiryData>({
-        first_name: '',
-        last_name: '',
-        email: '',
-        phone_number: '',
-        wedding_date: '',
-        status: InquiryStatus.NEW,
-        notes: '',
-        venue_details: '',
-        lead_source: '',
-        lead_source_details: '',
-    });
-
     // Notification states
     const [notification, setNotification] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
 
@@ -76,6 +59,36 @@ export default function InquiriesPage() {
     // Navigation to inquiry detail page
     const handleInquiryClick = (inquiryId: number) => {
         router.push(`/sales/inquiries/${inquiryId}`);
+    };
+
+    // Create a generic inquiry and redirect to edit
+    const handleCreate = async () => {
+        try {
+            // Create a generic placeholder inquiry with blank fields
+            // Note: Email is required by backend, so we generate a temporary hidden one
+            // Time is added to ensure uniqueness
+            const newInquiryData: CreateInquiryData = {
+                first_name: '', // Blank
+                last_name: '',  // Blank
+                email: `pending_${Date.now()}@temp.com`, // Hidden in UI
+                phone_number: '', 
+                wedding_date: new Date().toISOString(), // Required by backend
+                status: InquiryStatus.NEW,
+                notes: '', 
+                venue_details: '', 
+                lead_source: '', 
+                lead_source_details: '', 
+            };
+
+            const newInquiry = await inquiriesService.create(newInquiryData);
+            showNotification('New inquiry created. Redirecting...', 'success');
+            
+            // Redirect immediately to the details page for inline editing
+            router.push(`/sales/inquiries/${newInquiry.id}`);
+        } catch (error) {
+            console.error('Failed to create inquiry:', error);
+            showNotification('Failed to create inquiry', 'error');
+        }
     };
 
     // Load inquiries
@@ -98,35 +111,6 @@ export default function InquiriesPage() {
         }
     }, [currentBrand]);
 
-    // Form handlers
-    const resetForm = () => {
-        setFormData({
-            first_name: '',
-            last_name: '',
-            email: '',
-            phone_number: '',
-            wedding_date: '',
-            status: InquiryStatus.NEW,
-            notes: '',
-            venue_details: '',
-            lead_source: '',
-            lead_source_details: '',
-        });
-    };
-
-    const handleCreate = async () => {
-        try {
-            const newInquiry = await inquiriesService.create(formData);
-            setInquiries(prev => [...prev, newInquiry]);
-            setCreateDialogOpen(false);
-            resetForm();
-            showNotification('Inquiry created successfully', 'success');
-        } catch (error) {
-            console.error('Failed to create inquiry:', error);
-            showNotification('Failed to create inquiry', 'error');
-        }
-    };
-
     const getStatusColor = (status: InquiryStatus) => {
         switch (status) {
             case InquiryStatus.NEW: return 'info';
@@ -148,7 +132,7 @@ export default function InquiriesPage() {
                 <Button
                     variant="contained"
                     startIcon={<AddIcon />}
-                    onClick={() => setCreateDialogOpen(true)}
+                    onClick={handleCreate}
                     sx={{ px: 3 }}
                 >
                     New Inquiry
@@ -176,7 +160,7 @@ export default function InquiriesPage() {
                             <Button
                                 variant="outlined"
                                 startIcon={<AddIcon />}
-                                onClick={() => setCreateDialogOpen(true)}
+                                onClick={handleCreate}
                             >
                                 Create Your First Inquiry
                             </Button>
@@ -265,130 +249,6 @@ export default function InquiriesPage() {
                     )}
                 </CardContent>
             </Card>
-
-            {/* Create Dialog */}
-            <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
-                <DialogTitle>Create New Inquiry</DialogTitle>
-                <DialogContent>
-                    <Grid container spacing={2} sx={{ mt: 1 }}>
-                        {/* Contact Information */}
-                        <Grid item xs={12}>
-                            <Typography variant="h6" sx={{ mb: 2 }}>Contact Information</Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <TextField
-                                fullWidth
-                                label="First Name"
-                                value={formData.first_name}
-                                onChange={(e) => setFormData(prev => ({ ...prev, first_name: e.target.value }))}
-                                required
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <TextField
-                                fullWidth
-                                label="Last Name"
-                                value={formData.last_name}
-                                onChange={(e) => setFormData(prev => ({ ...prev, last_name: e.target.value }))}
-                                required
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <TextField
-                                fullWidth
-                                label="Email"
-                                type="email"
-                                value={formData.email}
-                                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                                required
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <TextField
-                                fullWidth
-                                label="Phone Number"
-                                value={formData.phone_number}
-                                onChange={(e) => setFormData(prev => ({ ...prev, phone_number: e.target.value }))}
-                            />
-                        </Grid>
-
-                        {/* Inquiry Information */}
-                        <Grid item xs={12}>
-                            <Typography variant="h6" sx={{ mb: 2, mt: 2 }}>Inquiry Details</Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <TextField
-                                fullWidth
-                                label="Wedding Date"
-                                type="date"
-                                value={formData.wedding_date}
-                                onChange={(e) => setFormData(prev => ({ ...prev, wedding_date: e.target.value }))}
-                                InputLabelProps={{
-                                    shrink: true,
-                                }}
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <FormControl fullWidth>
-                                <InputLabel>Status</InputLabel>
-                                <Select
-                                    value={formData.status}
-                                    label="Status"
-                                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as InquiryStatus }))}
-                                >
-                                    {Object.values(InquiryStatus).map((status) => (
-                                        <MenuItem key={status} value={status}>{status}</MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        <Grid item xs={12}>
-                            <TextField
-                                fullWidth
-                                label="Lead Source"
-                                value={formData.lead_source}
-                                onChange={(e) => setFormData(prev => ({ ...prev, lead_source: e.target.value }))}
-                            />
-                        </Grid>
-                        <Grid item xs={12}>
-                            <TextField
-                                fullWidth
-                                label="Lead Source Details"
-                                value={formData.lead_source_details}
-                                onChange={(e) => setFormData(prev => ({ ...prev, lead_source_details: e.target.value }))}
-                            />
-                        </Grid>
-                        <Grid item xs={12}>
-                            <TextField
-                                fullWidth
-                                label="Venue Details"
-                                value={formData.venue_details}
-                                onChange={(e) => setFormData(prev => ({ ...prev, venue_details: e.target.value }))}
-                                multiline
-                                rows={2}
-                            />
-                        </Grid>
-                        <Grid item xs={12}>
-                            <TextField
-                                fullWidth
-                                label="Notes"
-                                value={formData.notes}
-                                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                                multiline
-                                rows={3}
-                            />
-                        </Grid>
-                    </Grid>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => { setCreateDialogOpen(false); resetForm(); }}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleCreate} variant="contained">
-                        Create
-                    </Button>
-                </DialogActions>
-            </Dialog>
 
             {/* Notification Snackbar */}
             <Snackbar

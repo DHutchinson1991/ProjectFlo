@@ -1,4 +1,4 @@
-import { IsString, IsDateString, IsArray, ValidateNested, IsNumber, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsDateString, IsArray, ValidateNested, IsNumber, IsOptional, IsEnum, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum EstimateStatus {
@@ -10,11 +10,31 @@ export enum EstimateStatus {
 }
 
 export class CreateEstimateItemDto {
+    @IsOptional()
+    @IsString()
+    category?: string;
+
     @IsString()
     description: string;
 
+    @IsOptional()
+    @IsDateString()
+    service_date?: string;
+
+    @IsOptional()
+    @IsString()
+    start_time?: string;
+
+    @IsOptional()
+    @IsString()
+    end_time?: string;
+
     @IsNumber({ maxDecimalPlaces: 2 })
     quantity: number = 1;
+
+    @IsOptional()
+    @IsString()
+    unit?: string;
 
     @IsNumber({ maxDecimalPlaces: 2 })
     unit_price: number;
@@ -23,6 +43,10 @@ export class CreateEstimateItemDto {
 export class CreateEstimateDto {
     @IsString()
     estimate_number: string;
+
+    @IsOptional()
+    @IsString()
+    title?: string;
 
     @IsDateString()
     issue_date: string;
@@ -33,6 +57,34 @@ export class CreateEstimateDto {
     @IsOptional()
     @IsEnum(EstimateStatus)
     status?: EstimateStatus = EstimateStatus.DRAFT;
+
+    @IsOptional()
+    @IsNumber({ maxDecimalPlaces: 2 })
+    tax_rate?: number;
+
+    @IsOptional()
+    @IsNumber({ maxDecimalPlaces: 2 })
+    deposit_required?: number;
+
+    @IsOptional()
+    @IsString()
+    notes?: string;
+
+    @IsOptional()
+    @IsString()
+    terms?: string;
+
+    @IsOptional()
+    @IsString()
+    payment_method?: string;
+
+    @IsOptional()
+    @IsNumber()
+    installments?: number;
+
+    @IsOptional()
+    @IsBoolean()
+    is_primary?: boolean;
 
     @IsOptional()
     project_id?: number;

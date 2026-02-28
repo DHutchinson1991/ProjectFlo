@@ -3,64 +3,51 @@ import {
     IsOptional,
     IsNotEmpty,
     MaxLength,
-    IsEnum,
-    IsBoolean,
-    IsNumber,
+    IsInt,
     Min,
-    IsArray,
-    ValidateNested,
+    IsBoolean,
 } from "class-validator";
-import { FilmType, MusicType } from "@prisma/client";
-import { Type } from "class-transformer";
 
-export class CreateFilmSceneDto {
-    @IsNumber()
-    @IsNotEmpty()
-    default_editing_style_id: number;
-
-    @IsOptional()
-    @IsNumber()
-    order_index?: number;
-
-    @IsOptional()
-    settings?: Record<string, string | number | boolean>;
-}
-
+/**
+ * DTO for creating a new film with equipment configuration
+ * Uses refactor v2 schema (Film + FilmTimelineTrack models)
+ */
 export class CreateFilmDto {
     @IsString()
     @IsNotEmpty()
     @MaxLength(255)
     name: string;
 
-    @IsString()
-    @IsOptional()
-    @MaxLength(1000)
-    description?: string;
-
-    @IsEnum(FilmType)
+    @IsInt()
     @IsNotEmpty()
-    type: FilmType;
+    brand_id: number;
 
     @IsOptional()
-    @IsEnum(MusicType)
-    default_music_type?: MusicType;
+    @IsInt()
+    @Min(0)
+    num_cameras?: number; // Auto-generates Camera 1, 2, 3...
 
     @IsOptional()
-    @IsNumber()
-    @Min(1)
-    delivery_timeline?: number;
+    @IsInt()
+    @Min(0)
+    num_audio?: number; // Auto-generates Audio 1, 2...
+}
+
+/**
+ * DTO for updating equipment configuration on existing film
+ */
+export class UpdateEquipmentDto {
+    @IsOptional()
+    @IsInt()
+    @Min(0)
+    num_cameras?: number;
+
+    @IsOptional()
+    @IsInt()
+    @Min(0)
+    num_audio?: number;
 
     @IsOptional()
     @IsBoolean()
-    includes_music?: boolean;
-
-    @IsOptional()
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() => CreateFilmSceneDto)
-    scenes?: CreateFilmSceneDto[];
-
-    @IsOptional()
-    @IsNumber()
-    brand_id?: number;
+    allow_removal?: boolean;
 }

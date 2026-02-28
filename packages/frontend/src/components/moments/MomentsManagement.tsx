@@ -1,3 +1,10 @@
+export default function MomentsManagement() {
+    return null;
+}
+
+/*
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import {
     Box,
@@ -20,6 +27,9 @@ import {
     Paper,
     CircularProgress,
     Tooltip,
+    FormControlLabel,
+    Checkbox,
+    Grid,
 } from '@mui/material';
 import {
     Add as AddIcon,
@@ -32,7 +42,7 @@ import {
 } from '@mui/icons-material';
 import { momentsApi } from '@/lib/api/moments';
 import { musicApi, MusicLibraryItem } from '@/lib/api/music';
-import { SubjectsLibrary } from '@/lib/types/subjects'; // Add subjects type import
+import { SubjectsLibrary } from '@/lib/types/subjects';
 import {
     SceneMoment,
     SceneType,
@@ -44,30 +54,28 @@ import {
 
 // Drag and Drop
 import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
     useSensor,
     useSensors,
     DragEndEvent,
+    PointerSensor,
+    KeyboardSensor,
 } from '@dnd-kit/core';
 import {
     arrayMove,
     SortableContext,
     sortableKeyboardCoordinates,
     horizontalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
     useSortable,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { CSS as DndCSS } from '@dnd-kit/utilities';
+import { useDroppable } from '@dnd-kit/core';
 
 interface SortableMomentCardProps {
     moment: SceneMoment;
-    availableSubjects: SubjectsLibrary[]; // Add subjects for display
+    availableSubjects: SubjectsLibrary[];
     onEdit: (moment: SceneMoment) => void;
     onDelete: (momentId: number) => void;
+    onMusicDropped?: (momentId: number, musicId: number) => void;
 }
 
 const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
@@ -75,20 +83,51 @@ const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
     availableSubjects,
     onEdit,
     onDelete,
+    onMusicDropped,
 }) => {
     const {
         attributes,
         listeners,
-        setNodeRef,
+        setNodeRef: setSortableNodeRef,
         transform,
         transition,
         isDragging,
-    } = useSortable({ id: moment.id });
+    } = useSortable({ 
+        id: moment.id,
+        data: {
+            type: 'moment',
+            moment: moment
+        }
+    });
+
+    const {
+        setNodeRef: setDroppableNodeRef,
+        isOver,
+        active,
+    } = useDroppable({
+        id: `moment-drop-${moment.id}`,
+        data: { type: 'moment', momentId: moment.id },
+    });
 
     const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
+        transform: DndCSS.Transform.toString(transform),
+        transition
     };
+
+    const isReceivingMusic = isOver && active?.data.current?.type === 'music';
+    
+    // Debug logging for drop detection
+    React.useEffect(() => {
+        if (isOver) {
+            console.log('🎯 Moment card hover detected:', {
+                momentId: moment.id,
+                momentName: moment.name,
+                activeData: active?.data,
+                activeType: active?.data.current?.type,
+                isReceivingMusic
+            });
+        }
+    }, [isOver, active, moment.id]);
 
     const handleCardClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -99,10 +138,14 @@ const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
 
     return (
         <Paper
-            ref={setNodeRef}
+            ref={(node) => {
+                setSortableNodeRef(node);
+                setDroppableNodeRef(node);
+            }}
             style={style}
             {...attributes}
             {...listeners}
+            onClick={handleCardClick}
             sx={{
                 flex: 1,
                 minWidth: 0,
@@ -113,10 +156,16 @@ const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
                 flexDirection: 'column',
                 position: 'relative',
                 borderRadius: 4,
-                background: 'linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: isReceivingMusic 
+                    ? 'linear-gradient(145deg, #1a0a2e 0%, #2a1a4e 50%, #1f0f3f 100%)'
+                    : 'linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%)',
+                border: isReceivingMusic
+                    ? '2px dashed #9c27b0'
+                    : '1px solid rgba(255,255,255,0.08)',
                 boxShadow: isDragging
                     ? '0 20px 64px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.1)'
+                    : isReceivingMusic
+                    ? '0 8px 32px rgba(156, 39, 176, 0.4), inset 0 1px 0 rgba(156, 39, 176, 0.2)'
                     : '0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
                 transition: isDragging ? 'none' : 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                 backdropFilter: 'blur(20px)',
@@ -128,7 +177,6 @@ const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
                     background: 'linear-gradient(145deg, #151515 0%, #252525 50%, #1a1a1a 100%)',
                 } : {},
             }}
-            onClick={handleCardClick}
         >
             {/* Main Content */}
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0.8, pt: 0.5 }}>
@@ -272,15 +320,11 @@ const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
 
                 {/* Subjects - Yellow section between music and coverage */}
                 {(() => {
-                    // Extract subject IDs from coverage items
                     const subjectIds = new Set<number>();
-                    
                     if (moment.coverage_items) {
                         moment.coverage_items.forEach(item => {
-                            // Check if coverage has subject information
-                            const coverage = item.coverage as { subject?: string }; // Type assertion to access subject field
+                            const coverage = item.coverage as { subject?: string }; 
                             if (coverage.subject && typeof coverage.subject === 'string') {
-                                // Parse subject string (comma-separated IDs)
                                 const ids = coverage.subject.split(',')
                                     .map(id => parseInt(id.trim()))
                                     .filter(id => !isNaN(id));
@@ -289,7 +333,6 @@ const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
                         });
                     }
 
-                    // Get subject objects from availableSubjects
                     const subjects = Array.from(subjectIds)
                         .map(id => availableSubjects.find(s => s.id === id))
                         .filter(Boolean);
@@ -301,7 +344,7 @@ const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
                             title={
                                 <Box>
                                     <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: 'white' }}>
-                                        � Subjects in this moment
+                                        👥 Subjects in this moment
                                     </Typography>
                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                         {subjects.map((subject) => (
@@ -317,40 +360,10 @@ const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
                                             </Box>
                                         ))}
                                     </Box>
-                                    <Typography variant="caption" sx={{ 
-                                        color: 'rgba(255,255,255,0.6)', 
-                                        fontStyle: 'italic', 
-                                        mt: 1, 
-                                        display: 'block',
-                                        borderTop: '1px solid rgba(255,255,255,0.2)',
-                                        pt: 1
-                                    }}>
-                                        Subjects appear in coverage for this moment
-                                    </Typography>
                                 </Box>
                             }
                             arrow
                             placement="top"
-                            enterDelay={300}
-                            leaveDelay={200}
-                            sx={{
-                                '& .MuiTooltip-tooltip': {
-                                    backgroundColor: 'rgba(30, 30, 30, 0.98)',
-                                    backdropFilter: 'blur(20px)',
-                                    border: '1px solid rgba(255, 235, 59, 0.3)',
-                                    borderRadius: '12px',
-                                    padding: '16px 20px',
-                                    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 235, 59, 0.1)',
-                                    maxWidth: '320px',
-                                    minWidth: '250px',
-                                },
-                                '& .MuiTooltip-arrow': {
-                                    color: 'rgba(30, 30, 30, 0.98)',
-                                    '&::before': {
-                                        border: '1px solid rgba(255, 235, 59, 0.3)',
-                                    }
-                                }
-                            }}
                         >
                             <Box sx={{
                                 display: 'flex',
@@ -375,200 +388,61 @@ const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
                     );
                 })()}
 
-                {/* Spacer to push coverage to bottom */}
                 <Box sx={{ flex: 1 }} />
 
                 {/* Coverage Assignments */}
-                {moment.coverage_assignments && moment.coverage_assignments.trim() ? (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.3, mt: 'auto' }}>
-                        {(() => {
-                            const assignments = moment.coverage_assignments.split(',').map(a => a.trim());
-                            const videoAssignments = assignments.filter(a => a.startsWith('V'));
-                            const audioAssignments = assignments.filter(a => a.startsWith('A'));
-                            const otherAssignments = assignments.filter(a => !a.startsWith('V') && !a.startsWith('A'));
-                            
-                            const allAssignments = [...videoAssignments, ...audioAssignments, ...otherAssignments];
-                            
-                            return allAssignments.map((assignment: string, index: number) => {
-                                const isVideo = assignment.startsWith('V');
-                                const isAudio = assignment.startsWith('A');
-
-                                // Generate tooltip content based on assignment type and actual data
-                                const getTooltipContent = (assignment: string) => {
-                                    // Find the actual coverage item that matches this assignment
-                                    const coverageItem = moment.coverage_items?.find(item => 
-                                        item.assignment === assignment
-                                    );
-                                    
-                                    if (coverageItem) {
-                                        const coverage = coverageItem.coverage;
-                                        const icon = isVideo ? '📹' : isAudio ? '🎤' : '📋';
-                                        const title = `${icon} ${coverage.name}`;
-                                        
-                                        return (
-                                            <Box>
-                                                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: 'white' }}>
-                                                    {title}
-                                                </Typography>
-                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>Assignment:</Typography>
-                                                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-                                                            {assignment}
-                                                        </Typography>
-                                                    </Box>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>Type:</Typography>
-                                                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-                                                            {coverage.coverage_type}
-                                                        </Typography>
-                                                    </Box>
-                                                    {coverage.description && (
-                                                        <Box sx={{ mt: 1 }}>
-                                                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', fontWeight: 500, mb: 0.5 }}>Description:</Typography>
-                                                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', fontStyle: 'italic' }}>
-                                                                {coverage.description}
-                                                            </Typography>
-                                                        </Box>
-                                                    )}
-                                                </Box>
-                                            </Box>
-                                        );
-                                    } else {
-                                        // Fallback to assignment-based info if no coverage item found
-                                        const icon = isVideo ? '📹' : isAudio ? '🎤' : '📋';
-                                        const title = isVideo ? `Video Camera ${assignment.replace('V', '')}` 
-                                                    : isAudio ? `Audio Channel ${assignment.replace('A', '')}` 
-                                                    : `Coverage Assignment: ${assignment}`;
-                                        
-                                        return (
-                                            <Box>
-                                                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: 'white' }}>
-                                                    {icon} {title}
-                                                </Typography>
-                                                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', fontStyle: 'italic' }}>
-                                                    No detailed coverage assigned
-                                                </Typography>
-                                                <Typography variant="caption" sx={{ 
-                                                    color: 'rgba(255,255,255,0.6)', 
-                                                    display: 'block',
-                                                    borderTop: '1px solid rgba(255,255,255,0.2)',
-                                                    pt: 1,
-                                                    mt: 1
-                                                }}>
-                                                    Click to edit and assign specific coverage
-                                                </Typography>
-                                            </Box>
-                                        );
-                                    }
-                                };
-
-                                return (
-                                    <Tooltip 
-                                        key={index}
-                                        title={getTooltipContent(assignment)}
-                                        arrow
-                                        placement="top"
-                                        enterDelay={300}
-                                        leaveDelay={200}
-                                        sx={{
-                                            '& .MuiTooltip-tooltip': {
-                                                backgroundColor: 'rgba(30, 30, 30, 0.98)',
-                                                backdropFilter: 'blur(20px)',
-                                                border: isVideo ? '1px solid rgba(25, 118, 210, 0.3)' : isAudio ? '1px solid rgba(46, 125, 50, 0.3)' : '1px solid rgba(97, 97, 97, 0.3)',
-                                                borderRadius: '12px',
-                                                padding: '16px 20px',
-                                                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)',
-                                                maxWidth: '320px',
-                                                minWidth: '250px',
-                                            },
-                                            '& .MuiTooltip-arrow': {
-                                                color: 'rgba(30, 30, 30, 0.98)',
-                                                '&::before': {
-                                                    border: isVideo ? '1px solid rgba(25, 118, 210, 0.3)' : isAudio ? '1px solid rgba(46, 125, 50, 0.3)' : '1px solid rgba(97, 97, 97, 0.3)',
-                                                }
-                                            }
-                                        }}
-                                    >
-                                        <Chip
-                                            label={assignment}
-                                            size="small"
-                                            variant="filled"
-                                            sx={{
-                                                fontSize: '0.6rem',
-                                                height: 18,
-                                                backgroundColor: isVideo ? 'rgba(25, 118, 210, 0.2)' : isAudio ? 'rgba(46, 125, 50, 0.2)' : 'rgba(158, 158, 158, 0.2)',
-                                                color: isVideo ? '#1976d2' : isAudio ? '#2e7d32' : '#9e9e9e',
-                                                border: isVideo ? '1px solid rgba(25, 118, 210, 0.3)' : isAudio ? '1px solid rgba(46, 125, 50, 0.3)' : '1px solid rgba(158, 158, 158, 0.3)',
-                                                '&:hover': {
-                                                    backgroundColor: isVideo ? 'rgba(25, 118, 210, 0.3)' : isAudio ? 'rgba(46, 125, 50, 0.3)' : 'rgba(158, 158, 158, 0.3)',
-                                                    transform: 'scale(1.05)',
-                                                    transition: 'all 0.2s ease-in-out',
-                                                }
-                                            }}
-                                        />
-                                    </Tooltip>
-                                );
-                            });
-                        })()}
-                    </Box>
-                ) : (
-                    <Box sx={{ mt: 'auto' }}>
-                        <Tooltip 
-                            title={
-                                <Box>
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: 'rgba(0, 0, 0, 0.87)' }}>
-                                        ⚠️ No Coverage Assigned
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.7)', mb: 1 }}>
-                                        This moment needs video and audio coverage assignments.
-                                    </Typography>
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1 }}>
-                                        <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 500 }}>
-                                            Suggestions:
-                                        </Typography>
-                                        <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)', ml: 1 }}>
-                                            • Add V1, V2 for video coverage
-                                        </Typography>
-                                        <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)', ml: 1 }}>
-                                            • Add A1, A2 for audio coverage
-                                        </Typography>
-                                    </Box>
-                                    <Typography variant="caption" sx={{ 
-                                        color: 'rgba(0, 0, 0, 0.5)', 
-                                        fontStyle: 'italic',
-                                        borderTop: '1px solid rgba(0, 0, 0, 0.1)',
-                                        pt: 1,
-                                        display: 'block'
-                                    }}>
-                                        Click to edit this moment and assign coverage
-                                    </Typography>
-                                </Box>
-                            }
-                            arrow
-                            placement="top"
-                            enterDelay={300}
-                            leaveDelay={200}
-                            sx={{
-                                '& .MuiTooltip-tooltip': {
-                                    backgroundColor: 'rgba(255, 248, 225, 0.98)',
-                                    backdropFilter: 'blur(20px)',
-                                    border: '1px solid rgba(255, 193, 7, 0.3)',
-                                    borderRadius: '12px',
-                                    padding: '16px 20px',
-                                    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 193, 7, 0.1)',
-                                    maxWidth: '320px',
-                                    minWidth: '250px',
-                                },
-                                '& .MuiTooltip-arrow': {
-                                    color: 'rgba(255, 248, 225, 0.98)',
-                                    '&::before': {
-                                        border: '1px solid rgba(255, 193, 7, 0.3)',
-                                    }
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.3, mt: 'auto' }}>
+                    {moment.coverage_items && moment.coverage_items.length > 0 ? (
+                        moment.coverage_items
+                            .slice() // Create a shallow copy to avoid mutating original array
+                            .sort((a: any, b: any) => {
+                                // Get assignment numbers (V1, V2, A1, A2, etc.)
+                                const aAssignment = a.coverage?.assignment_number || a.assignment || '';
+                                const bAssignment = b.coverage?.assignment_number || b.assignment || '';
+                                
+                                // Extract type (V or A) and number
+                                const aType = aAssignment.charAt(0); // 'V' or 'A'
+                                const bType = bAssignment.charAt(0);
+                                const aNum = parseInt(aAssignment.slice(1)) || 0; // Extract number
+                                const bNum = parseInt(bAssignment.slice(1)) || 0;
+                                
+                                // Sort: V first, then A; within each type, sort by number
+                                if (aType !== bType) {
+                                    return aType === 'V' ? -1 : 1; // V comes before A
                                 }
-                            }}
-                        >
-                            <Chip
+                                return aNum - bNum; // Numerical order within same type
+                            })
+                            .map((item: any, index: number) => {
+                            const isVideo = item.coverage?.coverage_type === 'VIDEO';
+                            const isAudio = item.coverage?.coverage_type === 'AUDIO';
+                            // Prioritize coverage.assignment_number (V1, A1) over the linkage assignment
+                            const assignment = item.coverage?.assignment_number || item.assignment || (isVideo ? 'V?' : 'A?');
+                            
+                            return (
+                                <Tooltip
+                                    key={item.id || index}
+                                    title={`${isVideo ? '📹' : '🎤'} ${item.coverage?.name || 'Unknown'}`}
+                                    arrow
+                                    placement="top"
+                                >
+                                    <Chip
+                                        label={assignment}
+                                        size="small"
+                                        variant="filled"
+                                        sx={{
+                                            fontSize: '0.6rem',
+                                            height: 18,
+                                            backgroundColor: isVideo ? 'rgba(25, 118, 210, 0.2)' : isAudio ? 'rgba(46, 125, 50, 0.2)' : 'rgba(158, 158, 158, 0.2)',
+                                            color: isVideo ? '#1976d2' : isAudio ? '#2e7d32' : '#9e9e9e',
+                                            border: isVideo ? '1px solid rgba(25, 118, 210, 0.3)' : isAudio ? '1px solid rgba(46, 125, 50, 0.3)' : '1px solid rgba(158, 158, 158, 0.3)',
+                                        }}
+                                    />
+                                </Tooltip>
+                            );
+                        })
+                    ) : (
+                         <Box sx={{ mt: 'auto' }}>
+                             <Chip
                                 label="No coverage"
                                 size="small"
                                 variant="outlined"
@@ -576,22 +450,14 @@ const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
                                 sx={{
                                     fontSize: '0.6rem',
                                     height: 18,
-                                    color: 'rgba(255, 193, 7, 1)',
-                                    borderColor: 'rgba(255, 193, 7, 0.3)',
-                                    '&:hover': {
-                                        backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                                        borderColor: 'rgba(255, 193, 7, 0.5)',
-                                        transform: 'scale(1.05)',
-                                        transition: 'all 0.2s ease-in-out',
-                                    }
                                 }}
                             />
-                        </Tooltip>
-                    </Box>
-                )}
+                        </Box>
+                    )}
+                </Box>
             </Box>
 
-            {/* Delete Button - Bottom Right */}
+            {/* Delete Button */}
             <IconButton
                 size="small"
                 onClick={(e) => {
@@ -623,19 +489,33 @@ const SortableMomentCard: React.FC<SortableMomentCardProps> = ({
 interface MomentsManagementProps {
     sceneId: number;
     projectId?: number;
-    availableSubjects: SubjectsLibrary[]; // Add subjects for display in moments
+    availableSubjects: SubjectsLibrary[];
+    coverageItems: any[];
     onMomentsChange?: (moments: SceneMoment[]) => void;
+    onMusicUpdated?: () => void;
+    initialMoments?: SceneMoment[];
 }
 
 const MomentsManagement: React.FC<MomentsManagementProps> = ({
     sceneId,
     projectId,
     availableSubjects,
+    coverageItems = [],
     onMomentsChange,
+    onMusicUpdated,
+    initialMoments,
 }) => {
-    const [moments, setMoments] = useState<SceneMoment[]>([]);
+    const [moments, setMoments] = useState<SceneMoment[]>(initialMoments || []);
+    
+    useEffect(() => {
+        if (initialMoments) {
+            setMoments(initialMoments);
+            setLoading(false);
+        }
+    }, [initialMoments]);
+
     const [musicLibrary, setMusicLibrary] = useState<MusicLibraryItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!initialMoments);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -651,43 +531,15 @@ const MomentsManagement: React.FC<MomentsManagementProps> = ({
         description: '',
         duration: 60,
     });
-    const [selectedSceneType, setSelectedSceneType] = useState<SceneType>('CEREMONY');
-
-    // Music selection state
+    const [selectedSceneType, setSelectedSceneType] = useState<SceneType>('MOMENTS');
     const [selectedMusicId, setSelectedMusicId] = useState<number | ''>('');
-
-    // Drag and drop sensors
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8, // Require 8px of movement before drag starts
-            },
-        }),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
 
     const fetchMoments = async () => {
         try {
             setLoading(true);
-
-            // First ensure coverage assignments are up to date
-            try {
-                await momentsApi.updateSceneCoverageAssignments(sceneId);
-            } catch (assignmentError) {
-                console.warn('Failed to update coverage assignments:', assignmentError);
-                // Continue with fetching moments even if assignment update fails
-            }
-
             const data = await momentsApi.getSceneMoments(sceneId, projectId);
             setMoments(data);
-
-            // Notify parent of moments change
-            if (onMomentsChange) {
-                onMomentsChange(data);
-            }
-
+            if (onMomentsChange) onMomentsChange(data);
             setError(null);
         } catch (err) {
             console.error('Error fetching moments:', err);
@@ -703,13 +555,17 @@ const MomentsManagement: React.FC<MomentsManagementProps> = ({
             setMusicLibrary(data);
         } catch (err) {
             console.warn('Failed to fetch music library:', err);
-            // Don't show error for music library as it's not critical
         }
     };
 
     useEffect(() => {
-        fetchMoments();
-        fetchMusicLibrary();
+        const loadInitialData = async () => {
+            if (!initialMoments) {
+                await fetchMoments();
+            }
+            await fetchMusicLibrary();
+        };
+        loadInitialData();
     }, [sceneId, projectId]);
 
     const handleCreateFromTemplate = async (sceneType: SceneType) => {
@@ -738,14 +594,31 @@ const MomentsManagement: React.FC<MomentsManagementProps> = ({
                 project_id: projectId,
             };
 
-            await momentsApi.createSceneMoment(sceneId, data);
-            await fetchMoments();
+            // Optimistically update UI
+            const newMoment: SceneMoment = {
+                id: Math.random(), // Temporary ID
+                scene_id: sceneId,
+                project_id: projectId,
+                name: newMomentForm.name,
+                description: newMomentForm.description,
+                order_index: moments.length + 1,
+                duration: newMomentForm.duration,
+                is_active: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            };
+            setMoments([...moments, newMoment]);
             setCreateDialogOpen(false);
             setNewMomentForm({ name: '', description: '', duration: 60 });
             setError(null);
+
+            // Sync with server in background
+            await momentsApi.createSceneMoment(sceneId, data);
+            await fetchMoments(); // Refresh to get real IDs and data
         } catch (err) {
             console.error('Error creating moment:', err);
             setError(err instanceof Error ? err.message : 'Failed to create moment');
+            await fetchMoments(); // Revert to server state on error
         } finally {
             setSaving(false);
         }
@@ -759,14 +632,17 @@ const MomentsManagement: React.FC<MomentsManagementProps> = ({
             duration: moment.duration || 60,
         });
 
-        // Set selected music based on attached music
         if (moment.music && moment.music.music_type !== 'NONE') {
-            // Find the music library item that matches this moment's music
-            const musicItem = musicLibrary.find(item =>
-                item.music_name === moment.music?.music_name &&
-                item.artist === moment.music?.artist
-            );
-            setSelectedMusicId(musicItem?.id || '');
+            // If music_library_item_id is available, use it; otherwise try to find by name/artist
+            if (moment.music.music_library_item_id) {
+                setSelectedMusicId(moment.music.music_library_item_id);
+            } else {
+                const musicItem = musicLibrary.find(item =>
+                    item.music_name === moment.music?.music_name &&
+                    item.artist === moment.music?.artist
+                );
+                setSelectedMusicId(musicItem?.id || '');
+            }
         } else {
             setSelectedMusicId('');
         }
@@ -779,8 +655,6 @@ const MomentsManagement: React.FC<MomentsManagementProps> = ({
 
         try {
             setSaving(true);
-
-            // Update moment details
             const data: UpdateSceneMomentDto = {
                 name: newMomentForm.name,
                 description: newMomentForm.description || undefined,
@@ -807,44 +681,138 @@ const MomentsManagement: React.FC<MomentsManagementProps> = ({
 
         try {
             setSaving(true);
-            await momentsApi.deleteSceneMoment(sceneId, momentId);
-            await fetchMoments();
+            // Optimistically remove from UI
+            setMoments(moments.filter(m => m.id !== momentId));
             setError(null);
+
+            // Sync with server in background
+            await momentsApi.deleteSceneMoment(sceneId, momentId);
         } catch (err) {
             console.error('Error deleting moment:', err);
             setError(err instanceof Error ? err.message : 'Failed to delete moment');
+            await fetchMoments(); // Revert to server state on error
         } finally {
             setSaving(false);
         }
     };
 
-    const handleDragEnd = async (event: DragEndEvent) => {
-        const { active, over } = event;
+    const handleMusicDroppedOnMoment = async (momentId: number, musicId: number) => {
+        try {
+            const moment = moments.find(m => m.id === momentId);
+            if (!moment) return;
 
-        if (active.id !== over?.id) {
-            const oldIndex = moments.findIndex((moment) => moment.id === active.id);
-            const newIndex = moments.findIndex((moment) => moment.id === over?.id);
+            console.log('Music dropped on moment:', musicId, 'to moment:', momentId);
+            const selectedMusic = musicLibrary.find(m => m.id === musicId);
+            
+            // Optimistically update UI
+            setMoments(moments.map(m => 
+                m.id === momentId ? {
+                    ...m,
+                    music: selectedMusic ? {
+                        id: -1,
+                        moment_id: m.id,
+                        music_library_item_id: selectedMusic.id,
+                        music_name: selectedMusic.music_name,
+                        artist: selectedMusic.artist,
+                        duration: selectedMusic.duration,
+                        music_type: selectedMusic.music_type as any,
+                        file_path: selectedMusic.file_path,
+                        notes: selectedMusic.notes,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    } : undefined
+                } : m
+            ));
 
-            const newMoments = arrayMove(moments, oldIndex, newIndex);
-            setMoments(newMoments);
-
-            try {
-                const momentIds = newMoments.map((moment) => moment.id);
-                await momentsApi.reorderSceneMoments(sceneId, momentIds);
-                setError(null);
-            } catch (err) {
-                console.error('Error reordering moments:', err);
-                setError(err instanceof Error ? err.message : 'Failed to reorder moments');
-                // Revert the change
-                await fetchMoments();
+            // Attach to server
+            await musicApi.attachMusicToMoment(momentId, musicId);
+            if (onMusicUpdated) {
+                onMusicUpdated();
             }
+        } catch (err) {
+            console.error('Error dropping music on moment:', err);
+            setError(err instanceof Error ? err.message : 'Failed to attach music');
+            await fetchMoments(); // Revert on error
+        }
+    };
+
+    const handleUpdateMusicInModal = async () => {
+        console.log('🎚️ handleUpdateMusicInModal called');
+        if (!editingMoment) {
+            console.log('❌ No editingMoment set, returning early');
+            return;
+        }
+
+        try {
+            console.log('🎚️ Update Music clicked:', {
+                selectedMusicId,
+                selectedMusicIdType: typeof selectedMusicId,
+                editingMomentId: editingMoment.id,
+                hasExistingMusic: !!editingMoment.music,
+                existingMusic: editingMoment.music
+            });
+
+            // Attach when a track is selected (number); detach when 'None' is selected
+            if (selectedMusicId && typeof selectedMusicId === 'number') {
+                console.log('🎵 Attaching music:', selectedMusicId, 'to moment:', editingMoment.id);
+                const selectedMusic = musicLibrary.find(m => m.id === selectedMusicId);
+                console.log('🎵 Selected music details:', selectedMusic);
+                // Optimistically update UI
+                setMoments(moments.map(m => 
+                    m.id === editingMoment.id ? {
+                        ...m,
+                        music: selectedMusic ? {
+                            id: -1,
+                            moment_id: m.id,
+                            music_library_item_id: selectedMusic.id,
+                            music_name: selectedMusic.music_name,
+                            artist: selectedMusic.artist,
+                            duration: selectedMusic.duration,
+                            music_type: selectedMusic.music_type as any,
+                            file_path: selectedMusic.file_path,
+                            notes: selectedMusic.notes,
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString(),
+                        } : undefined
+                    } : m
+                ));
+                await musicApi.attachMusicToMoment(editingMoment.id, selectedMusicId);
+                console.log('✅ Attach completed');
+            } else if (selectedMusicId === '') {
+                console.log('🧹 Detaching music from moment:', editingMoment.id, {
+                    selectedMusicId,
+                    hasExistingMusic: !!editingMoment.music,
+                    currentMusic: editingMoment.music
+                });
+                // Optimistically remove music from UI
+                setMoments(moments.map(m =>
+                    m.id === editingMoment.id ? { ...m, music: undefined } : m
+                ));
+                await musicApi.detachMusicFromMoment(editingMoment.id);
+                console.log('✅ Detach completed');
+            } else {
+                console.log('No music selected or attached');
+                setEditDialogOpen(false);
+                return;
+            }
+
+            console.log('🎉 Music operation completed');
+            if (onMusicUpdated) {
+                console.log('📢 Calling onMusicUpdated callback');
+                onMusicUpdated();
+            }
+            setEditDialogOpen(false);
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            console.error('❌ Error updating music:', errorMsg, { err });
+            setError('Failed to update music: ' + errorMsg);
+            await fetchMoments(); // Revert on error
         }
     };
 
     return (
         <Card sx={{ mb: 3 }}>
             <CardContent>
-                {/* Header */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                     <Box>
                         <Typography variant="h6">Scene Moments</Typography>
@@ -875,418 +843,220 @@ const MomentsManagement: React.FC<MomentsManagementProps> = ({
                     </Box>
                 </Box>
 
-                {/* Error Alert */}
                 {error && (
                     <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
                         {error}
                     </Alert>
                 )}
 
-                {/* Loading State */}
                 {loading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                         <CircularProgress />
                     </Box>
                 ) : moments.length === 0 ? (
-                    /* Empty State */
                     <Alert severity="info" sx={{ textAlign: 'center' }}>
                         No moments defined for this scene yet. Create moments manually or use a template to get started.
                     </Alert>
                 ) : (
-                    /* Moments Grid */
-                    <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEnd}
-                    >
-                        <SortableContext items={moments.map(m => m.id)} strategy={horizontalListSortingStrategy}>
-                            <Box
-                                sx={{
-                                    display: 'flex',
-                                    gap: 1.5,
-                                    width: '100%',
-                                    minHeight: 220,
-                                }}
-                            >
-                                {moments.map((moment) => (
-                                    <SortableMomentCard
-                                        key={moment.id}
-                                        moment={moment}
-                                        availableSubjects={availableSubjects}
-                                        onEdit={handleEditMoment}
-                                        onDelete={handleDeleteMoment}
-                                    />
-                                ))}
-                            </Box>
-                        </SortableContext>
-                    </DndContext>
+                    <SortableContext items={moments.map(m => m.id)} strategy={horizontalListSortingStrategy}>
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                gap: 1.5,
+                                width: '100%',
+                                minHeight: 220,
+                            }}
+                        >
+                            {moments.map((moment) => (
+                                <SortableMomentCard
+                                    key={moment.id}
+                                    moment={moment}
+                                    availableSubjects={availableSubjects}
+                                    onEdit={handleEditMoment}
+                                    onDelete={handleDeleteMoment}
+                                    onMusicDropped={handleMusicDroppedOnMoment}
+                                />
+                            ))}
+                        </Box>
+                    </SortableContext>
                 )}
 
-                {/* Create From Template Dialog */}
+                {/* Dialogs */}
                 <Dialog open={templateDialogOpen} onClose={() => setTemplateDialogOpen(false)} maxWidth="md" fullWidth>
-                    <DialogTitle>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <PlaylistAddIcon />
-                            Create Moments from Template
-                        </Box>
-                    </DialogTitle>
+                    <DialogTitle>Create Moments from Template</DialogTitle>
                     <DialogContent>
-                        <Box sx={{ mt: 2 }}>
-                            <Paper
-                                elevation={0}
-                                sx={{
-                                    p: 3,
-                                    borderRadius: 2,
-                                    border: 1,
-                                    borderColor: "divider",
-                                    background: (theme) => theme.palette.mode === 'dark' ? '#1a1a1a' : '#ffffff'
-                                }}
+                        <FormControl fullWidth sx={{ mt: 2 }}>
+                            <InputLabel>Scene Type</InputLabel>
+                            <Select
+                                value={selectedSceneType}
+                                onChange={(e) => setSelectedSceneType(e.target.value as SceneType)}
+                                label="Scene Type"
                             >
-                                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'text.primary' }}>
-                                    Template Selection
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                                    Select a scene type to automatically create moments based on predefined templates.
-                                    This will generate common moments for the selected scene type.
-                                </Typography>
-                                <FormControl fullWidth variant="outlined">
-                                    <InputLabel>Scene Type</InputLabel>
+                                {SCENE_TYPE_OPTIONS.map((option) => (
+                                    <MenuItem key={option.value} value={option.value}>
+                                        {option.label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setTemplateDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={() => handleCreateFromTemplate(selectedSceneType)} variant="contained" disabled={saving}>
+                            Create
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+
+                <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
+                    <DialogTitle>Create New Moment</DialogTitle>
+                    <DialogContent>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                            <TextField
+                                label="Moment Name"
+                                value={newMomentForm.name}
+                                onChange={(e) => setNewMomentForm({ ...newMomentForm, name: e.target.value })}
+                                fullWidth
+                                required
+                            />
+                            <TextField
+                                label="Duration (seconds)"
+                                type="number"
+                                value={newMomentForm.duration}
+                                onChange={(e) => setNewMomentForm({ ...newMomentForm, duration: parseInt(e.target.value) || 60 })}
+                                fullWidth
+                            />
+                            <TextField
+                                label="Description"
+                                value={newMomentForm.description}
+                                onChange={(e) => setNewMomentForm({ ...newMomentForm, description: e.target.value })}
+                                fullWidth
+                                multiline
+                                rows={3}
+                            />
+                        </Box>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleCreateMoment} variant="contained" disabled={saving || !newMomentForm.name.trim()}>
+                            Create
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+
+                <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
+                    <DialogTitle>Edit Moment</DialogTitle>
+                    <DialogContent>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <Typography variant="subtitle1" fontWeight="bold">Basic Information</Typography>
+                                <TextField
+                                    label="Moment Name"
+                                    value={newMomentForm.name}
+                                    onChange={(e) => setNewMomentForm({ ...newMomentForm, name: e.target.value })}
+                                    fullWidth
+                                    required
+                                />
+                                <TextField
+                                    label="Duration (seconds)"
+                                    type="number"
+                                    value={newMomentForm.duration}
+                                    onChange={(e) => setNewMomentForm({ ...newMomentForm, duration: parseInt(e.target.value) || 60 })}
+                                    fullWidth
+                                />
+                                <TextField
+                                    label="Description"
+                                    value={newMomentForm.description}
+                                    onChange={(e) => setNewMomentForm({ ...newMomentForm, description: e.target.value })}
+                                    fullWidth
+                                    multiline
+                                    rows={3}
+                                />
+                            </Box>
+
+                            <Box>
+                                <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1 }}>Music</Typography>
+                                <FormControl fullWidth>
+                                    <InputLabel>Select Music Track</InputLabel>
                                     <Select
-                                        value={selectedSceneType}
-                                        onChange={(e) => setSelectedSceneType(e.target.value as SceneType)}
-                                        label="Scene Type"
+                                        value={selectedMusicId}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            const parsed = val === '' ? '' : Number(val);
+                                            console.log('🎛️ Music select change:', { raw: val, parsed, type: typeof parsed });
+                                            setSelectedMusicId(parsed as number | '');
+                                        }}
+                                        label="Select Music Track"
                                     >
-                                        {SCENE_TYPE_OPTIONS.map((option) => (
-                                            <MenuItem key={option.value} value={option.value}>
-                                                {option.label}
+                                        <MenuItem value=""><em>None</em></MenuItem>
+                                        {musicLibrary.map((music) => (
+                                            <MenuItem key={music.id} value={music.id}>
+                                                {music.music_name || 'Untitled'} {music.artist ? `- ${music.artist}` : ''}
                                             </MenuItem>
                                         ))}
                                     </Select>
                                 </FormControl>
-                            </Paper>
-                        </Box>
-                    </DialogContent>
-                    <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
-                        <Button
-                            onClick={() => setTemplateDialogOpen(false)}
-                            variant="outlined"
-                            sx={{ mr: 1 }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={() => handleCreateFromTemplate(selectedSceneType)}
-                            variant="contained"
-                            disabled={saving}
-                            startIcon={saving ? <CircularProgress size={16} /> : <PlaylistAddIcon />}
-                        >
-                            {saving ? 'Creating...' : 'Create Moments'}
-                        </Button>
-                    </DialogActions>
-                </Dialog>
+                                <Button 
+                                    variant="outlined" 
+                                    sx={{ mt: 1 }}
+                                    onClick={handleUpdateMusicInModal}
+                                >
+                                    Update Music
+                                </Button>
+                            </Box>
 
-                {/* Create Moment Dialog */}
-                <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
-                    <DialogTitle>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <AddIcon />
-                            Create New Moment
-                        </Box>
-                    </DialogTitle>
-                    <DialogContent>
-                        <Box sx={{ mt: 2 }}>
-                            <Paper
-                                elevation={0}
-                                sx={{
-                                    p: 3,
-                                    borderRadius: 2,
-                                    border: 1,
-                                    borderColor: "divider",
-                                    background: (theme) => theme.palette.mode === 'dark' ? '#1a1a1a' : '#ffffff'
-                                }}
-                            >
-                                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'text.primary' }}>
-                                    Moment Details
-                                </Typography>
-                                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                                    <TextField
-                                        label="Moment Name"
-                                        value={newMomentForm.name}
-                                        onChange={(e) => setNewMomentForm({ ...newMomentForm, name: e.target.value })}
-                                        fullWidth
-                                        required
-                                        variant="outlined"
-                                        placeholder="e.g., First Dance"
-                                    />
-                                    <TextField
-                                        label="Duration (seconds)"
-                                        type="number"
-                                        value={newMomentForm.duration}
-                                        onChange={(e) => setNewMomentForm({ ...newMomentForm, duration: parseInt(e.target.value) || 60 })}
-                                        fullWidth
-                                        variant="outlined"
-                                        inputProps={{ min: 1, max: 3600 }}
-                                    />
-                                </Box>
-                                <TextField
-                                    label="Description"
-                                    value={newMomentForm.description}
-                                    onChange={(e) => setNewMomentForm({ ...newMomentForm, description: e.target.value })}
-                                    fullWidth
-                                    multiline
-                                    rows={2}
-                                    variant="outlined"
-                                    sx={{ mt: 2 }}
-                                    placeholder="Describe what happens in this moment..."
-                                />
-                            </Paper>
-                        </Box>
-                    </DialogContent>
-                    <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
-                        <Button
-                            onClick={() => setCreateDialogOpen(false)}
-                            variant="outlined"
-                            sx={{ mr: 1 }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleCreateMoment}
-                            variant="contained"
-                            disabled={saving || !newMomentForm.name.trim()}
-                            startIcon={saving ? <CircularProgress size={16} /> : <AddIcon />}
-                        >
-                            {saving ? 'Creating...' : 'Create Moment'}
-                        </Button>
-                    </DialogActions>
-                </Dialog>
-
-                {/* Edit Moment Dialog */}
-                <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
-                    <DialogTitle>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <TimeIcon />
-                            Edit Moment
-                        </Box>
-                    </DialogTitle>
-                    <DialogContent>
-                        <Box sx={{ mt: 2 }}>
-                            {/* Basic Information Section */}
-                            <Paper
-                                elevation={0}
-                                sx={{
-                                    p: 3,
-                                    mb: 3,
-                                    borderRadius: 2,
-                                    border: 1,
-                                    borderColor: "divider",
-                                    background: (theme) => theme.palette.mode === 'dark' ? '#1a1a1a' : '#ffffff'
-                                }}
-                            >
-                                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'text.primary' }}>
-                                    Basic Information
-                                </Typography>
-                                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                                    <TextField
-                                        label="Moment Name"
-                                        value={newMomentForm.name}
-                                        onChange={(e) => setNewMomentForm({ ...newMomentForm, name: e.target.value })}
-                                        fullWidth
-                                        required
-                                        variant="outlined"
-                                    />
-                                    <TextField
-                                        label="Duration (seconds)"
-                                        type="number"
-                                        value={newMomentForm.duration}
-                                        onChange={(e) => setNewMomentForm({ ...newMomentForm, duration: parseInt(e.target.value) || 60 })}
-                                        fullWidth
-                                        variant="outlined"
-                                        inputProps={{ min: 1, max: 3600 }}
-                                    />
-                                </Box>
-                                <TextField
-                                    label="Description"
-                                    value={newMomentForm.description}
-                                    onChange={(e) => setNewMomentForm({ ...newMomentForm, description: e.target.value })}
-                                    fullWidth
-                                    multiline
-                                    rows={2}
-                                    variant="outlined"
-                                    sx={{ mt: 2 }}
-                                    placeholder="Describe what happens in this moment..."
-                                />
-                            </Paper>
-
-                            {/* Music Selection Section */}
-                            <Paper
-                                elevation={0}
-                                sx={{
-                                    p: 3,
-                                    borderRadius: 2,
-                                    border: 1,
-                                    borderColor: "divider",
-                                    background: (theme) => theme.palette.mode === 'dark' ? '#1a1a1a' : '#ffffff'
-                                }}
-                            >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                                    <MusicIcon sx={{ color: '#9c27b0' }} />
-                                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                                        Music
-                                    </Typography>
-                                </Box>
-
-                                {/* Current Music Display */}
-                                {editingMoment?.music && editingMoment.music.music_type !== 'NONE' ? (
-                                    <Box sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 2,
-                                        p: 2,
-                                        mb: 2,
-                                        bgcolor: 'rgba(156, 39, 176, 0.05)',
-                                        borderRadius: 1,
-                                        border: '1px solid rgba(156, 39, 176, 0.2)'
-                                    }}>
-                                        <MusicIcon sx={{ color: '#9c27b0', fontSize: 20 }} />
-                                        <Box sx={{ flex: 1 }}>
-                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                {editingMoment.music.music_name || 'Untitled'}
-                                            </Typography>
-                                            {editingMoment.music.artist && (
-                                                <Typography variant="caption" color="text.secondary">
-                                                    by {editingMoment.music.artist}
-                                                </Typography>
-                                            )}
-                                        </Box>
-                                        <Button
-                                            variant="outlined"
-                                            color="error"
-                                            size="small"
-                                            onClick={async () => {
-                                                if (!confirm('Are you sure you want to detach this music from the moment?')) return;
-                                                try {
-                                                    setSaving(true);
-                                                    await musicApi.detachMusicFromMoment(editingMoment.id);
-                                                    await fetchMoments();
-                                                    // Update the editing moment to reflect the change
-                                                    setEditingMoment({ ...editingMoment, music: null });
-                                                    setError(null);
-                                                } catch (err) {
-                                                    console.error('Error detaching music:', err);
-                                                    setError(err instanceof Error ? err.message : 'Failed to detach music');
-                                                } finally {
-                                                    setSaving(false);
-                                                }
-                                            }}
-                                            disabled={saving}
-                                            startIcon={<DeleteIcon />}
-                                        >
-                                            Detach Music
-                                        </Button>
-                                    </Box>
+                            <Box>
+                                <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1 }}>Coverage Assignments</Typography>
+                                {coverageItems && coverageItems.length > 0 ? (
+                                    <Grid container spacing={1}>
+                                        {/* Filter to show only the definitions (moment_id is null) to avoid duplicates from existing assignments */}
+                                        {coverageItems
+                                            .filter(item => item.moment_id == null)
+                                            .map((item) => {
+                                            const isAssigned = editingMoment?.coverage_items?.some(
+                                                (ci: any) => ci.assignment === item.assignment_number
+                                            );
+                                            const label = `${item.assignment_number || ''} ${item.name}`;
+                                            return (
+                                                <Grid item xs={6} key={item.id}>
+                                                    <FormControlLabel
+                                                        control={
+                                                            <Checkbox
+                                                                checked={!!isAssigned}
+                                                                onChange={async (e) => {
+                                                                    if (!editingMoment) return;
+                                                                    try {
+                                                                        if (e.target.checked) {
+                                                                            // item.id is now the SceneCoverage ID (instance)
+                                                                            await momentsApi.assignCoverageToMoment(editingMoment.id, item.id);
+                                                                        } else {
+                                                                            await momentsApi.removeCoverageFromMoment(editingMoment.id, item.id);
+                                                                        }
+                                                                        const updatedMoments = await momentsApi.getSceneMoments(sceneId, projectId);
+                                                                         if (onMomentsChange) onMomentsChange(updatedMoments);
+                                                                         const updatedMoment = updatedMoments.find(m => m.id === editingMoment.id);
+                                                                         if (updatedMoment) setEditingMoment(updatedMoment);
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        }
+                                                        label={label}
+                                                    />
+                                                </Grid>
+                                            )
+                                        })}
+                                    </Grid>
                                 ) : (
-                                    <Alert severity="info" sx={{ mb: 2 }}>
-                                        No music attached to this moment.
-                                    </Alert>
+                                    <Typography variant="body2" color="text.secondary">No coverage items available.</Typography>
                                 )}
-
-                                {/* Add Music Section */}
-                                {(!editingMoment?.music || editingMoment.music.music_type === 'NONE') && (
-                                    <Box>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                            Select a music track from your library to attach to this moment.
-                                        </Typography>
-
-                                        <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>
-                                            <InputLabel>Select Music Track</InputLabel>
-                                            <Select
-                                                value={selectedMusicId}
-                                                onChange={(e) => setSelectedMusicId(e.target.value as number | '')}
-                                                label="Select Music Track"
-                                            >
-                                                <MenuItem value="">
-                                                    <em>Choose a track...</em>
-                                                </MenuItem>
-                                                {musicLibrary.map((music) => (
-                                                    <MenuItem key={music.id} value={music.id}>
-                                                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                                {music.music_name || 'Untitled'}
-                                                            </Typography>
-                                                            {music.artist && (
-                                                                <Typography variant="caption" color="text.secondary">
-                                                                    by {music.artist}
-                                                                </Typography>
-                                                            )}
-                                                        </Box>
-                                                    </MenuItem>
-                                                ))}
-                                            </Select>
-                                        </FormControl>
-
-                                        <Button
-                                            variant="contained"
-                                            startIcon={<MusicIcon />}
-                                            onClick={async () => {
-                                                if (!selectedMusicId) return;
-                                                try {
-                                                    setSaving(true);
-                                                    await musicApi.attachMusicToMoment(editingMoment!.id, selectedMusicId as number);
-                                                    await fetchMoments();
-                                                    // Update the editing moment to reflect the change
-                                                    const selectedMusic = musicLibrary.find(m => m.id === selectedMusicId);
-                                                    if (selectedMusic) {
-                                                        setEditingMoment({
-                                                            ...editingMoment!,
-                                                            music: {
-                                                                music_name: selectedMusic.music_name,
-                                                                artist: selectedMusic.artist,
-                                                                music_type: selectedMusic.music_type
-                                                            }
-                                                        });
-                                                    }
-                                                    setSelectedMusicId('');
-                                                    setError(null);
-                                                } catch (err) {
-                                                    console.error('Error attaching music:', err);
-                                                    setError(err instanceof Error ? err.message : 'Failed to attach music');
-                                                } finally {
-                                                    setSaving(false);
-                                                }
-                                            }}
-                                            disabled={!selectedMusicId || saving}
-                                            sx={{ bgcolor: '#9c27b0', '&:hover': { bgcolor: '#7b1fa2' } }}
-                                        >
-                                            {saving ? 'Attaching...' : 'Add Music'}
-                                        </Button>
-
-                                        {musicLibrary.length === 0 && (
-                                            <Alert severity="warning" sx={{ mt: 2 }}>
-                                                No music tracks found in your library. Add music tracks first to assign them to moments.
-                                            </Alert>
-                                        )}
-                                    </Box>
-                                )}
-                            </Paper>
+                            </Box>
                         </Box>
                     </DialogContent>
-                    <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
-                        <Button
-                            onClick={() => setEditDialogOpen(false)}
-                            variant="outlined"
-                            sx={{ mr: 1 }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleUpdateMoment}
-                            variant="contained"
-                            disabled={saving || !newMomentForm.name.trim()}
-                            startIcon={saving ? <CircularProgress size={16} /> : null}
-                        >
-                            {saving ? 'Updating...' : 'Update Moment'}
-                        </Button>
+                    <DialogActions>
+                        <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleUpdateMoment} variant="contained">Update</Button>
                     </DialogActions>
                 </Dialog>
             </CardContent>
@@ -1295,3 +1065,5 @@ const MomentsManagement: React.FC<MomentsManagementProps> = ({
 };
 
 export default MomentsManagement;
+
+*/

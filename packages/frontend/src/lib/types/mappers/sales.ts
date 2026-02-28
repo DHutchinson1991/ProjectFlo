@@ -12,6 +12,7 @@ import {
     InquiryStatus,
     InquirySource,
     Proposal,
+    Estimate,
 } from "../domains/sales";
 import {
     InquiryApiResponse,
@@ -20,6 +21,7 @@ import {
     ClientDetailApiResponse,
     ClientProjectApiResponse,
     ProposalApiResponse,
+    EstimateApiResponse,
 } from "../api/sales";
 import { mapContactResponse } from "./users";
 import { OutputData } from "@editorjs/editorjs";
@@ -42,6 +44,9 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
         budget_range: null,
         message: null,
         notes: apiResponse.notes,
+        venue_details: apiResponse.venue_details,
+        lead_source: apiResponse.lead_source,
+        lead_source_details: apiResponse.lead_source_details,
         // Handle case where contact might not be included in update responses
         contact: apiResponse.contact ? mapContactResponse(apiResponse.contact) : {
             id: apiResponse.contact_id || 0,
@@ -56,7 +61,8 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
             archived_at: null,
         },
         contact_id: apiResponse.contact_id,
-        brand_id: 0,
+        brand_id: apiResponse.brand_id, // Updated to use actual brand_id
+        selected_package_id: apiResponse.selected_package_id,
         created_at: new Date(apiResponse.created_at),
         updated_at: new Date(apiResponse.updated_at),
     };
@@ -163,5 +169,37 @@ export function mapProposalResponse(apiResponse: ProposalApiResponse): Proposal 
         updated_at: new Date(apiResponse.updated_at),
         inquiry: apiResponse.inquiry ? mapInquiryResponse(apiResponse.inquiry) : undefined,
         project: apiResponse.project ? mapClientProjectResponse(apiResponse.project) : null,
+    };
+}
+
+// Estimate mappers
+export function mapEstimateResponse(apiResponse: EstimateApiResponse): Estimate {
+    return {
+        id: apiResponse.id,
+        inquiry_id: apiResponse.inquiry_id,
+        project_id: apiResponse.project_id,
+        estimate_number: apiResponse.estimate_number,
+        title: apiResponse.title,
+        status: apiResponse.status,
+        issue_date: new Date(apiResponse.issue_date),
+        expiry_date: new Date(apiResponse.expiry_date),
+        total_amount: apiResponse.total_amount,
+        tax_rate: apiResponse.tax_rate,
+        deposit_required: apiResponse.deposit_required,
+        notes: apiResponse.notes,
+        terms: apiResponse.terms,
+        items: apiResponse.items.map(item => ({
+            id: item.id,
+            category: item.category,
+            description: item.description,
+            service_date: item.service_date ? new Date(item.service_date) : null,
+            start_time: item.start_time,
+            end_time: item.end_time,
+            quantity: item.quantity,
+            unit: item.unit,
+            unit_price: item.unit_price,
+        })),
+        created_at: new Date(apiResponse.created_at),
+        updated_at: new Date(apiResponse.updated_at),
     };
 }

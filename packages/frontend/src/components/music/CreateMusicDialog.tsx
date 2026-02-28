@@ -47,6 +47,7 @@ interface CreateMusicDialogProps {
     editingItem?: MusicItem | null;
     saving?: boolean;
     moments?: Moment[];
+    projectId?: number;
 }
 
 const CreateMusicDialog: React.FC<CreateMusicDialogProps> = ({
@@ -55,7 +56,8 @@ const CreateMusicDialog: React.FC<CreateMusicDialogProps> = ({
     onSave,
     editingItem,
     saving = false,
-    moments = []
+    moments = [],
+    projectId
 }) => {
     const [formData, setFormData] = useState<Omit<MusicItem, 'id'>>({
         music_name: '',
@@ -201,7 +203,7 @@ const CreateMusicDialog: React.FC<CreateMusicDialogProps> = ({
                             }}
                             startIcon={<MusicNoteIcon />}
                         >
-                            Use Template
+                            Choose from Library
                         </Button>
                     )}
                 </DialogTitle>
@@ -433,6 +435,8 @@ const CreateMusicDialog: React.FC<CreateMusicDialogProps> = ({
                 open={templateDialogOpen}
                 onClose={() => setTemplateDialogOpen(false)}
                 onUseTemplate={handleUseTemplate}
+                projectId={projectId}
+                mode="library"
             />
         </>
     );

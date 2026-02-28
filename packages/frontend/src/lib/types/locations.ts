@@ -125,6 +125,27 @@ export interface SceneLocationSpace {
     space?: LocationSpace;
 }
 
+// ==================== FILM LOCATION ASSIGNMENTS ====================
+
+export interface FilmLocationAssignment {
+    id: number;
+    film_id: number;
+    location_id: number;
+    notes?: string | null;
+    created_at: string;
+    updated_at: string;
+    location: LocationsLibrary;
+}
+
+export interface FilmSceneLocationAssignment {
+    id: number;
+    scene_id: number;
+    location_id: number;
+    created_at: string;
+    updated_at: string;
+    location: LocationsLibrary;
+}
+
 // ==================== CREATE/UPDATE TYPES ====================
 
 export interface CreateLocationRequest {

@@ -51,9 +51,10 @@ const studioNavItems = [
         href: "/designer",
         icon: <PaletteIcon />,
         subItems: [
-            { title: "Scenes Library", href: "/designer/scenes" },
             { title: "Film Manager", href: "/designer/films" },
             { title: "Coverage Library", href: "/designer/coverage" },
+            { title: "Crew & Equipment", href: "/manager/equipment" },
+            { title: "Package Library", href: "/designer/packages" },
         ],
     },
     {

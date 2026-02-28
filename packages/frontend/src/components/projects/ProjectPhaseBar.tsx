@@ -18,9 +18,10 @@ interface ProjectPhaseBarProps {
     currentPhase: string;
     onPhaseChange: (phaseId: string) => void;
     projectId: number;
+    title?: string;
 }
 
-export default function ProjectPhaseBar({ phases, currentPhase }: ProjectPhaseBarProps) {
+export default function ProjectPhaseBar({ phases, currentPhase, title = "Project Progress" }: ProjectPhaseBarProps) {
     const currentPhaseIndex = phases.findIndex(p => p.id === currentPhase);
     const progressPercentage = ((currentPhaseIndex + 1) / phases.length) * 100;
 
@@ -30,7 +31,7 @@ export default function ProjectPhaseBar({ phases, currentPhase }: ProjectPhaseBa
             <Box sx={{ mb: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2" sx={{ color: '#9ca3af', fontWeight: 600 }}>
-                        Project Progress
+                        {title}
                     </Typography>
                     <Typography variant="body2" sx={{ color: '#9ca3af', fontWeight: 600 }}>
                         {Math.round(progressPercentage)}% Complete

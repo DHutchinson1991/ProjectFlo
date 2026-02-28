@@ -1,174 +1,100 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  ParseIntPipe,
-  Query,
-} from "@nestjs/common";
-import { ScenesService } from "./scenes.service";
-import { MediaType, MusicType } from "@prisma/client";
-import { CreateSceneDto } from "./dto/create-scene.dto";
-import { UpdateSceneDto } from "./dto/update-scene.dto";
+    Controller,
+    Get,
+    Post,
+    Body,
+    Patch,
+    Param,
+    Delete,
+    ParseIntPipe,
+    Query,
+} from '@nestjs/common';
+import { ScenesService } from './scenes.service';
+import { CreateSceneDto } from './dto/create-scene.dto';
+import { UpdateSceneDto } from './dto/update-scene.dto';
 
-// Music component DTO (updated for unified structure)
-export class SceneMusicComponentDto {
-  music_type: MusicType;
-  weight?: number;
-  duration_seconds?: number;
-}
-
-// Media component DTO for broader use
-export class SceneMediaComponentDto {
-  media_type: 'VIDEO' | 'AUDIO' | 'MUSIC';
-  duration_seconds: number;
-  is_primary?: boolean;
-  volume_level?: number;
-  sync_offset?: number;
-  music_type?: string;
-  music_weight?: number;
-  notes?: string;
-}
-
-@Controller("scenes")
+@Controller('scenes')
 export class ScenesController {
-  constructor(private readonly scenesService: ScenesService) { }
+    constructor(private readonly scenesService: ScenesService) { }
 
-  @Post()
-  create(@Body() createSceneDto: CreateSceneDto, @Query('brandId') brandId?: string) {
-    const parsedBrandId = brandId ? parseInt(brandId, 10) : null;
-    return this.scenesService.create(createSceneDto, parsedBrandId);
-  }
+    // Film-scoped scene management
+    @Post('films/:filmId/scenes')
+    create(
+        @Param('filmId', ParseIntPipe) filmId: number,
+        @Body() createSceneDto: CreateSceneDto
+    ) {
+        // Override film_id from URL parameter
+        createSceneDto.film_id = filmId;
+        return this.scenesService.create(createSceneDto);
+    }
 
-  @Get()
-  findAll(@Query('brandId') brandId?: string) {
-    const parsedBrandId = brandId ? parseInt(brandId, 10) : null;
-    return this.scenesService.findAll(parsedBrandId);
-  }
+    @Get('films/:filmId/scenes')
+    findAll(@Param('filmId', ParseIntPipe) filmId: number) {
+        return this.scenesService.findAll(filmId);
+    }
 
-  @Get("with-relations")
-  findAllWithRelations(@Query('brandId') brandId?: string) {
-    const parsedBrandId = brandId ? parseInt(brandId, 10) : null;
-    return this.scenesService.findAllWithRelations(parsedBrandId);
-  }
+    @Get('templates')
+    getSceneTemplates(@Query('brandId') brandId?: string) {
+        return this.scenesService.getSceneTemplates();
+    }
 
-  @Get(":id/with-relations")
-  findOneWithRelations(@Param("id", ParseIntPipe) id: number) {
-    return this.scenesService.findOneWithRelations(id);
-  }
+    @Post('templates/from-scene')
+    createTemplateFromScene(@Body() data: { scene_id: number; name?: string }) {
+        return this.scenesService.createTemplateFromScene(data.scene_id, data.name);
+    }
 
-  @Get("stats")
-  getStats() {
-    return this.scenesService.getSceneStats();
-  }
+    @Delete('templates/:id')
+    deleteSceneTemplate(@Param('id', ParseIntPipe) id: number) {
+        return this.scenesService.deleteSceneTemplate(id);
+    }
 
-  @Get("by-type/:type")
-  findByType(@Param("type") type: string) {
-    return this.scenesService.findByType(type as MediaType);
-  }
+    @Get('template/:templateId/scenes')
+    getScenesByTemplate(@Param('templateId', ParseIntPipe) templateId: number) {
+        return this.scenesService.getScenesByTemplate(templateId);
+    }
 
-  @Get("production")
-  getProductionScenes() {
-    return this.scenesService.getProductionScenes();
-  }
+    @Get(':id')
+    findOne(@Param('id', ParseIntPipe) id: number) {
+        return this.scenesService.findOne(id);
+    }
 
-  @Get(":id")
-  findOne(@Param("id", ParseIntPipe) id: number) {
-    return this.scenesService.findOneWithRelations(id);
-  }
+    @Get(':id/recording-setup')
+    getRecordingSetup(@Param('id', ParseIntPipe) id: number) {
+        return this.scenesService.getRecordingSetup(id);
+    }
 
-  @Patch(":id")
-  update(
-    @Param("id", ParseIntPipe) id: number,
-    @Body() updateSceneDto: UpdateSceneDto,
-  ) {
-    return this.scenesService.update(id, updateSceneDto);
-  }
+    @Patch(':id/recording-setup')
+    upsertRecordingSetup(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() data: { camera_track_ids?: number[]; audio_track_ids?: number[]; graphics_enabled?: boolean }
+    ) {
+        return this.scenesService.upsertRecordingSetup(id, data);
+    }
 
-  @Delete(":id")
-  remove(@Param("id", ParseIntPipe) id: number) {
-    return this.scenesService.remove(id);
-  }
+    @Delete(':id/recording-setup')
+    deleteRecordingSetup(@Param('id', ParseIntPipe) id: number) {
+        return this.scenesService.deleteRecordingSetup(id);
+    }
 
-  @Get(":id/dependencies")
-  getSceneDependencies(@Param("id", ParseIntPipe) id: number) {
-    return this.scenesService.getSceneDependencies(id);
-  }
+    @Patch(':id')
+    update(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() updateSceneDto: UpdateSceneDto
+    ) {
+        return this.scenesService.update(id, updateSceneDto);
+    }
 
-  @Post("bulk-update-hours")
-  bulkUpdateTaskHours(
-    @Body() updates: { id: number; base_task_hours: number }[],
-  ) {
-    return this.scenesService.bulkUpdateTaskHours(updates);
-  }
+    @Delete(':id')
+    remove(@Param('id', ParseIntPipe) id: number) {
+        return this.scenesService.remove(id);
+    }
 
-  // MUSIC COMPONENT ENDPOINTS (Updated for unified structure)
-
-  @Post(":id/music-options")
-  addMusicOptions(
-    @Param("id", ParseIntPipe) id: number,
-    @Body() musicOptions: SceneMusicComponentDto[],
-  ) {
-    return this.scenesService.addMusicOptions(id, musicOptions);
-  }
-
-  @Delete(":id/music-options/:componentId")
-  removeMusicOption(
-    @Param("id", ParseIntPipe) id: number,
-    @Param("componentId", ParseIntPipe) componentId: number,
-  ) {
-    return this.scenesService.removeMusicOption(id, componentId);
-  }
-
-  @Patch("music-options/:componentId")
-  updateMusicComponent(
-    @Param("componentId", ParseIntPipe) componentId: number,
-    @Body() updateData: { music_type?: string; duration_seconds?: number; notes?: string },
-  ) {
-    return this.scenesService.updateMusicComponent(componentId, updateData);
-  }
-
-  @Get(":id/music-components")
-  getMusicComponents(@Param("id", ParseIntPipe) id: number) {
-    return this.scenesService.getMusicComponents(id);
-  }
-
-  @Post(":id/media-components")
-  addMediaComponent(
-    @Param("id", ParseIntPipe) id: number,
-    @Body() componentData: SceneMediaComponentDto,
-  ) {
-    return this.scenesService.addMediaComponent(id, componentData);
-  }
-
-  // SCENE-COVERAGE RELATIONSHIP ENDPOINTS
-
-  @Post(":id/coverage")
-  addCoverageToScene(
-    @Param("id", ParseIntPipe) sceneId: number,
-    @Body() body: { coverageIds: number[] },
-  ) {
-    return this.scenesService.addCoverageToScene(sceneId, body.coverageIds);
-  }
-
-  @Get(":id/coverage")
-  getSceneCoverage(@Param("id", ParseIntPipe) sceneId: number) {
-    return this.scenesService.getSceneCoverage(sceneId);
-  }
-
-  @Delete(":id/coverage/:coverageId")
-  removeCoverageFromScene(
-    @Param("id", ParseIntPipe) sceneId: number,
-    @Param("coverageId", ParseIntPipe) coverageId: number,
-  ) {
-    return this.scenesService.removeCoverageFromScene(sceneId, coverageId);
-  }
-
-  @Delete(":id/coverage")
-  removeAllCoverageFromScene(@Param("id", ParseIntPipe) sceneId: number) {
-    return this.scenesService.removeAllCoverageFromScene(sceneId);
-  }
+    // Utility endpoints
+    @Post(':id/reorder')
+    reorderScenes(
+        @Param('id', ParseIntPipe) filmId: number,
+        @Body() sceneOrderings: Array<{ id: number; order_index: number }>
+    ) {
+        return this.scenesService.reorderScenes(filmId, sceneOrderings);
+    }
 }

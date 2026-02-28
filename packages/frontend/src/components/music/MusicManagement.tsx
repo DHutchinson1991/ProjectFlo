@@ -49,6 +49,7 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [libraryItems, setLibraryItems] = useState<MusicItem[]>([]);
 
     // Dialog states
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -59,7 +60,7 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
     const fetchMusicLibrary = async () => {
         try {
             setLoading(true);
-            const data = await musicApi.getMusicLibrary(projectId);
+            const data = await musicApi.getMusicLibrary(projectId, sceneId);
 
             // Convert to our local format and enrich with moment information
             const enrichedMusic: MusicItem[] = await Promise.all(
@@ -80,10 +81,16 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
                 })
             );
 
-            setMusicItems(enrichedMusic);
+            // Save full library
+            setLibraryItems(enrichedMusic);
+
+            // Compute attached items for this scene for count reporting
+            const sceneMomentIds = new Set((sceneMoments || []).map(m => m.id));
+            const attached = enrichedMusic.filter(item => item.moment_id && sceneMomentIds.has(item.moment_id));
+            setMusicItems(attached);
 
             if (onMusicChange) {
-                onMusicChange(enrichedMusic);
+                onMusicChange(attached);
             }
 
             setError(null);
@@ -106,10 +113,10 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
     };
 
     useEffect(() => {
+        // Fetch once for this scene/project; do not refetch on moment changes to avoid flicker
         fetchMusicLibrary();
         fetchMoments();
     }, [sceneId, projectId]);
-
     const handleAddMusic = () => {
         setEditingMusicItem(null);
         setCreateDialogOpen(true);
@@ -136,7 +143,6 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
             if (item.moment_id) {
                 await musicApi.detachMusicFromMoment(item.moment_id);
             }
-
             // Delete the music library item
             await musicApi.deleteMusicLibraryItem(item.id);
             await fetchMusicLibrary();
@@ -148,7 +154,6 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
             setSaving(false);
         }
     };
-
     const handleDetachFromMoment = async (item: MusicItem) => {
         if (!item.moment_id) return;
 
@@ -181,6 +186,7 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
                 file_path: musicItemData.file_path,
                 notes: musicItemData.notes,
                 project_id: projectId,
+                scene_id: sceneId,
             };
 
             let musicItemId: number;
@@ -245,6 +251,13 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
         );
     }
 
+    // Always show all items from library (both attached and unattached to this scene)
+    const sceneMomentIds = new Set((sceneMoments || []).map(m => m.id));
+    const displayItems = libraryItems.map(item => ({
+        ...item,
+        isAttached: item.moment_id && sceneMomentIds.has(item.moment_id)
+    }));
+
     return (
         <Box>
             {error && (
@@ -253,8 +266,11 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
                 </Alert>
             )}
 
+            {/* Showing only tracks attached to this scene */}
+
             <MusicTable
-                musicItems={musicItems}
+                musicItems={displayItems}
+                title="Music Tracks"
                 onAddMusic={handleAddMusic}
                 onEditMusic={handleEditMusic}
                 onRemoveMusic={handleRemoveMusic}
@@ -272,6 +288,7 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
                 editingItem={editingMusicItem}
                 saving={saving}
                 moments={sceneMoments}
+                projectId={projectId}
             />
 
             <AttachMusicToMomentDialog

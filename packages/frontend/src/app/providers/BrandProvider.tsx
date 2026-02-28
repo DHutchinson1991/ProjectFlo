@@ -48,21 +48,15 @@ export function BrandProvider({ children }: BrandProviderProps) {
         error: brandsError,
     } = useQuery<UserBrand[]>({
         queryKey: ["userBrands", user?.id],
-        queryFn: () => {
-            console.log('🏢 BrandProvider Debug - Fetching user brands for user:', user!.id);
-            return api.brands.getUserBrands(user!.id);
-        },
+        queryFn: () => api.brands.getUserBrands(user!.id),
         enabled: !!user?.id && isAuthenticated,
         staleTime: 5 * 60 * 1000, // 5 minutes
     });
 
     // Debug logging for user brands
     useEffect(() => {
-        if (userBrands?.length > 0) {
-            console.log('🏢 BrandProvider Debug - User brands loaded successfully:', userBrands);
-        }
         if (brandsError) {
-            console.error('🏢 BrandProvider Debug - Error loading user brands:', brandsError);
+            console.error('❌ Error loading user brands:', brandsError);
         }
     }, [userBrands, brandsError]);
 
@@ -70,36 +64,23 @@ export function BrandProvider({ children }: BrandProviderProps) {
 
     // Load stored brand preference or set default
     useEffect(() => {
-        console.log('🏢 BrandProvider Debug - useEffect for brand loading triggered');
-        console.log('🏢 BrandProvider Debug - isAuthenticated:', isAuthenticated);
-        console.log('🏢 BrandProvider Debug - user:', user?.id);
-        console.log('🏢 BrandProvider Debug - availableBrands.length:', availableBrands.length);
-        console.log('🏢 BrandProvider Debug - availableBrands:', availableBrands);
-
         if (!isAuthenticated || !user || availableBrands.length === 0) {
-            console.log('🏢 BrandProvider Debug - Early return due to missing auth/user/brands');
             return;
         }
 
         // Check if we have a stored brand preference
         const storedBrandId = localStorage.getItem(BRAND_STORAGE_KEY);
-        console.log('🏢 BrandProvider Debug - storedBrandId from localStorage:', storedBrandId);
 
         if (storedBrandId) {
             const storedBrand = availableBrands.find(
                 (brand) => brand.id === parseInt(storedBrandId, 10)
             );
-            console.log('🏢 BrandProvider Debug - Found stored brand:', storedBrand?.name);
 
             if (storedBrand) {
-                console.log('🏢 BrandProvider Debug - Setting current brand to stored brand:', storedBrand.name);
                 setCurrentBrand(storedBrand);
                 // Force update the brand context provider immediately
                 setBrandContextProvider({
-                    getCurrentBrandId: () => {
-                        console.log('🏢 BrandProvider Debug - Immediate getCurrentBrandId called, returning:', storedBrand.id, 'for brand:', storedBrand.name);
-                        return storedBrand.id;
-                    }
+                    getCurrentBrandId: () => storedBrand.id
                 });
                 return;
             }
@@ -108,15 +89,11 @@ export function BrandProvider({ children }: BrandProviderProps) {
         // No valid stored brand, default to first available
         if (availableBrands.length > 0) {
             const defaultBrand = availableBrands[0];
-            console.log('🏢 BrandProvider Debug - Setting current brand to first available:', defaultBrand.name);
             setCurrentBrand(defaultBrand);
             localStorage.setItem(BRAND_STORAGE_KEY, defaultBrand.id.toString());
             // Force update the brand context provider immediately
             setBrandContextProvider({
-                getCurrentBrandId: () => {
-                    console.log('🏢 BrandProvider Debug - Immediate getCurrentBrandId called, returning:', defaultBrand.id, 'for brand:', defaultBrand.name);
-                    return defaultBrand.id;
-                }
+                getCurrentBrandId: () => defaultBrand.id
             });
         }
     }, [isAuthenticated, user, availableBrands]);
@@ -201,14 +178,11 @@ export function BrandProvider({ children }: BrandProviderProps) {
     // Computed properties
     const isBrandSelected = currentBrand !== null;
     const getCurrentBrandId = useCallback(() => {
-        const brandId = currentBrand?.id || null;
-        console.log('🏢 BrandProvider Debug - getCurrentBrandId called, returning:', brandId, 'for brand:', currentBrand?.name);
-        return brandId;
+        return currentBrand?.id || null;
     }, [currentBrand]);
 
     // Set up brand context provider for API service
     useEffect(() => {
-        console.log('🏢 BrandProvider Debug - Setting brand context provider with brand:', currentBrand?.name, 'ID:', currentBrand?.id);
         setBrandContextProvider({ getCurrentBrandId });
     }, [getCurrentBrandId, currentBrand]);
 

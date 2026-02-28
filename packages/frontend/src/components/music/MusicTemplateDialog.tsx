@@ -26,12 +26,16 @@ interface MusicTemplateDialogProps {
     open: boolean;
     onClose: () => void;
     onUseTemplate: (template: MusicLibraryItem) => void;
+    projectId?: number;
+    mode?: 'templates' | 'library';
 }
 
 const MusicTemplateDialog: React.FC<MusicTemplateDialogProps> = ({
     open,
     onClose,
-    onUseTemplate
+    onUseTemplate,
+    projectId,
+    mode = 'templates'
 }) => {
     const [templates, setTemplates] = useState<MusicLibraryItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -45,10 +49,15 @@ const MusicTemplateDialog: React.FC<MusicTemplateDialogProps> = ({
     const fetchTemplates = async () => {
         try {
             setLoading(true);
-            const musicTemplates = await musicApi.getMusicTemplates();
-            setTemplates(musicTemplates);
+            let items: MusicLibraryItem[] = [];
+            if (mode === 'library') {
+                items = await musicApi.getMusicLibrary(projectId);
+            } else {
+                items = await musicApi.getMusicTemplates();
+            }
+            setTemplates(items);
         } catch (error) {
-            console.error('Error fetching music templates:', error);
+            console.error('Error fetching music items:', error);
         } finally {
             setLoading(false);
         }
@@ -110,7 +119,7 @@ const MusicTemplateDialog: React.FC<MusicTemplateDialogProps> = ({
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <MusicNoteIcon sx={{ color: '#9c27b0' }} />
                     <Typography variant="h6" sx={{ color: '#9c27b0', fontWeight: 600 }}>
-                        Music Templates
+                        {mode === 'library' ? 'Music Library' : 'Music Templates'}
                     </Typography>
                 </Box>
                 <IconButton onClick={onClose} size="small">
@@ -120,7 +129,9 @@ const MusicTemplateDialog: React.FC<MusicTemplateDialogProps> = ({
 
             <DialogContent sx={{ p: 3 }}>
                 <Alert severity="info" sx={{ mb: 3 }}>
-                    Choose from pre-configured music templates to quickly add common wedding music types.
+                    {mode === 'library'
+                        ? 'Select a track from your project\'s music library.'
+                        : 'Choose from pre-configured music templates to quickly add common wedding music types.'}
                 </Alert>
 
                 {loading ? (
@@ -129,7 +140,7 @@ const MusicTemplateDialog: React.FC<MusicTemplateDialogProps> = ({
                     </Box>
                 ) : templates.length === 0 ? (
                     <Alert severity="warning">
-                        No music templates found. Create some template music items first.
+                        {mode === 'library' ? 'No music found in the project library.' : 'No music templates found. Create some template music items first.'}
                     </Alert>
                 ) : (
                     <Grid container spacing={2}>
@@ -150,16 +161,18 @@ const MusicTemplateDialog: React.FC<MusicTemplateDialogProps> = ({
                                 >
                                     <CardContent sx={{ p: 2 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                            <Chip
-                                                label={template.assignment_number}
-                                                size="small"
-                                                sx={{
-                                                    backgroundColor: '#9c27b0',
-                                                    color: 'white',
-                                                    fontWeight: 600,
-                                                    fontSize: '0.75rem'
-                                                }}
-                                            />
+                                            {template.assignment_number && (
+                                                <Chip
+                                                    label={template.assignment_number}
+                                                    size="small"
+                                                    sx={{
+                                                        backgroundColor: '#9c27b0',
+                                                        color: 'white',
+                                                        fontWeight: 600,
+                                                        fontSize: '0.75rem'
+                                                    }}
+                                                />
+                                            )}
                                             <Chip
                                                 label={getMusicTypeLabel(template.music_type)}
                                                 size="small"
@@ -187,6 +200,11 @@ const MusicTemplateDialog: React.FC<MusicTemplateDialogProps> = ({
                                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                                             <strong>Duration:</strong> {template.duration ? formatDuration(template.duration) : 'N/A'}
                                         </Typography>
+                                        {template.moment_name && (
+                                            <Typography variant="caption" color="text.secondary">
+                                                Attached to: {template.moment_name}
+                                            </Typography>
+                                        )}
 
                                         <Typography variant="body2" color="text.secondary" sx={{
                                             fontStyle: 'italic',

@@ -1,4 +1,12 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateSubjectDto } from './create-subject.dto';
+import { IsString, IsOptional } from 'class-validator';
+import { SubjectCategory } from '@prisma/client';
 
-export class UpdateSubjectDto extends PartialType(CreateSubjectDto) { }
+export class UpdateSubjectDto {
+    @IsString()
+    @IsOptional()
+    name?: string;
+
+    @IsString()
+    @IsOptional()
+    category?: SubjectCategory;
+}

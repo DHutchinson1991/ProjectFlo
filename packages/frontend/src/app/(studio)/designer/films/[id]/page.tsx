@@ -1,235 +1,307 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import {
-    Box,
-    Typography,
-    Button,
-    Alert,
-    CircularProgress,
-    Breadcrumbs,
-    IconButton,
-    Link,
-} from "@mui/material";
-import {
-    ArrowBack as ArrowBackIcon,
-    Settings as SettingsIcon,
-    VideoLibrary as VideoLibraryIcon,
-} from "@mui/icons-material";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Box, CircularProgress, Alert, Button, Link, Stack } from "@mui/material";
+import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
+import { useRouter, useSearchParams } from "next/navigation";
 import ContentBuilder from "../../components/ContentBuilder";
-import { TimelineScene } from "../../components/ContentBuilder/types";
-
-// Film data interface
-interface FilmLibrary {
-    id: number;
-    name: string;
-    description: string;
-    type: "STANDARD" | "PREMIUM" | "LUXURY";
-    default_music_type: string | null;
-    delivery_timeline: number;
-    includes_music: boolean;
-    is_active: boolean;
-    brand_id: number;
-    version: string;
-    created_at: string;
-    updated_at: string;
-}
-
-// Local scene interfaces for API responses
-interface FilmLocalSceneMediaComponent {
-    id: number;
-    film_local_scene_id: number;
-    media_type: "VIDEO" | "AUDIO" | "MUSIC";
-    duration_seconds: number;
-    is_primary: boolean;
-    music_type?: string;
-    notes?: string;
-}
-
-interface FilmLocalScene {
-    id: number;
-    film_id: number;
-    original_scene_id?: number;
-    name: string;
-    description?: string;
-    media_components: FilmLocalSceneMediaComponent[];
-}
+import { FilmDetailHeader, FilmRightPanel } from "@/components/films";
+import { useFilmData, useFilmEquipment } from "@/hooks/films";
+import { useTimelineStorage, useTimelineSave } from "@/hooks/content-builder/data";
+import { useFilmSubjects } from "@/hooks/subjects/useFilmSubjects";
+import { SubjectCategory } from "@/lib/types/domains/subjects";
+import type { Film } from "@/lib/types/domains/film";
+import { useBrand } from "@/app/providers/BrandProvider";
+import type { FilmEquipmentAssignmentsBySlot } from "@/types/film-equipment.types";
+import { api } from "@/lib/api";
+import { buildAssignmentsBySlot, buildEquipmentSlotKey, buildEquipmentSlotNote } from "@/lib/utils/equipmentAssignments";
+import { transformBackendTrack } from "@/lib/utils/trackUtils";
 
 export default function FilmDetailPage({ params }: { params: { id: string } }) {
+    const filmId = parseInt(params.id, 10);
     const router = useRouter();
-    const filmId = params.id;
+    const searchParams = useSearchParams();
+    const hasInitialized = useRef(false);
+    const { currentBrand } = useBrand();
+    const lastBrandId = useRef<number | null>(null);
 
-    const [film, setFilm] = useState<FilmLibrary | null>(null);
-    const [filmScenes, setFilmScenes] = useState<TimelineScene[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    // Equipment state for ContentBuilder
+    const [equipmentSummary, setEquipmentSummary] = useState<{
+        cameras: number;
+        audio: number;
+        music: number;
+    } | null>(null);
+    const [equipmentAssignmentsBySlot, setEquipmentAssignmentsBySlot] = useState<FilmEquipmentAssignmentsBySlot>({});
 
-    // Fetch film details
-    const fetchFilm = async () => {
+    // Use custom hooks for data management
+    const {
+        film,
+        scenes: filmScenes,
+        tracks,
+        layers: timelineLayers,
+        loading,
+        error,
+        setFilm,
+        setTracks,
+        loadAll,
+        refreshScenes,
+    } = useFilmData(filmId);
+
+    const { saveTimeline, saveTracks } = useTimelineStorage(filmId);
+
+    const {
+        subjects,
+        templates: subjectTemplates,
+        typeTemplates,
+        createSubject,
+        deleteSubject,
+        loadTemplates,
+        loadTypeTemplates,
+    } = useFilmSubjects(filmId, currentBrand?.id);
+
+    // Equipment management hook
+    const { handleEquipmentChange } = useFilmEquipment(
+        filmId,
+        setTracks,
+        saveTracks
+    );
+
+    // Timeline save hook
+    const { handleSave } = useTimelineSave(
+        filmId,
+        saveTimeline,
+        saveTracks
+    );
+
+    // Handle scene creation
+    const handleSceneCreated = useCallback(() => {
+        console.log("🎬 Scene created, refreshing scenes list...");
+        refreshScenes();
+    }, [refreshScenes]);
+
+    // Handle film name save
+    const handleSaveFilm = useCallback(async (newName: string) => {
+        if (!film) return;
         try {
-            const response = await fetch(`http://localhost:3002/films/${filmId}`);
-            if (!response.ok) {
-                throw new Error(`Film not found: ${response.status}`);
-            }
-            const data = await response.json();
-            setFilm(data);
+            const updated = await import("@/lib/api").then(({ api }) =>
+                api.films.update(film.id, { name: newName })
+            );
+            // Merge the updated data with existing film data to maintain all fields
+            setFilm({ ...film, name: updated.name });
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to fetch film");
+            console.error("Failed to update film:", err);
+            throw err;
         }
-    };
+    }, [film, setFilm]);
 
-    // Fetch film's local scenes
-    const fetchFilmScenes = async () => {
+    // Handle subject creation
+    const handleAddSubject = useCallback(async (name: string, category: SubjectCategory) => {
         try {
-            const response = await fetch(`http://localhost:3002/films/${filmId}/scenes`);
-            if (response.ok) {
-                const filmWithScenes = await response.json();
-
-                // Extract local scenes from the film data
-                const localScenes = filmWithScenes.local_scenes || [];
-
-                // Convert local scenes to TimelineScene format
-                const timelineScenes: TimelineScene[] = localScenes.flatMap((localScene: FilmLocalScene) =>
-                    localScene.media_components.map((component: FilmLocalSceneMediaComponent) => ({
-                        id: component.id,
-                        name: `${localScene.name} - ${component.media_type}`,
-                        start_time: 0, // Will be set from timeline data if it exists
-                        duration: component.duration_seconds,
-                        track_id: getTrackIdForMediaType(component.media_type),
-                        scene_type: component.media_type.toLowerCase() as "video" | "audio" | "music",
-                        color: getSceneColorByType(component.media_type),
-                        description: component.notes || localScene.description,
-                        database_type: component.media_type,
-                        original_scene_id: localScene.original_scene_id,
-                        media_components: [{
-                            id: component.id,
-                            media_type: component.media_type,
-                            track_id: getTrackIdForMediaType(component.media_type),
-                            start_time: 0,
-                            duration: component.duration_seconds,
-                            is_primary: component.is_primary,
-                            music_type: component.music_type,
-                            notes: component.notes,
-                            scene_component_id: component.id
-                        }]
-                    }))
-                );
-
-                setFilmScenes(timelineScenes);
-            }
+            await createSubject({
+                film_id: filmId,
+                name,
+                category,
+                is_custom: true,
+            });
         } catch (err) {
-            console.error("Failed to fetch film scenes:", err);
-            // Don't set error state for this, just log it
+            console.error("Failed to create subject:", err);
+            throw err;
         }
-    };
+    }, [filmId, createSubject]);
 
-    // Helper functions
-    const getTrackIdForMediaType = (mediaType: string): number => {
-        switch (mediaType) {
-            case "VIDEO": return 1;
-            case "AUDIO": return 2;
-            case "MUSIC": return 3;
-            case "GRAPHICS": return 4;
-            default: return 1;
+    const handleDeleteSubject = useCallback(async (subjectId: number) => {
+        try {
+            await deleteSubject(subjectId);
+        } catch (err) {
+            console.error("Failed to delete subject:", err);
+            throw err;
         }
-    };
+    }, [deleteSubject]);
 
-    const getSceneColorByType = (type: string): string => {
-        switch (type) {
-            case "VIDEO": return "#2196f3";
-            case "AUDIO": return "#4caf50";
-            case "GRAPHICS": return "#ff9800";
-            case "MUSIC": return "#9c27b0";
-            default: return "#2196f3";
-        }
-    };
+    const linkedPackageId = searchParams.get("packageId");
+    const linkedItemId = searchParams.get("itemId");
+    const linkedPackageHref = linkedPackageId ? `/designer/packages/${linkedPackageId}` : null;
 
-    // Load film data
+    // Load all data on mount - only run once when brand is ready
     useEffect(() => {
-        const loadData = async () => {
-            setLoading(true);
-            await fetchFilm();
-            await fetchFilmScenes();
-            setLoading(false);
+        // Wait for brand to be available before loading
+        if (!currentBrand) {
+            return;
+        }
+
+        // Reset initialization flag if brand changed
+        if (lastBrandId.current !== currentBrand.id) {
+            hasInitialized.current = false;
+            lastBrandId.current = currentBrand.id;
+        }
+
+        // Only initialize once per filmId/brand combination
+        if (hasInitialized.current) return;
+        hasInitialized.current = true;
+
+        const init = async () => {
+            await loadAll();
+            await loadTemplates();
         };
 
-        if (filmId) {
-            loadData();
-        }
+        init();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filmId, currentBrand]);
+
+    useEffect(() => {
+        let isMounted = true;
+        const loadAssignments = async () => {
+            try {
+                const assignments = await api.films.equipmentAssignments.getAll(filmId);
+                if (isMounted) {
+                    setEquipmentAssignmentsBySlot(buildAssignmentsBySlot(assignments));
+                }
+            } catch (err) {
+                console.error("Failed to load equipment assignments:", err);
+            }
+        };
+
+        loadAssignments();
+        return () => {
+            isMounted = false;
+        };
     }, [filmId]);
 
-    const handleSave = async (scenes: TimelineScene[]) => {
-        console.log("Saving film template:", scenes);
+    // ─── Auto-sync tracks from package operator equipment ─────────────
+    const hasSyncedPackageTracks = useRef(false);
+    useEffect(() => {
+        if (!linkedPackageId || hasSyncedPackageTracks.current) return;
+        if (!film) return; // Wait for film data to be available (provides brand_id for package fetch)
+        hasSyncedPackageTracks.current = true;
 
-        try {
-            // Get current film scenes to check what's already assigned
-            const currentResponse = await fetch(`http://localhost:3002/films/${filmId}/scenes`);
-            const currentFilm = await currentResponse.json();
-            const existingSceneIds = new Set(currentFilm.local_scenes?.map((s: FilmLocalScene) => s.original_scene_id) || []);
+        const syncTracksFromPackage = async () => {
+            try {
+                const pkgId = Number(linkedPackageId);
+                const [operators, currentTracks] = await Promise.all([
+                    api.operators.packageDay.getAll(pkgId),
+                    api.films.tracks.getAll(filmId),
+                ]);
 
-            // Group scenes by their original scene ID to create local copies
-            const sceneGroupsMap = new Map<number, TimelineScene[]>();
+                // Read unmanned camera count from package contents
+                let unmannedCameraCount = 0;
+                try {
+                    const pkgData = await api.servicePackages.getOne(film.brand_id, pkgId);
+                    unmannedCameraCount = (pkgData?.contents as any)?.unmanned_cameras || 0;
+                } catch (pkgErr) {
+                    console.warn('Could not fetch package contents for unmanned count:', pkgErr);
+                }
 
-            scenes.forEach(scene => {
-                if (scene.original_scene_id) {
-                    if (!sceneGroupsMap.has(scene.original_scene_id)) {
-                        sceneGroupsMap.set(scene.original_scene_id, []);
+                // Build ordered list of operators-with-camera and collect audio equipment
+                // Each operator with a camera gets one camera track; each unique audio device gets one audio track
+                const cameraOperators: { templateId: number; cameraEquipmentId: number | null }[] = [];
+                const audioEquipment: { equipmentId: number }[] = [];
+                const seenCameraOps = new Set<number>();
+                const seenAudioIds = new Set<number>();
+
+                (operators || []).forEach((op: any) => {
+                    const templateId = op.operator_template_id ?? op.operator_template?.id ?? op.id;
+                    const equipment = op.equipment?.length > 0
+                        ? op.equipment
+                        : op.operator_template?.default_equipment || [];
+                    let cameraEqId: number | null = null;
+                    equipment.forEach((eq: any) => {
+                        const cat = (eq.equipment?.category || '').toUpperCase();
+                        const eqId = eq.equipment_id ?? eq.equipment?.id;
+                        if (cat === 'CAMERA' && !cameraEqId) cameraEqId = eqId ?? null;
+                        if (cat === 'AUDIO' && eqId && !seenAudioIds.has(eqId)) {
+                            seenAudioIds.add(eqId);
+                            audioEquipment.push({ equipmentId: eqId });
+                        }
+                    });
+                    if (cameraEqId !== null && !seenCameraOps.has(templateId)) {
+                        seenCameraOps.add(templateId);
+                        cameraOperators.push({ templateId, cameraEquipmentId: cameraEqId });
                     }
-                    sceneGroupsMap.get(scene.original_scene_id)!.push(scene);
-                }
-            });
-
-            let savedCount = 0;
-            let skippedCount = 0;
-
-            // Save each scene group as a local copy (only if not already assigned)
-            for (const [originalSceneId, sceneGroup] of sceneGroupsMap) {
-                if (existingSceneIds.has(originalSceneId)) {
-                    console.log(`⏭️ Scene ${originalSceneId} already assigned to film, skipping...`);
-                    skippedCount++;
-                    continue;
-                }
-
-                // Find the "primary" scene to get the main timeline position
-                const primaryScene = sceneGroup.find(s => s.media_components?.some(c => c.is_primary)) || sceneGroup[0];
-
-                // Call API to assign scene to film and create local copy
-                const response = await fetch(`http://localhost:3002/films/${filmId}/scenes/assign`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        scene_id: originalSceneId,
-                        order_index: Math.round(primaryScene.start_time), // Use start_time as order for now
-                        editing_style: "Standard" // Default editing style
-                    }),
                 });
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Failed to save scene ${originalSceneId}: ${response.statusText} - ${errorText}`);
+                const neededCameras = cameraOperators.length + unmannedCameraCount;
+                const neededAudio = audioEquipment.length;
+                const currentCameras = currentTracks.filter((t: any) => t.type === 'VIDEO').length;
+                const currentAudio = currentTracks.filter((t: any) => t.type === 'AUDIO').length;
+
+                // Build update payload — only include audio if the package has audio equipment
+                const update: { num_cameras?: number; num_audio?: number; allow_removal: boolean } = { allow_removal: true };
+                let needsUpdate = false;
+                if (neededCameras !== currentCameras) {
+                    update.num_cameras = neededCameras;
+                    needsUpdate = true;
+                }
+                if (audioEquipment.length > 0 && neededAudio !== currentAudio) {
+                    update.num_audio = neededAudio;
+                    needsUpdate = true;
                 }
 
-                savedCount++;
+                if (needsUpdate) {
+                    console.log(`📦 [PACKAGE SYNC] Adjusting tracks: cameras ${currentCameras}→${update.num_cameras ?? currentCameras}, audio ${currentAudio}→${update.num_audio ?? currentAudio}`);
+                    await api.films.equipment.update(filmId, update);
+                }
+
+                // Reload tracks to get their IDs (whether we changed count or not)
+                const rawTracks = await api.films.tracks.getAll(filmId);
+
+                // Assign operator_template_id to camera tracks and create equipment assignments
+                const videoTracks = rawTracks.filter((t: any) => t.type === 'VIDEO').sort((a: any, b: any) => a.order_index - b.order_index);
+                const audioTracks = rawTracks.filter((t: any) => t.type === 'AUDIO').sort((a: any, b: any) => a.order_index - b.order_index);
+
+                // Assign operators to camera tracks
+                const assignmentPromises: Promise<any>[] = [];
+                for (let i = 0; i < videoTracks.length && i < cameraOperators.length; i++) {
+                    const track = videoTracks[i];
+                    const opData = cameraOperators[i];
+                    if (track.operator_template_id !== opData.templateId) {
+                        assignmentPromises.push(
+                            api.films.tracks.update(filmId, track.id, { operator_template_id: opData.templateId })
+                        );
+                    }
+                    // Create equipment assignment for this camera slot
+                    if (opData.cameraEquipmentId) {
+                        const slotNote = buildEquipmentSlotNote(buildEquipmentSlotKey('camera', i + 1));
+                        assignmentPromises.push(
+                            api.films.equipmentAssignments.assign(filmId, {
+                                equipment_id: opData.cameraEquipmentId,
+                                notes: slotNote,
+                            }).catch(() => {/* ignore if already assigned */})
+                        );
+                    }
+                }
+
+                // Create equipment assignments for audio slots
+                for (let i = 0; i < audioTracks.length && i < audioEquipment.length; i++) {
+                    const slotNote = buildEquipmentSlotNote(buildEquipmentSlotKey('audio', i + 1));
+                    assignmentPromises.push(
+                        api.films.equipmentAssignments.assign(filmId, {
+                            equipment_id: audioEquipment[i].equipmentId,
+                            notes: slotNote,
+                        }).catch(() => {/* ignore if already assigned */})
+                    );
+                }
+
+                if (assignmentPromises.length > 0) {
+                    await Promise.all(assignmentPromises);
+                    console.log(`📦 [PACKAGE SYNC] Assigned ${cameraOperators.length} operator(s) to camera tracks, ${audioEquipment.length} audio device(s) to audio tracks`);
+                }
+
+                // Final reload of tracks + equipment assignments
+                const [finalTracks, finalAssignments] = await Promise.all([
+                    api.films.tracks.getAll(filmId),
+                    api.films.equipmentAssignments.getAll(filmId),
+                ]);
+                setTracks(finalTracks.map((t: any) => transformBackendTrack(t)));
+                setEquipmentAssignmentsBySlot(buildAssignmentsBySlot(finalAssignments));
+            } catch (err) {
+                console.error('Failed to sync tracks from package:', err);
             }
+        };
 
-            console.log(`✅ Film scenes saved successfully! ${savedCount} new scenes assigned, ${skippedCount} existing scenes.`);
+        syncTracksFromPackage();
+    }, [linkedPackageId, filmId, setTracks, film]);
 
-            // Refresh the scenes data after save
-            await fetchFilmScenes();
-
-            // Could add success notification here
-            // showSnackbar("Film saved successfully!", "success");
-
-        } catch (error) {
-            console.error("❌ Failed to save film:", error);
-            // Could add error notification here
-            // showSnackbar("Failed to save film. Please try again.", "error");
-        }
-    };
-
+    // Show loading/error states
     if (loading) {
         return (
             <Box
@@ -259,43 +331,56 @@ export default function FilmDetailPage({ params }: { params: { id: string } }) {
         );
     }
 
+    // Right panel with all tabs
+    const rightPanel = (
+        <FilmRightPanel
+            film={film!}
+            filmId={filmId}
+            packageId={linkedPackageId ? Number(linkedPackageId) : null}
+            subjects={subjects}
+            subjectTemplates={subjectTemplates}
+            layers={timelineLayers}
+            scenes={filmScenes}
+            onEquipmentChange={handleEquipmentChange}
+            onEquipmentAssignmentsChange={setEquipmentAssignmentsBySlot}
+            onAddSubject={handleAddSubject}
+            onDeleteSubject={handleDeleteSubject}
+            onSaveFilm={handleSaveFilm}
+        />
+    );
+
     return (
         <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-            {/* Header Section */}
-            <Box sx={{ borderBottom: 1, borderColor: "divider", p: 3 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 3, mb: 2 }}>
-                    <IconButton onClick={() => router.push("/designer/films")}>
-                        <ArrowBackIcon />
-                    </IconButton>
-                    <Box sx={{ flexGrow: 1 }}>
-                        <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-                            Film Details
-                        </Typography>
-                        <Typography variant="body1" color="text.secondary">
-                            Design and configure your film template
-                        </Typography>
-                    </Box>
+            {/* Main Content with Right Panel */}
+            <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
+                <Box sx={{ flex: 1, overflow: "visible", p: 0 }}>
+                    {linkedPackageId && linkedItemId && (
+                        <Stack spacing={1} sx={{ px: 2, pt: 2 }}>
+                            <Alert severity="info">
+                                This film is linked to a package item.{' '}
+                                {linkedPackageHref && (
+                                    <Link href={linkedPackageHref} underline="hover">
+                                        View package
+                                    </Link>
+                                )}
+                            </Alert>
+                        </Stack>
+                    )}
+                    <ContentBuilder
+                        filmId={filmId}
+                        film={film}
+                        initialScenes={filmScenes}
+                        initialTracks={tracks}
+                        onSave={handleSave}
+                        onSaveFilmName={handleSaveFilm}
+                        readOnly={false}
+                        rightPanel={rightPanel}
+                        subjectCount={subjects.length}
+                        packageId={linkedPackageId ? Number(linkedPackageId) : undefined}
+                        equipmentConfig={equipmentSummary || undefined}
+                        equipmentAssignmentsBySlot={equipmentAssignmentsBySlot}
+                    />
                 </Box>
-                <Breadcrumbs aria-label="breadcrumb">
-                    <Link underline="hover" color="inherit" href="/designer" sx={{ display: "flex", alignItems: "center" }}>
-                        <SettingsIcon sx={{ mr: 0.5 }} fontSize="inherit" /> Designer
-                    </Link>
-                    <Link underline="hover" color="inherit" href="/designer/films" sx={{ display: "flex", alignItems: "center" }}>
-                        <VideoLibraryIcon sx={{ mr: 0.5 }} fontSize="inherit" /> Films Library
-                    </Link>
-                    <Typography color="text.primary" sx={{ fontWeight: 600 }}>
-                        {film.name}
-                    </Typography>
-                </Breadcrumbs>
-            </Box>
-
-            {/* Content Builder */}
-            <Box sx={{ flex: 1, overflow: "visible" }}>
-                <ContentBuilder
-                    initialScenes={filmScenes}
-                    onSave={handleSave}
-                    readOnly={false}
-                />
             </Box>
         </Box>
     );

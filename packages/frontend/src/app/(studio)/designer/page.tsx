@@ -12,12 +12,12 @@ import {
     Chip,
 } from "@mui/material";
 import {
-    MovieFilter as ScenesIcon,
-    Add as AddIcon,
     Movie as ContentIcon,
-    Videocam as CoverageIcon,
+    Handyman as EquipmentIcon,
+    Inventory as PackageIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
+import { SubjectsManagerCard } from "./components/SubjectsManagerCard";
 
 export default function DesignerPage() {
     return (
@@ -32,51 +32,6 @@ export default function DesignerPage() {
             </Box>
 
             <Grid container spacing={3}>
-                <Grid item xs={12} md={6} lg={4}>
-                    <Card
-                        elevation={2}
-                        sx={{
-                            height: "100%",
-                            transition: "all 0.2s ease-in-out",
-                            "&:hover": {
-                                elevation: 4,
-                                transform: "translateY(-4px)",
-                            },
-                        }}
-                    >
-                        <CardActionArea
-                            component={Link}
-                            href="/designer/scenes"
-                            sx={{ height: "100%" }}
-                        >
-                            <CardContent sx={{ p: 3, height: "100%" }}>
-                                <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                                    <ScenesIcon
-                                        sx={{
-                                            fontSize: 32,
-                                            color: "primary.main",
-                                            mr: 2,
-                                        }}
-                                    />
-                                    <Typography variant="h6" component="h2">
-                                        Scenes Library
-                                    </Typography>
-                                </Box>
-                                <Typography variant="body2" color="text.secondary" paragraph>
-                                    Browse, create, and manage all your production scenes. Define
-                                    shot types, compositions, and scene requirements.
-                                </Typography>
-                                <Chip
-                                    label="Primary"
-                                    color="primary"
-                                    size="small"
-                                    sx={{ mt: 1 }}
-                                />
-                            </CardContent>
-                        </CardActionArea>
-                    </Card>
-                </Grid>
-
                 <Grid item xs={12} md={6} lg={4}>
                     <Card
                         elevation={2}
@@ -123,6 +78,10 @@ export default function DesignerPage() {
                 </Grid>
 
                 <Grid item xs={12} md={6} lg={4}>
+                    <SubjectsManagerCard />
+                </Grid>
+
+                <Grid item xs={12} md={6} lg={4}>
                     <Card
                         elevation={2}
                         sx={{
@@ -136,12 +95,63 @@ export default function DesignerPage() {
                     >
                         <CardActionArea
                             component={Link}
-                            href="/designer/coverage"
+                            href="/manager/equipment"
                             sx={{ height: "100%" }}
                         >
                             <CardContent sx={{ p: 3, height: "100%" }}>
                                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                                    <CoverageIcon
+                                    <EquipmentIcon
+                                        sx={{
+                                            fontSize: 32,
+                                            color: "info.main",
+                                            mr: 2,
+                                        }}
+                                    />
+                                    <Typography variant="h6" component="h2">
+                                        Crew & Equipment
+                                    </Typography>
+                                </Box>
+                                <Typography variant="body2" color="text.secondary" paragraph>
+                                    Manage equipment kits and crew operators — define camera &amp; audio setups
+                                    and assign default gear to your production roles.
+                                </Typography>
+                                <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
+                                    <Chip
+                                        label="Kits"
+                                        color="info"
+                                        size="small"
+                                    />
+                                    <Chip
+                                        label="Crew"
+                                        color="secondary"
+                                        size="small"
+                                    />
+                                </Box>
+                            </CardContent>
+                        </CardActionArea>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} md={6} lg={4}>
+                    <Card
+                        elevation={2}
+                        sx={{
+                            height: "100%",
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                                elevation: 4,
+                                transform: "translateY(-4px)",
+                            },
+                        }}
+                    >
+                        <CardActionArea
+                            component={Link}
+                            href="/designer/packages"
+                            sx={{ height: "100%" }}
+                        >
+                            <CardContent sx={{ p: 3, height: "100%" }}>
+                                <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                                    <PackageIcon
                                         sx={{
                                             fontSize: 32,
                                             color: "warning.main",
@@ -149,19 +159,25 @@ export default function DesignerPage() {
                                         }}
                                     />
                                     <Typography variant="h6" component="h2">
-                                        Coverage Library
+                                        Package Library
                                     </Typography>
                                 </Box>
                                 <Typography variant="body2" color="text.secondary" paragraph>
-                                    Manage event coverage types and templates. Perfect for
-                                    weddings, corporate events, and specialized shoots.
+                                    Build and manage service packages — bundle films, crew, equipment,
+                                    and scheduling into ready-to-sell offerings.
                                 </Typography>
-                                <Chip
-                                    label="New"
-                                    color="warning"
-                                    size="small"
-                                    sx={{ mt: 1 }}
-                                />
+                                <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
+                                    <Chip
+                                        label="Bundles"
+                                        color="warning"
+                                        size="small"
+                                    />
+                                    <Chip
+                                        label="Pricing"
+                                        color="default"
+                                        size="small"
+                                    />
+                                </Box>
                             </CardContent>
                         </CardActionArea>
                     </Card>
@@ -175,15 +191,6 @@ export default function DesignerPage() {
                         </Typography>
                         <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
                             <Button
-                                variant="contained"
-                                startIcon={<AddIcon />}
-                                component={Link}
-                                href="/designer/scenes"
-                                sx={{ minWidth: 160 }}
-                            >
-                                New Scene
-                            </Button>
-                            <Button
                                 variant="outlined"
                                 startIcon={<ContentIcon />}
                                 component={Link}
@@ -194,12 +201,12 @@ export default function DesignerPage() {
                             </Button>
                             <Button
                                 variant="outlined"
-                                startIcon={<CoverageIcon />}
+                                startIcon={<PackageIcon />}
                                 component={Link}
-                                href="/designer/coverage"
+                                href="/designer/packages/new"
                                 sx={{ minWidth: 160 }}
                             >
-                                Coverage Library
+                                Create Package
                             </Button>
                         </Box>
                     </Box>

@@ -2,4 +2,4 @@
 export { default as ContentBuilder } from './ContentBuilder';
 
 // Export types
-export * from './ContentBuilder/types';
+export * from '@/lib/types/timeline';

@@ -17,38 +17,57 @@ export class EstimatesService {
     );
 
     return await this.prisma.$transaction(async (tx) => {
+      // Handle Primary Exclusivity
+      if (createEstimateDto.is_primary) {
+        await tx.estimates.updateMany({
+          where: { inquiry_id: inquiryId, is_primary: true },
+          data: { is_primary: false }
+        });
+      }
+
       // Create the estimate
       const estimate = await tx.estimates.create({
         data: {
           inquiry_id: inquiryId,
           project_id: createEstimateDto.project_id || null,
           estimate_number: createEstimateDto.estimate_number,
+          title: createEstimateDto.title,
+          is_primary: createEstimateDto.is_primary || false,
           issue_date: new Date(createEstimateDto.issue_date),
           expiry_date: new Date(createEstimateDto.expiry_date),
           total_amount: new Decimal(totalAmount),
           status: createEstimateDto.status || 'Draft',
+          tax_rate: createEstimateDto.tax_rate ? new Decimal(createEstimateDto.tax_rate) : new Decimal(0),
+          deposit_required: createEstimateDto.deposit_required ? new Decimal(createEstimateDto.deposit_required) : null,
+          notes: createEstimateDto.notes,
+          terms: createEstimateDto.terms,
+          payment_method: createEstimateDto.payment_method,
+          installments: createEstimateDto.installments,
         },
       });
 
       // Create estimate items
-      await Promise.all(
-        createEstimateDto.items.map(item =>
-          tx.estimate_items.create({
-            data: {
-              estimate_id: estimate.id,
-              description: item.description,
-              quantity: item.quantity,
-              unit_price: new Decimal(item.unit_price),
-            },
-          })
-        )
-      );
+      if (createEstimateDto.items && createEstimateDto.items.length > 0) {
+        await tx.estimate_items.createMany({
+          data: createEstimateDto.items.map(item => ({
+            estimate_id: estimate.id,
+            category: item.category,
+            description: item.description,
+            service_date: item.service_date ? new Date(item.service_date) : null,
+            start_time: item.start_time,
+            end_time: item.end_time,
+            quantity: new Decimal(item.quantity),
+            unit: item.unit,
+            unit_price: new Decimal(item.unit_price),
+          })),
+        });
+      }
 
       // Return estimate with converted total_amount for Estimate interface
       return {
         ...estimate,
         total_amount: totalAmount,
-      } as Estimate;
+      } as unknown as Estimate;
     });
   }
 
@@ -56,14 +75,7 @@ export class EstimatesService {
     const estimates = await this.prisma.estimates.findMany({
       where: { inquiry_id: inquiryId },
       include: {
-        items: {
-          select: {
-            id: true,
-            description: true,
-            quantity: true,
-            unit_price: true,
-          },
-        },
+        items: true,
       },
       orderBy: { created_at: 'desc' },
     });
@@ -72,8 +84,11 @@ export class EstimatesService {
     return estimates.map(estimate => ({
       ...estimate,
       total_amount: Number(estimate.total_amount),
+      tax_rate: estimate.tax_rate ? Number(estimate.tax_rate) : undefined,
+      deposit_required: estimate.deposit_required ? Number(estimate.deposit_required) : undefined,
       items: estimate.items.map(item => ({
         ...item,
+        quantity: Number(item.quantity),
         unit_price: Number(item.unit_price),
       })),
     }));
@@ -86,14 +101,7 @@ export class EstimatesService {
         inquiry_id: inquiryId,
       },
       include: {
-        items: {
-          select: {
-            id: true,
-            description: true,
-            quantity: true,
-            unit_price: true,
-          },
-        },
+        items: true,
       },
     });
 
@@ -107,6 +115,7 @@ export class EstimatesService {
       total_amount: Number(estimate.total_amount),
       items: estimate.items.map(item => ({
         ...item,
+        quantity: Number(item.quantity),
         unit_price: Number(item.unit_price),
       })),
     };
@@ -152,41 +161,68 @@ export class EstimatesService {
         issue_date?: Date;
         expiry_date?: Date;
         status?: string;
+        tax_rate?: Decimal;
+        deposit_required?: Decimal | null;
+        notes?: string;
+        terms?: string;
+        payment_method?: string;
+        installments?: number;
+        is_primary?: boolean;
+        title?: string;
         project_id?: number | null;
         total_amount?: Decimal;
       } = {};
 
-      if (updateEstimateDto.estimate_number) {
-        updateData.estimate_number = updateEstimateDto.estimate_number;
+      if (updateEstimateDto.estimate_number) updateData.estimate_number = updateEstimateDto.estimate_number;
+      if (updateEstimateDto.title !== undefined) updateData.title = updateEstimateDto.title;
+      if (updateEstimateDto.issue_date) updateData.issue_date = new Date(updateEstimateDto.issue_date);
+      if (updateEstimateDto.expiry_date) updateData.expiry_date = new Date(updateEstimateDto.expiry_date);
+      if (updateEstimateDto.status) updateData.status = updateEstimateDto.status;
+      if (updateEstimateDto.tax_rate !== undefined) updateData.tax_rate = new Decimal(updateEstimateDto.tax_rate);
+      if (updateEstimateDto.deposit_required !== undefined) updateData.deposit_required = updateEstimateDto.deposit_required ? new Decimal(updateEstimateDto.deposit_required) : null;
+      if (updateEstimateDto.notes !== undefined) updateData.notes = updateEstimateDto.notes;
+      if (updateEstimateDto.terms !== undefined) updateData.terms = updateEstimateDto.terms;
+      if (updateEstimateDto.payment_method !== undefined) updateData.payment_method = updateEstimateDto.payment_method;
+      if (updateEstimateDto.installments !== undefined) updateData.installments = updateEstimateDto.installments;
+      if (updateEstimateDto.is_primary !== undefined) {
+        updateData.is_primary = updateEstimateDto.is_primary;
+        if (updateEstimateDto.is_primary) {
+          await tx.estimates.updateMany({
+            where: { inquiry_id: inquiryId, id: { not: id }, is_primary: true },
+            data: { is_primary: false }
+          });
+        }
       }
-      if (updateEstimateDto.issue_date) {
-        updateData.issue_date = new Date(updateEstimateDto.issue_date);
-      }
-      if (updateEstimateDto.expiry_date) {
-        updateData.expiry_date = new Date(updateEstimateDto.expiry_date);
-      }
-      if (updateEstimateDto.status) {
-        updateData.status = updateEstimateDto.status;
-      }
-      if (updateEstimateDto.project_id !== undefined) {
-        updateData.project_id = updateEstimateDto.project_id;
-      }
-      if (totalAmount !== undefined) {
-        updateData.total_amount = new Decimal(totalAmount);
+      if (updateEstimateDto.project_id !== undefined) updateData.project_id = updateEstimateDto.project_id;
+      if (totalAmount !== undefined) updateData.total_amount = new Decimal(totalAmount);
+
+      // Handle items update
+      if (updateEstimateDto.items) {
+        // Simple strategy: Delete all and recreate based on the complexity of syncing
+        await tx.estimate_items.deleteMany({
+          where: { estimate_id: id },
+        });
+
+        await tx.estimate_items.createMany({
+          data: updateEstimateDto.items.map(item => ({
+            estimate_id: id,
+            category: item.category,
+            description: item.description || '',
+            service_date: item.service_date ? new Date(item.service_date) : null,
+            start_time: item.start_time,
+            end_time: item.end_time,
+            quantity: new Decimal(item.quantity || 1),
+            unit: item.unit,
+            unit_price: new Decimal(item.unit_price || 0),
+          })),
+        });
       }
 
       const updatedEstimate = await tx.estimates.update({
         where: { id },
         data: updateData,
         include: {
-          items: {
-            select: {
-              id: true,
-              description: true,
-              quantity: true,
-              unit_price: true,
-            },
-          },
+          items: true,
         },
       });
 
@@ -194,8 +230,11 @@ export class EstimatesService {
       return {
         ...updatedEstimate,
         total_amount: Number(updatedEstimate.total_amount),
+        tax_rate: updatedEstimate.tax_rate ? Number(updatedEstimate.tax_rate) : undefined,
+        deposit_required: updatedEstimate.deposit_required ? Number(updatedEstimate.deposit_required) : undefined,
         items: updatedEstimate.items.map(item => ({
           ...item,
+          quantity: Number(item.quantity),
           unit_price: Number(item.unit_price),
         })),
       };

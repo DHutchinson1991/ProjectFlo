@@ -6,59 +6,69 @@ export interface GlobalCountSnapshot {
     brands: number;
     contributors: number;
     films: number;
-    scenes: number;
     tasks: number;
     coverage: number;
-    sceneCoverage: number;
     projects: number;
     inquiries: number;
     venues: number;
     spaces: number;
-    subjects: number;
-    music: number;
-    moments: number;
     equipment: number;
     events: number;
     tags: number;
     attendees: number;
     reminders: number;
     settings: number;
+    refactorFilms: number;
+    refactorFilmTracks: number;
+    refactorFilmSubjects: number;
+    refactorFilmScenes: number;
+    refactorFilmMoments: number;
+    refactorRecordingSetups: number;
+    refactorCameraAssignments: number;
+    refactorSubjectTemplates: number;
+    refactorSceneTemplates: number;
+    refactorSceneMusic: number;
+    refactorMomentMusic: number;
 }
 
 export interface BrandCountSnapshot {
     contributors: number; // via user_brands for brand
     films: number;
-    scenes: number;
     tasks: number;
-    subjects: number;
-    music: number;
     equipment: number;
     projects: number;
     inquiries: number; // via inquiries.contact.brand_id
     venues: number;
     spaces: number; // spaces under venues for brand
-    sceneCoverage: number; // assignments for scenes in this brand
 }
 
 export async function getGlobalCounts(prisma: PrismaClient): Promise<GlobalCountSnapshot> {
     logger.sectionHeader('Final Database Metrics');
     // Core entities
-    const [brands, contributors, films, scenes, tasks, coverage, sceneCoverage, projects, inquiries, venues, spaces, subjects, music, moments, equipment] = await Promise.all([
+    const [brands, contributors, films, tasks, coverage, projects, inquiries, venues, spaces, equipment,
+        refactorFilms, refactorFilmTracks, refactorFilmSubjects, refactorFilmScenes, refactorFilmMoments, refactorRecordingSetups, refactorCameraAssignments,
+        refactorSubjectTemplates, refactorSceneTemplates, refactorSceneMusic, refactorMomentMusic] = await Promise.all([
         prisma.brands.count(),
         prisma.contributors.count(),
         prisma.filmLibrary.count(),
-        prisma.scenesLibrary.count(),
         prisma.task_library.count(),
         prisma.coverage.count(),
-        prisma.sceneCoverage.count(),
         prisma.projects.count(),
         prisma.inquiries.count(),
         prisma.locationsLibrary.count(),
         prisma.locationSpaces.count(),
-        prisma.subjectsLibrary.count(),
-        prisma.musicLibrary.count(),
-        prisma.momentTemplates.count(),
-        prisma.equipment.count()
+        prisma.equipment.count(),
+        prisma.film.count(),
+        prisma.filmTimelineTrack.count(),
+        prisma.filmSubject.count(),
+        prisma.filmScene.count(),
+        prisma.sceneMoment.count(),
+        prisma.momentRecordingSetup.count(),
+        prisma.cameraSubjectAssignment.count(),
+        prisma.subjectTemplate.count(),
+        prisma.sceneTemplate.count(),
+        prisma.sceneMusic.count(),
+        prisma.momentMusic.count()
     ]);
 
     // Calendar entities
@@ -70,25 +80,48 @@ export async function getGlobalCounts(prisma: PrismaClient): Promise<GlobalCount
         prisma.calendar_settings.count()
     ]);
 
-    return { brands, contributors, films, scenes, tasks, coverage, sceneCoverage, projects, inquiries, venues, spaces, subjects, music, moments, equipment, events, tags, attendees, reminders, settings };
+    return {
+        brands,
+        contributors,
+        films,
+        tasks,
+        coverage,
+        projects,
+        inquiries,
+        venues,
+        spaces,
+        equipment,
+        events,
+        tags,
+        attendees,
+        reminders,
+        settings,
+        refactorFilms,
+        refactorFilmTracks,
+        refactorFilmSubjects,
+        refactorFilmScenes,
+        refactorFilmMoments,
+        refactorRecordingSetups,
+        refactorCameraAssignments,
+        refactorSubjectTemplates,
+        refactorSceneTemplates,
+        refactorSceneMusic,
+        refactorMomentMusic
+    };
 }
 
 export async function getBrandCounts(prisma: PrismaClient, brandId: number): Promise<BrandCountSnapshot> {
-    const [contributors, films, scenes, tasks, subjects, music, equipment, projects, inquiries, venues, spaces, sceneCoverage] = await Promise.all([
+    const [contributors, films, tasks, equipment, projects, inquiries, venues, spaces] = await Promise.all([
         prisma.user_brands.count({ where: { brand_id: brandId } }),
         prisma.filmLibrary.count({ where: { brand_id: brandId } }),
-        prisma.scenesLibrary.count({ where: { brand_id: brandId } }),
         prisma.task_library.count({ where: { brand_id: brandId } }),
-        prisma.subjectsLibrary.count({ where: { brand_id: brandId } }),
-        prisma.musicLibrary.count({ where: { brand_id: brandId } }),
         prisma.equipment.count({ where: { brand_id: brandId } }),
         prisma.projects.count({ where: { brand_id: brandId } }),
         prisma.inquiries.count({ where: { contact: { brand_id: brandId } } }),
         prisma.locationsLibrary.count({ where: { brand_id: brandId } }),
-        prisma.locationSpaces.count({ where: { location: { brand_id: brandId } } }),
-        prisma.sceneCoverage.count({ where: { scene: { brand_id: brandId } } })
+        prisma.locationSpaces.count({ where: { location: { brand_id: brandId } } })
     ]);
-    return { contributors, films, scenes, tasks, subjects, music, equipment, projects, inquiries, venues, spaces, sceneCoverage };
+    return { contributors, films, tasks, equipment, projects, inquiries, venues, spaces };
 }
 
 function diff(after: number, before?: number): number {
@@ -160,29 +193,32 @@ export async function printFinalMetrics(
         const m = perBrandRun?.['Moonrise Films'] || {};
         logger.success(`👥 Contributors:${fmtDeltas(diff(afterMoonrise.contributors, beforeBrand?.['Moonrise Films']?.contributors), m.contributors?.skipped, afterMoonrise.contributors)}`);
         logger.success(`🎬 Films:${fmtDeltas(diff(afterMoonrise.films, beforeBrand?.['Moonrise Films']?.films), m.films?.skipped, afterMoonrise.films)}`);
-        logger.success(`🎭 Scenes:${fmtDeltas(diff(afterMoonrise.scenes, beforeBrand?.['Moonrise Films']?.scenes), m.scenes?.skipped, afterMoonrise.scenes)}`);
         logger.success(`📋 Tasks:${fmtDeltas(diff(afterMoonrise.tasks, beforeBrand?.['Moonrise Films']?.tasks), m.tasks?.skipped, afterMoonrise.tasks)}`);
-        logger.success(`👥 Subjects:${fmtDeltas(diff(afterMoonrise.subjects, beforeBrand?.['Moonrise Films']?.subjects), m.subjects?.skipped, afterMoonrise.subjects)}`);
-        logger.success(`🎵 Music Templates:${fmtDeltas(diff(afterMoonrise.music, beforeBrand?.['Moonrise Films']?.music), m.music?.skipped, afterMoonrise.music)}`);
         logger.success(`🎥 Equipment Items:${fmtDeltas(diff(afterMoonrise.equipment, beforeBrand?.['Moonrise Films']?.equipment), m.equipment?.skipped, afterMoonrise.equipment)}`);
         logger.success(`💼 Projects:${fmtDeltas(diff(afterMoonrise.projects, beforeBrand?.['Moonrise Films']?.projects), m.projects?.skipped, afterMoonrise.projects)}`);
         logger.success(`📧 Inquiries:${fmtDeltas(diff(afterMoonrise.inquiries, beforeBrand?.['Moonrise Films']?.inquiries), m.inquiries?.skipped, afterMoonrise.inquiries)}`);
         logger.success(`🏰 Venues:${fmtDeltas(diff(afterMoonrise.venues, beforeBrand?.['Moonrise Films']?.venues), m.venues?.skipped, afterMoonrise.venues)} (Spaces:${fmtDeltas(diff(afterMoonrise.spaces, beforeBrand?.['Moonrise Films']?.spaces), m.spaces?.skipped, afterMoonrise.spaces)})`);
-        logger.success(`🎯 Scene assignments:${fmtDeltas(diff(afterMoonrise.sceneCoverage, beforeBrand?.['Moonrise Films']?.sceneCoverage), m.sceneAssignments?.skipped, afterMoonrise.sceneCoverage)}`);
+        logger.success(`🎬 New Films:${fmtDeltas(diff(afterGlobal.refactorFilms, beforeGlobal?.refactorFilms), undefined, afterGlobal.refactorFilms)}`);
+        logger.success(`🎞️ New Tracks:${fmtDeltas(diff(afterGlobal.refactorFilmTracks, beforeGlobal?.refactorFilmTracks), undefined, afterGlobal.refactorFilmTracks)}`);
+        logger.success(`👥 New Film Subjects:${fmtDeltas(diff(afterGlobal.refactorFilmSubjects, beforeGlobal?.refactorFilmSubjects), undefined, afterGlobal.refactorFilmSubjects)}`);
+        logger.success(`🎭 New Film Scenes:${fmtDeltas(diff(afterGlobal.refactorFilmScenes, beforeGlobal?.refactorFilmScenes), undefined, afterGlobal.refactorFilmScenes)}`);
+        logger.success(`⏱️ New Film Moments:${fmtDeltas(diff(afterGlobal.refactorFilmMoments, beforeGlobal?.refactorFilmMoments), undefined, afterGlobal.refactorFilmMoments)}`);
+        logger.success(`🎙️ New Recording Setups:${fmtDeltas(diff(afterGlobal.refactorRecordingSetups, beforeGlobal?.refactorRecordingSetups), undefined, afterGlobal.refactorRecordingSetups)}`);
+        logger.success(`🎯 New Camera Assignments:${fmtDeltas(diff(afterGlobal.refactorCameraAssignments, beforeGlobal?.refactorCameraAssignments), undefined, afterGlobal.refactorCameraAssignments)}`);
+        logger.success(`👰 New Subject Templates:${fmtDeltas(diff(afterGlobal.refactorSubjectTemplates, beforeGlobal?.refactorSubjectTemplates), undefined, afterGlobal.refactorSubjectTemplates)}`);
+        logger.success(`📚 New Scene Templates:${fmtDeltas(diff(afterGlobal.refactorSceneTemplates, beforeGlobal?.refactorSceneTemplates), undefined, afterGlobal.refactorSceneTemplates)}`);
+        logger.success(`🎵 New Scene Music:${fmtDeltas(diff(afterGlobal.refactorSceneMusic, beforeGlobal?.refactorSceneMusic), undefined, afterGlobal.refactorSceneMusic)}`);
+        logger.success(`🎼 New Moment Music:${fmtDeltas(diff(afterGlobal.refactorMomentMusic, beforeGlobal?.refactorMomentMusic), undefined, afterGlobal.refactorMomentMusic)}`);
     }
     if (afterLayer5) {
         logger.sectionDivider('🏢 Layer5 Corporate');
         logger.success(`👥 Contributors:${fmtDeltas(diff(afterLayer5.contributors, beforeBrand?.['Layer5']?.contributors), undefined, afterLayer5.contributors)}`);
         logger.success(`🎬 Films:${fmtDeltas(diff(afterLayer5.films, beforeBrand?.['Layer5']?.films), undefined, afterLayer5.films)}`);
-        logger.success(`🎭 Scenes:${fmtDeltas(diff(afterLayer5.scenes, beforeBrand?.['Layer5']?.scenes), undefined, afterLayer5.scenes)}`);
         logger.success(`📋 Tasks:${fmtDeltas(diff(afterLayer5.tasks, beforeBrand?.['Layer5']?.tasks), undefined, afterLayer5.tasks)}`);
-        logger.success(`👥 Subjects:${fmtDeltas(diff(afterLayer5.subjects, beforeBrand?.['Layer5']?.subjects), undefined, afterLayer5.subjects)}`);
-        logger.success(`🎵 Music Templates:${fmtDeltas(diff(afterLayer5.music, beforeBrand?.['Layer5']?.music), undefined, afterLayer5.music)}`);
         logger.success(`🎥 Equipment Items:${fmtDeltas(diff(afterLayer5.equipment, beforeBrand?.['Layer5']?.equipment), undefined, afterLayer5.equipment)}`);
         logger.success(`💼 Projects:${fmtDeltas(diff(afterLayer5.projects, beforeBrand?.['Layer5']?.projects), undefined, afterLayer5.projects)}`);
         logger.success(`📧 Inquiries:${fmtDeltas(diff(afterLayer5.inquiries, beforeBrand?.['Layer5']?.inquiries), undefined, afterLayer5.inquiries)}`);
         logger.success(`🏰 Venues:${fmtDeltas(diff(afterLayer5.venues, beforeBrand?.['Layer5']?.venues), undefined, afterLayer5.venues)} (Spaces:${fmtDeltas(diff(afterLayer5.spaces, beforeBrand?.['Layer5']?.spaces), undefined, afterLayer5.spaces)})`);
-        logger.success(`🎯 Scene assignments:${fmtDeltas(diff(afterLayer5.sceneCoverage, beforeBrand?.['Layer5']?.sceneCoverage), undefined, afterLayer5.sceneCoverage)}`);
     }
     logger.sectionDivider('📁 Projects & Inquiries');
     logger.success(`💼 Projects:${fmtDeltas(diff(afterGlobal.projects, beforeGlobal?.projects), undefined, afterGlobal.projects)}`);

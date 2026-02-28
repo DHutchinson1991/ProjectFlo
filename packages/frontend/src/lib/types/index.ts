@@ -14,6 +14,8 @@ export * from "./domains/users";
 
 // Sales domain types (inquiries and clients)
 export * from "./domains/sales";
+// Needs assessment types
+export * from "./domains/needs-assessment";
 
 // Brand and organization types
 export * from "./brand";

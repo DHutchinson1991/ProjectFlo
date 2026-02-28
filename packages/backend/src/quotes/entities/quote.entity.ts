@@ -10,6 +10,16 @@ export interface Quote {
     consultation_notes?: string | null;
     created_at: Date;
     updated_at: Date;
+
+    // New Fields
+    title: string;
+    is_primary: boolean;
+    tax_rate: any; // Using any to handle Decimal/number ambiguity in service return
+    deposit_required?: any | null;
+    notes?: string | null;
+    terms?: string | null;
+    payment_method?: string | null;
+    installments?: number | null;
 }
 
 export interface QuoteItem {

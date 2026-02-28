@@ -1,49 +1,28 @@
-import {
-    IsString,
-    IsEnum,
-    IsOptional,
-    IsNumber,
-    IsInt,
-    Min,
-} from "class-validator";
-import { MediaType } from "@prisma/client";
+import { IsString, IsOptional, IsNumber, IsNotEmpty, IsInt, Min } from 'class-validator';
 
 export class CreateSceneDto {
+    @IsNumber()
+    @IsOptional() // Optional in DTO - set by controller from URL
+    film_id?: number;
+
     @IsString()
+    @IsNotEmpty()
     name: string;
 
-    @IsEnum(MediaType)
-    type: MediaType;
-
-    @IsOptional()
-    @IsString()
-    description?: string;
-
-    @IsOptional()
-    @IsInt()
-    @Min(1)
-    complexity_score?: number;
-
-    @IsOptional()
     @IsNumber()
+    @IsOptional()
+    scene_template_id?: number;
+
+    @IsNumber()
+    @IsOptional()
+    shot_count?: number;
+
+    @IsNumber()
+    @IsOptional()
+    duration_seconds?: number;
+
+    @IsNumber()
+    @IsOptional()
     @Min(0)
-    estimated_duration?: number;
-
-    @IsOptional()
-    @IsNumber()
-    @Min(5)
-    default_coverage_duration?: number;
-
-    @IsOptional()
-    @IsString()
-    default_editing_style?: string;
-
-    @IsOptional()
-    @IsNumber()
-    @Min(0)
-    base_task_hours?: number;
-
-    @IsOptional()
-    @IsInt()
-    brand_id?: number | null;
+    order_index?: number;
 }

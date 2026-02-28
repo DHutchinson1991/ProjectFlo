@@ -35,6 +35,10 @@ import {
   Proposal,
   CreateProposalData,
   UpdateProposalData,
+  ServicePackage,
+  NeedsAssessmentTemplate,
+  NeedsAssessmentSubmission,
+  NeedsAssessmentSubmissionPayload,
 
   // Contracts and Invoices domain
   Contract,
@@ -56,13 +60,9 @@ import {
   CreateQuoteData,
   UpdateQuoteData,
 
-  // Content domain
-  ScenesLibrary,
+  // Content domain - NOTE: ScenesLibrary moved to domains/scenes
   CreateSceneDto,
   UpdateSceneDto,
-  FilmData,
-  CreateFilmData,
-  UpdateFilmData,
   TimelineSceneData,
   TimelineLayerData,
   TimelineAnalyticsData,
@@ -127,6 +127,8 @@ import {
   mapClientDetailResponse,
 } from "./types";
 
+import { createLoggedFetch } from "./logging/request-interceptor";
+
 // Import coverage types from separate file
 import {
   Coverage,
@@ -154,6 +156,48 @@ import {
   ObjectCategory,
 } from "./types/locations";
 
+import type {
+  FilmLocationAssignment,
+  FilmSceneLocationAssignment,
+} from "./types/locations";
+
+// Import film equipment, tracks, and scenes types
+import {
+  FilmEquipment,
+  SetEquipmentDto,
+  EquipmentSummary,
+  FilmEquipmentAssignment,
+} from "../types/film-equipment.types";
+
+import {
+  TimelineTrack,
+  GenerateTracksDto,
+  UpdateTrackDto,
+  ReorderTracksDto,
+  TracksByType,
+  TrackStatistics,
+} from "../types/film-timeline-tracks.types";
+
+import {
+  CreateSceneFromTemplateDto,
+  CreateBlankSceneDto,
+  UpdateDurationModeDto,
+  SceneDurationInfo,
+  FilmLocalScene,
+} from "../types/film-scenes.types";
+
+// Import ScenesLibrary from centralized domains/scenes
+import {
+  ScenesLibrary,
+} from "./types/domains/scenes";
+
+// Import Film types from domains
+import {
+  Film,
+  CreateFilmDto,
+  UpdateFilmDto,
+} from "./types/domains/film";
+
 // Brand context interface for API service
 interface BrandContextProvider {
   getCurrentBrandId: () => number | null;
@@ -178,6 +222,7 @@ class BaseApiClient {
   protected authToken: string | null = null;
   protected refreshToken: string | null = null;
   private onUnauthorized?: () => void;
+  private readonly loggedFetch = createLoggedFetch(fetch);
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
@@ -251,10 +296,8 @@ class BaseApiClient {
 
     // Add brand context header if available
     const brandId = getCurrentBrandId();
-    console.log('🔗 API Debug - getAuthHeaders called, brandId:', brandId);
     if (brandId) {
       headers.append("X-Brand-Context", brandId.toString());
-      console.log('🔗 API Debug - Added X-Brand-Context header:', brandId.toString());
     }
 
     return headers;
@@ -263,17 +306,13 @@ class BaseApiClient {
   // Helper method to add brand context to URL parameters
   protected addBrandContextToUrl(url: string, forceBrandContext = false): string {
     const brandId = getCurrentBrandId();
-    console.log('🔗 API Debug - addBrandContextToUrl called for:', url, 'with brandId:', brandId);
 
     // Only add brand context if we have one and either it's forced or the URL doesn't already contain brandId
     if (brandId && (forceBrandContext || !url.includes('brandId='))) {
       const separator = url.includes('?') ? '&' : '?';
-      const finalUrl = `${url}${separator}brandId=${brandId}`;
-      console.log('🔗 API Debug - Final URL with brand context:', finalUrl);
-      return finalUrl;
+      return `${url}${separator}brandId=${brandId}`;
     }
 
-    console.log('🔗 API Debug - No brand context added, returning original URL:', url);
     return url;
   }
 
@@ -299,6 +338,8 @@ class BaseApiClient {
               const url = response.url;
               const originalRequest = new Request(url, {
                 method: response.headers.get('x-original-method') || 'GET',
+            FilmLocationAssignment,
+            FilmSceneLocationAssignment,
                 headers: this.getAuthHeaders(),
                 body: response.headers.get('x-original-body') || undefined,
               });
@@ -343,7 +384,7 @@ class BaseApiClient {
 
   protected async get<T>(endpoint: string, options: { skipBrandContext?: boolean } = {}): Promise<T> {
     const url = options.skipBrandContext ? endpoint : this.addBrandContextToUrl(endpoint);
-    const response = await fetch(`${this.baseURL}${url}`, {
+    const response = await this.loggedFetch(`${this.baseURL}${url}`, {
       method: "GET",
       headers: this.getAuthHeaders(),
     });
@@ -352,7 +393,7 @@ class BaseApiClient {
 
   protected async post<T>(endpoint: string, data?: unknown, options: { skipBrandContext?: boolean } = {}): Promise<T> {
     const url = options.skipBrandContext ? endpoint : this.addBrandContextToUrl(endpoint);
-    const response = await fetch(`${this.baseURL}${url}`, {
+    const response = await this.loggedFetch(`${this.baseURL}${url}`, {
       method: "POST",
       headers: this.getAuthHeaders(true),
       body: data ? JSON.stringify(data) : undefined,
@@ -362,7 +403,7 @@ class BaseApiClient {
 
   protected async patch<T>(endpoint: string, data?: unknown, options: { skipBrandContext?: boolean } = {}): Promise<T> {
     const url = options.skipBrandContext ? endpoint : this.addBrandContextToUrl(endpoint);
-    const response = await fetch(`${this.baseURL}${url}`, {
+    const response = await this.loggedFetch(`${this.baseURL}${url}`, {
       method: "PATCH",
       headers: this.getAuthHeaders(true),
       body: data ? JSON.stringify(data) : undefined,
@@ -372,7 +413,7 @@ class BaseApiClient {
 
   protected async put<T>(endpoint: string, data?: unknown, options: { skipBrandContext?: boolean } = {}): Promise<T> {
     const url = options.skipBrandContext ? endpoint : this.addBrandContextToUrl(endpoint);
-    const response = await fetch(`${this.baseURL}${url}`, {
+    const response = await this.loggedFetch(`${this.baseURL}${url}`, {
       method: "PUT",
       headers: this.getAuthHeaders(true),
       body: data ? JSON.stringify(data) : undefined,
@@ -382,7 +423,7 @@ class BaseApiClient {
 
   protected async delete<T>(endpoint: string, options: { skipBrandContext?: boolean } = {}): Promise<T> {
     const url = options.skipBrandContext ? endpoint : this.addBrandContextToUrl(endpoint);
-    const response = await fetch(`${this.baseURL}${url}`, {
+    const response = await this.loggedFetch(`${this.baseURL}${url}`, {
       method: "DELETE",
       headers: this.getAuthHeaders(),
     });
@@ -415,9 +456,7 @@ class ApiService extends BaseApiClient {
   // Contributors methods (brand-specific)
   contributors = {
     getAll: async (): Promise<Contributor[]> => {
-      console.log('🔍 API Debug - contributors.getAll called');
       const apiResponse: ContributorApiResponse[] = await this.get("/contributors");
-      console.log('🔍 API Debug - contributors.getAll response:', apiResponse.length, 'contributors received');
       return apiResponse.map(mapContributorResponse);
     },
     getById: async (id: number): Promise<Contributor> => {
@@ -492,14 +531,44 @@ class ApiService extends BaseApiClient {
     // Remove subject from scene
     removeFromScene: (sceneId: number, subjectId: number): Promise<void> =>
       this.delete(`/subjects/scenes/${sceneId}/subjects/${subjectId}`),
+
+    // Get subjects assigned to a specific moment
+    getByMoment: (momentId: number): Promise<SceneSubjects[]> =>
+      this.get(`/subjects/moments/${momentId}`),
+
+    // Assign subject to moment with priority
+    assignToMoment: (momentId: number, data: AssignSubjectToSceneDto): Promise<SceneSubjects> =>
+      this.post(`/subjects/moments/${momentId}/assign`, data),
+
+    // Update moment subject assignment (priority, notes)
+    updateMomentAssignment: (momentId: number, subjectId: number, data: UpdateSceneSubjectDto): Promise<SceneSubjects> =>
+      this.patch(`/subjects/moments/${momentId}/subjects/${subjectId}`, data),
+
+    // Remove subject from moment
+    removeFromMoment: (momentId: number, subjectId: number): Promise<void> =>
+      this.delete(`/subjects/moments/${momentId}/subjects/${subjectId}`),
+  };
+
+  // Film location assignments
+  filmLocations = {
+    getByFilm: (filmId: number): Promise<FilmLocationAssignment[]> =>
+      this.get(`/film-locations/films/${filmId}/locations`),
+    addToFilm: (filmId: number, data: { location_id: number; notes?: string }): Promise<FilmLocationAssignment> =>
+      this.post(`/film-locations/films/${filmId}/locations`, data),
+    removeFromFilm: (filmId: number, locationId: number): Promise<void> =>
+      this.delete(`/film-locations/films/${filmId}/locations/${locationId}`),
+    getSceneLocation: (sceneId: number): Promise<FilmSceneLocationAssignment | null> =>
+      this.get(`/film-locations/scenes/${sceneId}/location`),
+    setSceneLocation: (sceneId: number, data: { location_id: number }): Promise<FilmSceneLocationAssignment> =>
+      this.put(`/film-locations/scenes/${sceneId}/location`, data),
+    clearSceneLocation: (sceneId: number): Promise<void> =>
+      this.delete(`/film-locations/scenes/${sceneId}/location`),
   };
 
   // Contacts methods (brand-specific)
   contacts = {
     getAll: async (): Promise<Contact[]> => {
-      console.log('🔍 API Debug - contacts.getAll called');
       const apiResponse: ContactApiResponse[] = await this.get("/contacts");
-      console.log('🔍 API Debug - contacts.getAll response:', apiResponse.length, 'contacts received');
       return apiResponse.map(mapContactResponse);
     },
     getById: async (id: number): Promise<Contact> => {
@@ -533,9 +602,18 @@ class ApiService extends BaseApiClient {
   // Scenes methods (brand-specific)
   scenes = {
     getAll: (): Promise<ScenesLibrary[]> => {
-      console.log('🔍 API Debug - scenes.getAll called');
-      return this.get("/scenes");
+      return this.get("/scenes/templates");
     },
+    getByFilm: (filmId: number): Promise<ScenesLibrary[]> => {
+      return this.get(`/scenes/films/${filmId}/scenes`);
+    },
+    getTemplates: (): Promise<ScenesLibrary[]> => {
+      return this.get("/scenes/templates");
+    },
+    createTemplateFromScene: (sceneId: number, name?: string): Promise<ScenesLibrary> =>
+      this.post("/scenes/templates/from-scene", { scene_id: sceneId, name }, { skipBrandContext: true }),
+    deleteTemplate: (id: number): Promise<{ message: string }> =>
+      this.delete(`/scenes/templates/${id}`, { skipBrandContext: true }),
     getById: (id: number): Promise<ScenesLibrary> => this.get(`/scenes/${id}`),
     create: (data: CreateSceneDto): Promise<ScenesLibrary> =>
       this.post("/scenes", data),
@@ -543,9 +621,23 @@ class ApiService extends BaseApiClient {
       this.patch(`/scenes/${id}`, data),
     delete: (id: number): Promise<void> => this.delete(`/scenes/${id}`),
     // Scene-Coverage relationship methods
-    addCoverageToScene: (sceneId: number, coverageIds: number[]): Promise<{ success: boolean; message: string; scene_id: number; coverage_ids: number[] }> =>
-      this.post(`/scenes/${sceneId}/coverage`, { coverageIds }),
-    getSceneCoverage: (sceneId: number): Promise<{ scene_id: number; scene_name: string; coverage_items: Coverage[] }> =>
+    addCoverageToScene: (
+      sceneId: number, 
+      coverageIds: number[],
+      assignments?: { coverageId: number; assignment: string }[]
+    ): Promise<{ 
+      success: boolean; 
+      message: string; 
+      scene_id: number; 
+      coverage_ids: number[];
+      scene_coverage_records?: { id: number; coverage_id: number; assignment: string }[]
+    }> =>
+      this.post(`/scenes/${sceneId}/coverage`, { coverageIds, assignments }),
+    getSceneCoverage: (sceneId: number): Promise<{ 
+      scene_id: number; 
+      scene_name: string; 
+      coverage_items: (Coverage & { scene_coverage_id: number; assignment?: string; priority_order?: number })[] 
+    }> =>
       this.get(`/scenes/${sceneId}/coverage`),
     removeCoverageFromScene: (sceneId: number, coverageId: number): Promise<{ success: boolean; message: string; scene_id: number; coverage_id: number }> =>
       this.delete(`/scenes/${sceneId}/coverage/${coverageId}`),
@@ -553,18 +645,95 @@ class ApiService extends BaseApiClient {
       this.delete(`/scenes/${sceneId}/coverage`),
   };
 
+  // Coverage methods (library)
+  coverage = {
+    getAll: (): Promise<Coverage[]> => this.get("/coverage"),
+    getById: (id: number): Promise<Coverage> => this.get(`/coverage/${id}`),
+    create: (data: CreateCoverageDto): Promise<Coverage> =>
+      this.post("/coverage", data),
+    update: (id: number, data: UpdateCoverageDto): Promise<Coverage> =>
+      this.patch(`/coverage/${id}`, data),
+    delete: (id: number): Promise<void> => this.delete(`/coverage/${id}`),
+  };
+
   // Films methods (brand-specific)
   films = {
-    getAll: (): Promise<FilmData[]> => {
-      console.log('🔍 API Debug - films.getAll called');
+    getAll: (): Promise<Film[]> => {
       return this.get("/films");
     },
-    getById: (id: number): Promise<FilmData> => this.get(`/films/${id}`),
-    create: (data: CreateFilmData): Promise<FilmData> =>
+    getById: (id: number): Promise<Film> => this.get(`/films/${id}`),
+    create: (data: CreateFilmDto): Promise<Film> =>
       this.post("/films", data),
-    update: (id: number, data: UpdateFilmData): Promise<FilmData> =>
+    update: (id: number, data: UpdateFilmDto): Promise<Film> =>
       this.patch(`/films/${id}`, data),
     delete: (id: number): Promise<void> => this.delete(`/films/${id}`),
+
+    // Equipment Management
+    equipment: {
+      set: (filmId: number, data: SetEquipmentDto): Promise<FilmEquipment> =>
+        this.post(`/films/${filmId}/equipment`, data),
+      update: (filmId: number, data: { num_cameras?: number; num_audio?: number; allow_removal?: boolean }): Promise<any> =>
+        this.patch(`/films/${filmId}/equipment`, data),
+      getAll: (filmId: number): Promise<FilmEquipment[]> =>
+        this.get(`/films/${filmId}/equipment`),
+      getSummary: (filmId: number): Promise<EquipmentSummary> =>
+        this.get(`/films/${filmId}/equipment/summary`),
+      delete: (filmId: number, equipmentType: string): Promise<void> =>
+        this.delete(`/films/${filmId}/equipment/${equipmentType}`),
+    },
+
+    equipmentAssignments: {
+      getAll: (filmId: number): Promise<FilmEquipmentAssignment[]> =>
+        this.get(`/films/${filmId}/equipment-assignments`),
+      getSummary: (filmId: number): Promise<{ cameras: number; audio: number; music: number; lighting: number; other: number }> =>
+        this.get(`/films/${filmId}/equipment-summary`),
+      assign: (filmId: number, data: { equipment_id: number; quantity?: number; notes?: string }): Promise<FilmEquipmentAssignment> =>
+        this.post(`/films/${filmId}/equipment-assignments`, data),
+      update: (filmId: number, equipmentId: number, data: { quantity?: number; notes?: string }): Promise<FilmEquipmentAssignment> =>
+        this.patch(`/films/${filmId}/equipment-assignments/${equipmentId}`, data),
+      remove: (filmId: number, equipmentId: number): Promise<void> =>
+        this.delete(`/films/${filmId}/equipment-assignments/${equipmentId}`),
+    },
+
+    // Timeline Tracks
+    tracks: {
+      generate: (filmId: number, data?: GenerateTracksDto): Promise<TimelineTrack[]> =>
+        this.post(`/films/${filmId}/tracks/generate`, data),
+      getAll: (filmId: number, activeOnly?: boolean): Promise<TimelineTrack[]> => {
+        const query = activeOnly !== undefined ? `?activeOnly=${activeOnly}` : '';
+        return this.get(`/films/${filmId}/tracks${query}`);
+      },
+      getByType: (filmId: number): Promise<TracksByType> =>
+        this.get(`/films/${filmId}/tracks/by-type`),
+      update: (filmId: number, trackId: number, data: UpdateTrackDto): Promise<TimelineTrack> =>
+        this.patch(`/films/${filmId}/tracks/${trackId}`, data),
+      reorder: (filmId: number, data: ReorderTracksDto): Promise<TimelineTrack[]> =>
+        this.post(`/films/${filmId}/tracks/reorder`, data),
+      delete: (filmId: number, trackId: number): Promise<void> =>
+        this.delete(`/films/${filmId}/tracks/${trackId}`),
+      getStatistics: (filmId: number): Promise<TrackStatistics> =>
+        this.get(`/films/${filmId}/tracks/statistics`),
+    },
+
+    // Scene Management
+    localScenes: {
+      createFromTemplate: (filmId: number, data: CreateSceneFromTemplateDto): Promise<FilmLocalScene> =>
+        this.post(`/films/${filmId}/scenes/from-template`, data),
+      createBlank: (filmId: number, data: CreateBlankSceneDto): Promise<FilmLocalScene> =>
+        this.post(`/films/${filmId}/scenes/blank`, data),
+      getAll: (filmId: number): Promise<FilmLocalScene[]> =>
+        this.get(`/films/${filmId}/scenes`),
+      updateDurationMode: (filmId: number, sceneId: number, data: UpdateDurationModeDto): Promise<FilmLocalScene> =>
+        this.patch(`/films/${filmId}/scenes/${sceneId}/duration-mode`, data),
+      getDuration: (filmId: number, sceneId: number): Promise<SceneDurationInfo> =>
+        this.get(`/films/${filmId}/scenes/${sceneId}/duration`),
+      getAllDurations: (filmId: number): Promise<SceneDurationInfo[]> =>
+        this.get(`/films/${filmId}/scenes/durations`),
+      create: (filmId: number, data: { name: string; scene_template_id?: number; order_index?: number; shot_count?: number | null; duration_seconds?: number | null }): Promise<FilmLocalScene> =>
+        this.post(`/scenes/films/${filmId}/scenes`, data),
+      reorder: (filmId: number, sceneOrderings: Array<{ id: number; order_index: number }>): Promise<any> =>
+        this.post(`/scenes/${filmId}/reorder`, sceneOrderings),
+    },
   };
 
   // Editing Styles methods (universal - shared across brands)
@@ -581,28 +750,73 @@ class ApiService extends BaseApiClient {
     delete: (id: number): Promise<void> => this.delete(`/editing-styles/${id}`, { skipBrandContext: true }),
   };
 
-  // Timeline methods (brand-specific for content, universal for layers)
+  // Moments methods (brand-specific)
+  moments = {
+    getSceneMoments: (sceneId: number): Promise<any[]> =>
+      this.get(`/moments/scenes/${sceneId}/moments`),
+    
+    create: (sceneId: number, data: { name: string; duration?: number; order_index?: number }): Promise<any> => {
+      const payload = {
+        name: data.name,
+        duration: data.duration || 10,
+        order_index: data.order_index !== undefined ? data.order_index : 0,
+      };
+      return this.post(`/moments/scenes/${sceneId}/moments`, payload);
+    },
+    
+    update: (sceneId: number, momentId: number, data: { name?: string; duration?: number; order_index?: number }): Promise<any> =>
+      this.patch(`/moments/${momentId}`, data),
+    
+    delete: (sceneId: number, momentId: number): Promise<void> =>
+      this.delete(`/moments/${momentId}`),
+  };
+
+  // Beats methods (montage)
+  beats = {
+    getSceneBeats: (sceneId: number): Promise<any[]> =>
+      this.get(`/beats/scenes/${sceneId}/beats`),
+
+    create: (sceneId: number, data: { name: string; duration_seconds?: number; order_index?: number; shot_count?: number | null }): Promise<any> => {
+      const payload = {
+        name: data.name,
+        duration_seconds: data.duration_seconds || 10,
+        order_index: data.order_index !== undefined ? data.order_index : 0,
+        shot_count: data.shot_count ?? null,
+      };
+      return this.post(`/beats/scenes/${sceneId}/beats`, payload);
+    },
+
+    update: (beatId: number, data: { name?: string; duration_seconds?: number; order_index?: number; shot_count?: number | null }): Promise<any> =>
+      this.patch(`/beats/${beatId}`, data),
+
+    delete: (beatId: number): Promise<void> =>
+      this.delete(`/beats/${beatId}`),
+
+    reorder: (sceneId: number, beatOrderings: Array<{ id: number; order_index: number }>): Promise<any> =>
+      this.post(`/beats/scenes/${sceneId}/reorder`, beatOrderings),
+
+    recordingSetup: {
+      get: (beatId: number): Promise<any> => this.get(`/beats/${beatId}/recording-setup`),
+      upsert: (beatId: number, data: { camera_track_ids?: number[]; audio_track_ids?: number[]; graphics_enabled?: boolean }): Promise<any> =>
+        this.patch(`/beats/${beatId}/recording-setup`, data),
+      delete: (beatId: number): Promise<any> => this.delete(`/beats/${beatId}/recording-setup`),
+    },
+  };
+
+  // Timeline methods - layers managed via Films API
   timeline = {
-    getScenesForFilm: (filmId: number): Promise<TimelineSceneData[]> =>
-      this.get(`/timeline/content/${filmId}/scenes`),
-
+    // Timeline layers (track organization metadata)
     getLayers: (): Promise<TimelineLayerData[]> =>
-      this.get("/timeline/layers", { skipBrandContext: true }),
+      this.get("/films/timeline-layers", { skipBrandContext: true }),
 
-    getAnalytics: (filmId: number): Promise<TimelineAnalyticsData> =>
-      this.get(`/timeline/content/${filmId}/analytics`),
+    createLayer: (data: { name: string; order_index: number; color_hex: string; description?: string }): Promise<TimelineLayerData> =>
+      this.post("/films/timeline-layers", data, { skipBrandContext: true }),
 
-    createTimelineScene: (
-      data: TimelineSceneData,
-    ): Promise<TimelineSceneData> => this.post("/timeline/scenes", data),
+    updateLayer: (id: number, data: Partial<TimelineLayerData>): Promise<TimelineLayerData> =>
+      this.patch(`/films/timeline-layers/${id}`, data, { skipBrandContext: true }),
 
-    updateTimelineScene: (
-      id: number,
-      data: Partial<TimelineSceneData>,
-    ): Promise<TimelineSceneData> => this.patch(`/timeline/scenes/${id}`, data),
-
-    deleteTimelineScene: (id: number): Promise<void> =>
-      this.delete(`/timeline/scenes/${id}`),
+    deleteLayer: (id: number): Promise<void> =>
+      this.delete(`/films/timeline-layers/${id}`, { skipBrandContext: true }),
   };
 
   // Brands methods (universal - used for brand management itself)
@@ -799,7 +1013,7 @@ class ApiService extends BaseApiClient {
       entities: string[] = ["scenes", "films", "contributors"],
     ): Promise<{
       scenes: ScenesLibrary[];
-      films: FilmData[];
+      films: Film[];
       contributors: Contributor[];
     }> =>
       this.get(
@@ -810,9 +1024,7 @@ class ApiService extends BaseApiClient {
   // Inquiries methods (brand-specific)
   inquiries = {
     getAll: async (): Promise<Inquiry[]> => {
-      console.log('🔍 API Debug - inquiries.getAll called');
       const apiResponse: InquiryApiResponse[] = await this.get("/api/inquiries");
-      console.log('🔍 API Debug - inquiries.getAll response:', apiResponse.length, 'inquiries received');
       return apiResponse.map(mapInquiryResponse);
     },
     getById: async (id: number): Promise<Inquiry> => {
@@ -824,9 +1036,7 @@ class ApiService extends BaseApiClient {
       return mapInquiryResponse(apiResponse);
     },
     update: async (id: number, data: UpdateInquiryData): Promise<Inquiry> => {
-      console.log('🔍 API Debug - inquiries.update called with data:', data);
       const apiResponse: InquiryApiResponse = await this.put(`/api/inquiries/${id}`, data);
-      console.log('🔍 API Debug - inquiries.update response:', apiResponse);
       return mapInquiryResponse(apiResponse);
     },
     convert: (inquiryId: number): Promise<{ projectId: number }> =>
@@ -834,12 +1044,37 @@ class ApiService extends BaseApiClient {
     delete: (id: number): Promise<void> => this.delete(`/api/inquiries/${id}`),
   };
 
+  // Needs Assessment methods (brand-specific)
+  needsAssessmentTemplates = {
+    getActive: (): Promise<NeedsAssessmentTemplate> =>
+      this.get("/api/needs-assessments/templates/active"),
+    getAll: (): Promise<NeedsAssessmentTemplate[]> =>
+      this.get("/api/needs-assessments/templates"),
+    getById: (id: number): Promise<NeedsAssessmentTemplate> =>
+      this.get(`/api/needs-assessments/templates/${id}`),
+    create: (data: Omit<NeedsAssessmentTemplate, "id" | "brand_id" | "created_at" | "updated_at">): Promise<NeedsAssessmentTemplate> =>
+      this.post("/api/needs-assessments/templates", data),
+    update: (id: number, data: Partial<NeedsAssessmentTemplate>): Promise<NeedsAssessmentTemplate> =>
+      this.put(`/api/needs-assessments/templates/${id}`, data),
+  };
+
+  needsAssessmentSubmissions = {
+    getAll: (): Promise<NeedsAssessmentSubmission[]> =>
+      this.get("/api/needs-assessments/submissions"),
+    getByInquiryId: (inquiryId: number): Promise<NeedsAssessmentSubmission[]> =>
+      this.get(`/api/needs-assessments/submissions?inquiryId=${inquiryId}`),
+    getById: (id: number): Promise<NeedsAssessmentSubmission> =>
+      this.get(`/api/needs-assessments/submissions/${id}`),
+    create: (data: NeedsAssessmentSubmissionPayload): Promise<NeedsAssessmentSubmission> =>
+      this.post("/api/needs-assessments/submissions", data),
+    convert: (id: number): Promise<NeedsAssessmentSubmission> =>
+      this.post(`/api/needs-assessments/submissions/${id}/convert`),
+  };
+
   // Clients methods (brand-specific, full CRUD)
   clients = {
     getAll: async (): Promise<ClientListItem[]> => {
-      console.log('🔍 API Debug - clients.getAll called');
       const apiResponse: ClientListApiResponse[] = await this.get("/api/clients");
-      console.log('🔍 API Debug - clients.getAll response:', apiResponse.length, 'clients received');
       return apiResponse.map(mapClientListResponse);
     },
     getById: async (id: number): Promise<Client> => {
@@ -878,6 +1113,319 @@ class ApiService extends BaseApiClient {
       const apiResponse: ProposalApiResponse = await this.post(`/api/inquiries/${inquiryId}/proposals/${proposalId}/send`);
       return mapProposalResponse(apiResponse);
     },
+    getOne: async (inquiryId: number, proposalId: number): Promise<Proposal> => {
+      const apiResponse: ProposalApiResponse = await this.get(`/api/inquiries/${inquiryId}/proposals/${proposalId}`);
+      return mapProposalResponse(apiResponse);
+    },
+  };
+
+  servicePackages = {
+     getAll: (brandId: number): Promise<ServicePackage[]> => this.get(`/service-packages/${brandId}`),
+     getOne: (brandId: number, id: number): Promise<ServicePackage> => this.get(`/service-packages/${brandId}/${id}`),
+     create: (brandId: number, data: Partial<ServicePackage>): Promise<ServicePackage> => this.post(`/service-packages/${brandId}`, data),
+     update: (brandId: number, id: number, data: Partial<ServicePackage>): Promise<ServicePackage> => this.patch(`/service-packages/${brandId}/${id}`, data),
+     delete: (brandId: number, id: number): Promise<void> => this.delete(`/service-packages/${brandId}/${id}`),
+     // Version History
+     versions: {
+       getAll: (brandId: number, packageId: number): Promise<any[]> =>
+         this.get(`/service-packages/${brandId}/${packageId}/versions`),
+       create: (brandId: number, packageId: number, changeSummary?: string): Promise<any> =>
+         this.post(`/service-packages/${brandId}/${packageId}/versions`, { change_summary: changeSummary }),
+       getOne: (brandId: number, packageId: number, versionId: number): Promise<any> =>
+         this.get(`/service-packages/${brandId}/${packageId}/versions/${versionId}`),
+       restore: (brandId: number, packageId: number, versionId: number): Promise<any> =>
+         this.post(`/service-packages/${brandId}/${packageId}/versions/${versionId}/restore`, {}),
+     },
+  };
+
+  servicePackageCategories = {
+     getAll: (brandId: number): Promise<any[]> => this.get(`/brands/${brandId}/package-categories`),
+     create: (brandId: number, data: { name: string; description?: string; order_index?: number }): Promise<any> => this.post(`/brands/${brandId}/package-categories`, data),
+     update: (brandId: number, id: number, data: { name?: string; description?: string; order_index?: number }): Promise<any> => this.patch(`/brands/${brandId}/package-categories/${id}`, data),
+     delete: (brandId: number, id: number): Promise<void> => this.delete(`/brands/${brandId}/package-categories/${id}`),
+  };
+
+  // ─── Operators System ────────────────────────────────────────────────
+
+  operators = {
+    // Operator Templates (brand-level)
+    templates: {
+      getAll: (brandId: number): Promise<any[]> =>
+        this.get(`/operators/templates/brand/${brandId}`),
+      getById: (templateId: number): Promise<any> =>
+        this.get(`/operators/templates/${templateId}`),
+      create: (brandId: number, data: { name: string; role?: string; color?: string }): Promise<any> =>
+        this.post(`/operators/templates/brand/${brandId}`, data),
+      update: (templateId: number, data: { name?: string; role?: string | null; color?: string | null; is_active?: boolean; order_index?: number }): Promise<any> =>
+        this.patch(`/operators/templates/${templateId}`, data),
+      delete: (templateId: number): Promise<void> =>
+        this.delete(`/operators/templates/${templateId}`),
+      addEquipment: (templateId: number, data: { equipment_id: number; is_primary?: boolean }): Promise<any> =>
+        this.post(`/operators/templates/${templateId}/equipment`, data),
+      removeEquipment: (templateEquipmentId: number): Promise<void> =>
+        this.delete(`/operators/templates/equipment/${templateEquipmentId}`),
+    },
+
+    // Package Day Operators
+    packageDay: {
+      getAll: (packageId: number, dayId?: number): Promise<any[]> =>
+        this.get(`/operators/packages/${packageId}${dayId ? `?dayId=${dayId}` : ''}`),
+      add: (packageId: number, data: { event_day_template_id: number; operator_template_id: number; hours?: number; notes?: string; package_activity_id?: number | null }): Promise<any> =>
+        this.post(`/operators/packages/${packageId}`, data),
+      update: (operatorId: number, data: { hours?: number; notes?: string | null; order_index?: number; package_activity_id?: number | null }): Promise<any> =>
+        this.patch(`/operators/packages/day-operators/${operatorId}`, data),
+      remove: (operatorId: number): Promise<void> =>
+        this.delete(`/operators/packages/day-operators/${operatorId}`),
+      setEquipment: (operatorId: number, equipment: { equipment_id: number; is_primary: boolean }[]): Promise<any> =>
+        this.post(`/operators/packages/day-operators/${operatorId}/equipment`, { equipment }),
+      // Multi-activity assignments
+      assignActivity: (operatorId: number, activityId: number): Promise<any> =>
+        this.post(`/operators/packages/day-operators/${operatorId}/activities/${activityId}`, {}),
+      unassignActivity: (operatorId: number, activityId: number): Promise<any> =>
+        this.delete(`/operators/packages/day-operators/${operatorId}/activities/${activityId}`),
+    },
+  };
+
+  // ─── Schedule System ─────────────────────────────────────────────────
+
+  schedule = {
+    // Shared schedule presets (brand-level)
+    presets: {
+      getAll: (brandId: number): Promise<any[]> =>
+        this.get(`/schedule/presets/brand/${brandId}`),
+      upsert: (brandId: number, data: { name: string; schedule_data: any[] }): Promise<any> =>
+        this.post(`/schedule/presets/brand/${brandId}`, data),
+      rename: (brandId: number, presetId: number, name: string): Promise<any> =>
+        this.patch(`/schedule/presets/${presetId}/brand/${brandId}/rename`, { name }),
+      delete: (brandId: number, presetId: number): Promise<void> =>
+        this.delete(`/schedule/presets/${presetId}/brand/${brandId}`),
+    },
+
+    // Event Day Templates (brand-level)
+    eventDays: {
+      getAll: (brandId: number): Promise<any[]> =>
+        this.get(`/schedule/event-days/brand/${brandId}`),
+      create: (brandId: number, data: { name: string; description?: string; order_index?: number }): Promise<any> =>
+        this.post(`/schedule/event-days/brand/${brandId}`, data),
+      update: (brandId: number, id: number, data: any): Promise<any> =>
+        this.patch(`/schedule/event-days/${id}/brand/${brandId}`, data),
+      delete: (brandId: number, id: number): Promise<void> =>
+        this.delete(`/schedule/event-days/${id}/brand/${brandId}`),
+    },
+
+    // Film-level schedules
+    film: {
+      get: (filmId: number): Promise<any> =>
+        this.get(`/schedule/films/${filmId}`),
+      upsertScene: (filmId: number, data: any): Promise<any> =>
+        this.post(`/schedule/films/${filmId}/scenes`, data),
+      bulkUpsertScenes: (filmId: number, schedules: any[]): Promise<any[]> =>
+        this.post(`/schedule/films/${filmId}/scenes/bulk`, schedules),
+      updateScene: (scheduleId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/films/scenes/${scheduleId}`, data),
+      deleteScene: (scheduleId: number): Promise<void> =>
+        this.delete(`/schedule/films/scenes/${scheduleId}`),
+    },
+
+    // Package event day assignments (which event days apply to a package)
+    packageEventDays: {
+      getAll: (packageId: number): Promise<any[]> =>
+        this.get(`/schedule/packages/${packageId}/event-days`),
+      add: (packageId: number, eventDayTemplateId: number): Promise<any> =>
+        this.post(`/schedule/packages/${packageId}/event-days`, { event_day_template_id: eventDayTemplateId }),
+      remove: (packageId: number, eventDayTemplateId: number): Promise<void> =>
+        this.delete(`/schedule/packages/${packageId}/event-days/${eventDayTemplateId}`),
+      set: (packageId: number, eventDayTemplateIds: number[]): Promise<any[]> =>
+        this.post(`/schedule/packages/${packageId}/event-days/set`, { event_day_template_ids: eventDayTemplateIds }),
+    },
+
+    // Package activities (real-world schedule blocks: Bridal Prep, Ceremony, etc.)
+    packageActivities: {
+      getAll: (packageId: number): Promise<any[]> =>
+        this.get(`/schedule/packages/${packageId}/activities`),
+      getByDay: (packageId: number, packageEventDayId: number): Promise<any[]> =>
+        this.get(`/schedule/packages/${packageId}/activities/day/${packageEventDayId}`),
+      create: (packageId: number, data: {
+        package_event_day_id: number;
+        name: string;
+        description?: string;
+        color?: string;
+        icon?: string;
+        start_time?: string;
+        end_time?: string;
+        duration_minutes?: number;
+        order_index?: number;
+      }): Promise<any> =>
+        this.post(`/schedule/packages/${packageId}/activities`, data),
+      update: (activityId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/packages/activities/${activityId}`, data),
+      delete: (activityId: number): Promise<void> =>
+        this.delete(`/schedule/packages/activities/${activityId}`),
+      reorder: (packageId: number, packageEventDayId: number, activityIds: number[]): Promise<any[]> =>
+        this.post(`/schedule/packages/${packageId}/activities/day/${packageEventDayId}/reorder`, { activity_ids: activityIds }),
+    },
+
+    // Package activity moments (moments within activities)
+    packageActivityMoments: {
+      getAll: (activityId: number): Promise<any[]> =>
+        this.get(`/schedule/packages/activities/${activityId}/moments`),
+      create: (activityId: number, data: {
+        name: string;
+        order_index?: number;
+        duration_seconds?: number;
+        is_required?: boolean;
+        notes?: string;
+      }): Promise<any> =>
+        this.post(`/schedule/packages/activities/${activityId}/moments`, data),
+      bulkCreate: (activityId: number, moments: Array<{
+        name: string;
+        order_index?: number;
+        duration_seconds?: number;
+        is_required?: boolean;
+        notes?: string;
+      }>): Promise<any[]> =>
+        this.post(`/schedule/packages/activities/${activityId}/moments/bulk`, { moments }),
+      update: (momentId: number, data: {
+        name?: string;
+        order_index?: number;
+        duration_seconds?: number;
+        is_required?: boolean;
+        notes?: string;
+      }): Promise<any> =>
+        this.patch(`/schedule/packages/activities/moments/${momentId}`, data),
+      delete: (momentId: number): Promise<void> =>
+        this.delete(`/schedule/packages/activities/moments/${momentId}`),
+      reorder: (activityId: number, momentIds: number[]): Promise<any[]> =>
+        this.post(`/schedule/packages/activities/${activityId}/moments/reorder`, { moment_ids: momentIds }),
+    },
+
+    // Project activities
+    projectActivities: {
+      getByDay: (projectId: number, projectEventDayId: number): Promise<any[]> =>
+        this.get(`/schedule/projects/${projectId}/activities/${projectEventDayId}`),
+      create: (projectId: number, data: any): Promise<any> =>
+        this.post(`/schedule/projects/${projectId}/activities`, data),
+      update: (activityId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/projects/activities/${activityId}`, data),
+      delete: (activityId: number): Promise<void> =>
+        this.delete(`/schedule/projects/activities/${activityId}`),
+    },
+
+    // Package event day subjects (people/objects assigned to event days)
+    packageEventDaySubjects: {
+      getAll: (packageId: number, eventDayTemplateId?: number): Promise<any[]> =>
+        this.get(`/schedule/packages/${packageId}/subjects${eventDayTemplateId ? `?eventDayTemplateId=${eventDayTemplateId}` : ''}`),
+      create: (packageId: number, data: {
+        event_day_template_id: number;
+        name: string;
+        package_activity_id?: number;
+        role_template_id?: number;
+        category?: string;
+        notes?: string;
+        order_index?: number;
+      }): Promise<any> =>
+        this.post(`/schedule/packages/${packageId}/subjects`, data),
+      update: (subjectId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/packages/subjects/${subjectId}`, data),
+      delete: (subjectId: number): Promise<void> =>
+        this.delete(`/schedule/packages/subjects/${subjectId}`),
+      // Multi-activity assignments
+      assignActivity: (subjectId: number, activityId: number): Promise<any> =>
+        this.post(`/schedule/packages/subjects/${subjectId}/activities/${activityId}`, {}),
+      unassignActivity: (subjectId: number, activityId: number): Promise<any> =>
+        this.delete(`/schedule/packages/subjects/${subjectId}/activities/${activityId}`),
+    },
+
+    // Package event day locations (linked to event days / activities)
+    packageEventDayLocations: {
+      getAll: (packageId: number, eventDayTemplateId?: number): Promise<any[]> =>
+        this.get(`/schedule/packages/${packageId}/locations${eventDayTemplateId ? `?eventDayTemplateId=${eventDayTemplateId}` : ''}`),
+      create: (packageId: number, data: {
+        event_day_template_id: number;
+        location_id: number;
+        package_activity_id?: number;
+        notes?: string;
+        order_index?: number;
+      }): Promise<any> =>
+        this.post(`/schedule/packages/${packageId}/locations`, data),
+      update: (locationId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/packages/locations/${locationId}`, data),
+      delete: (locationId: number): Promise<void> =>
+        this.delete(`/schedule/packages/locations/${locationId}`),
+    },
+
+    // Package location slots (abstract numbered locations 1-5)
+    packageLocationSlots: {
+      getAll: (packageId: number, eventDayTemplateId?: number): Promise<any[]> =>
+        this.get(`/schedule/packages/${packageId}/location-slots${eventDayTemplateId ? `?eventDayTemplateId=${eventDayTemplateId}` : ''}`),
+      create: (packageId: number, data: {
+        event_day_template_id: number;
+        location_number?: number;
+      }): Promise<any> =>
+        this.post(`/schedule/packages/${packageId}/location-slots`, data),
+      delete: (slotId: number): Promise<void> =>
+        this.delete(`/schedule/packages/location-slots/${slotId}`),
+      assignActivity: (slotId: number, activityId: number): Promise<any> =>
+        this.post(`/schedule/packages/location-slots/${slotId}/activities/${activityId}`, {}),
+      unassignActivity: (slotId: number, activityId: number): Promise<any> =>
+        this.delete(`/schedule/packages/location-slots/${slotId}/activities/${activityId}`),
+    },
+
+    // Package-film relationships & schedules
+    packageFilms: {
+      getAll: (packageId: number): Promise<any[]> =>
+        this.get(`/schedule/packages/${packageId}/films`),
+      create: (packageId: number, data: { film_id: number; order_index?: number; notes?: string }): Promise<any> =>
+        this.post(`/schedule/packages/${packageId}/films`, data),
+      update: (packageFilmId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/packages/films/${packageFilmId}`, data),
+      delete: (packageFilmId: number): Promise<void> =>
+        this.delete(`/schedule/packages/films/${packageFilmId}`),
+      getSchedule: (packageFilmId: number): Promise<any> =>
+        this.get(`/schedule/packages/films/${packageFilmId}/schedule`),
+      upsertSceneSchedule: (packageFilmId: number, data: any): Promise<any> =>
+        this.post(`/schedule/packages/films/${packageFilmId}/scenes`, data),
+      bulkUpsertSceneSchedules: (packageFilmId: number, schedules: any[]): Promise<any[]> =>
+        this.post(`/schedule/packages/films/${packageFilmId}/scenes/bulk`, schedules),
+    },
+
+    // Project event days
+    projectEventDays: {
+      getAll: (projectId: number): Promise<any[]> =>
+        this.get(`/schedule/projects/${projectId}/event-days`),
+      create: (projectId: number, data: any): Promise<any> =>
+        this.post(`/schedule/projects/${projectId}/event-days`, data),
+      update: (eventDayId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/projects/event-days/${eventDayId}`, data),
+      delete: (eventDayId: number): Promise<void> =>
+        this.delete(`/schedule/projects/event-days/${eventDayId}`),
+    },
+
+    // Project films & schedules
+    projectFilms: {
+      getAll: (projectId: number): Promise<any[]> =>
+        this.get(`/schedule/projects/${projectId}/films`),
+      create: (projectId: number, data: { film_id: number; package_film_id?: number; order_index?: number }): Promise<any> =>
+        this.post(`/schedule/projects/${projectId}/films`, data),
+      delete: (projectFilmId: number): Promise<void> =>
+        this.delete(`/schedule/projects/films/${projectFilmId}`),
+      upsertSceneSchedule: (projectFilmId: number, data: any): Promise<any> =>
+        this.post(`/schedule/projects/films/${projectFilmId}/scenes`, data),
+      bulkUpsertSceneSchedules: (projectFilmId: number, schedules: any[]): Promise<any[]> =>
+        this.post(`/schedule/projects/films/${projectFilmId}/scenes/bulk`, schedules),
+      /** Initialize a project's schedule from a package (creates event days, project films, and scene schedules) */
+      initializeFromPackage: (projectId: number, packageId: number): Promise<any> =>
+        this.post(`/schedule/projects/${projectId}/initialize-from-package/${packageId}`, {}),
+    },
+
+    // Resolved schedule (inheritance chain merged)
+    getResolved: (filmId: number, params?: { packageFilmId?: number; projectFilmId?: number }): Promise<any> => {
+      const query = new URLSearchParams();
+      if (params?.packageFilmId) query.set('packageFilmId', String(params.packageFilmId));
+      if (params?.projectFilmId) query.set('projectFilmId', String(params.projectFilmId));
+      const qs = query.toString();
+      return this.get(`/schedule/resolved/${filmId}${qs ? `?${qs}` : ''}`);
+    },
   };
 
   // Contracts methods (brand-specific, nested under inquiries)
@@ -889,7 +1437,7 @@ class ApiService extends BaseApiClient {
     create: (inquiryId: number, data: CreateContractData): Promise<Contract> =>
       this.post(`/api/inquiries/${inquiryId}/contracts`, data),
     update: (inquiryId: number, contractId: number, data: UpdateContractData): Promise<Contract> =>
-      this.put(`/api/inquiries/${inquiryId}/contracts/${contractId}`, data),
+      this.patch(`/api/inquiries/${inquiryId}/contracts/${contractId}`, data),
     delete: (inquiryId: number, contractId: number): Promise<void> =>
       this.delete(`/api/inquiries/${inquiryId}/contracts/${contractId}`),
   };
@@ -903,7 +1451,7 @@ class ApiService extends BaseApiClient {
     create: (inquiryId: number, data: CreateInvoiceData): Promise<Invoice> =>
       this.post(`/api/inquiries/${inquiryId}/invoices`, data),
     update: (inquiryId: number, invoiceId: number, data: UpdateInvoiceData): Promise<Invoice> =>
-      this.put(`/api/inquiries/${inquiryId}/invoices/${invoiceId}`, data),
+      this.patch(`/api/inquiries/${inquiryId}/invoices/${invoiceId}`, data),
     delete: (inquiryId: number, invoiceId: number): Promise<void> =>
       this.delete(`/api/inquiries/${inquiryId}/invoices/${invoiceId}`),
   };
@@ -917,7 +1465,7 @@ class ApiService extends BaseApiClient {
     create: (inquiryId: number, data: CreateEstimateData): Promise<Estimate> =>
       this.post(`/api/inquiries/${inquiryId}/estimates`, data),
     update: (inquiryId: number, estimateId: number, data: UpdateEstimateData): Promise<Estimate> =>
-      this.put(`/api/inquiries/${inquiryId}/estimates/${estimateId}`, data),
+      this.patch(`/api/inquiries/${inquiryId}/estimates/${estimateId}`, data),
     delete: (inquiryId: number, estimateId: number): Promise<void> =>
       this.delete(`/api/inquiries/${inquiryId}/estimates/${estimateId}`),
   };
@@ -931,9 +1479,19 @@ class ApiService extends BaseApiClient {
     create: (inquiryId: number, data: CreateQuoteData): Promise<Quote> =>
       this.post(`/api/inquiries/${inquiryId}/quotes`, data),
     update: (inquiryId: number, quoteId: number, data: UpdateQuoteData): Promise<Quote> =>
-      this.put(`/api/inquiries/${inquiryId}/quotes/${quoteId}`, data),
+      this.patch(`/api/inquiries/${inquiryId}/quotes/${quoteId}`, data),
     delete: (inquiryId: number, quoteId: number): Promise<void> =>
       this.delete(`/api/inquiries/${inquiryId}/quotes/${quoteId}`),
+  };
+
+  // Activity Logs methods
+  activityLogs = {
+    create: (data: { inquiry_id: number; description: string; type: string }): Promise<any> =>
+      this.post("/activity-logs", data),
+    getByInquiry: (inquiryId: number): Promise<any[]> =>
+      this.get(`/activity-logs/inquiry/${inquiryId}`),
+    logNote: (inquiryId: number, note: string): Promise<any> =>
+      this.post("/activity-logs/note", { inquiryId, note }),
   };
 
   // Coverage methods (brand-agnostic for creation, brand-specific for retrieval)
@@ -945,7 +1503,7 @@ class ApiService extends BaseApiClient {
     create: (data: CreateCoverageDto): Promise<Coverage> =>
       this.post("/coverage", data, { skipBrandContext: true }),
     update: (id: string, data: UpdateCoverageDto): Promise<Coverage> =>
-      this.put(`/coverage/${id}`, data),
+      this.patch(`/coverage/${id}`, data),
     delete: (id: string): Promise<void> =>
       this.delete(`/coverage/${id}`),
   };
@@ -1146,8 +1704,12 @@ export const contractsService = api.contracts;
 export const invoicesService = api.invoices;
 export const estimatesService = api.estimates;
 export const quotesService = api.quotes;
+export const activityLogsService = api.activityLogs;
 export const rolesService = api.roles;
 export const scenesService = api.scenes;
+export const momentsService = api.moments;
+export const beatsService = api.beats;
+export const coverageService = api.coverage;
 export const filmsService = api.films;
 export const editingStylesService = api.editingStyles;
 export const timelineService = api.timeline;

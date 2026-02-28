@@ -14,6 +14,8 @@ export interface MusicLibraryItem {
     created_at: string;
     updated_at: string;
     project_id?: number;
+    brand_id?: number;
+    scene_id?: number;
     moment_id?: number;
     moment_name?: string;
     scene_name?: string;
@@ -28,6 +30,8 @@ export interface CreateMusicLibraryItemDto {
     file_path?: string;
     notes?: string;
     project_id?: number;
+    brand_id?: number;
+    scene_id?: number;
 }
 
 export interface UpdateMusicLibraryItemDto {
@@ -38,14 +42,20 @@ export interface UpdateMusicLibraryItemDto {
     music_type?: MusicType;
     file_path?: string;
     notes?: string;
+    project_id?: number;
+    brand_id?: number;
+    scene_id?: number;
 }
 
 class MusicApiService {
     // ==================== MUSIC LIBRARY ====================
 
-    async getMusicLibrary(projectId?: number): Promise<MusicLibraryItem[]> {
-        const queryParams = projectId ? `?project_id=${projectId}` : '';
-        const response = await fetch(`${API_BASE_URL}/music/library${queryParams}`);
+    async getMusicLibrary(projectId?: number, sceneId?: number): Promise<MusicLibraryItem[]> {
+        const queryParams = new URLSearchParams();
+        if (projectId) queryParams.append('project_id', projectId.toString());
+        if (sceneId) queryParams.append('scene_id', sceneId.toString());
+        const queryString = queryParams.toString();
+        const response = await fetch(`${API_BASE_URL}/music/library${queryString ? '?' + queryString : ''}`);
         if (!response.ok) {
             throw new Error(`Failed to fetch music library: ${response.status}`);
         }
@@ -116,6 +126,8 @@ class MusicApiService {
     // ==================== ATTACH/DETACH MUSIC TO MOMENTS ====================
 
     async attachMusicToMoment(momentId: number, musicLibraryItemId: number): Promise<void> {
+        console.log('🎵 attachMusicToMoment called with:', { momentId, musicLibraryItemId, musicLibraryItemIdType: typeof musicLibraryItemId });
+        
         const response = await fetch(`${API_BASE_URL}/music/moments/${momentId}/attach`, {
             method: 'POST',
             headers: {
@@ -125,17 +137,23 @@ class MusicApiService {
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to attach music to moment: ${response.status}`);
+            const errorText = await response.text();
+            console.error('❌ Backend error response:', { status: response.status, body: errorText });
+            throw new Error(`Failed to attach music to moment: ${response.status} - ${errorText}`);
         }
     }
 
     async detachMusicFromMoment(momentId: number): Promise<void> {
+        console.log('🎵 detachMusicFromMoment called with:', { momentId });
+
         const response = await fetch(`${API_BASE_URL}/music/moments/${momentId}/detach`, {
             method: 'POST',
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to detach music from moment: ${response.status}`);
+            const errorText = await response.text();
+            console.error('❌ Backend error response (detach):', { status: response.status, body: errorText });
+            throw new Error(`Failed to detach music from moment: ${response.status} - ${errorText}`);
         }
     }
 }

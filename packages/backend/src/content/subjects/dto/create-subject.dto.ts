@@ -1,62 +1,24 @@
-import { IsString, IsOptional, IsEnum, IsNumber, IsNotEmpty } from 'class-validator';
-
-export enum SubjectPriority {
-    PRIMARY = 'PRIMARY',
-    SECONDARY = 'SECONDARY',
-    BACKGROUND = 'BACKGROUND'
-}
+import { IsString, IsOptional, IsNumber, IsNotEmpty, IsBoolean } from 'class-validator';
+import { SubjectCategory } from '@prisma/client';
 
 export class CreateSubjectDto {
-    @IsString()
-    @IsNotEmpty()
-    first_name: string;
-
-    @IsString()
-    @IsOptional()
-    last_name?: string;
+    @IsNumber()
+    @IsOptional() // Optional in DTO - set by controller from URL
+    film_id?: number;
 
     @IsString()
     @IsNotEmpty()
-    context_role: string;
+    name: string;
 
     @IsString()
-    @IsOptional()
-    hair_color?: string;
+    @IsNotEmpty()
+    category: SubjectCategory;
 
-    @IsString()
     @IsOptional()
-    hair_style?: string;
-
-    @IsString()
-    @IsOptional()
-    skin_tone?: string;
-
-    @IsString()
-    @IsOptional()
-    height?: string;
-
-    @IsString()
-    @IsOptional()
-    eye_color?: string;
-
-    @IsString()
-    @IsOptional()
-    appearance_notes?: string;
-
     @IsNumber()
+    role_template_id?: number; // Link to a specific role template
+
+    @IsBoolean()
     @IsOptional()
-    brand_id?: number;
-}
-
-export class AssignSubjectToSceneDto {
-    @IsNumber()
-    subject_id: number;
-
-    @IsEnum(SubjectPriority)
-    priority: SubjectPriority;
-}
-
-export class UpdateSceneSubjectDto {
-    @IsEnum(SubjectPriority)
-    priority: SubjectPriority;
+    is_custom?: boolean;
 }

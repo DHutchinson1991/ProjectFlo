@@ -1,30 +1,57 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
-import { CreateFilmDto } from "./dto/create-film.dto";
+import { CreateFilmDto, UpdateEquipmentDto } from "./dto/create-film.dto";
 import { UpdateFilmDto } from "./dto/update-film.dto";
-import { MusicType } from "@prisma/client";
+import { FilmResponseDto } from "./dto/film-response.dto";
+import { FilmEquipmentService } from "./services/film-equipment.service";
+import { FilmScenesManagementService } from "./services/film-scenes-management.service";
+import { LoggerService } from "../../common/logging/logger.service";
+import { Prisma, FilmTimelineTrack } from "@prisma/client";
+import {
+  AssignEquipmentDto,
+  UpdateEquipmentAssignmentDto,
+  FilmEquipmentResponseDto,
+  EquipmentSummaryDto,
+} from "./dto/film-equipment-assignment.dto";
 
+/**
+ * Main Films Service (refactor v2)
+ * Coordinates all film-related operations using Film model
+ */
 @Injectable()
 export class FilmsService {
-  constructor(private readonly prisma: PrismaService) { }
+  private readonly logger = new LoggerService(FilmsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly equipmentService: FilmEquipmentService,
+    private readonly scenesService: FilmScenesManagementService,
+  ) {}
 
   /**
-   * Create a new film
+   * Create a new film with equipment configuration
    */
-  async create(createDto: CreateFilmDto) {
-    const film = await this.prisma.filmLibrary.create({
+  async create(createDto: CreateFilmDto): Promise<FilmResponseDto> {
+    this.logger.log('Creating film', { name: createDto.name, brand_id: createDto.brand_id });
+
+    // Create film
+    const film = await this.prisma.film.create({
       data: {
         name: createDto.name,
-        description: createDto.description,
         brand_id: createDto.brand_id,
-        type: createDto.type,
-        default_music_type: createDto.default_music_type,
-        delivery_timeline: createDto.delivery_timeline,
-        includes_music: createDto.includes_music,
         created_at: new Date(),
         updated_at: new Date(),
       },
     });
+
+    // Configure equipment (creates tracks)
+    await this.equipmentService.configureEquipment(
+      film.id,
+      createDto.num_cameras || 0,
+      createDto.num_audio || 0,
+    );
+
+    this.logger.log('Film created successfully', { filmId: film.id });
 
     return this.findOne(film.id);
   }
@@ -32,33 +59,147 @@ export class FilmsService {
   /**
    * Find all films, optionally filtered by brand
    */
-  async findAll(brandId?: number) {
-    return this.prisma.filmLibrary.findMany({
+  async findAll(brandId?: number): Promise<FilmResponseDto[]> {
+    const films = await this.prisma.film.findMany({
       where: brandId ? { brand_id: brandId } : {},
-      orderBy: { created_at: "desc" },
+      include: {
+        tracks: {
+          orderBy: { order_index: 'asc' },
+        },
+        subjects: true,
+        locations: {
+          include: { location: true },
+        },
+        scenes: {
+          include: {
+            moments: {
+              orderBy: { order_index: 'asc' },
+              include: {
+                subjects: {
+                  include: {
+                    subject: {
+                      include: {
+                        role_template: true,
+                      },
+                    },
+                  },
+                },
+                recording_setup: {
+                  include: {
+                    camera_assignments: {
+                      include: {
+                        track: true,
+                      },
+                    },
+                  },
+                },
+                moment_music: true,
+              },
+            },
+            beats: {
+              orderBy: { order_index: 'asc' },
+              include: { recording_setup: true },
+            },
+            recording_setup: {
+              include: {
+                camera_assignments: {
+                  include: {
+                    track: true,
+                  },
+                },
+              },
+            },
+            scene_music: true,
+            location_assignment: {
+              include: { location: true },
+            },
+          },
+          orderBy: { order_index: 'asc' },
+        },
+      } as any,
+      orderBy: { created_at: 'desc' },
     });
+
+    return films.map((film) => this.mapToResponseDto(film));
   }
 
   /**
-   * Find a specific film by ID
+   * Find a specific film by ID with all nested data
    */
-  async findOne(id: number) {
-    const film = await this.prisma.filmLibrary.findFirst({
+  async findOne(id: number): Promise<FilmResponseDto> {
+    const film = await this.prisma.film.findUnique({
       where: { id },
+      include: {
+        tracks: {
+          orderBy: { order_index: 'asc' },
+        },
+        subjects: true,
+        locations: {
+          include: { location: true },
+        },
+        scenes: {
+          include: {
+            moments: {
+              orderBy: { order_index: 'asc' },
+              include: {
+                subjects: {
+                  include: {
+                    subject: {
+                      include: {
+                        role_template: true,
+                      },
+                    },
+                  },
+                },
+                recording_setup: {
+                  include: {
+                    camera_assignments: {
+                      include: {
+                        track: true,
+                      },
+                    },
+                  },
+                },
+                moment_music: true,
+              },
+            },
+            beats: {
+              orderBy: { order_index: 'asc' },
+              include: { recording_setup: true },
+            },
+            recording_setup: {
+              include: {
+                camera_assignments: {
+                  include: {
+                    track: true,
+                  },
+                },
+              },
+            },
+            scene_music: true,
+            location_assignment: {
+              include: { location: true },
+            },
+          },
+          orderBy: { order_index: 'asc' },
+        },
+      } as any,
     });
 
     if (!film) {
       throw new NotFoundException(`Film with ID ${id} not found`);
     }
 
-    return film;
+    return this.mapToResponseDto(film);
   }
 
   /**
-   * Update film
+   * Update film details
    */
-  async update(id: number, updateData: UpdateFilmDto) {
-    await this.prisma.filmLibrary.update({
+  async update(id: number, updateData: UpdateFilmDto): Promise<FilmResponseDto> {
+    this.logger.log('Updating film', { filmId: id, updates: updateData });
+
+    await this.prisma.film.update({
       where: { id },
       data: {
         ...updateData,
@@ -70,276 +211,376 @@ export class FilmsService {
   }
 
   /**
-   * Delete film
+   * Update equipment configuration (add/remove tracks)
    */
-  async delete(id: number) {
-    await this.prisma.filmLibrary.delete({
+  async updateEquipment(id: number, equipmentDto: UpdateEquipmentDto): Promise<FilmResponseDto> {
+    this.logger.log('Updating equipment', { filmId: id, equipment: equipmentDto });
+
+    await this.equipmentService.updateEquipment(
+      id,
+      equipmentDto.num_cameras,
+      equipmentDto.num_audio,
+      equipmentDto.allow_removal,
+    );
+
+    return this.findOne(id);
+  }
+
+  /**
+   * Regenerate tracks based on current equipment configuration
+   */
+  async generateTracks(id: number): Promise<FilmTimelineTrack[]> {
+    this.logger.log('Regenerating tracks', { filmId: id });
+
+    // Get current equipment counts
+    const equipment = await this.equipmentService.getEquipmentSummary(id);
+    const numCameras = equipment.cameras;
+    const numAudio = equipment.audio;
+
+    await this.equipmentService.configureEquipment(id, numCameras, numAudio);
+
+    // Return the new tracks
+    return this.getTracks(id, false);
+  }
+  async delete(id: number): Promise<{ message: string }> {
+    this.logger.log('Deleting film', { filmId: id });
+
+    await this.prisma.film.delete({
       where: { id },
     });
+
+    this.logger.log('Film deleted successfully', { filmId: id });
 
     return { message: "Film deleted successfully" };
   }
 
   /**
-   * Assign a scene to a film by creating a local copy
-   * This ensures that edits to the film's scene don't affect the original scene library
+   * Get all timeline layers (for track organization)
    */
-  async assignSceneToFilm(filmId: number, sceneId: number, orderIndex: number = 1, editingStyle?: string) {
-    // Verify film exists
-    await this.findOne(filmId);
+  async getTimelineLayers() {
+    this.logger.log('Fetching timeline layers');
 
-    // Get the original scene with all its media components
-    const originalScene = await this.prisma.scenesLibrary.findUnique({
-      where: { id: sceneId },
-      include: {
-        media_components: true,
-      },
+    return this.prisma.timelineLayer.findMany({
+      where: { is_active: true },
+      orderBy: { order_index: 'asc' },
     });
+  }
 
-    if (!originalScene) {
-      throw new NotFoundException(`Scene with ID ${sceneId} not found`);
-    }
+  /**
+   * Create a new timeline layer
+   */
+  async createTimelineLayer(createDto: { name: string; order_index: number; color_hex: string; description?: string }) {
+    this.logger.log('Creating timeline layer', { name: createDto.name });
 
-    // Check if this scene is already assigned to this film
-    const existingAssignment = await this.prisma.filmLocalScenes.findFirst({
-      where: {
-        film_id: filmId,
-        original_scene_id: sceneId,
-      },
-    });
-
-    if (existingAssignment) {
-      throw new BadRequestException(`Scene "${originalScene.name}" is already assigned to this film`);
-    }
-
-    // Create a local copy of the scene for this film
-    const localScene = await this.prisma.filmLocalScenes.create({
+    return this.prisma.timelineLayer.create({
       data: {
-        film_id: filmId,
-        original_scene_id: sceneId,
-        name: originalScene.name,
-        type: originalScene.type,
-        description: originalScene.description,
-        complexity_score: originalScene.complexity_score,
-        estimated_duration: originalScene.estimated_duration,
-        default_editing_style: originalScene.default_editing_style,
-        base_task_hours: originalScene.base_task_hours,
-        order_index: orderIndex,
-        editing_style: editingStyle,
-      },
-    });
-
-    // Create local copies of all media components
-    await Promise.all(
-      originalScene.media_components.map((component) =>
-        this.prisma.filmLocalSceneMediaComponent.create({
-          data: {
-            film_local_scene_id: localScene.id,
-            original_component_id: component.id,
-            media_type: component.media_type,
-            duration_seconds: component.duration_seconds,
-            is_primary: component.is_primary,
-            music_type: component.music_type as MusicType | null,
-            notes: component.notes,
-          },
-        })
-      )
-    );
-
-    // Return the complete local scene with its media components
-    return this.prisma.filmLocalScenes.findUnique({
-      where: { id: localScene.id },
-      include: {
-        media_components: true,
-        original_scene: true,
+        name: createDto.name,
+        order_index: createDto.order_index,
+        color_hex: createDto.color_hex,
+        description: createDto.description,
+        is_active: true,
       },
     });
   }
 
   /**
-   * Get film with all its local scenes and media components
+   * Update a timeline layer
    */
-  async getFilmWithLocalScenes(id: number) {
-    const film = await this.prisma.filmLibrary.findUnique({
+  async updateTimelineLayer(
+    id: number,
+    updateDto: { name?: string; order_index?: number; color_hex?: string; description?: string; is_active?: boolean }
+  ) {
+    this.logger.log('Updating timeline layer', { layerId: id });
+
+    const layer = await this.prisma.timelineLayer.findUnique({ where: { id } });
+    if (!layer) {
+      throw new NotFoundException(`Timeline layer with ID ${id} not found`);
+    }
+
+    return this.prisma.timelineLayer.update({
       where: { id },
-      include: {
-        local_scenes: {
-          include: {
-            media_components: {
-              orderBy: [
-                { is_primary: 'desc' },
-                { media_type: 'asc' }
-              ]
-            },
-            original_scene: {
-              select: {
-                id: true,
-                name: true,
-                type: true,
-              }
-            }
-          },
-          orderBy: {
-            order_index: 'asc'
-          }
-        }
-      }
+      data: updateDto,
     });
-
-    if (!film) {
-      throw new NotFoundException(`Film with ID ${id} not found`);
-    }
-
-    return film;
   }
 
   /**
-   * Update a film's local scene (edits are isolated from the original scene)
+   * Delete a timeline layer
    */
-  async updateFilmLocalScene(filmId: number, localSceneId: number, updateData: {
-    name?: string;
-    description?: string;
-    editing_style?: string;
-    duration_override?: number;
-    order_index?: number;
-  }) {
-    // Verify the local scene belongs to this film
-    const localScene = await this.prisma.filmLocalScenes.findFirst({
-      where: {
-        id: localSceneId,
-        film_id: filmId,
-      },
-    });
+  async deleteTimelineLayer(id: number): Promise<{ message: string }> {
+    this.logger.log('Deleting timeline layer', { layerId: id });
 
-    if (!localScene) {
-      throw new NotFoundException(`Local scene with ID ${localSceneId} not found for film ${filmId}`);
+    const layer = await this.prisma.timelineLayer.findUnique({ where: { id } });
+    if (!layer) {
+      throw new NotFoundException(`Timeline layer with ID ${id} not found`);
     }
 
-    return this.prisma.filmLocalScenes.update({
-      where: { id: localSceneId },
-      data: {
-        ...updateData,
-        updated_at: new Date(),
-      },
+    await this.prisma.timelineLayer.delete({
+      where: { id },
+    });
+
+    this.logger.log('Timeline layer deleted successfully', { layerId: id });
+
+    return { message: "Timeline layer deleted successfully" };
+  }
+
+  /**
+   * Map Prisma result to FilmResponseDto
+   */
+  private mapToResponseDto(film: any): FilmResponseDto {
+    return {
+      id: film.id,
+      name: film.name,
+      brand_id: film.brand_id,
+      created_at: film.created_at,
+      updated_at: film.updated_at,
+      tracks: film.tracks || [],
+      subjects: film.subjects || [],
+      locations: (film.locations || []).map((assignment) => ({
+        id: assignment.id,
+        film_id: assignment.film_id,
+        location_id: assignment.location_id,
+        notes: assignment.notes ?? null,
+        created_at: assignment.created_at,
+        updated_at: assignment.updated_at,
+        location: assignment.location,
+      })),
+      scenes: (film.scenes || []).map((scene) => ({
+        id: scene.id,
+        film_id: scene.film_id,
+        scene_template_id: scene.scene_template_id,
+        name: scene.name,
+        mode: scene.mode || 'MOMENTS',
+        shot_count: (scene as any).shot_count ?? null,
+        duration_seconds: (scene as any).duration_seconds ?? null,
+        order_index: scene.order_index,
+        created_at: scene.created_at,
+        updated_at: scene.updated_at,
+        location_assignment: (scene as any).location_assignment
+          ? {
+              id: (scene as any).location_assignment.id,
+              scene_id: (scene as any).location_assignment.scene_id,
+              location_id: (scene as any).location_assignment.location_id,
+              created_at: (scene as any).location_assignment.created_at,
+              updated_at: (scene as any).location_assignment.updated_at,
+              location: (scene as any).location_assignment.location,
+            }
+          : null,
+        moments: (scene.moments || []).map((moment) => ({
+          id: moment.id,
+          film_scene_id: moment.film_scene_id,
+          name: moment.name,
+          order_index: moment.order_index,
+          duration: moment.duration,
+          created_at: moment.created_at,
+          updated_at: moment.updated_at,
+          subjects: (moment as any).subjects
+            ? (moment as any).subjects.map((assignment: any) => ({
+                id: assignment.id,
+                moment_id: assignment.moment_id,
+                subject_id: assignment.subject_id,
+                priority: assignment.priority,
+                notes: assignment.notes ?? null,
+                created_at: assignment.created_at,
+                updated_at: assignment.updated_at,
+                subject: assignment.subject
+                  ? {
+                      ...assignment.subject,
+                      role: assignment.subject.role_template
+                        ? {
+                            id: assignment.subject.role_template.id,
+                            role_name: assignment.subject.role_template.role_name,
+                            description: assignment.subject.role_template.description,
+                            is_core: assignment.subject.role_template.is_core,
+                          }
+                        : null,
+                    }
+                  : null,
+              }))
+            : [],
+          has_recording_setup: !!moment.recording_setup,
+          recording_setup: moment.recording_setup
+            ? {
+                id: moment.recording_setup.id,
+                audio_track_ids: moment.recording_setup.audio_track_ids,
+                graphics_enabled: moment.recording_setup.graphics_enabled,
+                graphics_title: moment.recording_setup.graphics_title ?? null,
+                camera_assignments: moment.recording_setup.camera_assignments.map((a) => ({
+                  track_id: a.track_id,
+                  track_name: a.track?.name || String(a.track_id),
+                  track_type: a.track?.type ? String(a.track.type) : undefined,
+                  subject_ids: a.subject_ids,
+                  shot_type: (a as any).shot_type ?? undefined,
+                })),
+              }
+            : null,
+          moment_music: (moment as any).moment_music
+            ? {
+                id: (moment as any).moment_music.id,
+                moment_id: (moment as any).moment_music.moment_id,
+                music_name: (moment as any).moment_music.music_name,
+                artist: (moment as any).moment_music.artist,
+                duration: (moment as any).moment_music.duration,
+                music_type: (moment as any).moment_music.music_type,
+                overrides_scene_music: (moment as any).moment_music.overrides_scene_music,
+                created_at: (moment as any).moment_music.created_at,
+                updated_at: (moment as any).moment_music.updated_at,
+              }
+            : null,
+        })),
+        beats: (scene.beats || []).map((beat) => ({
+          id: beat.id,
+          film_scene_id: beat.film_scene_id,
+          name: beat.name,
+          order_index: beat.order_index,
+          shot_count: (beat as any).shot_count ?? null,
+          duration_seconds: beat.duration_seconds,
+          recording_setup: (beat as any).recording_setup
+            ? {
+                id: (beat as any).recording_setup.id,
+                camera_track_ids: (beat as any).recording_setup.camera_track_ids,
+                audio_track_ids: (beat as any).recording_setup.audio_track_ids,
+                graphics_enabled: (beat as any).recording_setup.graphics_enabled,
+                created_at: (beat as any).recording_setup.created_at,
+                updated_at: (beat as any).recording_setup.updated_at,
+              }
+            : null,
+          created_at: beat.created_at,
+          updated_at: beat.updated_at,
+        })),
+        recording_setup: scene.recording_setup
+          ? {
+              id: scene.recording_setup.id,
+              audio_track_ids: scene.recording_setup.audio_track_ids,
+              graphics_enabled: scene.recording_setup.graphics_enabled,
+              camera_assignments: scene.recording_setup.camera_assignments.map((a) => ({
+                track_id: a.track_id,
+                track_name: a.track?.name || String(a.track_id),
+                track_type: a.track?.type ? String(a.track.type) : undefined,
+                subject_ids: a.subject_ids,
+              })),
+            }
+          : null,
+        scene_music: (scene as any).scene_music
+          ? {
+              id: (scene as any).scene_music.id,
+              film_scene_id: (scene as any).scene_music.film_scene_id,
+              music_name: (scene as any).scene_music.music_name,
+              artist: (scene as any).scene_music.artist,
+              duration: (scene as any).scene_music.duration,
+              music_type: (scene as any).scene_music.music_type,
+              created_at: (scene as any).scene_music.created_at,
+              updated_at: (scene as any).scene_music.updated_at,
+            }
+          : null,
+      })),
+    };
+  }
+
+  /**
+   * Get timeline tracks for a film, including operator assignments
+   */
+  async getTracks(filmId: number, activeOnly: boolean = false) {
+    const whereClause: Prisma.FilmTimelineTrackWhereInput = { film_id: filmId };
+    if (activeOnly) {
+      whereClause.is_active = true;
+    }
+
+    return this.prisma.filmTimelineTrack.findMany({
+      where: whereClause,
+      orderBy: { order_index: 'asc' },
       include: {
-        media_components: true,
-        original_scene: {
+        operator_template: {
           select: {
             id: true,
             name: true,
-            type: true,
-          }
-        }
-      }
-    });
-  }
-
-  /**
-   * Update a film's local scene media component (edits are isolated from the original component)
-   */
-  async updateFilmLocalSceneMediaComponent(
-    filmId: number,
-    localSceneId: number,
-    componentId: number,
-    updateData: {
-      duration_seconds?: number;
-      is_primary?: boolean;
-      music_type?: MusicType | null;
-      notes?: string;
-    }
-  ) {
-    // Verify the local scene belongs to this film
-    const localScene = await this.prisma.filmLocalScenes.findFirst({
-      where: {
-        id: localSceneId,
-        film_id: filmId,
-      },
-    });
-
-    if (!localScene) {
-      throw new NotFoundException(`Local scene with ID ${localSceneId} not found for film ${filmId}`);
-    }
-
-    // Verify the media component belongs to this local scene
-    const component = await this.prisma.filmLocalSceneMediaComponent.findFirst({
-      where: {
-        id: componentId,
-        film_local_scene_id: localSceneId,
-      },
-    });
-
-    if (!component) {
-      throw new NotFoundException(`Media component with ID ${componentId} not found for local scene ${localSceneId}`);
-    }
-
-    return this.prisma.filmLocalSceneMediaComponent.update({
-      where: { id: componentId },
-      data: {
-        ...updateData,
-        updated_at: new Date(),
-      },
-    });
-  }
-
-  /**
-   * Remove a scene from a film (deletes the local copy)
-   */
-  async removeSceneFromFilm(filmId: number, localSceneId: number) {
-    // Verify the local scene belongs to this film
-    const localScene = await this.prisma.filmLocalScenes.findFirst({
-      where: {
-        id: localSceneId,
-        film_id: filmId,
-      },
-    });
-
-    if (!localScene) {
-      throw new NotFoundException(`Local scene with ID ${localSceneId} not found for film ${filmId}`);
-    }
-
-    // Delete the local scene (cascade will delete media components)
-    await this.prisma.filmLocalScenes.delete({
-      where: { id: localSceneId },
-    });
-
-    return { message: "Scene removed from film successfully" };
-  }
-
-  /**
-   * Get available scenes from library that can be assigned to a film
-   */
-  async getAvailableScenesForFilm(filmId: number, brandId?: number) {
-    // Get scenes that are either global or belong to the same brand
-    const availableScenes = await this.prisma.scenesLibrary.findMany({
-      where: {
-        OR: [
-          { brand_id: null }, // Global scenes
-          { brand_id: brandId }, // Brand-specific scenes
-        ],
-      },
-      include: {
-        media_components: {
-          orderBy: [
-            { is_primary: 'desc' },
-            { media_type: 'asc' }
-          ]
+            role: true,
+            color: true,
+          },
         },
       },
-      orderBy: { name: 'asc' },
     });
+  }
 
-    // Get already assigned scenes for this film
-    const assignedSceneIds = await this.prisma.filmLocalScenes.findMany({
-      where: { film_id: filmId },
-      select: { original_scene_id: true },
+  /**
+   * Update a specific track (name, active status, operator assignment)
+   */
+  async updateTrack(
+    filmId: number,
+    trackId: number,
+    data: { name?: string; is_active?: boolean; operator_template_id?: number | null },
+  ) {
+    // Verify track belongs to this film
+    const track = await this.prisma.filmTimelineTrack.findFirst({
+      where: { id: trackId, film_id: filmId },
     });
+    if (!track) {
+      throw new NotFoundException(
+        `Track ${trackId} not found for film ${filmId}`,
+      );
+    }
 
-    const assignedIds = new Set(assignedSceneIds.map(s => s.original_scene_id));
+    return this.prisma.filmTimelineTrack.update({
+      where: { id: trackId },
+      data: {
+        ...data,
+        updated_at: new Date(),
+      },
+      include: {
+        operator_template: {
+          select: {
+            id: true,
+            name: true,
+            role: true,
+            color: true,
+          },
+        },
+      },
+    });
+  }
 
-    // Filter out already assigned scenes and add assignment status
-    return availableScenes.map(scene => ({
-      ...scene,
-      is_assigned: assignedIds.has(scene.id),
-    }));
+  // ============================================================================
+  // Equipment Assignment Methods (delegated to FilmEquipmentService)
+  // ============================================================================
+
+  /**
+   * Get all equipment assigned to a film
+   */
+  async getFilmEquipment(filmId: number): Promise<FilmEquipmentResponseDto[]> {
+    return this.equipmentService.getFilmEquipment(filmId);
+  }
+
+  /**
+   * Get equipment summary for a film
+   */
+  async getEquipmentSummary(filmId: number): Promise<EquipmentSummaryDto> {
+    return this.equipmentService.getEquipmentSummary(filmId);
+  }
+
+  /**
+   * Assign equipment to a film
+   */
+  async assignEquipment(
+    filmId: number,
+    dto: AssignEquipmentDto,
+  ): Promise<FilmEquipmentResponseDto> {
+    return this.equipmentService.assignEquipment(filmId, dto);
+  }
+
+  /**
+   * Update equipment assignment
+   */
+  async updateEquipmentAssignment(
+    filmId: number,
+    equipmentId: number,
+    dto: UpdateEquipmentAssignmentDto,
+  ): Promise<FilmEquipmentResponseDto> {
+    return this.equipmentService.updateEquipmentAssignment(filmId, equipmentId, dto);
+  }
+
+  /**
+   * Remove equipment assignment
+   */
+  async removeEquipmentAssignment(filmId: number, equipmentId: number): Promise<void> {
+    return this.equipmentService.removeEquipmentAssignment(filmId, equipmentId);
   }
 }

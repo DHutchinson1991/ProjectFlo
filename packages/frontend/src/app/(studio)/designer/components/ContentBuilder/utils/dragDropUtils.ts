@@ -1,11 +1,31 @@
 /**
- * Drag and drop utility functions
+ * Drag and drop utility functions for the ContentBuilder timeline.
+ * 
+ * Handles all drag-and-drop calculations including:
+ * - Position calculation from pixel coordinates to timeline coordinates
+ * - Validation of drop operations (scene type compatibility, collision detection)
+ * - Track and scene management during drag operations
+ * 
+ * These utilities are UI-specific and work with the timeline's zoom level,
+ * viewport position, and track configuration.
+ * 
+ * NOTE: Scene creation from library items is handled in sceneConversionUtils.ts
  */
-import { TimelineScene, ScenesLibrary } from "../types";
-import { MediaType, SceneMediaComponent } from "../types/sceneTypes";
-import { findAvailableSpaceOnTrack } from "./timelineUtils";
-import { getSceneColorByType } from "./colorUtils";
+import { TimelineScene, TimelineTrack } from "@/lib/types/timeline";
+import { ScenesLibrary } from "@/lib/types/domains/scenes";
+import { MediaType, SceneMediaComponent } from "@/lib/types/timeline";
+import { findAvailableSpaceOnTrack } from "@/lib/utils/timelineUtils";
+import { getSceneColorByType, getDefaultTrackColor } from "./colorUtils";
+import { createTimelineScenesFromLibraryScene } from "./sceneConversionUtils";
 
+/**
+ * Result of a drag and drop operation calculation.
+ * 
+ * @interface DragDropResult
+ * @property {number} targetTrackId - The ID of the track where the item will be dropped
+ * @property {number} newStartTime - The calculated start time in the timeline (in seconds)
+ * @property {boolean} success - Whether the calculation was successful
+ */
 export interface DragDropResult {
     targetTrackId: number;
     newStartTime: number;
@@ -13,7 +33,25 @@ export interface DragDropResult {
 }
 
 /**
- * Calculates the drop position for a dragged scene
+ * Calculates the drop position for a dragged scene based on pixel coordinates.
+ * 
+ * Converts mouse position and viewport state into timeline coordinates (track and time).
+ * Uses a standard track height of 40 pixels and respects the current zoom level.
+ * 
+ * @param dragPosition - Current mouse position { x: number, y: number }
+ * @param viewState - Timeline view state including zoom level and viewport position
+ * @param tracks - Array of available tracks with id and height
+ * @param trackOffset - Optional vertical offset from the top of the track container (default: 0)
+ * @returns DragDropResult with targetTrackId and newStartTime, or null if drop is outside valid area
+ * 
+ * @example
+ * const result = calculateDropPosition(
+ *   { x: 250, y: 120 },
+ *   { zoomLevel: 10, viewportLeft: 0 },
+ *   [{ id: 1, height: 40 }, { id: 2, height: 40 }],
+ *   0
+ * );
+ * // Returns: { targetTrackId: 2, newStartTime: 25, success: true }
  */
 export const calculateDropPosition = (
     dragPosition: { x: number; y: number },
@@ -40,7 +78,28 @@ export const calculateDropPosition = (
 };
 
 /**
- * Validates if a drop operation is valid
+ * Validates if a drop operation is allowed.
+ * 
+ * Checks three conditions:
+ * 1. Drop calculation was successful
+ * 2. Target track exists
+ * 3. Scene type is compatible with the target track
+ * 
+ * @param draggedItem - The scene or library item being dragged
+ * @param dropResult - The calculated drop position from {@link calculateDropPosition}
+ * @param existingScenes - Array of existing scenes on the timeline (for collision detection)
+ * @param isSceneCompatibleWithTrack - Callback to check scene/track type compatibility
+ * @param tracks - Array of available tracks with id and type
+ * @returns true if the drop is valid, false otherwise
+ * 
+ * @example
+ * const isValid = isValidDrop(
+ *   libraryScene,
+ *   dropResult,
+ *   existingScenes,
+ *   (sceneType, trackType) => sceneType === trackType,
+ *   tracks
+ * );
  */
 export const isValidDrop = (
     draggedItem: TimelineScene | ScenesLibrary,
@@ -68,76 +127,28 @@ export const isValidDrop = (
 };
 
 /**
- * Creates timeline scenes from a library scene, handling placement logic
- * If the scene has multiple media components, creates grouped timeline scenes
+ * Creates timeline scenes from a library scene for insertion into the timeline.
+ * 
+ * Handles multi-component scenes by creating grouped timeline scenes on appropriate tracks.
+ * Automatically manages track creation if needed and applies proper colors based on media type.
+ * 
+ * @param libraryScene - The scene from the library to convert
+ * @param tracks - Current timeline tracks
+ * @param preferredStartTime - Suggested start time in seconds
+ * @param existingScenes - Existing scenes on the timeline
+ * @returns Object containing created scenes and any new tracks that were created
+ * 
+ * @example
+ * const { scenes, newTracks } = createTimelineScenesFromLibraryScene(
+ *   libraryScene,
+ *   tracks,
+ *   120, // 2 minutes into the timeline
+ *   existingScenes
+ * );
  */
-export const createTimelineScenesFromLibraryScene = (
-    libraryScene: ScenesLibrary,
-    tracks: Array<{ id: number; track_type: string }>,
-    preferredStartTime: number,
-    existingScenes: TimelineScene[]
-): TimelineScene[] => {
-    const createdScenes: TimelineScene[] = [];
-    const groupId = Date.now().toString(); // Unique group ID for all scenes from this library scene
-
-    // Get media components - cast to proper type to access media_components
-    const sceneWithComponents = libraryScene as typeof libraryScene & { media_components?: SceneMediaComponent[] };
-
-    // Get actual media components or create a default one
-    const mediaComponents = sceneWithComponents.media_components && sceneWithComponents.media_components.length > 0
-        ? sceneWithComponents.media_components
-        : [{
-            id: 0,
-            scene_id: libraryScene.id,
-            media_type: libraryScene.type,
-            duration_seconds: libraryScene.estimated_duration || 30,
-            is_primary: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        } as SceneMediaComponent];
-
-    // Create timeline scenes for each media component
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mediaComponents.forEach((component: SceneMediaComponent | any, index: number) => {
-        // Find a compatible track for this media component
-        const compatibleTrack = tracks.find(track =>
-            isSceneCompatibleWithTrack(component.media_type, track.track_type)
-        );
-
-        if (!compatibleTrack) {
-            console.warn(`No compatible track found for media type: ${component.media_type}`);
-            return; // Skip this component
-        }
-
-        // Find available space on the track
-        const startTime = findAvailableSpaceOnTrack(
-            [...existingScenes, ...createdScenes], // Include already created scenes to avoid conflicts
-            compatibleTrack.id,
-            preferredStartTime,
-            component.duration_seconds || libraryScene.estimated_duration || 30
-        );
-
-        // Create the timeline scene for this media component
-        const timelineScene: TimelineScene = {
-            id: Date.now() + index, // Temporary ID - should be replaced when saved
-            name: mediaComponents.length > 1
-                ? `${libraryScene.name} (${component.media_type})`
-                : libraryScene.name,
-            scene_type: component.media_type.toLowerCase() as "video" | "audio" | "graphics" | "music",
-            database_type: component.media_type,
-            track_id: compatibleTrack.id,
-            start_time: startTime,
-            duration: component.duration_seconds || libraryScene.estimated_duration || 30,
-            color: getSceneColorByType(component.media_type),
-            description: libraryScene.description,
-            group_id: mediaComponents.length > 1 ? groupId : undefined // Only group if multiple components
-        };
-
-        createdScenes.push(timelineScene);
-    });
-
-    return createdScenes;
-};
+// NOTE: This function is implemented in sceneConversionUtils.ts
+// Exported here for backward compatibility with existing code
+export { createTimelineScenesFromLibraryScene };
 
 /**
  * Helper function to check if a scene type is compatible with a track type

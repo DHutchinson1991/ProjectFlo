@@ -22,7 +22,18 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import EditIcon from '@mui/icons-material/Edit';
 import ClearIcon from '@mui/icons-material/Clear';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { MusicType, formatDuration } from "@/lib/types/moments";
+import {
+    useSensor,
+    useSensors,
+    PointerSensor,
+    KeyboardSensor,
+} from '@dnd-kit/core';
+import {
+    useSortable,
+} from '@dnd-kit/sortable';
+import { CSS as DndCSS } from '@dnd-kit/utilities';
 
 interface MusicItem {
     id?: number;
@@ -36,32 +47,51 @@ interface MusicItem {
     moment_id?: number;
     moment_name?: string;
     scene_name?: string;
+    isAttached?: boolean;
 }
 
-interface MusicTableProps {
-    musicItems: MusicItem[];
-    onAddMusic: () => void;
-    onEditMusic: (item: MusicItem) => void;
-    onRemoveMusic: (item: MusicItem) => void;
+interface SortableMusicRowProps {
+    item: MusicItem;
+    index: number;
+    onEdit: (item: MusicItem) => void;
+    onRemove: (item: MusicItem) => void;
     onAttachToMoment: (item: MusicItem) => void;
     onDetachFromMoment: (item: MusicItem) => void;
 }
 
-const MusicTable: React.FC<MusicTableProps> = ({
-    musicItems,
-    onAddMusic,
-    onEditMusic,
-    onRemoveMusic,
+const SortableMusicRow: React.FC<SortableMusicRowProps> = ({
+    item,
+    index,
+    onEdit,
+    onRemove,
     onAttachToMoment,
     onDetachFromMoment,
 }) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ 
+        id: item.id || index,
+        data: { type: 'music', item }
+    });
+
+    const style = {
+        transform: DndCSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
     const getMusicTypeColor = (type: MusicType) => {
         switch (type) {
-            case 'ORCHESTRAL': return '#7b1fa2';  // Purple 700
-            case 'PIANO': return '#8e24aa';       // Purple 600
-            case 'MODERN': return '#9c27b0';      // Purple 500
-            case 'VINTAGE': return '#ab47bc';     // Purple 400
-            case 'SCENE_MATCHED': return '#ba68c8'; // Purple 300
+            case 'ORCHESTRAL': return '#7b1fa2';
+            case 'PIANO': return '#8e24aa';
+            case 'MODERN': return '#9c27b0';
+            case 'VINTAGE': return '#ab47bc';
+            case 'SCENE_MATCHED': return '#ba68c8';
             default: return '#757575';
         }
     };
@@ -79,13 +109,211 @@ const MusicTable: React.FC<MusicTableProps> = ({
     };
 
     return (
+        <TableRow
+            ref={setNodeRef}
+            style={style}
+            sx={{
+                cursor: isDragging ? 'grabbing' : 'grab',
+                backgroundColor: isDragging ? 'rgba(156, 39, 176, 0.12)' : 'transparent',
+                opacity: item.isAttached === false ? 0.7 : 1,
+                '&:hover': {
+                    backgroundColor: isDragging ? 'rgba(156, 39, 176, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                },
+                transition: 'all 0.2s ease-in-out',
+                borderBottom: '1px solid rgba(224, 224, 224, 0.15)',
+                '& .MuiTableCell-root': {
+                    padding: '12px 8px',
+                    color: 'text.primary',
+                }
+            }}
+        >
+            <TableCell sx={{ width: '40px', textAlign: 'center', cursor: isDragging ? 'grabbing' : 'grab' }} {...attributes} {...listeners}>
+                <DragIndicatorIcon sx={{ fontSize: 18, color: '#9c27b0', opacity: 0.7 }} />
+            </TableCell>
+            <TableCell sx={{ width: '70px' }}>
+                <Chip
+                    label={item.assignment_number || `M${index + 1}`}
+                    size="small"
+                    sx={{
+                        backgroundColor: '#9c27b0',
+                        color: 'white',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                        minWidth: '48px'
+                    }}
+                />
+            </TableCell>
+            <TableCell sx={{ width: '150px' }}>
+                <Typography variant="body2" sx={{ fontWeight: 500, textDecoration: item.isAttached === false ? 'line-through' : 'none' }}>
+                    {item.music_name || 'Untitled'}
+                </Typography>
+                {item.isAttached === false && (
+                    <Chip label="Unattached" size="small" variant="outlined" sx={{ mt: 0.5, fontSize: '0.65rem', borderColor: '#ff9800', color: '#ff9800' }} />
+                )}
+            </TableCell>
+            <TableCell sx={{ width: '120px' }}>
+                <Typography variant="body2" color="text.secondary">
+                    {item.artist || 'Unknown Artist'}
+                </Typography>
+            </TableCell>
+            <TableCell sx={{ width: '100px' }}>
+                <Chip
+                    label={getMusicTypeLabel(item.music_type)}
+                    size="small"
+                    sx={{
+                        backgroundColor: getMusicTypeColor(item.music_type),
+                        color: 'white',
+                        fontWeight: 500,
+                        fontSize: '0.75rem'
+                    }}
+                />
+            </TableCell>
+            <TableCell sx={{ width: '80px' }}>
+                <Typography variant="body2" color="text.secondary">
+                    {item.duration ? formatDuration(item.duration) : 'N/A'}
+                </Typography>
+            </TableCell>
+            <TableCell sx={{ width: '120px' }}>
+                {item.moment_name ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip
+                            label={item.moment_name}
+                            size="small"
+                            variant="outlined"
+                            sx={{
+                                fontSize: '0.75rem',
+                                borderColor: '#9c27b0',
+                                color: '#9c27b0',
+                                fontWeight: 500
+                            }}
+                        />
+                        <IconButton
+                            size="small"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDetachFromMoment(item);
+                            }}
+                            sx={{
+                                color: '#f44336',
+                                padding: '4px',
+                                '&:hover': {
+                                    backgroundColor: 'rgba(244, 67, 54, 0.08)'
+                                }
+                            }}
+                        >
+                            <ClearIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                    </Box>
+                ) : (
+                    <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onAttachToMoment(item);
+                        }}
+                        sx={{
+                            fontSize: '0.75rem',
+                            py: 0.5,
+                            borderColor: '#9c27b0',
+                            color: '#9c27b0',
+                            '&:hover': {
+                                borderColor: '#7b1fa2',
+                                backgroundColor: 'rgba(156, 39, 176, 0.08)'
+                            }
+                        }}
+                    >
+                        ATTACH TO MOMENT
+                    </Button>
+                )}
+            </TableCell>
+            <TableCell align="right" sx={{ width: '80px' }}>
+                <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                    <IconButton
+                        size="small"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onEdit(item);
+                        }}
+                        sx={{
+                            color: '#9c27b0',
+                            padding: '4px',
+                            '&:hover': { backgroundColor: 'rgba(156, 39, 176, 0.08)' }
+                        }}
+                    >
+                        <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                        size="small"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onRemove(item);
+                        }}
+                        sx={{
+                            color: 'error.main',
+                            padding: '4px',
+                            '&:hover': { backgroundColor: 'rgba(211, 47, 47, 0.08)' }
+                        }}
+                    >
+                        <DeleteIcon fontSize="small" />
+                    </IconButton>
+                </Box>
+            </TableCell>
+        </TableRow>
+    );
+};
+
+interface MusicTableProps {
+    musicItems: MusicItem[];
+    title?: string;
+    onAddMusic: () => void;
+    onEditMusic: (item: MusicItem) => void;
+    onRemoveMusic: (item: MusicItem) => void;
+    onAttachToMoment: (item: MusicItem) => void;
+    onDetachFromMoment: (item: MusicItem) => void;
+    onReorderMusic?: (items: MusicItem[]) => void;
+}
+
+const MusicTable: React.FC<MusicTableProps> = ({
+    musicItems,
+    title = 'Music Library',
+    onAddMusic,
+    onEditMusic,
+    onRemoveMusic,
+    onAttachToMoment,
+    onDetachFromMoment,
+    onReorderMusic,
+}) => {
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            distance: 8,
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: (event, { currentCoordinates }) => {
+                switch (event.code) {
+                    case 'ArrowDown':
+                    case 'ArrowUp':
+                    case 'ArrowLeft':
+                    case 'ArrowRight':
+                    case 'Space':
+                    case 'Enter':
+                        event.preventDefault();
+                        return { ...currentCoordinates };
+                    default:
+                        return null;
+                }
+            },
+        })
+    );
+
+    return (
         <Card sx={{ mb: 3 }}>
             <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <MusicNoteIcon sx={{ color: '#9c27b0' }} />
-                            Music Library
+                            {title}
                         </Typography>
                         <Chip
                             label={`${musicItems.length} ${musicItems.length === 1 ? 'track' : 'tracks'}`}
@@ -130,180 +358,37 @@ const MusicTable: React.FC<MusicTableProps> = ({
                             <TableHead>
                                 <TableRow
                                     sx={{
-                                        backgroundColor: 'rgba(156, 39, 176, 0.04)',
+                                        backgroundColor: 'transparent',
                                         '& .MuiTableCell-head': {
                                             fontWeight: 600,
                                             fontSize: '0.875rem',
                                             color: 'text.primary',
-                                            borderBottom: '2px solid',
-                                            borderColor: 'divider'
+                                            borderBottom: '1px solid rgba(224, 224, 224, 0.3)',
+                                            padding: '12px 8px'
                                         }
                                     }}
                                 >
+                                    <TableCell sx={{ width: '40px' }}></TableCell>
                                     <TableCell sx={{ width: '70px' }}>Label</TableCell>
                                     <TableCell sx={{ width: '150px' }}>Music Name</TableCell>
                                     <TableCell sx={{ width: '120px' }}>Artist</TableCell>
                                     <TableCell sx={{ width: '100px' }}>Type</TableCell>
                                     <TableCell sx={{ width: '80px' }}>Duration</TableCell>
                                     <TableCell sx={{ width: '120px' }}>Attached To</TableCell>
-                                    <TableCell align="right" sx={{ width: '50px' }}>Actions</TableCell>
+                                    <TableCell align="right" sx={{ width: '80px' }}>Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {musicItems.map((item, index) => (
-                                    <TableRow
-                                        key={index}
-                                        onClick={() => onEditMusic(item)}
-                                        hover
-                                        sx={{
-                                            cursor: 'pointer',
-                                            '&:hover': {
-                                                backgroundColor: 'rgba(156, 39, 176, 0.08)',
-                                                transform: 'translateY(-1px)',
-                                                boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-                                            },
-                                            transition: 'all 0.2s ease-in-out',
-                                            '& .MuiTableCell-root': {
-                                                padding: '12px 8px',
-                                                borderBottom: '1px solid rgba(224, 224, 224, 0.5)'
-                                            }
-                                        }}
-                                    >
-                                        <TableCell>
-                                            <Chip
-                                                label={item.assignment_number || `M${index + 1}`}
-                                                size="small"
-                                                sx={{
-                                                    backgroundColor: '#9c27b0',
-                                                    color: 'white',
-                                                    fontWeight: 600,
-                                                    fontSize: '0.75rem',
-                                                    minWidth: '48px'
-                                                }}
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                {item.music_name || 'Untitled'}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2" color="text.secondary">
-                                                {item.artist || 'Unknown Artist'}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={getMusicTypeLabel(item.music_type)}
-                                                size="small"
-                                                sx={{
-                                                    backgroundColor: getMusicTypeColor(item.music_type),
-                                                    color: 'white',
-                                                    fontWeight: 500,
-                                                    fontSize: '0.75rem'
-                                                }}
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2" color="text.secondary">
-                                                {item.duration ? formatDuration(item.duration) : 'N/A'}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            {item.moment_name ? (
-                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                        <Chip
-                                                            label={item.moment_name}
-                                                            size="small"
-                                                            variant="outlined"
-                                                            sx={{
-                                                                fontSize: '0.75rem',
-                                                                borderColor: '#9c27b0',
-                                                                color: '#9c27b0',
-                                                                fontWeight: 500
-                                                            }}
-                                                        />
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onDetachFromMoment(item);
-                                                            }}
-                                                            sx={{
-                                                                color: '#f44336',
-                                                                '&:hover': {
-                                                                    backgroundColor: 'rgba(244, 67, 54, 0.08)'
-                                                                }
-                                                            }}
-                                                        >
-                                                            <ClearIcon sx={{ fontSize: 16 }} />
-                                                        </IconButton>
-                                                    </Box>
-                                                    {item.scene_name && (
-                                                        <Typography variant="caption" sx={{
-                                                            fontSize: '0.65rem',
-                                                            color: 'text.secondary',
-                                                            fontStyle: 'italic'
-                                                        }}>
-                                                            in {item.scene_name}
-                                                        </Typography>
-                                                    )}
-                                                </Box>
-                                            ) : (
-                                                <Button
-                                                    size="small"
-                                                    variant="outlined"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onAttachToMoment(item);
-                                                    }}
-                                                    sx={{
-                                                        fontSize: '0.75rem',
-                                                        py: 0.5,
-                                                        borderColor: '#9c27b0',
-                                                        color: '#9c27b0',
-                                                        '&:hover': {
-                                                            borderColor: '#7b1fa2',
-                                                            backgroundColor: 'rgba(156, 39, 176, 0.08)'
-                                                        }
-                                                    }}
-                                                >
-                                                    Attach to Moment
-                                                </Button>
-                                            )}
-                                        </TableCell>
-                                        <TableCell align="right">
-                                            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onEditMusic(item);
-                                                    }}
-                                                    sx={{
-                                                        color: '#9c27b0',
-                                                        '&:hover': { backgroundColor: 'rgba(156, 39, 176, 0.08)' }
-                                                    }}
-                                                >
-                                                    <EditIcon fontSize="small" />
-                                                </IconButton>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onRemoveMusic(item);
-                                                    }}
-                                                    sx={{
-                                                        color: 'error.main',
-                                                        '&:hover': { backgroundColor: 'rgba(211, 47, 47, 0.08)' }
-                                                    }}
-                                                >
-                                                    <DeleteIcon fontSize="small" />
-                                                </IconButton>
-                                            </Box>
-                                        </TableCell>
-                                    </TableRow>
+                                    <SortableMusicRow
+                                        key={item.id || index}
+                                        item={item}
+                                        index={index}
+                                        onEdit={onEditMusic}
+                                        onRemove={onRemoveMusic}
+                                        onAttachToMoment={onAttachToMoment}
+                                        onDetachFromMoment={onDetachFromMoment}
+                                    />
                                 ))}
                             </TableBody>
                         </Table>

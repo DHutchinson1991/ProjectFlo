@@ -1,574 +1,726 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from "@nestjs/common";
-import { PrismaService } from "../../prisma/prisma.service";
-import { MusicType, MediaType } from "@prisma/client";
-import { CreateSceneDto } from "./dto/create-scene.dto";
-import { UpdateSceneDto } from "./dto/update-scene.dto";
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateSceneDto } from './dto/create-scene.dto';
+import { UpdateSceneDto } from './dto/update-scene.dto';
+import { FilmScene } from '@prisma/client';
+import { SceneType } from '@prisma/client';
+
+export interface SceneResponseDto {
+    id: number;
+    film_id: number;
+    name: string;
+    scene_template_id: number | null;
+    shot_count?: number | null;
+    duration_seconds?: number | null;
+    order_index: number;
+    created_at: Date;
+    updated_at: Date;
+    beats?: Array<{
+        id: number;
+        film_scene_id: number;
+        name: string;
+        order_index: number;
+        shot_count?: number | null;
+        duration_seconds: number;
+        created_at: Date;
+        updated_at: Date;
+    }>;
+}
 
 @Injectable()
 export class ScenesService {
-  constructor(private prisma: PrismaService) { }
+    constructor(private prisma: PrismaService) { }
 
-  async create(createSceneDto: CreateSceneDto, brandId?: number | null) {
-    const {
-      name,
-      type,
-      description,
-      complexity_score,
-      estimated_duration,
-      default_editing_style,
-      base_task_hours,
-      brand_id,
-    } = createSceneDto;
-    if (!name || typeof name !== "string") {
-      throw new BadRequestException(
-        "Scene 'name' is required and must be a string.",
-      );
-    }
-    if (!type || !Object.values(MediaType).includes(type as MediaType)) {
-      throw new BadRequestException(
-        `Scene 'type' is required and must be one of: ${Object.values(MediaType).join(", ")}`,
-      );
-    }
-    const data = {
-      name,
-      type: type as MediaType,
-      brand_id: brandId !== undefined ? brandId : brand_id,
-      ...(description && { description }),
-      ...(complexity_score && { complexity_score }),
-      ...(estimated_duration && { estimated_duration }),
-      ...(default_editing_style && { default_editing_style }),
-      ...(base_task_hours && { base_task_hours }),
-    };
-    return this.prisma.scenesLibrary.create({ data });
-  }
-
-  async findAll(brandId?: number | null) {
-    const where = brandId !== null && brandId !== undefined
-      ? { brand_id: brandId }
-      : {}; // If brandId is null or undefined, return all scenes (for global admin)
-
-    return this.prisma.scenesLibrary.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-    });
-  }
-
-  async findOne(id: number) {
-    const scene = await this.prisma.scenesLibrary.findUnique({
-      where: { id },
-    });
-
-    if (!scene) {
-      throw new NotFoundException(`Scene with ID ${id} not found`);
+    private mapToResponseDto(scene: FilmScene): SceneResponseDto {
+        return {
+            id: scene.id,
+            film_id: scene.film_id,
+            name: scene.name,
+            scene_template_id: scene.scene_template_id,
+            shot_count: (scene as any).shot_count ?? null,
+            duration_seconds: (scene as any).duration_seconds ?? null,
+            order_index: scene.order_index,
+            created_at: scene.created_at,
+            updated_at: scene.updated_at,
+        };
     }
 
-    return scene;
-  }
+    async create(createSceneDto: CreateSceneDto) {
+        // Verify film exists (film_id is guaranteed to be set by controller)
+        const filmId = createSceneDto.film_id!;
+        
+        const film = await this.prisma.film.findUnique({
+            where: { id: filmId },
+        });
 
-  async findOneWithRelations(id: number) {
-    const scene = await this.prisma.scenesLibrary.findUnique({
-      where: { id },
-      include: {
-        media_components: true,
-      },
-    });
-
-    if (!scene) {
-      throw new NotFoundException(`Scene with ID ${id} not found`);
-    }
-
-    return scene;
-  }
-
-  async findAllWithRelations(brandId?: number | null) {
-    const where = brandId !== null && brandId !== undefined
-      ? { brand_id: brandId }
-      : {}; // If brandId is null or undefined, return all scenes (for global admin)
-
-    return this.prisma.scenesLibrary.findMany({
-      where,
-      include: {
-        media_components: true,
-      },
-      orderBy: { created_at: "desc" },
-    });
-  }
-
-  async update(id: number, updateSceneDto: UpdateSceneDto) {
-    await this.findOne(id);
-
-    return this.prisma.scenesLibrary.update({
-      where: { id },
-      data: updateSceneDto,
-    });
-  }
-
-  async remove(id: number) {
-    await this.findOne(id);
-
-    return this.prisma.scenesLibrary.delete({
-      where: { id },
-    });
-  }
-
-  async getSceneDependencies(id: number) {
-    await this.findOne(id); // Validate scene exists
-
-    const dependencies = await this.prisma.sceneDependency.findMany({
-      where: {
-        OR: [{ parent_scene_id: id }, { dependent_scene_id: id }],
-      },
-      include: {
-        parent_scene: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            complexity_score: true,
-          },
-        },
-        dependent_scene: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            complexity_score: true,
-          },
-        },
-      },
-    });
-
-    return {
-      depends_on: dependencies
-        .filter((dep) => dep.dependent_scene_id === id)
-        .map((dep) => dep.parent_scene),
-      depended_by: dependencies
-        .filter((dep) => dep.parent_scene_id === id)
-        .map((dep) => dep.dependent_scene),
-    };
-  }
-
-  // Music Component Methods - Using the unified SceneMediaComponent structure
-  async getAvailableMusicOptions() {
-    // Return available music types since music components are scene-specific
-    return [
-      { id: 1, name: "NONE", type: "NONE" },
-      { id: 2, name: "SCENE_MATCHED", type: "SCENE_MATCHED" },
-      { id: 3, name: "ORCHESTRAL", type: "ORCHESTRAL" },
-      { id: 4, name: "PIANO", type: "PIANO" },
-      { id: 5, name: "MODERN", type: "MODERN" },
-      { id: 6, name: "VINTAGE", type: "VINTAGE" },
-    ];
-  }
-
-  async addMusicOptions(
-    sceneId: number,
-    musicOptions: Array<{ music_type: MusicType; duration_seconds?: number }>,
-  ) {
-    await this.findOne(sceneId);
-
-    // Remove existing music components
-    await this.prisma.sceneMediaComponent.deleteMany({
-      where: {
-        scene_id: sceneId,
-        media_type: 'MUSIC'
-      },
-    });
-
-    // Add new music components
-    const musicComponentData = musicOptions.map((option) => ({
-      scene_id: sceneId,
-      media_type: 'MUSIC' as const,
-      music_type: option.music_type,
-      duration_seconds: option.duration_seconds || 30, // Default 30 seconds
-      is_primary: false, // Music is typically not primary
-      notes: 'Added via music options API',
-    }));
-
-    await this.prisma.sceneMediaComponent.createMany({
-      data: musicComponentData,
-    });
-
-    return this.findOneWithRelations(sceneId);
-  }
-
-  async removeMusicOption(sceneId: number, componentId: number) {
-    await this.findOne(sceneId);
-
-    await this.prisma.sceneMediaComponent.delete({
-      where: {
-        id: componentId,
-        scene_id: sceneId,
-        media_type: 'MUSIC',
-      },
-    });
-
-    return this.findOneWithRelations(sceneId);
-  }
-
-  // Additional methods required by the controller
-  async getSceneStats() {
-    const totalScenes = await this.prisma.scenesLibrary.count();
-    const videoCount = await this.prisma.scenesLibrary.count({
-      where: { type: MediaType.VIDEO },
-    });
-    const audioCount = await this.prisma.scenesLibrary.count({
-      where: { type: MediaType.AUDIO },
-    });
-    const musicCount = await this.prisma.scenesLibrary.count({
-      where: { type: MediaType.MUSIC },
-    });
-
-    return {
-      total: totalScenes,
-      video: videoCount,
-      byType: {
-        [MediaType.VIDEO]: videoCount,
-        [MediaType.AUDIO]: audioCount,
-        [MediaType.MUSIC]: musicCount,
-      },
-    };
-  }
-
-  async findByType(type: string) {
-    if (!type || !Object.values(MediaType).includes(type as MediaType)) {
-      throw new BadRequestException(
-        `Invalid scene type. Must be one of: ${Object.values(MediaType).join(", ")}`,
-      );
-    }
-    return this.prisma.scenesLibrary.findMany({
-      where: { type: type as MediaType },
-      orderBy: { name: "asc" },
-    });
-  }
-
-  async getProductionScenes() {
-    // Use AUDIO as a fallback since GRAPHICS no longer exists in the enum
-    return this.findByType(MediaType.AUDIO);
-  }
-
-  async bulkUpdateTaskHours(
-    updates: Array<{ id: number; base_task_hours: number }>,
-  ) {
-    const updatePromises = updates.map((update) =>
-      this.prisma.scenesLibrary.update({
-        where: { id: update.id },
-        data: { base_task_hours: update.base_task_hours },
-      }),
-    );
-
-    await Promise.all(updatePromises);
-    return { updated: updates.length };
-  }
-
-  async updateMusicComponent(componentId: number, updateData: { music_type?: string; duration_seconds?: number; notes?: string }) {
-    return this.prisma.sceneMediaComponent.update({
-      where: {
-        id: componentId,
-        media_type: 'MUSIC' // Ensure we're only updating music components
-      },
-      data: updateData,
-    });
-  }
-
-  // New method to get music components for a scene
-  async getMusicComponents(sceneId: number) {
-    await this.findOne(sceneId); // Validate scene exists
-
-    return this.prisma.sceneMediaComponent.findMany({
-      where: {
-        scene_id: sceneId,
-        media_type: 'MUSIC'
-      },
-      orderBy: { music_type: 'asc' }
-    });
-  }
-
-  // New method to add a single media component
-  async addMediaComponent(
-    sceneId: number,
-    componentData: {
-      media_type: 'VIDEO' | 'AUDIO' | 'MUSIC';
-      duration_seconds: number;
-      is_primary?: boolean;
-      music_type?: string;
-      notes?: string;
-    }
-  ) {
-    await this.findOne(sceneId); // Validate scene exists
-
-    return this.prisma.sceneMediaComponent.create({
-      data: {
-        scene_id: sceneId,
-        ...componentData,
-      },
-    });
-  }
-
-  // Timeline Helper Methods
-
-  /**
-   * Get a scene with all its media components for timeline placement
-   */
-  async getSceneForTimeline(sceneId: number) {
-    const scene = await this.prisma.scenesLibrary.findUnique({
-      where: { id: sceneId },
-      include: {
-        media_components: {
-          orderBy: [
-            { is_primary: 'desc' },
-            { media_type: 'asc' }
-          ]
+        if (!film) {
+            throw new NotFoundException(
+                `Film with ID ${filmId} not found`,
+            );
         }
-      }
-    });
 
-    if (!scene) {
-      throw new NotFoundException(`Scene with ID ${sceneId} not found`);
-    }
+        // If scene_template_id provided, verify it exists and get mode
+        let sceneMode: 'MOMENTS' | 'MONTAGE' = 'MOMENTS';
+        if (createSceneDto.scene_template_id) {
+            const template = await this.prisma.sceneTemplate.findUnique({
+                where: { id: createSceneDto.scene_template_id },
+            });
 
-    return {
-      id: scene.id,
-      name: scene.name,
-      type: scene.type,
-      description: scene.description,
-      complexity_score: scene.complexity_score,
-      estimated_duration: scene.estimated_duration,
-      default_editing_style: scene.default_editing_style,
-      base_task_hours: scene.base_task_hours,
-      media_components: scene.media_components.map(component => ({
-        id: component.id,
-        media_type: component.media_type,
-        duration_seconds: component.duration_seconds,
-        is_primary: component.is_primary,
-        music_type: component.music_type,
-        notes: component.notes
-      }))
-    };
-  }
-
-  /**
-   * Get scenes that are available for timeline placement (with their media components)
-   */
-  async getScenesForTimelineLibrary(brandId?: number | null) {
-    const where = brandId !== null && brandId !== undefined
-      ? { brand_id: brandId }
-      : {};
-
-    const scenes = await this.prisma.scenesLibrary.findMany({
-      where,
-      include: {
-        media_components: {
-          orderBy: [
-            { is_primary: 'desc' },
-            { media_type: 'asc' }
-          ]
-        }
-      },
-      orderBy: { name: "asc" }
-    });
-
-    return scenes.map(scene => ({
-      id: scene.id,
-      name: scene.name,
-      type: scene.type,
-      description: scene.description,
-      complexity_score: scene.complexity_score,
-      estimated_duration: scene.estimated_duration,
-      default_editing_style: scene.default_editing_style,
-      base_task_hours: scene.base_task_hours,
-      component_count: scene.media_components.length,
-      has_video: scene.media_components.some(c => c.media_type === 'VIDEO'),
-      has_audio: scene.media_components.some(c => c.media_type === 'AUDIO'),
-      has_music: scene.media_components.some(c => c.media_type === 'MUSIC'),
-      media_components: scene.media_components.map(component => ({
-        id: component.id,
-        media_type: component.media_type,
-        duration_seconds: component.duration_seconds,
-        is_primary: component.is_primary,
-        music_type: component.music_type,
-        notes: component.notes
-      }))
-    }));
-  }
-
-  /**
-   * Calculate total duration for a scene including all its media components
-   */
-  async getSceneTimelineDuration(sceneId: number): Promise<number> {
-    const scene = await this.findOneWithRelations(sceneId);
-
-    // Return the longest duration among all components, or the scene's estimated duration
-    const componentDurations = scene.media_components.map(c => c.duration_seconds);
-    const maxComponentDuration = Math.max(...componentDurations, 0);
-
-    return Math.max(maxComponentDuration, scene.estimated_duration || 0);
-  }
-
-  /**
-   * Preview what placing a scene on timeline will look like
-   */
-  async previewSceneOnTimeline(sceneId: number, startTimeSeconds: number) {
-    const scene = await this.getSceneForTimeline(sceneId);
-    const duration = await this.getSceneTimelineDuration(sceneId);
-
-    return {
-      scene_info: {
-        id: scene.id,
-        name: scene.name,
-        type: scene.type,
-        description: scene.description
-      },
-      timeline_placement: {
-        start_time_seconds: startTimeSeconds,
-        end_time_seconds: startTimeSeconds + duration,
-        duration_seconds: duration,
-        formatted_start_time: this.formatTimecode(startTimeSeconds),
-        formatted_end_time: this.formatTimecode(startTimeSeconds + duration),
-        formatted_duration: this.formatTimecode(duration)
-      },
-      media_components: scene.media_components.map(component => ({
-        media_type: component.media_type,
-        is_primary: component.is_primary,
-        duration_seconds: component.duration_seconds,
-        music_type: component.music_type,
-        timeline_span: {
-          start: startTimeSeconds,
-          end: startTimeSeconds + component.duration_seconds,
-          formatted_start: this.formatTimecode(startTimeSeconds),
-          formatted_end: this.formatTimecode(startTimeSeconds + component.duration_seconds)
-        }
-      }))
-    };
-  }
-
-  /**
-   * Format seconds to MM:SS timecode
-   */
-  private formatTimecode(seconds: number): string {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-  }
-
-  // Scene-Coverage Relationship Methods
-
-  /**
-   * Add coverage items to a scene
-   */
-  async addCoverageToScene(sceneId: number, coverageIds: number[]) {
-    // Verify scene exists
-    const scene = await this.findOne(sceneId);
-    if (!scene) {
-      throw new NotFoundException(`Scene with ID ${sceneId} not found`);
-    }
-
-    // Verify all coverage items exist
-    const coverageItems = await this.prisma.coverage.findMany({
-      where: { id: { in: coverageIds } }
-    });
-
-    if (coverageItems.length !== coverageIds.length) {
-      const foundIds = coverageItems.map(c => c.id);
-      const missingIds = coverageIds.filter(id => !foundIds.includes(id));
-      throw new NotFoundException(`Coverage items not found: ${missingIds.join(', ')}`);
-    }
-
-    // Create scene-coverage relationships (ignore duplicates)
-    const sceneCoverageData = coverageIds.map(coverageId => ({
-      scene_id: sceneId,
-      coverage_id: coverageId
-    }));
-
-    await this.prisma.sceneCoverage.createMany({
-      data: sceneCoverageData,
-      skipDuplicates: true
-    });
-
-    return {
-      success: true,
-      message: `Added ${coverageIds.length} coverage items to scene`,
-      scene_id: sceneId,
-      coverage_ids: coverageIds
-    };
-  }
-
-  /**
-   * Remove coverage from a scene
-   */
-  async removeCoverageFromScene(sceneId: number, coverageId: number) {
-    const deleted = await this.prisma.sceneCoverage.deleteMany({
-      where: {
-        scene_id: sceneId,
-        coverage_id: coverageId
-      }
-    });
-
-    if (deleted.count === 0) {
-      throw new NotFoundException(`Coverage ${coverageId} not found for scene ${sceneId}`);
-    }
-
-    return {
-      success: true,
-      message: `Removed coverage item from scene`,
-      scene_id: sceneId,
-      coverage_id: coverageId
-    };
-  }
-
-  /**
-   * Get all coverage items for a scene
-   */
-  async getSceneCoverage(sceneId: number) {
-    // Verify scene exists
-    const scene = await this.findOne(sceneId);
-    if (!scene) {
-      throw new NotFoundException(`Scene with ID ${sceneId} not found`);
-    }
-
-    const sceneCoverage = await this.prisma.sceneCoverage.findMany({
-      where: { scene_id: sceneId },
-      include: {
-        coverage: {
-          include: {
-            workflow_template: true,
-            task_generation_rules: true,
-            // Include operator relationship to get contributor details
-            operator: {
-              include: {
-                contact: true,
-                role: true
-              }
+            if (!template) {
+                throw new NotFoundException(
+                    `Scene template with ID ${createSceneDto.scene_template_id} not found`,
+                );
             }
-          }
+            if (template.type) sceneMode = template.type;
         }
-      }
-    });
 
-    return {
-      scene_id: sceneId,
-      scene_name: scene.name,
-      coverage_items: sceneCoverage.map(sc => sc.coverage)
-    };
-  }
+        // Auto-assign order_index if not provided
+        const orderIndex = createSceneDto.order_index ?? 
+            (await this.prisma.filmScene.count({ where: { film_id: filmId } }));
 
-  /**
-   * Remove all coverage from a scene
-   */
-  async removeAllCoverageFromScene(sceneId: number) {
-    const deleted = await this.prisma.sceneCoverage.deleteMany({
-      where: { scene_id: sceneId }
-    });
+        const scene = await this.prisma.filmScene.create({
+            data: {
+                film_id: filmId,
+                name: createSceneDto.name,
+                scene_template_id: createSceneDto.scene_template_id || null,
+                mode: sceneMode,
+                shot_count: createSceneDto.shot_count ?? null,
+                duration_seconds: createSceneDto.duration_seconds ?? null,
+                order_index: orderIndex,
+            },
+        });
 
-    return {
-      success: true,
-      message: `Removed ${deleted.count} coverage items from scene`,
-      scene_id: sceneId,
-      removed_count: deleted.count
-    };
-  }
+        return this.mapToResponseDto(scene);
+    }
+
+    async findAll(filmId: number) {
+        // Verify film exists
+        const film = await this.prisma.film.findUnique({
+            where: { id: filmId },
+        });
+
+        if (!film) {
+            throw new NotFoundException(`Film with ID ${filmId} not found`);
+        }
+
+        const scenes = await this.prisma.filmScene.findMany({
+            where: { film_id: filmId },
+            include: {
+                template: true,
+                moments: {
+                    include: {
+                        subjects: {
+                            include: {
+                                subject: {
+                                    include: {
+                                        role_template: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                beats: {
+                    orderBy: { order_index: 'asc' },
+                    include: { recording_setup: true },
+                },
+                recording_setup: {
+                    include: {
+                        camera_assignments: {
+                            include: {
+                                track: true,
+                            },
+                        },
+                    },
+                },
+            },
+            orderBy: { order_index: 'asc' },
+        });
+
+        return scenes.map(s => ({
+            ...this.mapToResponseDto(s),
+            template: s.template ? {
+                id: s.template.id,
+                name: s.template.name,
+                type: s.template.type,
+            } : null,
+            moments: s.moments.map(m => ({
+                ...m,
+                subjects: m.subjects.map(ms => ({
+                    ...ms,
+                    subject: ms.subject ? {
+                        ...ms.subject,
+                        role: ms.subject.role_template ? {
+                            id: ms.subject.role_template.id,
+                            role_name: ms.subject.role_template.role_name,
+                            description: ms.subject.role_template.description,
+                            is_core: ms.subject.role_template.is_core,
+                        } : null,
+                    } : null,
+                })),
+            })),
+            moments_count: s.moments.length,
+            beats: s.beats.map((b) => ({
+                id: b.id,
+                film_scene_id: b.film_scene_id,
+                name: b.name,
+                order_index: b.order_index,
+                shot_count: b.shot_count ?? null,
+                duration_seconds: b.duration_seconds,
+                recording_setup: b.recording_setup
+                    ? {
+                        id: b.recording_setup.id,
+                        camera_track_ids: b.recording_setup.camera_track_ids,
+                        audio_track_ids: b.recording_setup.audio_track_ids,
+                        graphics_enabled: b.recording_setup.graphics_enabled,
+                        created_at: b.recording_setup.created_at,
+                        updated_at: b.recording_setup.updated_at,
+                    }
+                    : null,
+                created_at: b.created_at,
+                updated_at: b.updated_at,
+            })),
+            recording_setup: s.recording_setup ? {
+                id: s.recording_setup.id,
+                audio_track_ids: s.recording_setup.audio_track_ids,
+                graphics_enabled: s.recording_setup.graphics_enabled,
+                camera_assignments: s.recording_setup.camera_assignments.map(a => ({
+                    track_id: a.track_id,
+                    track_name: a.track?.name || String(a.track_id),
+                    track_type: a.track?.type ? String(a.track.type) : undefined,
+                    subject_ids: a.subject_ids,
+                })),
+            } : null,
+        }));
+    }
+
+    async findOne(id: number) {
+        const scene = await this.prisma.filmScene.findUnique({
+            where: { id },
+            include: {
+                film: true,
+                template: true,
+                moments: {
+                    orderBy: { order_index: 'asc' },
+                    include: {
+                        recording_setup: true,
+                        moment_music: true,
+                        subjects: {
+                            include: {
+                                subject: {
+                                    include: {
+                                        role_template: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                beats: {
+                    orderBy: { order_index: 'asc' },
+                    include: { recording_setup: true },
+                },
+                recording_setup: {
+                    include: {
+                        camera_assignments: {
+                            include: {
+                                track: true,
+                            },
+                        },
+                    },
+                },
+                scene_music: true,
+            },
+        });
+
+        if (!scene) {
+            throw new NotFoundException(`Scene with ID ${id} not found`);
+        }
+
+        return {
+            ...this.mapToResponseDto(scene),
+            film_name: scene.film.name,
+            template: scene.template ? {
+                id: scene.template.id,
+                name: scene.template.name,
+                type: scene.template.type,
+            } : null,
+            moments: scene.moments.map(m => ({
+                id: m.id,
+                name: m.name,
+                order_index: m.order_index,
+                duration: m.duration,
+                created_at: m.created_at,
+                subjects: m.subjects.map(ms => ({
+                    ...ms,
+                    subject: ms.subject ? {
+                        ...ms.subject,
+                        role: ms.subject.role_template ? {
+                            id: ms.subject.role_template.id,
+                            role_name: ms.subject.role_template.role_name,
+                            description: ms.subject.role_template.description,
+                            is_core: ms.subject.role_template.is_core,
+                        } : null,
+                    } : null,
+                })),
+            })),
+            beats: scene.beats.map((b) => ({
+                id: b.id,
+                film_scene_id: b.film_scene_id,
+                name: b.name,
+                order_index: b.order_index,
+                shot_count: b.shot_count ?? null,
+                duration_seconds: b.duration_seconds,
+                recording_setup: b.recording_setup
+                    ? {
+                        id: b.recording_setup.id,
+                        camera_track_ids: b.recording_setup.camera_track_ids,
+                        audio_track_ids: b.recording_setup.audio_track_ids,
+                        graphics_enabled: b.recording_setup.graphics_enabled,
+                        created_at: b.recording_setup.created_at,
+                        updated_at: b.recording_setup.updated_at,
+                    }
+                    : null,
+                created_at: b.created_at,
+                updated_at: b.updated_at,
+            })),
+            recording_setup: scene.recording_setup ? {
+                id: scene.recording_setup.id,
+                audio_track_ids: scene.recording_setup.audio_track_ids,
+                graphics_enabled: scene.recording_setup.graphics_enabled,
+                camera_assignments: scene.recording_setup.camera_assignments.map(a => ({
+                    track_id: a.track_id,
+                    track_name: a.track?.name || String(a.track_id),
+                    track_type: a.track?.type ? String(a.track.type) : undefined,
+                    subject_ids: a.subject_ids,
+                })),
+            } : null,
+            scene_music: scene.scene_music ? {
+                id: scene.scene_music.id,
+                music_type: scene.scene_music.music_type,
+            } : null,
+        };
+    }
+
+    async getRecordingSetup(sceneId: number) {
+        const scene = await this.prisma.filmScene.findUnique({
+            where: { id: sceneId },
+            include: {
+                recording_setup: {
+                    include: {
+                        camera_assignments: {
+                            include: {
+                                track: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!scene) {
+            throw new NotFoundException(`Scene with ID ${sceneId} not found`);
+        }
+
+        return scene.recording_setup ? {
+            id: scene.recording_setup.id,
+            audio_track_ids: scene.recording_setup.audio_track_ids,
+            graphics_enabled: scene.recording_setup.graphics_enabled,
+            camera_assignments: scene.recording_setup.camera_assignments.map(a => ({
+                track_id: a.track_id,
+                track_name: a.track?.name || String(a.track_id),
+                track_type: a.track?.type ? String(a.track.type) : undefined,
+                subject_ids: a.subject_ids,
+            })),
+        } : null;
+    }
+
+    async upsertRecordingSetup(sceneId: number, data: {
+        camera_track_ids?: number[];
+        audio_track_ids?: number[];
+        graphics_enabled?: boolean;
+    }) {
+        const scene = await this.prisma.filmScene.findUnique({ where: { id: sceneId } });
+        if (!scene) {
+            throw new NotFoundException(`Scene with ID ${sceneId} not found`);
+        }
+
+        const cameraTrackIds = Array.from(
+            new Set((data.camera_track_ids || []).filter((id) => Number.isInteger(id)))
+        );
+        const audioTrackIds = Array.from(
+            new Set((data.audio_track_ids || []).filter((id) => Number.isInteger(id)))
+        );
+
+        const existing = await this.prisma.sceneRecordingSetup.findUnique({
+            where: { scene_id: sceneId },
+        });
+
+        if (existing) {
+            await this.prisma.sceneCameraAssignment.deleteMany({
+                where: { recording_setup_id: existing.id },
+            });
+
+            return this.prisma.sceneRecordingSetup.update({
+                where: { scene_id: sceneId },
+                data: {
+                    audio_track_ids: audioTrackIds,
+                    graphics_enabled: !!data.graphics_enabled,
+                    ...(cameraTrackIds.length > 0
+                        ? {
+                              camera_assignments: {
+                                  createMany: {
+                                      data: cameraTrackIds.map(trackId => ({
+                                          track_id: trackId,
+                                          subject_ids: [],
+                                      })),
+                                  },
+                              },
+                          }
+                        : {}),
+                },
+            });
+        }
+
+        return this.prisma.sceneRecordingSetup.create({
+            data: {
+                scene_id: sceneId,
+                audio_track_ids: audioTrackIds,
+                graphics_enabled: !!data.graphics_enabled,
+                ...(cameraTrackIds.length > 0
+                    ? {
+                          camera_assignments: {
+                              createMany: {
+                                  data: cameraTrackIds.map(trackId => ({
+                                      track_id: trackId,
+                                      subject_ids: [],
+                                  })),
+                              },
+                          },
+                      }
+                    : {}),
+            },
+        });
+    }
+
+    async deleteRecordingSetup(sceneId: number) {
+        const existing = await this.prisma.sceneRecordingSetup.findUnique({
+            where: { scene_id: sceneId },
+        });
+
+        if (!existing) {
+            return { message: `Scene recording setup not found` };
+        }
+
+        await this.prisma.sceneRecordingSetup.delete({
+            where: { scene_id: sceneId },
+        });
+
+        return { message: `Scene recording setup deleted successfully` };
+    }
+
+    async update(id: number, updateSceneDto: UpdateSceneDto) {
+        // Verify scene exists
+        const scene = await this.prisma.filmScene.findUnique({
+            where: { id },
+        });
+
+        if (!scene) {
+            throw new NotFoundException(`Scene with ID ${id} not found`);
+        }
+
+        // If scene_template_id provided and changed, verify it exists
+        if (updateSceneDto.scene_template_id !== undefined && updateSceneDto.scene_template_id !== null) {
+            const template = await this.prisma.sceneTemplate.findUnique({
+                where: { id: updateSceneDto.scene_template_id },
+            });
+
+            if (!template) {
+                throw new NotFoundException(
+                    `Scene template with ID ${updateSceneDto.scene_template_id} not found`,
+                );
+            }
+        }
+
+        const updated = await this.prisma.filmScene.update({
+            where: { id },
+            data: {
+                ...updateSceneDto,
+                shot_count: updateSceneDto.shot_count ?? null,
+                duration_seconds: updateSceneDto.duration_seconds ?? null,
+            },
+        });
+
+        return this.mapToResponseDto(updated);
+    }
+
+    async remove(id: number) {
+        // Verify scene exists
+        const scene = await this.prisma.filmScene.findUnique({
+            where: { id },
+        });
+
+        if (!scene) {
+            throw new NotFoundException(`Scene with ID ${id} not found`);
+        }
+
+        // Delete will cascade automatically due to onDelete: Cascade in schema
+        await this.prisma.filmScene.delete({
+            where: { id },
+        });
+
+        return { message: `Scene with ID ${id} deleted successfully` };
+    }
+
+    async getScenesByTemplate(templateId: number) {
+        // Verify template exists
+        const template = await this.prisma.sceneTemplate.findUnique({
+            where: { id: templateId },
+        });
+
+        if (!template) {
+            throw new NotFoundException(
+                `Scene template with ID ${templateId} not found`,
+            );
+        }
+
+        const scenes = await this.prisma.filmScene.findMany({
+            where: { scene_template_id: templateId },
+            include: {
+                moments: {
+                    include: {
+                        subjects: {
+                            include: {
+                                subject: {
+                                    include: {
+                                        role_template: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            orderBy: { order_index: 'asc' },
+        });
+
+        return scenes.map(s => ({
+            ...this.mapToResponseDto(s),
+            moments_count: s.moments.length,
+        }));
+    }
+
+    async reorderScenes(filmId: number, sceneOrderings: Array<{ id: number; order_index: number }>) {
+        // Verify film exists
+        const film = await this.prisma.film.findUnique({
+            where: { id: filmId },
+        });
+
+        if (!film) {
+            throw new NotFoundException(`Film with ID ${filmId} not found`);
+        }
+
+        const updates = sceneOrderings.map(ordering =>
+            this.prisma.filmScene.update({
+                where: { id: ordering.id },
+                data: { order_index: ordering.order_index },
+            })
+        );
+
+        await Promise.all(updates);
+
+        return {
+            message: `Reordered ${sceneOrderings.length} scenes`,
+            film_id: filmId,
+        };
+    }
+
+    // Get all global scene templates with moments and suggested subjects
+    async getSceneTemplates() {
+        const templates = await this.prisma.sceneTemplate.findMany({
+            include: {
+                moments: {
+                    orderBy: { order_index: 'asc' },
+                },
+                suggested_subjects: {
+                    include: {
+                        subject_template: true,
+                    },
+                },
+            },
+            orderBy: { name: 'asc' },
+        });
+
+        return templates.map(t => ({
+            id: t.id,
+            name: t.name,
+            type: t.type,
+            moments: t.moments.map(m => ({
+                id: m.id,
+                name: m.name,
+                estimated_duration: m.estimated_duration,
+                order_index: m.order_index,
+            })),
+            suggested_subjects: t.suggested_subjects.map(s => ({
+                id: s.subject_template.id,
+                name: s.subject_template.name,
+                category: s.subject_template.category,
+            })),
+            recording_setup: t.recording_setup ?? null,
+            moments_count: t.moments.length,
+        }));
+    }
+
+    async createTemplateFromScene(sceneId: number, name?: string) {
+        const scene = await this.prisma.filmScene.findUnique({
+            where: { id: sceneId },
+            include: {
+                moments: { orderBy: { order_index: 'asc' } },
+                beats: { orderBy: { order_index: 'asc' } },
+                recording_setup: {
+                    include: {
+                        camera_assignments: true,
+                    },
+                },
+                subjects: {
+                    include: {
+                        subject: true,
+                    },
+                },
+            },
+        });
+
+        if (!scene) {
+            throw new NotFoundException(`Scene with ID ${sceneId} not found`);
+        }
+
+        const baseName = (name || scene.name || 'Scene').trim();
+        let uniqueName = baseName;
+        let suffix = 1;
+
+        while (await this.prisma.sceneTemplate.findUnique({ where: { name: uniqueName } })) {
+            suffix += 1;
+            uniqueName = `${baseName} (${suffix})`;
+        }
+
+        const hasMoments = scene.moments.length > 0;
+        const hasBeats = scene.beats.length > 0;
+        const templateType: SceneType = hasBeats && !hasMoments ? SceneType.MONTAGE : SceneType.MOMENTS;
+
+        const templateMoments = hasMoments
+            ? scene.moments.map((moment) => ({
+                name: moment.name,
+                order_index: moment.order_index,
+                estimated_duration: moment.duration ?? 60,
+            }))
+            : scene.beats.map((beat) => ({
+                name: beat.name,
+                order_index: beat.order_index,
+                estimated_duration: beat.duration_seconds ?? 10,
+            }));
+
+        const recordingSetup = scene.recording_setup
+            ? {
+                camera_count: scene.recording_setup.camera_assignments.length,
+                audio_count: scene.recording_setup.audio_track_ids.length,
+                graphics_enabled: scene.recording_setup.graphics_enabled,
+            }
+            : null;
+
+        const suggestedSubjectsData = await (async () => {
+            if (!scene.subjects || scene.subjects.length === 0) return [] as Array<{ subject_template_id: number; is_required: boolean }>;
+
+            const subjectTemplates = await Promise.all(
+                scene.subjects
+                    .filter((sceneSubject) => sceneSubject.subject)
+                    .map(async (sceneSubject) => {
+                        const subject = sceneSubject.subject!;
+                        const subjectTemplate = await this.prisma.subjectTemplate.upsert({
+                            where: { name: subject.name },
+                            update: {
+                                category: subject.category,
+                            },
+                            create: {
+                                name: subject.name,
+                                category: subject.category,
+                                is_system: false,
+                            },
+                        });
+
+                        return {
+                            subject_template_id: subjectTemplate.id,
+                            is_required: sceneSubject.priority === 'PRIMARY',
+                        };
+                    })
+            );
+
+            const unique = new Map<number, { subject_template_id: number; is_required: boolean }>();
+            subjectTemplates.forEach((entry) => {
+                if (!entry) return;
+                if (!unique.has(entry.subject_template_id)) {
+                    unique.set(entry.subject_template_id, entry);
+                }
+            });
+
+            return Array.from(unique.values());
+        })();
+
+        const template = await this.prisma.sceneTemplate.create({
+            data: {
+                name: uniqueName,
+                type: templateType,
+                recording_setup: recordingSetup ?? undefined,
+                moments: templateMoments.length
+                    ? {
+                        create: templateMoments,
+                    }
+                    : undefined,
+                suggested_subjects: suggestedSubjectsData.length
+                    ? {
+                        createMany: {
+                            data: suggestedSubjectsData,
+                        },
+                    }
+                    : undefined,
+            },
+            include: {
+                moments: { orderBy: { order_index: 'asc' } },
+                suggested_subjects: {
+                    include: {
+                        subject_template: true,
+                    },
+                },
+            },
+        });
+
+        return {
+            id: template.id,
+            name: template.name,
+            type: template.type,
+            moments: template.moments.map(m => ({
+                id: m.id,
+                name: m.name,
+                estimated_duration: m.estimated_duration,
+                order_index: m.order_index,
+            })),
+            suggested_subjects: template.suggested_subjects.map(s => ({
+                id: s.subject_template.id,
+                name: s.subject_template.name,
+                category: s.subject_template.category,
+            })),
+            recording_setup: template.recording_setup ?? null,
+            moments_count: template.moments.length,
+        };
+    }
+
+    async deleteSceneTemplate(id: number) {
+        const template = await this.prisma.sceneTemplate.findUnique({ where: { id } });
+        if (!template) {
+            throw new NotFoundException(`Scene template with ID ${id} not found`);
+        }
+
+        await this.prisma.sceneTemplate.delete({ where: { id } });
+
+        return { message: `Scene template with ID ${id} deleted successfully` };
+    }
 }
