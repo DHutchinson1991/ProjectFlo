@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../../../providers/AuthProvider";
 import { UnauthorizedPage } from "../UnauthorizedPage/UnauthorizedPage";
 import { Loading } from "../../ui/Loading/Loading";
+import { LoginModal } from "@/components/auth/LoginModal";
 import { ProtectedRouteProps } from "@/lib/types";
 
 export function ProtectedRoute({
@@ -16,9 +17,11 @@ export function ProtectedRoute({
     const { user, isAuthenticated, isLoading } = useAuth();
     const router = useRouter();
 
+    // Only hard-redirect to /login if we're on the login page itself
+    // (e.g. direct navigation). For all other pages, show the modal overlay.
     useEffect(() => {
-        if (!isLoading && !isAuthenticated) {
-            router.push(redirectTo);
+        if (!isLoading && !isAuthenticated && redirectTo === "/login") {
+            // Let the modal handle it — no redirect needed
         }
     }, [isAuthenticated, isLoading, router, redirectTo]);
 
@@ -27,9 +30,17 @@ export function ProtectedRoute({
         return <Loading message="Checking authentication..." />;
     }
 
-    // Don't render children if not authenticated
+    // Not authenticated → render the page (blurred behind) + the login modal on top
     if (!isAuthenticated) {
-        return null;
+        return (
+            <>
+                {/* Page content stays mounted so it's visible through the modal blur */}
+                <div style={{ pointerEvents: "none", userSelect: "none", filter: "blur(2px)", opacity: 0.5 }}>
+                    {children}
+                </div>
+                <LoginModal />
+            </>
+        );
     }
 
     // Check role requirements
@@ -55,3 +66,4 @@ export function ProtectedRoute({
 
     return <>{children}</>;
 }
+

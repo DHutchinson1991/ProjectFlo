@@ -10,6 +10,8 @@ import {
     ProjectPhase,
     PricingType,
     PHASE_LABELS,
+    JobRole,
+    SkillRoleMapping,
 } from "@/lib/types";
 import { useBrand } from "@/app/providers/BrandProvider";
 import { TasksContent } from "./components/TasksContent";
@@ -48,6 +50,11 @@ export default function TasksPage() {
     // Drag and drop state
     const [isDragging, setIsDragging] = useState(false);
 
+    // Role/skills state
+    const [jobRoles, setJobRoles] = useState<JobRole[]>([]);
+    const [allMappings, setAllMappings] = useState<SkillRoleMapping[]>([]);
+    const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
+
     // Load tasks
     const loadTasks = async () => {
         try {
@@ -61,9 +68,31 @@ export default function TasksPage() {
         }
     };
 
+    // Load job roles
+    const loadJobRoles = async () => {
+        try {
+            const roles = await api.jobRoles.getAll();
+            setJobRoles(roles);
+        } catch (err: unknown) {
+            console.error("Failed to load job roles:", err);
+        }
+    };
+
+    // Load all skill-role mappings (for tier/rate resolution in main rows)
+    const loadAllMappings = async () => {
+        try {
+            const mappings = await api.skillRoleMappings.getAll();
+            setAllMappings(mappings);
+        } catch (err: unknown) {
+            console.error("Failed to load skill-role mappings:", err);
+        }
+    };
+
     useEffect(() => {
         if (currentBrand) {
             loadTasks();
+            loadJobRoles();
+            loadAllMappings();
         }
     }, [currentBrand]);
 
@@ -92,10 +121,12 @@ export default function TasksPage() {
             name: task.name,
             description: task.description || "",
             effort_hours: task.effort_hours,
+            phase: task.phase,
             pricing_type: task.pricing_type,
             fixed_price: task.fixed_price,
             hourly_rate: task.hourly_rate,
             is_active: task.is_active,
+            trigger_type: task.trigger_type,
         });
     };
 
@@ -112,11 +143,12 @@ export default function TasksPage() {
                 name: inlineEditData.name || "",
                 description: inlineEditData.description || "",
                 effort_hours: inlineEditData.effort_hours || 0,
-                phase: inlineEditData.phase || ProjectPhase.LEAD,
+                phase: inlineEditData.phase,
                 pricing_type: inlineEditData.pricing_type || PricingType.HOURLY,
                 fixed_price: inlineEditData.fixed_price,
                 hourly_rate: inlineEditData.hourly_rate,
                 is_active: inlineEditData.is_active ?? true,
+                trigger_type: inlineEditData.trigger_type,
             };
 
             await api.taskLibrary.update(inlineEditingTask, updatedTaskData);
@@ -222,6 +254,7 @@ export default function TasksPage() {
                 fixed_price: quickAddData.fixed_price,
                 hourly_rate: quickAddData.hourly_rate,
                 is_active: quickAddData.is_active ?? true,
+                trigger_type: quickAddData.trigger_type,
                 brand_id: currentBrand.id,
             };
 
@@ -463,6 +496,48 @@ export default function TasksPage() {
 
     const phaseGroups = getPhaseGroups();
 
+    // Role/skills handlers
+    const handleToggleExpand = (taskId: number) => {
+        setExpandedTaskId(prev => (prev === taskId ? null : taskId));
+    };
+
+    const handleUpdateRoleSkills = async (
+        taskId: number,
+        data: { default_job_role_id?: number | null; skills_needed?: string[] }
+    ) => {
+        await api.taskLibrary.update(taskId, data);
+
+        // Refresh mappings so Tier/Rate columns resolve correctly
+        loadAllMappings();
+
+        // Update local state so UI reflects the change without refetch
+        setTasksByPhase(prev => {
+            const newState = { ...prev };
+            for (const [phase, tasks] of Object.entries(newState)) {
+                const idx = tasks.findIndex(t => t.id === taskId);
+                if (idx !== -1) {
+                    const updatedTask = { ...tasks[idx] };
+                    if (data.default_job_role_id !== undefined) {
+                        updatedTask.default_job_role_id = data.default_job_role_id;
+                        updatedTask.default_job_role = data.default_job_role_id
+                            ? jobRoles.find(r => r.id === data.default_job_role_id) ?? null
+                            : null;
+                    }
+                    if (data.skills_needed !== undefined) {
+                        updatedTask.skills_needed = data.skills_needed;
+                    }
+                    newState[phase] = [
+                        ...tasks.slice(0, idx),
+                        updatedTask,
+                        ...tasks.slice(idx + 1),
+                    ];
+                    break;
+                }
+            }
+            return newState;
+        });
+    };
+
     return (
         <TasksContent
             loading={loading}
@@ -495,6 +570,11 @@ export default function TasksPage() {
             cancelQuickAdd={cancelQuickAdd}
             saveQuickAdd={saveQuickAdd}
             updateQuickAddData={updateQuickAddData}
+            jobRoles={jobRoles}
+            allMappings={allMappings}
+            expandedTaskId={expandedTaskId}
+            onToggleExpand={handleToggleExpand}
+            onUpdateRoleSkills={handleUpdateRoleSkills}
         />
     );
 }

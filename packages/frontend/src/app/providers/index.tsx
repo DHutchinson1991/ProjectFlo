@@ -1,20 +1,5 @@
 "use client";
 
-import { ReactNode } from "react";
-import { AuthProvider } from "./AuthProvider";
-import { BrandProvider } from "./BrandProvider";
-import { ThemeProvider } from "../theme/ThemeProvider";
-
-export function Providers({ children }: { children: ReactNode }) {
-  return (
-    <ThemeProvider>
-      <AuthProvider>
-        <BrandProvider>
-          {children}
-        </BrandProvider>
-      </AuthProvider>
-    </ThemeProvider>
-  );
-}
-
-export default Providers;
+// Re-export from providers.tsx — this file exists for backwards compatibility
+// The actual provider tree is defined in ../providers.tsx (used by layout.tsx)
+export { default as Providers, default } from "../providers";

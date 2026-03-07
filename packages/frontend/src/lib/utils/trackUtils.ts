@@ -21,8 +21,9 @@ export const transformBackendTrack = (track: any): TimelineTrack => {
         muted: false,
         color: getDefaultTrackColor(normalizedType),
         order_index: track.order_index ?? track.orderIndex ?? 0,
-        operator_template_id: track.operator_template_id ?? null,
-        operator_template: track.operator_template ?? null,
+        contributor_id: track.contributor_id ?? null,
+        contributor: track.contributor ?? null,
+        is_unmanned: track.is_unmanned ?? null,
     };
 };
 

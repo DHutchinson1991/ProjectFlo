@@ -43,6 +43,7 @@ const ContentBuilder: React.FC<ContentBuilderProps> = ({
     rightPanel,
     subjectCount = 0,
     packageId,
+    linkedActivityId,
     equipmentConfig,
     equipmentAssignmentsBySlot,
 }) => {
@@ -68,6 +69,7 @@ const ContentBuilder: React.FC<ContentBuilderProps> = ({
             <ContentBuilderProvider
                 filmId={filmId}
                 packageId={packageId}
+                linkedActivityId={linkedActivityId}
                 initialScenes={initialScenes}
                 initialTracks={initialTracks}
                 onSave={onSave}
@@ -83,6 +85,7 @@ const ContentBuilder: React.FC<ContentBuilderProps> = ({
                     subjectCount={subjectCount}
                     onSaveFilmName={onSaveFilmName}
                     packageId={packageId}
+                    linkedActivityId={linkedActivityId}
                 />
             </ContentBuilderProvider>
         </DndContext>

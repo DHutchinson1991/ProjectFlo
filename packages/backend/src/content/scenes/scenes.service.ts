@@ -107,6 +107,9 @@ export class ScenesService {
             where: { film_id: filmId },
             include: {
                 template: true,
+                location_assignment: {
+                    include: { location: true },
+                },
                 moments: {
                     include: {
                         recording_setup: {
@@ -116,6 +119,7 @@ export class ScenesService {
                                 },
                             },
                         },
+                        moment_music: true,
                         subjects: {
                             include: {
                                 subject: {
@@ -140,6 +144,7 @@ export class ScenesService {
                         },
                     },
                 },
+                scene_music: true,
             },
             orderBy: { order_index: 'asc' },
         });
@@ -150,6 +155,14 @@ export class ScenesService {
                 id: s.template.id,
                 name: s.template.name,
                 type: s.template.type,
+            } : null,
+            location_assignment: (s as any).location_assignment ? {
+                id: (s as any).location_assignment.id,
+                location_id: (s as any).location_assignment.location_id,
+                location: (s as any).location_assignment.location ? {
+                    id: (s as any).location_assignment.location.id,
+                    name: (s as any).location_assignment.location.name,
+                } : null,
             } : null,
             moments: s.moments.map(m => ({
                 ...m,
@@ -212,6 +225,18 @@ export class ScenesService {
                     subject_ids: a.subject_ids,
                 })),
             } : null,
+            scene_music: (s as any).scene_music
+                ? {
+                    id: (s as any).scene_music.id,
+                    film_scene_id: (s as any).scene_music.film_scene_id,
+                    music_name: (s as any).scene_music.music_name,
+                    artist: (s as any).scene_music.artist,
+                    duration: (s as any).scene_music.duration,
+                    music_type: (s as any).scene_music.music_type,
+                    created_at: (s as any).scene_music.created_at,
+                    updated_at: (s as any).scene_music.updated_at,
+                }
+                : null,
         }));
     }
 
@@ -292,6 +317,19 @@ export class ScenesService {
                         shot_type: a.shot_type ?? null,
                     })),
                 } : null,
+                moment_music: (m as any).moment_music
+                    ? {
+                        id: (m as any).moment_music.id,
+                        moment_id: (m as any).moment_music.moment_id,
+                        music_name: (m as any).moment_music.music_name,
+                        artist: (m as any).moment_music.artist,
+                        duration: (m as any).moment_music.duration,
+                        music_type: (m as any).moment_music.music_type,
+                        overrides_scene_music: (m as any).moment_music.overrides_scene_music,
+                        created_at: (m as any).moment_music.created_at,
+                        updated_at: (m as any).moment_music.updated_at,
+                    }
+                    : null,
                 subjects: m.subjects.map(ms => ({
                     ...ms,
                     subject: ms.subject ? {

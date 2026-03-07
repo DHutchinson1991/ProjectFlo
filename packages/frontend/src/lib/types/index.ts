@@ -23,6 +23,12 @@ export * from "./brand";
 // Job roles types
 export * from "./job-roles";
 
+// Payment brackets types
+export * from "./payment-brackets";
+
+// Skill-role mapping types
+export * from "./skill-role-mappings";
+
 // Authentication and authorization types
 export type { LoginCredentials, AuthResponse, UserProfile, AuthContextType, AuthProviderProps } from "./auth";
 export type { Role as AuthRole } from "./auth";
@@ -35,6 +41,9 @@ export * from "./timeline";
 
 // Task library and project management types
 export * from "./task-library";
+
+// Workflow management types (templates, stages, rules)
+export * from "./workflows";
 
 // Equipment management types
 export * from "./equipment";

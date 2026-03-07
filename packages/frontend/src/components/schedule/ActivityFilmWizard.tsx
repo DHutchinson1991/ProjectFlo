@@ -43,6 +43,8 @@ interface CreatedFilmResult {
     packageFilmId: number;
     scenesCreated: number;
     momentsPopulated: number;
+    /** IDs of the activities this film was created from */
+    activityIds: number[];
 }
 
 interface ActivityFilmWizardProps {
@@ -122,11 +124,66 @@ export function ActivityFilmWizard({
         try {
             const name = filmName.trim() || `${packageName || 'Package'} Film`;
 
-            // 1. Create the film
+            // Count cameras + audio from package operators + day_equipment so the film
+            // is created with the correct number of tracks.
+            let numCameras = 0;
+            let numAudio = 0;
+            try {
+                const [operators, pkgData] = await Promise.all([
+                    api.operators.packageDay.getAll(packageId),
+                    api.servicePackages.getOne(currentBrand.id, packageId),
+                ]);
+                const seenCameraIds = new Set<number>();
+                const seenAudioIds = new Set<number>();
+                // 1. Count cameras and audio assigned to operators
+                (operators || []).forEach((op: any) => {
+                    (op.equipment || []).forEach((eq: any) => {
+                        const cat = (eq.equipment?.category || '').toUpperCase();
+                        const eqId = eq.equipment_id ?? eq.equipment?.id;
+                        if (cat === 'CAMERA' && eqId && !seenCameraIds.has(eqId)) {
+                            seenCameraIds.add(eqId);
+                            numCameras++;
+                        } else if (cat === 'AUDIO' && eqId && !seenAudioIds.has(eqId)) {
+                            seenAudioIds.add(eqId);
+                            numAudio++;
+                        }
+                    });
+                });
+                console.log('[ActivityFilmWizard] Operator cameras found:', numCameras, 'IDs:', Array.from(seenCameraIds));
+                console.log('[ActivityFilmWizard] Operator audio found:', numAudio, 'IDs:', Array.from(seenAudioIds));
+                
+                // 2. Count cameras/audio in day_equipment not assigned to any operator
+                //    (these are unmanned / standalone devices)
+                const dayEquipMap = (pkgData?.contents as any)?.day_equipment || {};
+                console.log('[ActivityFilmWizard] day_equipment map:', dayEquipMap);
+                
+                Object.values(dayEquipMap).forEach((items: any) => {
+                    (items || []).forEach((item: any) => {
+                        const eqId = item.equipment_id;
+                        if (item.slot_type === 'CAMERA' && eqId && !seenCameraIds.has(eqId)) {
+                            console.log('[ActivityFilmWizard] Adding unmanned camera from day_equipment: eqId=', eqId);
+                            seenCameraIds.add(eqId);
+                            numCameras++;
+                        } else if (item.slot_type === 'AUDIO' && eqId && !seenAudioIds.has(eqId)) {
+                            console.log('[ActivityFilmWizard] Adding audio from day_equipment: eqId=', eqId);
+                            seenAudioIds.add(eqId);
+                            numAudio++;
+                        }
+                    });
+                });
+                console.log('[ActivityFilmWizard] Total cameras to create:', numCameras);
+                console.log('[ActivityFilmWizard] Total audio to create:', numAudio);
+            } catch (err) {
+                console.warn('Could not count equipment from package:', err);
+            }
+
+            // 1. Create the film with correct camera + audio count
             const newFilm = await api.films.create({
                 name,
                 brand_id: currentBrand.id,
-            });
+                num_cameras: numCameras,
+                num_audio: numAudio,
+            } as any);
 
             // 2. Create a PackageFilm record linking film to package
             const packageFilm = await api.schedule.packageFilms.create(packageId, {
@@ -166,6 +223,7 @@ export function ActivityFilmWizard({
                 packageFilmId: packageFilm.id,
                 scenesCreated: selectedActivities.length,
                 momentsPopulated: totalMomentsPopulated,
+                activityIds: selectedActivities.map(a => a.id),
             };
 
             setResult(createdResult);
@@ -205,14 +263,14 @@ export function ActivityFilmWizard({
                 },
             }}
         >
-            <DialogTitle sx={{ pb: 1 }}>
+            <DialogTitle sx={{ pb: 1 }} component="div">
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <AutoAwesomeIcon sx={{ fontSize: 20, color: '#a78bfa' }} />
                     <Box>
                         <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#f1f5f9' }}>
                             Create Film from Activities
                         </Typography>
-                        <Typography variant="caption" sx={{ color: '#64748b' }}>
+                        <Typography variant="caption" component="span" sx={{ color: '#64748b', display: 'block' }}>
                             Select activities to create scenes with auto-populated moments
                         </Typography>
                     </Box>

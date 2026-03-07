@@ -18,6 +18,34 @@ async function main(): Promise<SeedSummary> {
         logger.sectionDivider('STEP 1: Brand Setup');
         const brand = await createLayer5Brand();
 
+        // Associate admin user with Layer5 brand
+        logger.processing('Linking global admin to Layer5...');
+        const adminContact = await prisma.contacts.findUnique({
+            where: { email: 'info@dhutchinson.co.uk' },
+            include: { contributor: true }
+        });
+        if (adminContact?.contributor) {
+            await prisma.user_brands.upsert({
+                where: {
+                    user_id_brand_id: {
+                        user_id: adminContact.contributor.id,
+                        brand_id: brand.id,
+                    },
+                },
+                update: {
+                    role: 'Admin',
+                    is_active: true,
+                },
+                create: {
+                    user_id: adminContact.contributor.id,
+                    brand_id: brand.id,
+                    role: 'Admin',
+                    is_active: true,
+                },
+            });
+            logger.success('Admin linked to Layer5');
+        }
+
         // 2. Create Team
         logger.sectionDivider('STEP 2: Team Setup');
         const team = await createLayer5Team(brand.id);

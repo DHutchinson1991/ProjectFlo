@@ -88,6 +88,15 @@ export async function createLayer5Team(brandId: number) {
             }
         });
 
+        // Assign a distinct crew colour per role
+        const crewColorMap: Record<string, string> = {
+            "Creative Director":   "#D97706",
+            "Senior Videographer": "#059669",
+            "Lead Editor":         "#7C3AED",
+            "Producer":            "#DC2626",
+        };
+        const crewColor = crewColorMap[member.role] ?? "#2563EB";
+
         // Create contributor
         const contributor = await prisma.contributors.upsert({
             where: { contact_id: contact.id },
@@ -96,7 +105,9 @@ export async function createLayer5Team(brandId: number) {
                 default_hourly_rate: member.role === "Creative Director" ? 150.00 :
                     member.role === "Senior Videographer" ? 125.00 :
                         member.role === "Lead Editor" ? 100.00 : 85.00,
-                password_hash: hashedPassword
+                password_hash: hashedPassword,
+                is_crew: true,
+                crew_color: crewColor,
             },
             create: {
                 contact_id: contact.id,
@@ -104,7 +115,9 @@ export async function createLayer5Team(brandId: number) {
                 default_hourly_rate: member.role === "Creative Director" ? 150.00 :
                     member.role === "Senior Videographer" ? 125.00 :
                         member.role === "Lead Editor" ? 100.00 : 85.00,
-                password_hash: hashedPassword
+                password_hash: hashedPassword,
+                is_crew: true,
+                crew_color: crewColor,
             }
         });
 
@@ -116,6 +129,51 @@ export async function createLayer5Team(brandId: number) {
         });
 
         console.log(`✅ Created team member: ${member.first_name} ${member.last_name} (${member.role})`);
+    }
+
+    // ── Crew Job Role Assignments ─────────────────────────────────────────────
+    console.log('\n📋 Assigning crew job roles to Layer5 team...');
+
+    const [directorRole, videographerRole, editorRole, producerRole] = await Promise.all([
+        prisma.job_roles.findUnique({ where: { name: 'director' } }),
+        prisma.job_roles.findUnique({ where: { name: 'videographer' } }),
+        prisma.job_roles.findUnique({ where: { name: 'editor' } }),
+        prisma.job_roles.findUnique({ where: { name: 'producer' } }),
+    ]);
+
+    // Helper: find a bracket, returning null if not yet seeded
+    async function findBracket(jobRoleId: number | undefined, tierName: string) {
+        if (!jobRoleId) return null;
+        const bracket = await prisma.payment_brackets.findUnique({
+            where: { job_role_id_name: { job_role_id: jobRoleId, name: tierName } },
+        });
+        return bracket?.id ?? null;
+    }
+
+    // Role → job_role + tier mapping
+    const roleMap: Record<string, { jobRole: typeof directorRole; tier: string }> = {
+        'Creative Director':    { jobRole: directorRole,    tier: 'lead'   },
+        'Senior Videographer':  { jobRole: videographerRole, tier: 'senior' },
+        'Lead Editor':          { jobRole: editorRole,      tier: 'lead'   },
+        'Producer':             { jobRole: producerRole,    tier: 'senior' },
+    };
+
+    for (const member of createdTeamMembers) {
+        const mapping = roleMap[member.role as string];
+        if (!mapping?.jobRole) continue;
+
+        const { jobRole, tier } = mapping;
+        const bracketId = await findBracket(jobRole.id, tier);
+        const contributorId = (member.contributor as { id: number }).id;
+
+        await prisma.contributor_job_roles.upsert({
+            where: { contributor_id_job_role_id: { contributor_id: contributorId, job_role_id: jobRole.id } },
+            update: { is_primary: true, payment_bracket_id: bracketId },
+            create: { contributor_id: contributorId, job_role_id: jobRole.id, is_primary: true, payment_bracket_id: bracketId },
+        });
+
+        const contactName = `${(member.contact as { first_name: string }).first_name} ${(member.contact as { last_name: string }).last_name}`;
+        console.log(`  ✅ ${contactName} → ${jobRole.display_name ?? jobRole.name} (${tier})`);
     }
 
     return {

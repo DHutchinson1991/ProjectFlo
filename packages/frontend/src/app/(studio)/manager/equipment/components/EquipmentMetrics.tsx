@@ -13,6 +13,8 @@ import {
     TrendingUp as ValueIcon,
 } from "@mui/icons-material";
 import { EquipmentByCategory } from "@/lib/types";
+import { useBrand } from "@/app/providers/BrandProvider";
+import { formatCurrency } from "@/lib/utils/formatUtils";
 
 interface EquipmentMetricsProps {
     equipmentByCategory: EquipmentByCategory;
@@ -21,6 +23,9 @@ interface EquipmentMetricsProps {
 export const EquipmentMetrics: React.FC<EquipmentMetricsProps> = ({
     equipmentByCategory,
 }) => {
+    const { currentBrand } = useBrand();
+    const currencyCode = currentBrand?.currency || 'USD';
+
     // Calculate summary statistics
     const allEquipment = Object.values(equipmentByCategory).flatMap(group => group.equipment || []);
 
@@ -51,7 +56,7 @@ export const EquipmentMetrics: React.FC<EquipmentMetricsProps> = ({
         },
         {
             title: "Total Asset Value",
-            value: `$${totalValue.toLocaleString()}`,
+            value: formatCurrency(totalValue, currencyCode),
             subtitle: "Purchase Price Total",
             icon: ValueIcon,
             color: "#388e3c",
@@ -60,7 +65,7 @@ export const EquipmentMetrics: React.FC<EquipmentMetricsProps> = ({
         },
         {
             title: "Daily Rental Value",
-            value: `$${dailyRentalValue.toLocaleString()}`,
+            value: formatCurrency(dailyRentalValue, currencyCode),
             subtitle: "Max Daily Income",
             icon: MoneyIcon,
             color: "#f57c00",

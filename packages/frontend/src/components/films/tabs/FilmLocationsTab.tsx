@@ -13,9 +13,11 @@ interface FilmLocationsTabProps {
     filmId: number;
     brandId?: number;
     packageId?: number | null;
+    /** When set, only show slots assigned to this activity */
+    activityId?: number | null;
 }
 
-export const FilmLocationsTab: React.FC<FilmLocationsTabProps> = ({ filmId, brandId, packageId }) => {
+export const FilmLocationsTab: React.FC<FilmLocationsTabProps> = ({ filmId, brandId, packageId, activityId }) => {
     // ── Package-linked read-only mode ──────────────────────────
     const [pkgLoading, setPkgLoading] = useState(false);
     const [pkgError, setPkgError] = useState<string | null>(null);
@@ -26,29 +28,37 @@ export const FilmLocationsTab: React.FC<FilmLocationsTabProps> = ({ filmId, bran
         if (!packageId) return;
         setPkgLoading(true);
         Promise.all([
-            api.schedule.packageEventDayLocations.getAll(packageId),
+            // Use location-slots (the numbered slot system used by the package designer)
+            api.schedule.packageLocationSlots.getAll(packageId),
             api.schedule.packageEventDays.getAll(packageId),
         ])
-            .then(([locs, days]) => {
-                setPackageLocations(locs || []);
+            .then(([slots, days]) => {
+                // Filter to slots assigned to this activity (if one is provided), else show all assigned slots
+                const allAssigned = (slots || []).filter((s: any) => (s.activity_assignments?.length || 0) > 0);
+                const filtered = activityId
+                    ? allAssigned.filter((s: any) =>
+                        (s.activity_assignments || []).some((a: any) => a.package_activity_id === activityId)
+                      )
+                    : allAssigned;
+                setPackageLocations(filtered);
                 setEventDays(days || []);
             })
             .catch(() => setPkgError("Failed to load package locations"))
             .finally(() => setPkgLoading(false));
-    }, [packageId]);
+    }, [packageId, activityId]);
 
     if (packageId) {
         if (pkgLoading) return <Box sx={{ p: 2, display: "flex", justifyContent: "center" }}><CircularProgress size={24} /></Box>;
         if (pkgError) return <Alert severity="error" sx={{ m: 2 }}>{pkgError}</Alert>;
 
-        // Group by event day
+        // Group by event day (slot has event_day_template_id)
         const grouped = eventDays.map(day => ({
             day,
-            locations: packageLocations.filter((l: any) => l.event_day_template_id === day.id),
+            locations: packageLocations.filter((s: any) => s.event_day_template_id === day.id),
         })).filter(g => g.locations.length > 0);
 
         const dayIds = new Set(eventDays.map((d: any) => d.id));
-        const ungrouped = packageLocations.filter((l: any) => !dayIds.has(l.event_day_template_id));
+        const ungrouped = packageLocations.filter((s: any) => !dayIds.has(s.event_day_template_id));
 
         return (
             <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2 }}>
@@ -86,12 +96,12 @@ export const FilmLocationsTab: React.FC<FilmLocationsTabProps> = ({ filmId, bran
                             >
                                 <PlaceIcon sx={{ fontSize: 13, color: "#f59e0b", flexShrink: 0 }} />
                                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.72rem", color: "#f1f5f9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                        {loc.location?.name || "Location"}
+                                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.72rem", color: "#f1f5f9" }}>
+                                        Location {loc.location_number}
                                     </Typography>
-                                    {(loc.location?.city || loc.location?.state) && (
+                                    {loc.activity_assignments?.length > 0 && (
                                         <Typography variant="caption" sx={{ color: "#64748b", fontSize: "0.58rem" }}>
-                                            {[loc.location.city, loc.location.state].filter(Boolean).join(", ")}
+                                            {loc.activity_assignments.length} {loc.activity_assignments.length === 1 ? 'activity' : 'activities'}
                                         </Typography>
                                     )}
                                 </Box>
@@ -110,8 +120,8 @@ export const FilmLocationsTab: React.FC<FilmLocationsTabProps> = ({ filmId, bran
                         }}
                     >
                         <PlaceIcon sx={{ fontSize: 13, color: "#f59e0b", flexShrink: 0 }} />
-                        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.72rem", color: "#f1f5f9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {loc.location?.name || "Location"}
+                        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.72rem", color: "#f1f5f9" }}>
+                            Location {loc.location_number}
                         </Typography>
                     </Box>
                 ))}

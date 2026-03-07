@@ -90,9 +90,33 @@ export function mapContributorJobRoleResponse(apiResponse: ContributorJobRoleApi
         id: apiResponse.id,
         contributor_id: apiResponse.contributor_id,
         job_role_id: apiResponse.job_role_id,
+        is_primary: apiResponse.is_primary ?? false,
+        payment_bracket_id: apiResponse.payment_bracket_id ?? null,
         created_at: apiResponse.assigned_at, // Map assigned_at to created_at for domain model
         updated_at: apiResponse.assigned_at, // Use assigned_at as updated_at if not provided
-        job_role: mapJobRoleResponse(apiResponse.job_role)
+        job_role: mapJobRoleResponse(apiResponse.job_role),
+        payment_bracket: apiResponse.payment_bracket
+            ? {
+                id: apiResponse.payment_bracket.id,
+                name: apiResponse.payment_bracket.name,
+                display_name: apiResponse.payment_bracket.display_name,
+                level: apiResponse.payment_bracket.level,
+                hourly_rate: typeof apiResponse.payment_bracket.hourly_rate === 'string'
+                    ? parseFloat(apiResponse.payment_bracket.hourly_rate)
+                    : apiResponse.payment_bracket.hourly_rate,
+                day_rate: apiResponse.payment_bracket.day_rate != null
+                    ? (typeof apiResponse.payment_bracket.day_rate === 'string'
+                        ? parseFloat(apiResponse.payment_bracket.day_rate)
+                        : apiResponse.payment_bracket.day_rate)
+                    : null,
+                overtime_rate: apiResponse.payment_bracket.overtime_rate != null
+                    ? (typeof apiResponse.payment_bracket.overtime_rate === 'string'
+                        ? parseFloat(apiResponse.payment_bracket.overtime_rate)
+                        : apiResponse.payment_bracket.overtime_rate)
+                    : null,
+                color: apiResponse.payment_bracket.color ?? null,
+            }
+            : null,
     };
 }
 
@@ -147,6 +171,9 @@ export function mapContributorResponse(apiResponse: ContributorApiResponse): Con
         contributor_type: apiResponse.contributor_type,
         default_hourly_rate: parseDecimalToNumber(apiResponse.default_hourly_rate),
         archived_at: apiResponse.archived_at,
+        is_crew: apiResponse.is_crew ?? false,
+        crew_color: apiResponse.crew_color ?? null,
+        bio: apiResponse.bio ?? null,
 
         // Related entities
         contact,

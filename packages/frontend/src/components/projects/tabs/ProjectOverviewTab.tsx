@@ -26,6 +26,7 @@ import {
     TrendingUp as ProgressIcon,
 } from '@mui/icons-material';
 import { Project } from '../../../app/(studio)/projects/types/project.types';
+import TaskAutoGenExecuteCard from '../TaskAutoGenExecuteCard';
 
 interface ProjectOverviewTabProps {
     project: Project;
@@ -514,6 +515,16 @@ export default function ProjectOverviewTab({ project, onRefresh }: ProjectOvervi
                         )}
                     </Stack>
                 </Grid>
+
+                {/* Task Auto-Generation — full-width below */}
+                {project.brand_id && (
+                    <Grid item xs={12}>
+                        <TaskAutoGenExecuteCard
+                            projectId={project.id}
+                            brandId={project.brand_id}
+                        />
+                    </Grid>
+                )}
             </Grid>
         </Box>
     );

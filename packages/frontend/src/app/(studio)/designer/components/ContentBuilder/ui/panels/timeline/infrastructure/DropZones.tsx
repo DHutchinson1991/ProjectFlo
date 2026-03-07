@@ -8,6 +8,22 @@ import { DragState, ViewState } from "@/lib/types/timeline";
 import TimelineTrackComponent from "./Track";
 import SceneBlockComponent from "../scenes/SceneBlock";
 
+interface Moment {
+    id: number;
+    duration?: number;
+    duration_seconds?: number;
+    recording_setup?: unknown;
+    moment_music?: unknown;
+    music?: unknown;
+}
+
+interface ExtendedTimelineScene extends TimelineScene {
+    moments?: Moment[];
+    recording_setup?: unknown;
+    scene_music?: unknown;
+    music?: unknown;
+}
+
 interface DropZonesProps {
     tracks: TimelineTrack[];
     scenes?: TimelineScene[];
@@ -37,19 +53,20 @@ const DropZones: React.FC<DropZonesProps> = ({
         if (!hoveredMomentId) return null;
 
         for (const scene of scenes) {
-            const moments = (scene as any).moments || [];
-            const momentIndex = moments.findIndex((m: any) => m.id === hoveredMomentId);
+            const extScene = scene as ExtendedTimelineScene;
+            const moments = extScene.moments || [];
+            const momentIndex = moments.findIndex((m: Moment) => m.id === hoveredMomentId);
             if (momentIndex === -1) continue;
 
             const moment = moments[momentIndex];
-            const totalMomentsDuration = moments.reduce((sum: number, m: any) => {
+            const totalMomentsDuration = moments.reduce((sum: number, m: Moment) => {
                 return sum + (m.duration || m.duration_seconds || 0);
             }, 0);
 
             if (!totalMomentsDuration || !scene.duration) return null;
 
             const momentDuration = moment.duration || moment.duration_seconds || 0;
-            const offsetDuration = moments.slice(0, momentIndex).reduce((sum: number, m: any) => {
+            const offsetDuration = moments.slice(0, momentIndex).reduce((sum: number, m: Moment) => {
                 return sum + (m.duration || m.duration_seconds || 0);
             }, 0);
 
@@ -115,16 +132,17 @@ const DropZones: React.FC<DropZonesProps> = ({
 
                 // Get scenes for this track
                 const trackScenes = scenes.filter(scene => {
-                    const isMomentsContainer = (scene as any).database_type === 'MOMENTS_CONTAINER';
-                    const moments = (scene as any).moments || [];
+                    const extScene = scene as ExtendedTimelineScene;
+                    const isMomentsContainer = extScene.database_type === 'MOMENTS_CONTAINER';
+                    const moments = extScene.moments || [];
                     const hasRecordingSetup =
-                        moments.some((m: any) => !!m.recording_setup) ||
-                        !!(scene as any).recording_setup;
+                        moments.some((m: Moment) => !!m.recording_setup) ||
+                        !!extScene.recording_setup;
                     const normalizedTrackType = String(track.track_type).toLowerCase();
                     const defaultTrackType = ['video', 'audio', 'graphics'].includes(normalizedTrackType);
                     const isMusicTrack = normalizedTrackType === 'music';
-                    const hasSceneMusic = !!(scene as any).scene_music || !!(scene as any).music;
-                    const hasMomentMusic = moments.some((m: any) => !!(m.moment_music || m.music));
+                    const hasSceneMusic = !!extScene.scene_music || !!extScene.music;
+                    const hasMomentMusic = moments.some((m: Moment) => !!(m.moment_music || m.music));
 
                     if (scene.track_id === track.id) return true;
                     if (isMomentsContainer && (hasRecordingSetup || defaultTrackType || (isMusicTrack && (hasSceneMusic || hasMomentMusic)))) return true;

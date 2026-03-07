@@ -217,6 +217,13 @@ const calculateWorkflowProgress = (inquiry: Inquiry & { activity_logs?: unknown[
     return Math.round((completedSteps / totalSteps) * 100);
 };
 
+// Helper to hide temporary emails generated during quick-add
+const getDisplayEmail = (email?: string) => {
+    if (!email) return '';
+    if (email.startsWith('pending_') && email.endsWith('@temp.com')) return '';
+    return email;
+};
+
 // WorkflowProgressBar Component - REMOVED
 // WorkflowStepper Component - REMOVED
 
@@ -226,13 +233,6 @@ const calculateWorkflowProgress = (inquiry: Inquiry & { activity_logs?: unknown[
 // ContactDetailsCard Component
 const ContactDetailsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, activeColor }) => {
     const [isEditing, setIsEditing] = useState(false);
-
-    // Helper to hide temporary emails generated during quick-add
-    const getDisplayEmail = (email?: string) => {
-        if (!email) return '';
-        if (email.startsWith('pending_') && email.endsWith('@temp.com')) return '';
-        return email;
-    };
 
     const [formData, setFormData] = useState({
         first_name: inquiry.contact?.first_name || '',

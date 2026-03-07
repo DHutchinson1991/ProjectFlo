@@ -77,17 +77,35 @@ export const useFilmData = (filmId: number) => {
                     localScenes = localScenes.map((scene: any) => {
                         const apiScene = apiById.get(scene.id);
                         if (!apiScene) return scene;
+                        // Merge moments: prefer API moments but preserve moment_music from film data when API lacks it
+                        let mergedMoments: any[];
+                        if (Array.isArray(apiScene.moments) && apiScene.moments.length > 0) {
+                            const filmMomentsById = new Map(
+                                (Array.isArray(scene.moments) ? scene.moments : []).map((m: any) => [m.id, m])
+                            );
+                            mergedMoments = apiScene.moments.map((apiMoment: any) => {
+                                const filmMoment = filmMomentsById.get(apiMoment.id);
+                                return {
+                                    ...apiMoment,
+                                    // Preserve moment_music: prefer API data, fall back to film data
+                                    moment_music: apiMoment.moment_music ?? filmMoment?.moment_music ?? null,
+                                };
+                            });
+                        } else {
+                            mergedMoments = Array.isArray(scene.moments) && scene.moments.length > 0 ? scene.moments : [];
+                        }
+
                         return {
                             ...scene,
                             shot_count: apiScene.shot_count ?? scene.shot_count ?? null,
                             duration_seconds: apiScene.duration_seconds ?? scene.duration_seconds ?? null,
                             beats: Array.isArray(apiScene.beats) ? apiScene.beats : (scene as any).beats ?? [],
                             // 🔥 Merge moments from API so enrichment sees them and creates MOMENTS_CONTAINER
-                            moments: Array.isArray(apiScene.moments) && apiScene.moments.length > 0
-                                ? apiScene.moments
-                                : (Array.isArray(scene.moments) && scene.moments.length > 0 ? scene.moments : []),
+                            moments: mergedMoments,
                             // Merge scene recording setup
                             recording_setup: apiScene.recording_setup ?? (scene as any).recording_setup ?? null,
+                            // Preserve scene_music: prefer API data, fall back to film data
+                            scene_music: apiScene.scene_music ?? scene.scene_music ?? null,
                         };
                     });
                     if (shouldLog) {
@@ -178,21 +196,12 @@ export const useFilmData = (filmId: number) => {
     const fetchTracks = useCallback(async () => {
         try {
             let tracksData = await api.films.tracks.getAll(filmId);
-            if (shouldLog) {
-                console.log(`📍 [FETCH-TRACKS] Loaded ${tracksData?.length || 0} tracks from API`, tracksData);
-            }
 
             if (!tracksData || tracksData.length === 0) {
-                if (shouldLog) {
-                    console.warn(`⚠️ [FETCH-TRACKS] No tracks found. Regenerating...`);
-                }
                 try {
                     tracksData = await api.films.tracks.generate(filmId, { overwrite: true });
-                    if (shouldLog) {
-                        console.log(`✅ [FETCH-TRACKS] Generated ${tracksData?.length || 0} tracks`, tracksData);
-                    }
                 } catch (generateError) {
-                    console.error(`❌ [FETCH-TRACKS] Failed to generate tracks:`, generateError);
+                    console.error('Failed to generate tracks:', generateError);
                     tracksData = [];
                 }
             }

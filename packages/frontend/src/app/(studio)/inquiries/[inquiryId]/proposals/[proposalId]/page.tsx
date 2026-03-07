@@ -14,11 +14,13 @@ import SaveIcon from '@mui/icons-material/Save';
 
 // Services & Types
 import { proposalsService, api } from '@/lib/api'; // FIXED IMPORT
-import { 
-    Proposal, ProposalSection, ProposalContent, 
+import {
+    Proposal, ProposalSection, ProposalContent,
     HeroSection, TextSection, PricingSection, MediaSection,
     ServicePackage, ServicePackageItem
 } from '@/lib/types/domains/sales';
+import { useBrand } from '@/app/providers/BrandProvider';
+import { formatCurrency } from '@/lib/utils/formatUtils';
 
 // Blocks
 import EditorBlock from '@/components/proposals/EditorBlock';
@@ -31,6 +33,8 @@ export default function ProposalBuilderPage() {
     // Safely handle params which could be string or string[]
     const inquiryId = Array.isArray(params.inquiryId) ? params.inquiryId[0] : params.inquiryId;
     const proposalId = Array.isArray(params.proposalId) ? params.proposalId[0] : params.proposalId;
+    const { currentBrand } = useBrand();
+    const currencyCode = currentBrand?.currency || 'USD';
 
     const [isLoading, setIsLoading] = useState(true);
     const [proposal, setProposal] = useState<Proposal | null>(null);
@@ -260,7 +264,7 @@ export default function ProposalBuilderPage() {
                     <MenuItem value=""><em>None</em></MenuItem>
                     {availablePackages.map(pkg => (
                         <MenuItem key={pkg.id} value={pkg.id}>
-                            {pkg.name} ({new Intl.NumberFormat('en-US', { style: 'currency', currency: pkg.currency || 'USD' }).format(pkg.base_price)})
+                            {pkg.name} ({formatCurrency(Number(pkg.base_price ?? 0), currencyCode || pkg.currency || 'USD')})
                         </MenuItem>
                     ))}
                 </Select>
@@ -278,7 +282,7 @@ export default function ProposalBuilderPage() {
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                 <Typography variant="body2" sx={{ color: '#4d9bf0' }}>
-                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(item.price) || 0)}
+                                    {formatCurrency(Number(item.price ?? 0), currencyCode)}
                                 </Typography>
                                 <IconButton size="small" onClick={() => {
                                     const newItems = [...(section.data.items || [])];
@@ -302,8 +306,9 @@ export default function ProposalBuilderPage() {
                     <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #444', display: 'flex', justifyContent: 'space-between' }}>
                         <Typography variant="subtitle2" sx={{ color: '#ccc' }}>Total</Typography>
                         <Typography variant="subtitle1" fontWeight="bold" sx={{ color: '#fff' }}>
-                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
-                                (section.data.items || []).reduce((sum: number, i: ServicePackageItem) => sum + (Number(i.price) || 0), 0)
+                            {formatCurrency(
+                                (section.data.items || []).reduce((sum: number, i: ServicePackageItem) => sum + (Number(i.price) || 0), 0),
+                                currencyCode
                             )}
                         </Typography>
                     </Box>

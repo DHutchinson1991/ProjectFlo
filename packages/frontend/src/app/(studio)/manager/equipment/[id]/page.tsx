@@ -49,6 +49,8 @@ import {
     Inventory as InventoryIcon,
 } from "@mui/icons-material";
 import { api } from "@/lib/api";
+import { useBrand } from "@/app/providers/BrandProvider";
+import { formatCurrency } from "@/lib/utils/formatUtils";
 import EquipmentAvailabilityCalendar from "@/components/equipment/EquipmentAvailabilityCalendar";
 import {
     Equipment,
@@ -90,6 +92,8 @@ export default function EquipmentDetailsPage() {
     const router = useRouter();
     const params = useParams();
     const equipmentId = parseInt(params.id as string);
+    const { currentBrand } = useBrand();
+    const currencyCode = currentBrand?.currency || 'USD';
 
     // State
     const [equipment, setEquipment] = useState<Equipment | null>(null);
@@ -307,7 +311,7 @@ export default function EquipmentDetailsPage() {
                                     }}
                                 />
                                 <Chip
-                                    label={`$${Number(equipment.rental_price_per_day || 0).toFixed(0)}/day`}
+                                    label={`${formatCurrency(Number(equipment.rental_price_per_day || 0), currencyCode)}/day`}
                                     size="small"
                                     sx={{
                                         backgroundColor: 'rgba(52, 58, 68, 0.4)',
@@ -877,7 +881,7 @@ export default function EquipmentDetailsPage() {
                                                 Purchase Price
                                             </Typography>
                                             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#10b981' }}>
-                                                ${equipment.purchase_price ? Number(equipment.purchase_price).toFixed(2) : 'N/A'}
+                                                {equipment.purchase_price ? formatCurrency(Number(equipment.purchase_price), currencyCode) : 'N/A'}
                                             </Typography>
                                         </Box>
 

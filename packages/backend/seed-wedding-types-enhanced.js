@@ -52,41 +52,104 @@ async function seedEnhancedWeddingTypes() {
 
   const subjectsByType = {
     traditional_british: [
+      // Core couple
       { name: "Bride", subject_type: 'couple', typical_count: 1, order_index: 0, is_primary: true },
       { name: "Groom", subject_type: 'couple', typical_count: 1, order_index: 1, is_primary: true },
-      { name: "Bridesmaids", subject_type: 'wedding_party', typical_count: 3, order_index: 2, is_primary: false },
-      { name: "Groomsmen", subject_type: 'wedding_party', typical_count: 3, order_index: 3, is_primary: false },
-      { name: "Parents", subject_type: 'family', typical_count: 4, order_index: 4, is_primary: false },
-      { name: "Family & Guests", subject_type: 'guests', typical_count: 80, order_index: 5, is_primary: false },
+      // Bridal party
+      { name: "Maid of Honor", subject_type: 'wedding_party', typical_count: 1, order_index: 2, is_primary: true },
+      { name: "Bridesmaid #1", subject_type: 'wedding_party', typical_count: 1, order_index: 3, is_primary: false },
+      { name: "Bridesmaid #2", subject_type: 'wedding_party', typical_count: 1, order_index: 4, is_primary: false },
+      { name: "Bridesmaid #3", subject_type: 'wedding_party', typical_count: 1, order_index: 5, is_primary: false },
+      // Groom's party
+      { name: "Best Man", subject_type: 'wedding_party', typical_count: 1, order_index: 6, is_primary: true },
+      { name: "Groomsman #1", subject_type: 'wedding_party', typical_count: 1, order_index: 7, is_primary: false },
+      { name: "Groomsman #2", subject_type: 'wedding_party', typical_count: 1, order_index: 8, is_primary: false },
+      { name: "Groomsman #3", subject_type: 'wedding_party', typical_count: 1, order_index: 9, is_primary: false },
+      // Family
+      { name: "Father of Bride", subject_type: 'family', typical_count: 1, order_index: 10, is_primary: false },
+      { name: "Mother of Bride", subject_type: 'family', typical_count: 1, order_index: 11, is_primary: false },
+      { name: "Father of Groom", subject_type: 'family', typical_count: 1, order_index: 12, is_primary: false },
+      { name: "Mother of Groom", subject_type: 'family', typical_count: 1, order_index: 13, is_primary: false },
+      // Guests
+      { name: "Guests", subject_type: 'guests', typical_count: 100, order_index: 14, is_primary: false },
     ],
     indian_wedding: [
-      { name: "Bride & Henna", subject_type: 'couple', typical_count: 1, order_index: 0, is_primary: true },
+      // Core couple
+      { name: "Bride", subject_type: 'couple', typical_count: 1, order_index: 0, is_primary: true },
       { name: "Groom", subject_type: 'couple', typical_count: 1, order_index: 1, is_primary: true },
-      { name: "Bridesmaids", subject_type: 'wedding_party', typical_count: 4, order_index: 2, is_primary: false },
-      { name: "Groom's Party", subject_type: 'wedding_party', typical_count: 4, order_index: 3, is_primary: false },
-      { name: "Family Members", subject_type: 'family', typical_count: 8, order_index: 4, is_primary: false },
-      { name: "Wedding Guests", subject_type: 'guests', typical_count: 150, order_index: 5, is_primary: false },
-      { name: "Children", subject_type: 'children', typical_count: 10, order_index: 6, is_primary: false },
+      // Bridal party
+      { name: "Maid of Honor", subject_type: 'wedding_party', typical_count: 1, order_index: 2, is_primary: true },
+      { name: "Bridesmaid #1", subject_type: 'wedding_party', typical_count: 1, order_index: 3, is_primary: false },
+      { name: "Bridesmaid #2", subject_type: 'wedding_party', typical_count: 1, order_index: 4, is_primary: false },
+      { name: "Bridesmaid #3", subject_type: 'wedding_party', typical_count: 1, order_index: 5, is_primary: false },
+      // Groom's party
+      { name: "Best Man", subject_type: 'wedding_party', typical_count: 1, order_index: 6, is_primary: true },
+      { name: "Groomsman #1", subject_type: 'wedding_party', typical_count: 1, order_index: 7, is_primary: false },
+      { name: "Groomsman #2", subject_type: 'wedding_party', typical_count: 1, order_index: 8, is_primary: false },
+      { name: "Groomsman #3", subject_type: 'wedding_party', typical_count: 1, order_index: 9, is_primary: false },
+      // Family
+      { name: "Father of Bride", subject_type: 'family', typical_count: 1, order_index: 10, is_primary: false },
+      { name: "Mother of Bride", subject_type: 'family', typical_count: 1, order_index: 11, is_primary: false },
+      { name: "Father of Groom", subject_type: 'family', typical_count: 1, order_index: 12, is_primary: false },
+      { name: "Mother of Groom", subject_type: 'family', typical_count: 1, order_index: 13, is_primary: false },
+      { name: "Extended Family Male", subject_type: 'family', typical_count: 5, order_index: 14, is_primary: false },
+      { name: "Extended Family Female", subject_type: 'family', typical_count: 5, order_index: 15, is_primary: false },
+      { name: "Children", subject_type: 'children', typical_count: 5, order_index: 16, is_primary: false },
+      // Guests
+      { name: "Guests", subject_type: 'guests', typical_count: 120, order_index: 17, is_primary: false },
     ],
     pakistani_wedding: [
+      // Core couple
       { name: "Bride", subject_type: 'couple', typical_count: 1, order_index: 0, is_primary: true },
       { name: "Groom", subject_type: 'couple', typical_count: 1, order_index: 1, is_primary: true },
-      { name: "Bridesmaids", subject_type: 'wedding_party', typical_count: 3, order_index: 2, is_primary: false },
-      { name: "Groomsmen", subject_type: 'wedding_party', typical_count: 3, order_index: 3, is_primary: false },
-      { name: "Families", subject_type: 'family', typical_count: 6, order_index: 4, is_primary: false },
-      { name: "Guests", subject_type: 'guests', typical_count: 100, order_index: 5, is_primary: false },
+      // Bridal party
+      { name: "Maid of Honor", subject_type: 'wedding_party', typical_count: 1, order_index: 2, is_primary: true },
+      { name: "Bridesmaid #1", subject_type: 'wedding_party', typical_count: 1, order_index: 3, is_primary: false },
+      { name: "Bridesmaid #2", subject_type: 'wedding_party', typical_count: 1, order_index: 4, is_primary: false },
+      { name: "Bridesmaid #3", subject_type: 'wedding_party', typical_count: 1, order_index: 5, is_primary: false },
+      // Groom's party
+      { name: "Best Man", subject_type: 'wedding_party', typical_count: 1, order_index: 6, is_primary: true },
+      { name: "Groomsman #1", subject_type: 'wedding_party', typical_count: 1, order_index: 7, is_primary: false },
+      { name: "Groomsman #2", subject_type: 'wedding_party', typical_count: 1, order_index: 8, is_primary: false },
+      { name: "Groomsman #3", subject_type: 'wedding_party', typical_count: 1, order_index: 9, is_primary: false },
+      // Family
+      { name: "Father of Bride", subject_type: 'family', typical_count: 1, order_index: 10, is_primary: false },
+      { name: "Mother of Bride", subject_type: 'family', typical_count: 1, order_index: 11, is_primary: false },
+      { name: "Father of Groom", subject_type: 'family', typical_count: 1, order_index: 12, is_primary: false },
+      { name: "Mother of Groom", subject_type: 'family', typical_count: 1, order_index: 13, is_primary: false },
+      { name: "Extended Family Female", subject_type: 'family', typical_count: 5, order_index: 14, is_primary: false },
+      // Guests
+      { name: "Guests", subject_type: 'guests', typical_count: 100, order_index: 15, is_primary: false },
     ],
     registry_celebration: [
-      { name: "Couple", subject_type: 'couple', typical_count: 2, order_index: 0, is_primary: true },
-      { name: "Close Family", subject_type: 'family', typical_count: 4, order_index: 1, is_primary: false },
-      { name: "Friends & Guests", subject_type: 'guests', typical_count: 50, order_index: 2, is_primary: false },
-    ],
-    garden_intimate: [
+      // Core couple
       { name: "Bride", subject_type: 'couple', typical_count: 1, order_index: 0, is_primary: true },
       { name: "Groom", subject_type: 'couple', typical_count: 1, order_index: 1, is_primary: true },
-      { name: "Wedding Party", subject_type: 'wedding_party', typical_count: 4, order_index: 2, is_primary: false },
-      { name: "Close Family", subject_type: 'family', typical_count: 6, order_index: 3, is_primary: false },
-      { name: "Intimate Guests", subject_type: 'guests', typical_count: 30, order_index: 4, is_primary: false },
+      // Family
+      { name: "Mother of Bride", subject_type: 'family', typical_count: 1, order_index: 2, is_primary: false },
+      { name: "Father of Bride", subject_type: 'family', typical_count: 1, order_index: 3, is_primary: false },
+      { name: "Mother of Groom", subject_type: 'family', typical_count: 1, order_index: 4, is_primary: false },
+      { name: "Father of Groom", subject_type: 'family', typical_count: 1, order_index: 5, is_primary: false },
+      // Best Friends
+      { name: "Best Friend Male", subject_type: 'family', typical_count: 1, order_index: 6, is_primary: false },
+      { name: "Best Friend Female", subject_type: 'family', typical_count: 1, order_index: 7, is_primary: false },
+    ],
+    garden_intimate: [
+      // Core couple
+      { name: "Bride", subject_type: 'couple', typical_count: 1, order_index: 0, is_primary: true },
+      { name: "Groom", subject_type: 'couple', typical_count: 1, order_index: 1, is_primary: true },
+      // Wedding party
+      { name: "Maid of Honor", subject_type: 'wedding_party', typical_count: 1, order_index: 2, is_primary: true },
+      { name: "Best Man", subject_type: 'wedding_party', typical_count: 1, order_index: 3, is_primary: true },
+      { name: "Bridesmaid #1", subject_type: 'wedding_party', typical_count: 1, order_index: 4, is_primary: false },
+      { name: "Groomsman #1", subject_type: 'wedding_party', typical_count: 1, order_index: 5, is_primary: false },
+      // Family
+      { name: "Mother of Bride", subject_type: 'family', typical_count: 1, order_index: 6, is_primary: false },
+      { name: "Father of Bride", subject_type: 'family', typical_count: 1, order_index: 7, is_primary: false },
+      { name: "Mother of Groom", subject_type: 'family', typical_count: 1, order_index: 8, is_primary: false },
+      { name: "Father of Groom", subject_type: 'family', typical_count: 1, order_index: 9, is_primary: false },
+      // Guests
+      { name: "Close Guests", subject_type: 'guests', typical_count: 25, order_index: 10, is_primary: false },
     ],
   };
 
@@ -110,7 +173,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 0,
           order_index: 0,
           locations: ['Bride\'s Getting Ready Location', 'Groom\'s Getting Ready Location'],
-          subjects: ['Bride', 'Groom', 'Bridesmaids'],
+          subjects: ['Bride', 'Groom', 'Maid of Honor', 'Bridesmaid #1', 'Bridesmaid #2', 'Bridesmaid #3'],
           moments: [
             { name: 'Bride\'s Hair & Makeup', duration_seconds: 1200, order_index: 0, is_key_moment: false },
             { name: 'Bride Getting Dressed', duration_seconds: 600, order_index: 1, is_key_moment: false },
@@ -128,7 +191,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 75,
           order_index: 1,
           locations: ['Ceremony Venue'],
-          subjects: ['Bride', 'Groom', 'Bridesmaids', 'Groomsmen', 'Family & Guests'],
+          subjects: ['Bride', 'Groom', 'Maid of Honor', 'Bridesmaid #1', 'Bridesmaid #2', 'Bridesmaid #3', 'Best Man', 'Groomsman #1', 'Groomsman #2', 'Groomsman #3', 'Father of Bride', 'Mother of Bride', 'Father of Groom', 'Mother of Groom', 'Guests'],
           moments: [
             { name: 'Processional & Entry', duration_seconds: 300, order_index: 0, is_key_moment: true },
             { name: 'Vows Exchange', duration_seconds: 600, order_index: 1, is_key_moment: true },
@@ -146,7 +209,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 120,
           order_index: 2,
           locations: ['Ceremony Venue', 'Photo Locations (Garden/Grounds)'],
-          subjects: ['Bride', 'Groom', 'Bridesmaids', 'Groomsmen', 'Family & Guests'],
+          subjects: ['Bride', 'Groom', 'Maid of Honor', 'Bridesmaid #1', 'Bridesmaid #2', 'Bridesmaid #3', 'Best Man', 'Groomsman #1', 'Groomsman #2', 'Groomsman #3', 'Father of Bride', 'Mother of Bride', 'Father of Groom', 'Mother of Groom', 'Guests'],
           moments: [
             { name: 'Confetti Moment', duration_seconds: 300, order_index: 0, is_key_moment: true },
             { name: 'Couple Portraits', duration_seconds: 900, order_index: 1, is_key_moment: true },
@@ -163,7 +226,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 165,
           order_index: 3,
           locations: ['Reception Venue/Marquee'],
-          subjects: ['Bride', 'Groom', 'Family & Guests', 'Bridesmaids', 'Groomsmen'],
+          subjects: ['Bride', 'Groom', 'Maid of Honor', 'Best Man', 'Bridesmaid #1', 'Bridesmaid #2', 'Bridesmaid #3', 'Groomsman #1', 'Groomsman #2', 'Groomsman #3', 'Father of Bride', 'Mother of Bride', 'Father of Groom', 'Mother of Groom', 'Guests'],
           moments: [
             { name: 'Arrival & Greeting', duration_seconds: 600, order_index: 0, is_key_moment: false },
             { name: 'Toasts & Speeches', duration_seconds: 1200, order_index: 1, is_key_moment: true },
@@ -195,7 +258,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 0,
           order_index: 0,
           locations: ['Bride\'s Home (Mehendi/Henna)'],
-          subjects: ['Bride', 'Bridesmaids', 'Family Members'],
+          subjects: ['Bride', 'Maid of Honor', 'Bridesmaid #1', 'Bridesmaid #2', 'Bridesmaid #3', 'Mother of Bride', 'Extended Family Female', 'Children'],
           moments: [
             { name: 'Henna Application Start', duration_seconds: 600, order_index: 0, is_key_moment: false },
             { name: 'Bride\'s Extended Henna', duration_seconds: 3600, order_index: 1, is_key_moment: true },
@@ -211,7 +274,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 360,
           order_index: 1,
           locations: ['Temple/Ceremony Venue'],
-          subjects: ['Bride', 'Groom', 'Families', 'Wedding Guests'],
+          subjects: ['Bride', 'Groom', 'Mother of Bride', 'Father of Bride', 'Mother of Groom', 'Father of Groom', 'Extended Family Male', 'Extended Family Female', 'Maid of Honor', 'Best Man', 'Guests'],
           moments: [
             { name: 'Baraat Procession', duration_seconds: 900, order_index: 0, is_key_moment: true },
             { name: 'Bride & Groom Meet', duration_seconds: 300, order_index: 1, is_key_moment: true },
@@ -228,7 +291,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 600,
           order_index: 2,
           locations: ['Reception Venue'],
-          subjects: ['Bride', 'Groom', 'Wedding Guests', 'Families'],
+          subjects: ['Bride', 'Groom', 'Maid of Honor', 'Best Man', 'Mother of Bride', 'Father of Bride', 'Mother of Groom', 'Father of Groom', 'Extended Family Male', 'Extended Family Female', 'Guests', 'Children'],
           moments: [
             { name: 'Guest Arrival & Seating', duration_seconds: 600, order_index: 0, is_key_moment: false },
             { name: 'Couple\'s Entry', duration_seconds: 300, order_index: 1, is_key_moment: true },
@@ -258,7 +321,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 0,
           order_index: 0,
           locations: ['Bride\'s Home (Mehndi)'],
-          subjects: ['Bride', 'Bridesmaids', 'Families'],
+          subjects: ['Bride', 'Maid of Honor', 'Bridesmaid #1', 'Bridesmaid #2', 'Bridesmaid #3', 'Mother of Bride', 'Father of Bride', 'Extended Family Female'],
           moments: [
             { name: 'Henna Artists Begin', duration_seconds: 600, order_index: 0, is_key_moment: false },
             { name: 'Bride\'s Henna Session', duration_seconds: 3600, order_index: 1, is_key_moment: true },
@@ -274,7 +337,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 360,
           order_index: 1,
           locations: ['Groom\'s Home', 'Bride\'s Home (Mehndi)'],
-          subjects: ['Bride', 'Groom', 'Groomsmen', 'Families'],
+          subjects: ['Bride', 'Groom', 'Best Man', 'Groomsman #1', 'Groomsman #2', 'Groomsman #3', 'Mother of Groom', 'Father of Groom', 'Mother of Bride', 'Father of Bride'],
           moments: [
             { name: 'Baraat Procession Arrival', duration_seconds: 900, order_index: 0, is_key_moment: true },
             { name: 'Traditional Welcome', duration_seconds: 600, order_index: 1, is_key_moment: false },
@@ -291,7 +354,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 570,
           order_index: 2,
           locations: ['Venue (Walima/Reception)'],
-          subjects: ['Bride', 'Groom', 'Wedding Guests', 'Families'],
+          subjects: ['Bride', 'Groom', 'Maid of Honor', 'Best Man', 'Bridesmaid #1', 'Bridesmaid #2', 'Bridesmaid #3', 'Groomsman #1', 'Groomsman #2', 'Groomsman #3', 'Mother of Bride', 'Father of Bride', 'Mother of Groom', 'Father of Groom', 'Guests'],
           moments: [
             { name: 'Guest Arrival', duration_seconds: 600, order_index: 0, is_key_moment: false },
             { name: 'Couple\'s Entry & Sitting', duration_seconds: 300, order_index: 1, is_key_moment: true },
@@ -321,7 +384,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 0,
           order_index: 0,
           locations: ['Registry Venue'],
-          subjects: ['Couple', 'Close Family'],
+          subjects: ['Bride', 'Groom', 'Mother of Bride', 'Father of Bride', 'Mother of Groom', 'Father of Groom'],
           moments: [
             { name: 'Guest Arrival & Seating', duration_seconds: 600, order_index: 0, is_key_moment: false },
             { name: 'Couple Arrival', duration_seconds: 300, order_index: 1, is_key_moment: true },
@@ -338,7 +401,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 120,
           order_index: 1,
           locations: ['Celebration Venue'],
-          subjects: ['Couple', 'Friends & Guests', 'Close Family'],
+          subjects: ['Bride', 'Groom', 'Mother of Bride', 'Father of Bride', 'Mother of Groom', 'Father of Groom', 'Best Friend Male', 'Best Friend Female'],
           moments: [
             { name: 'Welcome Drinks & Canapés', duration_seconds: 900, order_index: 0, is_key_moment: false },
             { name: 'First Dance', duration_seconds: 300, order_index: 1, is_key_moment: true },
@@ -368,7 +431,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 0,
           order_index: 0,
           locations: ['Getting Ready Space'],
-          subjects: ['Bride', 'Groom', 'Wedding Party'],
+          subjects: ['Bride', 'Groom', 'Maid of Honor', 'Best Man', 'Bridesmaid #1', 'Groomsman #1'],
           moments: [
             { name: 'Hair & Makeup', duration_seconds: 1200, order_index: 0, is_key_moment: false },
             { name: 'Bride Getting Dressed', duration_seconds: 600, order_index: 1, is_key_moment: false },
@@ -384,7 +447,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 90,
           order_index: 1,
           locations: ['Garden Ceremony Area'],
-          subjects: ['Bride', 'Groom', 'Wedding Party', 'Close Family', 'Intimate Guests'],
+          subjects: ['Bride', 'Groom', 'Maid of Honor', 'Best Man', 'Bridesmaid #1', 'Groomsman #1', 'Mother of Bride', 'Father of Bride', 'Mother of Groom', 'Father of Groom', 'Close Guests'],
           moments: [
             { name: 'Guest Arrival in Garden', duration_seconds: 600, order_index: 0, is_key_moment: false },
             { name: 'Bride\'s Walk Down Aisle', duration_seconds: 300, order_index: 1, is_key_moment: true },
@@ -401,7 +464,7 @@ async function seedEnhancedWeddingTypes() {
           start_time_offset_minutes: 195,
           order_index: 2,
           locations: ['Reception Area/Marquee'],
-          subjects: ['Bride', 'Groom', 'Intimate Guests', 'Wedding Party'],
+          subjects: ['Bride', 'Groom', 'Maid of Honor', 'Best Man', 'Bridesmaid #1', 'Groomsman #1', 'Mother of Bride', 'Father of Bride', 'Mother of Groom', 'Father of Groom', 'Close Guests'],
           moments: [
             { name: 'Cocktails & Mingling', duration_seconds: 900, order_index: 0, is_key_moment: false },
             { name: 'First Dance', duration_seconds: 300, order_index: 1, is_key_moment: true },

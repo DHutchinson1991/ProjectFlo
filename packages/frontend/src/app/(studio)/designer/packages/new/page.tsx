@@ -1,81 +1,40 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Box, Typography, CircularProgress, Alert } from '@mui/material';
-import { useRouter } from 'next/navigation';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import PackageCreationWizard from '../components/PackageCreationWizard';
 import { api } from '@/lib/api';
-import WeddingTypeSelector from '../components/WeddingTypeSelector';
+import { useBrand } from '@/app/providers/BrandProvider';
 
-export default function NewPackagePage() {
+function NewPackageContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { currentBrand } = useBrand();
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const handlePackageCreated = async (packageId: number) => {
-        setIsLoading(true);
-        try {
-            // Redirect to the newly created package detail page
-            router.push(`/designer/packages/${packageId}`);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to navigate to package');
-            setIsLoading(false);
-        }
-    };
+    const slotId = searchParams.get('slotId') ? parseInt(searchParams.get('slotId')!, 10) : null;
 
     return (
-        <Box sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 3,
-            p: 3,
-            minHeight: '100vh',
-            bgcolor: '#0f1419',
-        }}>
-            {/* Header */}
-            <Box>
-                <Typography variant="h4" sx={{ 
-                    color: '#ffffff', 
-                    fontWeight: 700, 
-                    mb: 1 
-                }}>
-                    Create Package
-                </Typography>
-                <Typography sx={{ 
-                    color: '#94a3b8', 
-                    fontSize: '0.95rem' 
-                }}>
-                    Choose a wedding type template to quickly auto-populate package details
-                </Typography>
-            </Box>
+        <PackageCreationWizard
+            fullPage
+            onClose={() => router.push('/designer/packages')}
+            onPackageCreated={async (packageId) => {
+                // If a slotId was provided, assign the new package to that slot
+                if (slotId && currentBrand?.id) {
+                    try {
+                        await api.packageSets.assignPackage(currentBrand.id, slotId, packageId);
+                    } catch (err) {
+                        console.warn('Failed to assign package to slot:', err);
+                    }
+                }
+                router.push(`/designer/packages/${packageId}`);
+            }}
+        />
+    );
+}
 
-            {/* Error Alert */}
-            {error && (
-                <Alert severity="error" sx={{ borderRadius: 2 }}>
-                    {error}
-                </Alert>
-            )}
-
-            {/* Loading Spinner */}
-            {isLoading && (
-                <Box sx={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    minHeight: '400px',
-                }}>
-                    <CircularProgress sx={{ color: '#f59e0b' }} />
-                </Box>
-            )}
-
-            {/* Wedding Type Selector */}
-            {!isLoading && (
-                <WeddingTypeSelector 
-                    onPackageCreated={handlePackageCreated}
-                    isLoading={isLoading}
-                />
-            )}
-        </Box>
+export default function NewPackagePage() {
+    return (
+        <Suspense>
+            <NewPackageContent />
+        </Suspense>
     );
 }

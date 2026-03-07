@@ -16,6 +16,20 @@ export enum PricingType {
     Fixed = 'Fixed'
 }
 
+export enum TaskTriggerType {
+    always = 'always',
+    per_project = 'per_project',
+    per_film = 'per_film',
+    per_film_with_music = 'per_film_with_music',
+    per_film_with_graphics = 'per_film_with_graphics',
+    per_event_day = 'per_event_day',
+    per_crew_member = 'per_crew_member',
+    per_location = 'per_location',
+    per_activity = 'per_activity',
+    per_activity_crew = 'per_activity_crew',
+    per_film_scene = 'per_film_scene',
+}
+
 export class CreateTaskLibraryDto {
     @IsString()
     name: string;
@@ -64,12 +78,21 @@ export class CreateTaskLibraryDto {
     complexity_score?: number;
 
     @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    default_job_role_id?: number;
+
+    @IsOptional()
     @IsString()
     notes?: string;
 
     @IsNumber()
     @Type(() => Number)
     brand_id: number;
+
+    @IsOptional()
+    @IsEnum(TaskTriggerType)
+    trigger_type?: TaskTriggerType;
 }
 
 export class UpdateTaskLibraryDto {
@@ -122,12 +145,21 @@ export class UpdateTaskLibraryDto {
     complexity_score?: number;
 
     @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    default_job_role_id?: number | null;
+
+    @IsOptional()
     @IsString()
     notes?: string;
 
     @IsOptional()
     @IsBoolean()
     is_active?: boolean;
+
+    @IsOptional()
+    @IsEnum(TaskTriggerType)
+    trigger_type?: TaskTriggerType;
 }
 
 export class TaskLibraryQueryDto {
@@ -172,4 +204,18 @@ export class BatchUpdateTaskOrderDto {
     @IsNumber()
     @Type(() => Number)
     brand_id: number;
+}
+
+export class ExecuteAutoGenerationDto {
+    @IsNumber()
+    @Type(() => Number)
+    projectId: number;
+
+    @IsNumber()
+    @Type(() => Number)
+    packageId: number;
+
+    @IsNumber()
+    @Type(() => Number)
+    brandId: number;
 }

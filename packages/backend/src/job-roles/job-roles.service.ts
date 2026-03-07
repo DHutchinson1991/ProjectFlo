@@ -105,6 +105,7 @@ export class JobRolesService {
             where: { contributor_id: contributorId },
             include: {
                 job_role: true,
+                payment_bracket: true,
                 assigned_by_user: {
                     include: {
                         contact: {
@@ -156,10 +157,12 @@ export class JobRolesService {
                 contributor_id,
                 job_role_id,
                 is_primary: is_primary || false,
-                assigned_by
+                assigned_by,
+                payment_bracket_id: assignJobRoleDto.payment_bracket_id,
             },
             include: {
                 job_role: true,
+                payment_bracket: true,
                 contributor: {
                     include: {
                         contact: {
@@ -215,6 +218,7 @@ export class JobRolesService {
             data: updateDto,
             include: {
                 job_role: true,
+                payment_bracket: true,
                 contributor: {
                     include: {
                         contact: {

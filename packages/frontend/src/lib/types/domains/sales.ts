@@ -208,6 +208,15 @@ export interface ServicePackage {
     is_active: boolean;
     created_at: Date;
     updated_at: Date;
+    workflow_template_id?: number | null;
+    workflow_template?: {
+        id: number;
+        name: string;
+        description?: string;
+        is_default: boolean;
+        is_active?: boolean;
+        _count?: { workflow_template_tasks: number };
+    } | null;
     contents: {
         subject_template_id?: number | null;
         equipment_template_id?: number | null;

@@ -3,7 +3,7 @@
 import React from "react";
 import { Box, Alert, CircularProgress } from "@mui/material";
 import { DragEndEvent } from "@dnd-kit/core";
-import { TaskLibrary, TaskLibraryPhaseGroup } from "@/lib/types";
+import { TaskLibrary, TaskLibraryPhaseGroup, JobRole, SkillRoleMapping } from "@/lib/types";
 import { TasksHeader } from "./TasksHeader";
 import { TasksSummaryCards } from "./TasksSummaryCards";
 import { PhaseCardsGrid } from "./PhaseCardsGrid";
@@ -42,6 +42,11 @@ interface TasksContentProps {
     cancelQuickAdd: () => void;
     saveQuickAdd: () => void;
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
+    jobRoles: JobRole[];
+    allMappings: SkillRoleMapping[];
+    expandedTaskId: number | null;
+    onToggleExpand: (taskId: number) => void;
+    onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
 }
 
 export function TasksContent({
@@ -75,6 +80,11 @@ export function TasksContent({
     cancelQuickAdd,
     saveQuickAdd,
     updateQuickAddData,
+    jobRoles,
+    allMappings,
+    expandedTaskId,
+    onToggleExpand,
+    onUpdateRoleSkills,
 }: TasksContentProps) {
     if (loading) {
         return (
@@ -147,6 +157,11 @@ export function TasksContent({
                 cancelQuickAdd={cancelQuickAdd}
                 saveQuickAdd={saveQuickAdd}
                 updateQuickAddData={updateQuickAddData}
+                jobRoles={jobRoles}
+                allMappings={allMappings}
+                expandedTaskId={expandedTaskId}
+                onToggleExpand={onToggleExpand}
+                onUpdateRoleSkills={onUpdateRoleSkills}
             />
 
             {/* Delete Confirmation Dialog */}

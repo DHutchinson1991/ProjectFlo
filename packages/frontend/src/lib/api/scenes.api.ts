@@ -15,10 +15,10 @@ export const createScenesApi = (client: ApiClient) => ({
   scenes: {
     /**
      * Get all scenes for a film
-     * GET /scenes?filmId=1
+     * GET /scenes/films/:filmId/scenes
      */
     getByFilm: (filmId: number): Promise<FilmScene[]> =>
-      client.get(`/scenes?filmId=${filmId}`),
+      client.get(`/scenes/films/${filmId}/scenes`),
 
     /**
      * Get a single scene with all moments

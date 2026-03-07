@@ -10,6 +10,8 @@ import {
 } from "@mui/material";
 import { Equipment } from "@/lib/types";
 import { getCategoryIcon, getCategoryColor } from "../utils/categoryConfig";
+import { useBrand } from "@/app/providers/BrandProvider";
+import { formatCurrency } from "@/lib/utils/formatUtils";
 
 interface CategoryCardsGridProps {
     categoryStats: Array<{
@@ -27,6 +29,8 @@ export const CategoryCardsGrid: React.FC<CategoryCardsGridProps> = ({
     categoryStats,
     onCategoryCardClick,
 }) => {
+    const { currentBrand } = useBrand();
+    const currencyCode = currentBrand?.currency || 'USD';
 
     return (
         <Box sx={{
@@ -143,7 +147,7 @@ export const CategoryCardsGrid: React.FC<CategoryCardsGridProps> = ({
                                 />
                                 {stat.totalValue > 0 && (
                                     <Chip
-                                        label={`$${stat.totalValue.toLocaleString()}`}
+                                        label={formatCurrency(stat.totalValue, currencyCode)}
                                         size="small"
                                         variant="outlined"
                                         sx={{

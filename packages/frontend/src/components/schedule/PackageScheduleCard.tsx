@@ -48,11 +48,15 @@ interface ActivityRecord {
 
 interface OperatorRecord {
     id: number;
-    operator_template_id: number;
+    contributor_id?: number | null;
     event_day_template_id: number;
     package_activity_id?: number | null;
+    position_name?: string;
+    position_color?: string | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    operator_template?: any;
+    contributor?: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    job_role?: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     equipment?: any[];
 }
@@ -83,6 +87,8 @@ interface PackageScheduleCardProps {
     onSelectedActivityChange?: (id: number | null) => void;
     /** Callback when user drags a timeline bar to change start/end time */
     onActivityTimeChange?: (activityId: number, startTime: string, endTime: string) => void;
+    /** Live colour overrides keyed by activity id – used for instant preview while editing */
+    colorOverrides?: Record<number, string>;
 }
 
 // ─── Activity Colors & Presets ───────────────────────────────────────
@@ -191,6 +197,7 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
     selectedActivityId,
     onSelectedActivityChange,
     onActivityTimeChange,
+    colorOverrides,
 }) => {
     const [loading, setLoading] = useState(false);
     const [activities, setActivities] = useState<ActivityRecord[]>([]);
@@ -1095,7 +1102,7 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                         const eMin = isDragging ? dragPreview!.endMin : rawEMin;
                                         const dur = eMin - sMin;
 
-                                        const c = act.color || ACTIVITY_COLORS[act.order_index % ACTIVITY_COLORS.length];
+                                        const c = colorOverrides?.[act.id] ?? act.color ?? ACTIVITY_COLORS[act.order_index % ACTIVITY_COLORS.length];
                                         const lane = activityLanes.get(act.id) ?? 0;
                                         const isSelected = selectedActivityId === act.id;
 

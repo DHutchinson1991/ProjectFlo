@@ -179,6 +179,7 @@ export interface Equipment extends BaseEntity {
             phone?: string;
         };
     };
+    is_unmanned?: boolean;
 }
 
 // Equipment rental interface

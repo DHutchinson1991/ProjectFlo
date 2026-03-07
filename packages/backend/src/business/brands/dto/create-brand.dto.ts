@@ -1,4 +1,5 @@
 import { IsString, IsOptional, IsEmail, IsUrl, IsBoolean } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateBrandDto {
     @IsString()
@@ -16,11 +17,13 @@ export class CreateBrandDto {
     @IsOptional()
     business_type?: string;
 
-    @IsUrl()
+    @Transform(({ value }) => value === '' ? undefined : value)
+    @IsUrl({}, { message: 'Website must be a valid URL' })
     @IsOptional()
     website?: string;
 
-    @IsEmail()
+    @Transform(({ value }) => value === '' ? undefined : value)
+    @IsEmail({}, { message: 'Email must be a valid email address' })
     @IsOptional()
     email?: string;
 
@@ -60,7 +63,8 @@ export class CreateBrandDto {
     @IsOptional()
     currency?: string;
 
-    @IsUrl()
+    @Transform(({ value }) => value === '' ? undefined : value)
+    @IsUrl({}, { message: 'Logo URL must be a valid URL' })
     @IsOptional()
     logo_url?: string;
 

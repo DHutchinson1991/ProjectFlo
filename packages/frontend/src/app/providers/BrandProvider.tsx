@@ -6,6 +6,8 @@ import React, {
     useState,
     useEffect,
     useCallback,
+    useMemo,
+    useRef,
     ReactNode,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,9 +39,33 @@ export function BrandProvider({ children }: BrandProviderProps) {
     const { user, isAuthenticated } = useAuth();
     const queryClient = useQueryClient();
 
+    // ── Synchronous init from localStorage so there is never a null flash ──
     const [currentBrand, setCurrentBrand] = useState<Brand | null>(null);
+    const brandRef = useRef<Brand | null>(null); // always mirrors currentBrand, readable synchronously
+
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Track previous auth state so we only clear brand on a real logout
+    // (was authenticated → became unauthenticated), NOT on initial mount
+    const wasAuthenticated = useRef(false);
+
+    // Keep ref in sync with state
+    const updateBrand = useCallback((brand: Brand | null) => {
+        brandRef.current = brand;
+        setCurrentBrand(brand);
+        if (brand) {
+            localStorage.setItem(BRAND_STORAGE_KEY, brand.id.toString());
+        }
+    }, []);
+
+    // Set up a SINGLE brand context provider that reads from the ref.
+    // This never needs to be recreated — the ref is always up-to-date.
+    useEffect(() => {
+        setBrandContextProvider({
+            getCurrentBrandId: () => brandRef.current?.id || null,
+        });
+    }, []); // intentionally run once
 
     // Query for user's available brands
     const {
@@ -51,6 +77,7 @@ export function BrandProvider({ children }: BrandProviderProps) {
         queryFn: () => api.brands.getUserBrands(user!.id),
         enabled: !!user?.id && isAuthenticated,
         staleTime: 5 * 60 * 1000, // 5 minutes
+        refetchOnWindowFocus: false, // prevent unnecessary refetches that trigger brand resolution
     });
 
     // Debug logging for user brands
@@ -58,45 +85,47 @@ export function BrandProvider({ children }: BrandProviderProps) {
         if (brandsError) {
             console.error('❌ Error loading user brands:', brandsError);
         }
-    }, [userBrands, brandsError]);
+    }, [brandsError]);
 
-    const availableBrands = userBrands.map((ub) => ub.brand);
+    // Memoize so a new array ref is only created when the underlying IDs change
+    const availableBrands = useMemo(
+        () => userBrands.map((ub) => ub.brand),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [userBrands.map((ub) => ub.brand?.id).join(',')]
+    );
 
-    // Load stored brand preference or set default
+    // Track whether we have already resolved the initial brand
+    const brandResolved = useRef(false);
+
+    // Load stored brand preference or set default — runs once when brands arrive
     useEffect(() => {
         if (!isAuthenticated || !user || availableBrands.length === 0) {
             return;
         }
 
-        // Check if we have a stored brand preference
-        const storedBrandId = localStorage.getItem(BRAND_STORAGE_KEY);
+        // If brand is already set AND still present in the list, leave it alone
+        if (brandRef.current && availableBrands.some((b) => b.id === brandRef.current!.id)) {
+            brandResolved.current = true;
+            return;
+        }
 
+        // Try stored preference
+        const storedBrandId = localStorage.getItem(BRAND_STORAGE_KEY);
         if (storedBrandId) {
             const storedBrand = availableBrands.find(
                 (brand) => brand.id === parseInt(storedBrandId, 10)
             );
-
             if (storedBrand) {
-                setCurrentBrand(storedBrand);
-                // Force update the brand context provider immediately
-                setBrandContextProvider({
-                    getCurrentBrandId: () => storedBrand.id
-                });
+                updateBrand(storedBrand);
+                brandResolved.current = true;
                 return;
             }
         }
 
-        // No valid stored brand, default to first available
-        if (availableBrands.length > 0) {
-            const defaultBrand = availableBrands[0];
-            setCurrentBrand(defaultBrand);
-            localStorage.setItem(BRAND_STORAGE_KEY, defaultBrand.id.toString());
-            // Force update the brand context provider immediately
-            setBrandContextProvider({
-                getCurrentBrandId: () => defaultBrand.id
-            });
-        }
-    }, [isAuthenticated, user, availableBrands]);
+        // Fallback to first available
+        updateBrand(availableBrands[0]);
+        brandResolved.current = true;
+    }, [isAuthenticated, user, availableBrands, updateBrand]);
 
     // Switch brand with hard refresh
     const switchBrand = useCallback(
@@ -109,27 +138,15 @@ export function BrandProvider({ children }: BrandProviderProps) {
             setError(null);
 
             try {
-                // Find the brand in our available brands
                 const targetBrand = availableBrands.find((brand) => brand.id === brandId);
                 if (!targetBrand) {
                     throw new Error("Brand not found in user's available brands");
                 }
 
-                // Update local state directly (no backend call needed)
-                console.log('🏢 BrandProvider Debug - Switching to brand:', targetBrand.name, 'ID:', brandId);
-                setCurrentBrand(targetBrand);
-                localStorage.setItem(BRAND_STORAGE_KEY, brandId.toString());
+                // Update state + ref + localStorage in one go
+                updateBrand(targetBrand);
 
-                // Force update the brand context provider immediately
-                setBrandContextProvider({
-                    getCurrentBrandId: () => {
-                        console.log('🏢 BrandProvider Debug - Immediate getCurrentBrandId (switch) called, returning:', targetBrand.id, 'for brand:', targetBrand.name);
-                        return targetBrand.id;
-                    }
-                });
-
-                // Hard refresh of brand-specific data
-                // Invalidate all brand-specific queries (both old and new brand contexts)
+                // Invalidate brand-specific queries
                 const brandSpecificPrefixes = [
                     "contacts",
                     "roles",
@@ -140,22 +157,12 @@ export function BrandProvider({ children }: BrandProviderProps) {
                     "contributors",
                 ];
 
-                console.log('🏢 BrandProvider Debug - Invalidating all brand-specific queries');
-
-                // Invalidate all queries that start with these prefixes
                 for (const prefix of brandSpecificPrefixes) {
                     await queryClient.invalidateQueries({
                         queryKey: [prefix],
-                        exact: false // This will match ["contacts", 1], ["contacts", 2], etc.
+                        exact: false,
                     });
                 }
-
-                // Note: We don't invalidate universal data like:
-                // - components library
-                // - timeline layers 
-                // - global settings
-                // These are shared across brands and don't need refresh
-
             } catch (err) {
                 const errorMessage =
                     err instanceof Error ? err.message : "Failed to switch brand";
@@ -165,7 +172,7 @@ export function BrandProvider({ children }: BrandProviderProps) {
                 setIsLoading(false);
             }
         },
-        [user, availableBrands, queryClient]
+        [user, availableBrands, queryClient, updateBrand]
     );
 
     // Refresh brands list
@@ -178,17 +185,19 @@ export function BrandProvider({ children }: BrandProviderProps) {
     // Computed properties
     const isBrandSelected = currentBrand !== null;
     const getCurrentBrandId = useCallback(() => {
-        return currentBrand?.id || null;
-    }, [currentBrand]);
+        return brandRef.current?.id || null;
+    }, []); // stable — reads from ref
 
-    // Set up brand context provider for API service
+    // Clear brand state only on actual logout (was authenticated → became unauthenticated)
+    // NOT on initial mount when isAuthenticated starts as false
     useEffect(() => {
-        setBrandContextProvider({ getCurrentBrandId });
-    }, [getCurrentBrandId, currentBrand]);
-
-    // Clear brand state when user logs out
-    useEffect(() => {
-        if (!isAuthenticated) {
+        if (isAuthenticated) {
+            wasAuthenticated.current = true;
+        } else if (wasAuthenticated.current) {
+            // This is a real logout transition
+            wasAuthenticated.current = false;
+            brandResolved.current = false;
+            brandRef.current = null;
             setCurrentBrand(null);
             localStorage.removeItem(BRAND_STORAGE_KEY);
         }

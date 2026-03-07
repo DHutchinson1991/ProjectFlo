@@ -56,9 +56,11 @@ import {
     TaskLibrary,
     ProjectPhase,
     PricingType,
+    TriggerType,
     PHASE_LABELS,
     PRICING_TYPE_LABELS
 } from "@/lib/types";
+import { formatCurrency as formatCurrencyHelper } from "@/lib/utils/formatUtils";
 import { useTheme } from "@/app/theme/ThemeProvider";
 
 // Animation keyframes for visual feedback
@@ -83,6 +85,7 @@ interface TaskFormData {
     fixed_price: number;
     hourly_rate: number;
     is_active: boolean;
+    trigger_type: TriggerType;
 }
 
 // Helper component for Tabs
@@ -124,13 +127,6 @@ function formatDate(dateString: string): string {
     });
 }
 
-function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-    }).format(amount);
-}
-
 // Main component
 export default function TaskEditPage() {
     // Hooks
@@ -138,6 +134,8 @@ export default function TaskEditPage() {
     const params = useParams();
     const { mode } = useTheme();
     const { currentBrand } = useBrand();
+    const currencyCode = currentBrand?.currency || "USD";
+    const formatMoney = (value: number) => formatCurrencyHelper(value, currencyCode);
     const taskId = params.id as string;
     const isNewTask = taskId === 'new';
     const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -168,6 +166,7 @@ export default function TaskEditPage() {
         fixed_price: 0,
         hourly_rate: 0,
         is_active: true,
+        trigger_type: TriggerType.ALWAYS,
     });
 
     // Effect to load task data on component mount
@@ -191,6 +190,7 @@ export default function TaskEditPage() {
                     fixed_price: taskData.fixed_price || 0,
                     hourly_rate: taskData.hourly_rate || 0,
                     is_active: taskData.is_active,
+                    trigger_type: taskData.trigger_type || TriggerType.ALWAYS,
                 });
             } catch (err) {
                 setError('Failed to load task');
@@ -316,6 +316,7 @@ export default function TaskEditPage() {
                     fixed_price: task.fixed_price || 0,
                     hourly_rate: task.hourly_rate || 0,
                     is_active: task.is_active,
+                    trigger_type: task.trigger_type || TriggerType.ALWAYS,
                 });
             }
             setHasUnsavedChanges(false);
@@ -410,8 +411,8 @@ export default function TaskEditPage() {
                                     <Chip
                                         icon={<MoneyIcon />}
                                         label={(formData.pricing_type || PricingType.HOURLY) === PricingType.FIXED
-                                            ? formatCurrency(formData.fixed_price || 0)
-                                            : `${formatCurrency(formData.hourly_rate || 0)}/hr`
+                                            ? formatMoney(formData.fixed_price || 0)
+                                            : `${formatMoney(formData.hourly_rate || 0)}/hr`
                                         }
                                         variant="outlined"
                                         size="small"
@@ -692,7 +693,7 @@ export default function TaskEditPage() {
                                         {(formData.pricing_type || PricingType.HOURLY) === PricingType.HOURLY && (
                                             <Grid item xs={12} md={4}>
                                                 <TextField
-                                                    label="Hourly Rate ($)"
+                                                    label={`Hourly Rate (${currencyCode})`}
                                                     type="number"
                                                     value={formData.hourly_rate ?? 0}
                                                     onChange={(e) => handleFormChange('hourly_rate', parseFloat(e.target.value) || 0)}
@@ -707,10 +708,10 @@ export default function TaskEditPage() {
                                         )}
                                         <Grid item xs={12} md={4}>
                                             <TextField
-                                                label="Estimated Value ($)"
+                                                label={`Estimated Value (${currencyCode})`}
                                                 value={(formData.pricing_type || PricingType.HOURLY) === PricingType.FIXED
-                                                    ? formatCurrency(formData.fixed_price || 0)
-                                                    : formatCurrency((formData.hourly_rate || 0) * (formData.effort_hours || 0))
+                                                    ? formatMoney(formData.fixed_price || 0)
+                                                    : formatMoney((formData.hourly_rate || 0) * (formData.effort_hours || 0))
                                                 }
                                                 fullWidth
                                                 disabled

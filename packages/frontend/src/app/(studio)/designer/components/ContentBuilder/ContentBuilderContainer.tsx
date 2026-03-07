@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { api } from '@/lib/api';
 import { Box, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { TimelinePanel, PlaybackPanel, DetailsPanel, ModalsContainer } from './ui';
@@ -15,6 +16,8 @@ interface ContentBuilderContainerProps {
   onSaveFilmName?: (name: string) => Promise<void>;
   /** When set, film is opened from a package — schedule filters event days to this package */
   packageId?: number | null;
+  /** When set, location count in the header is filtered to slots assigned to this activity */
+  linkedActivityId?: number | null;
 }
 
 /**
@@ -36,8 +39,29 @@ export const ContentBuilderContainer: React.FC<ContentBuilderContainerProps> = (
   subjectCount = 0,
   onSaveFilmName = async () => {},
   packageId,
+  linkedActivityId,
 }) => {
   const { scenes, tracks, setShowCreateSceneDialog } = useContentBuilder();
+
+  // Count location slots assigned to this film's activity (for the header badge)
+  const [activityLocationCount, setActivityLocationCount] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    if (!packageId || !linkedActivityId) {
+      setActivityLocationCount(null);
+      return;
+    }
+    api.schedule.packageLocationSlots
+      .getAll(packageId)
+      .then((slots: any[]) => {
+        const count = (slots || []).filter((s: any) =>
+          (s.activity_assignments || []).some(
+            (a: any) => a.package_activity_id === linkedActivityId
+          )
+        ).length;
+        setActivityLocationCount(count);
+      })
+      .catch(() => setActivityLocationCount(null));
+  }, [packageId, linkedActivityId]);
 
   // Calculate total duration from scenes
   const totalDuration = React.useMemo(() => {
@@ -57,6 +81,9 @@ export const ContentBuilderContainer: React.FC<ContentBuilderContainerProps> = (
   }, [scenes]);
 
   const locationCount = React.useMemo(() => {
+    // Use activity-filtered slot count when we have a linked activity
+    if (activityLocationCount !== null) return activityLocationCount;
+
     const filmLocations = (film as any)?.locations;
     if (Array.isArray(filmLocations) && filmLocations.length > 0) {
       return filmLocations.length;
@@ -79,7 +106,7 @@ export const ContentBuilderContainer: React.FC<ContentBuilderContainerProps> = (
     });
 
     return locationKeys.size;
-  }, [film, scenes]);
+  }, [film, scenes, activityLocationCount]);
 
   return (
     <Box

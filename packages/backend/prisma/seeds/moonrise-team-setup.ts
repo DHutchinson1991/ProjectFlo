@@ -53,6 +53,8 @@ export async function createMoonriseTeam(brandId: number) {
             contributor_type: "Internal",
             default_hourly_rate: 45.0,
             password_hash: managerPassword,
+            is_crew: true,
+            crew_color: "#2563EB",
         },
         create: {
             contact_id: andyContact.id,
@@ -60,6 +62,8 @@ export async function createMoonriseTeam(brandId: number) {
             contributor_type: "Internal",
             default_hourly_rate: 45.0,
             password_hash: managerPassword,
+            is_crew: true,
+            crew_color: "#2563EB",
         },
     });
 
@@ -109,6 +113,8 @@ export async function createMoonriseTeam(brandId: number) {
             contributor_type: "Internal",
             default_hourly_rate: 45.0,
             password_hash: managerPassword,
+            is_crew: true,
+            crew_color: "#DB2777",
         },
         create: {
             contact_id: corriContact.id,
@@ -116,6 +122,8 @@ export async function createMoonriseTeam(brandId: number) {
             contributor_type: "Internal",
             default_hourly_rate: 45.0,
             password_hash: managerPassword,
+            is_crew: true,
+            crew_color: "#DB2777",
         },
     });
 
@@ -139,8 +147,68 @@ export async function createMoonriseTeam(brandId: number) {
         },
     });
 
+    // ── Crew Job Role Assignments ─────────────────────────────────────────────
+    // Look up the global job roles and payment brackets we need
+    logger.info('Assigning crew job roles...');
+
+    const [directorRole, videographerRole, editorRole, producerRole] = await Promise.all([
+        prisma.job_roles.findUnique({ where: { name: 'director' } }),
+        prisma.job_roles.findUnique({ where: { name: 'videographer' } }),
+        prisma.job_roles.findUnique({ where: { name: 'editor' } }),
+        prisma.job_roles.findUnique({ where: { name: 'producer' } }),
+    ]);
+
+    // Helper: find a bracket by role id + tier name (returns null if not yet seeded)
+    async function findBracket(jobRoleId: number | undefined, tierName: string) {
+        if (!jobRoleId) return null;
+        const bracket = await prisma.payment_brackets.findUnique({
+            where: { job_role_id_name: { job_role_id: jobRoleId, name: tierName } },
+        });
+        return bracket?.id ?? null;
+    }
+
+    // Andy Galloway → Director (primary, lead) + Videographer (senior)
+    if (directorRole) {
+        const bracketId = await findBracket(directorRole.id, 'lead');
+        await prisma.contributor_job_roles.upsert({
+            where: { contributor_id_job_role_id: { contributor_id: andyContributor.id, job_role_id: directorRole.id } },
+            update: { is_primary: true, payment_bracket_id: bracketId },
+            create: { contributor_id: andyContributor.id, job_role_id: directorRole.id, is_primary: true, payment_bracket_id: bracketId },
+        });
+        logger.created('Andy → Director (Lead)', undefined, 'verbose');
+    }
+    if (videographerRole) {
+        const bracketId = await findBracket(videographerRole.id, 'senior');
+        await prisma.contributor_job_roles.upsert({
+            where: { contributor_id_job_role_id: { contributor_id: andyContributor.id, job_role_id: videographerRole.id } },
+            update: { is_primary: false, payment_bracket_id: bracketId },
+            create: { contributor_id: andyContributor.id, job_role_id: videographerRole.id, is_primary: false, payment_bracket_id: bracketId },
+        });
+        logger.created('Andy → Videographer (Senior)', undefined, 'verbose');
+    }
+
+    // Corri Lee → Editor (primary, lead) + Producer (senior)
+    if (editorRole) {
+        const bracketId = await findBracket(editorRole.id, 'lead');
+        await prisma.contributor_job_roles.upsert({
+            where: { contributor_id_job_role_id: { contributor_id: corriContributor.id, job_role_id: editorRole.id } },
+            update: { is_primary: true, payment_bracket_id: bracketId },
+            create: { contributor_id: corriContributor.id, job_role_id: editorRole.id, is_primary: true, payment_bracket_id: bracketId },
+        });
+        logger.created('Corri → Editor (Lead)', undefined, 'verbose');
+    }
+    if (producerRole) {
+        const bracketId = await findBracket(producerRole.id, 'senior');
+        await prisma.contributor_job_roles.upsert({
+            where: { contributor_id_job_role_id: { contributor_id: corriContributor.id, job_role_id: producerRole.id } },
+            update: { is_primary: false, payment_bracket_id: bracketId },
+            create: { contributor_id: corriContributor.id, job_role_id: producerRole.id, is_primary: false, payment_bracket_id: bracketId },
+        });
+        logger.created('Corri → Producer (Senior)', undefined, 'verbose');
+    }
+
     logger.success('Created 2 team members for Moonrise Films');
-    logger.info('Managers: Andy Galloway, Corri Lee');
+    logger.info('Managers: Andy Galloway (Director/Videographer), Corri Lee (Editor/Producer)');
     logger.info('Global admin (Daniel) has access via admin system');
 
     return {

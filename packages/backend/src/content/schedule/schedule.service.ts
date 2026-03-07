@@ -101,6 +101,15 @@ export class ScheduleService {
     return this.prisma.eventDayTemplate.findMany({
       where: { brand_id: brandId, is_active: true },
       orderBy: { order_index: 'asc' },
+      include: {
+        activity_presets: {
+          where: { is_active: true },
+          orderBy: { order_index: 'asc' },
+          include: {
+            moments: { orderBy: { order_index: 'asc' } },
+          },
+        },
+      },
     });
   }
 
@@ -137,6 +146,108 @@ export class ScheduleService {
       where: { id },
       data: { is_active: false },
     });
+  }
+
+  // ─── Event Day Activity Presets ──────────────────────────────────────
+
+  async findActivityPresets(eventDayTemplateId: number) {
+    return this.prisma.eventDayActivityPreset.findMany({
+      where: { event_day_template_id: eventDayTemplateId, is_active: true },
+      orderBy: { order_index: 'asc' },
+      include: {
+        moments: { orderBy: { order_index: 'asc' } },
+      },
+    });
+  }
+
+  async createActivityPreset(eventDayTemplateId: number, dto: any) {
+    return this.prisma.eventDayActivityPreset.create({
+      data: {
+        event_day_template_id: eventDayTemplateId,
+        name: dto.name,
+        description: dto.description,
+        color: dto.color,
+        icon: dto.icon,
+        default_start_time: dto.default_start_time,
+        default_duration_minutes: dto.default_duration_minutes,
+        order_index: dto.order_index ?? 0,
+      },
+    });
+  }
+
+  async updateActivityPreset(presetId: number, dto: any) {
+    const preset = await this.prisma.eventDayActivityPreset.findUnique({ where: { id: presetId } });
+    if (!preset) throw new NotFoundException('Activity preset not found');
+    return this.prisma.eventDayActivityPreset.update({
+      where: { id: presetId },
+      data: dto,
+    });
+  }
+
+  async deleteActivityPreset(presetId: number) {
+    const preset = await this.prisma.eventDayActivityPreset.findUnique({ where: { id: presetId } });
+    if (!preset) throw new NotFoundException('Activity preset not found');
+    return this.prisma.eventDayActivityPreset.delete({ where: { id: presetId } });
+  }
+
+  async bulkCreateActivityPresets(eventDayTemplateId: number, presets: { name: string; color?: string; default_start_time?: string; description?: string; order_index?: number }[]) {
+    const data = presets.map((p, i) => ({
+      event_day_template_id: eventDayTemplateId,
+      name: p.name,
+      color: p.color,
+      default_start_time: p.default_start_time,
+      description: p.description,
+      order_index: p.order_index ?? i,
+    }));
+    return this.prisma.eventDayActivityPreset.createMany({ data, skipDuplicates: true });
+  }
+
+  // ─── Preset Moments ──────────────────────────────────────────────────
+
+  async findPresetMoments(presetId: number) {
+    return this.prisma.eventDayActivityPresetMoment.findMany({
+      where: { event_day_activity_preset_id: presetId },
+      orderBy: { order_index: 'asc' },
+    });
+  }
+
+  async createPresetMoment(presetId: number, dto: any) {
+    return this.prisma.eventDayActivityPresetMoment.create({
+      data: {
+        event_day_activity_preset_id: presetId,
+        name: dto.name,
+        description: dto.description,
+        duration_seconds: dto.duration_seconds ?? 60,
+        order_index: dto.order_index ?? 0,
+        is_key_moment: dto.is_key_moment ?? false,
+      },
+    });
+  }
+
+  async updatePresetMoment(momentId: number, dto: any) {
+    const moment = await this.prisma.eventDayActivityPresetMoment.findUnique({ where: { id: momentId } });
+    if (!moment) throw new NotFoundException('Preset moment not found');
+    return this.prisma.eventDayActivityPresetMoment.update({
+      where: { id: momentId },
+      data: dto,
+    });
+  }
+
+  async deletePresetMoment(momentId: number) {
+    const moment = await this.prisma.eventDayActivityPresetMoment.findUnique({ where: { id: momentId } });
+    if (!moment) throw new NotFoundException('Preset moment not found');
+    return this.prisma.eventDayActivityPresetMoment.delete({ where: { id: momentId } });
+  }
+
+  async bulkCreatePresetMoments(presetId: number, moments: { name: string; duration_seconds?: number; order_index?: number; is_key_moment?: boolean }[]) {
+    const data = moments.map((m, i) => ({
+      event_day_activity_preset_id: presetId,
+      name: m.name,
+      duration_seconds: m.duration_seconds ?? 60,
+      order_index: m.order_index ?? i,
+      is_key_moment: m.is_key_moment ?? false,
+    }));
+    return this.prisma.eventDayActivityPresetMoment.createMany({ data, skipDuplicates: true });
   }
 
   // ─── Film Scene Schedules ────────────────────────────────────────────
@@ -636,7 +747,7 @@ export class ScheduleService {
           include: { scene: true, package_film: { include: { film: true } } },
         },
         operators: {
-          include: { operator_template: true, equipment: { include: { equipment: true } } },
+          include: { contributor: { include: { contact: true } }, job_role: true, equipment: { include: { equipment: true } } },
         },
         moments: { orderBy: { order_index: 'asc' } },
       },
@@ -653,7 +764,7 @@ export class ScheduleService {
           include: { scene: true, package_film: { include: { film: true } } },
         },
         operators: {
-          include: { operator_template: true, equipment: { include: { equipment: true } } },
+          include: { contributor: { include: { contact: true } }, job_role: true, equipment: { include: { equipment: true } } },
         },
         moments: { orderBy: { order_index: 'asc' } },
       },
@@ -739,7 +850,7 @@ export class ScheduleService {
           include: { scene: true, package_film: { include: { film: true } } },
         },
         operators: {
-          include: { operator_template: true },
+          include: { contributor: { include: { contact: true } }, job_role: true },
         },
       },
     });

@@ -6,6 +6,7 @@
  */
 
 import { BaseEntity } from "./common";
+import { JobRole } from "./job-roles";
 
 // Enums that match backend
 export enum ProjectPhase {
@@ -24,6 +25,20 @@ export enum PricingType {
     FIXED = "Fixed",
 }
 
+export enum TriggerType {
+    ALWAYS = "always",
+    PER_PROJECT = "per_project",
+    PER_FILM = "per_film",
+    PER_FILM_WITH_MUSIC = "per_film_with_music",
+    PER_FILM_WITH_GRAPHICS = "per_film_with_graphics",
+    PER_EVENT_DAY = "per_event_day",
+    PER_CREW_MEMBER = "per_crew_member",
+    PER_LOCATION = "per_location",
+    PER_ACTIVITY = "per_activity",
+    PER_ACTIVITY_CREW = "per_activity_crew",
+    PER_FILM_SCENE = "per_film_scene",
+}
+
 // Main task library interface
 export interface TaskLibrary extends BaseEntity {
     name: string;
@@ -38,6 +53,10 @@ export interface TaskLibrary extends BaseEntity {
     is_active: boolean;
     brand_id: number;
     order_index: number;
+    trigger_type: TriggerType;
+    default_job_role_id?: number | null;
+    default_job_role?: Pick<JobRole, 'id' | 'name' | 'display_name' | 'category'> | null;
+    skills_needed?: string[];
     benchmarks?: TaskLibraryBenchmark[];
     skill_rates?: TaskLibrarySkillRate[];
 }
@@ -80,6 +99,9 @@ export interface CreateTaskLibraryDto {
     base_price?: number;
     is_active: boolean;
     brand_id: number;
+    trigger_type?: TriggerType;
+    default_job_role_id?: number;
+    skills_needed?: string[];
 }
 
 export interface UpdateTaskLibraryDto extends Partial<CreateTaskLibraryDto> {
@@ -167,3 +189,105 @@ export const PRICING_TYPE_LABELS: Record<PricingType, string> = {
     [PricingType.HOURLY]: "Hourly",
     [PricingType.FIXED]: "Fixed Price",
 };
+
+export const TRIGGER_TYPE_LABELS: Record<TriggerType, string> = {
+    [TriggerType.ALWAYS]: "Always",
+    [TriggerType.PER_PROJECT]: "Per Project",
+    [TriggerType.PER_FILM]: "Per Film",
+    [TriggerType.PER_FILM_WITH_MUSIC]: "Per Film (Music)",
+    [TriggerType.PER_FILM_WITH_GRAPHICS]: "Per Film (Graphics)",
+    [TriggerType.PER_EVENT_DAY]: "Per Event Day",
+    [TriggerType.PER_CREW_MEMBER]: "Per Crew Member",
+    [TriggerType.PER_LOCATION]: "Per Location",
+    [TriggerType.PER_ACTIVITY]: "Per Activity",
+    [TriggerType.PER_ACTIVITY_CREW]: "Per Activity × Crew",
+    [TriggerType.PER_FILM_SCENE]: "Per Film Scene",
+};
+
+// Auto-generation preview types
+export interface TaskAutoGenerationPreviewTask {
+    task_library_id: number;
+    name: string;
+    phase: ProjectPhase;
+    trigger_type: TriggerType;
+    effort_hours_each: number;
+    multiplier: number;
+    total_instances: number;
+    total_hours: number;
+    role_name?: string | null;
+    assigned_to_name?: string | null;
+    hourly_rate?: number | null;
+    estimated_cost?: number | null;
+}
+
+export interface TaskAutoGenerationPreview {
+    package: { id: number; name: string };
+    contentCounts: {
+        films: number;
+        films_with_music: number;
+        films_with_graphics: number;
+        event_days: number;
+        crew_members: number;
+        locations: number;
+        activities: number;
+        activity_crew_assignments: number;
+        film_scenes: number;
+    };
+    summary: {
+        total_library_tasks: number;
+        total_generated_tasks: number;
+        total_estimated_hours: number;
+        total_estimated_cost: number;
+    };
+    byPhase: Record<string, TaskAutoGenerationPreviewTask[]>;
+    tasks: TaskAutoGenerationPreviewTask[];
+}
+
+// Project task (created by auto-generation)
+export interface ProjectTask {
+    id: number;
+    project_id: number;
+    task_library_id: number | null;
+    package_id: number | null;
+    name: string;
+    description: string | null;
+    phase: ProjectPhase;
+    trigger_type: TriggerType;
+    trigger_context: string | null;
+    estimated_hours: number | null;
+    actual_hours: number | null;
+    status: string;
+    due_date: string | null;
+    assigned_to_id: number | null;
+    assigned_to?: {
+        id: number;
+        contact?: { first_name: string; last_name: string } | null;
+    } | null;
+    pricing_type: PricingType;
+    fixed_price: number | null;
+    hourly_rate: number | null;
+    order_index: number;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ExecuteAutoGenerationResult {
+    success: boolean;
+    project: { id: number; name: string | null };
+    package: { id: number; name: string };
+    summary: {
+        total_tasks_created: number;
+        total_estimated_hours: number;
+        phases_covered: number;
+        tasks_auto_assigned?: number;
+    };
+    byPhase: Record<string, ProjectTask[]>;
+    tasks: ProjectTask[];
+}
+
+export interface ExecuteAutoGenerationDto {
+    projectId: number;
+    packageId: number;
+    brandId: number;
+}

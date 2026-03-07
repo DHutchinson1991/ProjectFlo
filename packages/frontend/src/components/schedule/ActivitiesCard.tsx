@@ -75,6 +75,8 @@ interface ActivitiesCardProps {
     setPackageDayOperators?: React.Dispatch<React.SetStateAction<any[]>>;
     selectedActivityId?: number | null;
     onSelectedActivityChange?: (id: number | null) => void;
+    /** Fired while the colour picker is open so the timeline can preview live */
+    onColorPreview?: (activityId: number | null, color: string | null) => void;
 }
 
 // ─── Constants & Helpers ─────────────────────────────────────────
@@ -138,6 +140,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
     setPackageDayOperators,
     selectedActivityId,
     onSelectedActivityChange,
+    onColorPreview,
 }) => {
     // dialog state for add/edit
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -283,11 +286,22 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
     };
     const openEditDialog = (act: ActivityRecord) => {
         setEditingId(act.id);
+        // Compute end_time from start_time + duration_minutes if not explicitly set
+        let endTime = act.end_time ?? undefined;
+        if (!endTime && act.start_time && act.duration_minutes && act.duration_minutes > 0) {
+            const startMins = parseTimeToMinutes(act.start_time);
+            if (startMins !== null) {
+                const endMins = startMins + act.duration_minutes;
+                const h = Math.floor(endMins / 60) % 24;
+                const m = endMins % 60;
+                endTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            }
+        }
         setDialogInitial({
             name: act.name,
             color: act.color || ACTIVITY_COLORS[act.order_index % ACTIVITY_COLORS.length],
             start_time: act.start_time ?? undefined,
-            end_time: act.end_time ?? undefined,
+            end_time: endTime,
             description: act.description ?? undefined,
         });
         setDialogOpen(true);
@@ -321,17 +335,20 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
             }
         }
 
-        // ── Process subject changes ──
+        // ── Process subject changes (M2M via activity_assignments) ──
         if (savedActivityId && setPackageSubjects) {
             for (const change of subjectChanges) {
                 try {
-                    await api.schedule.packageEventDaySubjects.update(change.id, {
-                        package_activity_id: change.assign ? savedActivityId : null,
-                    });
+                    let updatedSubj;
+                    if (change.assign) {
+                        updatedSubj = await api.schedule.packageEventDaySubjects.assignActivity(change.id, savedActivityId);
+                    } else {
+                        updatedSubj = await api.schedule.packageEventDaySubjects.unassignActivity(change.id, savedActivityId);
+                    }
                     setPackageSubjects(prev =>
                         prev.map(s =>
                             s.id === change.id
-                                ? { ...s, package_activity_id: change.assign ? savedActivityId : null }
+                                ? { ...s, ...updatedSubj }
                                 : s
                         ),
                     );
@@ -375,17 +392,20 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
             }
         }
 
-        // ── Process crew changes ──
+        // ── Process crew changes (M2M via activity_assignments) ──
         if (savedActivityId && setPackageDayOperators) {
             for (const change of crewChanges) {
                 try {
-                    await api.operators.packageDay.update(change.id, {
-                        package_activity_id: change.assign ? savedActivityId : null,
-                    });
+                    let updatedOp;
+                    if (change.assign) {
+                        updatedOp = await api.operators.packageDay.assignActivity(change.id, savedActivityId);
+                    } else {
+                        updatedOp = await api.operators.packageDay.unassignActivity(change.id, savedActivityId);
+                    }
                     setPackageDayOperators(prev =>
                         prev.map(o =>
                             o.id === change.id
-                                ? { ...o, package_activity_id: change.assign ? savedActivityId : null }
+                                ? { ...o, ...updatedOp }
                                 : o
                         ),
                     );
@@ -510,6 +530,16 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                                     {dayActivities.map((act) => {
                                         const c = act.color || ACTIVITY_COLORS[act.order_index % ACTIVITY_COLORS.length];
                                         const dur = getActivityDuration(act);
+                                        // Compute end time: use explicit end_time, or derive from start_time + duration
+                                        const computedEndTime = act.end_time
+                                            || (act.start_time && dur > 0
+                                                ? (() => {
+                                                    const s = parseTimeToMinutes(act.start_time!);
+                                                    if (s === null) return null;
+                                                    const e = s + dur;
+                                                    return `${String(Math.floor(e / 60) % 24).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`;
+                                                })()
+                                                : null);
                                         const isExpanded = expandedIds.has(act.id);
                                         const moments = act.moments || [];
                                         const momentCount = moments.length;
@@ -611,7 +641,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                                                 {/* End Time */}
                                                 <TableCell sx={{ py: 1, px: 1 }}>
                                                     <Typography sx={{ fontSize: '0.8rem', color: '#94a3b8', fontFamily: 'monospace' }}>
-                                                        {act.end_time ? formatTimeDisplay(act.end_time) : '—'}
+                                                        {computedEndTime ? formatTimeDisplay(computedEndTime) : '—'}
                                                     </Typography>
                                                 </TableCell>
 
@@ -863,11 +893,18 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                     .map(a => a.name)
                     .filter(n => editingId ? n !== dayActivities.find(act => act.id === editingId)?.name : true)
                 }
+                eventDayTemplateId={activeDayId}
                 eventDaySubjects={daySubjects}
                 eventDayLocationSlots={dayLocationSlots}
                 eventDayCrew={dayCrew}
-                onClose={() => setDialogOpen(false)}
+                onClose={() => {
+                    setDialogOpen(false);
+                    onColorPreview?.(null, null);
+                }}
                 onSave={handleDialogSave}
+                onColorChange={(color) => {
+                    if (editingId != null) onColorPreview?.(editingId, color);
+                }}
             />
         </Box>
     );

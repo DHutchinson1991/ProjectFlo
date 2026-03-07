@@ -40,35 +40,33 @@ export const FilmEquipmentTab: React.FC<FilmEquipmentTabProps> = ({
 
 /**
  * Derive camera and audio counts from package operators.
- * Cameras = number of unique operators who have camera equipment (one track per operator).
+ * Cameras = number of unique camera equipment items across all operators (one track per camera).
  * Audio = number of unique audio devices across all operators.
  */
 function countPackageEquipment(operators: any[]): { cameras: number; audio: number; cameraOperators: { name: string; equipment: any }[]; audioItems: any[] } {
     const audioMap = new Map<number, any>();
     const cameraOps: { name: string; equipment: any }[] = [];
-    const seenTemplates = new Set<number>();
+    const seenCameraIds = new Set<number>();
 
     (operators || []).forEach((op: any) => {
-        const templateId = op.operator_template_id ?? op.operator_template?.id ?? op.id;
         const equipment = op.equipment?.length > 0
             ? op.equipment
-            : op.operator_template?.default_equipment || [];
+            : [];
+        const opName = op.position_name || op.name || 'Crew';
 
-        let primaryCamera: any = null;
         equipment.forEach((eq: any) => {
             const cat = (eq.equipment?.category || '').toUpperCase();
             const eqId = eq.equipment_id ?? eq.equipment?.id;
-            if (cat === 'CAMERA' && !primaryCamera) primaryCamera = eq.equipment;
-            else if (cat === 'AUDIO' && eqId) audioMap.set(eqId, eq.equipment);
+            if (cat === 'CAMERA' && eqId && !seenCameraIds.has(eqId)) {
+                seenCameraIds.add(eqId);
+                cameraOps.push({
+                    name: opName,
+                    equipment: eq.equipment,
+                });
+            } else if (cat === 'AUDIO' && eqId) {
+                audioMap.set(eqId, eq.equipment);
+            }
         });
-
-        if (primaryCamera && !seenTemplates.has(templateId)) {
-            seenTemplates.add(templateId);
-            cameraOps.push({
-                name: op.operator_template?.name || op.name || 'Operator',
-                equipment: primaryCamera,
-            });
-        }
     });
 
     return {
@@ -79,16 +77,16 @@ function countPackageEquipment(operators: any[]): { cameras: number; audio: numb
     };
 }
 
-/** Deduplicate operators by operator_template_id, merging equipment across days */
+/** Deduplicate operators by contributor_id, merging equipment across days */
 function deduplicateOperators(operators: any[]): any[] {
     const map = new Map<number, any>();
     operators.forEach((op: any) => {
-        const templateId = op.operator_template_id ?? op.operator_template?.id;
-        if (!templateId) { map.set(op.id, op); return; }
-        if (!map.has(templateId)) {
-            map.set(templateId, { ...op });
+        const crewId = op.contributor_id;
+        if (!crewId) { map.set(op.id, op); return; }
+        if (!map.has(crewId)) {
+            map.set(crewId, { ...op });
         }
-        // equipment is already on the template – no merge needed since it's the same template
+        // equipment is already on the slot – no merge needed since it's the same crew member
     });
     return Array.from(map.values());
 }
@@ -166,9 +164,14 @@ function PackageEquipmentView({ packageId, filmId }: { packageId: number; filmId
                         </Typography>
                     </Box>
                     {cameraOperators.map((cam: any, idx: number) => (
-                        <Typography key={idx} sx={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', pl: 3.5 }}>
-                            {cam.name} — {cam.equipment?.item_name}{cam.equipment?.model ? ` · ${cam.equipment.model}` : ''}
-                        </Typography>
+                        <Box key={idx} sx={{ pl: 3.5, mb: 0.25 }}>
+                            <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>
+                                {cam.equipment?.item_name || 'Camera'}{cam.equipment?.model ? ` · ${cam.equipment.model}` : ''}
+                            </Typography>
+                            <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
+                                {cam.name}
+                            </Typography>
+                        </Box>
                     ))}
                 </Box>
                 <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1 }}>
@@ -179,7 +182,7 @@ function PackageEquipmentView({ packageId, filmId }: { packageId: number; filmId
                         </Typography>
                     </Box>
                     {audioItems.map((aud: any) => (
-                        <Typography key={aud.id} sx={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', pl: 3.5 }}>
+                        <Typography key={aud.id} sx={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', pl: 3.5, fontWeight: 500 }}>
                             {aud.item_name}{aud.model ? ` · ${aud.model}` : ''}
                         </Typography>
                     ))}
@@ -197,12 +200,12 @@ function PackageEquipmentView({ packageId, filmId }: { packageId: number; filmId
             ) : (
                 <Stack spacing={0.75}>
                     {uniqueOps.map((op: any) => {
-                        const name = op.operator_template?.name || op.name || 'Operator';
-                        const role = op.operator_template?.role;
-                        const color = op.operator_template?.color;
+                        const name = op.position_name || op.name || 'Crew';
+                        const role = op.job_role?.display_name || op.job_role?.name;
+                        const color = op.position_color || op.contributor?.crew_color;
                         const equipment = op.equipment?.length > 0
                             ? op.equipment
-                            : op.operator_template?.default_equipment || [];
+                            : [];
                         return (
                             <Box key={op.id} sx={{
                                 bgcolor: 'rgba(236,72,153,0.06)',

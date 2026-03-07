@@ -233,23 +233,8 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                     }
                 }
                 
-                // Activity-aware track filtering: hide content on tracks beyond the activity's crew count
-                const TRACK_NUMBER_PATTERN = /^(Camera|Audio)\s+(\d+)$/i;
-                if (showContent && trackName && sceneActivityCrewMap.size > 0) {
-                    const crewData = sceneActivityCrewMap.get(scene.id);
-                    if (crewData && trackName) {
-                        const match = trackName.match(TRACK_NUMBER_PATTERN);
-                        if (match) {
-                            const trackNumber = parseInt(match[2], 10);
-                            const prefix = match[1].toLowerCase();
-                            if (prefix === 'camera' && crewData.cameraCount > 0 && trackNumber > crewData.cameraCount) {
-                                showContent = false;
-                            } else if (prefix === 'audio' && crewData.audioCount > 0 && trackNumber > crewData.audioCount) {
-                                showContent = false;
-                            }
-                        }
-                    }
-                }
+                // Equipment-first: all tracks with equipment show content.
+                // Activity-aware filtering removed — recording_setup controls visibility.
 
                 // Music fallback logic if coverage not defined
                 if (!showContent && isMusicTrack) {

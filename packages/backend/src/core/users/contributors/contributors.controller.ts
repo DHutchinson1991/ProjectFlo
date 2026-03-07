@@ -4,19 +4,20 @@ import {
   Post,
   Body,
   Patch,
+  Put,
   Param,
   Delete,
-  UseGuards, // Import UseGuards
-  ParseIntPipe, // Import ParseIntPipe
-  Query, // Import Query
-  Headers, // Import Headers
+  UseGuards,
+  ParseIntPipe,
+  Query,
+  Headers,
 } from "@nestjs/common";
 import { ContributorsService } from "./contributors.service";
 import { CreateContributorDto } from "./dto/create-contributor.dto";
 import { UpdateContributorDto } from "./dto/update-contributor.dto";
-import { AuthGuard } from "@nestjs/passport"; // Import AuthGuard
-import { Roles } from "../../auth/decorators/roles.decorator"; // Import Roles decorator
-import { RolesGuard } from "../../auth/guards/roles.guard"; // Import RolesGuard
+import { AuthGuard } from "@nestjs/passport";
+import { Roles } from "../../auth/decorators/roles.decorator";
+import { RolesGuard } from "../../auth/guards/roles.guard";
 
 @Controller("contributors")
 @UseGuards(AuthGuard("jwt")) // Protect all routes in this controller
@@ -68,5 +69,36 @@ export class ContributorsController {
   @UseGuards(RolesGuard)
   remove(@Param("id", ParseIntPipe) id: number) {
     return this.contributorsService.remove(id);
+  }
+
+  // Job role management endpoints
+  @Post(":id/job-roles")
+  @Roles("Admin", "Global Admin")
+  @UseGuards(RolesGuard)
+  addJobRole(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() body: { job_role_id: number },
+  ) {
+    return this.contributorsService.addJobRole(id, body.job_role_id);
+  }
+
+  @Delete(":id/job-roles/:jobRoleId")
+  @Roles("Admin", "Global Admin")
+  @UseGuards(RolesGuard)
+  removeJobRole(
+    @Param("id", ParseIntPipe) id: number,
+    @Param("jobRoleId", ParseIntPipe) jobRoleId: number,
+  ) {
+    return this.contributorsService.removeJobRole(id, jobRoleId);
+  }
+
+  @Put(":id/job-roles/:jobRoleId/primary")
+  @Roles("Admin", "Global Admin")
+  @UseGuards(RolesGuard)
+  setPrimaryJobRole(
+    @Param("id", ParseIntPipe) id: number,
+    @Param("jobRoleId", ParseIntPipe) jobRoleId: number,
+  ) {
+    return this.contributorsService.setPrimaryJobRole(id, jobRoleId);
   }
 }

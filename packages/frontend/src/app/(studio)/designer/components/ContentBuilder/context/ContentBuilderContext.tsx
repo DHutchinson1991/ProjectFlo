@@ -45,17 +45,15 @@ interface OperatorEquipmentItem {
   };
 }
 
-interface OperatorTemplateRef {
-  id?: number;
-  default_equipment?: OperatorEquipmentItem[];
-}
-
 interface PackageOperator {
   id: number;
   package_activity_id?: number;
   event_day_template_id?: number;
-  operator_template_id?: number;
-  operator_template?: OperatorTemplateRef;
+  contributor_id?: number;
+  position_name?: string;
+  position_color?: string;
+  job_role?: { id: number; name: string; display_name?: string };
+  contributor?: { id: number; crew_color?: string };
   equipment?: OperatorEquipmentItem[];
   activity_assignments?: PackageOperatorAssignment[];
 }
@@ -81,9 +79,11 @@ interface PackageLocation {
   id: number;
   event_day_template_id?: number;
   location_id?: number;
+  location_number?: number;
   package_activity_id?: number;
   notes?: string;
   order_index?: number;
+  activity_assignments?: Array<{ id: number; package_activity_id: number; package_activity?: { id: number; name: string } }>;
 }
 
 interface ContentBuilderContextType {
@@ -160,7 +160,10 @@ interface ContentBuilderContextType {
   sceneActivityCrewMap: Map<number, { cameraCount: number; audioCount: number }>;
   packageLocations: PackageLocation[];
   packageLocationLookup: Map<string, PackageLocation>;
+  /** The activity this film is scoped to (from URL ?activityId=) */
+  linkedActivityId?: number | null;
   /** Per-track defaults: trackId → { subject_ids, shot_type, audio_enabled } */
+
   trackDefaults: Record<number, TrackDefault>;
   setTrackDefault: (trackId: number, defaults: TrackDefault) => void;
 }
@@ -176,6 +179,7 @@ interface ContentBuilderProviderProps {
   onChange?: (scenes: TimelineScene[]) => void;
   readOnly?: boolean;
   packageId?: number | null;
+  linkedActivityId?: number | null;
   equipmentConfig?: {
     cameras: number;
     audio: number;
@@ -199,6 +203,7 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
   children,
   filmId,
   packageId,
+  linkedActivityId,
   initialScenes,
   initialTracks,
   onSave,
@@ -231,14 +236,16 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
   React.useEffect(() => {
     if (!packageId) return;
     let mounted = true;
-    api.schedule.packageEventDayLocations.getAll(packageId).then((locations) => {
+    // Use the numbered slot system (packageLocationSlots), which is what the
+    // package designer populates. Filter only slots with activity assignments.
+    api.schedule.packageLocationSlots.getAll(packageId).then((slots) => {
       if (!mounted) return;
-      const safeLocations = (locations || []) as PackageLocation[];
-      setPackageLocations(safeLocations);
+      const assigned = ((slots || []) as PackageLocation[]).filter(
+        (s) => (s.activity_assignments?.length || 0) > 0
+      );
+      setPackageLocations(assigned);
       const lookup = new Map<string, PackageLocation>();
-      safeLocations.forEach((location) => {
-        lookup.set(String(location.id), location);
-      });
+      assigned.forEach((loc) => { lookup.set(String(loc.id), loc); });
       setPackageLocationLookup(lookup);
     }).catch(() => {
       if (!mounted) return;
@@ -297,30 +304,28 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
             if (hasNoAssignment && o.event_day_template_id === activityEventDayId) return true;
             return false;
           });
-          // Deduplicate by operator_template_id
+          // Deduplicate by contributor_id
           const seen = new Map<number, PackageOperator>();
           matched.forEach((o) => {
-            const templateId = o.operator_template_id ?? o.operator_template?.id ?? o.id;
-            if (!seen.has(templateId)) seen.set(templateId, o);
+            const crewId = o.contributor_id ?? o.id;
+            if (!seen.has(crewId)) seen.set(crewId, o);
           });
           const crew = Array.from(seen.values());
 
-          let cameraCount = 0;
+          const cameraIds = new Set<number>();
           const audioIds = new Set<number>();
           crew.forEach((op) => {
             const equipment = (op.equipment && op.equipment.length > 0
               ? op.equipment
-              : op.operator_template?.default_equipment) ?? [];
-            let hasCamera = false;
+              : []) ?? [];
             equipment.forEach((eq) => {
               const cat = (eq.equipment?.category || '').toUpperCase();
               const eqId = eq.equipment_id ?? eq.equipment?.id;
-              if (cat === 'CAMERA' && !hasCamera) hasCamera = true;
+              if (cat === 'CAMERA' && eqId) cameraIds.add(eqId);
               if (cat === 'AUDIO' && eqId) audioIds.add(eqId);
             });
-            if (hasCamera) cameraCount++;
           });
-          activityCrewCounts.set(act.id, { cameraCount, audioCount: audioIds.size });
+          activityCrewCounts.set(act.id, { cameraCount: cameraIds.size, audioCount: audioIds.size });
         });
 
         // Map scene → crew counts via schedule's package_activity_id
@@ -504,6 +509,7 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
     sceneActivityCrewMap,
     packageLocations,
     packageLocationLookup,
+    linkedActivityId,
     trackDefaults,
     setTrackDefault,
   };

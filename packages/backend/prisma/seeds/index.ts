@@ -52,6 +52,14 @@ async function main() {
         finalSummary.skipped += jobRolesSummary.skipped;
         finalSummary.total += jobRolesSummary.total;
 
+        logger.info('3.5️⃣ Running system-payment-brackets (tiers per job role)...');
+        const paymentBracketsSeed = await import('./system-payment-brackets.seed');
+        const paymentBracketsSummary = await paymentBracketsSeed.default();
+        finalSummary.created += paymentBracketsSummary.created;
+        finalSummary.updated += paymentBracketsSummary.updated;
+        finalSummary.skipped += paymentBracketsSummary.skipped;
+        finalSummary.total += paymentBracketsSummary.total;
+
         logger.info('4️⃣ Running Moonrise subject-templates seed...');
         const subjectTemplatesSeed = await import('./moonrise-00-subject-templates.seed');
         const subjectTemplatesSummary = await subjectTemplatesSeed.default();
@@ -129,8 +137,26 @@ async function main() {
         finalSummary.skipped += eventDaySummary.skipped;
         finalSummary.total += eventDaySummary.total;
 
+        // Wedding type templates (system-seeded with activity↔subject/location links)
+        logger.info('7.7️⃣ Running moonrise-09-wedding-types seed...');
+        const weddingTypesSeed = await import('./moonrise-09-wedding-types.seed');
+        const weddingTypesSummary = await weddingTypesSeed.default();
+        finalSummary.created += weddingTypesSummary.created;
+        finalSummary.updated += weddingTypesSummary.updated;
+        finalSummary.skipped += weddingTypesSummary.skipped;
+        finalSummary.total += weddingTypesSummary.total;
+
+        // Sample packages from wedding types (with activity↔subject/location assignments)
+        logger.info('7.8️⃣ Running moonrise-10-sample-packages seed...');
+        const samplePackagesSeed = await import('./moonrise-10-sample-packages.seed');
+        const samplePackagesSummary = await samplePackagesSeed.default();
+        finalSummary.created += samplePackagesSummary.created;
+        finalSummary.updated += samplePackagesSummary.updated;
+        finalSummary.skipped += samplePackagesSummary.skipped;
+        finalSummary.total += samplePackagesSummary.total;
+
         // Activity moments (default wedding moments per activity)
-        logger.info('7.6️⃣ Running moonrise-08-activity-moments seed...');
+        logger.info('7.9️⃣ Running moonrise-08-activity-moments seed...');
         const activityMomentsSeed = await import('./moonrise-08-activity-moments.seed');
         const activityMomentsSummary = await activityMomentsSeed.default();
         finalSummary.created += activityMomentsSummary.created;

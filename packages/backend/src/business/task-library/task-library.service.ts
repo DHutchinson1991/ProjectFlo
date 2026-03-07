@@ -1,10 +1,29 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTaskLibraryDto, UpdateTaskLibraryDto, TaskLibraryQueryDto, ProjectPhase, BatchUpdateTaskOrderDto } from './dto/task-library.dto';
+import { CreateTaskLibraryDto, UpdateTaskLibraryDto, TaskLibraryQueryDto, ProjectPhase, BatchUpdateTaskOrderDto, ExecuteAutoGenerationDto } from './dto/task-library.dto';
+import { SkillRoleMappingsService, ResolvedRoleResult } from '../skill-role-mappings/skill-role-mappings.service';
+
+export interface PreviewTaskRow {
+    task_library_id: number;
+    name: string;
+    phase: string;
+    trigger_type: string;
+    effort_hours_each: number;
+    multiplier: number;
+    total_instances: number;
+    total_hours: number;
+    role_name: string | null;
+    assigned_to_name: string | null;
+    hourly_rate: number | null;
+    estimated_cost: number | null;
+}
 
 @Injectable()
 export class TaskLibraryService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private skillRoleMappings: SkillRoleMappingsService,
+    ) { }
 
     async create(createTaskLibraryDto: CreateTaskLibraryDto, userId: number) {
         // Check if user has access to the brand
@@ -20,6 +39,14 @@ export class TaskLibraryService {
                     select: {
                         id: true,
                         name: true,
+                    },
+                },
+                default_job_role: {
+                    select: {
+                        id: true,
+                        name: true,
+                        display_name: true,
+                        category: true,
                     },
                 },
             },
@@ -79,6 +106,14 @@ export class TaskLibraryService {
                         name: true,
                     },
                 },
+                default_job_role: {
+                    select: {
+                        id: true,
+                        name: true,
+                        display_name: true,
+                        category: true,
+                    },
+                },
                 task_library_benchmarks: {
                     include: {
                         contributor: {
@@ -129,6 +164,14 @@ export class TaskLibraryService {
                         name: true,
                     },
                 },
+                default_job_role: {
+                    select: {
+                        id: true,
+                        name: true,
+                        display_name: true,
+                        category: true,
+                    },
+                },
                 task_library_benchmarks: {
                     include: {
                         contributor: {
@@ -169,6 +212,14 @@ export class TaskLibraryService {
                     select: {
                         id: true,
                         name: true,
+                    },
+                },
+                default_job_role: {
+                    select: {
+                        id: true,
+                        name: true,
+                        display_name: true,
+                        category: true,
                     },
                 },
                 task_library_benchmarks: {
@@ -379,5 +430,1209 @@ export class TaskLibraryService {
                 },
             },
         });
+    }
+
+    /**
+     * Preview what tasks would be auto-generated for a given package.
+     * Reads the brand's task library (with trigger types) and the package's
+     * contents (films, event days, crew, locations, activities) to calculate
+     * how many tasks of each type would be created.
+     */
+    async previewAutoGeneration(packageId: number, brandId: number, userId: number) {
+        await this.checkBrandAccess(brandId, userId);
+
+        // 1. Fetch package contents counts
+        const [
+            pkg,
+            filmCount,
+            eventDayCount,
+            crewCount,
+            locationCount,
+            activityCount,
+            activityCrewCount,
+            filmSceneCount,
+        ] = await Promise.all([
+            this.prisma.service_packages.findUnique({
+                where: { id: packageId },
+                select: { id: true, name: true, brand_id: true },
+            }),
+            this.prisma.packageFilm.count({ where: { package_id: packageId } }),
+            this.prisma.packageEventDay.count({ where: { package_id: packageId } }),
+            this.prisma.packageDayOperator.count({ where: { package_id: packageId } }),
+            this.prisma.packageEventDayLocation.count({ where: { package_id: packageId } }),
+            this.prisma.packageActivity.count({ where: { package_id: packageId } }),
+            // Count activity×crew assignments for per_activity_crew trigger
+            this.prisma.operatorActivityAssignment.count({
+                where: {
+                    package_activity: { package_id: packageId },
+                },
+            }),
+            // Count film scenes across all films in this package for per_film_scene trigger
+            this.prisma.packageFilmSceneSchedule.count({
+                where: { package_film: { package_id: packageId } },
+            }),
+        ]);
+
+        if (!pkg) {
+            throw new NotFoundException(`Package with ID ${packageId} not found`);
+        }
+        if (pkg.brand_id !== brandId) {
+            throw new ForbiddenException('Package does not belong to this brand');
+        }
+
+        // 2. Fetch active task library entries for this brand (include role relation)
+        const tasks = await this.prisma.task_library.findMany({
+            where: {
+                brand_id: brandId,
+                is_active: true,
+            },
+            include: {
+                default_job_role: { select: { id: true, name: true, display_name: true } },
+            },
+            orderBy: [
+                { phase: 'asc' },
+                { order_index: 'asc' },
+            ],
+        });
+
+        // 2-role. Fetch crew operators for role→crew matching in preview
+        const operators = await this.prisma.packageDayOperator.findMany({
+            where: { package_id: packageId },
+            include: {
+                contributor: { include: { contact: { select: { first_name: true, last_name: true } } } },
+                job_role: { select: { id: true, name: true, display_name: true } },
+            },
+            orderBy: { order_index: 'asc' },
+        });
+
+        // 2-role. Fetch contributor bracket levels for tier-aware assignment
+        const opContributorIds = operators
+            .filter(op => op.contributor_id)
+            .map(op => op.contributor_id!);
+        const contributorJobRolesPreview = opContributorIds.length > 0
+            ? await this.prisma.contributor_job_roles.findMany({
+                where: { contributor_id: { in: opContributorIds } },
+                include: { payment_bracket: { select: { level: true } } },
+            })
+            : [];
+        // Map "contributorId-roleId" → bracket level
+        const contributorBracketMap = new Map<string, number>();
+        for (const cjr of contributorJobRolesPreview) {
+            if (cjr.payment_bracket_id && cjr.payment_bracket) {
+                contributorBracketMap.set(`${cjr.contributor_id}-${cjr.job_role_id}`, cjr.payment_bracket.level);
+            }
+        }
+
+        // 2-role. Build role→crew list (ALL operators per role, with bracket levels)
+        interface PreviewCrewMember { name: string; bracketLevel: number; }
+        const roleToCrewList = new Map<number, PreviewCrewMember[]>();
+        for (const op of operators) {
+            if (!op.job_role_id || !op.contributor) continue;
+            const name = `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim();
+            if (!name) continue;
+            const bracketLevel = contributorBracketMap.get(`${op.contributor_id}-${op.job_role_id}`) ?? 0;
+            if (!roleToCrewList.has(op.job_role_id)) roleToCrewList.set(op.job_role_id, []);
+            const list = roleToCrewList.get(op.job_role_id)!;
+            // Avoid duplicates (same contributor on multiple event days)
+            if (!list.some(c => c.name === name)) {
+                list.push({ name, bracketLevel });
+            }
+        }
+        // Sort each list by bracket level ascending (lowest tier first)
+        for (const [, list] of roleToCrewList) {
+            list.sort((a, b) => a.bracketLevel - b.bracketLevel);
+        }
+
+        // 2-role. Helper: pick crew member whose bracket level best matches the task's bracket
+        // Lower-bracket tasks → lower-tier crew, higher-bracket tasks → higher-tier crew
+        const pickPreviewCrew = (roleId: number, taskBracketLevel: number | null): { name: string | null; bracketLevel: number | null } => {
+            const list = roleToCrewList.get(roleId);
+            if (!list || list.length === 0) return { name: null, bracketLevel: null };
+            if (list.length === 1) return { name: list[0].name, bracketLevel: list[0].bracketLevel };
+            if (taskBracketLevel === null || taskBracketLevel <= 0) {
+                return { name: list[0].name, bracketLevel: list[0].bracketLevel }; // No bracket info → assign to lowest-tier member
+            }
+            // Find closest bracket level match (prefer lower in ties)
+            let best = list[0];
+            let bestDist = Math.abs(list[0].bracketLevel - taskBracketLevel);
+            for (const member of list) {
+                const dist = Math.abs(member.bracketLevel - taskBracketLevel);
+                if (dist < bestDist || (dist === bestDist && member.bracketLevel < best.bracketLevel)) {
+                    best = member;
+                    bestDist = dist;
+                }
+            }
+            return { name: best.name, bracketLevel: best.bracketLevel };
+        };
+
+        // 2-role. Skill-to-role batch resolution for role inference
+        const tasksWithSkills = tasks
+            .filter(t => t.skills_needed && t.skills_needed.length > 0)
+            .map(t => ({ id: t.id, skills_needed: t.skills_needed }));
+        const resolvedRoles: Map<number, ResolvedRoleResult> =
+            tasksWithSkills.length > 0
+                ? await this.skillRoleMappings.batchResolve(tasksWithSkills, brandId)
+                : new Map();
+
+        // 2-rate. Fetch all payment brackets for hourly rate lookup
+        const allRoleIds = new Set<number>();
+        for (const t of tasks) { if (t.default_job_role_id) allRoleIds.add(t.default_job_role_id); }
+        for (const [, r] of resolvedRoles) { if (r.job_role_id) allRoleIds.add(r.job_role_id); }
+        const paymentBrackets = allRoleIds.size > 0
+            ? await this.prisma.payment_brackets.findMany({
+                where: { job_role_id: { in: Array.from(allRoleIds) }, is_active: true },
+                select: { job_role_id: true, level: true, hourly_rate: true },
+                orderBy: [{ job_role_id: 'asc' }, { level: 'asc' }],
+            })
+            : [];
+        // Map "roleId-level" → hourly_rate  &  roleId → lowest-level fallback rate
+        const bracketRateMap = new Map<string, number>();
+        const roleFallbackRate = new Map<number, number>();
+        for (const pb of paymentBrackets) {
+            bracketRateMap.set(`${pb.job_role_id}-${pb.level}`, Number(pb.hourly_rate));
+            if (!roleFallbackRate.has(pb.job_role_id)) {
+                roleFallbackRate.set(pb.job_role_id, Number(pb.hourly_rate)); // first = lowest level
+            }
+        }
+
+        // 2-role. Build job role name map for resolved roles
+        const jobRoleNameMap = new Map<number, string>();
+        for (const op of operators) {
+            if (op.job_role && !jobRoleNameMap.has(op.job_role.id)) {
+                jobRoleNameMap.set(op.job_role.id, op.job_role.display_name || op.job_role.name);
+            }
+        }
+        for (const t of tasks) {
+            if (t.default_job_role && !jobRoleNameMap.has(t.default_job_role.id)) {
+                jobRoleNameMap.set(t.default_job_role.id, t.default_job_role.display_name || t.default_job_role.name);
+            }
+        }
+
+        // Helper: resolve role_name, assigned_to_name, and hourly_rate for a task (tier-aware)
+        const getPreviewAssignment = (task: typeof tasks[number]) => {
+            const lookupRate = (roleId: number, bracketLevel: number | null): number | null => {
+                if (bracketLevel !== null && bracketLevel > 0) {
+                    const exact = bracketRateMap.get(`${roleId}-${bracketLevel}`);
+                    if (exact !== undefined) return exact;
+                }
+                return roleFallbackRate.get(roleId) ?? null;
+            };
+
+            // Priority 1: explicit default_job_role_id
+            const defaultRoleId = task.default_job_role_id;
+            if (defaultRoleId) {
+                const roleName = task.default_job_role?.display_name || task.default_job_role?.name
+                    || jobRoleNameMap.get(defaultRoleId) || null;
+                // Use resolved bracket level if available; tasks without bracket info go to lowest-tier
+                const resolved = resolvedRoles.get(task.id);
+                const taskBracketLevel = resolved?.bracket_level ?? null;
+                const crew = pickPreviewCrew(defaultRoleId, taskBracketLevel);
+                // Rate priority: resolved bracket rate → bracket from assigned crew → role fallback → task's own rate
+                const hourly_rate = resolved?.hourly_rate
+                    ?? lookupRate(defaultRoleId, crew.bracketLevel)
+                    ?? (task.hourly_rate ? Number(task.hourly_rate) : null);
+                return { role_name: roleName, assigned_to_name: crew.name, hourly_rate };
+            }
+            // Priority 2: resolved role from skill mappings (includes bracket level)
+            const resolved = resolvedRoles.get(task.id);
+            if (resolved?.job_role_id) {
+                const roleName = jobRoleNameMap.get(resolved.job_role_id) || null;
+                const crew = pickPreviewCrew(resolved.job_role_id, resolved.bracket_level);
+                const hourly_rate = resolved?.hourly_rate
+                    ?? lookupRate(resolved.job_role_id, crew.bracketLevel)
+                    ?? (task.hourly_rate ? Number(task.hourly_rate) : null);
+                return { role_name: roleName, assigned_to_name: crew.name, hourly_rate };
+            }
+            // Fallback: task's own hourly_rate if set
+            const hourly_rate = task.hourly_rate ? Number(task.hourly_rate) : null;
+            return { role_name: null, assigned_to_name: null, hourly_rate };
+        };
+
+        // 2b. For per_film_scene preview, fetch scene details with durations
+        let filmSceneDetails: Array<{
+            filmName: string;
+            sceneName: string;
+            durationMinutes: number | null;
+        }> = [];
+
+        if (tasks.some(t => t.trigger_type === 'per_film_scene')) {
+            const schedules = await this.prisma.packageFilmSceneSchedule.findMany({
+                where: { package_film: { package_id: packageId } },
+                include: {
+                    package_film: { include: { film: { select: { name: true } } } },
+                    scene: { select: { name: true, duration_seconds: true } },
+                },
+                orderBy: [
+                    { package_film: { order_index: 'asc' } },
+                    { order_index: 'asc' },
+                ],
+            });
+            filmSceneDetails = schedules.map(s => ({
+                filmName: s.package_film.film.name,
+                sceneName: s.scene.name,
+                durationMinutes: s.scheduled_duration_minutes
+                    ?? (s.scene.duration_seconds ? s.scene.duration_seconds / 60 : null),
+            }));
+        }
+
+        // 2c. For per_activity_crew preview, fetch actual assignment details
+        //     so we can show realistic task names and per-activity durations
+        let activityCrewDetails: Array<{
+            activityName: string;
+            durationMinutes: number | null;
+            crewName: string;
+            positionName: string;
+        }> = [];
+
+        if (tasks.some(t => t.trigger_type === 'per_activity_crew')) {
+            const assignments = await this.prisma.operatorActivityAssignment.findMany({
+                where: { package_activity: { package_id: packageId } },
+                include: {
+                    package_activity: { select: { name: true, duration_minutes: true } },
+                    package_day_operator: {
+                        select: {
+                            position_name: true,
+                            contributor: {
+                                include: { contact: { select: { first_name: true, last_name: true } } },
+                            },
+                        },
+                    },
+                },
+                orderBy: [
+                    { package_activity: { order_index: 'asc' } },
+                    { package_day_operator: { order_index: 'asc' } },
+                ],
+            });
+            activityCrewDetails = assignments.map(a => {
+                const op = a.package_day_operator;
+                const crewName = op.contributor
+                    ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+                    : op.position_name;
+                return {
+                    activityName: a.package_activity.name,
+                    durationMinutes: a.package_activity.duration_minutes,
+                    crewName,
+                    positionName: op.position_name,
+                };
+            });
+        }
+
+        // 2d. For per_film preview, fetch film names so we can expand into per-film rows
+        let filmDetails: Array<{ filmName: string }> = [];
+
+        if (tasks.some(t => t.trigger_type === 'per_film')) {
+            const packageFilms = await this.prisma.packageFilm.findMany({
+                where: { package_id: packageId },
+                include: { film: { select: { name: true } } },
+                orderBy: { order_index: 'asc' },
+            });
+            filmDetails = packageFilms.map(pf => ({
+                filmName: pf.film.name,
+            }));
+        }
+
+        // 2d-ii. For per_film_with_music / per_film_with_graphics, fetch film content details
+        //        to filter films that actually have music or graphics in their scenes
+        const filmsWithMusic: Array<{ filmName: string }> = [];
+        const filmsWithGraphics: Array<{ filmName: string }> = [];
+
+        if (tasks.some(t => t.trigger_type === 'per_film_with_music' || t.trigger_type === 'per_film_with_graphics')) {
+            const packageFilms = await this.prisma.packageFilm.findMany({
+                where: { package_id: packageId },
+                include: {
+                    film: {
+                        select: {
+                            id: true,
+                            name: true,
+                            scenes: {
+                                select: {
+                                    id: true,
+                                    scene_music: { select: { id: true } },
+                                    recording_setup: { select: { graphics_enabled: true } },
+                                    moments: {
+                                        select: {
+                                            moment_music: { select: { id: true } },
+                                            recording_setup: { select: { graphics_enabled: true } },
+                                        },
+                                    },
+                                    beats: {
+                                        select: {
+                                            recording_setup: { select: { graphics_enabled: true } },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                orderBy: { order_index: 'asc' },
+            });
+
+            for (const pf of packageFilms) {
+                const film = pf.film;
+                // Check if any scene has music (SceneMusic or MomentMusic)
+                const hasMusic = film.scenes.some(scene =>
+                    scene.scene_music !== null ||
+                    scene.moments.some(m => m.moment_music !== null)
+                );
+                if (hasMusic) {
+                    filmsWithMusic.push({ filmName: film.name });
+                }
+
+                // Check if any scene/moment/beat has graphics enabled
+                const hasGraphics = film.scenes.some(scene =>
+                    scene.recording_setup?.graphics_enabled === true ||
+                    scene.moments.some(m => m.recording_setup?.graphics_enabled === true) ||
+                    scene.beats.some(b => b.recording_setup?.graphics_enabled === true)
+                );
+                if (hasGraphics) {
+                    filmsWithGraphics.push({ filmName: film.name });
+                }
+            }
+        }
+
+        // 2e. For per_activity preview, fetch activity names
+        let activityDetails: Array<{ activityName: string }> = [];
+
+        if (tasks.some(t => t.trigger_type === 'per_activity')) {
+            const packageActivities = await this.prisma.packageActivity.findMany({
+                where: { package_id: packageId },
+                select: { name: true },
+                orderBy: { order_index: 'asc' },
+            });
+            activityDetails = packageActivities.map(a => ({
+                activityName: a.name,
+            }));
+        }
+
+        // 3. Map trigger type → content count
+        const triggerCounts: Record<string, number> = {
+            always: 1,
+            per_film: filmCount,
+            per_film_with_music: filmsWithMusic.length,
+            per_film_with_graphics: filmsWithGraphics.length,
+            per_event_day: eventDayCount,
+            per_crew_member: crewCount,
+            per_location: locationCount,
+            per_activity: activityCount,
+            per_activity_crew: activityCrewCount,
+            per_film_scene: filmSceneCount,
+        };
+
+        // 4. Build preview: for each task, calculate how many instances
+        const generatedTasks = tasks.flatMap(task => {
+            const multiplier = triggerCounts[task.trigger_type] ?? 1;
+            const assignment = getPreviewAssignment(task);
+
+            // Special handling for per_film_scene: expand into scene-level preview rows
+            if (task.trigger_type === 'per_film_scene' && filmSceneDetails.length > 0) {
+                const effortMultiplier = task.effort_hours ? Number(task.effort_hours) : 1;
+                return filmSceneDetails.map(detail => {
+                    const hours = detail.durationMinutes
+                        ? (detail.durationMinutes / 60) * effortMultiplier
+                        : effortMultiplier;
+                    return {
+                        task_library_id: task.id,
+                        name: `${task.name} — ${detail.sceneName} (${detail.filmName})`,
+                        phase: task.phase,
+                        trigger_type: task.trigger_type,
+                        effort_hours_each: Math.round(hours * 100) / 100,
+                        multiplier: 1,
+                        total_instances: 1,
+                        total_hours: Math.round(hours * 100) / 100,
+                        ...assignment,
+                    };
+                });
+            }
+
+            // Special handling for per_activity_crew: expand into individual preview rows
+            if (task.trigger_type === 'per_activity_crew' && activityCrewDetails.length > 0) {
+                return activityCrewDetails.map(detail => {
+                    const hours = detail.durationMinutes
+                        ? detail.durationMinutes / 60
+                        : (task.effort_hours ? Number(task.effort_hours) : 0);
+                    return {
+                        task_library_id: task.id,
+                        name: `${detail.activityName} — ${detail.crewName} (${detail.positionName})`,
+                        phase: task.phase,
+                        trigger_type: task.trigger_type,
+                        effort_hours_each: Math.round(hours * 100) / 100,
+                        multiplier: 1,
+                        total_instances: 1,
+                        total_hours: Math.round(hours * 100) / 100,
+                        ...assignment,
+                        assigned_to_name: detail.crewName as string | null,
+                    };
+                });
+            }
+
+            // Special handling for per_crew_member: expand into per-crew preview rows
+            if (task.trigger_type === 'per_crew_member' && operators.length > 0) {
+                const effortEach = task.effort_hours ? Number(task.effort_hours) : 0;
+                return operators.map(op => {
+                    const crewName = op.contributor
+                        ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+                        : op.position_name;
+                    const opRoleName = op.job_role?.display_name || op.job_role?.name || null;
+                    return {
+                        task_library_id: task.id,
+                        name: `${task.name} — ${crewName}`,
+                        phase: task.phase,
+                        trigger_type: task.trigger_type,
+                        effort_hours_each: effortEach,
+                        multiplier: 1,
+                        total_instances: 1,
+                        total_hours: effortEach,
+                        role_name: opRoleName || assignment.role_name,
+                        assigned_to_name: crewName as string | null,
+                        hourly_rate: assignment.hourly_rate,
+                    };
+                });
+            }
+
+            // Special handling for per_film: expand into per-film preview rows
+            if (task.trigger_type === 'per_film' && filmDetails.length > 0) {
+                const effortEach = task.effort_hours ? Number(task.effort_hours) : 0;
+                return filmDetails.map(detail => ({
+                    task_library_id: task.id,
+                    name: `${task.name} — ${detail.filmName}`,
+                    phase: task.phase,
+                    trigger_type: task.trigger_type,
+                    effort_hours_each: effortEach,
+                    multiplier: 1,
+                    total_instances: 1,
+                    total_hours: effortEach,
+                    ...assignment,
+                }));
+            }
+
+            // Special handling for per_film_with_music: expand into per-film rows
+            // but ONLY for films that actually have music content (SceneMusic or MomentMusic)
+            if (task.trigger_type === 'per_film_with_music' && filmsWithMusic.length > 0) {
+                const effortEach = task.effort_hours ? Number(task.effort_hours) : 0;
+                return filmsWithMusic.map(detail => ({
+                    task_library_id: task.id,
+                    name: `${task.name} — ${detail.filmName}`,
+                    phase: task.phase,
+                    trigger_type: task.trigger_type,
+                    effort_hours_each: effortEach,
+                    multiplier: 1,
+                    total_instances: 1,
+                    total_hours: effortEach,
+                    ...assignment,
+                }));
+            }
+
+            // Special handling for per_film_with_graphics: expand into per-film rows
+            // but ONLY for films that have graphics enabled on any scene/moment/beat
+            if (task.trigger_type === 'per_film_with_graphics' && filmsWithGraphics.length > 0) {
+                const effortEach = task.effort_hours ? Number(task.effort_hours) : 0;
+                return filmsWithGraphics.map(detail => ({
+                    task_library_id: task.id,
+                    name: `${task.name} — ${detail.filmName}`,
+                    phase: task.phase,
+                    trigger_type: task.trigger_type,
+                    effort_hours_each: effortEach,
+                    multiplier: 1,
+                    total_instances: 1,
+                    total_hours: effortEach,
+                    ...assignment,
+                }));
+            }
+
+            // Special handling for per_activity: expand into per-activity preview rows
+            if (task.trigger_type === 'per_activity' && activityDetails.length > 0) {
+                const effortEach = task.effort_hours ? Number(task.effort_hours) : 0;
+                return activityDetails.map(detail => ({
+                    task_library_id: task.id,
+                    name: `${task.name} — ${detail.activityName}`,
+                    phase: task.phase,
+                    trigger_type: task.trigger_type,
+                    effort_hours_each: effortEach,
+                    multiplier: 1,
+                    total_instances: 1,
+                    total_hours: effortEach,
+                    ...assignment,
+                }));
+            }
+
+            return [{
+                task_library_id: task.id,
+                name: task.name,
+                phase: task.phase,
+                trigger_type: task.trigger_type,
+                effort_hours_each: task.effort_hours ? Number(task.effort_hours) : 0,
+                multiplier,
+                total_instances: multiplier,
+                total_hours: multiplier * (task.effort_hours ? Number(task.effort_hours) : 0),
+                ...assignment,
+            }];
+        });
+
+        // 5. Compute estimated_cost per task and group by phase (hourly_rate × total_hours)
+        const tasksWithCost: PreviewTaskRow[] = generatedTasks.map(t => {
+            const estimated_cost = (t.hourly_rate !== null && t.hourly_rate !== undefined && t.total_hours > 0)
+                ? Math.round(t.hourly_rate * t.total_hours * 100) / 100
+                : null;
+            return { ...t, estimated_cost };
+        });
+
+        // Re-group with cost
+        const byPhaseWithCost = tasksWithCost.reduce((acc, t) => {
+            if (!acc[t.phase]) acc[t.phase] = [];
+            acc[t.phase].push(t);
+            return acc;
+        }, {} as Record<string, typeof tasksWithCost>);
+
+        const totalTasks = tasksWithCost.reduce((sum, t) => sum + t.total_instances, 0);
+        const totalHours = tasksWithCost.reduce((sum, t) => sum + t.total_hours, 0);
+        const totalCost = tasksWithCost.reduce((sum, t) => sum + (t.estimated_cost ?? 0), 0);
+
+        return {
+            package: { id: pkg.id, name: pkg.name },
+            contentCounts: {
+                films: filmCount,
+                films_with_music: filmsWithMusic.length,
+                films_with_graphics: filmsWithGraphics.length,
+                event_days: eventDayCount,
+                crew_members: crewCount,
+                locations: locationCount,
+                activities: activityCount,
+                activity_crew_assignments: activityCrewCount,
+                film_scenes: filmSceneCount,
+            },
+            summary: {
+                total_library_tasks: tasks.length,
+                total_generated_tasks: totalTasks,
+                total_estimated_hours: Math.round(totalHours * 100) / 100,
+                total_estimated_cost: Math.round(totalCost * 100) / 100,
+            },
+            byPhase: byPhaseWithCost,
+            tasks: tasksWithCost,
+        };
+    }
+
+    /**
+     * Execute auto-generation: actually create project_tasks records
+     * based on the package's content and the brand's task library.
+     */
+    async executeAutoGeneration(dto: ExecuteAutoGenerationDto, userId: number) {
+        const { projectId, packageId, brandId } = dto;
+        await this.checkBrandAccess(brandId, userId);
+
+        // Verify project exists and belongs to this brand
+        const project = await this.prisma.projects.findUnique({
+            where: { id: projectId },
+            select: { id: true, project_name: true, brand_id: true },
+        });
+        if (!project) {
+            throw new NotFoundException(`Project with ID ${projectId} not found`);
+        }
+        if (project.brand_id !== brandId) {
+            throw new ForbiddenException('Project does not belong to this brand');
+        }
+
+        // Check if tasks have already been generated for this project+package
+        const existingCount = await this.prisma.project_tasks.count({
+            where: { project_id: projectId, package_id: packageId },
+        });
+        if (existingCount > 0) {
+            throw new ConflictException(
+                `Tasks have already been generated for this project from this package (${existingCount} tasks exist). Delete them first to regenerate.`,
+            );
+        }
+
+        // Fetch package + verify
+        const pkg = await this.prisma.service_packages.findUnique({
+            where: { id: packageId },
+            select: { id: true, name: true, brand_id: true },
+        });
+        if (!pkg) {
+            throw new NotFoundException(`Package with ID ${packageId} not found`);
+        }
+        if (pkg.brand_id !== brandId) {
+            throw new ForbiddenException('Package does not belong to this brand');
+        }
+
+        // Fetch package content with names for context labels
+        const [films, eventDays, operators, locations, activities, activityCrewAssignments, filmSceneSchedules] = await Promise.all([
+            this.prisma.packageFilm.findMany({
+                where: { package_id: packageId },
+                include: { film: { select: { id: true, name: true } } },
+                orderBy: { order_index: 'asc' },
+            }),
+            this.prisma.packageEventDay.findMany({
+                where: { package_id: packageId },
+                include: { event_day: { select: { id: true, name: true } } },
+                orderBy: { order_index: 'asc' },
+            }),
+            this.prisma.packageDayOperator.findMany({
+                where: { package_id: packageId },
+                include: {
+                    contributor: { include: { contact: { select: { first_name: true, last_name: true } } } },
+                },
+                orderBy: { order_index: 'asc' },
+            }),
+            this.prisma.packageEventDayLocation.findMany({
+                where: { package_id: packageId },
+                include: { location: { select: { id: true, name: true } } },
+                orderBy: { order_index: 'asc' },
+            }),
+            this.prisma.packageActivity.findMany({
+                where: { package_id: packageId },
+                select: { id: true, name: true },
+                orderBy: { order_index: 'asc' },
+            }),
+            // Fetch activity×crew assignments with full details for per_activity_crew
+            this.prisma.operatorActivityAssignment.findMany({
+                where: { package_activity: { package_id: packageId } },
+                include: {
+                    package_activity: { select: { name: true, duration_minutes: true } },
+                    package_day_operator: {
+                        select: {
+                            position_name: true,
+                            contributor_id: true,
+                            contributor: {
+                                include: { contact: { select: { first_name: true, last_name: true } } },
+                            },
+                        },
+                    },
+                },
+                orderBy: [
+                    { package_activity: { order_index: 'asc' } },
+                    { package_day_operator: { order_index: 'asc' } },
+                ],
+            }),
+            // Fetch film scene schedules for per_film_scene trigger
+            this.prisma.packageFilmSceneSchedule.findMany({
+                where: { package_film: { package_id: packageId } },
+                include: {
+                    package_film: { include: { film: { select: { name: true } } } },
+                    scene: { select: { name: true, duration_seconds: true } },
+                },
+                orderBy: [
+                    { package_film: { order_index: 'asc' } },
+                    { order_index: 'asc' },
+                ],
+            }),
+        ]);
+
+        // Build context label arrays per trigger type
+        const contextLabels: Record<string, string[]> = {
+            always: [''],
+            per_film: films.map(f => `Film: ${f.film?.name || `Film #${f.film_id}`}`),
+            per_event_day: eventDays.map(ed => `Event Day: ${ed.event_day?.name || `Day #${ed.event_day_template_id}`}`),
+            per_crew_member: operators.map(op => {
+                const name = op.contributor
+                    ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+                    : null;
+                return `Crew: ${name || op.position_name}`;
+            }),
+            per_location: locations.map(loc => `Location: ${loc.location?.name || `Location #${loc.location_id}`}`),
+            per_activity: activities.map(act => `Activity: ${act.name}`),
+        };
+
+        // For per_film_with_music / per_film_with_graphics, detect which films have content
+        const filmsWithMusicExec: typeof films = [];
+        const filmsWithGraphicsExec: typeof films = [];
+
+        const needsContentDetection = await this.prisma.task_library.findFirst({
+            where: {
+                brand_id: brandId,
+                is_active: true,
+                trigger_type: { in: ['per_film_with_music', 'per_film_with_graphics'] },
+            },
+        });
+
+        if (needsContentDetection && films.length > 0) {
+            // Fetch scene content data for all package films
+            const filmsWithContent = await this.prisma.packageFilm.findMany({
+                where: { package_id: packageId },
+                include: {
+                    film: {
+                        select: {
+                            id: true,
+                            name: true,
+                            scenes: {
+                                select: {
+                                    id: true,
+                                    scene_music: { select: { id: true } },
+                                    recording_setup: { select: { graphics_enabled: true } },
+                                    moments: {
+                                        select: {
+                                            moment_music: { select: { id: true } },
+                                            recording_setup: { select: { graphics_enabled: true } },
+                                        },
+                                    },
+                                    beats: {
+                                        select: {
+                                            recording_setup: { select: { graphics_enabled: true } },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                orderBy: { order_index: 'asc' },
+            });
+
+            for (const pf of filmsWithContent) {
+                const film = pf.film;
+                const hasMusic = film.scenes.some(scene =>
+                    scene.scene_music !== null ||
+                    scene.moments.some(m => m.moment_music !== null)
+                );
+                if (hasMusic) {
+                    // Find matching entry from original films array to keep same structure
+                    const original = films.find(f => f.film_id === film.id);
+                    if (original) filmsWithMusicExec.push(original);
+                }
+
+                const hasGraphics = film.scenes.some(scene =>
+                    scene.recording_setup?.graphics_enabled === true ||
+                    scene.moments.some(m => m.recording_setup?.graphics_enabled === true) ||
+                    scene.beats.some(b => b.recording_setup?.graphics_enabled === true)
+                );
+                if (hasGraphics) {
+                    const original = films.find(f => f.film_id === film.id);
+                    if (original) filmsWithGraphicsExec.push(original);
+                }
+            }
+        }
+
+        // Fetch active task library entries for this brand
+        const libraryTasks = await this.prisma.task_library.findMany({
+            where: { brand_id: brandId, is_active: true },
+            orderBy: [{ phase: 'asc' }, { order_index: 'asc' }],
+        });
+
+        // ── Skill-to-Role batch resolution ──────────────────────────
+        const tasksWithSkills = libraryTasks
+            .filter(t => t.skills_needed && t.skills_needed.length > 0)
+            .map(t => ({
+                id: t.id,
+                skills_needed: t.skills_needed,
+            }));
+
+        const resolvedRoles: Map<number, ResolvedRoleResult> =
+            tasksWithSkills.length > 0
+                ? await this.skillRoleMappings.batchResolve(tasksWithSkills, brandId)
+                : new Map();
+
+        // Fetch package task overrides
+        const overrides = await this.prisma.packageTaskOverride.findMany({
+            where: { package_id: packageId },
+        });
+        const overrideMap = new Map(
+            overrides.filter(o => o.task_library_id).map(o => [o.task_library_id!, o]),
+        );
+
+        // ── Build role-to-crew list for tier-aware auto-assignment ────
+        // Fetch each operator's bracket level from contributor_job_roles
+        const execContributorIds = operators
+            .filter(op => op.contributor_id)
+            .map(op => op.contributor_id!);
+        const contributorJobRolesExec = execContributorIds.length > 0
+            ? await this.prisma.contributor_job_roles.findMany({
+                where: { contributor_id: { in: execContributorIds } },
+                include: { payment_bracket: { select: { level: true } } },
+            })
+            : [];
+        const execBracketMap = new Map<string, number>(); // "contributorId-roleId" → level
+        for (const cjr of contributorJobRolesExec) {
+            if (cjr.payment_bracket_id && cjr.payment_bracket) {
+                execBracketMap.set(`${cjr.contributor_id}-${cjr.job_role_id}`, cjr.payment_bracket.level);
+            }
+        }
+
+        interface ExecCrewEntry { contributorId: number; bracketLevel: number; }
+        const roleToCrewList = new Map<number, ExecCrewEntry[]>();
+        for (const op of operators) {
+            if (!op.job_role_id || !op.contributor_id) continue;
+            const bracketLevel = execBracketMap.get(`${op.contributor_id}-${op.job_role_id}`) ?? 0;
+            if (!roleToCrewList.has(op.job_role_id)) roleToCrewList.set(op.job_role_id, []);
+            const list = roleToCrewList.get(op.job_role_id)!;
+            if (!list.some(c => c.contributorId === op.contributor_id)) {
+                list.push({ contributorId: op.contributor_id, bracketLevel });
+            }
+        }
+        for (const [, list] of roleToCrewList) {
+            list.sort((a, b) => a.bracketLevel - b.bracketLevel);
+        }
+
+        // Helper: pick the best crew member for a task's bracket level
+        const pickCrewForBracket = (roleId: number, taskBracketLevel: number | null): number | null => {
+            const list = roleToCrewList.get(roleId);
+            if (!list || list.length === 0) return null;
+            if (list.length === 1) return list[0].contributorId;
+            if (taskBracketLevel === null || taskBracketLevel <= 0) {
+                return list[0].contributorId; // No bracket info → lowest-tier
+            }
+            let best = list[0];
+            let bestDist = Math.abs(list[0].bracketLevel - taskBracketLevel);
+            for (const entry of list) {
+                const dist = Math.abs(entry.bracketLevel - taskBracketLevel);
+                if (dist < bestDist || (dist === bestDist && entry.bracketLevel < best.bracketLevel)) {
+                    best = entry;
+                    bestDist = dist;
+                }
+            }
+            return best.contributorId;
+        };
+
+        // Build project task records
+        const taskRecords: Array<{
+            project_id: number;
+            task_library_id: number;
+            package_id: number;
+            name: string;
+            description: string | null;
+            phase: typeof libraryTasks[number]['phase'];
+            trigger_type: typeof libraryTasks[number]['trigger_type'];
+            trigger_context: string | null;
+            estimated_hours: typeof libraryTasks[number]['effort_hours'] | number;
+            assigned_to_id?: number | null;
+            pricing_type: typeof libraryTasks[number]['pricing_type'];
+            fixed_price: typeof libraryTasks[number]['fixed_price'];
+            hourly_rate: typeof libraryTasks[number]['hourly_rate'] | number;
+            order_index: number;
+            resolved_job_role_id?: number | null;
+            resolved_bracket_id?: number | null;
+            resolved_rate?: number | null;
+            resolved_skill?: string | null;
+        }> = [];
+
+        // Helper: get resolved role fields for a task library entry
+        const getResolvedFields = (taskId: number) => {
+            const r = resolvedRoles.get(taskId);
+            if (!r) return {};
+            return {
+                resolved_job_role_id: r.job_role_id,
+                resolved_bracket_id: r.bracket_id,
+                resolved_rate: r.hourly_rate,
+                resolved_skill: r.resolved_skill,
+            };
+        };
+
+        // Helper: get effective hourly rate — bracket rate takes precedence if available
+        const getEffectiveRate = (task: typeof libraryTasks[number]) => {
+            const r = resolvedRoles.get(task.id);
+            if (r?.hourly_rate) return r.hourly_rate;
+            return task.hourly_rate;
+        };
+
+        let globalOrderIndex = 0;
+
+        for (const task of libraryTasks) {
+            // Check for package override
+            const override = overrideMap.get(task.id);
+            if (override?.action === 'exclude') {
+                continue; // Skip excluded tasks
+            }
+
+            // Apply override name/hours early so special handlers can use them
+            const effectiveName = override?.override_name || task.name;
+            const effectiveHours = override?.override_hours ?? task.effort_hours;
+
+            // Special handling for per_film_scene:
+            // Generate one editing task per film scene using scene duration × effort multiplier
+            if (task.trigger_type === 'per_film_scene') {
+                const effortMultiplier = task.effort_hours ? Number(task.effort_hours) : 1;
+                for (const schedule of filmSceneSchedules) {
+                    const filmName = schedule.package_film.film.name;
+                    const sceneName = schedule.scene.name;
+                    const durationMinutes = schedule.scheduled_duration_minutes
+                        ?? (schedule.scene.duration_seconds ? schedule.scene.duration_seconds / 60 : null);
+                    const hours = durationMinutes
+                        ? (durationMinutes / 60) * effortMultiplier
+                        : effortMultiplier;
+
+                    taskRecords.push({
+                        project_id: projectId,
+                        task_library_id: task.id,
+                        package_id: packageId,
+                        name: `${effectiveName} — ${sceneName} (${filmName})`,
+                        description: task.description,
+                        phase: override?.phase || task.phase,
+                        trigger_type: task.trigger_type,
+                        trigger_context: `${sceneName} (${filmName})`,
+                        estimated_hours: Math.round(hours * 100) / 100,
+                        pricing_type: task.pricing_type,
+                        fixed_price: task.fixed_price,
+                        hourly_rate: getEffectiveRate(task),
+                        order_index: globalOrderIndex++,
+                        ...getResolvedFields(task.id),
+                    });
+                }
+                continue;
+            }
+
+            // Special handling for per_activity_crew:
+            // Generate one task per activity×crew assignment using real names & durations
+            if (task.trigger_type === 'per_activity_crew') {
+                for (const assignment of activityCrewAssignments) {
+                    const op = assignment.package_day_operator;
+                    const crewName = op.contributor
+                        ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+                        : op.position_name;
+                    const activityName = assignment.package_activity.name;
+                    const durationHours = assignment.package_activity.duration_minutes
+                        ? assignment.package_activity.duration_minutes / 60
+                        : (task.effort_hours ? Number(task.effort_hours) : 0);
+
+                    taskRecords.push({
+                        project_id: projectId,
+                        task_library_id: task.id,
+                        package_id: packageId,
+                        name: `${activityName} — ${crewName} (${op.position_name})`,
+                        description: task.description,
+                        phase: override?.phase || task.phase,
+                        trigger_type: task.trigger_type,
+                        trigger_context: `${activityName} — ${crewName} (${op.position_name})`,
+                        estimated_hours: durationHours,
+                        assigned_to_id: op.contributor_id || null,
+                        pricing_type: task.pricing_type,
+                        fixed_price: task.fixed_price,
+                        hourly_rate: getEffectiveRate(task),
+                        order_index: globalOrderIndex++,
+                        ...getResolvedFields(task.id),
+                    });
+                }
+                continue;
+            }
+
+            // Special handling for per_film:
+            // Generate one task per film with clean naming (e.g. "Title Cards — Wedding Film")
+            if (task.trigger_type === 'per_film') {
+                const effortEach = effectiveHours ? Number(effectiveHours) : 0;
+                for (const f of films) {
+                    const filmName = f.film?.name || `Film #${f.film_id}`;
+                    taskRecords.push({
+                        project_id: projectId,
+                        task_library_id: task.id,
+                        package_id: packageId,
+                        name: `${effectiveName} — ${filmName}`,
+                        description: task.description,
+                        phase: override?.phase || task.phase,
+                        trigger_type: task.trigger_type,
+                        trigger_context: filmName,
+                        estimated_hours: effortEach,
+                        pricing_type: task.pricing_type,
+                        fixed_price: task.fixed_price,
+                        hourly_rate: getEffectiveRate(task),
+                        order_index: globalOrderIndex++,
+                        ...getResolvedFields(task.id),
+                    });
+                }
+                continue;
+            }
+
+            // Special handling for per_film_with_music:
+            // Only generate tasks for films that actually have scene or moment music
+            if (task.trigger_type === 'per_film_with_music') {
+                const effortEach = effectiveHours ? Number(effectiveHours) : 0;
+                for (const f of filmsWithMusicExec) {
+                    const filmName = f.film?.name || `Film #${f.film_id}`;
+                    taskRecords.push({
+                        project_id: projectId,
+                        task_library_id: task.id,
+                        package_id: packageId,
+                        name: `${effectiveName} — ${filmName}`,
+                        description: task.description,
+                        phase: override?.phase || task.phase,
+                        trigger_type: task.trigger_type,
+                        trigger_context: filmName,
+                        estimated_hours: effortEach,
+                        pricing_type: task.pricing_type,
+                        fixed_price: task.fixed_price,
+                        hourly_rate: getEffectiveRate(task),
+                        order_index: globalOrderIndex++,
+                        ...getResolvedFields(task.id),
+                    });
+                }
+                continue;
+            }
+
+            // Special handling for per_film_with_graphics:
+            // Only generate tasks for films that have graphics enabled on any scene/moment/beat
+            if (task.trigger_type === 'per_film_with_graphics') {
+                const effortEach = effectiveHours ? Number(effectiveHours) : 0;
+                for (const f of filmsWithGraphicsExec) {
+                    const filmName = f.film?.name || `Film #${f.film_id}`;
+                    taskRecords.push({
+                        project_id: projectId,
+                        task_library_id: task.id,
+                        package_id: packageId,
+                        name: `${effectiveName} — ${filmName}`,
+                        description: task.description,
+                        phase: override?.phase || task.phase,
+                        trigger_type: task.trigger_type,
+                        trigger_context: filmName,
+                        estimated_hours: effortEach,
+                        pricing_type: task.pricing_type,
+                        fixed_price: task.fixed_price,
+                        hourly_rate: getEffectiveRate(task),
+                        order_index: globalOrderIndex++,
+                        ...getResolvedFields(task.id),
+                    });
+                }
+                continue;
+            }
+
+            // Special handling for per_activity:
+            // Generate one task per activity with clean naming (e.g. "Footage Review — Ceremony")
+            if (task.trigger_type === 'per_activity') {
+                const effortEach = effectiveHours ? Number(effectiveHours) : 0;
+                for (const act of activities) {
+                    taskRecords.push({
+                        project_id: projectId,
+                        task_library_id: task.id,
+                        package_id: packageId,
+                        name: `${effectiveName} — ${act.name}`,
+                        description: task.description,
+                        phase: override?.phase || task.phase,
+                        trigger_type: task.trigger_type,
+                        trigger_context: act.name,
+                        estimated_hours: effortEach,
+                        pricing_type: task.pricing_type,
+                        fixed_price: task.fixed_price,
+                        hourly_rate: getEffectiveRate(task),
+                        order_index: globalOrderIndex++,
+                        ...getResolvedFields(task.id),
+                    });
+                }
+                continue;
+            }
+
+            // Special handling for per_crew_member:
+            // Generate one task per crew member, auto-assigned to each
+            if (task.trigger_type === 'per_crew_member') {
+                const effortEach = effectiveHours ? Number(effectiveHours) : 0;
+                for (const op of operators) {
+                    const crewName = op.contributor
+                        ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+                        : op.position_name;
+                    taskRecords.push({
+                        project_id: projectId,
+                        task_library_id: task.id,
+                        package_id: packageId,
+                        name: `${effectiveName} — ${crewName}`,
+                        description: task.description,
+                        phase: override?.phase || task.phase,
+                        trigger_type: task.trigger_type,
+                        trigger_context: `Crew: ${crewName}`,
+                        estimated_hours: effortEach,
+                        assigned_to_id: op.contributor_id || null,
+                        pricing_type: task.pricing_type,
+                        fixed_price: task.fixed_price,
+                        hourly_rate: getEffectiveRate(task),
+                        order_index: globalOrderIndex++,
+                        ...getResolvedFields(task.id),
+                    });
+                }
+                continue;
+            }
+
+            const labels = contextLabels[task.trigger_type] || [''];
+
+            for (const label of labels) {
+                const contextSuffix = label && task.trigger_type !== 'always'
+                    ? ` — ${label}`
+                    : '';
+
+                taskRecords.push({
+                    project_id: projectId,
+                    task_library_id: task.id,
+                    package_id: packageId,
+                    name: `${effectiveName}${contextSuffix}`,
+                    description: task.description,
+                    phase: override?.phase || task.phase,
+                    trigger_type: task.trigger_type,
+                    trigger_context: label || null,
+                    estimated_hours: effectiveHours,
+                    pricing_type: task.pricing_type,
+                    fixed_price: task.fixed_price,
+                    hourly_rate: getEffectiveRate(task),
+                    order_index: globalOrderIndex++,
+                    ...getResolvedFields(task.id),
+                });
+            }
+        }
+
+        // ── Auto-assign tasks to crew based on role + bracket tier matching ──
+        // Lower-bracket tasks → lower-tier crew, higher-bracket tasks → higher-tier crew
+        for (const record of taskRecords) {
+            if (record.assigned_to_id) continue; // Already assigned (e.g., per_activity_crew, per_crew_member)
+
+            const libraryTask = libraryTasks.find(t => t.id === record.task_library_id);
+            // Get bracket level from resolved roles (available for both default_job_role and skill-resolved)
+            const resolved = resolvedRoles.get(record.task_library_id);
+            const taskBracketLevel = resolved?.bracket_level ?? null;
+
+            // Priority 1: task's explicit default_job_role_id
+            const defaultRoleId = libraryTask?.default_job_role_id;
+            if (defaultRoleId) {
+                const crewId = pickCrewForBracket(defaultRoleId, taskBracketLevel);
+                if (crewId) {
+                    record.assigned_to_id = crewId;
+                    continue;
+                }
+            }
+            // Priority 2: resolved role from skill-to-role mappings
+            if (record.resolved_job_role_id) {
+                const crewId = pickCrewForBracket(record.resolved_job_role_id, taskBracketLevel);
+                if (crewId) {
+                    record.assigned_to_id = crewId;
+                }
+            }
+        }
+
+        // Bulk create in a transaction
+        const created = await this.prisma.$transaction(
+            taskRecords.map(record =>
+                this.prisma.project_tasks.create({
+                    data: record,
+                    include: {
+                        assigned_to: {
+                            select: {
+                                id: true,
+                                contact: { select: { first_name: true, last_name: true } },
+                            },
+                        },
+                    },
+                }),
+            ),
+        );
+
+        // Summarize
+        const totalHours = created.reduce(
+            (sum, t) => sum + (t.estimated_hours ? Number(t.estimated_hours) : 0),
+            0,
+        );
+
+        // Group created tasks by phase for the response
+        const byPhase = created.reduce((acc, t) => {
+            const phase = t.phase;
+            if (!acc[phase]) acc[phase] = [];
+            acc[phase].push(t);
+            return acc;
+        }, {} as Record<string, typeof created>);
+
+        return {
+            success: true,
+            project: { id: project.id, name: project.project_name },
+            package: { id: pkg.id, name: pkg.name },
+            summary: {
+                total_tasks_created: created.length,
+                total_estimated_hours: Math.round(totalHours * 100) / 100,
+                phases_covered: Object.keys(byPhase).length,
+                tasks_with_resolved_roles: created.filter(t => t.resolved_job_role_id).length,
+                tasks_with_resolved_brackets: created.filter(t => t.resolved_bracket_id).length,
+                tasks_auto_assigned: created.filter(t => t.assigned_to_id).length,
+            },
+            byPhase,
+            tasks: created,
+        };
     }
 }

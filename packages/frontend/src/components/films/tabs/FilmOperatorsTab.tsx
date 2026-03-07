@@ -49,17 +49,19 @@ interface PackageDayOperator {
   id: number;
   package_id: number;
   event_day_template_id: number;
-  operator_template_id: number;
+  contributor_id?: number | null;
+  position_name: string;
+  position_color?: string | null;
+  job_role_id?: number | null;
   hours: number;
   notes?: string | null;
   order_index: number;
-  operator_template: {
+  contributor?: {
     id: number;
-    name: string;
-    role?: string | null;
-    color?: string | null;
-    default_equipment: EquipmentRecord[];
-  };
+    crew_color?: string | null;
+    contact: { id: number; first_name?: string | null; last_name?: string | null; email: string };
+  } | null;
+  job_role?: { id: number; name: string; display_name?: string | null } | null;
   equipment: EquipmentRecord[];
   event_day?: { id: number; name: string };
 }
@@ -69,8 +71,8 @@ interface TrackRecord {
   name: string;
   type: string;
   is_active: boolean;
-  operator_template_id: number | null;
-  operator_template: { id: number; name: string; role: string; color: string } | null;
+  contributor_id: number | null;
+  contributor: { id: number; crew_color?: string | null; contact: { first_name?: string | null; last_name?: string | null } } | null;
 }
 
 interface FilmOperatorsTabProps {
@@ -284,7 +286,7 @@ export const FilmOperatorsTab: React.FC<FilmOperatorsTabProps> = ({
                   key={op.id}
                   operator={op}
                   assignedTracks={tracks.filter(
-                    (t) => t.operator_template_id === op.operator_template_id
+                    (t) => t.contributor_id === op.contributor_id
                   )}
                 />
               ))}
@@ -300,9 +302,10 @@ export const FilmOperatorsTab: React.FC<FilmOperatorsTabProps> = ({
 
 function OperatorRow({ operator, assignedTracks }: { operator: PackageDayOperator; assignedTracks: TrackRecord[] }) {
   const theme = useTheme();
-  const tmpl = operator.operator_template;
   const gear = operator.equipment || [];
-  const color = tmpl?.color || "#EC4899";
+  const color = operator.position_color || operator.contributor?.crew_color || "#EC4899";
+  const displayName = operator.position_name || 'Crew';
+  const displayRole = operator.job_role?.display_name || operator.job_role?.name || null;
 
   // Split by equipment category (more reliable than type)
   const cameraCategories = new Set(["CAMERA", "LENS"]);
@@ -354,15 +357,15 @@ function OperatorRow({ operator, assignedTracks }: { operator: PackageDayOperato
               whiteSpace: "nowrap",
             }}
           >
-            {tmpl?.name || "Operator"}
+            {displayName}
           </Typography>
-          {tmpl?.role && (
+          {displayRole && (
             <Typography
               variant="caption"
               color="text.secondary"
               sx={{ fontSize: "0.65rem" }}
             >
-              {tmpl.role}
+              {displayRole}
             </Typography>
           )}
         </Box>

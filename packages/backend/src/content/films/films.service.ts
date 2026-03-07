@@ -489,12 +489,11 @@ export class FilmsService {
       where: whereClause,
       orderBy: { order_index: 'asc' },
       include: {
-        operator_template: {
+        contributor: {
           select: {
             id: true,
-            name: true,
-            role: true,
-            color: true,
+            crew_color: true,
+            contact: { select: { first_name: true, last_name: true } },
           },
         },
       },
@@ -502,12 +501,12 @@ export class FilmsService {
   }
 
   /**
-   * Update a specific track (name, active status, operator assignment)
+   * Update a specific track (name, active status, crew assignment)
    */
   async updateTrack(
     filmId: number,
     trackId: number,
-    data: { name?: string; is_active?: boolean; operator_template_id?: number | null },
+    data: { name?: string; is_active?: boolean; contributor_id?: number | null; is_unmanned?: boolean },
   ) {
     // Verify track belongs to this film
     const track = await this.prisma.filmTimelineTrack.findFirst({
@@ -526,12 +525,11 @@ export class FilmsService {
         updated_at: new Date(),
       },
       include: {
-        operator_template: {
+        contributor: {
           select: {
             id: true,
-            name: true,
-            role: true,
-            color: true,
+            crew_color: true,
+            contact: { select: { first_name: true, last_name: true } },
           },
         },
       },

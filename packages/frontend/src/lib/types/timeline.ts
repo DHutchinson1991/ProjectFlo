@@ -144,14 +144,15 @@ export interface TimelineTrack {
     muted?: boolean;
     color: string;
     order_index: number;
-    /** Operator assigned to this track (from backend) */
-    operator_template_id?: number | null;
-    operator_template?: {
+    /** Crew member assigned to this track (from backend) */
+    contributor_id?: number | null;
+    contributor?: {
         id: number;
-        name: string;
-        role: string;
-        color: string;
+        crew_color?: string | null;
+        contact?: { first_name?: string | null; last_name?: string | null };
     } | null;
+    /** Whether this track is flagged as unmanned (no operator) */
+    is_unmanned?: boolean | null;
 }
 
 export interface DatabaseLayer {
@@ -212,6 +213,8 @@ export interface ContentBuilderProps {
     subjectCount?: number;
     /** When set, the film is opened from a package context — schedule filters event days to this package */
     packageId?: number | null;
+    /** When set, location slot count in the header is filtered to only this activity */
+    linkedActivityId?: number | null;
     equipmentConfig?: {
         cameras: number;
         audio: number;

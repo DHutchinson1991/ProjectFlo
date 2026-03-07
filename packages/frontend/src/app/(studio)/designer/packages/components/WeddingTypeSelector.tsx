@@ -1,34 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Grid,
-  Card,
-  CardContent,
-  CardHeader,
   Typography,
   CircularProgress,
   Alert,
-  TextField,
   Chip,
   Stack,
-  Collapse,
-  IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  Button,
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import GroupIcon from '@mui/icons-material/Group';
-import EventIcon from '@mui/icons-material/Event';
+import PlaceIcon from '@mui/icons-material/Place';
 import { api } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
 
-interface WeddingType {
+export interface WeddingType {
   id: number;
   name: string;
   description: string;
@@ -88,50 +76,54 @@ interface WeddingType {
 }
 
 interface WeddingTypeSelectorProps {
-  onPackageCreated?: (packageId: number) => void;
-  isLoading?: boolean;
+  onWeddingTypeSelected: (weddingType: WeddingType) => void;
+  selectedWeddingTypeId?: number | null;
 }
 
-/**
- * WeddingTypeSelector Component
- * 
- * Displays all available wedding type templates.
- * Users can:
- * 1. Browse wedding types with activities and moments
- * 2. Expand to see detailed moments
- * 3. Enter a custom package name
- * 4. Select and create a package from the template
- */
+// ─── Shared Styles ──────────────────────────────────────────────────
+const sectionLabel = {
+  fontWeight: 700,
+  textTransform: 'uppercase' as const,
+  fontSize: '0.65rem',
+  letterSpacing: '0.8px',
+  mb: 0.75,
+  display: 'block',
+};
+
+const chipSx = {
+  height: 22,
+  fontSize: '0.7rem',
+  fontWeight: 500,
+};
+
 export default function WeddingTypeSelector({
-  onPackageCreated,
-  isLoading: externalIsLoading,
+  onWeddingTypeSelected,
+  selectedWeddingTypeId: externalSelectedId,
 }: WeddingTypeSelectorProps) {
   const { currentBrand } = useBrand();
   const [weddingTypes, setWeddingTypes] = useState<WeddingType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedWeddingTypeId, setSelectedWeddingTypeId] = useState<number | null>(null);
-  const [packageName, setPackageName] = useState('');
-  const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null);
-  const [creatingPackage, setCreatingPackage] = useState(false);
+  const [internalSelectedId, setInternalSelectedId] = useState<number | null>(null);
 
-  // ─── Effects ──────────────────────────────────────────────────────
+  const selectedId = externalSelectedId ?? internalSelectedId;
+
   useEffect(() => {
     loadWeddingTypes();
   }, [currentBrand?.id]);
 
-  // ─── API Calls ────────────────────────────────────────────────────
   const loadWeddingTypes = async () => {
     setLoading(true);
     setError(null);
     try {
-      if (!currentBrand?.id) {
-        setError('Brand context not available');
-        setLoading(false);
-        return;
-      }
+      if (!currentBrand?.id) { setError('Brand context not available'); setLoading(false); return; }
       const response = await api.weddingTypes.getAll(currentBrand.id);
       setWeddingTypes(response);
+      // Auto-select first if nothing selected
+      if (response.length > 0 && !selectedId) {
+        setInternalSelectedId(response[0].id);
+        onWeddingTypeSelected(response[0]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load wedding types');
     } finally {
@@ -139,145 +131,162 @@ export default function WeddingTypeSelector({
     }
   };
 
-  const handleCreatePackage = async () => {
-    if (!selectedWeddingTypeId || !packageName.trim()) {
-      setError('Please select a wedding type and enter a package name');
-      return;
-    }
+  const selectedWeddingType = useMemo(
+    () => weddingTypes.find((wt) => wt.id === selectedId),
+    [weddingTypes, selectedId],
+  );
 
-    setCreatingPackage(true);
-    try {
-      // Call the API to create the package from template
-      const response = await api.weddingTypes.createPackageFromTemplate(selectedWeddingTypeId, {
-        packageName,
-      }, currentBrand?.id || 1);
-      
-      // Extract package ID from response
-      // The response will be the full service_packages object with id at the top level
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const packageId = (response as any)?.id;
-      
-      if (packageId && onPackageCreated) {
-        onPackageCreated(packageId);
-      } else if (!packageId) {
-        setError('Failed to extract package ID from response');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create package');
-      setCreatingPackage(false);
-    }
+  const totalMoments = useMemo(
+    () => selectedWeddingType?.activities.reduce((sum, a) => sum + a.moments.length, 0) ?? 0,
+    [selectedWeddingType],
+  );
+
+  const handleSelect = (wt: WeddingType) => {
+    setInternalSelectedId(wt.id);
+    onWeddingTypeSelected(wt);
   };
 
-  // ─── Computed Values ───────────────────────────────────────────────
-  const selectedWeddingType = weddingTypes.find((wt) => wt.id === selectedWeddingTypeId);
-  const isReadyToCreate = selectedWeddingTypeId && packageName.trim().length > 0;
+  if (loading) {
+    return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress size={28} /></Box>;
+  }
 
-  // ─── Render ────────────────────────────────────────────────────────
   return (
     <Box sx={{ width: '100%' }}>
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {error && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError(null)}>{error}</Alert>}
 
-      {loading || externalIsLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <Grid container spacing={3}>
-          {/* Wedding Types List */}
-          <Grid item xs={selectedWeddingTypeId ? 6 : 12}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: '#ffffff' }}>
-              Select a Wedding Type
-            </Typography>
-
-            <Stack spacing={1.5} sx={{ maxHeight: '600px', overflow: 'auto', pr: 1 }}>
-              {weddingTypes.map((wt) => (
-                <Card
+      <Grid container spacing={2}>
+        {/* ── LEFT: Type List ───────────────────────────────── */}
+        <Grid item xs={3.5}>
+          <Stack spacing={0.75}>
+            {weddingTypes.map((wt) => {
+              const isSelected = selectedId === wt.id;
+              return (
+                <Box
                   key={wt.id}
-                  onClick={() => setSelectedWeddingTypeId(wt.id)}
+                  onClick={() => handleSelect(wt)}
                   sx={{
                     cursor: 'pointer',
-                    backgroundColor: selectedWeddingTypeId === wt.id ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255,255,255,0.03)',
-                    border:
-                      selectedWeddingTypeId === wt.id ? '2px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                      backgroundColor: 'rgba(255,255,255,0.05)',
-                    },
-                    bgcolor: 'rgba(15, 23, 42, 0.6)',
+                    p: 1.25,
+                    borderRadius: 1,
+                    border: isSelected ? '1.5px solid #f59e0b' : '1px solid rgba(255,255,255,0.08)',
+                    bgcolor: isSelected ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255,255,255,0.02)',
+                    transition: 'all 0.15s',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(245,158,11,0.5)' },
                   }}
                 >
-                  <CardHeader
-                    title={wt.name}
-                    subheader={wt.description}
-                    titleTypographyProps={{ variant: 'subtitle1', sx: { color: '#ffffff', fontWeight: 600 } }}
-                    subheaderTypographyProps={{ variant: 'caption', sx: { color: '#94a3b8' } }}
-                    sx={{ pb: 1 }}
-                  />
-
-                  <CardContent sx={{ pt: 0 }}>
-                    <Stack direction="row" spacing={1} sx={{ mb: 1 }} flexWrap="wrap">
-                      <Chip
-                        icon={<AccessTimeIcon />}
-                        label={`${wt.total_duration_hours}h`}
-                        size="small"
-                        variant="outlined"
-                        sx={{ borderColor: 'rgba(255,255,255,0.2)', color: '#e2e8f0' }}
-                      />
-                      <Chip
-                        icon={<EventIcon />}
-                        label={wt.event_start_time}
-                        size="small"
-                        variant="outlined"
-                        sx={{ borderColor: 'rgba(255,255,255,0.2)', color: '#e2e8f0' }}
-                      />
-                      {wt.typical_guest_count && (
-                        <Chip
-                          icon={<GroupIcon />}
-                          label={`~${wt.typical_guest_count} guests`}
-                          size="small"
-                          variant="outlined"
-                          sx={{ borderColor: 'rgba(255,255,255,0.2)', color: '#e2e8f0' }}
-                        />
-                      )}
-                    </Stack>
-
-                    <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                      {wt.activities.length} activities
-                    </Typography>
-                  </CardContent>
-                </Card>
-              ))}
-            </Stack>
-          </Grid>
-
-          {/* Selected Wedding Type Details */}
-          {selectedWeddingType && (
-            <Grid item xs={6}>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: '#ffffff' }}>
-                {selectedWeddingType.name}
-              </Typography>
-
-              {/* Locations Section */}
-              {selectedWeddingType.locations && selectedWeddingType.locations.length > 0 && (
-                <Box sx={{ mb: 2, p: 1.5, bgcolor: 'rgba(15, 23, 42, 0.6)', borderRadius: 1, borderLeft: '3px solid #10b981' }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#10b981', mb: 1, display: 'block' }}>
-                    📍 LOCATIONS ({selectedWeddingType.locations.length})
+                  <Typography sx={{ color: '#fff', fontWeight: 600, fontSize: '0.85rem', lineHeight: 1.3 }}>
+                    {wt.name}
                   </Typography>
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5}>
+                  <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', mt: 0.25, lineHeight: 1.3 }}>
+                    {wt.description}
+                  </Typography>
+                  <Stack direction="row" spacing={0.5} sx={{ mt: 0.75 }}>
+                    <Chip icon={<AccessTimeIcon />} label={`${wt.total_duration_hours}h`} size="small" variant="outlined"
+                      sx={{ ...chipSx, borderColor: 'rgba(255,255,255,0.15)', color: '#cbd5e1', '& .MuiChip-icon': { fontSize: '0.8rem' } }} />
+                    <Chip icon={<GroupIcon />} label={`~${wt.typical_guest_count ?? 0}`} size="small" variant="outlined"
+                      sx={{ ...chipSx, borderColor: 'rgba(255,255,255,0.15)', color: '#cbd5e1', '& .MuiChip-icon': { fontSize: '0.8rem' } }} />
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
+        </Grid>
+
+        {/* ── MIDDLE: Activities & Moments ──────────────────── */}
+        <Grid item xs={4.5}>
+          {selectedWeddingType ? (
+            <Box>
+              <Typography sx={{ ...sectionLabel, color: '#10b981' }}>
+                ⏱ Activities ({selectedWeddingType.activities.length}) · {totalMoments} moments
+              </Typography>
+              <Stack spacing={0.5}>
+                {selectedWeddingType.activities.map((activity) => (
+                  <Box
+                    key={activity.id}
+                    sx={{
+                      p: 1,
+                      borderRadius: 0.75,
+                      bgcolor: 'rgba(15, 23, 42, 0.5)',
+                      borderLeft: `3px solid ${activity.color || '#10b981'}`,
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                      <Typography sx={{ color: '#fff', fontWeight: 600, fontSize: '0.8rem' }}>
+                        {activity.icon ? `${activity.icon} ` : ''}{activity.name}
+                      </Typography>
+                      <Typography sx={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 600, flexShrink: 0, ml: 1 }}>
+                        {activity.duration_minutes}m
+                      </Typography>
+                    </Box>
+                    {/* Inline moments as compact chips */}
+                    <Stack direction="row" spacing={0.25} flexWrap="wrap" gap={0.25}>
+                      {activity.moments.map((m) => (
+                        <Chip
+                          key={m.id}
+                          label={m.name}
+                          size="small"
+                          sx={{
+                            ...chipSx,
+                            height: 20,
+                            fontSize: '0.62rem',
+                            bgcolor: m.is_key_moment ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255,255,255,0.04)',
+                            color: m.is_key_moment ? '#f59e0b' : '#94a3b8',
+                            border: m.is_key_moment ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography sx={{ color: '#64748b', fontSize: '0.85rem' }}>Select a type to see activities</Typography>
+            </Box>
+          )}
+        </Grid>
+
+        {/* ── RIGHT: Locations, Subjects, Stats ─────────────── */}
+        <Grid item xs={4}>
+          {selectedWeddingType ? (
+            <Stack spacing={1.5}>
+              {/* Quick Stats Row */}
+              <Box sx={{ display: 'flex', gap: 1.5 }}>
+                <Box sx={{ flex: 1, p: 1, borderRadius: 0.75, bgcolor: 'rgba(245,158,11,0.08)', textAlign: 'center' }}>
+                  <Typography sx={{ color: '#f59e0b', fontWeight: 700, fontSize: '1.1rem' }}>
+                    {selectedWeddingType.total_duration_hours}h
+                  </Typography>
+                  <Typography sx={{ color: '#94a3b8', fontSize: '0.6rem', textTransform: 'uppercase' }}>Duration</Typography>
+                </Box>
+                <Box sx={{ flex: 1, p: 1, borderRadius: 0.75, bgcolor: 'rgba(16,185,129,0.08)', textAlign: 'center' }}>
+                  <Typography sx={{ color: '#10b981', fontWeight: 700, fontSize: '1.1rem' }}>
+                    {selectedWeddingType.activities.length}
+                  </Typography>
+                  <Typography sx={{ color: '#94a3b8', fontSize: '0.6rem', textTransform: 'uppercase' }}>Activities</Typography>
+                </Box>
+                <Box sx={{ flex: 1, p: 1, borderRadius: 0.75, bgcolor: 'rgba(99,102,241,0.08)', textAlign: 'center' }}>
+                  <Typography sx={{ color: '#818cf8', fontWeight: 700, fontSize: '1.1rem' }}>
+                    {totalMoments}
+                  </Typography>
+                  <Typography sx={{ color: '#94a3b8', fontSize: '0.6rem', textTransform: 'uppercase' }}>Moments</Typography>
+                </Box>
+              </Box>
+
+              {/* Locations */}
+              {selectedWeddingType.locations.length > 0 && (
+                <Box>
+                  <Typography sx={{ ...sectionLabel, color: '#10b981' }}>
+                    <PlaceIcon sx={{ fontSize: '0.75rem', verticalAlign: 'middle', mr: 0.5 }} />
+                    Locations ({selectedWeddingType.locations.length})
+                  </Typography>
+                  <Stack direction="row" flexWrap="wrap" gap={0.5}>
                     {selectedWeddingType.locations.map((loc) => (
-                      <Chip
-                        key={loc.id}
-                        label={loc.name}
-                        size="small"
-                        variant={loc.is_primary ? 'filled' : 'outlined'}
+                      <Chip key={loc.id} label={loc.name} size="small"
                         sx={{
-                          backgroundColor: loc.is_primary ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
-                          borderColor: 'rgba(16, 185, 129, 0.3)',
+                          ...chipSx,
+                          bgcolor: loc.is_primary ? 'rgba(16,185,129,0.2)' : 'transparent',
+                          border: '1px solid rgba(16,185,129,0.3)',
                           color: loc.is_primary ? '#10b981' : '#94a3b8',
                         }}
                       />
@@ -286,22 +295,22 @@ export default function WeddingTypeSelector({
                 </Box>
               )}
 
-              {/* Subjects Section */}
-              {selectedWeddingType.subjects && selectedWeddingType.subjects.length > 0 && (
-                <Box sx={{ mb: 2, p: 1.5, bgcolor: 'rgba(15, 23, 42, 0.6)', borderRadius: 1, borderLeft: '3px solid #f59e0b' }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#f59e0b', mb: 1, display: 'block' }}>
-                    👥 PEOPLE ({selectedWeddingType.subjects.length})
+              {/* Subjects */}
+              {selectedWeddingType.subjects.length > 0 && (
+                <Box>
+                  <Typography sx={{ ...sectionLabel, color: '#f59e0b' }}>
+                    👥 People ({selectedWeddingType.subjects.length})
                   </Typography>
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5}>
+                  <Stack direction="row" flexWrap="wrap" gap={0.5}>
                     {selectedWeddingType.subjects.map((subj) => (
                       <Chip
                         key={subj.id}
-                        label={`${subj.name}${subj.typical_count ? ` (${subj.typical_count})` : ''}`}
+                        label={subj.typical_count && subj.typical_count > 1 ? `${subj.name} (${subj.typical_count})` : subj.name}
                         size="small"
-                        variant={subj.is_primary ? 'filled' : 'outlined'}
                         sx={{
-                          backgroundColor: subj.is_primary ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
-                          borderColor: 'rgba(245, 158, 11, 0.3)',
+                          ...chipSx,
+                          bgcolor: subj.is_primary ? 'rgba(245,158,11,0.15)' : 'transparent',
+                          border: `1px solid ${subj.is_primary ? 'rgba(245,158,11,0.4)' : 'rgba(255,255,255,0.1)'}`,
                           color: subj.is_primary ? '#f59e0b' : '#94a3b8',
                         }}
                       />
@@ -309,156 +318,14 @@ export default function WeddingTypeSelector({
                   </Stack>
                 </Box>
               )}
-
-              <Typography variant="caption" sx={{ fontWeight: 600, color: '#cbd5e1', mb: 1, display: 'block' }}>
-                📋 ACTIVITIES ({selectedWeddingType.activities.length})
-              </Typography>
-
-              <Stack spacing={1.5} sx={{ maxHeight: '400px', overflow: 'auto', mb: 2, pr: 1 }}>
-                {selectedWeddingType.activities.map((activity) => (
-                  <Card 
-                    key={activity.id} 
-                    variant="outlined" 
-                    sx={{ 
-                      p: 1.5,
-                      bgcolor: 'rgba(15, 23, 42, 0.6)',
-                      borderColor: 'rgba(255,255,255,0.1)',
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer',
-                      }}
-                      onClick={() =>
-                        setExpandedActivityId(
-                          expandedActivityId === activity.id ? null : activity.id,
-                        )
-                      }
-                    >
-                      <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#ffffff' }}>
-                          {activity.name}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                          {activity.duration_minutes} min
-                        </Typography>
-                      </Box>
-
-                      <IconButton size="small" sx={{ ml: 1 }}>
-                        {expandedActivityId === activity.id ? (
-                          <ExpandLessIcon sx={{ color: '#f59e0b' }} />
-                        ) : (
-                          <ExpandMoreIcon sx={{ color: '#94a3b8' }} />
-                        )}
-                      </IconButton>
-                    </Box>
-
-                    <Collapse in={expandedActivityId === activity.id} timeout="auto">
-                      {/* Activity Subjects */}
-                      {activity.activity_subjects && activity.activity_subjects.length > 0 && (
-                        <Box sx={{ mb: 1, p: 1, bgcolor: 'rgba(255,255,255,0.02)', borderRadius: 0.5 }}>
-                          <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 500, display: 'block', mb: 0.5 }}>
-                            Subjects:
-                          </Typography>
-                          <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5}>
-                            {activity.activity_subjects.map((as) => (
-                              <Chip
-                                key={as.id}
-                                label={as.wedding_type_subject.name}
-                                size="small"
-                                variant={as.is_primary_focus ? 'filled' : 'outlined'}
-                                sx={{
-                                  backgroundColor: as.is_primary_focus ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
-                                  borderColor: 'rgba(245, 158, 11, 0.2)',
-                                  color: '#e2e8f0',
-                                  fontSize: '0.7rem',
-                                }}
-                              />
-                            ))}
-                          </Stack>
-                        </Box>
-                      )}
-
-                      {/* Moments List */}
-                      <List sx={{ pt: 1, pl: 2 }}>
-                        {activity.moments.map((moment) => {
-                          const minutes = Math.floor(moment.duration_seconds / 60);
-                          const seconds = moment.duration_seconds % 60;
-                          let durationLabel = '';
-                          if (minutes > 0) {
-                            durationLabel = `${minutes}m ${seconds}s`;
-                          } else {
-                            durationLabel = `${seconds}s`;
-                          }
-
-                          return (
-                            <ListItem key={moment.id} sx={{ py: 0.5, px: 0 }} dense>
-                              <ListItemText
-                                primary={moment.name}
-                                secondary={`${durationLabel}${moment.is_key_moment ? ' ⭐ Key Moment' : ''}`}
-                                primaryTypographyProps={{ variant: 'caption', sx: { color: '#e2e8f0' } }}
-                                secondaryTypographyProps={{ variant: 'caption', sx: { color: moment.is_key_moment ? '#f59e0b' : '#94a3b8' } }}
-                              />
-                            </ListItem>
-                          );
-                        })}
-                      </List>
-                    </Collapse>
-                  </Card>
-                ))}
-              </Stack>
-
-              {/* Package Name Input */}
-              <TextField
-                label="Package Name"
-                fullWidth
-                size="small"
-                value={packageName}
-                onChange={(e) => setPackageName(e.target.value)}
-                placeholder={`e.g., ${selectedWeddingType.name} Package 2024`}
-                sx={{
-                  mb: 2,
-                  '& .MuiOutlinedInput-root': {
-                    color: '#e2e8f0',
-                    '& fieldset': {
-                      borderColor: 'rgba(255,255,255,0.2)',
-                    },
-                  },
-                  '& .MuiInputBase-input::placeholder': {
-                    color: '#64748b',
-                    opacity: 1,
-                  },
-                }}
-              />
-
-              {/* Create Button */}
-              <Button
-                onClick={handleCreatePackage}
-                variant="contained"
-                disabled={!selectedWeddingTypeId || !packageName.trim() || creatingPackage}
-                fullWidth
-                sx={{
-                  bgcolor: '#f59e0b',
-                  color: '#0f172a',
-                  fontWeight: 700,
-                  '&:hover': {
-                    bgcolor: '#d97706',
-                  },
-                  '&:disabled': {
-                    bgcolor: '#64748b',
-                    color: '#475569',
-                  },
-                }}
-              >
-                {creatingPackage ? <CircularProgress size={24} sx={{ mr: 1 }} /> : 'Create Package'}
-              </Button>
-            </Grid>
+            </Stack>
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography sx={{ color: '#64748b', fontSize: '0.85rem' }}>Select a type to see details</Typography>
+            </Box>
           )}
         </Grid>
-      )}
+      </Grid>
     </Box>
   );
 }

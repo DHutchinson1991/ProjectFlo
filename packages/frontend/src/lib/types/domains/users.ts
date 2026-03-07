@@ -40,6 +40,9 @@ export interface Contributor {
     contributor_type?: string;
     default_hourly_rate?: number; // Always normalized to number in domain model
     archived_at?: string | null;
+    is_crew?: boolean;
+    crew_color?: string | null;
+    bio?: string | null;
 
     // Related entities
     contact: Contact;

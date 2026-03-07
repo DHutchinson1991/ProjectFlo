@@ -45,10 +45,7 @@ export default function StudioHeader() {
 
     const handleNavigateToSettings = () => {
         handleClose();
-        // Navigate to settings (user profile page)
-        if (user?.id) {
-            router.push(`/manager/users/${user.id}`);
-        }
+        router.push('/settings');
     };
 
     // Generate initials from user first and last name - same logic as user management table

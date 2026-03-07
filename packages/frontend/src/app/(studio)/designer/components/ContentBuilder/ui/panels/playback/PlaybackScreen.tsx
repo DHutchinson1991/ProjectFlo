@@ -23,7 +23,7 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
     className = '',
     tracks = []
 }) => {
-    const { equipmentAssignmentsBySlot, packageSubjects, sceneActivityCrewMap } = useContentBuilder();
+    const { equipmentAssignmentsBySlot, packageSubjects, packageLocations, linkedActivityId } = useContentBuilder();
     const formatShotLabel = (value?: string | null) => {
         if (!value) return "";
         const map: Record<string, string> = {
@@ -172,7 +172,25 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
         subject_id: number;
         subject?: { name?: string | null } | null;
     }>;
-    const locationName =
+    // Build location label from package location slots (numbered slot system)
+    // When linkedActivityId is set, filter to that activity's slots; otherwise show all assigned
+    const packageLocationName = React.useMemo(() => {
+        if (!packageLocations || packageLocations.length === 0) return '';
+        const activitySlots = linkedActivityId
+            ? packageLocations.filter((s: any) =>
+                (s.activity_assignments || []).some((a: any) => a.package_activity_id === linkedActivityId)
+              )
+            : packageLocations;
+        if (activitySlots.length === 0) return '';
+        const slot = activitySlots[0] as any;
+        const num = slot.location_number;
+        const actName = (slot.activity_assignments || [])
+            .find((a: any) => !linkedActivityId || a.package_activity_id === linkedActivityId)
+            ?.package_activity?.name;
+        return actName ? `Location ${num} \u2013 ${actName}` : `Location ${num}`;
+    }, [packageLocations, linkedActivityId]);
+
+    const locationName = packageLocationName ||
         (moment as any)?.location?.name ||
         (moment as any)?.location_name ||
         (currentScene as any)?.location?.name ||
@@ -217,21 +235,12 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
         return names.length ? names.join(", ") : "";
     };
 
-    // Activity-aware crew count for the current scene
-    const TRACK_NUMBER_PATTERN = /^(Camera|Audio)\s+(\d+)$/i;
-    const sceneCrewData = currentScene ? sceneActivityCrewMap.get(currentScene.id) : null;
+    // Equipment-first: show all tracks from recording_setup, no activity crew filtering.
 
     const videoCards = cameraAssignments
         .filter((assignment) => {
             const trackType = assignment.track_type?.toString().toLowerCase();
             if (trackType && trackType !== "video") return false;
-            // Filter tracks beyond the activity's camera operator count
-            if (sceneCrewData && sceneCrewData.cameraCount > 0) {
-                const track = tracks.find(t => t.id === assignment.track_id);
-                const name = track?.name || assignment.track_name || '';
-                const match = name.match(TRACK_NUMBER_PATTERN);
-                if (match && parseInt(match[2], 10) > sceneCrewData.cameraCount) return false;
-            }
             return true;
         })
         .map((assignment) => {
@@ -250,16 +259,6 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
         .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
 
     const audioCards = audioTrackIds
-        .filter((trackId) => {
-            // Filter tracks beyond the activity's audio device count
-            if (sceneCrewData && sceneCrewData.audioCount > 0) {
-                const track = tracks.find(t => t.id === trackId);
-                const name = track?.name || '';
-                const match = name.match(TRACK_NUMBER_PATTERN);
-                if (match && parseInt(match[2], 10) > sceneCrewData.audioCount) return false;
-            }
-            return true;
-        })
         .map((trackId) => {
             const assignment = cameraAssignments.find((entry) => entry.track_id === trackId);
             return {

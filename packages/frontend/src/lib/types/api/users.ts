@@ -17,6 +17,9 @@ export interface ContributorApiResponse {
     password_hash?: string;
     archived_at?: string | null;
     default_hourly_rate?: string | number; // Backend returns Decimal as string
+    is_crew?: boolean;
+    crew_color?: string | null;
+    bio?: string | null;
     contact: ContactApiResponse;
     role: RoleApiResponse;
     contributor_job_roles?: ContributorJobRoleApiResponse[];
@@ -27,9 +30,20 @@ export interface ContributorJobRoleApiResponse {
     contributor_id: number;
     job_role_id: number;
     is_primary: boolean;
+    payment_bracket_id?: number | null;
     assigned_at: string;
     assigned_by?: number | null;
     job_role: JobRoleApiResponse;
+    payment_bracket?: {
+        id: number;
+        name: string;
+        display_name?: string | null;
+        level: number;
+        hourly_rate: number | string;
+        day_rate?: number | string | null;
+        overtime_rate?: number | string | null;
+        color?: string | null;
+    } | null;
 }
 
 export interface JobRoleApiResponse {

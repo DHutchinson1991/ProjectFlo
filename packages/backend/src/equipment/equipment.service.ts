@@ -717,4 +717,53 @@ export class EquipmentService {
             ]
         });
     }
-}
+    /**
+     * Find all equipment marked as unmanned for a brand
+     */
+    async findUnmannedEquipment(brandId: number) {
+        return await this.prisma.equipment.findMany({
+            where: {
+                brand_id: brandId,
+                is_unmanned: true,
+                is_active: true,
+            },
+            include: {
+                brand: true,
+                created_by: {
+                    include: {
+                        contact: true
+                    }
+                },
+                package_day_operator_equipment: true,
+            },
+            orderBy: { item_name: 'asc' }
+        });
+    }
+
+    /**
+     * Set equipment as unmanned or manned
+     */
+    async setUnmannedStatus(equipmentId: number, isUnmanned: boolean) {
+        const equipment = await this.prisma.equipment.findUnique({
+            where: { id: equipmentId }
+        });
+
+        if (!equipment) {
+            throw new NotFoundException(`Equipment with ID ${equipmentId} not found`);
+        }
+
+        return await this.prisma.equipment.update({
+            where: { id: equipmentId },
+            data: {
+                is_unmanned: isUnmanned
+            },
+            include: {
+                brand: true,
+                created_by: {
+                    include: {
+                        contact: true
+                    }
+                }
+            }
+        });
+    }}

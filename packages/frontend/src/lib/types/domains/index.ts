@@ -31,3 +31,7 @@ export { MusicType, MUSIC_TYPE_LABELS, getMusicTypeColor } from './music';
 
 // Recording Setup
 export type { CameraSubjectAssignment, MomentRecordingSetup, CreateMomentRecordingSetupDto, UpdateMomentRecordingSetupDto, CreateCameraSubjectAssignmentDto, UpdateCameraSubjectAssignmentDto, MomentRecordingSetupWithAssignments, RecordingPlan } from './recording-setup';
+
+// Crew
+export type { CrewMember, CrewWorkloadSummary, PackageCrewSlot, AddCrewSlotDto, UpdateCrewSlotDto, SetCrewStatusDto, UpdateCrewProfileDto } from './crew';
+export { getCrewMemberName, getCrewInitials, getSlotColor, CREW_COLORS } from './crew';

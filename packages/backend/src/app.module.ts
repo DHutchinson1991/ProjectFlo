@@ -16,10 +16,13 @@ import { FilmsModule } from "./content/films/films.module";
 import { AuditModule } from "./business/audit/audit.module";
 import { BrandsModule } from "./business/brands/brands.module";
 import { TaskLibraryModule } from "./business/task-library/task-library.module";
+import { SkillRoleMappingsModule } from "./business/skill-role-mappings/skill-role-mappings.module";
 // Equipment Domain
 import { EquipmentModule } from "./equipment/equipment.module";
 // Operators Domain
 import { OperatorsModule } from "./operators/operators.module";
+// Crew Domain
+import { CrewModule } from "./crew/crew.module";
 // Calendar Domain
 import { CalendarModule } from "./calendar/calendar.module";
 // Projects Management
@@ -36,6 +39,7 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { EstimatesModule } from './estimates/estimates.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { JobRolesModule } from './job-roles/job-roles.module';
+import { PaymentBracketsModule } from './payment-brackets/payment-brackets.module';
 import { MomentsModule } from './content/moments/moments.module';
 import { BeatsModule } from './content/beats/beats.module';
 import { MusicModule } from './content/music/music.module';
@@ -44,7 +48,10 @@ import { FilmLocationsModule } from './content/film-locations/film-locations.mod
 import { LocationsModule } from './locations/locations.module';
 import { ServicePackagesModule } from './business/service-packages/service-packages.module';
 import { ServicePackageCategoriesModule } from './business/service-package-categories/service-package-categories.module';
+import { PackageSetsModule } from './business/package-sets/package-sets.module';
 import { WeddingTypesModule } from './business/wedding-types/wedding-types.module';
+import { EventTypesModule } from './business/event-types/event-types.module';
+import { WorkflowsModule } from './business/workflows/workflows.module';
 import { NeedsAssessmentsModule } from './needs-assessments/needs-assessments.module';
 import { ScheduleModule } from './content/schedule/schedule.module';
 
@@ -65,8 +72,10 @@ import { ScheduleModule } from './content/schedule/schedule.module';
     AuditModule,
     BrandsModule,
     TaskLibraryModule,
+    SkillRoleMappingsModule,
     EquipmentModule,
     OperatorsModule,
+    CrewModule,
     CalendarModule,
     ProjectsModule,
     InquiriesModule,
@@ -78,6 +87,7 @@ import { ScheduleModule } from './content/schedule/schedule.module';
     EstimatesModule,
     QuotesModule,
     JobRolesModule,
+    PaymentBracketsModule,
     MomentsModule,
     BeatsModule,
     MusicModule,
@@ -86,7 +96,10 @@ import { ScheduleModule } from './content/schedule/schedule.module';
     LocationsModule,
     ServicePackagesModule,
     ServicePackageCategoriesModule,
+    PackageSetsModule,
     WeddingTypesModule,
+    EventTypesModule,
+    WorkflowsModule,
     NeedsAssessmentsModule,
     ScheduleModule,
   ],

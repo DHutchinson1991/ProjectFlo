@@ -26,6 +26,62 @@ async function main(): Promise<SeedSummary> {
         logger.sectionDivider('STEP 1: Brand Setup');
         const brand = await createMoonriseBrand();
 
+        // Associate admin user with Moonrise brand
+        logger.processing('Linking global admin to Moonrise Films...');
+        const adminContact = await prisma.contacts.findUnique({
+            where: { email: 'info@dhutchinson.co.uk' },
+            include: { contributor: true }
+        });
+        if (adminContact?.contributor) {
+            await prisma.user_brands.upsert({
+                where: {
+                    user_id_brand_id: {
+                        user_id: adminContact.contributor.id,
+                        brand_id: brand.id,
+                    },
+                },
+                update: {
+                    role: 'Admin',
+                    is_active: true,
+                },
+                create: {
+                    user_id: adminContact.contributor.id,
+                    brand_id: brand.id,
+                    role: 'Admin',
+                    is_active: true,
+                },
+            });
+            logger.success('Admin linked to Moonrise Films');
+
+            // Assign Daniel as Director (primary, lead) + Producer (executive) crew roles
+            const [directorRole, producerRole] = await Promise.all([
+                prisma.job_roles.findUnique({ where: { name: 'director' } }),
+                prisma.job_roles.findUnique({ where: { name: 'producer' } }),
+            ]);
+            if (directorRole) {
+                const bracket = await prisma.payment_brackets.findUnique({
+                    where: { job_role_id_name: { job_role_id: directorRole.id, name: 'lead' } },
+                });
+                await prisma.contributor_job_roles.upsert({
+                    where: { contributor_id_job_role_id: { contributor_id: adminContact.contributor.id, job_role_id: directorRole.id } },
+                    update: { is_primary: true, payment_bracket_id: bracket?.id ?? null },
+                    create: { contributor_id: adminContact.contributor.id, job_role_id: directorRole.id, is_primary: true, payment_bracket_id: bracket?.id ?? null },
+                });
+                logger.created('Daniel → Director (Lead)', undefined, 'verbose');
+            }
+            if (producerRole) {
+                const bracket = await prisma.payment_brackets.findUnique({
+                    where: { job_role_id_name: { job_role_id: producerRole.id, name: 'executive' } },
+                });
+                await prisma.contributor_job_roles.upsert({
+                    where: { contributor_id_job_role_id: { contributor_id: adminContact.contributor.id, job_role_id: producerRole.id } },
+                    update: { is_primary: false, payment_bracket_id: bracket?.id ?? null },
+                    create: { contributor_id: adminContact.contributor.id, job_role_id: producerRole.id, is_primary: false, payment_bracket_id: bracket?.id ?? null },
+                });
+                logger.created('Daniel → Producer (Executive)', undefined, 'verbose');
+            }
+        }
+
         // 2. Create Team
         logger.sectionDivider('STEP 2: Team Setup (2 managers total)');
         const team = await createMoonriseTeam(brand.id);

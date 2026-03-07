@@ -5,6 +5,7 @@ import {
     useContext,
     useState,
     useEffect,
+    useMemo,
     ReactNode,
 } from "react";
 import { ThemeProvider as MUIThemeProvider } from "@mui/material/styles";
@@ -18,48 +19,32 @@ const getDesignTokens = (mode: PaletteMode) => ({
         mode,
         ...(mode === "light"
             ? {
-                // Light mode palette
-                primary: {
-                    main: "#1976d2",
-                },
-                secondary: {
-                    main: "#9c27b0",
-                },
-                background: {
-                    default: "#f5f5f5",
-                    paper: "#ffffff",
-                },
-                text: {
-                    primary: "#333333",
-                    secondary: "#555555",
-                },
+                primary: { main: "#1976d2" },
+                secondary: { main: "#9c27b0" },
+                background: { default: "#f5f5f5", paper: "#ffffff" },
+                text: { primary: "#333333", secondary: "#555555" },
             }
             : {
-                // Dark mode palette
-                primary: {
-                    main: "#90caf9",
-                },
-                secondary: {
-                    main: "#ce93d8",
-                },
-                background: {
-                    default: "#121212",
-                    paper: "#1e1e1e",
-                },
-                text: {
-                    primary: "#ffffff",
-                    secondary: "#b0b0b0",
-                },
+                primary: { main: "#90caf9" },
+                secondary: { main: "#ce93d8" },
+                background: { default: "#121212", paper: "#1e1e1e" },
+                text: { primary: "#ffffff", secondary: "#b0b0b0" },
             }),
     },
     components: {
         MuiAppBar: {
-            defaultProps: {
-                elevation: 0,
-            },
+            defaultProps: { elevation: 0 as const },
             styleOverrides: {
                 root: {
                     backgroundColor: mode === "light" ? "#ffffff" : "#272727",
+                    color: mode === "light" ? "#333333" : "#ffffff",
+                },
+            },
+        },
+        MuiCssBaseline: {
+            styleOverrides: {
+                body: {
+                    backgroundColor: mode === "light" ? "#f5f5f5" : "#121212",
                     color: mode === "light" ? "#333333" : "#ffffff",
                 },
             },
@@ -81,47 +66,44 @@ const ThemeContext = createContext<ThemeContextType>({
 // Hook to use theme context
 export const useTheme = () => useContext(ThemeContext);
 
-// Get initial theme mode (runs before component mounts)
-function getInitialMode(): PaletteMode {
-    if (typeof window === 'undefined') return 'dark';
-    
-    try {
-        const savedMode = localStorage.getItem("themeMode");
-        if (savedMode === "light" || savedMode === "dark") {
-            return savedMode;
-        }
-    } catch (e) {
-        // localStorage might not be available
-    }
-    
-    return 'dark'; // Default to dark mode
-}
-
 // Theme provider component
 export function ThemeProvider({ children }: { children: ReactNode }) {
-    // Initialize theme mode from localStorage or default to 'dark'
-    const [mode, setMode] = useState<PaletteMode>(getInitialMode);
+    const [mode, setMode] = useState<PaletteMode>("dark");
+    const [mounted, setMounted] = useState(false);
 
-    // Effect to sync with html element
+    // On mount, check localStorage for saved preference
     useEffect(() => {
-        document.documentElement.style.colorScheme = mode;
-        document.documentElement.setAttribute('data-theme', mode);
-    }, [mode]);
+        try {
+            const savedMode = localStorage.getItem("themeMode");
+            if (savedMode === "light" || savedMode === "dark") {
+                setMode(savedMode);
+            }
+        } catch (e) {
+            // localStorage might not be available
+        }
+        setMounted(true);
+    }, []);
 
-    // Toggle theme function
+    // Sync data-theme attribute on html element
+    useEffect(() => {
+        if (mounted) {
+            document.documentElement.setAttribute('data-theme', mode);
+            document.documentElement.style.colorScheme = mode;
+        }
+    }, [mode, mounted]);
+
     const toggleTheme = () => {
         const newMode = mode === "light" ? "dark" : "light";
         setMode(newMode);
         localStorage.setItem("themeMode", newMode);
     };
 
-    // Create theme based on current mode
-    const theme = createTheme(getDesignTokens(mode));
+    const theme = useMemo(() => createTheme(getDesignTokens(mode)), [mode]);
 
     return (
         <ThemeContext.Provider value={{ mode, toggleTheme }}>
             <MUIThemeProvider theme={theme}>
-                <CssBaseline />
+                <CssBaseline enableColorScheme />
                 {children}
             </MUIThemeProvider>
         </ThemeContext.Provider>

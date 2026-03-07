@@ -36,7 +36,7 @@ export const TasksHeader: React.FC<TasksHeaderProps> = ({
                         Manage task definitions, effort estimates, and pricing organized by project phases
                     </Typography>
                 </Box>
-                <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                     <IconButton onClick={onFilter}>
                         <FilterIcon />
                     </IconButton>

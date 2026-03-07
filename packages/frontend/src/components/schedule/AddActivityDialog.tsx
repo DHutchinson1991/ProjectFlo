@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -15,8 +15,10 @@ import {
     Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import CheckIcon from '@mui/icons-material/Check';
 import PersonIcon from '@mui/icons-material/Person';
 import PlaceIcon from '@mui/icons-material/Place';
+import { api } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -55,6 +57,9 @@ const ACTIVITY_PRESETS = [
     { name: 'Send Off', color: '#ef4444' },
 ];
 
+/** Resolved presets: either from API (per event day template) or the hardcoded fallback */
+type PresetEntry = { name: string; color: string };
+
 export type ActivityValues = Partial<Pick<ActivityRecord, 'name' | 'color' | 'start_time' | 'end_time' | 'description'>> & { name: string; color: string };
 
 export interface ActivitySaveResult extends ActivityValues {
@@ -76,11 +81,14 @@ interface AddEditActivityDialogProps {
     initial?: Partial<ActivityValues>;
     activityId?: number;
     existingNames?: string[];
+    eventDayTemplateId?: number | null;
     eventDaySubjects?: SubjectRecord[];
     eventDayLocationSlots?: LocationSlotRecord[];
     eventDayCrew?: CrewRecord[];
     onClose: () => void;
     onSave: (vals: ActivitySaveResult) => void;
+    /** Fired immediately when the user picks a colour swatch (edit mode only) */
+    onColorChange?: (color: string) => void;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────
@@ -102,13 +110,40 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
     initial,
     activityId,
     existingNames = [],
+    eventDayTemplateId,
     eventDaySubjects = [],
     eventDayLocationSlots = [],
     eventDayCrew = [],
     onClose,
     onSave,
+    onColorChange,
 }) => {
     const isEdit = !!initial;
+
+    // ── Dynamic presets from API ──
+    const [resolvedPresets, setResolvedPresets] = useState<PresetEntry[]>(ACTIVITY_PRESETS);
+
+    const loadPresets = useCallback(async () => {
+        if (!eventDayTemplateId) {
+            setResolvedPresets(ACTIVITY_PRESETS);
+            return;
+        }
+        try {
+            const apiPresets = await api.schedule.activityPresets.getAll(eventDayTemplateId);
+            if (apiPresets && apiPresets.length > 0) {
+                setResolvedPresets(apiPresets.map((p: { name: string; color?: string }) => ({
+                    name: p.name,
+                    color: p.color || ACTIVITY_COLORS[0],
+                })));
+            } else {
+                setResolvedPresets(ACTIVITY_PRESETS);
+            }
+        } catch {
+            setResolvedPresets(ACTIVITY_PRESETS);
+        }
+    }, [eventDayTemplateId]);
+
+    useEffect(() => { loadPresets(); }, [loadPresets]);
 
     // ── Core form values ──
     const [values, setValues] = useState<ActivityValues>({
@@ -156,10 +191,12 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
                 });
             }
 
-            // Initialize subject assignments: subjects whose package_activity_id matches this activity
+            // Initialize subject assignments (from activity_assignments M2M junction)
             const subjIds = new Set(
                 (activityId
-                    ? eventDaySubjects.filter((s: SubjectRecord) => s.package_activity_id === activityId)
+                    ? eventDaySubjects.filter((s: SubjectRecord) =>
+                        s.activity_assignments?.some((a: { package_activity_id: number }) => a.package_activity_id === activityId)
+                    )
                     : []
                 ).map((s: SubjectRecord) => s.id as number),
             );
@@ -178,10 +215,12 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
             setAssignedSlotIds(new Set(slotIds));
             setInitialSlotIds(new Set(slotIds));
 
-            // Initialize crew assignments
+            // Initialize crew assignments (from activity_assignments M2M junction)
             const crewIds = new Set(
                 (activityId
-                    ? eventDayCrew.filter((c: CrewRecord) => c.package_activity_id === activityId)
+                    ? eventDayCrew.filter((c: CrewRecord) =>
+                        c.activity_assignments?.some((a: { package_activity_id: number }) => a.package_activity_id === activityId)
+                    )
                     : []
                 ).map((c: CrewRecord) => c.id as number),
             );
@@ -196,7 +235,7 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
 
     // Auto-set color when selecting a preset name
     const getPresetColor = (name: string): string | undefined => {
-        return ACTIVITY_PRESETS.find(p => p.name === name)?.color;
+        return resolvedPresets.find(p => p.name === name)?.color;
     };
 
     // ── Subject toggles ──
@@ -299,7 +338,7 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
                     {/* ── Name ── */}
                     <Autocomplete
                         freeSolo
-                        options={ACTIVITY_PRESETS.map(p => p.name).filter(n => !existingNames.includes(n) || n === values.name)}
+                        options={resolvedPresets.map(p => p.name).filter(n => !existingNames.includes(n) || n === values.name)}
                         value={values.name}
                         onChange={(_, v) => {
                             if (v) {
@@ -347,6 +386,58 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
                         value={values.description ?? ''}
                         onChange={e => setValues(v => ({ ...v, description: e.target.value }))}
                     />
+
+                    {/* ── Colour ── */}
+                    <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                            <Box
+                                sx={{
+                                    width: 14,
+                                    height: 14,
+                                    borderRadius: '50%',
+                                    bgcolor: values.color || ACTIVITY_COLORS[0],
+                                    flexShrink: 0,
+                                    border: '2px solid rgba(255,255,255,0.2)',
+                                }}
+                            />
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.65rem' }}>
+                                Colour
+                            </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                            {ACTIVITY_COLORS.map(colour => {
+                                const selected = (values.color || ACTIVITY_COLORS[0]) === colour;
+                                return (
+                                    <Box
+                                        key={colour}
+                                        onClick={() => {
+                                        setValues(v => ({ ...v, color: colour }));
+                                        onColorChange?.(colour);
+                                    }}
+                                        sx={{
+                                            width: 26,
+                                            height: 26,
+                                            borderRadius: '50%',
+                                            bgcolor: colour,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            border: selected ? '2px solid #fff' : '2px solid transparent',
+                                            boxShadow: selected ? `0 0 0 2px ${colour}` : 'none',
+                                            transition: 'transform 0.1s ease, box-shadow 0.1s ease',
+                                            '&:hover': {
+                                                transform: 'scale(1.2)',
+                                                boxShadow: `0 0 0 2px ${colour}`,
+                                            },
+                                        }}
+                                    >
+                                        {selected && <CheckIcon sx={{ fontSize: 13, color: '#fff' }} />}
+                                    </Box>
+                                );
+                            })}
+                        </Box>
+                    </Box>
 
                     {/* ── Subjects Section ── */}
                     {isEdit && (
@@ -450,8 +541,8 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1 }}>
                                 {eventDayCrew.map((crew: CrewRecord) => {
                                     const assigned = assignedCrewIds.has(crew.id);
-                                    const crewName = crew.operator_template?.name || 'Operator';
-                                    const crewRole = crew.operator_template?.role;
+                                    const crewName = crew.position_name || 'Crew';
+                                    const crewRole = crew.job_role?.display_name || crew.job_role?.name;
                                     return (
                                         <Chip
                                             key={crew.id}

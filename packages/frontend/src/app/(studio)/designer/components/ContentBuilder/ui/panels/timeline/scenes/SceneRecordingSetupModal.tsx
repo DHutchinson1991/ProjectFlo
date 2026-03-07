@@ -171,11 +171,11 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
             if (hasNoAssignment && o.event_day_template_id === eventDayTemplateId) return true;
             return false;
         });
-        // Deduplicate by operator_template_id (same person on multiple days)
+        // Deduplicate by contributor_id (same person on multiple days)
         const seen = new Map<number, any>();
         matched.forEach((o: any) => {
-            const templateId = o.operator_template_id ?? o.operator_template?.id ?? o.id;
-            if (!seen.has(templateId)) seen.set(templateId, o);
+            const crewId = o.contributor_id ?? o.id;
+            if (!seen.has(crewId)) seen.set(crewId, o);
         });
         return Array.from(seen.values());
     }, [activityOperators, selectedActivity]);
@@ -523,8 +523,8 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
                                                         fontWeight: 500,
                                                         border: '1px solid rgba(236,72,153,0.15)',
                                                     }}>
-                                                        {o.operator_template?.name || o.name || 'Operator'}
-                                                        {o.operator_template?.role && ` · ${o.operator_template.role}`}
+                                                        {o.position_name || o.name || 'Crew'}
+                                                        {(o.job_role?.display_name || o.job_role?.name) && ` · ${o.job_role?.display_name || o.job_role?.name}`}
                                                     </Box>
                                                 ))}
                                                 {inheritedCrew.length > 4 && (
@@ -702,9 +702,9 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
                                         Inherited from {selectedActivity?.name || 'linked activity'}
                                     </Typography>
                                     {inheritedCrew.map((crew: any) => {
-                                        const crewName = crew.operator_template?.name || crew.name || 'Operator';
-                                        const crewRole = crew.operator_template?.role;
-                                        const crewColor = crew.operator_template?.color;
+                                        const crewName = crew.position_name || crew.name || 'Crew';
+                                        const crewRole = crew.job_role?.display_name || crew.job_role?.name;
+                                        const crewColor = crew.position_color || crew.contributor?.crew_color;
                                         return (
                                             <Box
                                                 key={`inherited-crew-${crew.id}`}

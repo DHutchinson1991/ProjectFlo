@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Box, Tooltip, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import {
     Videocam as VideoIcon,
     VolumeUp as AudioIcon,
@@ -60,8 +60,12 @@ const Track: React.FC<TimelineTrackProps> = ({
         : "";
 
     // Operator info from track assignment
-    const operator = track.operator_template;
-    const operatorColor = operator?.color || null;
+    const operator = track.contributor;
+    const operatorColor = operator?.crew_color || null;
+    const operatorName = operator?.contact
+        ? [operator.contact.first_name, operator.contact.last_name].filter(Boolean).join(" ")
+        : null;
+    const isUnmanned = track.is_unmanned === true;
 
     return (
         <Box
@@ -114,39 +118,37 @@ const Track: React.FC<TimelineTrackProps> = ({
                     },
                 }}
             >
-                <Tooltip title="Set track default" placement="right">
-                    <Box
-                        onClick={() => setDefaultDialogOpen(true)}
-                        sx={{
-                            p: 0.5,
-                            borderRadius: 0.75,
-                            bgcolor: trackDefaults[track.id]
-                                ? `${track.color}30`
-                                : "rgba(0, 0, 0, 0.7)",
-                            color: track.color,
-                            display: "flex",
-                            alignItems: "center",
-                            width: 24,
-                            height: 24,
-                            justifyContent: "center",
-                            boxShadow: "0 2px 6px rgba(0,0,0,0.6)",
-                            border: trackDefaults[track.id]
-                                ? `1px solid ${track.color}80`
-                                : "1px solid rgba(255,255,255,0.15)",
-                            backdropFilter: "blur(4px)",
-                            transition: "all 0.2s ease-in-out",
-                            cursor: "pointer",
-                            "&:hover": {
-                                transform: "scale(1.1)",
-                                boxShadow: "0 4px 10px rgba(0,0,0,0.7)",
-                                bgcolor: `${track.color}30`,
-                                border: `1px solid ${track.color}60`,
-                            },
-                        }}
-                    >
-                        {getTrackIcon(track.track_type)}
-                    </Box>
-                </Tooltip>
+                <Box
+                    onClick={() => setDefaultDialogOpen(true)}
+                    sx={{
+                        p: 0.5,
+                        borderRadius: 0.75,
+                        bgcolor: trackDefaults[track.id]
+                            ? `${track.color}30`
+                            : "rgba(0, 0, 0, 0.7)",
+                        color: track.color,
+                        display: "flex",
+                        alignItems: "center",
+                        width: 24,
+                        height: 24,
+                        justifyContent: "center",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.6)",
+                        border: trackDefaults[track.id]
+                            ? `1px solid ${track.color}80`
+                            : "1px solid rgba(255,255,255,0.15)",
+                        backdropFilter: "blur(4px)",
+                        transition: "all 0.2s ease-in-out",
+                        cursor: "pointer",
+                        "&:hover": {
+                            transform: "scale(1.1)",
+                            boxShadow: "0 4px 10px rgba(0,0,0,0.7)",
+                            bgcolor: `${track.color}30`,
+                            border: `1px solid ${track.color}60`,
+                        },
+                    }}
+                >
+                    {getTrackIcon(track.track_type)}
+                </Box>
 
                 {/* Track Text - Only Visible on Hover */}
                 <Box
@@ -172,7 +174,15 @@ const Track: React.FC<TimelineTrackProps> = ({
                     >
                         {track.name}
                     </Typography>
-                    {operator && (
+                    {showEquipmentLabel && equipmentLabel && (
+                        <Typography
+                            variant="caption"
+                            sx={{ color: "rgba(255,255,255,0.85)", fontSize: "0.65rem", lineHeight: 1.2, fontWeight: 500, mt: 0.15, display: 'block' }}
+                        >
+                            {equipmentLabel}
+                        </Typography>
+                    )}
+                    {operatorName && (
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.25 }}>
                             <Box sx={{
                                 width: 6, height: 6, borderRadius: "50%",
@@ -183,26 +193,38 @@ const Track: React.FC<TimelineTrackProps> = ({
                                 variant="caption"
                                 sx={{ color: operatorColor || "#EC4899", fontSize: "0.65rem", lineHeight: 1.1, fontWeight: 600 }}
                             >
-                                {operator.name}
+                                {operatorName}
                             </Typography>
                         </Box>
                     )}
-                    {!operator && showEquipmentLabel && (
+                    {isUnmanned && (
                         <Typography
                             variant="caption"
-                            sx={{ color: "rgba(255,255,255,0.3)", fontSize: "0.65rem", lineHeight: 1.1, fontStyle: "italic" }}
+                            sx={{ color: "rgba(255,200,50,0.85)", fontSize: "0.6rem", lineHeight: 1.1, fontStyle: "italic", fontWeight: 600 }}
                         >
                             Unmanned
                         </Typography>
                     )}
-                    {showEquipmentLabel && equipmentLabel && (
+                    {!operatorName && !isUnmanned && showEquipmentLabel && !equipmentLabel && (
                         <Typography
                             variant="caption"
-                            sx={{ color: "rgba(255,255,255,0.7)", fontSize: "0.65rem", lineHeight: 1.1 }}
+                            sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.65rem", lineHeight: 1.1, fontStyle: "italic" }}
                         >
-                            {equipmentLabel}
+                            No equipment assigned
                         </Typography>
                     )}
+                    <Box sx={{
+                        mt: 0.5,
+                        pt: 0.4,
+                        borderTop: "1px solid rgba(255,255,255,0.1)",
+                    }}>
+                        <Typography
+                            variant="caption"
+                            sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.6rem", lineHeight: 1.1, fontStyle: "italic" }}
+                        >
+                            Click to set track default
+                        </Typography>
+                    </Box>
                 </Box>
             </Box>
 

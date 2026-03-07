@@ -144,4 +144,17 @@ export class EquipmentController {
     ) {
         return this.equipmentService.getAvailabilityCalendar(queryDto);
     }
+
+    @Get('unmanned/:brandId')
+    findUnmannedEquipment(@Param('brandId', ParseIntPipe) brandId: number) {
+        return this.equipmentService.findUnmannedEquipment(brandId);
+    }
+
+    @Patch(':id/unmanned')
+    setUnmannedStatus(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { isUnmanned: boolean }
+    ) {
+        return this.equipmentService.setUnmannedStatus(id, body.isUnmanned);
+    }
 }

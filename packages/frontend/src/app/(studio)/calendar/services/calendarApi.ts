@@ -113,7 +113,7 @@ class CalendarApiService {
         }
 
         // Get brand context from localStorage - this is crucial for multi-brand support
-        const brandId = localStorage.getItem('selectedBrandId');
+        const brandId = localStorage.getItem('projectflo_current_brand');
         if (brandId) {
             headers['X-Brand-Context'] = brandId;
         }

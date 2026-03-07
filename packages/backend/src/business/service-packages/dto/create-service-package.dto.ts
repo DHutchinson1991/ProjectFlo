@@ -28,4 +28,9 @@ export class CreateServicePackageDto {
   @IsOptional()
   @IsObject()
   contents?: Record<string, any>;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  workflow_template_id?: number | null;
 }

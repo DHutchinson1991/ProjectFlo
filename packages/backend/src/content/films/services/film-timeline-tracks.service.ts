@@ -13,19 +13,18 @@ export class FilmTimelineTracksService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Get all tracks for a film, including operator assignment
+   * Get all tracks for a film, including crew assignment
    */
   async getTracks(filmId: number) {
     return this.prisma.filmTimelineTrack.findMany({
       where: { film_id: filmId },
       orderBy: { order_index: 'asc' },
       include: {
-        operator_template: {
+        contributor: {
           select: {
             id: true,
-            name: true,
-            role: true,
-            color: true,
+            crew_color: true,
+            contact: { select: { first_name: true, last_name: true } },
           },
         },
       },
@@ -33,18 +32,17 @@ export class FilmTimelineTracksService {
   }
 
   /**
-   * Get a specific track by ID, including operator assignment
+   * Get a specific track by ID, including crew assignment
    */
   async getTrack(trackId: number) {
     const track = await this.prisma.filmTimelineTrack.findUnique({
       where: { id: trackId },
       include: {
-        operator_template: {
+        contributor: {
           select: {
             id: true,
-            name: true,
-            role: true,
-            color: true,
+            crew_color: true,
+            contact: { select: { first_name: true, last_name: true } },
           },
         },
       },
@@ -58,11 +56,11 @@ export class FilmTimelineTracksService {
   }
 
   /**
-   * Update track (name, active status, operator assignment, etc.)
+   * Update track (name, active status, crew assignment, etc.)
    */
   async updateTrack(
     trackId: number,
-    data: { name?: string; is_active?: boolean; operator_template_id?: number | null },
+    data: { name?: string; is_active?: boolean; contributor_id?: number | null },
   ) {
     return this.prisma.filmTimelineTrack.update({
       where: { id: trackId },
@@ -71,12 +69,11 @@ export class FilmTimelineTracksService {
         updated_at: new Date(),
       },
       include: {
-        operator_template: {
+        contributor: {
           select: {
             id: true,
-            name: true,
-            role: true,
-            color: true,
+            crew_color: true,
+            contact: { select: { first_name: true, last_name: true } },
           },
         },
       },

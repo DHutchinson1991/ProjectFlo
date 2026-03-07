@@ -209,7 +209,7 @@ export class FilmsController {
   updateTrack(
     @Param("id", ParseIntPipe) id: number,
     @Param("trackId", ParseIntPipe) trackId: number,
-    @Body() body: { name?: string; is_active?: boolean; operator_template_id?: number | null },
+    @Body() body: { name?: string; is_active?: boolean; contributor_id?: number | null; is_unmanned?: boolean },
   ) {
     return this.filmsService.updateTrack(id, trackId, body);
   }

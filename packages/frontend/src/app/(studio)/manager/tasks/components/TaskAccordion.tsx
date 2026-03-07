@@ -20,7 +20,7 @@ import {
     TrendingUp as TrendingUpIcon,
     Add as AddIcon,
 } from "@mui/icons-material";
-import { TaskLibrary, TaskLibraryPhaseGroup } from "@/lib/types";
+import { TaskLibrary, TaskLibraryPhaseGroup, JobRole, SkillRoleMapping } from "@/lib/types";
 import { TaskTable } from "./TaskTable";
 import { EmptyPhase } from "./EmptyPhase";
 
@@ -42,6 +42,11 @@ interface TaskAccordionProps {
     cancelQuickAdd: () => void;
     saveQuickAdd: () => void;
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
+    jobRoles: JobRole[];
+    allMappings: SkillRoleMapping[];
+    expandedTaskId: number | null;
+    onToggleExpand: (taskId: number) => void;
+    onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
 }
 
 export function TaskAccordion({
@@ -62,6 +67,11 @@ export function TaskAccordion({
     cancelQuickAdd,
     saveQuickAdd,
     updateQuickAddData,
+    jobRoles,
+    allMappings,
+    expandedTaskId,
+    onToggleExpand,
+    onUpdateRoleSkills,
 }: TaskAccordionProps) {
     const phaseColors = {
         'Lead': 'rgba(102, 126, 234, 0.3)',
@@ -233,6 +243,11 @@ export function TaskAccordion({
                         cancelQuickAdd={cancelQuickAdd}
                         saveQuickAdd={saveQuickAdd}
                         updateQuickAddData={updateQuickAddData}
+                        jobRoles={jobRoles}
+                        allMappings={allMappings}
+                        expandedTaskId={expandedTaskId}
+                        onToggleExpand={onToggleExpand}
+                        onUpdateRoleSkills={onUpdateRoleSkills}
                     />
                 )}
             </AccordionDetails>

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
     Box,
@@ -23,10 +23,13 @@ import {
     DragIndicator as DragIndicatorIcon,
     Save as SaveIcon,
     Cancel as CancelIcon,
+    ExpandMore as ExpandMoreIcon,
+    ExpandLess as ExpandLessIcon,
 } from "@mui/icons-material";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { TaskLibrary, PricingType } from "@/lib/types";
+import { TaskLibrary, JobRole, SkillRoleMapping, TriggerType, TRIGGER_TYPE_LABELS } from "@/lib/types";
+import { TaskRoleSkillsPanel } from "./TaskRoleSkillsPanel";
 
 interface SortableTaskRowProps {
     task: TaskLibrary;
@@ -41,6 +44,11 @@ interface SortableTaskRowProps {
     setDeleteConfirmOpen: (open: boolean) => void;
     router: ReturnType<typeof useRouter>;
     isDragging: boolean;
+    jobRoles: JobRole[];
+    allMappings: SkillRoleMapping[];
+    expandedTaskId: number | null;
+    onToggleExpand: (taskId: number) => void;
+    onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
 }
 
 export function SortableTaskRow({
@@ -56,6 +64,11 @@ export function SortableTaskRow({
     setDeleteConfirmOpen,
     router,
     isDragging,
+    jobRoles,
+    allMappings,
+    expandedTaskId,
+    onToggleExpand,
+    onUpdateRoleSkills,
 }: SortableTaskRowProps) {
     const {
         attributes,
@@ -87,8 +100,36 @@ export function SortableTaskRow({
     };
 
     const phaseStyle = phaseColors[phase as keyof typeof phaseColors] || phaseColors['Lead'];
+    const isExpanded = expandedTaskId === task.id;
+
+    // Resolve tier & rate from task skills + all mappings
+    const TIER_LABELS: Record<number, string> = { 1: "Junior", 2: "Mid-Level", 3: "Senior", 4: "Lead", 5: "Executive" };
+    const TIER_COLORS: Record<number, string> = {
+        1: "rgba(100, 200, 255, 0.85)",
+        2: "rgba(160, 140, 255, 0.85)",
+        3: "rgba(255, 180, 100, 0.85)",
+        4: "rgba(255, 100, 130, 0.85)",
+        5: "rgba(255, 80, 200, 0.85)",
+    };
+    const resolvedBracket = useMemo(() => {
+        const skills = task.skills_needed ?? [];
+        const roleId = task.default_job_role_id;
+        if (!roleId || skills.length === 0) return null;
+
+        let highest: SkillRoleMapping["payment_bracket"] | null = null;
+        for (const m of allMappings) {
+            if (m.job_role_id !== roleId) continue;
+            if (!skills.includes(m.skill_name)) continue;
+            if (!m.payment_bracket) continue;
+            if (!highest || (m.payment_bracket.level ?? 0) > (highest.level ?? 0)) {
+                highest = m.payment_bracket;
+            }
+        }
+        return highest;
+    }, [task.skills_needed, task.default_job_role_id, allMappings]);
 
     return (
+        <>
         <TableRow
             ref={setNodeRef}
             style={style}
@@ -99,7 +140,7 @@ export function SortableTaskRow({
                 backdropFilter: 'blur(10px)',
                 border: `1px solid ${isEditing ? 'rgba(255, 255, 255, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
                 borderRadius: 2,
-                mb: 1,
+                mb: isExpanded ? 0 : 1,
                 transition: 'all 0.3s ease',
                 '&:hover': {
                     background: `linear-gradient(135deg, ${phaseStyle.bg} 0%, ${phaseStyle.hover} 100%)`,
@@ -178,17 +219,161 @@ export function SortableTaskRow({
                     <Box
                         sx={{
                             cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
                             "&:hover": {
                                 color: phaseStyle.color,
-                                textDecoration: "underline",
                             },
                         }}
                         onClick={() => router.push(`/manager/tasks/${task.id}`)}
                     >
-                        <Typography variant="subtitle2" fontWeight="regular" sx={{ color: 'white' }}>
+                        <Typography variant="subtitle2" fontWeight="regular" sx={{ color: 'white', '&:hover': { textDecoration: 'underline' } }}>
                             {task.name}
                         </Typography>
                     </Box>
+                )}
+            </TableCell>
+
+            {/* Role — inline dropdown + expand toggle */}
+            <TableCell>
+                {isEditing ? (
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic', fontSize: '0.75rem' }}>
+                        Save first
+                    </Typography>
+                ) : (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <Select
+                                value={task.default_job_role_id ?? ''}
+                                displayEmpty
+                                onChange={async (e) => {
+                                    const val = e.target.value === '' ? null : Number(e.target.value);
+                                    await onUpdateRoleSkills(task.id, {
+                                        default_job_role_id: val,
+                                        skills_needed: [],
+                                    });
+                                    // Auto-open panel when role set, collapse when cleared
+                                    if (val && !isExpanded) onToggleExpand(task.id);
+                                    if (!val && isExpanded) onToggleExpand(task.id);
+                                }}
+                                sx={{
+                                    backgroundColor: task.default_job_role_id
+                                        ? 'rgba(100, 255, 218, 0.06)'
+                                        : 'rgba(255,255,255,0.05)',
+                                    borderRadius: 1.5,
+                                    fontSize: '0.75rem',
+                                    height: 32,
+                                    '& .MuiOutlinedInput-notchedOutline': {
+                                        borderColor: task.default_job_role_id
+                                            ? 'rgba(100, 255, 218, 0.2)'
+                                            : 'rgba(255,255,255,0.12)',
+                                    },
+                                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                                        borderColor: task.default_job_role_id
+                                            ? 'rgba(100, 255, 218, 0.4)'
+                                            : 'rgba(255,255,255,0.25)',
+                                    },
+                                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                        borderColor: 'primary.main',
+                                    },
+                                    '& .MuiSelect-select': {
+                                        color: task.default_job_role_id
+                                            ? 'rgba(100, 255, 218, 0.85)'
+                                            : 'rgba(255,255,255,0.4)',
+                                        fontSize: '0.75rem',
+                                        py: 0.5,
+                                    },
+                                    '& .MuiSvgIcon-root': {
+                                        color: 'rgba(255,255,255,0.3)',
+                                        fontSize: 16,
+                                    },
+                                }}
+                            >
+                                <MenuItem value="">
+                                    <em style={{ color: 'rgba(255,255,255,0.4)' }}>No role</em>
+                                </MenuItem>
+                                {jobRoles.filter((r) => r.is_active).map((role) => (
+                                    <MenuItem key={role.id} value={role.id}>
+                                        {role.display_name || role.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <IconButton
+                            size="small"
+                            onClick={() => onToggleExpand(task.id)}
+                            sx={{
+                                width: 24,
+                                height: 24,
+                                color: isExpanded ? 'rgba(100, 255, 218, 0.7)' : 'rgba(255,255,255,0.3)',
+                                transition: 'all 0.2s ease',
+                                '&:hover': {
+                                    background: 'rgba(255,255,255,0.08)',
+                                    color: 'rgba(100, 255, 218, 0.85)',
+                                },
+                            }}
+                        >
+                            {isExpanded
+                                ? <ExpandLessIcon sx={{ fontSize: 16 }} />
+                                : <ExpandMoreIcon sx={{ fontSize: 16 }} />
+                            }
+                        </IconButton>
+                    </Box>
+                )}
+            </TableCell>
+
+            {/* Tier */}
+            <TableCell>
+                {resolvedBracket ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        <Box
+                            sx={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                backgroundColor: TIER_COLORS[resolvedBracket.level ?? 0] ?? 'rgba(255,255,255,0.4)',
+                                flexShrink: 0,
+                            }}
+                        />
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: TIER_COLORS[resolvedBracket.level ?? 0] ?? 'rgba(255,255,255,0.5)',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {TIER_LABELS[resolvedBracket.level ?? 0] ?? resolvedBracket.name}
+                        </Typography>
+                    </Box>
+                ) : (
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.72rem', fontStyle: 'italic' }}>
+                        —
+                    </Typography>
+                )}
+            </TableCell>
+
+            {/* Rate */}
+            <TableCell>
+                {resolvedBracket?.hourly_rate != null ? (
+                    <Typography
+                        variant="body2"
+                        sx={{
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            color: '#64ffda',
+                            fontVariantNumeric: 'tabular-nums',
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        £{resolvedBracket.hourly_rate}/hr
+                    </Typography>
+                ) : (
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.72rem', fontStyle: 'italic' }}>
+                        —
+                    </Typography>
                 )}
             </TableCell>
 
@@ -284,86 +469,58 @@ export function SortableTaskRow({
                 )}
             </TableCell>
 
-            {/* Pricing */}
+            {/* Trigger Type */}
             <TableCell align="center">
                 {isEditing ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center' }}>
-                        <TextField
-                            type="number"
-                            placeholder={inlineEditData.pricing_type === PricingType.FIXED ? "Price" : "Rate"}
-                            value={inlineEditData.pricing_type === PricingType.FIXED ? inlineEditData.fixed_price || '' : inlineEditData.hourly_rate || ''}
-                            onChange={(e) => updateInlineEditData(
-                                inlineEditData.pricing_type === PricingType.FIXED ? 'fixed_price' : 'hourly_rate',
-                                parseFloat(e.target.value) || 0
-                            )}
-                            size="small"
-                            variant="outlined"
+                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                        <Select
+                            value={inlineEditData.trigger_type || TriggerType.ALWAYS}
+                            onChange={(e) => updateInlineEditData('trigger_type', e.target.value)}
                             sx={{
-                                width: '70px',
-                                '& .MuiOutlinedInput-root': {
-                                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                                    borderRadius: 2,
-                                    fontSize: '0.875rem',
-                                    '& fieldset': {
-                                        borderColor: 'rgba(255, 255, 255, 0.2)',
-                                    },
-                                    '&:hover fieldset': {
-                                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                                    },
-                                    '&.Mui-focused fieldset': {
-                                        borderColor: 'primary.main',
-                                    },
+                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                borderRadius: 2,
+                                fontSize: '0.75rem',
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: 'rgba(255, 255, 255, 0.2)',
                                 },
-                                '& .MuiInputBase-input': {
+                                '&:hover .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                                },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: 'primary.main',
+                                },
+                                '& .MuiSelect-select': {
                                     color: 'white',
-                                    textAlign: 'center',
-                                    fontSize: '0.875rem',
+                                    fontSize: '0.75rem',
+                                },
+                                '& .MuiSvgIcon-root': {
+                                    color: 'rgba(255, 255, 255, 0.7)',
                                 },
                             }}
-                        />
-                        <FormControl size="small" sx={{ minWidth: 70 }}>
-                            <Select
-                                value={inlineEditData.pricing_type || PricingType.HOURLY}
-                                onChange={(e) => updateInlineEditData('pricing_type', e.target.value)}
-                                sx={{
-                                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                                    borderRadius: 2,
-                                    fontSize: '0.875rem',
-                                    '& .MuiOutlinedInput-notchedOutline': {
-                                        borderColor: 'rgba(255, 255, 255, 0.2)',
-                                    },
-                                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                                    },
-                                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                        borderColor: 'primary.main',
-                                    },
-                                    '& .MuiSelect-select': {
-                                        color: 'white',
-                                        fontSize: '0.875rem',
-                                    },
-                                    '& .MuiSvgIcon-root': {
-                                        color: 'rgba(255, 255, 255, 0.7)',
-                                    },
-                                }}
-                            >
-                                <MenuItem value={PricingType.HOURLY}>Hourly</MenuItem>
-                                <MenuItem value={PricingType.FIXED}>Fixed</MenuItem>
-                            </Select>
-                        </FormControl>
-                    </Box>
+                        >
+                            {Object.entries(TRIGGER_TYPE_LABELS).map(([value, label]) => (
+                                <MenuItem key={value} value={value}>{label}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
                 ) : (
-                    <Typography variant="body2" sx={{ color: 'white', fontWeight: 500 }}>
-                        {task.pricing_type === PricingType.FIXED && task.fixed_price && (
-                            `$${task.fixed_price} Fixed`
-                        )}
-                        {task.pricing_type === PricingType.HOURLY && task.hourly_rate && (
-                            `$${task.hourly_rate} Hourly`
-                        )}
-                        {(!task.fixed_price && !task.hourly_rate) && (
-                            <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Not set</span>
-                        )}
-                    </Typography>
+                    <Chip
+                        label={TRIGGER_TYPE_LABELS[task.trigger_type] || 'Always'}
+                        size="small"
+                        sx={{
+                            background: task.trigger_type === TriggerType.ALWAYS
+                                ? 'rgba(255, 255, 255, 0.1)'
+                                : 'rgba(79, 172, 254, 0.15)',
+                            color: task.trigger_type === TriggerType.ALWAYS
+                                ? 'rgba(255, 255, 255, 0.7)'
+                                : '#4facfe',
+                            fontWeight: 500,
+                            fontSize: '0.7rem',
+                            border: task.trigger_type === TriggerType.ALWAYS
+                                ? '1px solid rgba(255, 255, 255, 0.2)'
+                                : '1px solid rgba(79, 172, 254, 0.3)',
+                        }}
+                    />
                 )}
             </TableCell>
 
@@ -471,5 +628,22 @@ export function SortableTaskRow({
                 )}
             </TableCell>
         </TableRow>
+
+        {/* Expandable role & skills panel */}
+        <TableRow
+            sx={{
+                '& td': { borderBottom: 'none', p: 0 },
+                ...(isExpanded ? {} : { display: 'none' }),
+            }}
+        >
+            <TableCell colSpan={10} sx={{ p: 0 }}>
+                <TaskRoleSkillsPanel
+                    task={task}
+                    open={isExpanded}
+                    onUpdate={onUpdateRoleSkills}
+                />
+            </TableCell>
+        </TableRow>
+        </>
     );
 }

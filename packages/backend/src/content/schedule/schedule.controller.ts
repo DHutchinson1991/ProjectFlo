@@ -13,6 +13,8 @@ import { ScheduleService } from './schedule.service';
 import {
   CreateEventDayTemplateDto,
   UpdateEventDayTemplateDto,
+  CreateEventDayActivityPresetDto,
+  UpdateEventDayActivityPresetDto,
   CreateFilmSceneScheduleDto,
   UpdateFilmSceneScheduleDto,
   BulkUpsertFilmSceneScheduleDto,
@@ -39,6 +41,8 @@ import {
   CreatePackageActivityMomentDto,
   UpdatePackageActivityMomentDto,
   BulkCreatePackageActivityMomentsDto,
+  CreatePresetMomentDto,
+  UpdatePresetMomentDto,
 } from './dto';
 
 @Controller('schedule')
@@ -107,6 +111,86 @@ export class ScheduleController {
     @Param('brandId', ParseIntPipe) brandId: number,
   ) {
     return this.scheduleService.deleteEventDayTemplate(id, brandId);
+  }
+
+  // ─── Event Day Activity Presets ──────────────────────────────────────
+
+  @Get('event-days/:eventDayId/activity-presets')
+  getActivityPresets(
+    @Param('eventDayId', ParseIntPipe) eventDayId: number,
+  ) {
+    return this.scheduleService.findActivityPresets(eventDayId);
+  }
+
+  @Post('event-days/:eventDayId/activity-presets')
+  createActivityPreset(
+    @Param('eventDayId', ParseIntPipe) eventDayId: number,
+    @Body() dto: CreateEventDayActivityPresetDto,
+  ) {
+    return this.scheduleService.createActivityPreset(eventDayId, dto);
+  }
+
+  @Post('event-days/:eventDayId/activity-presets/bulk')
+  bulkCreateActivityPresets(
+    @Param('eventDayId', ParseIntPipe) eventDayId: number,
+    @Body() body: { presets: { name: string; color?: string; order_index?: number }[] },
+  ) {
+    return this.scheduleService.bulkCreateActivityPresets(eventDayId, body.presets);
+  }
+
+  @Patch('activity-presets/:presetId')
+  updateActivityPreset(
+    @Param('presetId', ParseIntPipe) presetId: number,
+    @Body() dto: UpdateEventDayActivityPresetDto,
+  ) {
+    return this.scheduleService.updateActivityPreset(presetId, dto);
+  }
+
+  @Delete('activity-presets/:presetId')
+  deleteActivityPreset(
+    @Param('presetId', ParseIntPipe) presetId: number,
+  ) {
+    return this.scheduleService.deleteActivityPreset(presetId);
+  }
+
+  // ─── Preset Moments ────────────────────────────────────────────────────────
+
+  @Get('activity-presets/:presetId/moments')
+  getPresetMoments(
+    @Param('presetId', ParseIntPipe) presetId: number,
+  ) {
+    return this.scheduleService.findPresetMoments(presetId);
+  }
+
+  @Post('activity-presets/:presetId/moments')
+  createPresetMoment(
+    @Param('presetId', ParseIntPipe) presetId: number,
+    @Body() dto: CreatePresetMomentDto,
+  ) {
+    return this.scheduleService.createPresetMoment(presetId, dto);
+  }
+
+  @Post('activity-presets/:presetId/moments/bulk')
+  bulkCreatePresetMoments(
+    @Param('presetId', ParseIntPipe) presetId: number,
+    @Body() body: { moments: { name: string; duration_seconds?: number; order_index?: number; is_key_moment?: boolean }[] },
+  ) {
+    return this.scheduleService.bulkCreatePresetMoments(presetId, body.moments);
+  }
+
+  @Patch('preset-moments/:momentId')
+  updatePresetMoment(
+    @Param('momentId', ParseIntPipe) momentId: number,
+    @Body() dto: UpdatePresetMomentDto,
+  ) {
+    return this.scheduleService.updatePresetMoment(momentId, dto);
+  }
+
+  @Delete('preset-moments/:momentId')
+  deletePresetMoment(
+    @Param('momentId', ParseIntPipe) momentId: number,
+  ) {
+    return this.scheduleService.deletePresetMoment(momentId);
   }
 
   // ─── Film Scene Schedules ────────────────────────────────────────────

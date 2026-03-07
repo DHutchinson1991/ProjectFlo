@@ -19,13 +19,13 @@ import {
 } from "@mui/material";
 import {
     Timer as TimerIcon,
-    AttachMoney as MoneyIcon,
+    Person as PersonIcon,
     Save as SaveIcon,
     Cancel as CancelIcon,
     DragIndicator as DragIndicatorIcon,
 } from "@mui/icons-material";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { TaskLibrary, PricingType } from "@/lib/types";
+import { TaskLibrary, JobRole, SkillRoleMapping, TriggerType, TRIGGER_TYPE_LABELS } from "@/lib/types";
 import { SortableTaskRow } from "./SortableTaskRow";
 import { useRouter } from "next/navigation";
 
@@ -46,6 +46,11 @@ interface TaskTableProps {
     cancelQuickAdd: () => void;
     saveQuickAdd: () => void;
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
+    jobRoles: JobRole[];
+    allMappings: SkillRoleMapping[];
+    expandedTaskId: number | null;
+    onToggleExpand: (taskId: number) => void;
+    onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
 }
 
 export function TaskTable({
@@ -65,6 +70,11 @@ export function TaskTable({
     cancelQuickAdd,
     saveQuickAdd,
     updateQuickAddData,
+    jobRoles,
+    allMappings,
+    expandedTaskId,
+    onToggleExpand,
+    onUpdateRoleSkills,
 }: TaskTableProps) {
     const router = useRouter();
 
@@ -83,15 +93,18 @@ export function TaskTable({
                     <TableRow>
                         <TableCell sx={{ width: 40 }}></TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Task Name</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                            <PersonIcon fontSize="small" sx={{ verticalAlign: "middle", mr: 0.5 }} />
+                            Role
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Tier</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Rate</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 600 }}>
                             <TimerIcon fontSize="small" sx={{ verticalAlign: "middle", mr: 1 }} />
                             Hours
                         </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 600 }}>
-                            <MoneyIcon fontSize="small" sx={{ verticalAlign: "middle", mr: 1 }} />
-                            Pricing
-                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 600 }}>Trigger</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 600 }}>Status</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
                     </TableRow>
@@ -116,6 +129,11 @@ export function TaskTable({
                                 setDeleteConfirmOpen={setDeleteConfirmOpen}
                                 router={router}
                                 isDragging={isDragging}
+                                jobRoles={jobRoles}
+                                allMappings={allMappings}
+                                expandedTaskId={expandedTaskId}
+                                onToggleExpand={onToggleExpand}
+                                onUpdateRoleSkills={onUpdateRoleSkills}
                             />
                         ))}
                     </SortableContext>
@@ -170,11 +188,11 @@ export function TaskTable({
                                     size="small"
                                     variant="outlined"
                                     sx={{
-                                        maxWidth: '300px', // Constrain the width
+                                        maxWidth: '300px',
                                         '& .MuiOutlinedInput-root': {
                                             backgroundColor: 'rgba(255, 255, 255, 0.08)',
                                             borderRadius: 2,
-                                            fontSize: '0.875rem', // Match existing row font size
+                                            fontSize: '0.875rem',
                                             '& fieldset': {
                                                 borderColor: 'rgba(255, 255, 255, 0.2)',
                                             },
@@ -192,6 +210,15 @@ export function TaskTable({
                                     }}
                                 />
                             </TableCell>
+
+                            {/* Role — empty for quick add */}
+                            <TableCell />
+
+                            {/* Tier — empty for quick add */}
+                            <TableCell />
+
+                            {/* Rate — empty for quick add */}
+                            <TableCell />
 
                             {/* Description */}
                             <TableCell>
@@ -259,73 +286,39 @@ export function TaskTable({
                                 />
                             </TableCell>
 
-                            {/* Pricing */}
+                            {/* Trigger */}
                             <TableCell align="center">
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center' }}>
-                                    <TextField
-                                        type="number"
-                                        placeholder={quickAddData.pricing_type === PricingType.FIXED ? "Price" : "Rate"}
-                                        value={quickAddData.pricing_type === PricingType.FIXED ? quickAddData.fixed_price || '' : quickAddData.hourly_rate || ''}
-                                        onChange={(e) => updateQuickAddData(
-                                            quickAddData.pricing_type === PricingType.FIXED ? 'fixed_price' : 'hourly_rate',
-                                            parseFloat(e.target.value) || 0
-                                        )}
-                                        size="small"
-                                        variant="outlined"
+                                <FormControl size="small" sx={{ minWidth: 120 }}>
+                                    <Select
+                                        value={quickAddData.trigger_type || TriggerType.ALWAYS}
+                                        onChange={(e) => updateQuickAddData('trigger_type', e.target.value)}
                                         sx={{
-                                            width: '70px',
-                                            '& .MuiOutlinedInput-root': {
-                                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                                                borderRadius: 2,
-                                                fontSize: '0.875rem',
-                                                '& fieldset': {
-                                                    borderColor: 'rgba(255, 255, 255, 0.2)',
-                                                },
-                                                '&:hover fieldset': {
-                                                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                                                },
-                                                '&.Mui-focused fieldset': {
-                                                    borderColor: 'primary.main',
-                                                },
+                                            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                            borderRadius: 2,
+                                            fontSize: '0.75rem',
+                                            '& .MuiOutlinedInput-notchedOutline': {
+                                                borderColor: 'rgba(255, 255, 255, 0.2)',
                                             },
-                                            '& .MuiInputBase-input': {
+                                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                                                borderColor: 'rgba(255, 255, 255, 0.3)',
+                                            },
+                                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                                borderColor: 'primary.main',
+                                            },
+                                            '& .MuiSelect-select': {
                                                 color: 'white',
-                                                textAlign: 'center',
-                                                fontSize: '0.875rem',
+                                                fontSize: '0.75rem',
+                                            },
+                                            '& .MuiSvgIcon-root': {
+                                                color: 'rgba(255, 255, 255, 0.7)',
                                             },
                                         }}
-                                    />
-                                    <FormControl size="small" sx={{ minWidth: 70 }}>
-                                        <Select
-                                            value={quickAddData.pricing_type || PricingType.HOURLY}
-                                            onChange={(e) => updateQuickAddData('pricing_type', e.target.value)}
-                                            sx={{
-                                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                                                borderRadius: 2,
-                                                fontSize: '0.875rem',
-                                                '& .MuiOutlinedInput-notchedOutline': {
-                                                    borderColor: 'rgba(255, 255, 255, 0.2)',
-                                                },
-                                                '&:hover .MuiOutlinedInput-notchedOutline': {
-                                                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                                                },
-                                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                                    borderColor: 'primary.main',
-                                                },
-                                                '& .MuiSelect-select': {
-                                                    color: 'white',
-                                                    fontSize: '0.875rem',
-                                                },
-                                                '& .MuiSvgIcon-root': {
-                                                    color: 'rgba(255, 255, 255, 0.7)',
-                                                },
-                                            }}
-                                        >
-                                            <MenuItem value={PricingType.HOURLY}>Hourly</MenuItem>
-                                            <MenuItem value={PricingType.FIXED}>Fixed</MenuItem>
-                                        </Select>
-                                    </FormControl>
-                                </Box>
+                                    >
+                                        {Object.entries(TRIGGER_TYPE_LABELS).map(([value, label]) => (
+                                            <MenuItem key={value} value={value}>{label}</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
                             </TableCell>
 
                             {/* Status */}

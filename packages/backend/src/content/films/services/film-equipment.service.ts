@@ -104,6 +104,7 @@ export class FilmEquipmentService {
       filmId,
       from: { cameras: currentCameras, audio: currentAudio },
       to: { cameras: finalCameras, audio: finalAudio },
+      allTracks: currentTracks.map(t => ({ id: t.id, name: t.name, type: t.type })),
     });
 
     const parseTrackNumber = (name: string, prefix: string) => {
@@ -121,6 +122,12 @@ export class FilmEquipmentService {
       if (track.type !== TrackType.AUDIO) return false;
       const number = parseTrackNumber(track.name, 'Audio');
       return number !== null && number > finalAudio;
+    });
+
+    this.logger.log('Tracks to remove', {
+      filmId,
+      cameraTracksToRemove: cameraTracksToRemove.map(t => ({ id: t.id, name: t.name })),
+      audioTracksToRemove: audioTracksToRemove.map(t => ({ id: t.id, name: t.name })),
     });
 
     const isReducing = cameraTracksToRemove.length > 0 || audioTracksToRemove.length > 0;
@@ -338,13 +345,12 @@ export class FilmEquipmentService {
     };
 
     equipment.forEach((item) => {
-      const type = item.equipment.type.toLowerCase();
+      const category = item.equipment.category.toLowerCase();
       const quantity = item.quantity;
 
-      if (type === 'camera') summary.cameras += quantity;
-      else if (type === 'audio') summary.audio += quantity;
-      else if (type === 'music' || type === 'music_playback') summary.music += quantity;
-      else if (type === 'lighting') summary.lighting += quantity;
+      if (category === 'camera') summary.cameras += quantity;
+      else if (category === 'audio') summary.audio += quantity;
+      else if (category === 'lighting') summary.lighting += quantity;
       else summary.other += quantity;
     });
 

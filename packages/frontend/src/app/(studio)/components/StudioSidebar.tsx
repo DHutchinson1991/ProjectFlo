@@ -13,10 +13,11 @@ import {
 import {
     Dashboard as DashboardIcon,
     Settings as SettingsIcon,
-    Palette as PaletteIcon,
+    Inventory as PackagesIcon,
     ManageAccounts as ManageAccountsIcon,
     Folder as ProjectIcon,
     ContactMail as InquiriesIcon,
+    Category as ResourcesIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
 import { ProjectSelector } from "./ProjectSelector";
@@ -35,6 +36,7 @@ const studioNavItems = [
             { title: "Lead Inquiries", href: "/sales/inquiries" },
             { title: "Lead Pipeline", href: "/sales/pipeline" },
             { title: "Clients", href: "/sales/clients" },
+            { title: "Questionnaire", href: "/manager/sales" },
         ],
     },
     {
@@ -43,18 +45,25 @@ const studioNavItems = [
         icon: <ProjectIcon />,
         subItems: [
             { title: "Project Management", href: "/projects" },
-            { title: "Active Project", href: "/projects/active" },
         ],
     },
     {
-        title: "Designer",
-        href: "/designer",
-        icon: <PaletteIcon />,
+        title: "Packages",
+        href: "/designer/packages",
+        icon: <PackagesIcon />,
         subItems: [
-            { title: "Film Manager", href: "/designer/films" },
-            { title: "Coverage Library", href: "/designer/coverage" },
-            { title: "Crew & Equipment", href: "/manager/equipment" },
             { title: "Package Library", href: "/designer/packages" },
+            { title: "Templates", href: "/designer/templates" },
+        ],
+    },
+    {
+        title: "Resources",
+        href: "/resources",
+        icon: <ResourcesIcon />,
+        subItems: [
+            { title: "Crew", href: "/manager/crew" },
+            { title: "Locations", href: "/manager/locations" },
+            { title: "Equipment Library", href: "/manager/equipment" },
         ],
     },
     {
@@ -62,11 +71,6 @@ const studioNavItems = [
         href: "/manager",
         icon: <ManageAccountsIcon />,
         subItems: [
-            { title: "Roles", href: "/manager/roles" },
-            { title: "Users", href: "/manager/users" },
-            { title: "Brands", href: "/manager/brands" },
-            { title: "Equipment Library", href: "/manager/equipment" },
-            { title: "Locations", href: "/manager/locations" },
             { title: "Tasks", href: "/manager/tasks" },
         ],
     },
@@ -96,6 +100,9 @@ export default function StudioSidebar() {
         if (href === "/manager") {
             return pathname.startsWith("/manager");
         }
+        if (href === "/settings") {
+            return pathname.startsWith("/settings");
+        }
         return pathname.startsWith(href);
     };
 
@@ -119,7 +126,7 @@ export default function StudioSidebar() {
             }}
         >
             {/* Project Selector at the top */}
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+            <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', mb: 1, pb: 0.5 }}>
                 <ProjectSelector />
             </Box>
 

@@ -18,31 +18,8 @@ export default function RootLayout({
   const showDevConsole = process.env.NODE_ENV !== "production";
 
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  // Always force dark mode initially to prevent flash
-                  document.documentElement.style.colorScheme = 'dark';
-                  document.documentElement.style.backgroundColor = '#121212';
-                  document.documentElement.setAttribute('data-theme', 'dark');
-                  if (document.body) {
-                    document.body.style.backgroundColor = '#121212';
-                    document.body.style.color = '#ffffff';
-                  }
-                } catch (e) {}
-              })();
-            `,
-          }}
-        />
-        <style dangerouslySetInnerHTML={{ __html: `
-          html, body { background-color: #121212 !important; color: #ffffff !important; }
-        `}} />
-      </head>
-      <body style={{ backgroundColor: '#121212', color: '#ffffff', margin: 0 }}>
+    <html lang="en" data-theme="dark" style={{ colorScheme: 'dark' }} suppressHydrationWarning>
+      <body>
         <ErrorBoundary>
           <Providers>
             {children}

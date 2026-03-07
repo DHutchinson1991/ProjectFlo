@@ -176,53 +176,23 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
         });
         const seen = new Map<number, any>();
         matched.forEach((o: any) => {
-            const templateId = o.operator_template_id ?? o.operator_template?.id ?? o.id;
-            if (!seen.has(templateId)) seen.set(templateId, o);
+            const crewId = o.contributor_id ?? o.id;
+            if (!seen.has(crewId)) seen.set(crewId, o);
         });
         return Array.from(seen.values());
     }, [activityOperators, activity]);
 
-    // Count cameras and audio devices in inherited crew for track filtering
-    const { activityCameraCount, activityAudioCount } = React.useMemo(() => {
-        if (!activity || inheritedCrew.length === 0) return { activityCameraCount: 0, activityAudioCount: 0 };
-        let cameraCount = 0;
-        const audioIds = new Set<number>();
-        inheritedCrew.forEach((op: any) => {
-            const equipment = op.equipment?.length > 0
-                ? op.equipment
-                : op.operator_template?.default_equipment || [];
-            let hasCamera = false;
-            equipment.forEach((eq: any) => {
-                const cat = (eq.equipment?.category || '').toUpperCase();
-                const eqId = eq.equipment_id ?? eq.equipment?.id;
-                if (cat === 'CAMERA' && !hasCamera) hasCamera = true;
-                if (cat === 'AUDIO' && eqId) audioIds.add(eqId);
-            });
-            if (hasCamera) cameraCount++;
-        });
-        return { activityCameraCount: cameraCount, activityAudioCount: audioIds.size };
-    }, [activity, inheritedCrew]);
-
     const normalizeTrackType = (value?: string | null) => (value || "").toLowerCase();
-    const TRACK_NUMBER_PATTERN = /^(Camera|Audio)\s+(\d+)$/i;
-    const videoTracks = React.useMemo(() => {
-        const allVideo = allTracks.filter(track => normalizeTrackType(track.track_type) === "video");
-        if (!activity) return allVideo;
-        return allVideo.filter(track => {
-            const match = track.name.match(TRACK_NUMBER_PATTERN);
-            if (!match) return true;
-            return parseInt(match[2], 10) <= activityCameraCount;
-        });
-    }, [allTracks, activity, activityCameraCount]);
-    const audioTracks = React.useMemo(() => {
-        const allAudio = allTracks.filter(track => normalizeTrackType(track.track_type) === "audio");
-        if (!activity) return allAudio;
-        return allAudio.filter(track => {
-            const match = track.name.match(TRACK_NUMBER_PATTERN);
-            if (!match) return true;
-            return parseInt(match[2], 10) <= activityAudioCount;
-        });
-    }, [allTracks, activity, activityAudioCount]);
+    // Show all film tracks — the tracks on the film are the authoritative list.
+    // Activity-based count filtering was unreliable (missed unmanned/per-equipment cameras).
+    const videoTracks = React.useMemo(
+        () => allTracks.filter(track => normalizeTrackType(track.track_type) === "video"),
+        [allTracks]
+    );
+    const audioTracks = React.useMemo(
+        () => allTracks.filter(track => normalizeTrackType(track.track_type) === "audio"),
+        [allTracks]
+    );
     const graphicsTracks = React.useMemo(
         () => allTracks.filter(track => normalizeTrackType(track.track_type) === "graphics"),
         [allTracks]
@@ -278,6 +248,13 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
         if (!shouldShow) return trackName;
         const equipmentLabel = getEquipmentLabelForTrackName(trackName, equipmentAssignmentsBySlot);
         return equipmentLabel ? `${trackName} · ${equipmentLabel}` : trackName;
+    };
+
+    const getTrackEquipmentLabel = (trackName: string, trackType?: string) => {
+        const normalized = trackType?.toLowerCase();
+        const shouldShow = normalized === "video" || normalized === "audio";
+        if (!shouldShow) return null;
+        return getEquipmentLabelForTrackName(trackName, equipmentAssignmentsBySlot) || null;
     };
 
     React.useEffect(() => {
@@ -684,7 +661,18 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
                                                                 sx={{ color: "rgba(255,255,255,0.5)", '&.Mui-checked': { color: '#7B61FF' } }}
                                                             />
                                                         }
-                                                        label={<Typography sx={{ color: "rgba(255,255,255,0.85)", fontSize: 12 }}>{getTrackDisplayName(track.name, track.track_type)}</Typography>}
+                                                        label={
+                                                            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                                                                <Typography sx={{ color: "rgba(255,255,255,0.85)", fontSize: 12 }}>
+                                                                    {track.name}
+                                                                </Typography>
+                                                                {getTrackEquipmentLabel(track.name, track.track_type) && (
+                                                                    <Typography sx={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>
+                                                                        {getTrackEquipmentLabel(track.name, track.track_type)}
+                                                                    </Typography>
+                                                                )}
+                                                            </Box>
+                                                        }
                                                     />
                                                     <FormControl size="small" fullWidth>
                                                         <InputLabel shrink sx={{ color: "rgba(255,255,255,0.5)" }}>Shot size</InputLabel>
@@ -782,7 +770,18 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
                                                                 sx={{ color: "rgba(255,255,255,0.5)", '&.Mui-checked': { color: '#7B61FF' } }}
                                                             />
                                                         }
-                                                        label={<Typography sx={{ color: "rgba(255,255,255,0.85)", fontSize: 12 }}>{getTrackDisplayName(track.name, track.track_type)}</Typography>}
+                                                        label={
+                                                            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                                                                <Typography sx={{ color: "rgba(255,255,255,0.85)", fontSize: 12 }}>
+                                                                    {track.name}
+                                                                </Typography>
+                                                                {getTrackEquipmentLabel(track.name, track.track_type) && (
+                                                                    <Typography sx={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>
+                                                                        {getTrackEquipmentLabel(track.name, track.track_type)}
+                                                                    </Typography>
+                                                                )}
+                                                            </Box>
+                                                        }
                                                     />
                                                     <FormControl size="small" fullWidth>
                                                         <InputLabel shrink sx={{ color: "rgba(255,255,255,0.5)" }}>Subjects</InputLabel>
@@ -1111,10 +1110,10 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
                                                 py: 0.5,
                                             }}>
                                                 <Typography sx={{ fontSize: 12, color: '#f9a8d4', fontWeight: 500 }}>
-                                                    {o.operator_template?.name || o.name || 'Operator'}
-                                                    {o.operator_template?.role && (
+                                                    {o.position_name || o.name || 'Crew'}
+                                                    {(o.job_role?.display_name || o.job_role?.name) && (
                                                         <Typography component="span" sx={{ fontSize: 11, color: 'rgba(236,72,153,0.5)', ml: 0.5 }}>
-                                                            · {o.operator_template.role}
+                                                            · {o.job_role?.display_name || o.job_role?.name}
                                                         </Typography>
                                                     )}
                                                 </Typography>

@@ -218,8 +218,8 @@ export default function SubjectsTemplatesPage() {
     <Box>
       {/* Header */}
       <Box sx={{ mb: 4, display: "flex", alignItems: "center", gap: 2 }}>
-        <Tooltip title="Back to Designer">
-          <IconButton component={Link} href="/designer" size="small">
+        <Tooltip title="Back to Manager">
+          <IconButton component={Link} href="/manager" size="small">
             <BackIcon />
           </IconButton>
         </Tooltip>

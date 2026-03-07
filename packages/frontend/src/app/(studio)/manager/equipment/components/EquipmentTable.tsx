@@ -33,6 +33,8 @@ import {
     EQUIPMENT_AVAILABILITY_COLORS,
     EQUIPMENT_CONDITION_COLORS,
 } from "@/lib/types";
+import { useBrand } from "@/app/providers/BrandProvider";
+import { formatCurrency, getCurrencySymbol } from "@/lib/utils/formatUtils";
 
 interface EquipmentTableProps {
     equipment: Equipment[];
@@ -70,6 +72,9 @@ export function EquipmentTable({
     updateQuickAddData,
 }: EquipmentTableProps) {
     const router = useRouter();
+    const { currentBrand } = useBrand();
+    const currencyCode = currentBrand?.currency || 'USD';
+    const currencySymbol = getCurrencySymbol(currencyCode);
 
     const handleViewEquipment = (id: number) => {
         router.push(`/manager/equipment/${id}`);
@@ -239,11 +244,11 @@ export function EquipmentTable({
                                             fullWidth
                                             variant="outlined"
                                             InputProps={{
-                                                startAdornment: '$',
+                                                startAdornment: currencySymbol,
                                             }}
                                         />) : (
                                         <Typography variant="body2" fontWeight={600}>
-                                            ${parseFloat(String(item.rental_price_per_day || 0)).toFixed(2)}
+                                            {formatCurrency(parseFloat(String(item.rental_price_per_day || 0)), currencyCode)}
                                         </Typography>
                                     )}
                                 </TableCell>
@@ -399,7 +404,7 @@ export function EquipmentTable({
                                     fullWidth
                                     variant="outlined"
                                     InputProps={{
-                                        startAdornment: '$',
+                                        startAdornment: currencySymbol,
                                     }}
                                 />
                             </TableCell>

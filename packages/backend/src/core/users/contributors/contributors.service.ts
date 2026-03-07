@@ -78,7 +78,8 @@ export class ContributorsService {
         role: true,
         contributor_job_roles: {
           include: {
-            job_role: true
+            job_role: true,
+            payment_bracket: true
           }
         }
       },
@@ -93,7 +94,8 @@ export class ContributorsService {
         role: true,
         contributor_job_roles: {
           include: {
-            job_role: true
+            job_role: true,
+            payment_bracket: true
           }
         }
       },
@@ -178,5 +180,142 @@ export class ContributorsService {
       }
       throw error;
     }
+  }
+
+  async addJobRole(contributorId: number, jobRoleId: number) {
+    // Check if contributor exists
+    const contributor = await this.prisma.contributors.findUnique({
+      where: { id: contributorId },
+    });
+    if (!contributor) {
+      throw new NotFoundException(`Contributor with ID ${contributorId} not found`);
+    }
+
+    // Check if job role exists
+    const jobRole = await this.prisma.job_roles.findUnique({
+      where: { id: jobRoleId },
+    });
+    if (!jobRole) {
+      throw new NotFoundException(`Job role with ID ${jobRoleId} not found`);
+    }
+
+    // Check if already assigned
+    const existing = await this.prisma.contributor_job_roles.findUnique({
+      where: {
+        contributor_id_job_role_id: {
+          contributor_id: contributorId,
+          job_role_id: jobRoleId,
+        },
+      },
+    });
+    if (existing) {
+      throw new ConflictException(`Job role is already assigned to this contributor`);
+    }
+
+    // Add the job role
+    await this.prisma.contributor_job_roles.create({
+      data: {
+        contributor_id: contributorId,
+        job_role_id: jobRoleId,
+        is_primary: false, // New roles default to non-primary
+      },
+    });
+
+    // Return updated contributor
+    return this.findOne(contributorId);
+  }
+
+  async removeJobRole(contributorId: number, jobRoleId: number) {
+    // Check if contributor exists
+    const contributor = await this.prisma.contributors.findUnique({
+      where: { id: contributorId },
+    });
+    if (!contributor) {
+      throw new NotFoundException(`Contributor with ID ${contributorId} not found`);
+    }
+
+    // Check if the assignment exists
+    const assignment = await this.prisma.contributor_job_roles.findUnique({
+      where: {
+        contributor_id_job_role_id: {
+          contributor_id: contributorId,
+          job_role_id: jobRoleId,
+        },
+      },
+    });
+    if (!assignment) {
+      throw new NotFoundException(`Job role is not assigned to this contributor`);
+    }
+
+    // If this is the primary role, we need to unset it
+    if (assignment.is_primary) {
+      await this.prisma.contributor_job_roles.update({
+        where: {
+          contributor_id_job_role_id: {
+            contributor_id: contributorId,
+            job_role_id: jobRoleId,
+          },
+        },
+        data: { is_primary: false },
+      });
+    }
+
+    // Delete the assignment
+    await this.prisma.contributor_job_roles.delete({
+      where: {
+        contributor_id_job_role_id: {
+          contributor_id: contributorId,
+          job_role_id: jobRoleId,
+        },
+      },
+    });
+
+    // Return updated contributor
+    return this.findOne(contributorId);
+  }
+
+  async setPrimaryJobRole(contributorId: number, jobRoleId: number) {
+    // Check if contributor exists
+    const contributor = await this.prisma.contributors.findUnique({
+      where: { id: contributorId },
+    });
+    if (!contributor) {
+      throw new NotFoundException(`Contributor with ID ${contributorId} not found`);
+    }
+
+    // Check if the assignment exists
+    const assignment = await this.prisma.contributor_job_roles.findUnique({
+      where: {
+        contributor_id_job_role_id: {
+          contributor_id: contributorId,
+          job_role_id: jobRoleId,
+        },
+      },
+    });
+    if (!assignment) {
+      throw new NotFoundException(`Job role is not assigned to this contributor`);
+    }
+
+    // Unset primary on all other roles for this contributor
+    await this.prisma.contributor_job_roles.updateMany({
+      where: {
+        contributor_id: contributorId,
+      },
+      data: { is_primary: false },
+    });
+
+    // Set this role as primary
+    await this.prisma.contributor_job_roles.update({
+      where: {
+        contributor_id_job_role_id: {
+          contributor_id: contributorId,
+          job_role_id: jobRoleId,
+        },
+      },
+      data: { is_primary: true },
+    });
+
+    // Return updated contributor
+    return this.findOne(contributorId);
   }
 }

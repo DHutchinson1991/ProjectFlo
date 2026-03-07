@@ -9,6 +9,12 @@ import React, {
     useCallback,
     useRef,
 } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import CircularProgress from "@mui/material/CircularProgress";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import { keyframes } from "@mui/system";
 import { authService } from "../../lib/api";
 import {
     UserProfile,
@@ -27,31 +33,158 @@ export function useAuth() {
     return context;
 }
 
+// Fade-in animation
+const fadeIn = keyframes`
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+`;
+
+// Pulse animation for the icon
+const pulse = keyframes`
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+`;
+
+function SessionExpiredOverlay() {
+    const [dots, setDots] = useState("");
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setDots(prev => prev.length >= 3 ? "" : prev + ".");
+        }, 500);
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <Box
+            sx={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 9999,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                bgcolor: "rgba(18, 18, 18, 0.97)",
+                backdropFilter: "blur(8px)",
+                animation: `${fadeIn} 0.3s ease-out`,
+            }}
+        >
+            <Box
+                sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 3,
+                    p: 5,
+                    borderRadius: 3,
+                    bgcolor: "rgba(30, 30, 30, 0.9)",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+                    maxWidth: 400,
+                    textAlign: "center",
+                }}
+            >
+                <Box
+                    sx={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: "50%",
+                        bgcolor: "rgba(144, 202, 249, 0.1)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        animation: `${pulse} 2s ease-in-out infinite`,
+                    }}
+                >
+                    <LockOutlinedIcon sx={{ fontSize: 32, color: "#90caf9" }} />
+                </Box>
+
+                <Box>
+                    <Typography
+                        variant="h6"
+                        sx={{
+                            color: "#ffffff",
+                            fontWeight: 600,
+                            mb: 1,
+                        }}
+                    >
+                        Session Expired
+                    </Typography>
+                    <Typography
+                        variant="body2"
+                        sx={{
+                            color: "rgba(255, 255, 255, 0.6)",
+                            lineHeight: 1.6,
+                        }}
+                    >
+                        Your session has ended for security.
+                        <br />
+                        Redirecting you to sign in{dots}
+                    </Typography>
+                </Box>
+
+                <CircularProgress
+                    size={20}
+                    thickness={5}
+                    sx={{ color: "#90caf9", mt: 1 }}
+                />
+            </Box>
+        </Box>
+    );
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [token, setToken] = useState<string | null>(null);
     const [refreshToken, setRefreshToken] = useState<string | null>(null);
+    const [sessionExpired, setSessionExpired] = useState(false);
     const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const router = useRouter();
+    const pathname = usePathname();
 
     const isAuthenticated = !!user;
 
     const logout = useCallback(() => {
-        // Clear tokens from API service (which also clears localStorage)
         authService.setToken(null);
         authService.setRefreshToken(null);
         localStorage.removeItem("userProfile");
+        localStorage.removeItem("projectflo_session_only_flag");
+        try { sessionStorage.removeItem("projectflo_session_only"); } catch (e) {}
         setToken(null);
         setRefreshToken(null);
         setUser(null);
 
-        // Clear refresh interval
         if (refreshIntervalRef.current) {
             clearInterval(refreshIntervalRef.current);
             refreshIntervalRef.current = null;
         }
-        // Navigation is now handled by ProtectedRoute, which will see the user is gone.
     }, []);
+
+    // Graceful session expiry: show overlay then redirect
+    const handleSessionExpired = useCallback(() => {
+        // Don't show overlay if already on login page
+        if (window.location.pathname === "/login") {
+            logout();
+            return;
+        }
+
+        setSessionExpired(true);
+        logout();
+
+        // Redirect after a brief delay so user sees the message
+        const currentPath = window.location.pathname + window.location.search;
+        const returnTo = currentPath && currentPath !== "/" ? `?returnTo=${encodeURIComponent(currentPath)}` : "";
+        setTimeout(() => {
+            router.push(`/login${returnTo}`);
+            // Clear the overlay after navigation
+            setTimeout(() => setSessionExpired(false), 500);
+        }, 2000);
+    }, [logout, router]);
 
     // Periodic token refresh function
     const startPeriodicRefresh = useCallback(() => {
@@ -59,7 +192,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
             clearInterval(refreshIntervalRef.current);
         }
 
-        // Refresh token every 45 minutes (before the 60-minute expiration)
         refreshIntervalRef.current = setInterval(async () => {
             if (refreshToken) {
                 try {
@@ -68,20 +200,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
                     authService.setRefreshToken(refreshResponse.refresh_token);
                     setToken(refreshResponse.access_token);
                     setRefreshToken(refreshResponse.refresh_token);
-                    console.log('Token refreshed successfully');
                 } catch (error) {
-                    console.error('Periodic token refresh failed:', error);
-                    logout();
+                    console.error('Token refresh failed:', error);
+                    handleSessionExpired();
                 }
             }
-        }, 45 * 60 * 1000); // 45 minutes
-    }, [refreshToken, logout]);
+        }, 45 * 60 * 1000);
+    }, [refreshToken, handleSessionExpired]);
 
     useEffect(() => {
         const initializeAuth = async () => {
-            authService.onUnauthorized(() => logout());
+            authService.onUnauthorized(() => handleSessionExpired());
 
-            // Refresh tokens from localStorage (important for hot reloads)
+            // If session-only login and this is a new browser session,
+            // the sessionStorage flag will be gone — clear tokens
+            const isSessionOnly = localStorage.getItem("projectflo_session_only_flag");
+            if (isSessionOnly && !sessionStorage.getItem("projectflo_session_only")) {
+                authService.setToken(null);
+                authService.setRefreshToken(null);
+                localStorage.removeItem("userProfile");
+                localStorage.removeItem("projectflo_session_only_flag");
+                setIsLoading(false);
+                return;
+            }
+
             authService.refreshToken();
             const storedToken = authService.getToken();
             const storedRefreshToken = authService.getRefreshToken();
@@ -91,7 +233,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 setRefreshToken(storedRefreshToken);
 
                 try {
-                    // Always fetch fresh profile data from API (don't use cached data for display)
                     const profile = await authService.getProfile();
                     const freshUser = {
                         id: profile.id,
@@ -102,14 +243,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
                         role: profile.role,
                     };
 
-                    // Update with fresh data and cache it
                     setUser(freshUser);
                     localStorage.setItem("userProfile", JSON.stringify(freshUser));
-
-                    // Start periodic refresh
                     startPeriodicRefresh();
                 } catch (error) {
-                    console.error("Auth initialization failed, logging out:", error);
+                    console.error("Auth initialization failed:", error);
+                    // Don't show expired overlay on initial load — just clear and redirect
                     logout();
                 }
             }
@@ -118,23 +257,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         initializeAuth();
 
-        // Cleanup interval on unmount
         return () => {
             if (refreshIntervalRef.current) {
                 clearInterval(refreshIntervalRef.current);
             }
         };
-    }, [logout, startPeriodicRefresh]);
+    }, [logout, startPeriodicRefresh, handleSessionExpired]);
 
     const login = async (credentials: LoginCredentials) => {
-        // Let the UI component handle loading states and errors
         const response = await authService.login(credentials);
 
-        // Set tokens using API service (which also saves to localStorage)
         authService.setToken(response.access_token);
         authService.setRefreshToken(response.refresh_token);
 
-        // Ensure consistent user data structure
+        if (!credentials.rememberMe) {
+            sessionStorage.setItem("projectflo_session_only", "true");
+            localStorage.setItem("projectflo_session_only_flag", "true");
+        } else {
+            sessionStorage.removeItem("projectflo_session_only");
+            localStorage.removeItem("projectflo_session_only_flag");
+        }
+
         const userData = {
             id: response.user.id,
             email: response.user.email,
@@ -147,11 +290,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         localStorage.setItem("userProfile", JSON.stringify(userData));
         setToken(response.access_token);
         setRefreshToken(response.refresh_token);
-
-        // Update state. The LoginPage will see this change and redirect.
         setUser(userData);
-
-        // Start periodic refresh
+        setSessionExpired(false);
         startPeriodicRefresh();
     };
 
@@ -171,7 +311,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             localStorage.setItem("userProfile", JSON.stringify(userData));
         } catch (error) {
             console.error("Auth refresh failed:", error);
-            logout();
+            handleSessionExpired();
         }
     };
 
@@ -185,5 +325,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         token,
     };
 
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+    return (
+        <AuthContext.Provider value={value}>
+            {sessionExpired && <SessionExpiredOverlay />}
+            {children}
+        </AuthContext.Provider>
+    );
 }

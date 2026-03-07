@@ -15,7 +15,7 @@ class ProjectApiService {
         }
 
         // Add brand context header if brand exists
-        const brandId = localStorage.getItem('selectedBrandId');
+        const brandId = localStorage.getItem('projectflo_current_brand');
         if (brandId) {
             headers['X-Brand-Context'] = brandId;
         }

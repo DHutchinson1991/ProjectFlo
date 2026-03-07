@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { authService } from "@/lib/api";
 
 export default function HomePage() {
@@ -53,29 +53,121 @@ export default function HomePage() {
   }, [router]);
 
   // Show loading spinner while checking authentication
-  if (isChecking) {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100vh",
-          gap: 2,
-        }}
-      >
-        <CircularProgress size={40} />
-        <Typography variant="h6" color="text.secondary">
-          ProjectFlo Wedding Videos
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Loading...
-        </Typography>
-      </Box>
-    );
-  }
+  return (
+    <>
+      {/* Glassmorphic overlay spinner */}
+      {isChecking && (
+        <Box
+          sx={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 3,
+            background: "rgba(10, 10, 15, 0.6)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            zIndex: 9999,
+            animation: "fadeIn 0.3s ease-in-out",
+            "@keyframes fadeIn": {
+              "0%": { opacity: 0 },
+              "100%": { opacity: 1 },
+            },
+          }}
+        >
+          {/* Unique ProjectFlo Spinner */}
+          <Box
+            sx={{
+              position: "relative",
+              width: 80,
+              height: 80,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {/* Outer rotating ring */}
+            <Box
+              sx={{
+                position: "absolute",
+                width: 80,
+                height: 80,
+                border: "3px solid transparent",
+                borderTop: "3px solid #3b82f6",
+                borderRight: "3px solid #3b82f6",
+                borderRadius: "50%",
+                animation: "spin 2s linear infinite",
+                "@keyframes spin": {
+                  "0%": { transform: "rotate(0deg)" },
+                  "100%": { transform: "rotate(360deg)" },
+                },
+              }}
+            />
+            {/* Inner counter-rotating ring */}
+            <Box
+              sx={{
+                position: "absolute",
+                width: 60,
+                height: 60,
+                border: "2px solid transparent",
+                borderBottom: "2px solid #10b981",
+                borderLeft: "2px solid #10b981",
+                borderRadius: "50%",
+                animation: "spinReverse 3s linear infinite",
+                "@keyframes spinReverse": {
+                  "0%": { transform: "rotate(360deg)" },
+                  "100%": { transform: "rotate(0deg)" },
+                },
+              }}
+            />
+            {/* Center dot */}
+            <Box
+              sx={{
+                position: "absolute",
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#3b82f6",
+                zIndex: 1,
+              }}
+            />
+          </Box>
 
-  // This should never be reached since we redirect, but just in case
-  return null;
+          {/* ProjectFlo text */}
+          <Typography 
+            variant="h6" 
+            sx={{
+              fontWeight: 600,
+              letterSpacing: 2,
+              color: "#ffffff",
+              fontSize: "0.95rem",
+            }}
+          >
+            ProjectFlo
+          </Typography>
+
+          {/* Loading text */}
+          <Typography 
+            variant="body2" 
+            sx={{
+              color: "#9ca3af",
+              fontSize: "0.85rem",
+              animation: "pulse 1.5s ease-in-out infinite",
+              "@keyframes pulse": {
+                "0%, 100%": { opacity: 0.6 },
+                "50%": { opacity: 1 },
+              },
+            }}
+          >
+            Loading
+          </Typography>
+        </Box>
+      )}
+    </>
+  );
 }

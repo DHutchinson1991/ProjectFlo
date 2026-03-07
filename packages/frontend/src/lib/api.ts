@@ -22,6 +22,7 @@ import {
 
   // Brand domain
   Brand,
+  BrandSetting,
   UserBrand,
 
   // Sales domain
@@ -83,6 +84,29 @@ import {
   TaskLibraryByPhase,
   BatchUpdateTaskOrderDto,
   TaskOrderUpdateDto,
+  TaskAutoGenerationPreview,
+  ExecuteAutoGenerationResult,
+  ExecuteAutoGenerationDto,
+
+  // Workflow Management domain
+  WorkflowTemplate,
+  WorkflowStage,
+  TaskGenerationRule,
+  WorkflowTaskPreview,
+  WorkflowTemplateTask,
+  TemplateTasksResponse,
+  ToggleTaskResponse,
+  CreateWorkflowTemplateDto,
+  UpdateWorkflowTemplateDto,
+  AddTaskToTemplateDto,
+  SyncTemplateTasksDto,
+  UpdateTemplateTaskDto,
+  CreateWorkflowStageDto,
+  UpdateWorkflowStageDto,
+  ReorderStagesDto,
+  CreateTaskGenerationRuleDto,
+  UpdateTaskGenerationRuleDto,
+  WorkflowQueryParams,
 
   // Equipment Management domain
   Equipment,
@@ -101,6 +125,25 @@ import {
   JobRole,
   CreateJobRoleData,
   UpdateJobRoleData,
+
+  // Payment Brackets domain
+  PaymentBracket,
+  PaymentBracketsByRole,
+  EffectiveRate,
+  ContributorBracketAssignment,
+  CreatePaymentBracketData,
+  UpdatePaymentBracketData,
+  AssignBracketData,
+
+  // Skill-Role Mappings domain
+  SkillRoleMapping,
+  SkillRoleMappingSummary,
+  AvailableSkill,
+  ResolvedRoleResult,
+  CreateSkillRoleMappingData,
+  UpdateSkillRoleMappingData,
+  BulkCreateSkillRoleMappingData,
+  ResolveSkillRoleData,
 
   // Subjects domain
   SubjectsLibrary,
@@ -364,15 +407,18 @@ class BaseApiClient {
         throw new Error("Authentication failed. Please log in again.");
       }
 
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
       try {
         const errorData = await response.json();
-        throw new Error(
-          errorData.message ||
-          `HTTP ${response.status}: ${response.statusText}`,
-        );
+        if (errorData.message) {
+          errorMessage = Array.isArray(errorData.message)
+            ? errorData.message.join(', ')
+            : errorData.message;
+        }
       } catch {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        // ignore JSON parse failure, use default message
       }
+      throw new Error(errorMessage);
     }
 
     const contentType = response.headers.get("content-type");
@@ -472,6 +518,21 @@ class ApiService extends BaseApiClient {
       return mapContributorResponse(apiResponse);
     },
     delete: (id: number): Promise<void> => this.delete(`/contributors/${id}`),
+    // Job role management methods
+    addJobRole: async (id: number, jobRoleId: number): Promise<Contributor> => {
+      const apiResponse: ContributorApiResponse = await this.post(`/contributors/${id}/job-roles`, {
+        job_role_id: jobRoleId,
+      });
+      return mapContributorResponse(apiResponse);
+    },
+    removeJobRole: async (id: number, jobRoleId: number): Promise<Contributor> => {
+      const apiResponse: ContributorApiResponse = await this.delete(`/contributors/${id}/job-roles/${jobRoleId}`);
+      return mapContributorResponse(apiResponse);
+    },
+    setPrimaryJobRole: async (id: number, jobRoleId: number): Promise<Contributor> => {
+      const apiResponse: ContributorApiResponse = await this.put(`/contributors/${id}/job-roles/${jobRoleId}/primary`, {});
+      return mapContributorResponse(apiResponse);
+    },
   };
 
   // Job Roles methods (global)
@@ -481,7 +542,7 @@ class ApiService extends BaseApiClient {
     create: (data: CreateJobRoleData): Promise<JobRole> =>
       this.post("/job-roles", data, { skipBrandContext: true }),
     update: (id: number, data: UpdateJobRoleData): Promise<JobRole> =>
-      this.patch(`/job-roles/${id}`, data, { skipBrandContext: true }),
+      this.put(`/job-roles/${id}`, data, { skipBrandContext: true }),
     delete: (id: number): Promise<void> =>
       this.delete(`/job-roles/${id}`, { skipBrandContext: true }),
     getContributorAssignments: (contributorId: number): Promise<Array<{
@@ -495,6 +556,62 @@ class ApiService extends BaseApiClient {
       assigned_by_user: unknown | null;
     }>> =>
       this.get(`/job-roles/contributor/${contributorId}/assignments`, { skipBrandContext: true }),
+  };
+
+  // Payment Brackets methods (global, not brand-scoped)
+  paymentBrackets = {
+    getAll: (includeInactive = false): Promise<PaymentBracket[]> =>
+      this.get(`/payment-brackets${includeInactive ? "?include_inactive=true" : ""}`, { skipBrandContext: true }),
+    getByRole: (brandId?: number): Promise<PaymentBracketsByRole> =>
+      this.get(`/payment-brackets/by-role${brandId ? `?brandId=${brandId}` : ''}`, { skipBrandContext: true }),
+    getByJobRole: (jobRoleId: number, includeInactive = false): Promise<PaymentBracket[]> =>
+      this.get(`/payment-brackets/job-role/${jobRoleId}${includeInactive ? "?include_inactive=true" : ""}`, { skipBrandContext: true }),
+    getById: (id: number): Promise<PaymentBracket> =>
+      this.get(`/payment-brackets/${id}`, { skipBrandContext: true }),
+    create: (data: CreatePaymentBracketData): Promise<PaymentBracket> =>
+      this.post("/payment-brackets", data, { skipBrandContext: true }),
+    update: (id: number, data: UpdatePaymentBracketData): Promise<PaymentBracket> =>
+      this.put(`/payment-brackets/${id}`, data, { skipBrandContext: true }),
+    delete: (id: number): Promise<void> =>
+      this.delete(`/payment-brackets/${id}`, { skipBrandContext: true }),
+    assign: (data: AssignBracketData): Promise<ContributorBracketAssignment> =>
+      this.post("/payment-brackets/assign", data, { skipBrandContext: true }),
+    unassign: (contributorId: number, jobRoleId: number): Promise<ContributorBracketAssignment> =>
+      this.delete(`/payment-brackets/contributor/${contributorId}/job-role/${jobRoleId}`, { skipBrandContext: true }),
+    toggleUnmanned: (contributorId: number, jobRoleId: number, isUnmanned: boolean): Promise<ContributorBracketAssignment> =>
+      this.patch(`/payment-brackets/contributor/${contributorId}/job-role/${jobRoleId}/unmanned`, { is_unmanned: isUnmanned }, { skipBrandContext: true }),
+    getContributorBrackets: (contributorId: number): Promise<ContributorBracketAssignment[]> =>
+      this.get(`/payment-brackets/contributor/${contributorId}`, { skipBrandContext: true }),
+    getEffectiveRate: (contributorId: number, jobRoleId: number): Promise<EffectiveRate> =>
+      this.get(`/payment-brackets/effective-rate/${contributorId}/${jobRoleId}`, { skipBrandContext: true }),
+  };
+
+  // Skill-Role Mappings methods
+  skillRoleMappings = {
+    getAll: (params?: { brandId?: number; jobRoleId?: number; skill?: string }): Promise<SkillRoleMapping[]> => {
+      const qs = new URLSearchParams();
+      if (params?.brandId) qs.set("brandId", String(params.brandId));
+      if (params?.jobRoleId) qs.set("jobRoleId", String(params.jobRoleId));
+      if (params?.skill) qs.set("skill", params.skill);
+      const query = qs.toString();
+      return this.get(`/skill-role-mappings${query ? `?${query}` : ""}`);
+    },
+    getById: (id: number): Promise<SkillRoleMapping> =>
+      this.get(`/skill-role-mappings/${id}`),
+    getSummary: (brandId?: number): Promise<SkillRoleMappingSummary> =>
+      this.get(`/skill-role-mappings/summary${brandId ? `?brandId=${brandId}` : ""}`),
+    getAvailableSkills: (brandId?: number): Promise<AvailableSkill[]> =>
+      this.get(`/skill-role-mappings/skills${brandId ? `?brandId=${brandId}` : ""}`),
+    create: (data: CreateSkillRoleMappingData): Promise<SkillRoleMapping> =>
+      this.post("/skill-role-mappings", data),
+    bulkCreate: (data: BulkCreateSkillRoleMappingData): Promise<{ created: number; skipped: number; errors: string[] }> =>
+      this.post("/skill-role-mappings/bulk", data),
+    update: (id: number, data: UpdateSkillRoleMappingData): Promise<SkillRoleMapping> =>
+      this.put(`/skill-role-mappings/${id}`, data),
+    delete: (id: number): Promise<void> =>
+      this.delete(`/skill-role-mappings/${id}`),
+    resolve: (data: ResolveSkillRoleData): Promise<ResolvedRoleResult | null> =>
+      this.post("/skill-role-mappings/resolve", data),
   };
 
   // Subjects methods (library-based with optional brand context)
@@ -547,6 +664,32 @@ class ApiService extends BaseApiClient {
     // Remove subject from moment
     removeFromMoment: (momentId: number, subjectId: number): Promise<void> =>
       this.delete(`/subjects/moments/${momentId}/subjects/${subjectId}`),
+
+    // ===== Subject Type Template Management =====
+
+    // Get all type templates for a brand
+    getTypeTemplates: (brandId: number): Promise<any[]> =>
+      this.get(`/subjects/type-templates/brand/${brandId}`),
+
+    // Create a new type template for a brand
+    createTypeTemplate: (brandId: number, data: { name: string; description?: string; category: string }): Promise<any> =>
+      this.post(`/subjects/type-templates/brand/${brandId}`, data),
+
+    // Update a type template
+    updateTypeTemplate: (templateId: number, data: { name?: string; description?: string; category?: string; is_active?: boolean }): Promise<any> =>
+      this.patch(`/subjects/type-templates/${templateId}`, data),
+
+    // Delete a type template
+    deleteTypeTemplate: (templateId: number): Promise<void> =>
+      this.delete(`/subjects/type-templates/${templateId}`),
+
+    // Add a role to a type template
+    addRoleToTemplate: (templateId: number, data: { role_name: string; description?: string; is_core?: boolean }): Promise<any> =>
+      this.post(`/subjects/type-templates/${templateId}/roles`, data),
+
+    // Remove a role from a type template
+    removeRoleFromTemplate: (roleId: number): Promise<void> =>
+      this.delete(`/subjects/type-templates/roles/${roleId}`),
   };
 
   // Film location assignments
@@ -833,6 +976,15 @@ class ApiService extends BaseApiClient {
       this.get(`/brands/users/${userId}/brands`, { skipBrandContext: true }),
     getBrandContext: (brandId: number, userId: number) =>
       this.get(`/brands/${brandId}/context/users/${userId}`, { skipBrandContext: true }),
+    // Brand Settings
+    getSettings: (brandId: number, category?: string): Promise<BrandSetting[]> =>
+      this.get(`/brands/${brandId}/settings${category ? `?category=${category}` : ""}`, { skipBrandContext: true }),
+    getSetting: (brandId: number, key: string): Promise<BrandSetting> =>
+      this.get(`/brands/${brandId}/settings/${key}`, { skipBrandContext: true }),
+    createSetting: (brandId: number, data: { key: string; value: string; data_type?: string; category?: string; description?: string }): Promise<BrandSetting> =>
+      this.post(`/brands/${brandId}/settings`, data, { skipBrandContext: true }),
+    updateSetting: (brandId: number, key: string, data: { value?: string; description?: string; is_active?: boolean }): Promise<BrandSetting> =>
+      this.patch(`/brands/${brandId}/settings/${key}`, data, { skipBrandContext: true }),
   };
 
   // Task Library methods (brand-specific)
@@ -880,6 +1032,53 @@ class ApiService extends BaseApiClient {
         this.patch(`/task-library/skill-rates/${id}`, data),
       delete: (id: number): Promise<void> =>
         this.delete(`/task-library/skill-rates/${id}`),
+    },
+
+    // Auto-generation preview for packages
+    previewAutoGeneration: (packageId: number, brandId: number): Promise<TaskAutoGenerationPreview> =>
+      this.get(`/task-library/auto-generate/preview/${packageId}?brandId=${brandId}`),
+
+    // Execute auto-generation: create real project tasks
+    executeAutoGeneration: (dto: ExecuteAutoGenerationDto): Promise<ExecuteAutoGenerationResult> =>
+      this.post('/task-library/auto-generate/execute', dto),
+  };
+
+  // Workflow Management methods (brand-specific)
+  workflows = {
+    // Workflow Templates
+    getAll: (query?: WorkflowQueryParams): Promise<WorkflowTemplate[]> => {
+      const params = new URLSearchParams();
+      if (query?.brandId) params.append("brandId", query.brandId.toString());
+      if (query?.is_active !== undefined) params.append("is_active", query.is_active.toString());
+      if (query?.is_default !== undefined) params.append("is_default", query.is_default.toString());
+      const queryString = params.toString();
+      return this.get(`/workflows${queryString ? `?${queryString}` : ""}`);
+    },
+    getById: (id: number): Promise<WorkflowTemplate> =>
+      this.get(`/workflows/${id}`),
+    create: (data: CreateWorkflowTemplateDto): Promise<WorkflowTemplate> =>
+      this.post("/workflows", data),
+    update: (id: number, data: UpdateWorkflowTemplateDto): Promise<WorkflowTemplate> =>
+      this.patch(`/workflows/${id}`, data),
+    delete: (id: number): Promise<void> =>
+      this.delete(`/workflows/${id}`),
+    preview: (id: number): Promise<WorkflowTaskPreview> =>
+      this.get(`/workflows/${id}/preview`),
+
+    // Template Tasks (preset task selections)
+    templateTasks: {
+      getAll: (templateId: number): Promise<TemplateTasksResponse> =>
+        this.get(`/workflows/${templateId}/tasks`),
+      add: (templateId: number, data: AddTaskToTemplateDto): Promise<WorkflowTemplateTask> =>
+        this.post(`/workflows/${templateId}/tasks`, data),
+      sync: (templateId: number, data: SyncTemplateTasksDto): Promise<TemplateTasksResponse> =>
+        this.post(`/workflows/${templateId}/tasks/sync`, data),
+      toggle: (templateId: number, taskLibraryId: number): Promise<ToggleTaskResponse> =>
+        this.post(`/workflows/${templateId}/tasks/toggle`, { task_library_id: taskLibraryId }),
+      update: (templateTaskId: number, data: UpdateTemplateTaskDto): Promise<WorkflowTemplateTask> =>
+        this.patch(`/workflows/tasks/${templateTaskId}`, data),
+      remove: (templateTaskId: number): Promise<void> =>
+        this.delete(`/workflows/tasks/${templateTaskId}`),
     },
   };
 
@@ -929,6 +1128,14 @@ class ApiService extends BaseApiClient {
       const queryString = params.toString();
       return this.get(`/equipment/available${queryString ? `?${queryString}` : ""}`);
     },
+
+    // Equipment unmanned status methods
+    findUnmanned: (brandId: number): Promise<Equipment[]> => {
+      const url = this.addBrandContextToUrl(`/equipment/unmanned/${brandId}`);
+      return this.get(url);
+    },
+    setUnmannedStatus: (equipmentId: number, isUnmanned: boolean): Promise<Equipment> =>
+      this.patch(`/equipment/${equipmentId}/unmanned`, { isUnmanned }),
 
     // Equipment rental methods
     rentals: {
@@ -1145,6 +1352,31 @@ class ApiService extends BaseApiClient {
      delete: (brandId: number, id: number): Promise<void> => this.delete(`/brands/${brandId}/package-categories/${id}`),
   };
 
+  // ─── Package Sets ────────────────────────────────────────────────────
+
+  packageSets = {
+    getAll: (brandId: number): Promise<any[]> => this.get(`/package-sets/${brandId}`),
+    getOne: (brandId: number, id: number): Promise<any> => this.get(`/package-sets/${brandId}/${id}`),
+    create: (brandId: number, data: { name: string; description?: string; emoji?: string; category_id?: number; tier_labels?: string[] }): Promise<any> =>
+      this.post(`/package-sets/${brandId}`, data),
+    update: (brandId: number, id: number, data: { name?: string; description?: string; emoji?: string; category_id?: number; order_index?: number }): Promise<any> =>
+      this.patch(`/package-sets/${brandId}/${id}`, data),
+    delete: (brandId: number, id: number): Promise<void> => this.delete(`/package-sets/${brandId}/${id}`),
+    // Slot operations
+    addSlot: (brandId: number, setId: number, slotLabel?: string): Promise<any> =>
+      this.post(`/package-sets/${brandId}/${setId}/slots`, { slot_label: slotLabel }),
+    updateSlot: (brandId: number, slotId: number, data: { slot_label?: string; service_package_id?: number | null; order_index?: number }): Promise<any> =>
+      this.patch(`/package-sets/${brandId}/slots/${slotId}`, data),
+    assignPackage: (brandId: number, slotId: number, servicePackageId: number): Promise<any> =>
+      this.patch(`/package-sets/${brandId}/slots/${slotId}/assign`, { service_package_id: servicePackageId }),
+    clearSlot: (brandId: number, slotId: number): Promise<any> =>
+      this.patch(`/package-sets/${brandId}/slots/${slotId}/clear`, {}),
+    removeSlot: (brandId: number, slotId: number): Promise<void> =>
+      this.delete(`/package-sets/${brandId}/slots/${slotId}`),
+    reorderSlots: (brandId: number, setId: number, slotIds: number[]): Promise<any> =>
+      this.patch(`/package-sets/${brandId}/${setId}/reorder-slots`, { slot_ids: slotIds }),
+  };
+
   // ─── Wedding Types System ────────────────────────────────────────────
 
   weddingTypes = {
@@ -1156,44 +1388,134 @@ class ApiService extends BaseApiClient {
       this.post(`/wedding-types/${weddingTypeId}/create-package?brandId=${brandId}`, data),
   };
 
-  // ─── Operators System ────────────────────────────────────────────────
+  // ─── Event Types System ────────────────────────────────────────────
+
+  eventTypes = {
+    getAll: (): Promise<any[]> => this.get('/event-types'),
+    getById: (id: number): Promise<any> => this.get(`/event-types/${id}`),
+    create: (data: {
+      name: string;
+      description?: string;
+      icon?: string;
+      color?: string;
+      default_duration_hours?: number;
+      default_start_time?: string;
+      typical_guest_count?: number;
+      order_index?: number;
+    }): Promise<any> => this.post('/event-types', data),
+    update: (id: number, data: {
+      name?: string;
+      description?: string;
+      icon?: string;
+      color?: string;
+      default_duration_hours?: number;
+      default_start_time?: string;
+      typical_guest_count?: number;
+      is_active?: boolean;
+      order_index?: number;
+    }): Promise<any> => this.patch(`/event-types/${id}`, data),
+    remove: (id: number): Promise<void> => this.delete(`/event-types/${id}`),
+
+    // Event day links
+    linkEventDay: (eventTypeId: number, data: {
+      event_day_template_id: number;
+      order_index?: number;
+      is_default?: boolean;
+    }): Promise<any> => this.post(`/event-types/${eventTypeId}/event-days`, data),
+    unlinkEventDay: (eventTypeId: number, dayTemplateId: number): Promise<void> =>
+      this.delete(`/event-types/${eventTypeId}/event-days/${dayTemplateId}`),
+
+    // Subject type links
+    linkSubjectType: (eventTypeId: number, data: {
+      subject_type_template_id: number;
+      order_index?: number;
+      is_default?: boolean;
+    }): Promise<any> => this.post(`/event-types/${eventTypeId}/subject-types`, data),
+    unlinkSubjectType: (eventTypeId: number, subjectTypeTemplateId: number): Promise<void> =>
+      this.delete(`/event-types/${eventTypeId}/subject-types/${subjectTypeTemplateId}`),
+
+    // Package creation from wizard
+    createPackageFromWizard: (eventTypeId: number, data: {
+      packageName: string;
+      packageDescription?: string;
+      selectedDayIds: number[];
+      selectedActivities: { presetId: number; startTime?: string; durationMinutes?: number }[];
+      customActivities: {
+        name: string;
+        dayTemplateId: number;
+        startTime?: string;
+        durationMinutes?: number;
+        moments: { name: string; isKeyMoment: boolean }[];
+      }[];
+      selectedMomentIds: number[];
+      momentKeyOverrides: { momentId: number; isKey: boolean }[];
+      selectedRoleIds: number[];
+      locationCount: number;
+      crewAssignments: { contributorId: number; jobRoleId: number; positionName: string; positionColor?: string }[];
+      equipmentSlots: { equipmentId: number; slotLabel: string; slotType: string }[];
+    }): Promise<any> => this.post(`/event-types/${eventTypeId}/create-package`, data),
+  };
+
+  // ─── Crew System ──────────────────────────────────────────────────
+
+  crew = {
+    // Crew members (brand-scoped)
+    getByBrand: (brandId: number): Promise<any[]> =>
+      this.get(`/crew/brand/${brandId}`),
+    getAllContributors: (brandId: number): Promise<any[]> =>
+      this.get(`/crew/brand/${brandId}/all-contributors`),
+    getByJobRole: (brandId: number, jobRoleId: number): Promise<any[]> =>
+      this.get(`/crew/brand/${brandId}/by-role/${jobRoleId}`),
+    getWorkload: (brandId: number): Promise<any[]> =>
+      this.get(`/crew/brand/${brandId}/workload`),
+    getById: (id: number): Promise<any> =>
+      this.get(`/crew/${id}`),
+    setCrewStatus: (id: number, data: { is_crew: boolean; crew_color?: string | null; bio?: string | null }): Promise<any> =>
+      this.patch(`/crew/${id}/crew-status`, data),
+    updateProfile: (id: number, data: { crew_color?: string | null; bio?: string | null; default_hourly_rate?: number }): Promise<any> =>
+      this.patch(`/crew/${id}/profile`, data),
+  };
+
+  // ─── Operators System (Package Crew Slots) ───────────────────────────
 
   operators = {
-    // Operator Templates (brand-level)
-    templates: {
-      getAll: (brandId: number): Promise<any[]> =>
-        this.get(`/operators/templates/brand/${brandId}`),
-      getById: (templateId: number): Promise<any> =>
-        this.get(`/operators/templates/${templateId}`),
-      create: (brandId: number, data: { name: string; role?: string; color?: string }): Promise<any> =>
-        this.post(`/operators/templates/brand/${brandId}`, data),
-      update: (templateId: number, data: { name?: string; role?: string | null; color?: string | null; is_active?: boolean; order_index?: number }): Promise<any> =>
-        this.patch(`/operators/templates/${templateId}`, data),
-      delete: (templateId: number): Promise<void> =>
-        this.delete(`/operators/templates/${templateId}`),
-      addEquipment: (templateId: number, data: { equipment_id: number; is_primary?: boolean }): Promise<any> =>
-        this.post(`/operators/templates/${templateId}/equipment`, data),
-      removeEquipment: (templateEquipmentId: number): Promise<void> =>
-        this.delete(`/operators/templates/equipment/${templateEquipmentId}`),
-    },
-
-    // Package Day Operators
+    // Package crew slots (assign crew to package event days)
     packageDay: {
       getAll: (packageId: number, dayId?: number): Promise<any[]> =>
         this.get(`/operators/packages/${packageId}${dayId ? `?dayId=${dayId}` : ''}`),
-      add: (packageId: number, data: { event_day_template_id: number; operator_template_id: number; hours?: number; notes?: string; package_activity_id?: number | null }): Promise<any> =>
+      add: (packageId: number, data: {
+        event_day_template_id: number;
+        position_name: string;
+        position_color?: string | null;
+        contributor_id?: number | null;
+        job_role_id?: number | null;
+        hours?: number;
+        notes?: string;
+        package_activity_id?: number | null;
+      }): Promise<any> =>
         this.post(`/operators/packages/${packageId}`, data),
-      update: (operatorId: number, data: { hours?: number; notes?: string | null; order_index?: number; package_activity_id?: number | null }): Promise<any> =>
-        this.patch(`/operators/packages/day-operators/${operatorId}`, data),
-      remove: (operatorId: number): Promise<void> =>
-        this.delete(`/operators/packages/day-operators/${operatorId}`),
-      setEquipment: (operatorId: number, equipment: { equipment_id: number; is_primary: boolean }[]): Promise<any> =>
-        this.post(`/operators/packages/day-operators/${operatorId}/equipment`, { equipment }),
+      update: (slotId: number, data: {
+        position_name?: string;
+        position_color?: string | null;
+        contributor_id?: number | null;
+        job_role_id?: number | null;
+        hours?: number;
+        notes?: string | null;
+        order_index?: number;
+        package_activity_id?: number | null;
+      }): Promise<any> =>
+        this.patch(`/operators/packages/day-operators/${slotId}`, data),
+      assign: (slotId: number, contributorId: number | null): Promise<any> =>
+        this.patch(`/operators/packages/day-operators/${slotId}/assign`, { contributor_id: contributorId }),
+      remove: (slotId: number): Promise<void> =>
+        this.delete(`/operators/packages/day-operators/${slotId}`),
+      setEquipment: (slotId: number, equipment: { equipment_id: number; is_primary: boolean }[]): Promise<any> =>
+        this.post(`/operators/packages/day-operators/${slotId}/equipment`, { equipment }),
       // Multi-activity assignments
-      assignActivity: (operatorId: number, activityId: number): Promise<any> =>
-        this.post(`/operators/packages/day-operators/${operatorId}/activities/${activityId}`, {}),
-      unassignActivity: (operatorId: number, activityId: number): Promise<any> =>
-        this.delete(`/operators/packages/day-operators/${operatorId}/activities/${activityId}`),
+      assignActivity: (slotId: number, activityId: number): Promise<any> =>
+        this.post(`/operators/packages/day-operators/${slotId}/activities/${activityId}`, {}),
+      unassignActivity: (slotId: number, activityId: number): Promise<any> =>
+        this.delete(`/operators/packages/day-operators/${slotId}/activities/${activityId}`),
     },
   };
 
@@ -1222,6 +1544,33 @@ class ApiService extends BaseApiClient {
         this.patch(`/schedule/event-days/${id}/brand/${brandId}`, data),
       delete: (brandId: number, id: number): Promise<void> =>
         this.delete(`/schedule/event-days/${id}/brand/${brandId}`),
+    },
+
+    // Event Day Activity Presets (per event day template)
+    activityPresets: {
+      getAll: (eventDayTemplateId: number): Promise<any[]> =>
+        this.get(`/schedule/event-days/${eventDayTemplateId}/activity-presets`),
+      create: (eventDayTemplateId: number, data: { name: string; color?: string; icon?: string; default_duration_minutes?: number; order_index?: number }): Promise<any> =>
+        this.post(`/schedule/event-days/${eventDayTemplateId}/activity-presets`, data),
+      bulkCreate: (eventDayTemplateId: number, presets: { name: string; color?: string; order_index?: number }[]): Promise<any> =>
+        this.post(`/schedule/event-days/${eventDayTemplateId}/activity-presets/bulk`, { presets }),
+      update: (presetId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/activity-presets/${presetId}`, data),
+      delete: (presetId: number): Promise<void> =>
+        this.delete(`/schedule/activity-presets/${presetId}`),
+    },
+
+    presetMoments: {
+      getAll: (presetId: number): Promise<any[]> =>
+        this.get(`/schedule/activity-presets/${presetId}/moments`),
+      create: (presetId: number, data: { name: string; duration_seconds?: number; order_index?: number; is_key_moment?: boolean }): Promise<any> =>
+        this.post(`/schedule/activity-presets/${presetId}/moments`, data),
+      bulkCreate: (presetId: number, moments: { name: string; duration_seconds?: number; order_index?: number; is_key_moment?: boolean }[]): Promise<any> =>
+        this.post(`/schedule/activity-presets/${presetId}/moments/bulk`, { moments }),
+      update: (momentId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/preset-moments/${momentId}`, data),
+      delete: (momentId: number): Promise<void> =>
+        this.delete(`/schedule/preset-moments/${momentId}`),
     },
 
     // Film-level schedules
@@ -1725,6 +2074,7 @@ export const filmsService = api.films;
 export const editingStylesService = api.editingStyles;
 export const timelineService = api.timeline;
 export const taskLibraryService = api.taskLibrary;
+export const workflowsService = api.workflows;
 export const locationsService = api.locations;
 
 // Export the main instance as default

@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { TaskLibraryService } from './task-library.service';
-import { CreateTaskLibraryDto, UpdateTaskLibraryDto, TaskLibraryQueryDto, ProjectPhase, BatchUpdateTaskOrderDto } from './dto/task-library.dto';
+import { CreateTaskLibraryDto, UpdateTaskLibraryDto, TaskLibraryQueryDto, ProjectPhase, BatchUpdateTaskOrderDto, ExecuteAutoGenerationDto } from './dto/task-library.dto';
 
 interface RequestUser {
     id: number;
@@ -70,6 +70,23 @@ export class TaskLibraryController {
             console.error('🚨 Controller Debug - Error in batch update:', error);
             throw error;
         }
+    }
+
+    @Get('auto-generate/preview/:packageId')
+    previewAutoGeneration(
+        @Param('packageId', ParseIntPipe) packageId: number,
+        @Query('brandId', ParseIntPipe) brandId: number,
+        @Request() req: AuthenticatedRequest,
+    ) {
+        return this.taskLibraryService.previewAutoGeneration(packageId, brandId, req.user.id);
+    }
+
+    @Post('auto-generate/execute')
+    executeAutoGeneration(
+        @Body(ValidationPipe) dto: ExecuteAutoGenerationDto,
+        @Request() req: AuthenticatedRequest,
+    ) {
+        return this.taskLibraryService.executeAutoGeneration(dto, req.user.id);
     }
 
     @Get(':id')

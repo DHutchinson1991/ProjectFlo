@@ -128,6 +128,8 @@ async function main(): Promise<SeedSummary> {
                 default_hourly_rate: 50.0,
                 password_hash: adminPassword,
                 contributor_type: "Internal",
+                is_crew: true,
+                crew_color: "#7C3AED",
             },
             create: {
                 contact_id: danielContact.id,
@@ -135,6 +137,8 @@ async function main(): Promise<SeedSummary> {
                 default_hourly_rate: 50.0,
                 password_hash: adminPassword,
                 contributor_type: "Internal",
+                is_crew: true,
+                crew_color: "#7C3AED",
             },
         });
 

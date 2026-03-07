@@ -5,57 +5,7 @@ import { OperatorsService } from './operators.service';
 export class OperatorsController {
   constructor(private readonly operatorsService: OperatorsService) {}
 
-  // ─── Operator Templates (brand-level) ────────────────────────────────
-
-  @Get('templates/brand/:brandId')
-  getTemplatesByBrand(@Param('brandId', ParseIntPipe) brandId: number) {
-    return this.operatorsService.getTemplatesByBrand(brandId);
-  }
-
-  @Get('templates/:templateId')
-  getTemplateById(@Param('templateId', ParseIntPipe) templateId: number) {
-    return this.operatorsService.getTemplateById(templateId);
-  }
-
-  @Post('templates/brand/:brandId')
-  createTemplate(
-    @Param('brandId', ParseIntPipe) brandId: number,
-    @Body() dto: { name: string; role?: string; color?: string },
-  ) {
-    return this.operatorsService.createTemplate(brandId, dto);
-  }
-
-  @Patch('templates/:templateId')
-  updateTemplate(
-    @Param('templateId', ParseIntPipe) templateId: number,
-    @Body() dto: { name?: string; role?: string | null; color?: string | null; is_active?: boolean; order_index?: number },
-  ) {
-    return this.operatorsService.updateTemplate(templateId, dto);
-  }
-
-  @Delete('templates/:templateId')
-  deleteTemplate(@Param('templateId', ParseIntPipe) templateId: number) {
-    return this.operatorsService.deleteTemplate(templateId);
-  }
-
-  // ─── Operator Template Equipment ──────────────────────────────────
-
-  @Post('templates/:templateId/equipment')
-  addEquipmentToTemplate(
-    @Param('templateId', ParseIntPipe) templateId: number,
-    @Body() dto: { equipment_id: number; is_primary?: boolean },
-  ) {
-    return this.operatorsService.addEquipmentToTemplate(templateId, dto);
-  }
-
-  @Delete('templates/equipment/:templateEquipmentId')
-  removeEquipmentFromTemplate(
-    @Param('templateEquipmentId', ParseIntPipe) templateEquipmentId: number,
-  ) {
-    return this.operatorsService.removeEquipmentFromTemplate(templateEquipmentId);
-  }
-
-  // ─── Package Day Operators ────────────────────────────────────────
+  // ─── Package Crew Slots ───────────────────────────────────────────
 
   @Get('packages/:packageId')
   getPackageDayOperators(
@@ -69,53 +19,79 @@ export class OperatorsController {
   }
 
   @Post('packages/:packageId')
-  addOperatorToPackageDay(
+  addCrewSlotToPackageDay(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Body() dto: { event_day_template_id: number; operator_template_id: number; hours?: number; notes?: string; package_activity_id?: number | null },
+    @Body() dto: {
+      event_day_template_id: number;
+      position_name: string;
+      position_color?: string | null;
+      contributor_id?: number | null;
+      job_role_id?: number | null;
+      hours?: number;
+      notes?: string;
+      package_activity_id?: number | null;
+    },
   ) {
-    return this.operatorsService.addOperatorToPackageDay(packageId, dto);
+    return this.operatorsService.addCrewSlotToPackageDay(packageId, dto);
   }
 
-  @Patch('packages/day-operators/:operatorId')
-  updatePackageDayOperator(
-    @Param('operatorId', ParseIntPipe) operatorId: number,
-    @Body() dto: { hours?: number; notes?: string | null; order_index?: number; package_activity_id?: number | null },
+  @Patch('packages/day-operators/:slotId')
+  updateCrewSlot(
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Body() dto: {
+      position_name?: string;
+      position_color?: string | null;
+      contributor_id?: number | null;
+      job_role_id?: number | null;
+      hours?: number;
+      notes?: string | null;
+      order_index?: number;
+      package_activity_id?: number | null;
+    },
   ) {
-    return this.operatorsService.updatePackageDayOperator(operatorId, dto);
+    return this.operatorsService.updateCrewSlot(slotId, dto);
   }
 
-  @Delete('packages/day-operators/:operatorId')
-  removeOperatorFromPackageDay(
-    @Param('operatorId', ParseIntPipe) operatorId: number,
+  @Patch('packages/day-operators/:slotId/assign')
+  assignCrewToSlot(
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Body() dto: { contributor_id: number | null },
   ) {
-    return this.operatorsService.removeOperatorFromPackageDay(operatorId);
+    return this.operatorsService.assignCrewToSlot(slotId, dto);
   }
 
-  // ─── Package Day Operator Equipment (overrides) ───────────────────
+  @Delete('packages/day-operators/:slotId')
+  removeCrewSlot(
+    @Param('slotId', ParseIntPipe) slotId: number,
+  ) {
+    return this.operatorsService.removeCrewSlot(slotId);
+  }
 
-  @Post('packages/day-operators/:operatorId/equipment')
-  setOperatorEquipment(
-    @Param('operatorId', ParseIntPipe) operatorId: number,
+  // ─── Crew Slot Equipment ──────────────────────────────────────────
+
+  @Post('packages/day-operators/:slotId/equipment')
+  setSlotEquipment(
+    @Param('slotId', ParseIntPipe) slotId: number,
     @Body() dto: { equipment: { equipment_id: number; is_primary: boolean }[] },
   ) {
-    return this.operatorsService.setOperatorEquipment(operatorId, dto.equipment);
+    return this.operatorsService.setSlotEquipment(slotId, dto.equipment);
   }
 
-  // ─── Operator Activity Assignments (multi-activity) ────────────────
+  // ─── Activity Assignments ─────────────────────────────────────────
 
-  @Post('packages/day-operators/:operatorId/activities/:activityId')
-  assignOperatorToActivity(
-    @Param('operatorId', ParseIntPipe) operatorId: number,
+  @Post('packages/day-operators/:slotId/activities/:activityId')
+  assignSlotToActivity(
+    @Param('slotId', ParseIntPipe) slotId: number,
     @Param('activityId', ParseIntPipe) activityId: number,
   ) {
-    return this.operatorsService.assignOperatorToActivity(operatorId, activityId);
+    return this.operatorsService.assignSlotToActivity(slotId, activityId);
   }
 
-  @Delete('packages/day-operators/:operatorId/activities/:activityId')
-  unassignOperatorFromActivity(
-    @Param('operatorId', ParseIntPipe) operatorId: number,
+  @Delete('packages/day-operators/:slotId/activities/:activityId')
+  unassignSlotFromActivity(
+    @Param('slotId', ParseIntPipe) slotId: number,
     @Param('activityId', ParseIntPipe) activityId: number,
   ) {
-    return this.operatorsService.unassignOperatorFromActivity(operatorId, activityId);
+    return this.operatorsService.unassignSlotFromActivity(slotId, activityId);
   }
 }

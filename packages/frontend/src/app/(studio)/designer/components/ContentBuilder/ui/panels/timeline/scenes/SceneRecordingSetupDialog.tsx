@@ -82,7 +82,12 @@ const SceneRecordingSetupDialog: React.FC<SceneRecordingSetupDialogProps> = ({
         const shouldShow = normalized === "video" || normalized === "audio";
         if (!shouldShow) return track.name;
         const equipmentLabel = getEquipmentLabelForTrackName(track.name, equipmentAssignmentsBySlot);
-        return equipmentLabel ? `${track.name} · ${equipmentLabel}` : track.name;
+        return equipmentLabel ? `${trackNumberOnly(track.name)} · ${equipmentLabel}` : track.name;
+    };
+
+    const trackNumberOnly = (name: string) => {
+        const match = name.match(/^(Camera|Audio)\s+(\d+)$/i);
+        return match ? match[0] : name;
     };
 
     return (

@@ -5,119 +5,11 @@ import { PrismaService } from '../prisma/prisma.service';
 export class OperatorsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ─── Operator Templates (brand-level) ────────────────────────────────
+  // ─── Package Crew Slots ───────────────────────────────────────────
 
-  async getTemplatesByBrand(brandId: number) {
-    return this.prisma.operatorTemplate.findMany({
-      where: { brand_id: brandId, is_active: true },
-      include: {
-        default_equipment: {
-          include: { equipment: true },
-          orderBy: { is_primary: 'desc' },
-        },
-      },
-      orderBy: { order_index: 'asc' },
-    });
-  }
-
-  async getTemplateById(templateId: number) {
-    const template = await this.prisma.operatorTemplate.findUnique({
-      where: { id: templateId },
-      include: {
-        default_equipment: {
-          include: { equipment: true },
-          orderBy: { is_primary: 'desc' },
-        },
-      },
-    });
-    if (!template) throw new NotFoundException('Operator template not found');
-    return template;
-  }
-
-  async createTemplate(
-    brandId: number,
-    dto: { name: string; role?: string; color?: string },
-  ) {
-    const maxOrder = await this.prisma.operatorTemplate.aggregate({
-      where: { brand_id: brandId },
-      _max: { order_index: true },
-    });
-    return this.prisma.operatorTemplate.create({
-      data: {
-        brand_id: brandId,
-        name: dto.name,
-        role: dto.role ?? null,
-        color: dto.color ?? null,
-        order_index: (maxOrder._max.order_index ?? -1) + 1,
-        is_active: true,
-      },
-      include: {
-        default_equipment: { include: { equipment: true } },
-      },
-    });
-  }
-
-  async updateTemplate(
-    templateId: number,
-    dto: { name?: string; role?: string | null; color?: string | null; is_active?: boolean; order_index?: number },
-  ) {
-    const existing = await this.prisma.operatorTemplate.findUnique({ where: { id: templateId } });
-    if (!existing) throw new NotFoundException('Operator template not found');
-
-    return this.prisma.operatorTemplate.update({
-      where: { id: templateId },
-      data: {
-        name: dto.name ?? undefined,
-        role: dto.role !== undefined ? dto.role : undefined,
-        color: dto.color !== undefined ? dto.color : undefined,
-        is_active: typeof dto.is_active === 'boolean' ? dto.is_active : undefined,
-        order_index: dto.order_index ?? undefined,
-      },
-      include: {
-        default_equipment: { include: { equipment: true } },
-      },
-    });
-  }
-
-  async deleteTemplate(templateId: number) {
-    const existing = await this.prisma.operatorTemplate.findUnique({ where: { id: templateId } });
-    if (!existing) throw new NotFoundException('Operator template not found');
-    return this.prisma.operatorTemplate.delete({ where: { id: templateId } });
-  }
-
-  // ─── Operator Template Equipment ──────────────────────────────────
-
-  async addEquipmentToTemplate(
-    templateId: number,
-    dto: { equipment_id: number; is_primary?: boolean },
-  ) {
-    const template = await this.prisma.operatorTemplate.findUnique({ where: { id: templateId } });
-    if (!template) throw new NotFoundException('Operator template not found');
-
-    try {
-      return await this.prisma.operatorTemplateEquipment.create({
-        data: {
-          operator_template_id: templateId,
-          equipment_id: dto.equipment_id,
-          is_primary: dto.is_primary ?? false,
-        },
-        include: { equipment: true },
-      });
-    } catch {
-      throw new ConflictException('This equipment is already assigned to this operator template');
-    }
-  }
-
-  async removeEquipmentFromTemplate(templateEquipmentId: number) {
-    const existing = await this.prisma.operatorTemplateEquipment.findUnique({
-      where: { id: templateEquipmentId },
-    });
-    if (!existing) throw new NotFoundException('Template equipment assignment not found');
-    return this.prisma.operatorTemplateEquipment.delete({ where: { id: templateEquipmentId } });
-  }
-
-  // ─── Package Day Operators ────────────────────────────────────────
-
+  /**
+   * Get all crew slots for a package (optionally filtered by event day)
+   */
   async getPackageDayOperators(packageId: number, eventDayTemplateId?: number) {
     const where: Record<string, unknown> = { package_id: packageId };
     if (eventDayTemplateId) where.event_day_template_id = eventDayTemplateId;
@@ -125,13 +17,45 @@ export class OperatorsService {
     return this.prisma.packageDayOperator.findMany({
       where,
       include: {
-        operator_template: {
+        contributor: {
           include: {
-            default_equipment: { include: { equipment: true } },
+            contact: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                email: true,
+              },
+            },
+            contributor_job_roles: {
+              include: {
+                job_role: {
+                  select: { id: true, name: true, display_name: true },
+                },
+                payment_bracket: {
+                  select: { id: true, name: true, display_name: true, level: true, hourly_rate: true, day_rate: true },
+                },
+              },
+            },
           },
         },
+        job_role: {
+          select: { id: true, name: true, display_name: true, category: true },
+        },
         equipment: {
-          include: { equipment: true },
+          include: { 
+            equipment: {
+              select: {
+                id: true,
+                item_name: true,
+                category: true,
+                type: true,
+                model: true,
+                is_unmanned: true,
+                is_active: true,
+              }
+            }
+          },
         },
         event_day: true,
         package_activity: true,
@@ -141,28 +65,48 @@ export class OperatorsService {
     });
   }
 
-  async addOperatorToPackageDay(
+  /**
+   * Add a crew slot to a package event day.
+   * The slot can be unassigned (contributor_id = null) or assigned to a real crew member.
+   */
+  async addCrewSlotToPackageDay(
     packageId: number,
-    dto: { event_day_template_id: number; operator_template_id: number; hours?: number; notes?: string; package_activity_id?: number | null },
+    dto: {
+      event_day_template_id: number;
+      position_name: string;
+      position_color?: string | null;
+      contributor_id?: number | null;
+      job_role_id?: number | null;
+      hours?: number;
+      notes?: string;
+      package_activity_id?: number | null;
+    },
   ) {
-    // Get the operator template for default equipment
-    const template = await this.prisma.operatorTemplate.findUnique({
-      where: { id: dto.operator_template_id },
-      include: { default_equipment: true },
-    });
-    if (!template) throw new NotFoundException('Operator template not found');
+    // If contributor_id is provided, verify they exist
+    if (dto.contributor_id) {
+      const contributor = await this.prisma.contributors.findUnique({
+        where: { id: dto.contributor_id },
+      });
+      if (!contributor) throw new NotFoundException('Crew member not found');
+    }
 
     const maxOrder = await this.prisma.packageDayOperator.aggregate({
-      where: { package_id: packageId, event_day_template_id: dto.event_day_template_id },
+      where: {
+        package_id: packageId,
+        event_day_template_id: dto.event_day_template_id,
+      },
       _max: { order_index: true },
     });
 
     try {
-      const operator = await this.prisma.packageDayOperator.create({
+      const slot = await this.prisma.packageDayOperator.create({
         data: {
           package_id: packageId,
           event_day_template_id: dto.event_day_template_id,
-          operator_template_id: dto.operator_template_id,
+          position_name: dto.position_name,
+          position_color: dto.position_color ?? null,
+          contributor_id: dto.contributor_id ?? null,
+          job_role_id: dto.job_role_id ?? null,
           hours: dto.hours ?? 8,
           notes: dto.notes ?? null,
           order_index: (maxOrder._max.order_index ?? -1) + 1,
@@ -170,87 +114,107 @@ export class OperatorsService {
         },
       });
 
-      // Auto-populate equipment from template defaults
-      if (template.default_equipment.length > 0) {
-        await this.prisma.packageDayOperatorEquipment.createMany({
-          data: template.default_equipment.map(eq => ({
-            package_day_operator_id: operator.id,
-            equipment_id: eq.equipment_id,
-            is_primary: eq.is_primary,
-          })),
-          skipDuplicates: true,
-        });
-
-      }
-
-      // Re-fetch with all includes
-      return this.prisma.packageDayOperator.findUnique({
-        where: { id: operator.id },
-        include: {
-          operator_template: {
-            include: { default_equipment: { include: { equipment: true } } },
-          },
-          equipment: { include: { equipment: true } },
-          event_day: true,
-          activity_assignments: { include: { package_activity: true } },
-        },
-      });
+      return this.getCrewSlotById(slot.id);
     } catch {
-      throw new ConflictException('This operator is already assigned to this package day');
+      throw new ConflictException('A crew slot with this position name already exists for this package day');
     }
   }
 
-  async updatePackageDayOperator(
-    operatorId: number,
-    dto: { hours?: number; notes?: string | null; order_index?: number; package_activity_id?: number | null },
+  /**
+   * Assign or reassign a crew member to an existing slot
+   */
+  async assignCrewToSlot(
+    slotId: number,
+    dto: { contributor_id: number | null },
   ) {
-    const existing = await this.prisma.packageDayOperator.findUnique({ where: { id: operatorId } });
-    if (!existing) throw new NotFoundException('Package day operator not found');
+    const existing = await this.prisma.packageDayOperator.findUnique({
+      where: { id: slotId },
+    });
+    if (!existing) throw new NotFoundException('Crew slot not found');
 
-    return this.prisma.packageDayOperator.update({
-      where: { id: operatorId },
+    if (dto.contributor_id) {
+      const contributor = await this.prisma.contributors.findUnique({
+        where: { id: dto.contributor_id },
+      });
+      if (!contributor) throw new NotFoundException('Crew member not found');
+    }
+
+    await this.prisma.packageDayOperator.update({
+      where: { id: slotId },
+      data: { contributor_id: dto.contributor_id },
+    });
+
+    return this.getCrewSlotById(slotId);
+  }
+
+  /**
+   * Update a crew slot's details
+   */
+  async updateCrewSlot(
+    slotId: number,
+    dto: {
+      position_name?: string;
+      position_color?: string | null;
+      contributor_id?: number | null;
+      job_role_id?: number | null;
+      hours?: number;
+      notes?: string | null;
+      order_index?: number;
+      package_activity_id?: number | null;
+    },
+  ) {
+    const existing = await this.prisma.packageDayOperator.findUnique({
+      where: { id: slotId },
+    });
+    if (!existing) throw new NotFoundException('Crew slot not found');
+
+    await this.prisma.packageDayOperator.update({
+      where: { id: slotId },
       data: {
+        position_name: dto.position_name ?? undefined,
+        position_color: dto.position_color !== undefined ? dto.position_color : undefined,
+        contributor_id: dto.contributor_id !== undefined ? dto.contributor_id : undefined,
+        job_role_id: dto.job_role_id !== undefined ? dto.job_role_id : undefined,
         hours: dto.hours ?? undefined,
         notes: dto.notes !== undefined ? dto.notes : undefined,
         order_index: dto.order_index ?? undefined,
         package_activity_id: dto.package_activity_id !== undefined ? dto.package_activity_id : undefined,
       },
-      include: {
-        operator_template: {
-          include: { default_equipment: { include: { equipment: true } } },
-        },
-        equipment: { include: { equipment: true } },
-        event_day: true,
-        activity_assignments: { include: { package_activity: true } },
-      },
     });
+
+    return this.getCrewSlotById(slotId);
   }
 
-  async removeOperatorFromPackageDay(operatorId: number) {
-    const existing = await this.prisma.packageDayOperator.findUnique({ where: { id: operatorId } });
-    if (!existing) throw new NotFoundException('Package day operator not found');
-    // Cascade will handle equipment deletions
-    return this.prisma.packageDayOperator.delete({ where: { id: operatorId } });
+  /**
+   * Remove a crew slot from a package day
+   */
+  async removeCrewSlot(slotId: number) {
+    const existing = await this.prisma.packageDayOperator.findUnique({
+      where: { id: slotId },
+    });
+    if (!existing) throw new NotFoundException('Crew slot not found');
+    return this.prisma.packageDayOperator.delete({ where: { id: slotId } });
   }
 
-  // ─── Package Day Operator Equipment (overrides) ───────────────────
+  // ─── Crew Slot Equipment ──────────────────────────────────────────
 
-  async setOperatorEquipment(
-    operatorId: number,
+  async setSlotEquipment(
+    slotId: number,
     equipmentIds: { equipment_id: number; is_primary: boolean }[],
   ) {
-    const existing = await this.prisma.packageDayOperator.findUnique({ where: { id: operatorId } });
-    if (!existing) throw new NotFoundException('Package day operator not found');
+    const existing = await this.prisma.packageDayOperator.findUnique({
+      where: { id: slotId },
+    });
+    if (!existing) throw new NotFoundException('Crew slot not found');
 
-    // Delete all current equipment and re-create
     await this.prisma.packageDayOperatorEquipment.deleteMany({
-      where: { package_day_operator_id: operatorId },
+      where: { package_day_operator_id: slotId },
     });
 
     if (equipmentIds.length > 0) {
       await this.prisma.packageDayOperatorEquipment.createMany({
-        data: equipmentIds.map(eq => ({
-          package_day_operator_id: operatorId,
+        data: equipmentIds.map((eq) => ({
+          package_day_operator_id: slotId,
           equipment_id: eq.equipment_id,
           is_primary: eq.is_primary,
         })),
@@ -258,29 +222,21 @@ export class OperatorsService {
       });
     }
 
-    return this.prisma.packageDayOperator.findUnique({
-      where: { id: operatorId },
-      include: {
-        operator_template: {
-          include: { default_equipment: { include: { equipment: true } } },
-        },
-        equipment: { include: { equipment: true } },
-        event_day: true,
-        activity_assignments: { include: { package_activity: true } },
-      },
-    });
+    return this.getCrewSlotById(slotId);
   }
 
-  // ─── Operator Activity Assignments (multi-activity) ────────────────
+  // ─── Activity Assignments ─────────────────────────────────────────
 
-  async assignOperatorToActivity(operatorId: number, activityId: number) {
-    const existing = await this.prisma.packageDayOperator.findUnique({ where: { id: operatorId } });
-    if (!existing) throw new NotFoundException('Package day operator not found');
+  async assignSlotToActivity(slotId: number, activityId: number) {
+    const existing = await this.prisma.packageDayOperator.findUnique({
+      where: { id: slotId },
+    });
+    if (!existing) throw new NotFoundException('Crew slot not found');
 
     try {
       await this.prisma.operatorActivityAssignment.create({
         data: {
-          package_day_operator_id: operatorId,
+          package_day_operator_id: slotId,
           package_activity_id: activityId,
         },
       });
@@ -288,35 +244,55 @@ export class OperatorsService {
       // Already assigned — ignore
     }
 
-    return this.prisma.packageDayOperator.findUnique({
-      where: { id: operatorId },
-      include: {
-        operator_template: {
-          include: { default_equipment: { include: { equipment: true } } },
-        },
-        equipment: { include: { equipment: true } },
-        event_day: true,
-        activity_assignments: { include: { package_activity: true } },
-      },
-    });
+    return this.getCrewSlotById(slotId);
   }
 
-  async unassignOperatorFromActivity(operatorId: number, activityId: number) {
-    const existing = await this.prisma.packageDayOperator.findUnique({ where: { id: operatorId } });
-    if (!existing) throw new NotFoundException('Package day operator not found');
+  async unassignSlotFromActivity(slotId: number, activityId: number) {
+    const existing = await this.prisma.packageDayOperator.findUnique({
+      where: { id: slotId },
+    });
+    if (!existing) throw new NotFoundException('Crew slot not found');
 
     await this.prisma.operatorActivityAssignment.deleteMany({
       where: {
-        package_day_operator_id: operatorId,
+        package_day_operator_id: slotId,
         package_activity_id: activityId,
       },
     });
 
+    return this.getCrewSlotById(slotId);
+  }
+
+  // ─── Helper ───────────────────────────────────────────────────────
+
+  private async getCrewSlotById(slotId: number) {
     return this.prisma.packageDayOperator.findUnique({
-      where: { id: operatorId },
+      where: { id: slotId },
       include: {
-        operator_template: {
-          include: { default_equipment: { include: { equipment: true } } },
+        contributor: {
+          include: {
+            contact: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                email: true,
+              },
+            },
+            contributor_job_roles: {
+              include: {
+                job_role: {
+                  select: { id: true, name: true, display_name: true },
+                },
+                payment_bracket: {
+                  select: { id: true, name: true, display_name: true, level: true, hourly_rate: true, day_rate: true },
+                },
+              },
+            },
+          },
+        },
+        job_role: {
+          select: { id: true, name: true, display_name: true, category: true },
         },
         equipment: { include: { equipment: true } },
         event_day: true,

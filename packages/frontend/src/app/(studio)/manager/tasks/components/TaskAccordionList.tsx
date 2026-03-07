@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Stack } from "@mui/material";
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { TaskLibrary, TaskLibraryPhaseGroup, ProjectPhase } from "@/lib/types";
+import { TaskLibrary, TaskLibraryPhaseGroup, ProjectPhase, JobRole, SkillRoleMapping } from "@/lib/types";
 import { DroppableZone } from "./DroppableZone";
 import { TaskAccordion } from "./TaskAccordion";
 import { DragOverlayTask } from "./DragOverlayTask";
@@ -28,6 +28,11 @@ interface TaskAccordionListProps {
     cancelQuickAdd: () => void;
     saveQuickAdd: () => void;
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
+    jobRoles: JobRole[];
+    allMappings: SkillRoleMapping[];
+    expandedTaskId: number | null;
+    onToggleExpand: (taskId: number) => void;
+    onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
 }
 
 export function TaskAccordionList({
@@ -50,6 +55,11 @@ export function TaskAccordionList({
     cancelQuickAdd,
     saveQuickAdd,
     updateQuickAddData,
+    jobRoles,
+    allMappings,
+    expandedTaskId,
+    onToggleExpand,
+    onUpdateRoleSkills,
 }: TaskAccordionListProps) {
     const [activeTask, setActiveTask] = useState<TaskLibrary | null>(null);
     const [activePhase, setActivePhase] = useState<string | null>(null);
@@ -120,6 +130,11 @@ export function TaskAccordionList({
                             cancelQuickAdd={cancelQuickAdd}
                             saveQuickAdd={saveQuickAdd}
                             updateQuickAddData={updateQuickAddData}
+                            jobRoles={jobRoles}
+                            allMappings={allMappings}
+                            expandedTaskId={expandedTaskId}
+                            onToggleExpand={onToggleExpand}
+                            onUpdateRoleSkills={onUpdateRoleSkills}
                         />
                     </DroppableZone>
                 ))}

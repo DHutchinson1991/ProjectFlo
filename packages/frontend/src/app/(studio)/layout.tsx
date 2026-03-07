@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import StudioSidebar from "./components/StudioSidebar";
 import StudioHeader from "./components/StudioHeader";
 import { ProjectProvider } from "./providers/ProjectProvider";
+import { ProtectedRoute } from "../components/auth/ProtectedRoute/ProtectedRoute";
 
 interface StudioLayoutProps {
     children: React.ReactNode;
@@ -16,40 +17,42 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
     const isCalendarPage = pathname.startsWith("/calendar");
 
     return (
-        <ProjectProvider>
-            <Box sx={{ display: "flex", minHeight: "100vh" }}>
-                {/* Header - spans across full width */}
-                <StudioHeader />
+        <ProtectedRoute>
+            <ProjectProvider>
+                <Box sx={{ display: "flex", minHeight: "100vh" }}>
+                    {/* Header - spans across full width */}
+                    <StudioHeader />
 
-                {/* Sidebar - positioned below header */}
-                <StudioSidebar />
+                    {/* Sidebar - positioned below header */}
+                    <StudioSidebar />
 
-                {/* Main content area */}
-                <Box
-                    sx={{
-                        flexGrow: 1,
-                        display: "flex",
-                        flexDirection: "column",
-                        bgcolor: "background.default",
-                        marginLeft: "280px", // Account for fixed sidebar width
-                        marginTop: "64px", // Account for fixed header height
-                        minHeight: "calc(100vh - 64px)", // Ensure proper minimum height
-                        overflow: "visible", // Allow natural scrolling
-                    }}
-                >
-                    {/* Page content */}
+                    {/* Main content area */}
                     <Box
                         sx={{
                             flexGrow: 1,
-                            p: isCalendarPage ? 0 : 3, // No padding for calendar, p: 3 for other pages
-                            overflow: "visible",
-                            minHeight: "calc(100vh - 64px)", // Ensure minimum height for scrolling
+                            display: "flex",
+                            flexDirection: "column",
+                            bgcolor: "background.default",
+                            marginLeft: "280px", // Account for fixed sidebar width
+                            marginTop: "64px", // Account for fixed header height
+                            minHeight: "calc(100vh - 64px)", // Ensure proper minimum height
+                            overflow: "visible", // Allow natural scrolling
                         }}
                     >
-                        {children}
+                        {/* Page content */}
+                        <Box
+                            sx={{
+                                flexGrow: 1,
+                                p: isCalendarPage ? 0 : 3, // No padding for calendar, p: 3 for other pages
+                                overflow: "visible",
+                                minHeight: "calc(100vh - 64px)", // Ensure minimum height for scrolling
+                            }}
+                        >
+                            {children}
+                        </Box>
                     </Box>
                 </Box>
-            </Box>
-        </ProjectProvider>
+            </ProjectProvider>
+        </ProtectedRoute>
     );
 }

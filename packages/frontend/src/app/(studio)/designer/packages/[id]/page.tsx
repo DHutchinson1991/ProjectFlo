@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
     Box, Typography, Button, TextField, Grid, FormControl, 
     Select, MenuItem, Checkbox,
-    IconButton, Breadcrumbs, Link, CircularProgress, Alert, Card,
+    IconButton, Breadcrumbs, Link, CircularProgress, Alert,
     Stack, Tooltip, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
     Menu,
 } from '@mui/material';
@@ -17,16 +17,13 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import SaveIcon from '@mui/icons-material/Save';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import MovieIcon from '@mui/icons-material/Movie';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
-import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import MicIcon from '@mui/icons-material/Mic';
 import BuildIcon from '@mui/icons-material/Build';
-import PhotoFilterIcon from '@mui/icons-material/PhotoFilter';
 import PlaceIcon from '@mui/icons-material/Place';
+import LinkIcon from '@mui/icons-material/Link';
 
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import HistoryIcon from '@mui/icons-material/History';
@@ -37,11 +34,16 @@ import { api } from '@/lib/api';
 import { type EventDayTemplate } from '@/components/schedule';
 import { createLinkedFilmFromTemplate } from '@/lib/utils/packageFilmLinker';
 import { ServicePackage, ServicePackageItem } from '@/lib/types/domains/sales';
+import type { JobRole } from '@/lib/types/job-roles';
+import type { TaskAutoGenerationPreview } from '@/lib/types/task-library';
 import { useBrand } from '@/app/providers/BrandProvider';
+import { formatCurrency } from '@/lib/utils/formatUtils';
 import { request } from '@/hooks/utils/api';
 import { PackageScheduleCard } from '@/components/schedule/PackageScheduleCard';
 import { ActivitiesCard } from '@/components/schedule/ActivitiesCard';
 import { ActivityFilmWizard } from '@/components/schedule/ActivityFilmWizard';
+import PackageCreationWizard from '../components/PackageCreationWizard';
+import { TaskAutoGenCard } from '../components/TaskAutoGenCard';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 // ─── PackageFilm join table type ─────────────────────────────────────
@@ -67,17 +69,18 @@ interface SubjectTypeTemplate {
 
 // Equipment templates removed — equipment is added directly with track numbering
 
-interface OperatorTemplateRecord {
+// Crew member from crew API (for assignment dropdowns)
+interface CrewMemberOption {
     id: number;
-    name: string;
-    role?: string | null;
-    color?: string | null;
-    order_index: number;
-    default_equipment: Array<{
-        id: number;
-        equipment_id: number;
+    contact: {
+        first_name?: string | null;
+        last_name?: string | null;
+        email: string;
+    };
+    crew_color?: string | null;
+    contributor_job_roles: Array<{
         is_primary: boolean;
-        equipment?: { id: number; item_name: string; model?: string | null; category?: string };
+        job_role: { id: number; name: string; display_name?: string | null };
     }>;
 }
 
@@ -85,12 +88,35 @@ interface PackageDayOperatorRecord {
     id: number;
     package_id: number;
     event_day_template_id: number;
-    operator_template_id: number;
+    contributor_id?: number | null;
     package_activity_id?: number | null;
+    position_name: string;
+    position_color?: string | null;
+    job_role_id?: number | null;
     hours: number;
     notes?: string | null;
     order_index: number;
-    operator_template: OperatorTemplateRecord;
+    contributor?: {
+        id: number;
+        crew_color?: string | null;
+        default_hourly_rate?: number | string | null;
+        contact: { id: number; first_name?: string | null; last_name?: string | null; email: string };
+        contributor_job_roles?: Array<{
+            is_primary: boolean;
+            is_unmanned?: boolean;
+            job_role_id?: number;
+            job_role: { id: number; name: string; display_name?: string | null };
+            payment_bracket?: {
+                id: number;
+                name: string;
+                display_name?: string | null;
+                level: number;
+                hourly_rate?: number | string | null;
+                day_rate?: number | string | null;
+            } | null;
+        }>;
+    } | null;
+    job_role?: { id: number; name: string; display_name?: string | null; category?: string | null } | null;
     equipment: Array<{
         id: number;
         equipment_id: number;
@@ -104,6 +130,76 @@ interface PackageDayOperatorRecord {
         package_activity_id: number;
         package_activity?: { id: number; name: string };
     }>;
+}
+
+/** Resolve the effective hourly rate for a crew operator:
+ *  1. Payment bracket rate matching the operator's job_role (best)
+ *  2. Any payment bracket rate on the contributor (fallback)
+ *  3. Contributor's default_hourly_rate
+ *  Returns 0 if nothing is set. */
+function getCrewHourlyRate(op: PackageDayOperatorRecord): number {
+    const c = op.contributor;
+    if (!c) return 0;
+    const roles = c.contributor_job_roles || [];
+    // Try to find the bracket matching the operator's assigned job_role first
+    if (op.job_role_id) {
+        const match = roles.find(r => r.job_role_id === op.job_role_id && r.payment_bracket?.hourly_rate);
+        if (match?.payment_bracket?.hourly_rate) return Number(match.payment_bracket.hourly_rate);
+    }
+    // Fallback: primary role bracket
+    const primary = roles.find(r => r.is_primary && r.payment_bracket?.hourly_rate);
+    if (primary?.payment_bracket?.hourly_rate) return Number(primary.payment_bracket.hourly_rate);
+    // Fallback: any bracket
+    const any = roles.find(r => r.payment_bracket?.hourly_rate);
+    if (any?.payment_bracket?.hourly_rate) return Number(any.payment_bracket.hourly_rate);
+    // Fallback: contributor default
+    if (c.default_hourly_rate) return Number(c.default_hourly_rate);
+    return 0;
+}
+
+/** Check if an operator is a day-rate role (has day_rate but no hourly_rate on the matching bracket).
+ *  These roles (e.g. Production) are costed per day, not per hour. */
+function isCrewDayRate(op: PackageDayOperatorRecord): boolean {
+    const c = op.contributor;
+    if (!c) return false;
+    const roles = c.contributor_job_roles || [];
+    if (op.job_role_id) {
+        const match = roles.find((r: any) => r.job_role_id === op.job_role_id);
+        if (match?.payment_bracket) {
+            const dayRate = Number(match.payment_bracket.day_rate || 0);
+            const hourlyRate = Number(match.payment_bracket.hourly_rate || 0);
+            return dayRate > 0 && hourlyRate === 0;
+        }
+    }
+    return false;
+}
+
+/** Get the day rate for a day-rate operator. Returns 0 if not found. */
+function getCrewDayRate(op: PackageDayOperatorRecord): number {
+    const c = op.contributor;
+    if (!c) return 0;
+    const roles = c.contributor_job_roles || [];
+    if (op.job_role_id) {
+        const match = roles.find((r: any) => r.job_role_id === op.job_role_id && r.payment_bracket?.day_rate);
+        if (match?.payment_bracket?.day_rate) return Number(match.payment_bracket.day_rate);
+    }
+    // Fallback: primary role bracket
+    const primary = roles.find((r: any) => r.is_primary && r.payment_bracket?.day_rate);
+    if (primary?.payment_bracket?.day_rate) return Number(primary.payment_bracket.day_rate);
+    return 0;
+}
+
+/** Build a map of (crewName|roleName) → total task hours from the auto-generation preview.
+ *  Excludes day-rate roles from hourly aggregation. */
+function buildTaskHoursMap(preview: TaskAutoGenerationPreview | null): Map<string, number> {
+    const map = new Map<string, number>();
+    if (!preview?.tasks) return map;
+    for (const task of preview.tasks) {
+        if (!task.assigned_to_name || !task.role_name) continue;
+        const key = `${task.assigned_to_name}|${task.role_name}`;
+        map.set(key, (map.get(key) || 0) + task.total_hours);
+    }
+    return map;
 }
 
 export default function PackageEditPage({ params }: { params: { id: string } }) {
@@ -138,11 +234,26 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [packageActivities, setPackageActivities] = useState<any[]>([]);
 
-    // Operator State
-    const [operatorTemplates, setOperatorTemplates] = useState<OperatorTemplateRecord[]>([]);
+    // Crew & Operator State
+    const [crewMembers, setCrewMembers] = useState<CrewMemberOption[]>([]);
+    const [jobRoles, setJobRoles] = useState<JobRole[]>([]);
     const [packageDayOperators, setPackageDayOperators] = useState<PackageDayOperatorRecord[]>([]);
     const [operatorMenuAnchor, setOperatorMenuAnchor] = useState<null | HTMLElement>(null);
     const [operatorMenuDayId, setOperatorMenuDayId] = useState<number | null>(null);
+    // Crew assignment menu — assign a crew member to an existing role slot
+    const [crewAssignAnchor, setCrewAssignAnchor] = useState<null | HTMLElement>(null);
+    const [crewAssignSlotId, setCrewAssignSlotId] = useState<number | null>(null);
+    // Multi-role picker dialog — select which roles a crew member should fill
+    const [rolePickerOpen, setRolePickerOpen] = useState(false);
+    const [rolePickerCrewMember, setRolePickerCrewMember] = useState<CrewMemberOption | null>(null);
+    const [rolePickerSelectedIds, setRolePickerSelectedIds] = useState<number[]>([]);
+    const [rolePickerSaving, setRolePickerSaving] = useState(false);
+
+    // Unmanned Equipment State
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [unmannedEquipment, setUnmannedEquipment] = useState<any[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [packageUnmannedEquipment, setPackageUnmannedEquipment] = useState<any[]>([]);
 
     // Equipment-Operator inline assignment state
     const [equipAssignAnchor, setEquipAssignAnchor] = useState<null | HTMLElement>(null);
@@ -160,6 +271,11 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
     const [scheduleActiveDayId, setScheduleActiveDayId] = useState<number | null>(null);
     // Selected activity — clicking an activity row highlights it and filters other cards
     const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null);
+    // Live colour preview while the edit-activity dialog is open
+    const [activityColorOverrides, setActivityColorOverrides] = useState<Record<number, string>>({});
+
+    // Task auto-generation preview — used for crew card task-hours-per-role display
+    const [taskPreview, setTaskPreview] = useState<TaskAutoGenerationPreview | null>(null);
 
     // Subjects State
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -179,6 +295,9 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
     const [selectedFilmId, setSelectedFilmId] = useState<string>('');
     const [serviceDescription, setServiceDescription] = useState('');
     const [activityWizardOpen, setActivityWizardOpen] = useState(false);
+
+    // Package Creation Wizard State
+    const [packageCreationWizardOpen, setPackageCreationWizardOpen] = useState(false);
 
     // Preview & Version History State
     const [previewOpen, setPreviewOpen] = useState(false);
@@ -278,18 +397,53 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                     console.warn('Failed to load package event days:', edError);
                 }
 
-                // Load Operator Templates (brand-level)
+                // Load Crew Members (brand-level) and Job Roles in parallel
                 try {
-                    const opTemplates = await api.operators.templates.getAll(safeBrandId);
-                    setOperatorTemplates(opTemplates || []);
-                } catch (otError) {
-                    console.warn('Failed to load operator templates:', otError);
+                    const [crew, roles] = await Promise.all([
+                        api.crew.getByBrand(safeBrandId),
+                        api.jobRoles.getAll(),
+                    ]);
+                    setCrewMembers(crew || []);
+                    setJobRoles((roles || []).filter(r => r.is_active));
+                } catch (crewError) {
+                    console.warn('Failed to load crew members / job roles:', crewError);
+                }
+
+                // Load Unmanned Equipment (brand-level)
+                try {
+                    const unmanned = await request<any[]>(
+                        `/equipment/unmanned/${safeBrandId}`,
+                        {},
+                        { includeBrandQuery: false }
+                    );
+                    setUnmannedEquipment(unmanned || []);
+                } catch (unmannedError) {
+                    console.warn('Failed to load unmanned equipment:', unmannedError);
                 }
 
                 // Load Package Day Operators
                 try {
                     const dayOps = await api.operators.packageDay.getAll(packageId);
-                    setPackageDayOperators(dayOps || []);
+
+                    // Auto-cleanup: delete orphan "equipment-as-operator" placeholder records
+                    // that have no contributor and no job role. These were created by older
+                    // wizard code and should not appear in the Crew card.
+                    const orphanOps = (dayOps || []).filter(
+                        (o: PackageDayOperatorRecord) => !o.contributor_id && !o.job_role_id
+                    );
+                    if (orphanOps.length > 0) {
+                        await Promise.allSettled(
+                            orphanOps.map((o: PackageDayOperatorRecord) =>
+                                api.operators.packageDay.remove(o.id).catch(() => {/* ignore */})
+                            )
+                        );
+                        // Keep only real crew operators
+                        setPackageDayOperators(
+                            (dayOps || []).filter((o: PackageDayOperatorRecord) => !!(o.contributor_id || o.job_role_id))
+                        );
+                    } else {
+                        setPackageDayOperators(dayOps || []);
+                    }
                 } catch (doError) {
                     console.warn('Failed to load package day operators:', doError);
                 }
@@ -317,6 +471,14 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                 } catch (slotError) {
                     console.warn('Failed to load package location slots:', slotError);
                 }
+
+                // Load Task Auto-Generation Preview (for crew card hours-per-role)
+                try {
+                    const preview = await api.taskLibrary.previewAutoGeneration(packageId, safeBrandId);
+                    setTaskPreview(preview);
+                } catch (previewError) {
+                    console.warn('Failed to load task preview:', previewError);
+                }
             } else {
                 // New Package Default
                 setFormData({
@@ -327,10 +489,14 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                     contents: { items: [] }
                 });
 
-                // Still load operator templates for new packages
+                // Still load crew members and job roles for new packages
                 try {
-                    const opTemplates = await api.operators.templates.getAll(safeBrandId);
-                    setOperatorTemplates(opTemplates || []);
+                    const [crew, roles] = await Promise.all([
+                        api.crew.getByBrand(safeBrandId),
+                        api.jobRoles.getAll(),
+                    ]);
+                    setCrewMembers(crew || []);
+                    setJobRoles((roles || []).filter(r => r.is_active));
                 } catch {
                     // ignore
                 }
@@ -402,21 +568,6 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
             alert('Failed to save');
         } finally {
             setIsSaving(false);
-        }
-    };
-
-    // ─── Unmanned Cameras helper ────────────────────────────────────────
-    const adjustUnmannedCameras = async (delta: number) => {
-        const current = (formData.contents as any)?.unmanned_cameras || 0;
-        const newCount = Math.max(0, current + delta);
-        const updated = { ...formData, contents: { ...formData.contents, unmanned_cameras: newCount } };
-        setFormData(updated);
-        if (packageId && safeBrandId) {
-            try {
-                await api.servicePackages.update(safeBrandId, packageId, updated);
-            } catch (err) {
-                console.warn('Failed to save unmanned cameras count:', err);
-            }
         }
     };
 
@@ -517,7 +668,7 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
         }
         
         items.splice(index, 1);
-        setFormData({ ...formData, contents: { items } });
+        setFormData({ ...formData, contents: { ...formData.contents, items } });
     };
 
     const getFilmStats = (filmId: number) => {
@@ -580,7 +731,8 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
             const linkedFilmId = item.config?.linked_film_id;
             if (linkedFilmId) {
                 // Equipment is managed directly on the package — no template sync needed
-                router.push(`/designer/films/${linkedFilmId}?packageId=${savedPackageId}&itemId=${item.id}`);
+                const activityParam = item.config?.activity_id ? `&activityId=${item.config.activity_id}` : '';
+                router.push(`/designer/films/${linkedFilmId}?packageId=${savedPackageId}&itemId=${item.id}${activityParam}`);
                 return;
             }
 
@@ -629,13 +781,14 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
 
             const updatedPackage = {
                 ...formData,
-                contents: { items: updatedItems },
+                contents: { ...formData.contents, items: updatedItems },
             };
 
             await api.servicePackages.update(safeBrandId, savedPackageId, updatedPackage);
             setFormData(updatedPackage);
 
-            router.push(`/designer/films/${newLinkedFilmId}?packageId=${savedPackageId}&itemId=${item.id}`);
+            const activityParam2 = item.config?.activity_id ? `&activityId=${item.config.activity_id}` : '';
+            router.push(`/designer/films/${newLinkedFilmId}?packageId=${savedPackageId}&itemId=${item.id}${activityParam2}`);
         } catch (e) {
             if ((e as Error).message !== 'Package save cancelled') {
                 console.error(e);
@@ -673,18 +826,18 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                     
                     {/* Inline-editable package name */}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1.5, maxWidth: '100%' }}>
                             <Box
                                 component="input"
                                 value={formData.name || ''}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
                                 placeholder="Package Name"
+                                size={Math.max(8, (formData.name || 'Package Name').length + 1)}
                                 sx={{
                                     background: 'none', border: 'none', outline: 'none',
                                     fontWeight: 800, color: '#f1f5f9', fontSize: '1.8rem',
                                     fontFamily: 'inherit', lineHeight: 1.2,
-                                    p: 0, m: 0, width: 'auto', minWidth: 120,
-                                    flex: '0 1 auto',
+                                    p: 0, m: 0,
                                     borderBottom: '2px solid transparent',
                                     transition: 'border-color 0.2s ease',
                                     '&:hover': { borderColor: 'rgba(255,255,255,0.08)' },
@@ -693,7 +846,7 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                 }}
                             />
                             {/* Category — minimal inline select */}
-                            <FormControl size="small" variant="standard" sx={{ minWidth: 0 }}>
+                            <FormControl size="small" variant="standard" sx={{ minWidth: 0, flexShrink: 0 }}>
                                 <Select
                                     value={formData.category || ''}
                                     displayEmpty
@@ -741,6 +894,12 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                         },
                                     }}
                                 >
+                                    {/* Include current category as option if not in the fetched list */}
+                                    {formData.category && !categories.some((cat) => cat.name === formData.category) && (
+                                        <MenuItem value={formData.category} sx={{ fontSize: '0.8rem', color: '#e2e8f0' }}>
+                                            {formData.category}
+                                        </MenuItem>
+                                    )}
                                     {categories.map((cat) => (
                                         <MenuItem key={cat.id} value={cat.name} sx={{ fontSize: '0.8rem', color: '#e2e8f0' }}>
                                             {cat.name}
@@ -757,7 +916,7 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, description: e.target.value })}
                             placeholder="Add a description…"
                             sx={{
-                                display: 'block', width: '100%', maxWidth: 600,
+                                display: 'block', width: '100%',
                                 background: 'none', border: 'none', outline: 'none',
                                 fontSize: '0.85rem', color: '#64748b', fontFamily: 'inherit',
                                 fontWeight: 400, lineHeight: 1.5, p: 0, mt: 0.5,
@@ -771,6 +930,22 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                     </Box>
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
+                        {/* Create Related Package Button */}
+                        <Button
+                            variant="outlined"
+                            size="large"
+                            startIcon={<AddIcon />}
+                            onClick={() => setPackageCreationWizardOpen(true)}
+                            sx={{
+                                borderColor: 'rgba(245, 158, 11, 0.35)',
+                                color: '#f59e0b',
+                                '&:hover': { borderColor: 'rgba(245, 158, 11, 0.6)', bgcolor: 'rgba(245, 158, 11, 0.08)' },
+                                borderRadius: 2, px: 2.5, fontWeight: 700, textTransform: 'none', fontSize: '0.85rem',
+                            }}
+                        >
+                            New Package
+                        </Button>
+
                         {/* Preview Button */}
                         <Button
                             variant="outlined"
@@ -819,6 +994,116 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                 </Box>
             </Box>
 
+            {/* ── Total Cost Summary Card (top right) ── */}
+            {(() => {
+                // Calculate total crew cost (mirrors the Crew card TOTAL logic)
+                const taskHoursMap = buildTaskHoursMap(taskPreview);
+                const totalCrewCost = packageDayOperators.reduce((sum, op) => {
+                    // Only count operators with a contributor or job role (real crew)
+                    if (!op.contributor_id && !op.job_role_id) return sum;
+                    if (isCrewDayRate(op)) {
+                        return sum + getCrewDayRate(op) * Number(op.hours || 1);
+                    }
+                    const crewName = op.contributor
+                        ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+                        : '';
+                    const roleName = op.job_role ? (op.job_role.display_name || op.job_role.name) : null;
+                    const taskKey = crewName && roleName ? `${crewName}|${roleName}` : null;
+                    const taskHours = taskKey ? (taskHoursMap.get(taskKey) || 0) : 0;
+                    const rate = getCrewHourlyRate(op);
+                    const hours = taskHours > 0 ? taskHours : Number(op.hours || 0);
+                    return sum + rate * hours;
+                }, 0);
+
+                // Calculate total equipment cost from allEquipment rental prices
+                type EquipItemCost = { equipment_id: number; slot_type: string };
+                type EquipContentsShape = {
+                    day_equipment?: Record<string, EquipItemCost[]>;
+                };
+                const eqContents = (formData.contents || {}) as EquipContentsShape;
+                const dayEquipMap = eqContents.day_equipment || {};
+                // Gather all unique equipment IDs across all event days
+                const allEquipIds = new Set<number>();
+                Object.values(dayEquipMap).forEach(items => {
+                    (items || []).forEach(item => allEquipIds.add(item.equipment_id));
+                });
+                // Also gather equipment from relational operator-equipment links
+                packageDayOperators.forEach(op => {
+                    (op.equipment || []).forEach(eq => allEquipIds.add(eq.equipment_id));
+                });
+                const totalEquipCost = Array.from(allEquipIds).reduce((sum, eqId) => {
+                    const fullEq = allEquipment.find((e: { id: number; rental_price_per_day?: number }) => e.id === eqId);
+                    return sum + (fullEq?.rental_price_per_day ? Number(fullEq.rental_price_per_day) : 0);
+                }, 0);
+
+                const totalCost = totalCrewCost + totalEquipCost;
+                const currency = currentBrand?.currency || 'USD';
+
+                return (
+                    <Box sx={{
+                        display: 'flex', justifyContent: 'flex-end', mb: 2.5,
+                    }}>
+                        <Box sx={{
+                            ...cardSx,
+                            display: 'flex', alignItems: 'center', gap: 3,
+                            px: 3, py: 2,
+                            minWidth: 320,
+                            background: 'linear-gradient(135deg, rgba(16, 18, 22, 0.9), rgba(16, 18, 22, 0.8))',
+                            border: '1px solid rgba(245, 158, 11, 0.2)',
+                        }}>
+                            {/* Crew cost */}
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <PeopleIcon sx={{ fontSize: 13, color: '#EC4899' }} />
+                                    <Typography sx={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                                        Crew
+                                    </Typography>
+                                </Box>
+                                <Typography sx={{ fontSize: '0.85rem', color: totalCrewCost > 0 ? '#e2e8f0' : '#475569', fontWeight: 700, fontFamily: 'monospace' }}>
+                                    {formatCurrency(totalCrewCost, currency)}
+                                </Typography>
+                            </Box>
+
+                            <Typography sx={{ color: '#334155', fontSize: '1rem', fontWeight: 300 }}>+</Typography>
+
+                            {/* Equipment cost */}
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <VideocamIcon sx={{ fontSize: 13, color: '#10b981' }} />
+                                    <Typography sx={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                                        Equipment
+                                    </Typography>
+                                </Box>
+                                <Typography sx={{ fontSize: '0.85rem', color: totalEquipCost > 0 ? '#e2e8f0' : '#475569', fontWeight: 700, fontFamily: 'monospace' }}>
+                                    {formatCurrency(totalEquipCost, currency)}
+                                </Typography>
+                            </Box>
+
+                            <Typography sx={{ color: '#334155', fontSize: '1rem', fontWeight: 300 }}>=</Typography>
+
+                            {/* Total cost */}
+                            <Box sx={{
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25,
+                                pl: 1.5, borderLeft: '1px solid rgba(245, 158, 11, 0.2)',
+                            }}>
+                                <Typography sx={{ fontSize: '0.6rem', color: '#f59e0b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Total Cost
+                                </Typography>
+                                <Typography sx={{
+                                    fontSize: '1.2rem',
+                                    color: totalCost > 0 ? '#f59e0b' : '#475569',
+                                    fontWeight: 800,
+                                    fontFamily: 'monospace',
+                                    fontVariantNumeric: 'tabular-nums',
+                                }}>
+                                    {formatCurrency(totalCost, currency)}
+                                </Typography>
+                            </Box>
+                        </Box>
+                    </Box>
+                );
+            })()}
+
             {/* ── Schedule Card (Full-width row) ── */}
             <Box sx={{ mb: 2.5 }}>
                 <PackageScheduleCard
@@ -865,6 +1150,7 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                             console.error('Failed to update activity time:', err);
                         }
                     }}
+                    colorOverrides={activityColorOverrides}
                 />
             </Box>
 
@@ -890,6 +1176,13 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                             setPackageDayOperators={setPackageDayOperators}
                             selectedActivityId={selectedActivityId}
                             onSelectedActivityChange={setSelectedActivityId}
+                            onColorPreview={(activityId, color) => {
+                                if (activityId == null || color == null) {
+                                    setActivityColorOverrides({});
+                                } else {
+                                    setActivityColorOverrides({ [activityId]: color });
+                                }
+                            }}
                         />
                     </Box>
                 </Grid>
@@ -902,9 +1195,9 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                     fullWidth
                     PaperProps={{ sx: { background: 'rgba(16, 18, 22, 0.95)', border: '1px solid rgba(52, 58, 68, 0.4)', borderRadius: 3, backdropFilter: 'blur(20px)' } }}
                 >
-                    <DialogTitle sx={{ pb: 1 }}>
+                    <DialogTitle sx={{ pb: 1 }} component="div">
                         <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#f1f5f9' }}>Add to Package</Typography>
-                        <Typography variant="caption" sx={{ color: '#64748b' }}>Choose what to add to this package</Typography>
+                        <Typography variant="caption" component="span" sx={{ color: '#64748b', display: 'block' }}>Choose what to add to this package</Typography>
                     </DialogTitle>
                     <DialogContent sx={{ pb: 1 }}>
                         {/* Type selection tabs */}
@@ -1054,6 +1347,8 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                         onFilmCreated={(result) => {
                             // Add the new film to the package contents items
                             const items = [...(formData.contents?.items || [])];
+                            // Pre-populate activity_id when created from exactly one activity
+                            const singleActivityId = result.activityIds?.length === 1 ? result.activityIds[0] : null;
                             items.push({
                                 id: Math.random().toString(36).substr(2, 9),
                                 type: 'film',
@@ -1064,6 +1359,7 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                     linked_film_id: result.filmId,
                                     subject_template_id: formData.contents?.subject_template_id ?? null,
                                     package_film_id: result.packageFilmId,
+                                    activity_id: singleActivityId,
                                 },
                             });
                             setFormData({ ...formData, contents: { ...formData.contents, items } });
@@ -1307,7 +1603,11 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                                 </Box>
                                             </Box>
                                             {daySlots.length > 0 && (
-                                                <Chip label={`${daySlots.length}`} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.2)', '& .MuiChip-label': { px: 0.6 } }} />
+                                                <Chip
+                                                    label={`${selectedActivityId ? daySlots.filter((s: any) => isSlotAssigned(s)).length : daySlots.length}`}
+                                                    size="small"
+                                                    sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.2)', '& .MuiChip-label': { px: 0.6 } }}
+                                                />
                                             )}
                                         </Box>
                                     </Box>
@@ -1320,7 +1620,11 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                         )}
                                         {daySlots.map((slot: any) => {
                                             const assigned = isSlotAssigned(slot);
-                                            const assignedCount = slot.activity_assignments?.length || 0;
+                                            // When an activity is selected, show count for that activity only;
+                                            // show total count otherwise so dimmed slots don't show misleading numbers.
+                                            const assignedCount = selectedActivityId
+                                                ? (slot.activity_assignments?.filter((a: any) => a.package_activity_id === selectedActivityId).length || 0)
+                                                : (slot.activity_assignments?.length || 0);
                                             return (
                                                 <Box
                                                     key={slot.id}
@@ -1496,33 +1800,54 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
 
                         {/* ── Crew Card ── */}
                         {(() => {
-                            const crewDayOps = scheduleActiveDayId
+                            // Filter operators for the active day, then exclude equipment-only
+                            // placeholder operators (no contributor AND no job role). These are
+                            // legacy records from old wizard code — equipment belongs in the
+                            // Equipment card, not Crew.
+                            const dayFilteredOps = scheduleActiveDayId
                                 ? packageDayOperators.filter(o => o.event_day_template_id === scheduleActiveDayId)
                                 : packageEventDays[0]
                                     ? packageDayOperators.filter(o => o.event_day_template_id === packageEventDays[0].id)
                                     : packageDayOperators;
+                            const crewDayOps = dayFilteredOps.filter(o =>
+                                // Keep operators that have a real contributor OR a real job role
+                                // Exclude orphan placeholders (no contributor + no role) — these
+                                // are equipment-only entries that should only appear in the
+                                // Equipment card.
+                                !!(o.contributor_id || o.job_role_id)
+                            );
                             const crewActiveDay = packageEventDays.find(d => d.id === (scheduleActiveDayId || packageEventDays[0]?.id));
                             const selectedActivity = selectedActivityId ? packageActivities.find(a => a.id === selectedActivityId) : null;
 
                             // ── Multi-activity crew assignments (DB-backed via activity_assignments) ──
-                            const isCrewAssigned = (op: PackageDayOperatorRecord) => {
-                                if (!selectedActivityId) return true; // No activity filter → all visible
+                            // Returns true if the operator is explicitly assigned to the selected activity
+                            const isCrewExplicitlyAssigned = (op: PackageDayOperatorRecord): boolean => {
+                                if (!selectedActivityId) return false;
                                 if (op.activity_assignments && op.activity_assignments.length > 0) {
                                     return op.activity_assignments.some(a => a.package_activity_id === selectedActivityId);
                                 }
                                 // Legacy fallback: check single package_activity_id
                                 if (op.package_activity_id) return op.package_activity_id === selectedActivityId;
+                                return false;
+                            };
+                            // Returns true for display purposes (day-level operators with no assignments appear for all)
+                            const isCrewAssigned = (op: PackageDayOperatorRecord) => {
+                                if (!selectedActivityId) return true; // No activity filter → all visible
+                                if (isCrewExplicitlyAssigned(op)) return true;
                                 // No assignments at all → day-level (show for all activities)
-                                return true;
+                                if (!op.activity_assignments || op.activity_assignments.length === 0) {
+                                    if (!op.package_activity_id) return true;
+                                }
+                                return false;
                             };
 
                             // Toggle crew assignment for the selected activity (DB-backed)
                             const toggleCrewActivity = async (op: PackageDayOperatorRecord) => {
                                 if (!selectedActivityId) return;
                                 try {
-                                    const assigned = isCrewAssigned(op);
+                                    const explicitlyAssigned = isCrewExplicitlyAssigned(op);
                                     let updatedOp;
-                                    if (assigned) {
+                                    if (explicitlyAssigned) {
                                         updatedOp = await api.operators.packageDay.unassignActivity(op.id, selectedActivityId);
                                     } else {
                                         updatedOp = await api.operators.packageDay.assignActivity(op.id, selectedActivityId);
@@ -1559,61 +1884,254 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                         </Box>
                                     </Box>
 
-                                    {/* Crew listing */}
+                                    {/* Crew listing — grouped by crew member */}
                                     <Box sx={{ px: 2.5, pt: 1.5, pb: 1.5 }}>
-                                        {crewDayOps.map((op) => {
-                                            const assigned = isCrewAssigned(op);
+                                        {(() => {
+                                            // Build task-hours lookup from auto-generation preview
+                                            const taskHoursMap = buildTaskHoursMap(taskPreview);
+
+                                            // Group operators by contributor (unassigned slots go into their own group keyed by "unassigned-{id}")
+                                            const grouped = new Map<string, { name: string; color: string; ops: typeof crewDayOps }>();
+                                            for (const op of crewDayOps) {
+                                                const key = op.contributor_id ? `c-${op.contributor_id}` : `unassigned-${op.id}`;
+                                                const name = op.contributor
+                                                    ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim() || 'Assigned'
+                                                    : op.position_name || 'Unassigned';
+                                                const color = op.contributor?.crew_color || op.position_color || '#EC4899';
+                                                if (!grouped.has(key)) {
+                                                    grouped.set(key, { name, color, ops: [] });
+                                                }
+                                                grouped.get(key)!.ops.push(op);
+                                            }
+
+                                            const groups = Array.from(grouped.entries());
+                                            return groups.map(([key, group], gi) => {
+                                                // Compute member subtotal using task hours for hourly roles, day rate for day-rate roles
+                                                const memberTotal = group.ops.reduce((sum, op) => {
+                                                    if (isCrewDayRate(op)) {
+                                                        return sum + getCrewDayRate(op) * Number(op.hours || 1);
+                                                    }
+                                                    const roleName = op.job_role ? (op.job_role.display_name || op.job_role.name) : null;
+                                                    const taskKey = roleName ? `${group.name}|${roleName}` : null;
+                                                    const taskHours = taskKey ? (taskHoursMap.get(taskKey) || 0) : 0;
+                                                    const rate = getCrewHourlyRate(op);
+                                                    // Use task hours if available, otherwise fall back to operator hours
+                                                    const hours = taskHours > 0 ? taskHours : Number(op.hours || 0);
+                                                    return sum + rate * hours;
+                                                }, 0);
+
+                                                return (
+                                                    <Box key={key} sx={{ mb: gi < groups.length - 1 ? 1.5 : 0 }}>
+                                                        {/* Crew member header + subtotal */}
+                                                        <Box 
+                                                            onClick={() => {
+                                                                // Get the contributor from the first operator in this group
+                                                                const firstOp = group.ops[0];
+                                                                if (firstOp?.contributor) {
+                                                                    const dayId = scheduleActiveDayId || packageEventDays[0]?.id;
+                                                                    const existingRoleIds = dayId
+                                                                        ? packageDayOperators
+                                                                            .filter(o => o.event_day_template_id === dayId && o.contributor_id === firstOp.contributor_id && o.job_role_id)
+                                                                            .map(o => o.job_role_id!)
+                                                                        : [];
+                                                                    setRolePickerCrewMember(firstOp.contributor);
+                                                                    setRolePickerSelectedIds(existingRoleIds);
+                                                                    setRolePickerOpen(true);
+                                                                }
+                                                            }}
+                                                            sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, cursor: 'pointer', px: 1, mx: -1, borderRadius: 1.5, py: 0.25, transition: 'all 0.15s ease', '&:hover': { bgcolor: 'rgba(56, 189, 248, 0.08)' } }}>
+                                                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, bgcolor: group.color }} />
+                                                            <Typography variant="body2" sx={{ flex: 1, fontWeight: 700, fontSize: '0.7rem', color: '#38bdf8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                {group.name}
+                                                            </Typography>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', minWidth: 72, gap: 0.5, flexShrink: 0 }}>
+                                                                <Typography variant="caption" sx={{
+                                                                    color: memberTotal > 0 ? '#f59e0b' : '#475569',
+                                                                    fontWeight: 700,
+                                                                    fontSize: '0.65rem',
+                                                                    fontVariantNumeric: 'tabular-nums',
+                                                                    textAlign: 'right',
+                                                                }}>
+                                                                    {memberTotal > 0 ? formatCurrency(memberTotal, currentBrand?.currency || 'USD') : '—'}
+                                                                </Typography>
+                                                                <Box sx={{ width: 19, flexShrink: 0 }} />
+                                                            </Box>
+                                                        </Box>
+
+                                                        {/* Roles for this crew member */}
+                                                        {group.ops.map((op) => {
+                                                            const assigned = isCrewAssigned(op);
+                                                            const dayRate = isCrewDayRate(op);
+                                                            const roleName = op.job_role ? (op.job_role.display_name || op.job_role.name) : null;
+                                                            const taskKey = roleName ? `${group.name}|${roleName}` : null;
+                                                            const taskHours = taskKey ? (taskHoursMap.get(taskKey) || 0) : 0;
+                                                            const rate = dayRate ? getCrewDayRate(op) : getCrewHourlyRate(op);
+                                                            // For day-rate roles, cost = day_rate × days; for hourly use task hours (fallback to op.hours)
+                                                            const hours = dayRate ? Number(op.hours || 1) : (taskHours > 0 ? taskHours : Number(op.hours || 0));
+                                                            const cost = rate * hours;
+                                                            return (
+                                                                <Box
+                                                                    key={op.id}
+                                                                    onClick={() => {
+                                                                        if (!selectedActivityId) return;
+                                                                        toggleCrewActivity(op);
+                                                                    }}
+                                                                    sx={{
+                                                                        display: 'flex', alignItems: 'center', gap: 1,
+                                                                        py: 0.25, pl: 2.5, pr: 1, mx: -1, borderRadius: 1.5,
+                                                                        transition: 'all 0.2s ease',
+                                                                        opacity: assigned ? 1 : 0.3,
+                                                                        cursor: selectedActivityId ? 'pointer' : 'default',
+                                                                        '&:hover': {
+                                                                            bgcolor: selectedActivityId ? 'rgba(236, 72, 153, 0.1)' : 'rgba(236, 72, 153, 0.04)',
+                                                                            opacity: selectedActivityId && !assigned ? 0.7 : (assigned ? 1 : 0.3),
+                                                                            '& .op-del': { opacity: !selectedActivityId ? 1 : (assigned ? 1 : 0) },
+                                                                        },
+                                                                    }}
+                                                                >
+                                                                    <Box sx={{ width: 4, height: 4, borderRadius: '50%', flexShrink: 0, bgcolor: op.position_color || group.color, opacity: 0.5 }} />
+                                                                    <Box
+                                                                        sx={{ flex: 1, minWidth: 0, cursor: !selectedActivityId ? 'pointer' : undefined }}
+                                                                        onClick={(e) => {
+                                                                            if (selectedActivityId) return;
+                                                                            e.stopPropagation();
+                                                                            setCrewAssignAnchor(e.currentTarget as HTMLElement);
+                                                                            setCrewAssignSlotId(op.id);
+                                                                        }}
+                                                                    >
+                                                                        <Typography variant="caption" sx={{ fontWeight: 500, fontSize: '0.6rem', color: '#94a3b8' }}>
+                                                                            {(() => {
+                                                                              let tierName: string | null = null;
+                                                                              if (op?.contributor && op?.job_role) {
+                                                                                const jobRoleMatch = op.contributor.contributor_job_roles?.find(
+                                                                                  (cjr: any) => cjr.job_role_id === op.job_role_id
+                                                                                );
+                                                                                tierName = jobRoleMatch?.payment_bracket?.name || null;
+                                                                              }
+                                                                              
+                                                                              return op.job_role 
+                                                                                ? `${op.job_role.display_name || op.job_role.name}${tierName ? ` - ${tierName}` : ''}`
+                                                                                : (op.position_name || 'Crew');
+                                                                            })()}
+                                                                        </Typography>
+                                                                    </Box>
+                                                                    {/* Task hours badge — shows total hours from task auto-gen for this role */}
+                                                                    {!dayRate && taskHours > 0 && (
+                                                                        <Typography variant="caption" sx={{
+                                                                            color: '#22d3ee',
+                                                                            fontWeight: 700,
+                                                                            fontSize: '0.5rem',
+                                                                            fontVariantNumeric: 'tabular-nums',
+                                                                            bgcolor: 'rgba(34, 211, 238, 0.1)',
+                                                                            border: '1px solid rgba(34, 211, 238, 0.2)',
+                                                                            borderRadius: 1,
+                                                                            px: 0.5,
+                                                                            py: 0.1,
+                                                                            flexShrink: 0,
+                                                                            lineHeight: 1.4,
+                                                                        }}>
+                                                                            {Math.round(taskHours * 10) / 10}h
+                                                                        </Typography>
+                                                                    )}
+                                                                    {dayRate && (
+                                                                        <Typography variant="caption" sx={{
+                                                                            color: '#f59e0b',
+                                                                            fontWeight: 600,
+                                                                            fontSize: '0.5rem',
+                                                                            fontVariantNumeric: 'tabular-nums',
+                                                                            bgcolor: 'rgba(245, 158, 11, 0.08)',
+                                                                            border: '1px solid rgba(245, 158, 11, 0.15)',
+                                                                            borderRadius: 1,
+                                                                            px: 0.5,
+                                                                            py: 0.1,
+                                                                            flexShrink: 0,
+                                                                            lineHeight: 1.4,
+                                                                        }}>
+                                                                            Day
+                                                                        </Typography>
+                                                                    )}
+                                                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', minWidth: 72, gap: 0.5, flexShrink: 0 }}>
+                                                                        <Typography variant="caption" sx={{
+                                                                            color: cost > 0 ? 'rgba(245, 158, 11, 0.6)' : '#475569',
+                                                                            fontWeight: 500,
+                                                                            fontSize: '0.55rem',
+                                                                            fontVariantNumeric: 'tabular-nums',
+                                                                            textAlign: 'right',
+                                                                        }}>
+                                                                            {cost > 0 ? formatCurrency(cost, currentBrand?.currency || 'USD') : '—'}
+                                                                        </Typography>
+                                                                        <Box className="op-del" sx={{ opacity: 0, transition: 'opacity 0.15s', width: 19, flexShrink: 0 }}>
+                                                                            <IconButton
+                                                                                size="small"
+                                                                                onClick={async (e) => {
+                                                                                    e.stopPropagation();
+                                                                                    try {
+                                                                                        await api.operators.packageDay.remove(op.id);
+                                                                                        setPackageDayOperators(prev => prev.filter(o => o.id !== op.id));
+                                                                                    } catch (err) {
+                                                                                        console.warn('Failed to remove operator:', err);
+                                                                                    }
+                                                                                }}
+                                                                                sx={{ p: 0.25, color: 'rgba(255,255,255,0.2)', '&:hover': { color: '#ef4444' } }}
+                                                                            >
+                                                                                <DeleteIcon sx={{ fontSize: 11 }} />
+                                                                            </IconButton>
+                                                                        </Box>
+                                                                    </Box>
+                                                                </Box>
+                                                            );
+                                                        })}
+                                                    </Box>
+                                                );
+                                            });
+                                        })()}
+
+                                        {/* Crew Total */}
+                                        {crewDayOps.length > 0 && (() => {
+                                            const taskHoursMap = buildTaskHoursMap(taskPreview);
+                                            const totalCrewCost = crewDayOps.reduce((sum, op) => {
+                                                if (isCrewDayRate(op)) {
+                                                    return sum + getCrewDayRate(op) * Number(op.hours || 1);
+                                                }
+                                                const crewName = op.contributor
+                                                    ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+                                                    : '';
+                                                const roleName = op.job_role ? (op.job_role.display_name || op.job_role.name) : null;
+                                                const taskKey = crewName && roleName ? `${crewName}|${roleName}` : null;
+                                                const taskHours = taskKey ? (taskHoursMap.get(taskKey) || 0) : 0;
+                                                const rate = getCrewHourlyRate(op);
+                                                const hours = taskHours > 0 ? taskHours : Number(op.hours || 0);
+                                                return sum + rate * hours;
+                                            }, 0);
                                             return (
-                                            <Box
-                                                key={op.id}
-                                                onClick={() => {
-                                                    if (!selectedActivityId) return;
-                                                    toggleCrewActivity(op);
-                                                }}
-                                                sx={{
-                                                    display: 'flex', alignItems: 'center', gap: 1,
-                                                    py: 0.5, px: 1, mx: -1, borderRadius: 1.5,
-                                                    transition: 'all 0.2s ease',
-                                                    opacity: assigned ? 1 : 0.3,
-                                                    cursor: selectedActivityId ? 'pointer' : 'default',
-                                                    '&:hover': {
-                                                        bgcolor: selectedActivityId ? 'rgba(236, 72, 153, 0.1)' : 'rgba(236, 72, 153, 0.04)',
-                                                        opacity: selectedActivityId && !assigned ? 0.7 : (assigned ? 1 : 0.3),
-                                                        '& .op-del': { opacity: !selectedActivityId ? 1 : (assigned ? 1 : 0) },
-                                                    },
-                                                }}
-                                            >
-                                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, bgcolor: op.operator_template?.color || '#EC4899' }} />
-                                                <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.7rem', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {op.operator_template?.name || 'Operator'}
+                                                <Box sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    mt: 1.5,
+                                                    pt: 1,
+                                                    mx: -1,
+                                                    px: 1,
+                                                    borderTop: '1px solid rgba(245, 158, 11, 0.15)',
+                                                }}>
+                                                    <Box sx={{ width: 8, flexShrink: 0 }} />
+                                                    <Typography variant="caption" sx={{ flex: 1, color: '#94a3b8', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.3px', ml: 1 }}>
+                                                        Total
                                                     </Typography>
-                                                    {op.operator_template?.role && (
-                                                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.55rem', display: 'block', mt: -0.2 }}>
-                                                            {op.operator_template.role}
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', minWidth: 72, gap: 0.5, flexShrink: 0 }}>
+                                                        <Typography variant="caption" sx={{
+                                                            color: totalCrewCost > 0 ? '#f59e0b' : '#475569',
+                                                            fontWeight: 700,
+                                                            fontSize: '0.7rem',
+                                                            fontVariantNumeric: 'tabular-nums',
+                                                            textAlign: 'right',
+                                                        }}>
+                                                            {totalCrewCost > 0 ? formatCurrency(totalCrewCost, currentBrand?.currency || 'USD') : '—'}
                                                         </Typography>
-                                                    )}
+                                                        <Box sx={{ width: 19, flexShrink: 0 }} />
+                                                    </Box>
                                                 </Box>
-                                                <Box className="op-del" sx={{ opacity: 0, transition: 'opacity 0.15s' }}>
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={async (e) => {
-                                                            e.stopPropagation();
-                                                            try {
-                                                                await api.operators.packageDay.remove(op.id);
-                                                                setPackageDayOperators(prev => prev.filter(o => o.id !== op.id));
-                                                            } catch (err) {
-                                                                console.warn('Failed to remove operator:', err);
-                                                            }
-                                                        }}
-                                                        sx={{ p: 0.25, color: 'rgba(255,255,255,0.2)', '&:hover': { color: '#ef4444' } }}
-                                                    >
-                                                        <DeleteIcon sx={{ fontSize: 11 }} />
-                                                    </IconButton>
-                                                </Box>
-                                            </Box>
                                             );
-                                        })}
+                                        })()}
 
                                         {/* Add Crew + Manage buttons */}
                                         <Box sx={{ mt: crewDayOps.length > 0 ? 1 : 0.5, display: 'flex', justifyContent: 'center', gap: 0.5 }}>
@@ -1639,96 +2157,407 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                                 Manage
                                             </Button>
                                         </Box>
-
-                                        {/* Unmanned Cameras counter */}
-                                        <Box sx={{ mt: 1.5, mx: 1, display: 'flex', alignItems: 'center', gap: 0.75, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 1, px: 1.25, py: 0.75 }}>
-                                            <VideocamIcon sx={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
-                                            <Typography sx={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)', flex: 1, fontStyle: 'italic' }}>
-                                                Unmanned cameras
-                                            </Typography>
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => adjustUnmannedCameras(-1)}
-                                                disabled={((formData.contents as any)?.unmanned_cameras || 0) <= 0}
-                                                sx={{ p: 0.25, color: 'rgba(255,255,255,0.3)', '&:hover': { color: 'white' }, '&.Mui-disabled': { color: 'rgba(255,255,255,0.1)' } }}
-                                            >
-                                                <RemoveIcon sx={{ fontSize: 12 }} />
-                                            </IconButton>
-                                            <Typography sx={{ fontSize: '0.7rem', color: 'white', minWidth: 16, textAlign: 'center', fontWeight: 700 }}>
-                                                {(formData.contents as any)?.unmanned_cameras || 0}
-                                            </Typography>
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => adjustUnmannedCameras(1)}
-                                                sx={{ p: 0.25, color: 'rgba(255,255,255,0.3)', '&:hover': { color: 'white' } }}
-                                            >
-                                                <AddIcon sx={{ fontSize: 12 }} />
-                                            </IconButton>
-                                        </Box>
                                     </Box>
                                 </Box>
 
-                                {/* Operator Add Menu */}
+                                {/* Operator Add Menu — Role-based crew slot creation */}
                                 <Menu
                                     anchorEl={operatorMenuAnchor}
                                     open={Boolean(operatorMenuAnchor)}
                                     onClose={() => { setOperatorMenuAnchor(null); setOperatorMenuDayId(null); }}
-                                    PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', minWidth: 180 } }}
+                                    PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', minWidth: 220, maxHeight: 420 } }}
                                 >
-                                    {operatorTemplates.length === 0 ? (
-                                        <MenuItem disabled sx={{ fontSize: '0.7rem', color: '#475569' }}>No operator templates defined</MenuItem>
+                                    {/* Section: Add by Job Role (unassigned slot) */}
+                                    <MenuItem disabled sx={{ fontSize: '0.55rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700, py: 0.4, opacity: '1 !important' }}>
+                                        Add Role Slot
+                                    </MenuItem>
+                                    {jobRoles.length === 0 ? (
+                                        <MenuItem disabled sx={{ fontSize: '0.7rem', color: '#475569' }}>No roles defined</MenuItem>
                                     ) : (
-                                        operatorTemplates
-                                            .filter(t => {
-                                                if (!operatorMenuDayId) return true;
-                                                // Day-level unique: exclude templates already on this day
-                                                return !packageDayOperators.some(o =>
-                                                    o.event_day_template_id === operatorMenuDayId &&
-                                                    o.operator_template_id === t.id
+                                        jobRoles.map(role => (
+                                            <MenuItem
+                                                key={`role-${role.id}`}
+                                                onClick={async () => {
+                                                    setOperatorMenuAnchor(null);
+                                                    if (!packageId || !operatorMenuDayId) return;
+                                                    try {
+                                                        // Build a unique position_name in case the same role added multiple times
+                                                        const roleName = role.display_name || role.name;
+                                                        const existingCount = packageDayOperators.filter(o =>
+                                                            o.event_day_template_id === operatorMenuDayId &&
+                                                            o.job_role_id === role.id
+                                                        ).length;
+                                                        const positionName = existingCount > 0 ? `${roleName} ${existingCount + 1}` : roleName;
+
+                                                        const newOp = await api.operators.packageDay.add(packageId, {
+                                                            event_day_template_id: operatorMenuDayId,
+                                                            position_name: positionName,
+                                                            contributor_id: null,
+                                                            job_role_id: role.id,
+                                                        });
+                                                        if (selectedActivityId && newOp?.id) {
+                                                            const assignedOp = await api.operators.packageDay.assignActivity(newOp.id, selectedActivityId);
+                                                            setPackageDayOperators(prev => [...prev, { ...newOp, ...assignedOp }]);
+                                                        } else {
+                                                            setPackageDayOperators(prev => [...prev, newOp]);
+                                                        }
+                                                    } catch (err) {
+                                                        console.warn('Failed to add role slot:', err);
+                                                    }
+                                                    setOperatorMenuDayId(null);
+                                                }}
+                                                sx={{ fontSize: '0.7rem', color: '#e2e8f0', '&:hover': { bgcolor: 'rgba(236, 72, 153, 0.1)' } }}
+                                            >
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#EC4899', flexShrink: 0, opacity: 0.5 }} />
+                                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 600 }}>{role.display_name || role.name}</Typography>
+                                                        {role.category && <Typography sx={{ fontSize: '0.5rem', color: '#64748b' }}>{role.category}</Typography>}
+                                                    </Box>
+                                                </Box>
+                                            </MenuItem>
+                                        ))
+                                    )}
+
+                                    {/* Divider */}
+                                    {crewMembers.length > 0 && (
+                                        <Box sx={{ my: 0.5, borderTop: '1px solid rgba(255,255,255,0.08)' }} />
+                                    )}
+
+                                    {/* Section: Add specific crew member — opens role picker */}
+                                    {crewMembers.length > 0 && (
+                                        <>
+                                            <MenuItem disabled sx={{ fontSize: '0.55rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700, py: 0.4, opacity: '1 !important' }}>
+                                                Add Specific Person
+                                            </MenuItem>
+                                            {crewMembers.map(cm => {
+                                                const cmName = `${cm.contact.first_name || ''} ${cm.contact.last_name || ''}`.trim() || 'Unnamed';
+                                                const primaryRole = cm.contributor_job_roles.find(r => r.is_primary)?.job_role ||
+                                                    cm.contributor_job_roles[0]?.job_role;
+                                                // Show how many role slots this person already has on this day
+                                                const slotsOnDay = operatorMenuDayId
+                                                    ? packageDayOperators.filter(o =>
+                                                        o.event_day_template_id === operatorMenuDayId && o.contributor_id === cm.id
+                                                    ).length
+                                                    : 0;
+                                                return (
+                                                    <MenuItem
+                                                        key={`crew-${cm.id}`}
+                                                        onClick={() => {
+                                                            setOperatorMenuAnchor(null);
+                                                            // Pre-select the roles this person already fills on this day
+                                                            const existingRoleIds = operatorMenuDayId
+                                                                ? packageDayOperators
+                                                                    .filter(o => o.event_day_template_id === operatorMenuDayId && o.contributor_id === cm.id && o.job_role_id)
+                                                                    .map(o => o.job_role_id!)
+                                                                : [];
+                                                            setRolePickerCrewMember(cm);
+                                                            setRolePickerSelectedIds(existingRoleIds);
+                                                            setRolePickerOpen(true);
+                                                        }}
+                                                        sx={{ fontSize: '0.7rem', color: '#e2e8f0', '&:hover': { bgcolor: 'rgba(236, 72, 153, 0.1)' } }}
+                                                    >
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: cm.crew_color || '#EC4899', flexShrink: 0 }} />
+                                                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 600 }}>{cmName}</Typography>
+                                                                {primaryRole && <Typography sx={{ fontSize: '0.55rem', color: '#64748b' }}>{primaryRole.display_name || primaryRole.name}</Typography>}
+                                                            </Box>
+                                                            {slotsOnDay > 0 && (
+                                                                <Chip label={slotsOnDay} size="small" sx={{ height: 16, fontSize: '0.5rem', fontWeight: 700, bgcolor: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.2)', '& .MuiChip-label': { px: 0.5 } }} />
+                                                            )}
+                                                        </Box>
+                                                    </MenuItem>
                                                 );
                                             })
-                                            .map(t => (
-                                                <MenuItem
-                                                    key={t.id}
-                                                    onClick={async () => {
-                                                        setOperatorMenuAnchor(null);
-                                                        if (!packageId || !operatorMenuDayId) return;
-                                                        try {
-                                                            // Create day-level record (no package_activity_id — multi-assign via junction table)
-                                                            const newOp = await api.operators.packageDay.add(packageId, {
-                                                                event_day_template_id: operatorMenuDayId,
-                                                                operator_template_id: t.id,
-                                                            });
-                                                            // If an activity is selected, also assign to it via DB
-                                                            if (selectedActivityId && newOp?.id) {
-                                                                const assignedOp = await api.operators.packageDay.assignActivity(newOp.id, selectedActivityId);
-                                                                setPackageDayOperators(prev => [...prev, { ...newOp, ...assignedOp }]);
-                                                            } else {
-                                                                setPackageDayOperators(prev => [...prev, newOp]);
-                                                            }
-                                                        } catch (err) {
-                                                            console.warn('Failed to add operator:', err);
-                                                        }
-                                                        setOperatorMenuDayId(null);
-                                                    }}
-                                                    sx={{ fontSize: '0.7rem', color: '#e2e8f0', '&:hover': { bgcolor: 'rgba(236, 72, 153, 0.1)' } }}
-                                                >
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                                                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: t.color || '#EC4899', flexShrink: 0 }} />
-                                                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 600 }}>{t.name}</Typography>
-                                                            {t.role && <Typography sx={{ fontSize: '0.55rem', color: '#64748b' }}>{t.role}</Typography>}
-                                                        </Box>
-                                                    </Box>
-                                                </MenuItem>
-                                            ))
-                                    )}
-                                    {operatorTemplates.length > 0 && operatorMenuDayId && operatorTemplates.filter(t =>
-                                        !packageDayOperators.some(o => o.event_day_template_id === operatorMenuDayId && o.operator_template_id === t.id)
-                                    ).length === 0 && (
-                                        <MenuItem disabled sx={{ fontSize: '0.7rem', color: '#475569' }}>All operators assigned</MenuItem>
+                                            }
+                                        </>
                                     )}
                                 </Menu>
+
+                                {/* Crew Assignment Menu — assign/reassign a crew member to a role slot */}
+                                <Menu
+                                    anchorEl={crewAssignAnchor}
+                                    open={Boolean(crewAssignAnchor)}
+                                    onClose={() => { setCrewAssignAnchor(null); setCrewAssignSlotId(null); }}
+                                    PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', minWidth: 200, maxHeight: 350 } }}
+                                >
+                                    {/* Unassign option */}
+                                    {crewAssignSlotId && packageDayOperators.find(o => o.id === crewAssignSlotId)?.contributor_id && (
+                                        <MenuItem
+                                            onClick={async () => {
+                                                if (!crewAssignSlotId) return;
+                                                try {
+                                                    await api.operators.packageDay.assign(crewAssignSlotId, null);
+                                                    setPackageDayOperators(prev =>
+                                                        prev.map(o => o.id === crewAssignSlotId ? { ...o, contributor_id: null, contributor: null } : o)
+                                                    );
+                                                } catch (err) {
+                                                    console.warn('Failed to unassign crew:', err);
+                                                }
+                                                setCrewAssignAnchor(null);
+                                                setCrewAssignSlotId(null);
+                                            }}
+                                            sx={{ fontSize: '0.7rem', color: '#f59e0b', '&:hover': { bgcolor: 'rgba(245, 158, 11, 0.1)' } }}
+                                        >
+                                            <RemoveIcon sx={{ fontSize: 14, mr: 1 }} /> Unassign
+                                        </MenuItem>
+                                    )}
+                                    {crewAssignSlotId && packageDayOperators.find(o => o.id === crewAssignSlotId)?.contributor_id && (
+                                        <Box sx={{ my: 0.5, borderTop: '1px solid rgba(255,255,255,0.08)' }} />
+                                    )}
+                                    {/* Crew member list — filtered by the slot's job role if set */}
+                                    {(() => {
+                                        const slot = crewAssignSlotId ? packageDayOperators.find(o => o.id === crewAssignSlotId) : null;
+                                        const slotRoleId = slot?.job_role_id;
+
+                                        // Separate crew into matching role vs others
+                                        const matchingCrew = slotRoleId
+                                            ? crewMembers.filter(cm => cm.contributor_job_roles.some(r => r.job_role.id === slotRoleId))
+                                            : crewMembers;
+                                        const otherCrew = slotRoleId
+                                            ? crewMembers.filter(cm => !cm.contributor_job_roles.some(r => r.job_role.id === slotRoleId))
+                                            : [];
+
+                                        const renderCrewItem = (cm: CrewMemberOption) => {
+                                            const cmName = `${cm.contact.first_name || ''} ${cm.contact.last_name || ''}`.trim() || 'Unnamed';
+                                            const primaryRole = cm.contributor_job_roles.find(r => r.is_primary)?.job_role || cm.contributor_job_roles[0]?.job_role;
+                                            const isCurrentlyAssigned = slot?.contributor_id === cm.id;
+                                            return (
+                                                <MenuItem
+                                                    key={cm.id}
+                                                    disabled={isCurrentlyAssigned}
+                                                    onClick={async () => {
+                                                        if (!crewAssignSlotId || isCurrentlyAssigned) return;
+                                                        try {
+                                                            const updated = await api.operators.packageDay.assign(crewAssignSlotId, cm.id);
+                                                            setPackageDayOperators(prev =>
+                                                                prev.map(o => o.id === crewAssignSlotId ? { ...o, ...updated } : o)
+                                                            );
+                                                        } catch (err) {
+                                                            console.warn('Failed to assign crew:', err);
+                                                        }
+                                                        setCrewAssignAnchor(null);
+                                                        setCrewAssignSlotId(null);
+                                                    }}
+                                                    sx={{
+                                                        fontSize: '0.7rem',
+                                                        color: isCurrentlyAssigned ? '#38bdf8' : '#e2e8f0',
+                                                        '&:hover': { bgcolor: 'rgba(56, 189, 248, 0.1)' },
+                                                    }}
+                                                >
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: cm.crew_color || '#EC4899', flexShrink: 0 }} />
+                                                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 600 }}>{cmName}</Typography>
+                                                            {primaryRole && <Typography sx={{ fontSize: '0.5rem', color: '#64748b' }}>{primaryRole.display_name || primaryRole.name}</Typography>}
+                                                        </Box>
+                                                        {isCurrentlyAssigned && <Typography sx={{ fontSize: '0.5rem', color: '#38bdf8' }}>✓</Typography>}
+                                                    </Box>
+                                                </MenuItem>
+                                            );
+                                        };
+
+                                        return (
+                                            <>
+                                                {matchingCrew.length > 0 && slotRoleId && (
+                                                    <MenuItem disabled sx={{ fontSize: '0.55rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700, py: 0.4, opacity: '1 !important' }}>
+                                                        Matching Role
+                                                    </MenuItem>
+                                                )}
+                                                {matchingCrew.map(renderCrewItem)}
+                                                {otherCrew.length > 0 && (
+                                                    <>
+                                                        <Box sx={{ my: 0.5, borderTop: '1px solid rgba(255,255,255,0.08)' }} />
+                                                        <MenuItem disabled sx={{ fontSize: '0.55rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700, py: 0.4, opacity: '1 !important' }}>
+                                                            Other Crew
+                                                        </MenuItem>
+                                                        {otherCrew.map(renderCrewItem)}
+                                                    </>
+                                                )}
+                                                {matchingCrew.length === 0 && otherCrew.length === 0 && (
+                                                    <MenuItem disabled sx={{ fontSize: '0.7rem', color: '#475569' }}>No crew members available</MenuItem>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
+                                </Menu>
+
+                                {/* Multi-Role Picker Dialog — select roles for a crew member */}
+                                <Dialog
+                                    open={rolePickerOpen}
+                                    onClose={() => { setRolePickerOpen(false); setRolePickerCrewMember(null); setRolePickerSelectedIds([]); }}
+                                    maxWidth="xs"
+                                    fullWidth
+                                    PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 3 } }}
+                                >
+                                    {rolePickerCrewMember && (() => {
+                                        const cmName = `${rolePickerCrewMember.contact.first_name || ''} ${rolePickerCrewMember.contact.last_name || ''}`.trim() || 'Unnamed';
+                                        // Determine which role IDs are already saved as slots on this day (so we can distinguish new vs existing)
+                                        const dayId = operatorMenuDayId || scheduleActiveDayId || packageEventDays[0]?.id;
+                                        const existingSlotsForPerson = dayId
+                                            ? packageDayOperators.filter(o => o.event_day_template_id === dayId && o.contributor_id === rolePickerCrewMember.id)
+                                            : [];
+                                        const existingRoleIdsOnDay = existingSlotsForPerson.filter(o => o.job_role_id).map(o => o.job_role_id!);
+
+                                        return (
+                                            <>
+                                                <DialogTitle sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: rolePickerCrewMember.crew_color || '#EC4899', flexShrink: 0 }} />
+                                                    <Box>
+                                                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#f1f5f9' }}>Assign Roles — {cmName}</Typography>
+                                                        <Typography sx={{ fontSize: '0.65rem', color: '#64748b', mt: -0.2 }}>Select which roles this person should fill on this day</Typography>
+                                                    </Box>
+                                                </DialogTitle>
+                                                <DialogContent sx={{ pt: '8px !important', pb: 0 }}>
+                                                    {jobRoles.length === 0 ? (
+                                                        <Typography sx={{ color: '#475569', fontSize: '0.75rem', py: 2, textAlign: 'center' }}>No roles defined. Create roles in the Crew section first.</Typography>
+                                                    ) : (
+                                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                                            {jobRoles.map(role => {
+                                                                const isChecked = rolePickerSelectedIds.includes(role.id);
+                                                                const wasAlreadySaved = existingRoleIdsOnDay.includes(role.id);
+                                                                // Does this person have this role in their profile?
+                                                                const hasRoleInProfile = rolePickerCrewMember.contributor_job_roles.some(r => r.job_role.id === role.id);
+                                                                return (
+                                                                    <Box
+                                                                        key={role.id}
+                                                                        onClick={() => {
+                                                                            setRolePickerSelectedIds(prev =>
+                                                                                prev.includes(role.id)
+                                                                                    ? prev.filter(id => id !== role.id)
+                                                                                    : [...prev, role.id]
+                                                                            );
+                                                                        }}
+                                                                        sx={{
+                                                                            display: 'flex', alignItems: 'center', gap: 1, py: 0.75, px: 1.5, mx: -1.5,
+                                                                            borderRadius: 1.5, cursor: 'pointer',
+                                                                            bgcolor: isChecked ? 'rgba(236, 72, 153, 0.06)' : 'transparent',
+                                                                            '&:hover': { bgcolor: isChecked ? 'rgba(236, 72, 153, 0.1)' : 'rgba(255,255,255,0.03)' },
+                                                                            transition: 'all 0.15s ease',
+                                                                        }}
+                                                                    >
+                                                                        <Checkbox
+                                                                            checked={isChecked}
+                                                                            size="small"
+                                                                            sx={{
+                                                                                p: 0, color: 'rgba(255,255,255,0.2)',
+                                                                                '&.Mui-checked': { color: '#EC4899' },
+                                                                            }}
+                                                                        />
+                                                                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: isChecked ? '#f1f5f9' : '#94a3b8' }}>
+                                                                                    {role.display_name || role.name}
+                                                                                </Typography>
+                                                                                {hasRoleInProfile && (
+                                                                                    <Chip label="profile" size="small" sx={{ height: 14, fontSize: '0.45rem', fontWeight: 600, bgcolor: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', '& .MuiChip-label': { px: 0.4 } }} />
+                                                                                )}
+                                                                                {wasAlreadySaved && (
+                                                                                    <Chip label="assigned" size="small" sx={{ height: 14, fontSize: '0.45rem', fontWeight: 600, bgcolor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', '& .MuiChip-label': { px: 0.4 } }} />
+                                                                                )}
+                                                                            </Box>
+                                                                            {role.category && (
+                                                                                <Typography sx={{ fontSize: '0.55rem', color: '#475569', mt: -0.1 }}>{role.category}</Typography>
+                                                                            )}
+                                                                        </Box>
+                                                                    </Box>
+                                                                );
+                                                            })}
+                                                        </Box>
+                                                    )}
+                                                </DialogContent>
+                                                <DialogActions sx={{ px: 3, py: 2 }}>
+                                                    <Button
+                                                        onClick={() => { setRolePickerOpen(false); setRolePickerCrewMember(null); setRolePickerSelectedIds([]); }}
+                                                        sx={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'none' }}
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                    <Button
+                                                        variant="contained"
+                                                        disabled={rolePickerSelectedIds.length === 0 || rolePickerSaving}
+                                                        onClick={async () => {
+                                                            if (!packageId || !rolePickerCrewMember) return;
+                                                            const dayId = operatorMenuDayId || scheduleActiveDayId || packageEventDays[0]?.id;
+                                                            if (!dayId) return;
+                                                            setRolePickerSaving(true);
+                                                            try {
+                                                                const cm = rolePickerCrewMember;
+                                                                const cmName = `${cm.contact.first_name || ''} ${cm.contact.last_name || ''}`.trim() || 'Unnamed';
+
+                                                                // Determine which roles to add and which to remove
+                                                                const existingSlotsForPerson = packageDayOperators.filter(
+                                                                    o => o.event_day_template_id === dayId && o.contributor_id === cm.id && o.job_role_id
+                                                                );
+                                                                const existingRoleIds = existingSlotsForPerson.map(o => o.job_role_id!);
+
+                                                                // Roles to add (selected but not yet saved)
+                                                                const rolesToAdd = rolePickerSelectedIds.filter(id => !existingRoleIds.includes(id));
+                                                                // Roles to remove (were saved but now unchecked)
+                                                                const slotsToRemove = existingSlotsForPerson.filter(o => !rolePickerSelectedIds.includes(o.job_role_id!));
+
+                                                                // Remove unchecked role slots
+                                                                for (const slot of slotsToRemove) {
+                                                                    await api.operators.packageDay.remove(slot.id);
+                                                                }
+
+                                                                // Add new role slots
+                                                                const newOps: PackageDayOperatorRecord[] = [];
+                                                                for (const roleId of rolesToAdd) {
+                                                                    const role = jobRoles.find(r => r.id === roleId);
+                                                                    const roleName = role?.display_name || role?.name || 'Crew';
+                                                                    // Build unique position_name
+                                                                    const allExistingForRole = packageDayOperators.filter(
+                                                                        o => o.event_day_template_id === dayId && o.job_role_id === roleId
+                                                                    ).length;
+                                                                    const positionName = allExistingForRole > 0 ? `${roleName} (${cmName})` : roleName;
+                                                                    try {
+                                                                        let newOp = await api.operators.packageDay.add(packageId, {
+                                                                            event_day_template_id: dayId,
+                                                                            position_name: positionName,
+                                                                            position_color: cm.crew_color || null,
+                                                                            contributor_id: cm.id,
+                                                                            job_role_id: roleId,
+                                                                        });
+                                                                        if (selectedActivityId && newOp?.id) {
+                                                                            const assignedOp = await api.operators.packageDay.assignActivity(newOp.id, selectedActivityId);
+                                                                            newOp = { ...newOp, ...assignedOp };
+                                                                        }
+                                                                        newOps.push(newOp);
+                                                                    } catch (err) {
+                                                                        console.warn(`Failed to add role slot ${roleName}:`, err);
+                                                                    }
+                                                                }
+
+                                                                // Update local state
+                                                                setPackageDayOperators(prev => {
+                                                                    const removeIds = new Set(slotsToRemove.map(s => s.id));
+                                                                    return [...prev.filter(o => !removeIds.has(o.id)), ...newOps];
+                                                                });
+                                                            } catch (err) {
+                                                                console.warn('Failed to save role assignments:', err);
+                                                            } finally {
+                                                                setRolePickerSaving(false);
+                                                                setRolePickerOpen(false);
+                                                                setRolePickerCrewMember(null);
+                                                                setRolePickerSelectedIds([]);
+                                                                setOperatorMenuDayId(null);
+                                                            }
+                                                        }}
+                                                        sx={{
+                                                            fontSize: '0.7rem', textTransform: 'none', fontWeight: 600,
+                                                            bgcolor: '#EC4899', '&:hover': { bgcolor: '#db2777' },
+                                                            '&.Mui-disabled': { bgcolor: 'rgba(236, 72, 153, 0.2)', color: 'rgba(255,255,255,0.25)' },
+                                                        }}
+                                                    >
+                                                        {rolePickerSaving ? <CircularProgress size={14} sx={{ color: '#fff' }} /> : `Save (${rolePickerSelectedIds.length} role${rolePickerSelectedIds.length !== 1 ? 's' : ''})`}
+                                                    </Button>
+                                                </DialogActions>
+                                            </>
+                                        );
+                                    })()}
+                                </Dialog>
                                 </>
                             );
                         })()}
@@ -1737,15 +2566,57 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                         {(() => {
                             // Equipment type alias
                             type EquipItem = { equipment_id: number; slot_type: 'CAMERA' | 'AUDIO'; track_number?: number; equipment?: { id: number; item_name: string; model?: string | null } };
+                            type EquipmentContentsShape = {
+                                items?: ServicePackageItem[];
+                                day_equipment?: Record<string, EquipItem[]>;
+                                activity_equipment?: Record<string, EquipItem[]>;
+                            };
 
                             // ── Hierarchical equipment: Event Day (base) → Activity (override) ──
-                            const dayEquipmentMap: Record<string, EquipItem[]> = formData.contents?.day_equipment || {};
-                            const activityEquipmentOverrides: Record<string, EquipItem[]> = formData.contents?.activity_equipment || {};
+                            const equipmentContents = ((formData.contents || {}) as EquipmentContentsShape);
+                            const dayEquipmentMap: Record<string, EquipItem[]> = equipmentContents.day_equipment || {};
+                            const activityEquipmentOverrides: Record<string, EquipItem[]> = equipmentContents.activity_equipment || {};
 
-                            const activeDayId = scheduleActiveDayId || packageEventDays[0]?.id;
+                            const activeDayId: number | null = scheduleActiveDayId ?? packageEventDays[0]?.id ?? null;
+                            const activePackageDay = activeDayId
+                                ? packageEventDays.find((d: any) => d.id === activeDayId)
+                                : packageEventDays[0];
+                            const activeDayTemplateId = activePackageDay?.event_day_template_id || activePackageDay?.event_day?.id || null;
 
                             // Day equipment is the base/default level
                             const dayEquipment: EquipItem[] = activeDayId ? (dayEquipmentMap[String(activeDayId)] || []) : [];
+
+                            // Fallback: derive equipment from relational operator-equipment links for the active day
+                            const dayOpsForEquip = activeDayTemplateId
+                                ? packageDayOperators.filter(o => o.event_day_template_id === activeDayTemplateId)
+                                : packageDayOperators;
+                            const relationalEquipment: EquipItem[] = dayOpsForEquip.flatMap((op) =>
+                                (op.equipment || []).map((eq) => {
+                                    const inferredType = eq.equipment?.category === 'AUDIO' ? 'AUDIO' : 'CAMERA';
+                                    const parsedTrack = Number.parseInt(op.position_name.match(/\d+/)?.[0] || '', 10);
+                                    return {
+                                        equipment_id: eq.equipment_id,
+                                        slot_type: inferredType,
+                                        track_number: Number.isNaN(parsedTrack) ? undefined : parsedTrack,
+                                        equipment: eq.equipment
+                                            ? {
+                                                id: eq.equipment.id,
+                                                item_name: eq.equipment.item_name,
+                                                model: eq.equipment.model,
+                                            }
+                                            : undefined,
+                                    };
+                                }),
+                            );
+
+                            const mergedDayEquipmentMap = new Map<number, EquipItem>();
+                            dayEquipment.forEach((item) => mergedDayEquipmentMap.set(item.equipment_id, item));
+                            relationalEquipment.forEach((item) => {
+                                if (!mergedDayEquipmentMap.has(item.equipment_id)) {
+                                    mergedDayEquipmentMap.set(item.equipment_id, item);
+                                }
+                            });
+                            const mergedDayEquipment = Array.from(mergedDayEquipmentMap.values());
 
                             // Determine which level is active and resolve equipment
                             let equipmentItems: EquipItem[];
@@ -1757,7 +2628,7 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                 activeLevel = 'activity';
                                 hasOverride = true;
                             } else {
-                                equipmentItems = dayEquipment;
+                                equipmentItems = mergedDayEquipment;
                                 activeLevel = 'day';
                             }
 
@@ -1766,7 +2637,7 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
 
                             // ── Save helpers that write to the correct level (auto-override when activity selected) ──
                             const saveEquipmentAtLevel = (newItems: EquipItem[]) => {
-                                const contents = { ...formData.contents, items: formData.contents?.items || [] };
+                                const contents: EquipmentContentsShape = { ...equipmentContents, items: equipmentContents.items || [] };
                                 if (selectedActivityId) {
                                     // Auto-create/update activity override when activity is selected
                                     contents.activity_equipment = { ...activityEquipmentOverrides, [String(selectedActivityId)]: newItems };
@@ -1809,7 +2680,7 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                             // ── Override management (activity overrides day) ──
                             const resetOverride = () => {
                                 if (!hasOverride || !selectedActivityId) return;
-                                const contents = { ...formData.contents, items: formData.contents?.items || [] };
+                                const contents: EquipmentContentsShape = { ...equipmentContents, items: equipmentContents.items || [] };
                                 const updated = { ...activityEquipmentOverrides };
                                 delete updated[String(selectedActivityId)];
                                 contents.activity_equipment = updated;
@@ -1819,11 +2690,6 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                             const levelColor = activeLevel === 'activity' ? '#a855f7' : '#f59e0b';
 
                             // Build a map of equipment_id → operator for the active event day's operators
-                            const dayOpsForEquip = scheduleActiveDayId
-                                ? packageDayOperators.filter(o => o.event_day_template_id === scheduleActiveDayId)
-                                : packageEventDays[0]
-                                    ? packageDayOperators.filter(o => o.event_day_template_id === packageEventDays[0].id)
-                                    : packageDayOperators;
                             // Map: equipment_id -> operator record (use ALL day operators, not activity-filtered)
                             const equipToOperator = new Map<number, PackageDayOperatorRecord>();
                             dayOpsForEquip.forEach(op => {
@@ -1881,6 +2747,26 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                 } catch (err) { console.warn('Failed to unassign operator:', err); }
                             };
 
+                            // Helper: toggle unmanned status for equipment
+                            const handleToggleUnmanned = async (equipmentId: number) => {
+                                try {
+                                    const isCurrentlyUnmanned = unmannedEquipment.some(eq => eq.id === equipmentId);
+                                    await api.equipment.setUnmannedStatus(equipmentId, !isCurrentlyUnmanned);
+                                    // Reload unmanned equipment list
+                                    if (safeBrandId) {
+                                        const unmannedList = await api.equipment.findUnmanned(safeBrandId);
+                                        setUnmannedEquipment(unmannedList || []);
+                                    }
+                                    // Reload package day operators to refresh equipment data
+                                    if (packageId) {
+                                        const dayOps = await api.operators.packageDay.getAll(packageId);
+                                        setPackageDayOperators(dayOps || []);
+                                    }
+                                } catch (err) {
+                                    console.error('❌ Failed to toggle unmanned status:', err);
+                                }
+                            };
+
                             // Render a single equipment row with linked operator column
                             const renderEquipRow = (item: EquipItem, type: 'CAMERA' | 'AUDIO', fallbackIndex: number) => {
                                 const isCamera = type === 'CAMERA';
@@ -1889,8 +2775,25 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                 const trackNum = item.track_number;
                                 const trackLabel = trackNum ? (isCamera ? `Camera ${trackNum}` : `Audio ${trackNum}`) : (isCamera ? `Cam` : `Aud`);
                                 const op = getOperatorForEquipment(item.equipment_id);
-                                const opColor = op?.operator_template?.color || '#EC4899';
-                                const opInitials = op?.operator_template?.name ? op.operator_template.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '';
+                                const opColor = op?.position_color || op?.contributor?.crew_color || '#EC4899';
+                                
+                                // Get tier name from contributor's job role assignments
+                                let tierName: string | null = null;
+                                if (op?.contributor && op?.job_role) {
+                                  const jobRoleMatch = op.contributor.contributor_job_roles?.find(
+                                    (cjr: any) => cjr.job_role_id === op.job_role_id
+                                  );
+                                  tierName = jobRoleMatch?.payment_bracket?.name || null;
+                                }
+                                
+                                const opLabel = op?.job_role 
+                                  ? `${op.job_role.display_name || op.job_role.name}${tierName ? ` - ${tierName}` : ''}`
+                                  : (op?.position_name || '');
+                                const opInitials = opLabel ? opLabel.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '';
+
+                                // Equipment-level unmanned flag (per-camera, not per-operator)
+                                const isEquipUnmanned = isCamera && unmannedEquipment.some(eq => eq.id === item.equipment_id);
+
                                 // Fade equipment when an activity is selected — follows operator's DB-backed activity_assignments
                                 const isEquipAssigned = (() => {
                                     if (!selectedActivityId) return true;
@@ -1966,64 +2869,112 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                                 </Typography>
                                             )}
                                         </Box>
-                                        {/* Linked Operator — clickable to assign/change */}
-                                        {op ? (
-                                            <Tooltip title={`${op.operator_template?.name}${op.operator_template?.role ? ` · ${op.operator_template.role}` : ''} — Click to change`} arrow placement="top">
+                                        {/* Day rate cost column */}
+                                        {(() => {
+                                            const fullEq = allEquipment.find((e: any) => e.id === item.equipment_id);
+                                            const dayRate = fullEq?.rental_price_per_day ? Number(fullEq.rental_price_per_day) : 0;
+                                            return (
+                                                <Typography variant="caption" sx={{
+                                                    color: dayRate > 0 ? '#f59e0b' : '#475569',
+                                                    fontWeight: 600,
+                                                    fontSize: '0.65rem',
+                                                    minWidth: 56,
+                                                    textAlign: 'right',
+                                                    flexShrink: 0,
+                                                    fontVariantNumeric: 'tabular-nums',
+                                                }}>
+                                                    {dayRate > 0 ? formatCurrency(dayRate, currentBrand?.currency || 'USD') : '—'}
+                                                </Typography>
+                                            );
+                                        })()}
+                                        {/* Operator column: UM toggle (equipment-level) + operator chip */}
+                                        <Stack direction="row" alignItems="center" spacing={0.5} sx={{ flexShrink: 0 }}>
+                                            {/* UM toggle circle — marks THIS camera as unmanned/static */}
+                                            {isCamera && (
+                                                <Tooltip title={isEquipUnmanned ? 'Camera is unmanned (static) — click to remove' : 'Mark this camera as unmanned (static)'} arrow placement="top">
+                                                    <Box
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleToggleUnmanned(item.equipment_id);
+                                                        }}
+                                                        sx={{
+                                                            width: 20, height: 20, borderRadius: '50%',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            cursor: 'pointer', flexShrink: 0,
+                                                            border: isEquipUnmanned ? '2px solid #94a3b8' : '2px dashed rgba(100,116,139,0.35)',
+                                                            bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.18)' : 'transparent',
+                                                            transition: 'all 0.15s',
+                                                            '&:hover': {
+                                                                bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.28)' : 'rgba(148,163,184,0.08)',
+                                                                borderColor: '#94a3b8',
+                                                            },
+                                                        }}
+                                                    >
+                                                        <Typography sx={{ fontSize: '0.4rem', fontWeight: 800, color: isEquipUnmanned ? '#94a3b8' : 'rgba(100,116,139,0.5)', lineHeight: 1, userSelect: 'none' }}>
+                                                            UM
+                                                        </Typography>
+                                                    </Box>
+                                                </Tooltip>
+                                            )}
+                                            {/* Operator chip or assign button */}
+                                            {op ? (
+                                                <Tooltip title={`${opLabel}${op.contributor ? ` · ${`${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()}` : ''}${isEquipUnmanned ? ' (Unmanned)' : ''} — Click to change`} arrow placement="top">
+                                                    <Box
+                                                        onClick={(e) => {
+                                                            setEquipAssignAnchor(e.currentTarget);
+                                                            setEquipAssignTarget({ equipmentId: item.equipment_id, currentOpId: op.id });
+                                                        }}
+                                                        sx={{
+                                                            display: 'flex', alignItems: 'center', gap: 0.5,
+                                                            height: 24, pl: 0.25, pr: 1, borderRadius: 3,
+                                                            bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.08)' : `${opColor}12`,
+                                                            border: `1px solid ${isEquipUnmanned ? 'rgba(148,163,184,0.30)' : `${opColor}30`}`,
+                                                            cursor: 'pointer', opacity: isEquipUnmanned ? 0.7 : 1,
+                                                            transition: 'all 0.15s ease',
+                                                            maxWidth: 120, flexShrink: 0,
+                                                            '&:hover': { bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.18)' : `${opColor}22`, borderColor: isEquipUnmanned ? 'rgba(148,163,184,0.50)' : `${opColor}50` },
+                                                        }}
+                                                    >
+                                                        <Box sx={{
+                                                            width: 18, height: 18, borderRadius: '50%',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.30)' : `${opColor}30`, flexShrink: 0,
+                                                        }}>
+                                                            <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: isEquipUnmanned ? '#94a3b8' : opColor, lineHeight: 1 }}>
+                                                                {opInitials}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Typography sx={{
+                                                            fontSize: '0.6rem', fontWeight: 700, color: isEquipUnmanned ? '#94a3b8' : opColor,
+                                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                            lineHeight: 1,
+                                                        }}>
+                                                            {opLabel || 'Crew'}
+                                                        </Typography>
+                                                    </Box>
+                                                </Tooltip>
+                                            ) : (
                                                 <Box
                                                     onClick={(e) => {
                                                         setEquipAssignAnchor(e.currentTarget);
-                                                        setEquipAssignTarget({ equipmentId: item.equipment_id, currentOpId: op.id });
+                                                        setEquipAssignTarget({ equipmentId: item.equipment_id });
                                                     }}
                                                     sx={{
                                                         display: 'flex', alignItems: 'center', gap: 0.5,
-                                                        height: 24, pl: 0.25, pr: 1, borderRadius: 3,
-                                                        bgcolor: `${opColor}12`,
-                                                        border: `1px solid ${opColor}30`,
-                                                        cursor: 'pointer',
+                                                        height: 22, px: 0.75, borderRadius: 2,
+                                                        border: '1px dashed rgba(100, 116, 139, 0.3)',
+                                                        cursor: 'pointer', flexShrink: 0,
                                                         transition: 'all 0.15s ease',
-                                                        maxWidth: 120, flexShrink: 0,
-                                                        '&:hover': { bgcolor: `${opColor}22`, borderColor: `${opColor}50` },
+                                                        '&:hover': { borderColor: 'rgba(100, 116, 139, 0.6)', bgcolor: 'rgba(255,255,255,0.03)' },
                                                     }}
                                                 >
-                                                    <Box sx={{
-                                                        width: 18, height: 18, borderRadius: '50%',
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        bgcolor: `${opColor}30`, flexShrink: 0,
-                                                    }}>
-                                                        <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: opColor, lineHeight: 1 }}>
-                                                            {opInitials}
-                                                        </Typography>
-                                                    </Box>
-                                                    <Typography sx={{
-                                                        fontSize: '0.6rem', fontWeight: 700, color: opColor,
-                                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                                        lineHeight: 1,
-                                                    }}>
-                                                        {op.operator_template?.name || 'Operator'}
+                                                    <AddIcon sx={{ fontSize: 10, color: '#475569' }} />
+                                                    <Typography variant="caption" sx={{ color: '#475569', fontSize: '0.55rem', fontWeight: 600 }}>
+                                                        Assign Operator
                                                     </Typography>
                                                 </Box>
-                                            </Tooltip>
-                                        ) : (
-                                            <Box
-                                                onClick={(e) => {
-                                                    setEquipAssignAnchor(e.currentTarget);
-                                                    setEquipAssignTarget({ equipmentId: item.equipment_id });
-                                                }}
-                                                sx={{
-                                                    display: 'flex', alignItems: 'center', gap: 0.5,
-                                                    height: 22, px: 0.75, borderRadius: 2,
-                                                    border: '1px dashed rgba(100, 116, 139, 0.3)',
-                                                    cursor: 'pointer', flexShrink: 0,
-                                                    transition: 'all 0.15s ease',
-                                                    '&:hover': { borderColor: 'rgba(100, 116, 139, 0.6)', bgcolor: 'rgba(255,255,255,0.03)' },
-                                                }}
-                                            >
-                                                <AddIcon sx={{ fontSize: 10, color: '#475569' }} />
-                                                <Typography variant="caption" sx={{ color: '#475569', fontSize: '0.55rem', fontWeight: 600 }}>
-                                                    Assign Operator
-                                                </Typography>
-                                            </Box>
-                                        )}
+                                            )}
+                                        </Stack>
                                     </Box>
                                 );
                             };
@@ -2186,6 +3137,37 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                             </Box>
                                         )}
 
+                                        {/* Equipment Total */}
+                                        {equipmentItems.length > 0 && (() => {
+                                            const totalEquipCost = equipmentItems.reduce((sum, item) => {
+                                                const fullEq = allEquipment.find((e: any) => e.id === item.equipment_id);
+                                                return sum + (fullEq?.rental_price_per_day ? Number(fullEq.rental_price_per_day) : 0);
+                                            }, 0);
+                                            return (
+                                                <Box sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    mt: 1.5,
+                                                    pt: 1,
+                                                    borderTop: '1px solid rgba(245, 158, 11, 0.15)',
+                                                }}>
+                                                    <Typography variant="caption" sx={{ flex: 1, color: '#94a3b8', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                                                        Total
+                                                    </Typography>
+                                                    <Typography variant="caption" sx={{
+                                                        color: totalEquipCost > 0 ? '#f59e0b' : '#475569',
+                                                        fontWeight: 700,
+                                                        fontSize: '0.7rem',
+                                                        fontVariantNumeric: 'tabular-nums',
+                                                        minWidth: 56,
+                                                        textAlign: 'right',
+                                                    }}>
+                                                        {totalEquipCost > 0 ? formatCurrency(totalEquipCost, currentBrand?.currency || 'USD') : '—'}
+                                                    </Typography>
+                                                </Box>
+                                            );
+                                        })()}
+
                                         {/* Bottom actions */}
                                         <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'center', gap: 0.5 }}>
                                             <Button
@@ -2219,12 +3201,82 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                                     Assign Operator
                                                 </Typography>
                                             </Box>
+                                            {/* Mark Unmanned option (cameras only) */}
+                                            {equipAssignTarget && (() => {
+                                                const isCameraEquip = cameraItems.some(
+                                                    (eq) => eq.equipment_id === equipAssignTarget.equipmentId
+                                                );
+                                                const isCurrentlyUnmanned = unmannedEquipment.some(eq => eq.id === equipAssignTarget.equipmentId);
+                                                if (!isCameraEquip) return null;
+                                                return (
+                                                    <MenuItem
+                                                        onClick={async () => {
+                                                            setEquipAssignAnchor(null);
+                                                            await handleToggleUnmanned(equipAssignTarget.equipmentId);
+                                                            setEquipAssignTarget(null);
+                                                        }}
+                                                        sx={{
+                                                            fontSize: '0.7rem', color: '#94a3b8', py: 0.75,
+                                                            bgcolor: isCurrentlyUnmanned ? 'rgba(148, 163, 184, 0.12)' : 'transparent',
+                                                            '&:hover': { bgcolor: 'rgba(148, 163, 184, 0.18)' },
+                                                        }}
+                                                    >
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                                            <Box sx={{ width: 22, height: 22, borderRadius: '50%', bgcolor: 'rgba(148, 163, 184, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                                <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: '#94a3b8' }}>UM</Typography>
+                                                            </Box>
+                                                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+                                                                    {isCurrentlyUnmanned ? 'Remove Unmanned' : 'Mark Unmanned'}
+                                                                </Typography>
+                                                                <Typography sx={{ fontSize: '0.55rem', color: '#64748b' }}>No operator needed</Typography>
+                                                            </Box>
+                                                            {isCurrentlyUnmanned && (
+                                                                <Typography sx={{ fontSize: '0.5rem', color: '#94a3b8', fontWeight: 600 }}>✓</Typography>
+                                                            )}
+                                                        </Box>
+                                                    </MenuItem>
+                                                );
+                                            })()}
                                             {dayOpsForEquip.length === 0 ? (
                                                 <MenuItem disabled sx={{ fontSize: '0.7rem', color: '#475569' }}>Add crew members first</MenuItem>
-                                            ) : (
-                                                dayOpsForEquip.map(op => {
-                                                    const opC = op.operator_template?.color || '#EC4899';
-                                                    const initials = op.operator_template?.name ? op.operator_template.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '?';
+                                            ) : (() => {
+                                                // Determine required role based on equipment type
+                                                const isTargetCamera = equipAssignTarget
+                                                    ? cameraItems.some(eq => eq.equipment_id === equipAssignTarget.equipmentId)
+                                                    : false;
+                                                const isTargetAudio = equipAssignTarget
+                                                    ? audioItems.some(eq => eq.equipment_id === equipAssignTarget.equipmentId)
+                                                    : false;
+                                                // Role name that matches equipment type
+                                                const requiredRoleName = isTargetCamera ? 'videographer' : isTargetAudio ? 'sound_engineer' : null;
+                                                const requiredRoleLabel = isTargetCamera ? 'Videographers' : isTargetAudio ? 'Sound Engineers' : null;
+
+                                                // Split operators into matching-role and other
+                                                const matchingOps = requiredRoleName
+                                                    ? dayOpsForEquip.filter(op => op.job_role?.name === requiredRoleName)
+                                                    : dayOpsForEquip;
+                                                const otherOps = requiredRoleName
+                                                    ? dayOpsForEquip.filter(op => op.job_role?.name !== requiredRoleName)
+                                                    : [];
+
+                                                const renderOpItem = (op: PackageDayOperatorRecord, dimmed = false) => {
+                                                    const opC = op.position_color || op.contributor?.crew_color || '#EC4899';
+                                                    
+                                                    // Get tier name from contributor's job role assignments
+                                                    let tierName: string | null = null;
+                                                    if (op.contributor && op.job_role) {
+                                                      const jobRoleMatch = op.contributor.contributor_job_roles?.find(
+                                                        (cjr: any) => cjr.job_role_id === op.job_role_id
+                                                      );
+                                                      tierName = jobRoleMatch?.payment_bracket?.name || null;
+                                                    }
+                                                    
+                                                    const opRoleLabel = op.job_role 
+                                                      ? `${op.job_role.display_name || op.job_role.name}${tierName ? ` - ${tierName}` : ''}`
+                                                      : (op.position_name || '?');
+                                                    const initials = opRoleLabel.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
+                                                    const personName = op.contributor ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim() : null;
                                                     const isCurrentlyAssigned = equipAssignTarget?.currentOpId === op.id;
                                                     return (
                                                         <MenuItem
@@ -2232,12 +3284,13 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                                             onClick={async () => {
                                                                 setEquipAssignAnchor(null);
                                                                 if (!equipAssignTarget) return;
-                                                                if (isCurrentlyAssigned) return; // Already assigned
+                                                                if (isCurrentlyAssigned) return;
                                                                 await handleAssignOperator(op.id, equipAssignTarget.equipmentId);
                                                                 setEquipAssignTarget(null);
                                                             }}
                                                             sx={{
-                                                                fontSize: '0.7rem', color: '#e2e8f0', py: 0.75,
+                                                                fontSize: '0.7rem', color: dimmed ? '#64748b' : '#e2e8f0', py: 0.75,
+                                                                opacity: dimmed ? 0.65 : 1,
                                                                 bgcolor: isCurrentlyAssigned ? `${opC}12` : 'transparent',
                                                                 '&:hover': { bgcolor: `${opC}18` },
                                                             }}
@@ -2247,8 +3300,9 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                                                     <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: opC }}>{initials}</Typography>
                                                                 </Box>
                                                                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 600 }}>{op.operator_template?.name}</Typography>
-                                                                    {op.operator_template?.role && <Typography sx={{ fontSize: '0.55rem', color: '#64748b' }}>{op.operator_template.role}</Typography>}
+                                                                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 600 }}>{opRoleLabel}</Typography>
+                                                                    {personName && <Typography sx={{ fontSize: '0.55rem', color: '#38bdf8' }}>{personName}</Typography>}
+                                                                    {!personName && <Typography sx={{ fontSize: '0.55rem', color: '#f59e0b', fontStyle: 'italic' }}>Unassigned</Typography>}
                                                                 </Box>
                                                                 {isCurrentlyAssigned && (
                                                                     <Typography sx={{ fontSize: '0.5rem', color: opC, fontWeight: 600 }}>✓</Typography>
@@ -2256,8 +3310,36 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                                                             </Box>
                                                         </MenuItem>
                                                     );
-                                                })
-                                            )}
+                                                };
+
+                                                return (
+                                                    <>
+                                                        {/* Matching role section */}
+                                                        {requiredRoleLabel && (
+                                                            <MenuItem disabled sx={{ fontSize: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700, py: 0.3, minHeight: 0, opacity: '1 !important' }}>
+                                                                {requiredRoleLabel}
+                                                            </MenuItem>
+                                                        )}
+                                                        {matchingOps.length > 0
+                                                            ? matchingOps.map(op => renderOpItem(op))
+                                                            : requiredRoleName && (
+                                                                <MenuItem disabled sx={{ fontSize: '0.65rem', color: '#475569', py: 0.5 }}>
+                                                                    No {requiredRoleLabel?.toLowerCase()} on this day
+                                                                </MenuItem>
+                                                            )
+                                                        }
+                                                        {/* Other crew — shown dimmed as fallback */}
+                                                        {otherOps.length > 0 && (
+                                                            <>
+                                                                <MenuItem disabled sx={{ fontSize: '0.5rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700, py: 0.3, mt: 0.5, minHeight: 0, opacity: '1 !important', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                                                                    Other Crew
+                                                                </MenuItem>
+                                                                {otherOps.map(op => renderOpItem(op, true))}
+                                                            </>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
                                             {/* Unassign option */}
                                             {equipAssignTarget?.currentOpId && (
                                                 <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
@@ -2413,241 +3495,255 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                             );
                         })()}
 
-                    {/* ── Package Contents Card ── */}
-                    <Box sx={{ ...cardSx, borderColor: 'rgba(100, 140, 255, 0.15)', background: 'rgba(16, 18, 22, 0.85)' }}>
-                        <Box sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-                            <VideoLibraryIcon sx={{ fontSize: 18, color: '#648CFF' }} />
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Package Contents</Typography>
+                    </Stack>
+                </Grid>
+            </Grid>
+
+            {/* ── Row 2: Package Contents ── */}
+            <Grid container spacing={2.5} sx={{ mt: 0 }}>
+                {/* ────── Column 1: Package Contents ────── */}
+                <Grid item xs={12} md={6}>
+                    <Box sx={{ ...cardSx, overflow: 'hidden' }}>
+                        {/* Card Header */}
+                        <Box sx={{ px: 2.5, pt: 2, pb: 1.5, borderBottom: (formData.contents?.items?.length ?? 0) > 0 ? '1px solid rgba(52, 58, 68, 0.25)' : 'none' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                    <Box sx={{ width: 28, height: 28, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(100, 140, 255, 0.1)', border: '1px solid rgba(100, 140, 255, 0.2)' }}>
+                                        <VideoLibraryIcon sx={{ fontSize: 14, color: '#648CFF' }} />
+                                    </Box>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Package Contents</Typography>
+                                </Box>
+                                {(formData.contents?.items?.length ?? 0) > 0 && (
+                                    <Chip label={`${formData.contents!.items.length}`} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(100, 140, 255, 0.1)', color: '#648CFF', border: '1px solid rgba(100, 140, 255, 0.2)', '& .MuiChip-label': { px: 0.6 } }} />
+                                )}
+                            </Box>
                         </Box>
-                        <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
-                            Define what is included in this package. Click any item to configure it.
-                        </Typography>
 
-                        {/* List of Items - Modern Film Cards */}
-                        {formData.contents?.items && formData.contents.items.length > 0 ? (
-                            <Stack spacing={2.5} sx={{ mb: 4 }}>
-                                {formData.contents.items.map((item, idx) => {
-                                    const film = item.type === 'film' ? films.find(f => f.id === item.referenceId) : null;
-                                    
-                                    if (item.type === 'film' && film) {
-                                        const stats = getFilmStats(item.referenceId || 0);
-                                        
-                                        return (
-                                            <Card key={item.id || idx} onClick={() => handleConfigureItem(item)} sx={{
-                                                borderRadius: 3,
-                                                overflow: 'hidden',
-                                                border: '1px solid rgba(255, 255, 255, 0.06)',
-                                                bgcolor: 'rgba(255, 255, 255, 0.02)',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                '&:hover': {
-                                                    border: '1px solid rgba(100, 140, 255, 0.25)',
-                                                    bgcolor: 'rgba(255, 255, 255, 0.035)',
-                                                    transform: 'translateY(-1px)',
-                                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-                                                }
-                                            }}>
-                                                {/* Top strip - accent line */}
-                                                <Box sx={{
-                                                    height: 3,
-                                                    background: 'linear-gradient(90deg, #648CFF 0%, #A855F7 50%, #EC4899 100%)',
-                                                }} />
-                                                
-                                                <Box sx={{ p: 2.5 }}>
-                                                    {/* Single inline row: Icon · Title · Duration · Subjects · Price · Actions */}
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                        {/* Film icon */}
+                        {/* Items listing */}
+                        <Box>
+                            {formData.contents?.items && formData.contents.items.length > 0 ? (
+                                <>
+                                    {/* ── Column header row ── */}
+                                    <Box sx={{
+                                        display: 'flex', alignItems: 'center',
+                                        px: 2.5, py: 0.75,
+                                        borderBottom: '1px solid rgba(52,58,68,0.35)',
+                                        bgcolor: 'rgba(255,255,255,0.015)',
+                                    }}>
+                                        {/* Type header */}
+                                        <Typography sx={{ width: 54, flexShrink: 0, fontSize: '0.58rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Type</Typography>
+                                        {/* Name */}
+                                        <Typography sx={{ flex: '0 0 110px', fontSize: '0.58rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Name</Typography>
+                                        {/* Scenes */}
+                                        <Typography sx={{ flex: 1, minWidth: 0, fontSize: '0.58rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Scenes</Typography>
+                                        {/* Equip */}
+                                        <Typography sx={{ width: 40, flexShrink: 0, fontSize: '0.58rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', textAlign: 'right' }}>Equip</Typography>
+                                        {/* Duration */}
+                                        <Typography sx={{ width: 44, flexShrink: 0, fontSize: '0.58rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', textAlign: 'right' }}>Dur.</Typography>
+                                        {/* delete spacer */}
+                                        <Box sx={{ width: 24, flexShrink: 0 }} />
+                                    </Box>
+
+                                    {formData.contents.items.map((item, idx) => {
+                                        const film = item.type === 'film' ? films.find(f => f.id === item.referenceId) : null;
+                                        const linkedActivity = item.config?.activity_id
+                                            ? packageActivities.find((a: any) => a.id === item.config?.activity_id)
+                                            : null;
+
+                                        if (item.type === 'film' && film) {
+                                            const stats = getFilmStats(item.referenceId || 0);
+
+                                            return (
+                                                <Box
+                                                    key={item.id || idx}
+                                                    onClick={() => handleConfigureItem(item)}
+                                                    sx={{
+                                                        display: 'flex', alignItems: 'center',
+                                                        pl: 1.5, pr: 2.5, py: 1.25, gap: 0,
+                                                        cursor: 'pointer',
+                                                        borderBottom: '1px solid rgba(52,58,68,0.22)',
+                                                        borderLeft: '3px solid rgba(100,140,255,0.4)',
+                                                        bgcolor: 'rgba(100,140,255,0.025)',
+                                                        transition: 'background 0.15s ease, border-color 0.15s ease',
+                                                        '&:last-of-type': { borderBottom: 'none' },
+                                                        '&:hover': {
+                                                            bgcolor: 'rgba(100,140,255,0.07)',
+                                                            borderLeftColor: '#648CFF',
+                                                            '& .cnt-del': { opacity: 1 },
+                                                        },
+                                                    }}
+                                                >
+                                                    {/* Type badge */}
+                                                    <Box sx={{ width: 54, flexShrink: 0 }}>
                                                         <Box sx={{
-                                                            width: 38, height: 38, borderRadius: 1.5,
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                            background: 'linear-gradient(135deg, #648CFF 0%, #5A7BF0 100%)',
-                                                            flexShrink: 0,
+                                                            display: 'inline-flex', alignItems: 'center', gap: 0.4,
+                                                            px: 0.75, py: 0.2, borderRadius: 0.75,
+                                                            bgcolor: 'rgba(100,140,255,0.12)',
+                                                            border: '1px solid rgba(100,140,255,0.3)',
                                                         }}>
-                                                            <VideoLibraryIcon sx={{ fontSize: 20, color: 'white' }} />
-                                                        </Box>
-
-                                                        {/* Title */}
-                                                        <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '0.95rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                            {item.description}
-                                                        </Typography>
-
-                                                        {/* Inline stats */}
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, flexShrink: 0 }}>
-                                                            {/* Duration */}
-                                                            <Tooltip title="Duration">
-                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                                    <AccessTimeIcon sx={{ fontSize: 16, color: 'success.light', opacity: 0.7 }} />
-                                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.82rem' }}>
-                                                                        {stats.totalDuration !== '0:00' ? stats.totalDuration : '—'}
-                                                                    </Typography>
-                                                                </Box>
-                                                            </Tooltip>
-
-                                                            {/* Subjects */}
-                                                            <Tooltip title={film.subjects?.length > 0 ? film.subjects.map((s: { name: string }) => s.name).join(', ') : 'No subjects'}>
-                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                                    <PeopleIcon sx={{ fontSize: 16, color: '#EC4899', opacity: 0.7 }} />
-                                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.82rem' }}>
-                                                                        {film.subjects?.length || 0}
-                                                                    </Typography>
-                                                                </Box>
-                                                            </Tooltip>
-
-                                                            {/* Actions */}
-                                                            <Tooltip title="Remove from package">
-                                                                <IconButton
-                                                                    size="small"
-                                                                    onClick={(e) => { e.stopPropagation(); handleRemoveItem(idx); }}
-                                                                    sx={{
-                                                                        bgcolor: 'rgba(244, 67, 54, 0.08)',
-                                                                        color: 'error.main',
-                                                                        borderRadius: 1.5,
-                                                                        '&:hover': { bgcolor: 'rgba(244, 67, 54, 0.15)' },
-                                                                    }}
-                                                                >
-                                                                    <DeleteIcon sx={{ fontSize: 18 }} />
-                                                                </IconButton>
-                                                            </Tooltip>
+                                                            <VideoLibraryIcon sx={{ fontSize: 8, color: '#648CFF' }} />
+                                                            <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: '#648CFF', lineHeight: 1, letterSpacing: '0.2px' }}>Film</Typography>
                                                         </Box>
                                                     </Box>
 
-                                                    {/* Scene Breakdown - mini list */}
-                                                    {film.scenes && film.scenes.length > 0 && (
-                                                        <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                                                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.65rem', mb: 1, display: 'block' }}>
-                                                                Scene Breakdown
-                                                            </Typography>
-                                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                                                {film.scenes.map((scene: { id: number; name: string; mode?: string }) => (
-                                                                    <Box key={scene.id} sx={{
-                                                                        display: 'flex', alignItems: 'center', gap: 0.75,
-                                                                        px: 1.5, py: 0.75, borderRadius: 1.5,
-                                                                        bgcolor: scene.mode === 'MONTAGE' 
-                                                                            ? 'rgba(168, 85, 247, 0.08)' 
-                                                                            : 'rgba(100, 140, 255, 0.08)',
-                                                                        border: '1px solid',
-                                                                        borderColor: scene.mode === 'MONTAGE' 
-                                                                            ? 'rgba(168, 85, 247, 0.15)' 
-                                                                            : 'rgba(100, 140, 255, 0.15)',
-                                                                    }}>
-                                                                        {scene.mode === 'MONTAGE' 
-                                                                            ? <PhotoFilterIcon sx={{ fontSize: 13, color: '#A855F7', opacity: 0.7 }} />
-                                                                            : <CameraAltIcon sx={{ fontSize: 13, color: '#648CFF', opacity: 0.7 }} />
-                                                                        }
-                                                                        <Typography variant="caption" sx={{ fontWeight: 500, fontSize: '0.72rem', color: 'text.primary' }}>
-                                                                            {scene.name}
-                                                                        </Typography>
-                                                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>
-                                                                            {scene.mode === 'MONTAGE' ? 'Montage' : 'Realtime'}
-                                                                        </Typography>
-                                                                    </Box>
-                                                                ))}
-                                                            </Box>
-                                                        </Box>
-                                                    )}
-                                                </Box>
-                                            </Card>
-                                        );
-                                    }
-                                    
-                                    // Service item - compact row
-                                    return (
-                                        <Card key={item.id || idx} sx={{
-                                            borderRadius: 2,
-                                            border: '1px solid rgba(255, 255, 255, 0.06)',
-                                            bgcolor: 'rgba(255, 255, 255, 0.02)',
-                                            transition: 'all 0.2s ease',
-                                            '&:hover': {
-                                                border: '1px solid rgba(255, 255, 255, 0.12)',
-                                                bgcolor: 'rgba(255, 255, 255, 0.035)',
-                                            }
-                                        }}>
-                                            <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                                                    <Box sx={{
-                                                        width: 40, height: 40, borderRadius: 1.5,
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        bgcolor: 'rgba(255, 255, 255, 0.06)',
-                                                        flexShrink: 0,
-                                                    }}>
-                                                        <InventoryIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
-                                                    </Box>
-                                                    <Box>
-                                                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                                                            {item.description}
-                                                        </Typography>
-                                                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                                                            Service Add-on
-                                                        </Typography>
-                                                    </Box>
-                                                </Box>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'success.light' }}>
-                                                        ${item.price.toFixed(2)}
+                                                    {/* Film name */}
+                                                    <Typography sx={{ flex: '0 0 110px', fontSize: '0.75rem', fontWeight: 700, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pr: 1.5 }}>
+                                                        {item.description}
                                                     </Typography>
-                                                    <Tooltip title="Remove from package">
+
+                                                    {/* Scenes column */}
+                                                    <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.35, pr: 1 }}>
+                                                        {film.scenes?.slice(0, 3).map((scene: { id: number; name: string; mode?: string }) => (
+                                                            <Box key={scene.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                                {linkedActivity
+                                                                    ? <Tooltip title={`Linked to: ${linkedActivity.name}`} placement="top">
+                                                                        <LinkIcon sx={{ fontSize: 13, color: '#a855f7', flexShrink: 0 }} />
+                                                                      </Tooltip>
+                                                                    : <Box sx={{ width: 13, flexShrink: 0 }} />
+                                                                }
+                                                                <Typography sx={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                                                                    {scene.name}
+                                                                </Typography>
+                                                            </Box>
+                                                        ))}
+                                                        {(film.scenes?.length || 0) > 3 && (
+                                                            <Typography sx={{ fontSize: '0.55rem', color: '#475569', pl: 2.25 }}>+{film.scenes.length - 3} more</Typography>
+                                                        )}
+                                                    </Box>
+
+                                                    {/* Equipment count */}
+                                                    <Box sx={{ width: 40, flexShrink: 0, textAlign: 'right' }}>
+                                                        {(() => {
+                                                            const equipCount = film.scenes?.reduce((total: number, s: any) => total + (Array.isArray(s.equipment) ? s.equipment.length : 0), 0) ?? 0;
+                                                            return equipCount > 0 ? (
+                                                                <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{equipCount}</Typography>
+                                                            ) : (
+                                                                <Typography sx={{ fontSize: '0.62rem', color: '#334155' }}>—</Typography>
+                                                            );
+                                                        })()}
+                                                    </Box>
+
+                                                    {/* Duration */}
+                                                    <Box sx={{ width: 44, flexShrink: 0, textAlign: 'right' }}>
+                                                        {stats.totalDuration !== '0:00' ? (
+                                                            <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                                                                {stats.totalDuration}
+                                                            </Typography>
+                                                        ) : (
+                                                            <Typography sx={{ fontSize: '0.62rem', color: '#334155' }}>—</Typography>
+                                                        )}
+                                                    </Box>
+
+                                                    {/* Delete */}
+                                                    <Box className="cnt-del" sx={{ width: 24, flexShrink: 0, opacity: 0, transition: 'opacity 0.15s', display: 'flex', justifyContent: 'flex-end' }}>
                                                         <IconButton
                                                             size="small"
-                                                            onClick={() => handleRemoveItem(idx)}
-                                                            sx={{
-                                                                bgcolor: 'rgba(244, 67, 54, 0.08)',
-                                                                color: 'error.main',
-                                                                borderRadius: 1.5,
-                                                                '&:hover': { bgcolor: 'rgba(244, 67, 54, 0.15)' },
-                                                            }}
+                                                            onClick={(e) => { e.stopPropagation(); handleRemoveItem(idx); }}
+                                                            sx={{ p: 0.25, color: 'rgba(255,255,255,0.2)', '&:hover': { color: '#ef4444' } }}
                                                         >
-                                                            <DeleteIcon fontSize="small" />
+                                                            <DeleteIcon sx={{ fontSize: 11 }} />
                                                         </IconButton>
-                                                    </Tooltip>
+                                                    </Box>
+                                                </Box>
+                                            );
+                                        }
+
+                                        // Service item — compact row
+                                        return (
+                                            <Box
+                                                key={item.id || idx}
+                                                sx={{
+                                                    display: 'flex', alignItems: 'center',
+                                                    pl: 1.5, pr: 2.5, py: 1.25,
+                                                    borderBottom: '1px solid rgba(52,58,68,0.22)',
+                                                    borderLeft: '3px solid rgba(245,158,11,0.3)',
+                                                    bgcolor: 'rgba(245,158,11,0.018)',
+                                                    transition: 'background 0.15s ease, border-color 0.15s ease',
+                                                    '&:last-of-type': { borderBottom: 'none' },
+                                                    '&:hover': {
+                                                        bgcolor: 'rgba(245,158,11,0.05)',
+                                                        borderLeftColor: '#f59e0b',
+                                                        '& .cnt-del': { opacity: 1 },
+                                                    },
+                                                }}
+                                            >
+                                                {/* Type badge */}
+                                                <Box sx={{ width: 54, flexShrink: 0 }}>
+                                                    <Box sx={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: 0.4,
+                                                        px: 0.75, py: 0.2, borderRadius: 0.75,
+                                                        bgcolor: 'rgba(245,158,11,0.1)',
+                                                        border: '1px solid rgba(245,158,11,0.25)',
+                                                    }}>
+                                                        <InventoryIcon sx={{ fontSize: 8, color: '#f59e0b' }} />
+                                                        <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: '#f59e0b', lineHeight: 1, letterSpacing: '0.2px' }}>Service</Typography>
+                                                    </Box>
+                                                </Box>
+                                                <Typography sx={{ flex: '0 0 110px', fontSize: '0.75rem', fontWeight: 700, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pr: 1.5 }}>
+                                                    {item.description}
+                                                </Typography>
+                                                {/* Scenes — N/A for service */}
+                                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                    <Typography sx={{ fontSize: '0.6rem', color: '#475569', fontStyle: 'italic' }}>—</Typography>
+                                                </Box>
+                                                {/* Equip — N/A for service */}
+                                                <Box sx={{ width: 40, flexShrink: 0 }} />
+                                                {/* Price in duration slot */}
+                                                <Box sx={{ width: 44, flexShrink: 0, textAlign: 'right' }}>
+                                                    <Typography sx={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                                                        ${item.price.toFixed(2)}
+                                                    </Typography>
+                                                </Box>
+                                                <Box className="cnt-del" sx={{ width: 24, flexShrink: 0, opacity: 0, transition: 'opacity 0.15s', display: 'flex', justifyContent: 'flex-end' }}>
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => handleRemoveItem(idx)}
+                                                        sx={{ p: 0.25, color: 'rgba(255,255,255,0.2)', '&:hover': { color: '#ef4444' } }}
+                                                    >
+                                                        <DeleteIcon sx={{ fontSize: 11 }} />
+                                                    </IconButton>
                                                 </Box>
                                             </Box>
-                                        </Card>
-                                    );
-                                })}
-                            </Stack>
-                        ) : (
-                            <Box sx={{
-                                p: 5,
-                                textAlign: 'center',
-                                bgcolor: 'background.neutral',
-                                borderRadius: 2,
-                                border: '2px dashed',
-                                borderColor: 'divider',
-                                mb: 4
-                            }}>
-                                <MovieIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1, opacity: 0.5 }} />
-                                <Typography color="text.secondary" variant="body2">
-                                    No items in package yet. Add films or services below.
+                                        );
+                                    })}
+                                </>
+                            ) : (
+                                <Typography sx={{ fontSize: '0.65rem', color: '#475569', py: 1.5, textAlign: 'center', fontStyle: 'italic', px: 2.5 }}>
+                                    No items yet
                                 </Typography>
-                            </Box>
-                        )}
+                            )}
 
-                        {/* Add Item Button */}
-                        <Box
-                            onClick={() => { setNewItemType('film'); setAddDialogOpen(true); }}
-                            sx={{
-                                mt: 2, py: 2, px: 3,
-                                borderRadius: 2,
-                                border: '1px dashed rgba(100, 140, 255, 0.25)',
-                                bgcolor: 'rgba(100, 140, 255, 0.04)',
-                                cursor: 'pointer',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
-                                transition: 'all 0.2s ease',
-                                '&:hover': {
-                                    bgcolor: 'rgba(100, 140, 255, 0.08)',
-                                    border: '1px dashed rgba(100, 140, 255, 0.45)',
-                                },
-                            }}
-                        >
-                            <AddIcon sx={{ fontSize: 20, color: '#648CFF' }} />
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#648CFF', fontSize: '0.85rem' }}>
-                                Add Item
-                            </Typography>
-                        </Box>
+                            {/* Footer: Add Item button */}
+                            <Box sx={{ mt: (formData.contents?.items?.length ?? 0) > 0 ? 1 : 0.5, display: 'flex', justifyContent: 'center', gap: 0.5, px: 2.5, pb: 1 }}>
+                                <Button
+                                    size="small"
+                                    startIcon={<AddIcon sx={{ fontSize: 13 }} />}
+                                    onClick={() => { setNewItemType('film'); setAddDialogOpen(true); }}
+                                    sx={{ fontSize: '0.6rem', color: '#648CFF', textTransform: 'none', fontWeight: 600, py: 0.25, '&:hover': { bgcolor: 'rgba(100, 140, 255, 0.06)' } }}
+                                >
+                                    Add Film
+                                </Button>
+                                <Button
+                                    size="small"
+                                    startIcon={<AddIcon sx={{ fontSize: 13 }} />}
+                                    onClick={() => { setNewItemType('service'); setAddDialogOpen(true); }}
+                                    sx={{ fontSize: '0.6rem', color: '#64748b', textTransform: 'none', fontWeight: 600, py: 0.25, '&:hover': { bgcolor: 'rgba(255,255,255,0.03)', color: '#94a3b8' } }}
+                                >
+                                    Add Service
+                                </Button>
+                            </Box>
                         </Box>
                     </Box>
-                    </Stack>
+                </Grid>
+                {/* ────── Column 2: Task Auto-Generation ────── */}
+                <Grid item xs={12} md={6}>
+                    {safeBrandId && packageId && (
+                        <TaskAutoGenCard
+                            packageId={packageId}
+                            brandId={safeBrandId}
+                            cardSx={cardSx}
+                        />
+                    )}
                 </Grid>
             </Grid>
 
@@ -2666,10 +3762,10 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                     },
                 }}
             >
-                <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+                <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }} component="div">
                     <Box>
                         <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#f1f5f9' }}>Client Preview</Typography>
-                        <Typography variant="caption" sx={{ color: '#64748b' }}>How clients will see this package</Typography>
+                        <Typography variant="caption" component="span" sx={{ color: '#64748b', display: 'block' }}>How clients will see this package</Typography>
                     </Box>
                     <IconButton onClick={() => setPreviewOpen(false)} sx={{ color: '#64748b' }}>
                         <CloseIcon />
@@ -2778,12 +3874,12 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                     },
                 }}
             >
-                <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+                <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }} component="div">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <HistoryIcon sx={{ fontSize: 20, color: '#8b5cf6' }} />
                         <Box>
                             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#f1f5f9' }}>Version History</Typography>
-                            <Typography variant="caption" sx={{ color: '#64748b' }}>{packageVersions.length} version{packageVersions.length !== 1 ? 's' : ''} saved</Typography>
+                            <Typography variant="caption" component="span" sx={{ color: '#64748b', display: 'block' }}>{packageVersions.length} version{packageVersions.length !== 1 ? 's' : ''} saved</Typography>
                         </Box>
                     </Box>
                     <IconButton onClick={() => setVersionHistoryOpen(false)} sx={{ color: '#64748b' }}>
@@ -2882,6 +3978,16 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                     <Button onClick={() => setVersionHistoryOpen(false)} sx={{ color: '#64748b', textTransform: 'none' }}>Close</Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Package Creation Wizard Modal */}
+            <PackageCreationWizard
+                open={packageCreationWizardOpen}
+                onClose={() => setPackageCreationWizardOpen(false)}
+                onPackageCreated={(newPackageId) => {
+                    // Navigate to the new package details page
+                    router.push(`/designer/packages/${newPackageId}`);
+                }}
+            />
         </Box>
     );
 }

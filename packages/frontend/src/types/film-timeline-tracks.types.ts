@@ -5,12 +5,14 @@
 
 export type TrackType = 'VIDEO' | 'AUDIO' | 'GRAPHICS' | 'MUSIC';
 
-/** Operator info included with track responses */
+/** Operator/crew info included with track responses */
 export interface TrackOperator {
   id: number;
-  name: string;
-  role: string;
-  color: string;
+  crew_color?: string | null;
+  contact: {
+    first_name?: string | null;
+    last_name?: string | null;
+  };
 }
 
 export interface TimelineTrack {
@@ -20,8 +22,9 @@ export interface TimelineTrack {
   track_label: string | null;
   order_index: number;
   is_active: boolean;
-  operator_template_id: number | null;
-  operator_template: TrackOperator | null;
+  is_unmanned: boolean;
+  contributor_id: number | null;
+  contributor: TrackOperator | null;
   created_at: string;
   updated_at: string;
 }
@@ -34,7 +37,8 @@ export interface UpdateTrackDto {
   track_label?: string;
   order_index?: number;
   is_active?: boolean;
-  operator_template_id?: number | null;
+  is_unmanned?: boolean;
+  contributor_id?: number | null;
 }
 
 export interface ReorderTracksDto {
