@@ -46,6 +46,7 @@ const ContentBuilder: React.FC<ContentBuilderProps> = ({
     linkedActivityId,
     equipmentConfig,
     equipmentAssignmentsBySlot,
+    filmApi,
 }) => {
     // Timeline ref for drag and drop
     const timelineRef = useRef<HTMLDivElement>(null);
@@ -77,6 +78,7 @@ const ContentBuilder: React.FC<ContentBuilderProps> = ({
                 readOnly={readOnly}
                 equipmentConfig={equipmentConfig}
                 equipmentAssignmentsBySlot={equipmentAssignmentsBySlot}
+                filmApi={filmApi}
             >
                 <ContentBuilderContainer
                     timelineRef={timelineRef}

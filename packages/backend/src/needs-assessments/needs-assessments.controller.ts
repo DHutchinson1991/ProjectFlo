@@ -25,7 +25,8 @@ export class NeedsAssessmentsController {
 
     @Get('templates')
     listTemplates(@Headers('x-brand-context') brandId: string) {
-        return this.needsAssessmentsService.listTemplates(Number(brandId));
+        const brandIdNum = Number(brandId);
+        return this.needsAssessmentsService.listTemplates(Number.isNaN(brandIdNum) ? 0 : brandIdNum);
     }
 
     @Get('templates/active')

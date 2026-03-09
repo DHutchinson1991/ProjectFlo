@@ -11,12 +11,13 @@ import AddIcon from '@mui/icons-material/Add';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import SaveIcon from '@mui/icons-material/Save';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 
 // Services & Types
 import { proposalsService, api } from '@/lib/api'; // FIXED IMPORT
 import {
     Proposal, ProposalSection, ProposalContent,
-    HeroSection, TextSection, PricingSection, MediaSection,
+    HeroSection, TextSection, PricingSection, MediaSection, ScheduleSection,
     ServicePackage, ServicePackageItem
 } from '@/lib/types/domains/sales';
 import { useBrand } from '@/app/providers/BrandProvider';
@@ -24,6 +25,7 @@ import { formatCurrency } from '@/lib/utils/formatUtils';
 
 // Blocks
 import EditorBlock from '@/components/proposals/EditorBlock';
+import ProposalSchedulePreview from '@/components/schedule/ProposalSchedulePreview';
 
 // Helper to generate IDs
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -164,6 +166,18 @@ export default function ProposalBuilderPage() {
                 break;
             case 'media':
                 newSection = { ...base, type: 'media', data: { items: [], layout: 'featured' } };
+                break;
+            case 'schedule':
+                newSection = {
+                    ...base,
+                    type: 'schedule',
+                    data: {
+                        ownerType: 'inquiry',
+                        ownerId: Number(inquiryId) || 0,
+                        title: 'Your Day Timeline',
+                        showDetails: true,
+                    },
+                };
                 break;
             default:
                 return;
@@ -364,6 +378,26 @@ export default function ProposalBuilderPage() {
         );
     };
 
+    const renderScheduleBlock = (section: ScheduleSection) => (
+        <Box sx={{ p: 2 }}>
+            <Typography variant="overline" sx={{ color: '#aaa' }}>Schedule Timeline</Typography>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+                <TextField
+                    label="Section Title"
+                    fullWidth
+                    size="small"
+                    value={section.data.title || ''}
+                    onChange={e => updateSectionData(section.id, { title: e.target.value })}
+                />
+                <ProposalSchedulePreview
+                    ownerType={section.data.ownerType}
+                    ownerId={section.data.ownerId}
+                    showDetails={section.data.showDetails ?? true}
+                />
+            </Stack>
+        </Box>
+    );
+
 
     if (isLoading) return <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress /></Box>;
 
@@ -427,6 +461,7 @@ export default function ProposalBuilderPage() {
                                         {section.type === 'text' && renderTextBlock(section as TextSection)}
                                         {section.type === 'pricing' && renderPricingBlock(section as PricingSection)}
                                         {section.type === 'media' && renderMediaBlock(section as MediaSection)}
+                                        {section.type === 'schedule' && renderScheduleBlock(section as ScheduleSection)}
                                     </Box>
                                 </CardContent>
                             </Card>
@@ -450,6 +485,9 @@ export default function ProposalBuilderPage() {
                         </Button>
                         <Button variant="outlined" startIcon={<AddIcon />} onClick={() => addSection('media')} sx={{ color: '#ccc', borderColor: '#444', '&:hover': { borderColor: '#666', bgcolor: '#252525' } }}>
                             Media
+                        </Button>
+                        <Button variant="outlined" startIcon={<ScheduleIcon />} onClick={() => addSection('schedule')} sx={{ color: '#ccc', borderColor: '#444', '&:hover': { borderColor: '#666', bgcolor: '#252525' } }}>
+                            Schedule
                         </Button>
                     </Paper>
 

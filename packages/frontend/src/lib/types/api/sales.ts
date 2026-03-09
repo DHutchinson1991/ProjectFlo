@@ -15,6 +15,9 @@ export interface InquiryApiResponse {
     wedding_date: string | null; // For backward compatibility
     notes: string | null;
     venue_details: string | null;
+    venue_address?: string | null;
+    venue_lat?: number | null;
+    venue_lng?: number | null;
     lead_source: string | null;
     lead_source_details: string | null;
     contact: ContactApiResponse;

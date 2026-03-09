@@ -21,6 +21,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 
 import { api } from '@/lib/api';
+import { useOptionalScheduleApi } from '@/components/schedule/ScheduleApiContext';
 import AddEditActivityDialog, { type ActivityValues, type ActivitySaveResult } from './AddActivityDialog';
 
 // ─── Types ─────────────────────────────────────────────────────────
@@ -149,6 +150,34 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
     // reuse the same value type from the dialog component
     const [dialogInitial, setDialogInitial] = useState<Partial<ActivityValues> | null>(null);
 
+    // ─── ScheduleApi adapter (context if available, else direct package API) ──
+    const contextApi = useOptionalScheduleApi();
+    const hasOwner = !!contextApi || !!packageId;
+
+    const activityApi = contextApi?.activities ?? {
+        create: (dayId: number, data: any) => api.schedule.packageActivities.create(packageId!, { package_event_day_id: dayId, ...data }),
+        update: (id: number, data: any) => api.schedule.packageActivities.update(id, data),
+        delete: (id: number) => api.schedule.packageActivities.delete(id),
+    };
+    const momentApi = contextApi?.moments ?? {
+        create: (actId: number, data: any) => api.schedule.packageActivityMoments.create(actId, data),
+        update: (id: number, data: any) => api.schedule.packageActivityMoments.update(id, data),
+        delete: (id: number) => api.schedule.packageActivityMoments.delete(id),
+    };
+    const subjectApi = contextApi?.subjects ?? {
+        create: (dayId: number, data: any) => api.schedule.packageEventDaySubjects.create(packageId!, { event_day_template_id: dayId, ...data }),
+        assignActivity: (subjectId: number, activityId: number) => api.schedule.packageEventDaySubjects.assignActivity(subjectId, activityId),
+        unassignActivity: (subjectId: number, activityId: number) => api.schedule.packageEventDaySubjects.unassignActivity(subjectId, activityId),
+    };
+    const locationSlotApi = contextApi?.locationSlots ?? {
+        assignActivity: (slotId: number, actId: number) => api.schedule.packageLocationSlots.assignActivity(slotId, actId),
+        unassignActivity: (slotId: number, actId: number) => api.schedule.packageLocationSlots.unassignActivity(slotId, actId),
+    };
+    const operatorApi = contextApi?.operators ?? {
+        assignActivity: (opId: number, actId: number) => api.operators.packageDay.assignActivity(opId, actId),
+        unassignActivity: (opId: number, actId: number) => api.operators.packageDay.unassignActivity(opId, actId),
+    };
+
     // ─── Accordion / moment state ────────────────────────────────
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
     const [addingMomentForId, setAddingMomentForId] = useState<number | null>(null);
@@ -172,7 +201,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
         if (!name) return;
         try {
             const existing = activities.find(a => a.id === activityId)?.moments || [];
-            const created = await api.schedule.packageActivityMoments.create(activityId, {
+            const created = await momentApi.create(activityId, {
                 name,
                 duration_seconds: parseInt(newMomentDuration, 10) || 30,
                 order_index: existing.length,
@@ -188,7 +217,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
 
     const handleDeleteMoment = useCallback(async (activityId: number, momentId: number) => {
         try {
-            await api.schedule.packageActivityMoments.delete(momentId);
+            await momentApi.delete(momentId);
             setActivities(prev => prev.map(a =>
                 a.id === activityId
                     ? { ...a, moments: (a.moments || []).filter(m => m.id !== momentId) }
@@ -208,7 +237,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
         const name = editMomentName.trim();
         if (!name) return;
         try {
-            const updated = await api.schedule.packageActivityMoments.update(editingMomentId, {
+            const updated = await momentApi.update(editingMomentId, {
                 name,
                 duration_seconds: parseInt(editMomentDuration, 10) || 30,
             });
@@ -260,7 +289,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
 
     const handleDeleteActivity = async (id: number) => {
         try {
-            await api.schedule.packageActivities.delete(id);
+            await activityApi.delete(id);
             setActivities(prev => prev.filter(a => a.id !== id));
         } catch (err) {
             console.warn('Failed to delete activity:', err);
@@ -269,7 +298,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
 
     const handleUpdateActivity = async (id: number, updates: Partial<ActivityRecord>) => {
         try {
-            await api.schedule.packageActivities.update(id, updates);
+            await activityApi.update(id, updates);
             setActivities(prev =>
                 prev.map(a => (a.id === id ? { ...a, ...updates } : a))
             );
@@ -316,10 +345,9 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
             await handleUpdateActivity(editingId, vals);
         } else {
             // Create activity and capture the new id
-            if (packageId && activeDayJoinId) {
+            if (hasOwner && activeDayJoinId) {
                 try {
-                    const newAct = await api.schedule.packageActivities.create(packageId, {
-                        package_event_day_id: activeDayJoinId,
+                    const newAct = await activityApi.create(activeDayJoinId, {
                         name: vals.name || '',
                         color: vals.color || undefined,
                         start_time: vals.start_time ?? undefined,
@@ -341,9 +369,9 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                 try {
                     let updatedSubj;
                     if (change.assign) {
-                        updatedSubj = await api.schedule.packageEventDaySubjects.assignActivity(change.id, savedActivityId);
+                        updatedSubj = await subjectApi.assignActivity(change.id, savedActivityId);
                     } else {
-                        updatedSubj = await api.schedule.packageEventDaySubjects.unassignActivity(change.id, savedActivityId);
+                        updatedSubj = await subjectApi.unassignActivity(change.id, savedActivityId);
                     }
                     setPackageSubjects(prev =>
                         prev.map(s =>
@@ -359,8 +387,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
             // Create new subjects assigned to this activity
             for (const subjectName of newSubjects) {
                 try {
-                    const created = await api.schedule.packageEventDaySubjects.create(packageId!, {
-                        event_day_template_id: activeDayId!,
+                    const created = await subjectApi.create(activeDayId!, {
                         name: subjectName,
                         package_activity_id: savedActivityId,
                     });
@@ -376,12 +403,12 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
             for (const change of locationSlotChanges) {
                 try {
                     if (change.assign) {
-                        const updated = await api.schedule.packageLocationSlots.assignActivity(change.slotId, savedActivityId);
+                        const updated = await locationSlotApi.assignActivity(change.slotId, savedActivityId);
                         setPackageLocationSlots(prev =>
                             prev.map(s => s.id === change.slotId ? { ...s, ...updated } : s),
                         );
                     } else {
-                        const updated = await api.schedule.packageLocationSlots.unassignActivity(change.slotId, savedActivityId);
+                        const updated = await locationSlotApi.unassignActivity(change.slotId, savedActivityId);
                         setPackageLocationSlots(prev =>
                             prev.map(s => s.id === change.slotId ? { ...s, ...updated } : s),
                         );
@@ -398,9 +425,9 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                 try {
                     let updatedOp;
                     if (change.assign) {
-                        updatedOp = await api.operators.packageDay.assignActivity(change.id, savedActivityId);
+                        updatedOp = await operatorApi.assignActivity(change.id, savedActivityId);
                     } else {
-                        updatedOp = await api.operators.packageDay.unassignActivity(change.id, savedActivityId);
+                        updatedOp = await operatorApi.unassignActivity(change.id, savedActivityId);
                     }
                     setPackageDayOperators(prev =>
                         prev.map(o =>

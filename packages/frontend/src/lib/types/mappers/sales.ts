@@ -45,6 +45,9 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
         message: null,
         notes: apiResponse.notes,
         venue_details: apiResponse.venue_details,
+        venue_address: apiResponse.venue_address ?? null,
+        venue_lat: apiResponse.venue_lat ?? null,
+        venue_lng: apiResponse.venue_lng ?? null,
         lead_source: apiResponse.lead_source,
         lead_source_details: apiResponse.lead_source_details,
         // Handle case where contact might not be included in update responses

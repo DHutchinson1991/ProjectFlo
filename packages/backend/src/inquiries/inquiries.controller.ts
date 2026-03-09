@@ -13,12 +13,20 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { InquiriesService } from './inquiries.service';
+import { ProjectPackageSnapshotService } from '../projects/project-package-snapshot.service';
+import { ProjectPackageCloneService } from '../projects/project-package-clone.service';
+import { ScheduleService } from '../content/schedule/schedule.service';
 import { CreateInquiryDto, UpdateInquiryDto } from './dto/inquiries.dto';
 
 @Controller('api/inquiries')
 @UseGuards(AuthGuard('jwt'))
 export class InquiriesController {
-    constructor(private readonly inquiriesService: InquiriesService) { }
+    constructor(
+        private readonly inquiriesService: InquiriesService,
+        private readonly snapshotService: ProjectPackageSnapshotService,
+        private readonly cloneService: ProjectPackageCloneService,
+        private readonly scheduleService: ScheduleService,
+    ) { }
 
     @Get()
     async findAll(@Headers('x-brand-context') brandId: string) {
@@ -85,5 +93,74 @@ export class InquiriesController {
             throw new NotFoundException('Brand ID is required');
         }
         return this.inquiriesService.remove(id, brandIdNum);
+    }
+
+    // ─── Inquiry Schedule Snapshot Endpoints ─────────────────────────
+
+    /** Get schedule snapshot summary (source package info + aggregate counts) */
+    @Get(':id/schedule-snapshot')
+    async getScheduleSnapshot(@Param('id', ParseIntPipe) id: number) {
+        return this.snapshotService.getSnapshotSummary({ inquiryId: id });
+    }
+
+    /** Get all event days with activities, operators, subjects, locations */
+    @Get(':id/schedule-snapshot/event-days')
+    async getScheduleSnapshotEventDays(@Param('id', ParseIntPipe) id: number) {
+        return this.snapshotService.getEventDays({ inquiryId: id });
+    }
+
+    /** Get all activities (across all event days) */
+    @Get(':id/schedule-snapshot/activities')
+    async getScheduleSnapshotActivities(@Param('id', ParseIntPipe) id: number) {
+        return this.snapshotService.getActivities({ inquiryId: id });
+    }
+
+    /** Get all operators (crew slots) */
+    @Get(':id/schedule-snapshot/operators')
+    async getScheduleSnapshotOperators(@Param('id', ParseIntPipe) id: number) {
+        return this.snapshotService.getOperators({ inquiryId: id });
+    }
+
+    /** Get all subjects */
+    @Get(':id/schedule-snapshot/subjects')
+    async getScheduleSnapshotSubjects(@Param('id', ParseIntPipe) id: number) {
+        return this.snapshotService.getSubjects({ inquiryId: id });
+    }
+
+    /** Get all location slots */
+    @Get(':id/schedule-snapshot/locations')
+    async getScheduleSnapshotLocations(@Param('id', ParseIntPipe) id: number) {
+        return this.snapshotService.getLocationSlots({ inquiryId: id });
+    }
+
+    /** Get all films with scene schedules */
+    @Get(':id/schedule-snapshot/films')
+    async getScheduleSnapshotFilms(@Param('id', ParseIntPipe) id: number) {
+        return this.snapshotService.getFilms({ inquiryId: id });
+    }
+
+    /** Get moments for a specific activity */
+    @Get(':id/schedule-snapshot/activities/:activityId/moments')
+    async getScheduleSnapshotActivityMoments(
+        @Param('id', ParseIntPipe) id: number,
+        @Param('activityId', ParseIntPipe) activityId: number,
+    ) {
+        return this.snapshotService.getActivityMoments({ inquiryId: id }, activityId);
+    }
+
+    // ─── Sync from Package ─────────────────────────────────────────
+
+    /** Delete all instance schedule data for an inquiry, then re-clone from its source package. */
+    @Post(':id/schedule/sync-from-package')
+    async syncInquiryScheduleFromPackage(@Param('id', ParseIntPipe) id: number) {
+        return this.cloneService.syncInquiryScheduleFromPackage(id);
+    }
+
+    // ─── Schedule Diff ─────────────────────────────────────────────
+
+    /** Compare the inquiry's instance schedule against its source package schedule */
+    @Get(':id/schedule/diff')
+    async getScheduleDiff(@Param('id', ParseIntPipe) id: number) {
+        return this.scheduleService.getScheduleDiff({ inquiry_id: id });
     }
 }

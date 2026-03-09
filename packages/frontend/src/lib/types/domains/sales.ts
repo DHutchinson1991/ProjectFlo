@@ -111,6 +111,9 @@ export interface Estimate {
     total_amount: number;
     tax_rate?: number;
     deposit_required?: number;
+    payment_method?: string;
+    installments?: number;
+    is_primary?: boolean;
     notes?: string;
     terms?: string;
     items: EstimateItem[];
@@ -123,6 +126,8 @@ export interface Estimate {
 export interface QuoteItem {
     id?: number;
     description: string;
+    category?: string;
+    unit?: string;
     quantity: number;
     unit_price: number;
 }
@@ -132,11 +137,19 @@ export interface Quote {
     inquiry_id: number;
     project_id?: number | null;
     quote_number: string;
+    title?: string;
     status: string; // "Draft", "Sent", "Accepted", "Declined"
     issue_date: Date;
     expiry_date: Date;
     total_amount: number;
+    tax_rate?: number;
+    deposit_required?: number;
+    payment_method?: string;
+    installments?: number;
+    is_primary?: boolean;
     consultation_notes?: string | null;
+    notes?: string;
+    terms?: string;
     items: QuoteItem[];
     created_at: Date;
     updated_at: Date;
@@ -155,6 +168,9 @@ export interface Inquiry {
     message?: string | null;
     notes?: string | null;
     venue_details?: string | null;
+    venue_address?: string | null;
+    venue_lat?: number | null;
+    venue_lng?: number | null;
     lead_source?: string | null;
     lead_source_details?: string | null;
     selected_package_id?: number | null;
@@ -241,12 +257,26 @@ export interface ServicePackage {
             slot_type: 'CAMERA' | 'AUDIO';
             equipment?: { id: number; item_name: string; model?: string | null };
         }>;
+        /** Equipment assigned per event day, keyed by event-day ID (stringified) */
+        day_equipment?: Record<string, Array<{
+            equipment_id: number;
+            slot_type: 'CAMERA' | 'AUDIO';
+            track_number?: number;
+            equipment?: { id: number; item_name: string; model?: string | null };
+        }>>;
+        /** Activity-level equipment overrides, keyed by activity ID (stringified) */
+        activity_equipment?: Record<string, Array<{
+            equipment_id: number;
+            slot_type: 'CAMERA' | 'AUDIO';
+            track_number?: number;
+            equipment?: { id: number; item_name: string; model?: string | null };
+        }>>;
         items: ServicePackageItem[];
     };
 }
 
 // Proposal Section Types
-export type SectionType = 'hero' | 'text' | 'pricing' | 'media' | 'interactive';
+export type SectionType = 'hero' | 'text' | 'pricing' | 'media' | 'interactive' | 'schedule';
 
 export interface BaseSection {
     id: string;
@@ -313,7 +343,21 @@ export interface InteractiveSection extends BaseSection {
     };
 }
 
-export type ProposalSection = HeroSection | TextSection | PricingSection | MediaSection | InteractiveSection;
+export interface ScheduleSection extends BaseSection {
+    type: 'schedule';
+    data: {
+        /** Source of schedule data: inquiry or project */
+        ownerType: 'inquiry' | 'project';
+        /** ID of the inquiry or project */
+        ownerId: number;
+        /** Display title for the section */
+        title?: string;
+        /** Whether to show activity details (moments, crew, etc.) */
+        showDetails?: boolean;
+    };
+}
+
+export type ProposalSection = HeroSection | TextSection | PricingSection | MediaSection | InteractiveSection | ScheduleSection;
 
 export interface ProposalContent {
     theme: 'cinematic-dark' | 'clean-light' | 'soft-romance';
@@ -385,6 +429,9 @@ export interface UpdateInquiryData {
     status?: InquiryStatus;
     notes?: string;
     venue_details?: string;
+    venue_address?: string | null;
+    venue_lat?: number | null;
+    venue_lng?: number | null;
     lead_source?: string;
     lead_source_details?: string;
 }
@@ -455,38 +502,66 @@ export interface UpdateInvoiceData {
 
 export interface CreateEstimateData {
     estimate_number: string;
+    title?: string;
     issue_date: string;
     expiry_date: string;
     status?: string;
+    tax_rate?: number;
+    deposit_required?: number;
+    payment_method?: string;
+    installments?: number;
+    notes?: string;
+    terms?: string;
     project_id?: number;
     items: EstimateItem[];
 }
 
 export interface UpdateEstimateData {
     estimate_number?: string;
+    title?: string;
     issue_date?: string;
     expiry_date?: string;
     status?: string;
+    is_primary?: boolean;
+    tax_rate?: number;
+    deposit_required?: number;
+    payment_method?: string;
+    installments?: number;
+    notes?: string;
+    terms?: string;
     project_id?: number;
     items?: EstimateItem[];
 }
 
 export interface CreateQuoteData {
     quote_number: string;
+    title?: string;
     issue_date: string;
     expiry_date: string;
     consultation_notes?: string;
     status?: string;
+    tax_rate?: number;
+    deposit_required?: number;
+    payment_method?: string;
+    installments?: number;
+    notes?: string;
     project_id?: number;
     items: QuoteItem[];
 }
 
 export interface UpdateQuoteData {
     quote_number?: string;
+    title?: string;
     issue_date?: string;
     expiry_date?: string;
     consultation_notes?: string;
     status?: string;
+    is_primary?: boolean;
+    tax_rate?: number;
+    deposit_required?: number;
+    payment_method?: string;
+    installments?: number;
+    notes?: string;
     project_id?: number;
     items?: QuoteItem[];
 }

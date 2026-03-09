@@ -30,6 +30,16 @@ export class CreateInquiryDto {
 
     @IsOptional()
     @IsString()
+    venue_address?: string;
+
+    @IsOptional()
+    venue_lat?: number;
+
+    @IsOptional()
+    venue_lng?: number;
+
+    @IsOptional()
+    @IsString()
     lead_source?: string;
 
     @IsOptional()
@@ -73,6 +83,16 @@ export class UpdateInquiryDto {
     @IsOptional()
     @IsString()
     venue_details?: string;
+
+    @IsOptional()
+    @IsString()
+    venue_address?: string;
+
+    @IsOptional()
+    venue_lat?: number | null;
+
+    @IsOptional()
+    venue_lng?: number | null;
 
     @IsOptional()
     @IsString()

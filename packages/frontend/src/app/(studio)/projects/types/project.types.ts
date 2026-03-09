@@ -36,6 +36,7 @@ export interface Project {
     brand_id?: number;
     client_id?: number;
     workflow_template_id?: number;
+    source_package_id?: number | null;
     brand?: {
         id: number;
         name: string;

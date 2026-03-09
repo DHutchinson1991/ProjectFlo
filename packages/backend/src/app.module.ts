@@ -54,6 +54,7 @@ import { EventTypesModule } from './business/event-types/event-types.module';
 import { WorkflowsModule } from './business/workflows/workflows.module';
 import { NeedsAssessmentsModule } from './needs-assessments/needs-assessments.module';
 import { ScheduleModule } from './content/schedule/schedule.module';
+import { InstanceFilmsModule } from './content/instance-films/instance-films.module';
 
 @Module({
   imports: [
@@ -102,6 +103,7 @@ import { ScheduleModule } from './content/schedule/schedule.module';
     WorkflowsModule,
     NeedsAssessmentsModule,
     ScheduleModule,
+    InstanceFilmsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -381,6 +381,9 @@ model inquiries {
   status                       inquiries_status               @default(New)
   notes                        String?
   venue_details                String?
+  venue_address                String?
+  venue_lat                    Float?
+  venue_lng                    Float?
   follow_up_due_date           DateTime?
   lead_source                  String?
   lead_source_details          String?
@@ -388,7 +391,10 @@ model inquiries {
   archived_at                  DateTime?
   workflow_status              Json?
   selected_package_id          Int?
+  source_package_id            Int? // Which package was cloned into this inquiry's schedule
+  package_contents_snapshot    Json? // Frozen copy of package contents at clone time
   selected_package             service_packages?              @relation(fields: [selected_package_id], references: [id])
+  source_package_for_inquiry   service_packages?              @relation("InquirySourcePackage", fields: [source_package_id], references: [id], onDelete: SetNull)
   activities                   activities[]
   activity_logs                activity_logs[]
   build                        builds?
@@ -403,6 +409,23 @@ model inquiries {
   quotes                       quotes[]
   needs_assessment_submissions needs_assessment_submissions[]
 
+  // Schedule snapshot (owned while inquiry, transferred to project on booking)
+  schedule_event_days          ProjectEventDay[]
+  schedule_activities          ProjectActivity[]
+  schedule_films               ProjectFilm[]
+  schedule_day_operators       ProjectDayOperator[]
+  schedule_subjects            ProjectEventDaySubject[]
+  schedule_location_slots      ProjectLocationSlot[]
+  schedule_activity_moments    ProjectActivityMoment[]
+  schedule_film_tracks         ProjectFilmTimelineTrack[]
+  schedule_film_subjects       ProjectFilmSubject[]
+  schedule_film_locations      ProjectFilmLocation[]
+  schedule_film_scenes         ProjectFilmScene[]
+  schedule_film_moments        ProjectFilmSceneMoment[]
+  schedule_film_beats          ProjectFilmSceneBeat[]
+  schedule_film_equipment      ProjectFilmEquipmentAssignment[]
+
+  @@index([source_package_id])
   @@map("inquiries")
 }
 
@@ -415,6 +438,7 @@ model needs_assessment_templates {
   status       String                         @default("draft")
   version      String                         @default("1.0")
   published_at DateTime?
+  steps_config Json?
   created_at   DateTime                       @default(now())
   updated_at   DateTime                       @updatedAt
   brand        brands                         @relation(fields: [brand_id], references: [id], onDelete: Cascade)
@@ -505,46 +529,61 @@ model client_users {
 }
 
 model projects {
-  id                      Int                       @id @default(autoincrement())
-  client_id               Int
-  workflow_template_id    Int?
-  brand_id                Int?
-  project_name            String?
-  wedding_date            DateTime
-  booking_date            DateTime?
-  edit_start_date         DateTime?
-  phase                   String?
-  archived_at             DateTime?
-  activities              activities[]
-  build                   builds?
-  calendar_events         calendar_events[]
-  client_feedback_surveys client_feedback_surveys[]
-  communications_log      communications_log[]
-  contracts               contracts[]
-  documents               documents[]
-  equipment_availability  equipment_availability[]
-  equipment_rentals       equipment_rentals[]
-  estimates               estimates[]
-  floor_plans             FloorPlans[]
-  generated_task_logs     generated_task_log[]
-  invoices                invoices[]
-  project_assets          project_assets[]
-  project_assignments     project_assignments[]
-  project_expenses        project_expenses[]
-  brand                   brands?                   @relation(fields: [brand_id], references: [id])
-  client                  clients                   @relation(fields: [client_id], references: [id])
-  workflow_template       workflow_templates?       @relation(fields: [workflow_template_id], references: [id])
-  proposals               proposals[]
-  quotes                  quotes[]
-  tasks                   tasks[]
-  project_tasks           project_tasks[]
-  project_event_days      ProjectEventDay[]
-  project_films           ProjectFilm[]
-  project_activities      ProjectActivity[]
+  id                         Int                       @id @default(autoincrement())
+  client_id                  Int
+  workflow_template_id       Int?
+  brand_id                   Int?
+  source_package_id          Int? // Traceability: which service_package was cloned at conversion
+  project_name               String?
+  wedding_date               DateTime
+  booking_date               DateTime?
+  edit_start_date            DateTime?
+  phase                      String?
+  package_contents_snapshot   Json? // Frozen copy of service_packages.contents at clone time
+  archived_at                DateTime?
+  activities                 activities[]
+  build                      builds?
+  calendar_events            calendar_events[]
+  client_feedback_surveys    client_feedback_surveys[]
+  communications_log         communications_log[]
+  contracts                  contracts[]
+  documents                  documents[]
+  equipment_availability     equipment_availability[]
+  equipment_rentals          equipment_rentals[]
+  estimates                  estimates[]
+  floor_plans                FloorPlans[]
+  generated_task_logs        generated_task_log[]
+  invoices                   invoices[]
+  project_assets             project_assets[]
+  project_assignments        project_assignments[]
+  project_expenses           project_expenses[]
+  brand                      brands?                   @relation(fields: [brand_id], references: [id])
+  client                     clients                   @relation(fields: [client_id], references: [id])
+  source_package             service_packages?         @relation("ProjectSourcePackage", fields: [source_package_id], references: [id], onDelete: SetNull)
+  workflow_template          workflow_templates?       @relation(fields: [workflow_template_id], references: [id])
+  proposals                  proposals[]
+  quotes                     quotes[]
+  tasks                      tasks[]
+  project_tasks              project_tasks[]
+  project_event_days         ProjectEventDay[]
+  project_films              ProjectFilm[]
+  project_activities         ProjectActivity[]
+  project_day_operators      ProjectDayOperator[]
+  project_subjects           ProjectEventDaySubject[]
+  project_location_slots     ProjectLocationSlot[]
+  project_activity_moments   ProjectActivityMoment[]
+  project_film_tracks        ProjectFilmTimelineTrack[]
+  project_film_subjects      ProjectFilmSubject[]
+  project_film_locations     ProjectFilmLocation[]
+  project_film_scenes        ProjectFilmScene[]
+  project_film_moments       ProjectFilmSceneMoment[]
+  project_film_beats         ProjectFilmSceneBeat[]
+  project_film_equipment     ProjectFilmEquipmentAssignment[]
 
   @@unique([client_id, wedding_date])
   @@index([wedding_date])
   @@index([brand_id])
+  @@index([source_package_id])
   @@map("projects")
 }
 
@@ -583,6 +622,7 @@ model contributors {
   venue_floor_plans_updated      LocationsLibrary[]            @relation("VenueFloorPlanUpdater")
   notifications_received         notifications[]
   package_crew_assignments       PackageDayOperator[]
+  project_crew_assignments       ProjectDayOperator[]
   project_assignments            project_assignments[]
   task_comments_made             task_comments[]
   task_library_benchmarks        task_library_benchmarks[]
@@ -590,6 +630,7 @@ model contributors {
   project_tasks_assigned         project_tasks[]               @relation("AssignedProjectTasks")
   timeline_sessions              TimelineEditingSession[]
   timeline_tracks                FilmTimelineTrack[]
+  project_film_timeline_tracks   ProjectFilmTimelineTrack[]
   user_brands                    user_brands[]
 
   @@index([is_crew])
@@ -620,6 +661,7 @@ model job_roles {
   contributor_job_roles contributor_job_roles[]
   coverage_roles        coverage[]
   package_crew_slots    PackageDayOperator[]
+  project_day_operators ProjectDayOperator[]
   payment_brackets      payment_brackets[]
   skill_role_mappings   skill_role_mappings[]
   resolved_project_tasks project_tasks[]        @relation("ResolvedJobRole")
@@ -1603,6 +1645,8 @@ model equipment {
   film_assignments               FilmEquipmentAssignment[]
   equipment_template_items       EquipmentTemplateItem[]
   package_day_operator_equipment PackageDayOperatorEquipment[]
+  project_day_operator_equipment ProjectDayOperatorEquipment[]
+  project_film_equipment_assignments ProjectFilmEquipmentAssignment[]
 
   @@index([brand_id])
   @@index([category])
@@ -1720,6 +1764,9 @@ model LocationsLibrary {
   film_locations              FilmLocation[]
   film_scene_locations        FilmSceneLocation[]
   package_event_day_locations PackageEventDayLocation[]
+  project_location_slots      ProjectLocationSlot[]
+  project_film_locations      ProjectFilmLocation[]
+  project_film_scene_locations ProjectFilmSceneLocation[]
   brand                       brands?                   @relation(fields: [brand_id], references: [id])
   venue_floor_plan_updater    contributors?             @relation("VenueFloorPlanUpdater", fields: [venue_floor_plan_updated_by], references: [id])
 
@@ -2042,6 +2089,7 @@ model FilmEquipmentAssignment {
 
   film      Film      @relation(fields: [film_id], references: [id], onDelete: Cascade)
   equipment equipment @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
+  project_instances ProjectFilmEquipmentAssignment[]
 
   @@unique([film_id, equipment_id])
   @@index([film_id])
@@ -2103,6 +2151,7 @@ model FilmTimelineTrack {
   contributor              contributors?             @relation(fields: [contributor_id], references: [id], onDelete: SetNull)
   camera_assignments       CameraSubjectAssignment[]
   scene_camera_assignments SceneCameraAssignment[]
+  project_instances        ProjectFilmTimelineTrack[]
 
   @@unique([film_id, name])
   @@index([film_id])
@@ -2159,6 +2208,8 @@ model SubjectRoleTemplate {
   subject_type               SubjectTypeTemplate      @relation(fields: [subject_type_id], references: [id], onDelete: Cascade)
   film_subjects              FilmSubject[]
   package_event_day_subjects PackageEventDaySubject[]
+  project_event_day_subjects ProjectEventDaySubject[]
+  project_film_subjects      ProjectFilmSubject[]
 
   @@unique([subject_type_id, role_name])
   @@index([subject_type_id])
@@ -2179,6 +2230,7 @@ model FilmSubject {
   role_template   SubjectRoleTemplate?     @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
   scene_subjects  FilmSceneSubject[]
   moment_subjects FilmSceneMomentSubject[]
+  project_instances ProjectFilmSubject[]
 
   @@unique([film_id, name])
   @@index([film_id])
@@ -2196,6 +2248,7 @@ model FilmLocation {
 
   film     Film             @relation(fields: [film_id], references: [id], onDelete: Cascade)
   location LocationsLibrary @relation(fields: [location_id], references: [id], onDelete: Cascade)
+  project_instances ProjectFilmLocation[]
 
   @@unique([film_id, location_id])
   @@index([film_id])
@@ -2214,6 +2267,7 @@ model SceneTemplate {
   moments            SceneMomentTemplate[]
   suggested_subjects SceneTemplateSuggestedSubject[]
   film_scenes        FilmScene[]
+  project_film_scenes ProjectFilmScene[]
 
   @@map("scene_templates")
 }
@@ -2272,6 +2326,7 @@ model FilmScene {
   schedule            FilmSceneSchedule?
   package_schedules   PackageFilmSceneSchedule[]
   project_schedules   ProjectFilmSceneSchedule[]
+  project_instances   ProjectFilmScene[]
 
   @@index([film_id])
   @@index([scene_template_id])
@@ -2371,6 +2426,7 @@ model SceneMoment {
   recording_setup MomentRecordingSetup?
   moment_music    MomentMusic?
   subjects        FilmSceneMomentSubject[]
+  project_instances ProjectFilmSceneMoment[]
 
   @@unique([film_scene_id, order_index])
   @@index([film_scene_id])
@@ -2389,6 +2445,7 @@ model SceneBeat {
 
   film_scene      FilmScene           @relation(fields: [film_scene_id], references: [id], onDelete: Cascade)
   recording_setup BeatRecordingSetup?
+  project_instances ProjectFilmSceneBeat[]
 
   @@unique([film_scene_id, order_index])
   @@index([film_scene_id])
@@ -2662,6 +2719,8 @@ model service_packages {
   package_category     service_package_categories? @relation(fields: [category_id], references: [id])
   wedding_type         WeddingType?                @relation("CreatedFromWeddingType", fields: [wedding_type_id], references: [id], onDelete: SetNull)
   inquiries            inquiries[]
+  inquiry_source_refs   inquiries[]             @relation("InquirySourcePackage")
+  projects_from_package projects[]              @relation("ProjectSourcePackage")
   workflow_template_id Int? // Default workflow template for projects using this package
 
   package_films               PackageFilm[]
@@ -3281,9 +3340,11 @@ model PackageFilmSceneSchedule {
 }
 
 // Project-level event days (actual dates mapped to templates)
+// Dual-owner: owned by either a project OR an inquiry (exactly one must be set)
 model ProjectEventDay {
   id                    Int      @id @default(autoincrement())
-  project_id            Int
+  project_id            Int? // Nullable: set when owned by project
+  inquiry_id            Int? // Nullable: set when owned by inquiry (before booking)
   event_day_template_id Int?
   name                  String // "Wedding Day", or custom name
   date                  DateTime @db.Date
@@ -3294,20 +3355,27 @@ model ProjectEventDay {
   created_at            DateTime @default(now())
   updated_at            DateTime @updatedAt
 
-  project            projects                   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  project            projects?                  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry            inquiries?                 @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   event_day_template EventDayTemplate?          @relation(fields: [event_day_template_id], references: [id], onDelete: SetNull)
   scene_schedules    ProjectFilmSceneSchedule[]
   activities         ProjectActivity[]
+  day_operators      ProjectDayOperator[]
+  subjects           ProjectEventDaySubject[]
+  location_slots     ProjectLocationSlot[]
 
   @@index([project_id])
+  @@index([inquiry_id])
   @@index([event_day_template_id])
   @@map("project_event_days")
 }
 
 // Project-level activities (actual scheduled activities with real times)
+// Dual-owner: owned by either a project OR an inquiry (exactly one must be set)
 model ProjectActivity {
   id                   Int      @id @default(autoincrement())
-  project_id           Int
+  project_id           Int? // Nullable: set when owned by project
+  inquiry_id           Int? // Nullable: set when owned by inquiry (before booking)
   project_event_day_id Int
   package_activity_id  Int? // Link back to package activity template
   name                 String // "Bridal Prep", "Ceremony", etc.
@@ -3323,34 +3391,53 @@ model ProjectActivity {
   created_at           DateTime @default(now())
   updated_at           DateTime @updatedAt
 
-  project           projects                   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  project           projects?                  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry           inquiries?                 @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   project_event_day ProjectEventDay            @relation(fields: [project_event_day_id], references: [id], onDelete: Cascade)
   package_activity  PackageActivity?           @relation(fields: [package_activity_id], references: [id], onDelete: SetNull)
   scene_schedules   ProjectFilmSceneSchedule[]
+  moments           ProjectActivityMoment[]
+  operators         ProjectDayOperator[]
+  subjects          ProjectEventDaySubject[]
+  location_slots    ProjectLocationSlot[]
+  operator_assignments  ProjectOperatorActivityAssignment[]
+  subject_assignments   ProjectSubjectActivityAssignment[]
+  location_assignments  ProjectLocationActivityAssignment[]
 
   @@index([project_id])
+  @@index([inquiry_id])
   @@index([project_event_day_id])
   @@index([package_activity_id])
   @@map("project_activities")
 }
 
-// Project-level film linkage (owns the film instance for this project)
+// Project-level film linkage (owns the film instance for this project/inquiry)
+// Dual-owner: owned by either a project OR an inquiry (exactly one must be set)
 model ProjectFilm {
   id              Int      @id @default(autoincrement())
-  project_id      Int
+  project_id      Int? // Nullable: set when owned by project
+  inquiry_id      Int? // Nullable: set when owned by inquiry (before booking)
   film_id         Int
   package_film_id Int? // Which package-film this originated from
   order_index     Int      @default(0)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
-  project         projects                   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  project         projects?                  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry         inquiries?                 @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   film            Film                       @relation(fields: [film_id], references: [id], onDelete: Cascade)
   package_film    PackageFilm?               @relation(fields: [package_film_id], references: [id], onDelete: SetNull)
   scene_schedules ProjectFilmSceneSchedule[]
+  instance_tracks              ProjectFilmTimelineTrack[]
+  instance_subjects            ProjectFilmSubject[]
+  instance_locations           ProjectFilmLocation[]
+  instance_scenes              ProjectFilmScene[]
+  instance_equipment_assignments ProjectFilmEquipmentAssignment[]
 
   @@unique([project_id, film_id])
+  @@unique([inquiry_id, film_id])
   @@index([project_id])
+  @@index([inquiry_id])
   @@index([film_id])
   @@index([package_film_id])
   @@map("project_films")
@@ -3384,6 +3471,552 @@ model ProjectFilmSceneSchedule {
   @@index([project_event_day_id])
   @@index([project_activity_id])
   @@map("project_film_scene_schedules")
+}
+
+// ─── Project-Level Film Instance Tables ──────────────────────────────
+// Deep-cloned copies of library Film content, owned by project/inquiry.
+// Edits here never propagate back to the library original.
+// Each has dual-owner columns (project_id/inquiry_id) + source_*_id traceability.
+
+// Instance of FilmTimelineTrack — project-owned copy
+model ProjectFilmTimelineTrack {
+  id              Int       @id @default(autoincrement())
+  project_id      Int?
+  inquiry_id      Int?
+  project_film_id Int
+  source_track_id Int?      // Traceability FK → FilmTimelineTrack
+  name            String
+  type            TrackType
+  order_index     Int
+  is_active       Boolean   @default(true)
+  is_unmanned     Boolean   @default(false)
+  contributor_id  Int?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  project                  projects?                       @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry                  inquiries?                      @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_film             ProjectFilm                     @relation(fields: [project_film_id], references: [id], onDelete: Cascade)
+  source_track             FilmTimelineTrack?              @relation(fields: [source_track_id], references: [id], onDelete: SetNull)
+  contributor              contributors?                   @relation(fields: [contributor_id], references: [id], onDelete: SetNull)
+  camera_assignments       ProjectCameraSubjectAssignment[]
+  scene_camera_assignments ProjectSceneCameraAssignment[]
+
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_film_id])
+  @@index([source_track_id])
+  @@index([contributor_id])
+  @@map("project_film_timeline_tracks")
+}
+
+// Instance of FilmSubject — project-owned copy
+model ProjectFilmSubject {
+  id                Int             @id @default(autoincrement())
+  project_id        Int?
+  inquiry_id        Int?
+  project_film_id   Int
+  source_subject_id Int?            // Traceability FK → FilmSubject
+  name              String
+  category          SubjectCategory
+  role_template_id  Int?
+  is_custom         Boolean         @default(false)
+  created_at        DateTime        @default(now())
+  updated_at        DateTime        @updatedAt
+
+  project         projects?                  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry         inquiries?                 @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_film    ProjectFilm                @relation(fields: [project_film_id], references: [id], onDelete: Cascade)
+  source_subject  FilmSubject?               @relation(fields: [source_subject_id], references: [id], onDelete: SetNull)
+  role_template   SubjectRoleTemplate?       @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
+  scene_subjects  ProjectFilmSceneSubject[]
+  moment_subjects ProjectFilmSceneMomentSubject[]
+
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_film_id])
+  @@index([source_subject_id])
+  @@index([role_template_id])
+  @@map("project_film_subjects")
+}
+
+// Instance of FilmLocation — project-owned copy
+model ProjectFilmLocation {
+  id                 Int      @id @default(autoincrement())
+  project_id         Int?
+  inquiry_id         Int?
+  project_film_id    Int
+  source_location_id Int?     // Traceability FK → FilmLocation
+  location_id        Int
+  notes              String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  project        projects?        @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry        inquiries?       @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_film   ProjectFilm      @relation(fields: [project_film_id], references: [id], onDelete: Cascade)
+  source_location FilmLocation?   @relation(fields: [source_location_id], references: [id], onDelete: SetNull)
+  location       LocationsLibrary @relation(fields: [location_id], references: [id], onDelete: Cascade)
+
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_film_id])
+  @@index([source_location_id])
+  @@index([location_id])
+  @@map("project_film_locations")
+}
+
+// Instance of FilmScene — project-owned copy
+model ProjectFilmScene {
+  id                 Int       @id @default(autoincrement())
+  project_id         Int?
+  inquiry_id         Int?
+  project_film_id    Int
+  source_scene_id    Int?      // Traceability FK → FilmScene
+  scene_template_id  Int?
+  name               String
+  mode               SceneType @default(MOMENTS)
+  shot_count         Int?
+  duration_seconds   Int?
+  order_index        Int
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  project             projects?                    @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry             inquiries?                   @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_film        ProjectFilm                  @relation(fields: [project_film_id], references: [id], onDelete: Cascade)
+  source_scene        FilmScene?                   @relation(fields: [source_scene_id], references: [id], onDelete: SetNull)
+  template            SceneTemplate?               @relation(fields: [scene_template_id], references: [id])
+  moments             ProjectFilmSceneMoment[]
+  beats               ProjectFilmSceneBeat[]
+  subjects            ProjectFilmSceneSubject[]
+  location_assignment ProjectFilmSceneLocation?
+  recording_setup     ProjectSceneRecordingSetup?
+  scene_camera_assignments ProjectSceneCameraAssignment[]
+
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_film_id])
+  @@index([source_scene_id])
+  @@index([scene_template_id])
+  @@map("project_film_scenes")
+}
+
+// Instance of SceneMoment — project-owned copy
+model ProjectFilmSceneMoment {
+  id                Int      @id @default(autoincrement())
+  project_id        Int?
+  inquiry_id        Int?
+  project_scene_id  Int
+  source_moment_id  Int?     // Traceability FK → SceneMoment
+  name              String
+  order_index       Int
+  duration          Int      @default(60)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  project        projects?            @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry        inquiries?           @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_scene  ProjectFilmScene     @relation(fields: [project_scene_id], references: [id], onDelete: Cascade)
+  source_moment  SceneMoment?         @relation(fields: [source_moment_id], references: [id], onDelete: SetNull)
+  recording_setup ProjectMomentRecordingSetup?
+  subjects        ProjectFilmSceneMomentSubject[]
+
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_scene_id])
+  @@index([source_moment_id])
+  @@map("project_film_scene_moments")
+}
+
+// Instance of SceneBeat — project-owned copy
+model ProjectFilmSceneBeat {
+  id               Int      @id @default(autoincrement())
+  project_id       Int?
+  inquiry_id       Int?
+  project_scene_id Int
+  source_beat_id   Int?     // Traceability FK → SceneBeat
+  name             String
+  order_index      Int
+  shot_count       Int?
+  duration_seconds Int      @default(10)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  project       projects?        @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry       inquiries?       @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_scene ProjectFilmScene @relation(fields: [project_scene_id], references: [id], onDelete: Cascade)
+  source_beat   SceneBeat?       @relation(fields: [source_beat_id], references: [id], onDelete: SetNull)
+  recording_setup ProjectBeatRecordingSetup?
+
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_scene_id])
+  @@index([source_beat_id])
+  @@map("project_film_scene_beats")
+}
+
+// Instance of FilmSceneSubject — project-owned copy
+model ProjectFilmSceneSubject {
+  id                       Int             @id @default(autoincrement())
+  project_scene_id         Int
+  project_film_subject_id  Int
+  source_scene_subject_id  Int?            // Traceability FK → FilmSceneSubject
+  priority                 SubjectPriority @default(BACKGROUND)
+  notes                    String?
+  created_at               DateTime        @default(now())
+  updated_at               DateTime        @updatedAt
+
+  project_scene   ProjectFilmScene   @relation(fields: [project_scene_id], references: [id], onDelete: Cascade)
+  project_subject ProjectFilmSubject @relation(fields: [project_film_subject_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_scene_id, project_film_subject_id])
+  @@index([project_scene_id])
+  @@index([project_film_subject_id])
+  @@map("project_film_scene_subjects")
+}
+
+// Instance of FilmSceneMomentSubject — project-owned copy
+model ProjectFilmSceneMomentSubject {
+  id                       Int             @id @default(autoincrement())
+  project_moment_id        Int
+  project_film_subject_id  Int
+  priority                 SubjectPriority @default(BACKGROUND)
+  notes                    String?
+  created_at               DateTime        @default(now())
+  updated_at               DateTime        @updatedAt
+
+  project_moment  ProjectFilmSceneMoment @relation(fields: [project_moment_id], references: [id], onDelete: Cascade)
+  project_subject ProjectFilmSubject     @relation(fields: [project_film_subject_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_moment_id, project_film_subject_id])
+  @@index([project_moment_id])
+  @@index([project_film_subject_id])
+  @@map("project_film_scene_moment_subjects")
+}
+
+// Instance of FilmSceneLocation — project-owned copy
+model ProjectFilmSceneLocation {
+  id                         Int      @id @default(autoincrement())
+  project_scene_id           Int      @unique
+  location_id                Int
+  source_scene_location_id   Int?     // Traceability FK → FilmSceneLocation
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+
+  project_scene        ProjectFilmScene @relation(fields: [project_scene_id], references: [id], onDelete: Cascade)
+  location             LocationsLibrary @relation(fields: [location_id], references: [id], onDelete: Cascade)
+
+  @@index([project_scene_id])
+  @@index([location_id])
+  @@map("project_film_scene_locations")
+}
+
+// Instance of FilmEquipmentAssignment — project-owned copy
+model ProjectFilmEquipmentAssignment {
+  id                     Int      @id @default(autoincrement())
+  project_id             Int?
+  inquiry_id             Int?
+  project_film_id        Int
+  source_assignment_id   Int?     // Traceability FK → FilmEquipmentAssignment
+  equipment_id           Int
+  quantity               Int      @default(1)
+  notes                  String?
+  assigned_at            DateTime @default(now())
+
+  project      projects?               @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry      inquiries?              @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_film ProjectFilm             @relation(fields: [project_film_id], references: [id], onDelete: Cascade)
+  source       FilmEquipmentAssignment? @relation(fields: [source_assignment_id], references: [id], onDelete: SetNull)
+  equipment    equipment               @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_film_id, equipment_id])
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_film_id])
+  @@index([equipment_id])
+  @@map("project_film_equipment_assignments")
+}
+
+// Instance of SceneRecordingSetup — project-owned copy
+model ProjectSceneRecordingSetup {
+  id               Int      @id @default(autoincrement())
+  project_scene_id Int      @unique
+  audio_track_ids  Int[]
+  graphics_enabled Boolean  @default(false)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  project_scene      ProjectFilmScene               @relation(fields: [project_scene_id], references: [id], onDelete: Cascade)
+  camera_assignments ProjectSceneCameraAssignment[]
+
+  @@map("project_scene_recording_setups")
+}
+
+// Instance of SceneCameraAssignment — project-owned copy
+model ProjectSceneCameraAssignment {
+  id                 Int   @id @default(autoincrement())
+  recording_setup_id Int
+  track_id           Int
+  subject_ids        Int[]
+
+  recording_setup ProjectSceneRecordingSetup  @relation(fields: [recording_setup_id], references: [id], onDelete: Cascade)
+  track           ProjectFilmTimelineTrack    @relation(fields: [track_id], references: [id], onDelete: Cascade)
+  project_scene   ProjectFilmScene?           @relation(fields: [project_scene_id], references: [id], onDelete: Cascade)
+  project_scene_id Int?
+
+  @@unique([recording_setup_id, track_id])
+  @@index([recording_setup_id])
+  @@index([track_id])
+  @@map("project_scene_camera_assignments")
+}
+
+// Instance of MomentRecordingSetup — project-owned copy
+model ProjectMomentRecordingSetup {
+  id               Int      @id @default(autoincrement())
+  project_moment_id Int     @unique
+  audio_track_ids  Int[]
+  graphics_enabled Boolean  @default(false)
+  graphics_title   String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  project_moment     ProjectFilmSceneMoment           @relation(fields: [project_moment_id], references: [id], onDelete: Cascade)
+  camera_assignments ProjectCameraSubjectAssignment[]
+
+  @@map("project_moment_recording_setups")
+}
+
+// Instance of CameraSubjectAssignment — project-owned copy
+model ProjectCameraSubjectAssignment {
+  id                 Int       @id @default(autoincrement())
+  recording_setup_id Int
+  track_id           Int
+  subject_ids        Int[]
+  shot_type          ShotType?
+
+  recording_setup ProjectMomentRecordingSetup @relation(fields: [recording_setup_id], references: [id], onDelete: Cascade)
+  track           ProjectFilmTimelineTrack    @relation(fields: [track_id], references: [id], onDelete: Cascade)
+
+  @@unique([recording_setup_id, track_id])
+  @@index([recording_setup_id])
+  @@index([track_id])
+  @@map("project_camera_subject_assignments")
+}
+
+// Instance of BeatRecordingSetup — project-owned copy
+model ProjectBeatRecordingSetup {
+  id               Int      @id @default(autoincrement())
+  project_beat_id  Int      @unique
+  camera_track_ids Int[]
+  audio_track_ids  Int[]
+  graphics_enabled Boolean  @default(false)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  project_beat ProjectFilmSceneBeat @relation(fields: [project_beat_id], references: [id], onDelete: Cascade)
+
+  @@index([project_beat_id])
+  @@map("project_beat_recording_setups")
+}
+
+// ─── Project-Level Package Snapshot Models ───────────────────────────
+// These are independent clones of package data, owned by the project.
+// Created once during inquiry → project conversion. Never sync back.
+
+// Project activity moments (cloned from PackageActivityMoment)
+// Dual-owner: owned by either a project OR an inquiry (exactly one must be set)
+model ProjectActivityMoment {
+  id                    Int      @id @default(autoincrement())
+  project_id            Int? // Nullable: set when owned by project
+  inquiry_id            Int? // Nullable: set when owned by inquiry (before booking)
+  project_activity_id   Int
+  source_package_moment_id Int? // Traceability to original PackageActivityMoment
+  name                  String // "Processional", "Vows", "First Dance", etc.
+  order_index           Int      @default(0)
+  duration_seconds      Int      @default(60)
+  is_required           Boolean  @default(true)
+  notes                 String?
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  project          projects?        @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry          inquiries?       @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_activity ProjectActivity  @relation(fields: [project_activity_id], references: [id], onDelete: Cascade)
+
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_activity_id])
+  @@map("project_activity_moments")
+}
+
+// Project event day subjects (cloned from PackageEventDaySubject)
+// Adds real_name for actual person name at project level
+// Dual-owner: owned by either a project OR an inquiry (exactly one must be set)
+model ProjectEventDaySubject {
+  id                          Int             @id @default(autoincrement())
+  project_id                  Int? // Nullable: set when owned by project
+  inquiry_id                  Int? // Nullable: set when owned by inquiry (before booking)
+  project_event_day_id        Int
+  project_activity_id         Int? // Optional: assigned to a specific activity
+  source_package_subject_id   Int? // Traceability to original PackageEventDaySubject
+  role_template_id            Int? // Link to SubjectRoleTemplate (e.g., "Bride")
+  name                        String // Role display name ("Bride", "Groom", etc.)
+  real_name                   String? // Actual person name ("Sarah Johnson")
+  category                    SubjectCategory @default(PEOPLE)
+  notes                       String?
+  order_index                 Int             @default(0)
+  created_at                  DateTime        @default(now())
+  updated_at                  DateTime        @updatedAt
+
+  project           projects?             @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry           inquiries?            @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_event_day ProjectEventDay       @relation(fields: [project_event_day_id], references: [id], onDelete: Cascade)
+  project_activity  ProjectActivity?      @relation(fields: [project_activity_id], references: [id], onDelete: SetNull)
+  role_template     SubjectRoleTemplate?  @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
+  activity_assignments ProjectSubjectActivityAssignment[]
+
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_event_day_id])
+  @@index([project_activity_id])
+  @@index([role_template_id])
+  @@map("project_event_day_subjects")
+}
+
+// Project location slots (cloned from PackageLocationSlot)
+// Adds name, address, and optional LocationsLibrary binding for real venue details
+// Dual-owner: owned by either a project OR an inquiry (exactly one must be set)
+model ProjectLocationSlot {
+  id                                Int      @id @default(autoincrement())
+  project_id                        Int? // Nullable: set when owned by project
+  inquiry_id                        Int? // Nullable: set when owned by inquiry (before booking)
+  project_event_day_id              Int
+  project_activity_id               Int? // Optional: assigned to a specific activity
+  source_package_location_slot_id   Int? // Traceability to original PackageLocationSlot
+  location_number                   Int // Slot number (1-5)
+  name                              String? // Real location name ("St. Mary's Church")
+  address                           String? // Full address for project logistics
+  location_id                       Int? // Optional FK → LocationsLibrary for linked venue
+  notes                             String?
+  order_index                       Int      @default(0)
+  created_at                        DateTime @default(now())
+  updated_at                        DateTime @updatedAt
+
+  project           projects?         @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry           inquiries?        @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_event_day ProjectEventDay   @relation(fields: [project_event_day_id], references: [id], onDelete: Cascade)
+  project_activity  ProjectActivity?  @relation(fields: [project_activity_id], references: [id], onDelete: SetNull)
+  location          LocationsLibrary? @relation(fields: [location_id], references: [id], onDelete: SetNull)
+  activity_assignments ProjectLocationActivityAssignment[]
+
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_event_day_id])
+  @@index([project_activity_id])
+  @@index([location_id])
+  @@map("project_location_slots")
+}
+
+// Project crew/operator slots (cloned from PackageDayOperator)
+// Dual-owner: owned by either a project OR an inquiry (exactly one must be set)
+model ProjectDayOperator {
+  id                      Int      @id @default(autoincrement())
+  project_id              Int? // Nullable: set when owned by project
+  inquiry_id              Int? // Nullable: set when owned by inquiry (before booking)
+  project_event_day_id    Int
+  project_activity_id     Int? // Optional: assigned to a specific activity
+  source_package_operator_id Int? // Traceability to original PackageDayOperator
+  contributor_id          Int? // Nullable: null = unassigned slot
+  position_name           String // "Lead Videographer", "Drone Pilot", etc.
+  position_color          String?
+  job_role_id             Int?
+  hours                   Decimal  @default(8) @db.Decimal(4, 1)
+  notes                   String?
+  order_index             Int      @default(0)
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  project           projects?         @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry           inquiries?        @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_event_day ProjectEventDay   @relation(fields: [project_event_day_id], references: [id], onDelete: Cascade)
+  project_activity  ProjectActivity?  @relation(fields: [project_activity_id], references: [id], onDelete: SetNull)
+  contributor       contributors?     @relation(fields: [contributor_id], references: [id], onDelete: SetNull)
+  job_role          job_roles?        @relation(fields: [job_role_id], references: [id], onDelete: SetNull)
+  equipment         ProjectDayOperatorEquipment[]
+  activity_assignments ProjectOperatorActivityAssignment[]
+
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_event_day_id])
+  @@index([project_activity_id])
+  @@index([contributor_id])
+  @@index([job_role_id])
+  @@map("project_day_operators")
+}
+
+// Equipment assigned to a project operator
+model ProjectDayOperatorEquipment {
+  id                       Int      @id @default(autoincrement())
+  project_day_operator_id  Int
+  equipment_id             Int
+  is_primary               Boolean  @default(false)
+  created_at               DateTime @default(now())
+
+  project_day_operator ProjectDayOperator @relation(fields: [project_day_operator_id], references: [id], onDelete: Cascade)
+  equipment            equipment          @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_day_operator_id, equipment_id])
+  @@index([project_day_operator_id])
+  @@index([equipment_id])
+  @@map("project_day_operator_equipment")
+}
+
+// ─── Project Multi-Activity Assignment Junction Tables ───────────────
+
+model ProjectOperatorActivityAssignment {
+  id                       Int      @id @default(autoincrement())
+  project_day_operator_id  Int
+  project_activity_id      Int
+  created_at               DateTime @default(now())
+
+  project_day_operator ProjectDayOperator @relation(fields: [project_day_operator_id], references: [id], onDelete: Cascade)
+  project_activity     ProjectActivity    @relation(fields: [project_activity_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_day_operator_id, project_activity_id])
+  @@index([project_day_operator_id])
+  @@index([project_activity_id])
+  @@map("project_operator_activity_assignments")
+}
+
+model ProjectSubjectActivityAssignment {
+  id                             Int      @id @default(autoincrement())
+  project_event_day_subject_id   Int
+  project_activity_id            Int
+  created_at                     DateTime @default(now())
+
+  project_event_day_subject ProjectEventDaySubject @relation(fields: [project_event_day_subject_id], references: [id], onDelete: Cascade)
+  project_activity          ProjectActivity        @relation(fields: [project_activity_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_event_day_subject_id, project_activity_id])
+  @@index([project_event_day_subject_id])
+  @@index([project_activity_id])
+  @@map("project_subject_activity_assignments")
+}
+
+model ProjectLocationActivityAssignment {
+  id                          Int      @id @default(autoincrement())
+  project_location_slot_id    Int
+  project_activity_id         Int
+  created_at                  DateTime @default(now())
+
+  project_location_slot ProjectLocationSlot @relation(fields: [project_location_slot_id], references: [id], onDelete: Cascade)
+  project_activity      ProjectActivity     @relation(fields: [project_activity_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_location_slot_id, project_activity_id])
+  @@index([project_location_slot_id])
+  @@index([project_activity_id])
+  @@map("project_location_activity_assignments")
 }
 
 // ─── Multi-Activity Assignment Junction Tables ───────────────────────

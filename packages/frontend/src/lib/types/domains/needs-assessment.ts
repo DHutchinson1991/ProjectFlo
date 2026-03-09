@@ -1,3 +1,10 @@
+export interface WizardStep {
+    key: string;
+    label: string;
+    description?: string;
+    type?: 'questions' | 'package_select' | 'discovery_call';
+}
+
 export interface NeedsAssessmentQuestion {
     id?: number;
     order_index: number;
@@ -20,6 +27,7 @@ export interface NeedsAssessmentTemplate {
     status?: string;
     version?: string;
     published_at?: string | null;
+    steps_config?: WizardStep[] | null;
     created_at: string;
     updated_at: string;
     questions: NeedsAssessmentQuestion[];

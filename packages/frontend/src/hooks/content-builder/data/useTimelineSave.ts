@@ -2,20 +2,48 @@ import { useCallback } from "react";
 import { createScenesApi } from "@/lib/api/scenes.api";
 import { apiClient, api } from "@/lib/api";
 import type { TimelineScene } from "@/lib/types/timeline";
+import type { FilmContentApi } from "@/components/films/FilmApiContext";
 
 /**
  * Hook to handle timeline save operations
  * Saves timeline scenes to the database and maintains track order
  * Uses domain API: createScenesApi from @/lib/api/scenes.api
  * 
+ * Accepts an optional `filmApi` adapter — when provided, all persistence
+ * routes through it (supporting library, project-instance, and inquiry-
+ * instance modes). When omitted, falls back to the library-mode APIs
+ * directly for backward compatibility.
+ * 
  * Returns: handleSave function and idMapping (client ID -> database ID)
  */
 export const useTimelineSave = (
     filmId: number,
     onTimelineSave: (scenes: TimelineScene[], tracks?: any[]) => void,
-    onTracksSave: (tracks: any[]) => void
+    onTracksSave: (tracks: any[]) => void,
+    filmApi?: FilmContentApi | null,
 ) => {
-    const scenesApi = createScenesApi(apiClient);
+    // Build an internal API surface that honours the adapter when present
+    const scenesApi = filmApi ? null : createScenesApi(apiClient);
+
+    // Helper: delegate to adapter or fallback
+    const scenesCreate = filmApi
+        ? (data: any) => filmApi.scenes.create(data)
+        : (data: any) => scenesApi!.scenes.create(data);
+    const scenesUpdate = filmApi
+        ? (id: number, data: any) => filmApi.scenes.update(id, data)
+        : (id: number, data: any) => scenesApi!.scenes.update(id, data);
+    const scenesDelete = filmApi
+        ? (id: number) => filmApi.scenes.delete(id)
+        : (id: number) => scenesApi!.scenes.delete(id);
+    const scenesRecordingSetupUpsert = filmApi
+        ? (sceneId: number, data: any) => filmApi.scenes.recordingSetup.upsert(sceneId, data)
+        : (sceneId: number, data: any) => scenesApi!.scenes.recordingSetup.upsert(sceneId, data);
+    const momentsCreate = filmApi
+        ? (data: any) => filmApi.moments.create(data)
+        : (data: any) => scenesApi!.moments.create(data);
+    const beatsCreate = filmApi
+        ? (sceneId: number, data: any) => filmApi.beats.create(sceneId, data)
+        : (sceneId: number, data: any) => api.beats.create(sceneId, data);
     let lastSavedIdMapping: Map<number | string, number> = new Map();
 
     const handleSave = useCallback(async (scenes: TimelineScene[], tracks?: any[]) => {
@@ -32,7 +60,7 @@ export const useTimelineSave = (
             // Save each scene to the database
             if (scenes && scenes.length > 0) {
                 console.log(`📍 [SAVE] Saving ${scenes.length} scenes to film ${filmId}`);
-                console.log(`📍 [SAVE] API being used:`, scenesApi.scenes ? "✅ scenes.api loaded" : "❌ scenes.api NOT loaded");
+                console.log(`📍 [SAVE] API being used:`, filmApi ? `✅ FilmContentApi (${filmApi.mode})` : (scenesApi?.scenes ? "✅ scenes.api loaded" : "❌ scenes.api NOT loaded"));
                 
                 for (let index = 0; index < scenes.length; index++) {
                     const scene = scenes[index];
@@ -72,9 +100,9 @@ export const useTimelineSave = (
                         console.log(`  - Type: ${(scene as any).scene_type}`);
                         console.log(`  - Duration: ${scene.duration}s`);
                         console.log(`  - Moments: ${(scene.moments?.length || 0)}`);
-                        console.log(`📍 [SAVE] About to call scenesApi.scenes.create with data:`, sceneData);
+                        console.log(`📍 [SAVE] About to call scenes.create with data:`, sceneData);
                         
-                        const result = await scenesApi.scenes.create(sceneData);
+                        const result = await scenesCreate(sceneData);
                         const newDatabaseId = (result as any).id;
                         console.log(`✅ [SAVE] Scene saved successfully:`, { clientId: scene.id, databaseId: newDatabaseId, name: result.name });
                         
@@ -97,7 +125,7 @@ export const useTimelineSave = (
                                     };
                                     console.log(`  📍 [SAVE] Moment ${momentIndex + 1}/${scene.moments.length}: ${moment.name} (${moment.duration}s)`);
                                     
-                                    const momentResult = await scenesApi.moments.create(momentData);
+                                    const momentResult = await momentsCreate(momentData);
                                     console.log(`  ✅ [SAVE] Moment created: ID ${(momentResult as any).id}`);
                                 }
                                 console.log(`✅ [SAVE] All moments saved for scene ${newDatabaseId}`);
@@ -128,7 +156,7 @@ export const useTimelineSave = (
                                     };
                                     console.log(`  📍 [SAVE] Beat ${beatIndex + 1}/${(scene as any).beats.length}: ${beat.name} (${beat.duration_seconds}s)`);
                                     
-                                    const beatResult = await api.beats.create(newDatabaseId, beatData);
+                                    const beatResult = await beatsCreate(newDatabaseId, beatData);
                                     savedBeats.push(beatResult);
                                     console.log(`  ✅ [SAVE] Beat created: ID ${beatResult.id}`);
                                 }
@@ -176,7 +204,7 @@ export const useTimelineSave = (
 
                                 if (shouldApplySetup) {
                                     try {
-                                        await scenesApi.scenes.recordingSetup.upsert(newDatabaseId, {
+                                        await scenesRecordingSetupUpsert(newDatabaseId, {
                                             camera_track_ids: cameraTrackIds,
                                             audio_track_ids: audioTrackIds,
                                             graphics_enabled: !!templateRecordingSetup.graphics_enabled,
@@ -239,8 +267,8 @@ export const useTimelineSave = (
                             });
                             
                             try {
-                                console.log(`📍 [SAVE] About to call scenesApi.scenes.update(${databaseId}, {order_index: ${index}, name: ${scene.name}})`);
-                                await scenesApi.scenes.update(databaseId, {
+                                console.log(`📍 [SAVE] About to call scenes.update(${databaseId}, {order_index: ${index}, name: ${scene.name}})`);
+                                await scenesUpdate(databaseId, {
                                     order_index: index,
                                     name: scene.name,
                                 });
@@ -271,7 +299,7 @@ export const useTimelineSave = (
             console.error("❌ [SAVE] Error saving timeline:", error);
             // Don't throw - save locally succeeded
         }
-    }, [filmId, onTimelineSave, onTracksSave, scenesApi]);
+    }, [filmId, onTimelineSave, onTracksSave, scenesApi, filmApi]);
 
     return {
         handleSave,

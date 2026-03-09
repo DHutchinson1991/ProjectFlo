@@ -1249,6 +1249,26 @@ class ApiService extends BaseApiClient {
     convert: (inquiryId: number): Promise<{ projectId: number }> =>
       this.post(`/api/inquiries/${inquiryId}/convert`),
     delete: (id: number): Promise<void> => this.delete(`/api/inquiries/${id}`),
+
+    // Schedule snapshot endpoints (cloned package data owned by inquiry)
+    scheduleSnapshot: {
+      getSummary: (inquiryId: number): Promise<any> =>
+        this.get(`/api/inquiries/${inquiryId}/schedule-snapshot`),
+      getEventDays: (inquiryId: number): Promise<any[]> =>
+        this.get(`/api/inquiries/${inquiryId}/schedule-snapshot/event-days`),
+      getActivities: (inquiryId: number): Promise<any[]> =>
+        this.get(`/api/inquiries/${inquiryId}/schedule-snapshot/activities`),
+      getOperators: (inquiryId: number): Promise<any[]> =>
+        this.get(`/api/inquiries/${inquiryId}/schedule-snapshot/operators`),
+      getSubjects: (inquiryId: number): Promise<any[]> =>
+        this.get(`/api/inquiries/${inquiryId}/schedule-snapshot/subjects`),
+      getLocations: (inquiryId: number): Promise<any[]> =>
+        this.get(`/api/inquiries/${inquiryId}/schedule-snapshot/locations`),
+      getFilms: (inquiryId: number): Promise<any[]> =>
+        this.get(`/api/inquiries/${inquiryId}/schedule-snapshot/films`),
+      getActivityMoments: (inquiryId: number, activityId: number): Promise<any[]> =>
+        this.get(`/api/inquiries/${inquiryId}/schedule-snapshot/activities/${activityId}/moments`),
+    },
   };
 
   // Needs Assessment methods (brand-specific)
@@ -1375,6 +1395,10 @@ class ApiService extends BaseApiClient {
       this.delete(`/package-sets/${brandId}/slots/${slotId}`),
     reorderSlots: (brandId: number, setId: number, slotIds: number[]): Promise<any> =>
       this.patch(`/package-sets/${brandId}/${setId}/reorder-slots`, { slot_ids: slotIds }),
+    migratePackagesCategory: (brandId: number, setId: number, categoryId: number): Promise<{ updated: number }> =>
+      this.patch(`/package-sets/${brandId}/${setId}/migrate-categories`, { category_id: categoryId }),
+    clearAllSlotAssignments: (brandId: number, setId: number): Promise<{ cleared: number }> =>
+      this.patch(`/package-sets/${brandId}/${setId}/clear-assignments`, {}),
   };
 
   // ─── Wedding Types System ────────────────────────────────────────────
@@ -1778,6 +1802,133 @@ class ApiService extends BaseApiClient {
         this.post(`/schedule/projects/${projectId}/initialize-from-package/${packageId}`, {}),
     },
 
+    // ─── Inquiry Schedule CRUD ───────────────────────────────────────────
+    // Inquiry-owned instance data (mirrors project CRUD but with inquiry owner)
+
+    inquiryEventDays: {
+      getAll: (inquiryId: number): Promise<any[]> =>
+        this.get(`/schedule/inquiries/${inquiryId}/event-days`),
+      create: (inquiryId: number, data: any): Promise<any> =>
+        this.post(`/schedule/inquiries/${inquiryId}/event-days`, data),
+      update: (eventDayId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/inquiries/event-days/${eventDayId}`, data),
+      delete: (eventDayId: number): Promise<void> =>
+        this.delete(`/schedule/inquiries/event-days/${eventDayId}`),
+    },
+
+    inquiryActivities: {
+      getAll: (inquiryId: number): Promise<any[]> =>
+        this.get(`/schedule/inquiries/${inquiryId}/activities`),
+      getByDay: (inquiryId: number, eventDayId: number): Promise<any[]> =>
+        this.get(`/schedule/inquiries/${inquiryId}/activities/${eventDayId}`),
+      create: (inquiryId: number, data: any): Promise<any> =>
+        this.post(`/schedule/inquiries/${inquiryId}/activities`, data),
+      update: (activityId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/inquiries/activities/${activityId}`, data),
+      delete: (activityId: number): Promise<void> =>
+        this.delete(`/schedule/inquiries/activities/${activityId}`),
+    },
+
+    inquiryFilms: {
+      getAll: (inquiryId: number): Promise<any[]> =>
+        this.get(`/schedule/inquiries/${inquiryId}/films`),
+      create: (inquiryId: number, data: { film_id: number; package_film_id?: number; order_index?: number }): Promise<any> =>
+        this.post(`/schedule/inquiries/${inquiryId}/films`, data),
+      // delete/upsertScene by ID — use projectFilms methods (same table, found by PK)
+      delete: (filmId: number): Promise<void> =>
+        this.delete(`/schedule/projects/films/${filmId}`),
+    },
+
+    // ─── Instance CRUD (shared — works with both project & inquiry records) ──
+
+    // Activity moments (for project or inquiry activities)
+    instanceMoments: {
+      getByActivity: (activityId: number): Promise<any[]> =>
+        this.get(`/schedule/instance/activities/${activityId}/moments`),
+      createForProject: (projectId: number, data: any): Promise<any> =>
+        this.post(`/schedule/projects/${projectId}/activity-moments`, data),
+      createForInquiry: (inquiryId: number, data: any): Promise<any> =>
+        this.post(`/schedule/inquiries/${inquiryId}/activity-moments`, data),
+      update: (momentId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/instance/moments/${momentId}`, data),
+      delete: (momentId: number): Promise<void> =>
+        this.delete(`/schedule/instance/moments/${momentId}`),
+      reorder: (activityId: number, momentIds: number[]): Promise<any[]> =>
+        this.post(`/schedule/instance/activities/${activityId}/moments/reorder`, { moment_ids: momentIds }),
+    },
+
+    // Instance event day subjects (project or inquiry)
+    instanceSubjects: {
+      getForProject: (projectId: number, eventDayId?: number): Promise<any[]> =>
+        this.get(`/schedule/projects/${projectId}/subjects${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+      getForInquiry: (inquiryId: number, eventDayId?: number): Promise<any[]> =>
+        this.get(`/schedule/inquiries/${inquiryId}/subjects${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+      createForProject: (projectId: number, data: any): Promise<any> =>
+        this.post(`/schedule/projects/${projectId}/subjects`, data),
+      createForInquiry: (inquiryId: number, data: any): Promise<any> =>
+        this.post(`/schedule/inquiries/${inquiryId}/subjects`, data),
+      update: (subjectId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/instance/subjects/${subjectId}`, data),
+      delete: (subjectId: number): Promise<void> =>
+        this.delete(`/schedule/instance/subjects/${subjectId}`),
+      assignActivity: (subjectId: number, activityId: number): Promise<any> =>
+        this.post(`/schedule/instance/subjects/${subjectId}/activities/${activityId}`, {}),
+      unassignActivity: (subjectId: number, activityId: number): Promise<any> =>
+        this.delete(`/schedule/instance/subjects/${subjectId}/activities/${activityId}`),
+    },
+
+    // Instance location slots (project or inquiry)
+    instanceLocationSlots: {
+      getForProject: (projectId: number, eventDayId?: number): Promise<any[]> =>
+        this.get(`/schedule/projects/${projectId}/location-slots${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+      getForInquiry: (inquiryId: number, eventDayId?: number): Promise<any[]> =>
+        this.get(`/schedule/inquiries/${inquiryId}/location-slots${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+      createForProject: (projectId: number, data: any): Promise<any> =>
+        this.post(`/schedule/projects/${projectId}/location-slots`, data),
+      createForInquiry: (inquiryId: number, data: any): Promise<any> =>
+        this.post(`/schedule/inquiries/${inquiryId}/location-slots`, data),
+      delete: (slotId: number): Promise<void> =>
+        this.delete(`/schedule/instance/location-slots/${slotId}`),
+      assignActivity: (slotId: number, activityId: number): Promise<any> =>
+        this.post(`/schedule/instance/location-slots/${slotId}/activities/${activityId}`, {}),
+      unassignActivity: (slotId: number, activityId: number): Promise<any> =>
+        this.delete(`/schedule/instance/location-slots/${slotId}/activities/${activityId}`),
+    },
+
+    // Instance day operators / crew (project or inquiry)
+    instanceOperators: {
+      getForProject: (projectId: number, eventDayId?: number): Promise<any[]> =>
+        this.get(`/schedule/projects/${projectId}/operators${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+      getForInquiry: (inquiryId: number, eventDayId?: number): Promise<any[]> =>
+        this.get(`/schedule/inquiries/${inquiryId}/operators${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+      createForProject: (projectId: number, data: any): Promise<any> =>
+        this.post(`/schedule/projects/${projectId}/operators`, data),
+      createForInquiry: (inquiryId: number, data: any): Promise<any> =>
+        this.post(`/schedule/inquiries/${inquiryId}/operators`, data),
+      update: (operatorId: number, data: any): Promise<any> =>
+        this.patch(`/schedule/instance/operators/${operatorId}`, data),
+      assignCrew: (operatorId: number, contributorId: number | null): Promise<any> =>
+        this.patch(`/schedule/instance/operators/${operatorId}/assign`, { contributor_id: contributorId }),
+      delete: (operatorId: number): Promise<void> =>
+        this.delete(`/schedule/instance/operators/${operatorId}`),
+      setEquipment: (operatorId: number, equipment: { equipment_id: number; is_primary: boolean }[]): Promise<any> =>
+        this.post(`/schedule/instance/operators/${operatorId}/equipment`, { equipment }),
+      assignActivity: (operatorId: number, activityId: number): Promise<any> =>
+        this.post(`/schedule/instance/operators/${operatorId}/activities/${activityId}`, {}),
+      unassignActivity: (operatorId: number, activityId: number): Promise<any> =>
+        this.delete(`/schedule/instance/operators/${operatorId}/activities/${activityId}`),
+    },
+
+    // Enhanced project instance readers (richer includes)
+    projectInstanceEventDays: {
+      getAll: (projectId: number): Promise<any[]> =>
+        this.get(`/schedule/projects/${projectId}/instance-event-days`),
+    },
+    projectAllActivities: {
+      getAll: (projectId: number): Promise<any[]> =>
+        this.get(`/schedule/projects/${projectId}/all-activities`),
+    },
+
     // Resolved schedule (inheritance chain merged)
     getResolved: (filmId: number, params?: { packageFilmId?: number; projectFilmId?: number }): Promise<any> => {
       const query = new URLSearchParams();
@@ -1785,6 +1936,53 @@ class ApiService extends BaseApiClient {
       if (params?.projectFilmId) query.set('projectFilmId', String(params.projectFilmId));
       const qs = query.toString();
       return this.get(`/schedule/resolved/${filmId}${qs ? `?${qs}` : ''}`);
+    },
+
+    // Project package snapshot (read-only cloned schedule data owned by a project)
+    projectPackageSnapshot: {
+      getSummary: (projectId: number): Promise<any> =>
+        this.get(`/projects/${projectId}/package-snapshot`),
+      getEventDays: (projectId: number): Promise<any[]> =>
+        this.get(`/projects/${projectId}/package-snapshot/event-days`),
+      getActivities: (projectId: number): Promise<any[]> =>
+        this.get(`/projects/${projectId}/package-snapshot/activities`),
+      getOperators: (projectId: number): Promise<any[]> =>
+        this.get(`/projects/${projectId}/package-snapshot/operators`),
+      getSubjects: (projectId: number): Promise<any[]> =>
+        this.get(`/projects/${projectId}/package-snapshot/subjects`),
+      getLocations: (projectId: number): Promise<any[]> =>
+        this.get(`/projects/${projectId}/package-snapshot/locations`),
+      getFilms: (projectId: number): Promise<any[]> =>
+        this.get(`/projects/${projectId}/package-snapshot/films`),
+      getActivityMoments: (projectId: number, activityId: number): Promise<any[]> =>
+        this.get(`/projects/${projectId}/package-snapshot/activities/${activityId}/moments`),
+    },
+
+    // Sync from Package — delete + re-clone from source package
+    syncFromPackage: {
+      /** Sync project schedule from its source package (delete all + re-clone) */
+      project: (projectId: number): Promise<any> =>
+        this.post(`/projects/${projectId}/schedule/sync-from-package`, {}),
+      /** Sync inquiry schedule from its source package (delete all + re-clone) */
+      inquiry: (inquiryId: number): Promise<any> =>
+        this.post(`/api/inquiries/${inquiryId}/schedule/sync-from-package`, {}),
+    },
+
+    // Package Schedule Summary — aggregate counts for a package's schedule
+    packageSummary: {
+      /** Get summary (counts, event day names) for a package's schedule template */
+      get: (packageId: number): Promise<any> =>
+        this.get(`/schedule/packages/${packageId}/summary`),
+    },
+
+    // Schedule Diff — compare instance schedule against source package
+    scheduleDiff: {
+      /** Get diff for a project's instance schedule vs its source package */
+      project: (projectId: number): Promise<any> =>
+        this.get(`/projects/${projectId}/schedule/diff`),
+      /** Get diff for an inquiry's instance schedule vs its source package */
+      inquiry: (inquiryId: number): Promise<any> =>
+        this.get(`/api/inquiries/${inquiryId}/schedule/diff`),
     },
   };
 
@@ -1959,6 +2157,212 @@ class ApiService extends BaseApiClient {
       this.get("/locations/categories/spaces"),
     getObjectCategories: (): Promise<ObjectCategory[]> =>
       this.get("/locations/categories/objects"),
+  };
+
+  // ─── Instance Film Content (project / inquiry copies) ─────────────
+  // Mirrors the library scenes/moments/beats APIs but targets the
+  // ProjectFilm* instance tables via the /instance-films prefix.
+  // ──────────────────────────────────────────────────────────────────
+
+  instanceFilms = {
+    /** Deep-clone library film content into instance tables (idempotent). */
+    cloneFromLibrary: (projectFilmId: number): Promise<any> =>
+      this.post(`/instance-films/${projectFilmId}/clone-from-library`, {}),
+
+    // ── Scenes ──────────────────────────────────────────────────────
+    scenes: {
+      getAll: (projectFilmId: number): Promise<any[]> =>
+        this.get(`/instance-films/${projectFilmId}/scenes`),
+      getById: (sceneId: number): Promise<any> =>
+        this.get(`/instance-films/scenes/${sceneId}`),
+      create: (projectFilmId: number, data: {
+        name: string;
+        mode?: string;
+        order_index?: number;
+        duration_seconds?: number;
+        source_scene_id?: number;
+        scene_template_id?: number;
+      }): Promise<any> =>
+        this.post(`/instance-films/${projectFilmId}/scenes`, data),
+      update: (sceneId: number, data: {
+        name?: string;
+        order_index?: number;
+        duration_seconds?: number;
+      }): Promise<any> =>
+        this.patch(`/instance-films/scenes/${sceneId}`, data),
+      delete: (sceneId: number): Promise<void> =>
+        this.delete(`/instance-films/scenes/${sceneId}`),
+      reorder: (projectFilmId: number, orderings: Array<{ id: number; order_index: number }>): Promise<any> =>
+        this.post(`/instance-films/${projectFilmId}/scenes/reorder`, orderings),
+
+      recordingSetup: {
+        get: (sceneId: number): Promise<any> =>
+          this.get(`/instance-films/scenes/${sceneId}/recording-setup`),
+        upsert: (sceneId: number, data: {
+          camera_track_ids?: number[];
+          audio_track_ids?: number[];
+          graphics_enabled?: boolean;
+        }): Promise<any> =>
+          this.patch(`/instance-films/scenes/${sceneId}/recording-setup`, data),
+        delete: (sceneId: number): Promise<any> =>
+          this.delete(`/instance-films/scenes/${sceneId}/recording-setup`),
+      },
+    },
+
+    // ── Moments ─────────────────────────────────────────────────────
+    moments: {
+      getByScene: (sceneId: number): Promise<any[]> =>
+        this.get(`/instance-films/scenes/${sceneId}/moments`),
+      getById: (momentId: number): Promise<any> =>
+        this.get(`/instance-films/moments/${momentId}`),
+      create: (sceneId: number, data: {
+        name: string;
+        order_index?: number;
+        duration?: number;
+      }): Promise<any> =>
+        this.post(`/instance-films/scenes/${sceneId}/moments`, data),
+      update: (momentId: number, data: {
+        name?: string;
+        order_index?: number;
+        duration?: number;
+      }): Promise<any> =>
+        this.patch(`/instance-films/moments/${momentId}`, data),
+      delete: (momentId: number): Promise<void> =>
+        this.delete(`/instance-films/moments/${momentId}`),
+      reorder: (sceneId: number, orderings: Array<{ id: number; order_index: number }>): Promise<any> =>
+        this.post(`/instance-films/scenes/${sceneId}/moments/reorder`, orderings),
+
+      recordingSetup: {
+        get: (momentId: number): Promise<any> =>
+          this.get(`/instance-films/moments/${momentId}/recording-setup`),
+        upsert: (momentId: number, data: {
+          camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null }>;
+          audio_track_ids?: number[];
+          graphics_enabled?: boolean;
+          graphics_title?: string | null;
+        }): Promise<any> =>
+          this.patch(`/instance-films/moments/${momentId}/recording-setup`, data),
+        delete: (momentId: number): Promise<any> =>
+          this.delete(`/instance-films/moments/${momentId}/recording-setup`),
+      },
+    },
+
+    // ── Beats ───────────────────────────────────────────────────────
+    beats: {
+      getByScene: (sceneId: number): Promise<any[]> =>
+        this.get(`/instance-films/scenes/${sceneId}/beats`),
+      getById: (beatId: number): Promise<any> =>
+        this.get(`/instance-films/beats/${beatId}`),
+      create: (sceneId: number, data: {
+        name: string;
+        duration_seconds?: number;
+        order_index?: number;
+        shot_count?: number | null;
+      }): Promise<any> =>
+        this.post(`/instance-films/scenes/${sceneId}/beats`, data),
+      update: (beatId: number, data: {
+        name?: string;
+        duration_seconds?: number;
+        order_index?: number;
+        shot_count?: number | null;
+      }): Promise<any> =>
+        this.patch(`/instance-films/beats/${beatId}`, data),
+      delete: (beatId: number): Promise<void> =>
+        this.delete(`/instance-films/beats/${beatId}`),
+
+      recordingSetup: {
+        get: (beatId: number): Promise<any> =>
+          this.get(`/instance-films/beats/${beatId}/recording-setup`),
+        upsert: (beatId: number, data: {
+          camera_track_ids?: number[];
+          audio_track_ids?: number[];
+          graphics_enabled?: boolean;
+        }): Promise<any> =>
+          this.patch(`/instance-films/beats/${beatId}/recording-setup`, data),
+        delete: (beatId: number): Promise<any> =>
+          this.delete(`/instance-films/beats/${beatId}/recording-setup`),
+      },
+    },
+
+    // ── Tracks ──────────────────────────────────────────────────────
+    tracks: {
+      getAll: (projectFilmId: number, activeOnly?: boolean): Promise<any[]> => {
+        const params = activeOnly ? '?activeOnly=true' : '';
+        return this.get(`/instance-films/${projectFilmId}/tracks${params}`);
+      },
+      create: (projectFilmId: number, data: {
+        name: string;
+        type: string;
+        order_index?: number;
+        is_active?: boolean;
+      }): Promise<any> =>
+        this.post(`/instance-films/${projectFilmId}/tracks`, data),
+      update: (trackId: number, data: {
+        name?: string;
+        order_index?: number;
+        is_active?: boolean;
+      }): Promise<any> =>
+        this.patch(`/instance-films/tracks/${trackId}`, data),
+      delete: (trackId: number): Promise<void> =>
+        this.delete(`/instance-films/tracks/${trackId}`),
+    },
+
+    // ── Subjects ────────────────────────────────────────────────────
+    subjects: {
+      getAll: (projectFilmId: number): Promise<any[]> =>
+        this.get(`/instance-films/${projectFilmId}/subjects`),
+      create: (projectFilmId: number, data: {
+        name: string;
+        category?: string;
+        priority?: string;
+      }): Promise<any> =>
+        this.post(`/instance-films/${projectFilmId}/subjects`, data),
+      update: (subjectId: number, data: {
+        name?: string;
+        category?: string;
+        priority?: string;
+      }): Promise<any> =>
+        this.patch(`/instance-films/subjects/${subjectId}`, data),
+      delete: (subjectId: number): Promise<void> =>
+        this.delete(`/instance-films/subjects/${subjectId}`),
+    },
+
+    // ── Locations ───────────────────────────────────────────────────
+    locations: {
+      getAll: (projectFilmId: number): Promise<any[]> =>
+        this.get(`/instance-films/${projectFilmId}/locations`),
+      create: (projectFilmId: number, data: {
+        location_id: number;
+        notes?: string;
+      }): Promise<any> =>
+        this.post(`/instance-films/${projectFilmId}/locations`, data),
+      delete: (locationId: number): Promise<void> =>
+        this.delete(`/instance-films/locations/${locationId}`),
+    },
+
+    // ── Scene Subjects ──────────────────────────────────────────────
+    sceneSubjects: {
+      getAll: (sceneId: number): Promise<any[]> =>
+        this.get(`/instance-films/scenes/${sceneId}/subjects`),
+      add: (sceneId: number, data: {
+        project_film_subject_id: number;
+        priority?: number;
+        notes?: string;
+      }): Promise<any> =>
+        this.post(`/instance-films/scenes/${sceneId}/subjects`, data),
+      remove: (id: number): Promise<void> =>
+        this.delete(`/instance-films/scene-subjects/${id}`),
+    },
+
+    // ── Scene Location ──────────────────────────────────────────────
+    sceneLocation: {
+      get: (sceneId: number): Promise<any> =>
+        this.get(`/instance-films/scenes/${sceneId}/location`),
+      set: (sceneId: number, data: { location_id: number }): Promise<any> =>
+        this.post(`/instance-films/scenes/${sceneId}/location`, data),
+      remove: (sceneId: number): Promise<void> =>
+        this.delete(`/instance-films/scenes/${sceneId}/location`),
+    },
   };
 }
 

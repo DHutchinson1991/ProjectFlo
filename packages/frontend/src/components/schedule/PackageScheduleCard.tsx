@@ -17,6 +17,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 
 import { api } from '@/lib/api';
+import { useOptionalScheduleApi } from './ScheduleApiContext';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -89,6 +90,13 @@ interface PackageScheduleCardProps {
     onActivityTimeChange?: (activityId: number, startTime: string, endTime: string) => void;
     /** Live colour overrides keyed by activity id – used for instant preview while editing */
     colorOverrides?: Record<number, string>;
+    /**
+     * External activities to render on the timeline (optional).
+     * When provided (and packageId is null / instance mode), these are used
+     * instead of the internal API-loaded activities. This allows the
+     * timeline to work for project/inquiry instances without having a packageId.
+     */
+    externalActivities?: ActivityRecord[];
 }
 
 // ─── Activity Colors & Presets ───────────────────────────────────────
@@ -198,7 +206,11 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
     onSelectedActivityChange,
     onActivityTimeChange,
     colorOverrides,
+    externalActivities,
 }) => {
+    // ── Schedule API adapter (context if available, else direct package API) ──
+    const contextApi = useOptionalScheduleApi();
+
     const [loading, setLoading] = useState(false);
     const [activities, setActivities] = useState<ActivityRecord[]>([]);
     const [localDayId, setLocalDayId] = useState<number | null>(null);
@@ -262,7 +274,7 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
 
     // ── Load activities ──
     const loadActivities = useCallback(async () => {
-        if (!packageId) return;
+        if (!packageId) return; // instance mode: activities are supplied via externalActivities
         setLoading(true);
         try {
             const all = await api.schedule.packageActivities.getAll(packageId);
@@ -277,6 +289,13 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
     useEffect(() => {
         loadActivities();
     }, [loadActivities]);
+
+    // Sync from externalActivities when in instance mode (no packageId)
+    useEffect(() => {
+        if (!packageId && externalActivities) {
+            setActivities(externalActivities);
+        }
+    }, [packageId, externalActivities]);
 
     // ── Activities for the active day, sorted by time then order ──
     const activeDayActivities = useMemo(() => {
@@ -531,8 +550,8 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                     </Box>
                 </Box>
 
-                {/* Inline day tabs */}
-                {packageId && (
+                {/* Inline day tabs (shown for both package and instance mode) */}
+                {(packageId || contextApi) && (
                     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
                         {packageEventDays.map((day, dayIdx) => {
                             const isActive = activeDayId === day.id;
@@ -616,7 +635,11 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                             if (activeDayId === day.id) {
                                                 setActiveDayId(packageEventDays.find(d => d.id !== day.id)?.id || null);
                                             }
-                                            if (packageId) api.schedule.packageEventDays.remove(packageId, day.id).catch(() => {});
+                                            if (packageId) {
+                                                api.schedule.packageEventDays.remove(packageId, day.id).catch(() => {});
+                                            } else if (contextApi) {
+                                                contextApi.eventDays.delete(day.id).catch(() => {});
+                                            }
                                         }}
                                         sx={{
                                             p: 0, ml: -0.25, opacity: 0, transition: 'opacity 0.15s',
@@ -633,8 +656,13 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                             onClick={async (e) => {
                                 const anchor = e.currentTarget as HTMLElement;
                                 try {
-                                    const all = await api.schedule.eventDays.getAll(brandId);
-                                    setBrandEventDays(all);
+                                    if (contextApi?.brandEventDays) {
+                                        const all = await contextApi.brandEventDays.getAll(brandId);
+                                        setBrandEventDays(all);
+                                    } else {
+                                        const all = await api.schedule.eventDays.getAll(brandId);
+                                        setBrandEventDays(all);
+                                    }
                                 } catch { /* use cache */ }
                                 setDayMenuAnchor(anchor);
                             }}
@@ -725,13 +753,23 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                         <Box
                                             key={bd.id}
                                             onClick={async () => {
-                                                if (!packageId) return;
                                                 try {
-                                                    const res = await api.schedule.packageEventDays.add(packageId, bd.id);
-                                                    setPendingDayId(bd.id);
-                                                    setPendingJoinId(res._joinId ?? res.id);
-                                                    setPendingDayName(bd.name);
-                                                    setPackageEventDays(prev => [...prev, { ...bd, _joinId: res._joinId ?? res.id }]);
+                                                    if (packageId) {
+                                                        const res = await api.schedule.packageEventDays.add(packageId, bd.id);
+                                                        setPendingDayId(bd.id);
+                                                        setPendingJoinId(res._joinId ?? res.id);
+                                                        setPendingDayName(bd.name);
+                                                        setPackageEventDays(prev => [...prev, { ...bd, _joinId: res._joinId ?? res.id }]);
+                                                    } else if (contextApi) {
+                                                        const res = await contextApi.eventDays.create({ name: bd.name, event_day_template_id: bd.id });
+                                                        const newDay = { ...bd, id: res.id, _joinId: res.id };
+                                                        setPendingDayId(res.id);
+                                                        setPendingJoinId(res.id);
+                                                        setPendingDayName(bd.name);
+                                                        setPackageEventDays(prev => [...prev, newDay]);
+                                                    } else {
+                                                        return;
+                                                    }
                                                     setAddDayStep('activities');
                                                 } catch (err) {
                                                     console.warn('Failed to add event day:', err);
@@ -764,14 +802,22 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                 value={newDayName}
                                 onChange={e => setNewDayName(e.target.value)}
                                 onKeyDown={async (e) => {
-                                    if (e.key === 'Enter' && newDayName.trim() && packageId) {
+                                    if (e.key === 'Enter' && newDayName.trim() && (packageId || contextApi)) {
                                         try {
-                                            const created = await api.schedule.eventDays.create(brandId, { name: newDayName.trim() });
-                                            const res = await api.schedule.packageEventDays.add(packageId, created.id);
-                                            setPendingDayId(created.id);
-                                            setPendingJoinId(res._joinId ?? res.id);
-                                            setPendingDayName(created.name);
-                                            setPackageEventDays(prev => [...prev, { ...created, _joinId: res._joinId ?? res.id }]);
+                                            if (packageId) {
+                                                const created = await api.schedule.eventDays.create(brandId, { name: newDayName.trim() });
+                                                const res = await api.schedule.packageEventDays.add(packageId, created.id);
+                                                setPendingDayId(created.id);
+                                                setPendingJoinId(res._joinId ?? res.id);
+                                                setPendingDayName(created.name);
+                                                setPackageEventDays(prev => [...prev, { ...created, _joinId: res._joinId ?? res.id }]);
+                                            } else if (contextApi) {
+                                                const res = await contextApi.eventDays.create({ name: newDayName.trim() });
+                                                setPendingDayId(res.id);
+                                                setPendingJoinId(res.id);
+                                                setPendingDayName(res.name || newDayName.trim());
+                                                setPackageEventDays(prev => [...prev, { id: res.id, name: res.name || newDayName.trim(), order_index: prev.length, _joinId: res.id }]);
+                                            }
                                             setNewDayName('');
                                             setAddDayStep('activities');
                                         } catch (err) {
@@ -797,14 +843,22 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                 size="small"
                                 disabled={!newDayName.trim()}
                                 onClick={async () => {
-                                    if (!newDayName.trim() || !packageId) return;
+                                    if (!newDayName.trim() || (!packageId && !contextApi)) return;
                                     try {
-                                        const created = await api.schedule.eventDays.create(brandId, { name: newDayName.trim() });
-                                        const res = await api.schedule.packageEventDays.add(packageId, created.id);
-                                        setPendingDayId(created.id);
-                                        setPendingJoinId(res._joinId ?? res.id);
-                                        setPendingDayName(created.name);
-                                        setPackageEventDays(prev => [...prev, { ...created, _joinId: res._joinId ?? res.id }]);
+                                        if (packageId) {
+                                            const created = await api.schedule.eventDays.create(brandId, { name: newDayName.trim() });
+                                            const res = await api.schedule.packageEventDays.add(packageId, created.id);
+                                            setPendingDayId(created.id);
+                                            setPendingJoinId(res._joinId ?? res.id);
+                                            setPendingDayName(created.name);
+                                            setPackageEventDays(prev => [...prev, { ...created, _joinId: res._joinId ?? res.id }]);
+                                        } else if (contextApi) {
+                                            const res = await contextApi.eventDays.create({ name: newDayName.trim() });
+                                            setPendingDayId(res.id);
+                                            setPendingJoinId(res.id);
+                                            setPendingDayName(res.name || newDayName.trim());
+                                            setPackageEventDays(prev => [...prev, { id: res.id, name: res.name || newDayName.trim(), order_index: prev.length, _joinId: res.id }]);
+                                        }
                                         setNewDayName('');
                                         setAddDayStep('activities');
                                     } catch (err) {
@@ -919,17 +973,28 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                 size="small"
                                 disabled={selectedPresets.size === 0}
                                 onClick={async () => {
-                                    if (!packageId || !pendingJoinId) return;
+                                    if ((!packageId && !contextApi) || !pendingJoinId) return;
                                     const toCreate = ACTIVITY_PRESETS.filter(p => selectedPresets.has(p.name));
                                     try {
                                         const created: ActivityRecord[] = [];
                                         for (let i = 0; i < toCreate.length; i++) {
-                                            const act = await api.schedule.packageActivities.create(packageId, {
-                                                package_event_day_id: pendingJoinId,
-                                                name: toCreate[i].name,
-                                                color: toCreate[i].color,
-                                                order_index: i,
-                                            });
+                                            let act: ActivityRecord;
+                                            if (packageId) {
+                                                act = await api.schedule.packageActivities.create(packageId, {
+                                                    package_event_day_id: pendingJoinId,
+                                                    name: toCreate[i].name,
+                                                    color: toCreate[i].color,
+                                                    order_index: i,
+                                                });
+                                            } else {
+                                                act = await contextApi!.activities.create(pendingJoinId, {
+                                                    name: toCreate[i].name,
+                                                    color: toCreate[i].color,
+                                                    order_index: i,
+                                                });
+                                                // Normalize for timeline display
+                                                act = { ...act, package_event_day_id: act.package_event_day_id ?? (act as any).project_event_day_id ?? pendingJoinId };
+                                            }
                                             created.push(act);
                                         }
                                         setActivities(prev => [...prev, ...created]);

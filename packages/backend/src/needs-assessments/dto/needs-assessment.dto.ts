@@ -64,6 +64,10 @@ export class CreateNeedsAssessmentTemplateDto {
     @IsString()
     version?: string;
 
+    @IsOptional()
+    @IsArray()
+    steps_config?: Array<Record<string, unknown>>;
+
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => NeedsAssessmentQuestionDto)
@@ -90,6 +94,10 @@ export class UpdateNeedsAssessmentTemplateDto {
     @IsOptional()
     @IsString()
     version?: string;
+
+    @IsOptional()
+    @IsArray()
+    steps_config?: Array<Record<string, unknown>>;
 
     @IsOptional()
     @IsArray()
@@ -158,6 +166,10 @@ export class CreateNeedsAssessmentSubmissionDto {
     create_inquiry?: boolean;
 
     @IsOptional()
+    @IsInt()
+    inquiry_id?: number;
+
+    @IsOptional()
     @ValidateNested()
     @Type(() => NeedsAssessmentSubmissionContactDto)
     contact?: NeedsAssessmentSubmissionContactDto;
@@ -166,4 +178,8 @@ export class CreateNeedsAssessmentSubmissionDto {
     @ValidateNested()
     @Type(() => NeedsAssessmentSubmissionInquiryDto)
     inquiry?: NeedsAssessmentSubmissionInquiryDto;
+
+    @IsOptional()
+    @IsInt()
+    selected_package_id?: number;
 }

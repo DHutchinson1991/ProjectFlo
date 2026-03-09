@@ -19,6 +19,7 @@ import {
     VideoCall as ProductionIcon,
     Edit as PostProductionIcon,
     LocalShipping as DeliveryIcon,
+    Inventory as PackageIcon,
 } from '@mui/icons-material';
 
 // Import phase components
@@ -31,6 +32,7 @@ import PreProductionTab from '../../../../components/projects/tabs/PreProduction
 import ProductionTab from '../../../../components/projects/tabs/ProductionTab';
 import PostProductionTab from '../../../../components/projects/tabs/PostProductionTab';
 import DeliveryTab from '../../../../components/projects/tabs/DeliveryTab';
+import PackageScheduleTab from '../../../../components/projects/tabs/PackageScheduleTab';
 
 // Types
 
@@ -68,6 +70,13 @@ const PROJECT_PHASES = [
         icon: ProjectIcon,
         color: '#6b7280',
         description: 'Project summary and details'
+    },
+    {
+        id: 'package',
+        name: 'Package',
+        icon: PackageIcon,
+        color: '#a855f7',
+        description: 'Cloned package schedule snapshot'
     },
     {
         id: 'creative',
@@ -472,18 +481,21 @@ export default function ProjectDetailPage() {
                     <ProjectOverviewTab project={project} onRefresh={fetchProject} />
                 </TabPanel>
                 <TabPanel value={activeTab} index={1}>
-                    <CreativeDevelopmentTab project={project} onRefresh={fetchProject} />
+                    <PackageScheduleTab project={project} onRefresh={fetchProject} />
                 </TabPanel>
                 <TabPanel value={activeTab} index={2}>
-                    <PreProductionTab project={project} onRefresh={fetchProject} />
+                    <CreativeDevelopmentTab project={project} onRefresh={fetchProject} />
                 </TabPanel>
                 <TabPanel value={activeTab} index={3}>
-                    <ProductionTab project={project} onRefresh={fetchProject} />
+                    <PreProductionTab project={project} onRefresh={fetchProject} />
                 </TabPanel>
                 <TabPanel value={activeTab} index={4}>
-                    <PostProductionTab project={project} onRefresh={fetchProject} />
+                    <ProductionTab project={project} onRefresh={fetchProject} />
                 </TabPanel>
                 <TabPanel value={activeTab} index={5}>
+                    <PostProductionTab project={project} onRefresh={fetchProject} />
+                </TabPanel>
+                <TabPanel value={activeTab} index={6}>
                     <DeliveryTab project={project} onRefresh={fetchProject} />
                 </TabPanel>
             </Box>

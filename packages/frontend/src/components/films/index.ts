@@ -10,3 +10,15 @@ export { FilmDetailHeader } from './FilmDetailHeader';
 export { FilmDetailStates } from './FilmDetailStates';
 export { FilmSchedulePanel } from './FilmSchedulePanel';
 export * from './tabs';
+
+// Film API Context (adapter pattern for library / project / inquiry modes)
+export {
+  FilmApiProvider,
+  useFilmApi,
+  useOptionalFilmApi,
+  useFilmApiAdapter,
+  createLibraryFilmApi,
+  createProjectFilmApi,
+  createInquiryFilmApi,
+} from './FilmApiContext';
+export type { FilmContentApi, FilmApiMode } from './FilmApiContext';

@@ -1,31 +1,41 @@
 import { useCallback } from "react";
 import { createScenesApi } from "@/lib/api/scenes.api";
 import { apiClient } from "@/lib/api";
+import type { FilmContentApi } from "@/components/films/FilmApiContext";
 
 /**
  * Hook to handle scene deletion
  * Deletes a scene from the database and the timeline
  * Uses domain API: createScenesApi from @/lib/api/scenes.api
+ *
+ * Accepts an optional `filmApi` adapter — when provided, the delete
+ * routes through it (supporting library / project / inquiry modes).
+ * When omitted, falls back to the library-mode API for backward compat.
  */
 export const useSceneDelete = (
     filmId: number,
-    onSceneDeleted: (sceneId: number) => void
+    onSceneDeleted: (sceneId: number) => void,
+    filmApi?: FilmContentApi | null,
 ) => {
     const handleDeleteScene = useCallback(
         async (sceneId: number, sceneName: string) => {
             console.log(`🗑️ [DELETE] Deleting scene ${sceneId} (${sceneName}) from film ${filmId}`);
-            
-            // Create the API inside the callback to ensure fresh instance
-            const scenesApi = createScenesApi(apiClient);
-            console.log(`🗑️ [DELETE] Callback type:`, typeof onSceneDeleted);
-            console.log(`🗑️ [DELETE] API client available:`, !!scenesApi);
-            console.log(`🗑️ [DELETE] API methods available:`, scenesApi?.scenes ? 'YES' : 'NO');
+
+            // Use adapter when available, otherwise fall back to library API
+            const deleteScene = filmApi
+                ? (id: number) => filmApi.scenes.delete(id)
+                : (() => {
+                    const scenesApi = createScenesApi(apiClient);
+                    return (id: number) => scenesApi.scenes.delete(id);
+                })();
+
+            console.log(`🗑️ [DELETE] Mode: ${filmApi ? filmApi.mode : 'library (fallback)'}`);
 
             try {
-                console.log(`🗑️ [DELETE] Attempting to call scenesApi.scenes.delete(${sceneId})...`);
+                console.log(`🗑️ [DELETE] Attempting to delete scene ${sceneId}...`);
                 
-                // Delete from database using domain API
-                const deleteResult = await scenesApi.scenes.delete(sceneId);
+                // Delete from database
+                const deleteResult = await deleteScene(sceneId);
                 console.log(`✅ [DELETE] Scene ${sceneId} deleted from database:`, deleteResult);
 
                 // Update local state
@@ -48,7 +58,7 @@ export const useSceneDelete = (
                 throw error;
             }
         },
-        [filmId, onSceneDeleted]
+        [filmId, onSceneDeleted, filmApi]
     );
 
     return {

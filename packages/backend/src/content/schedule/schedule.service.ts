@@ -28,6 +28,14 @@ import {
   CreatePackageActivityMomentDto,
   UpdatePackageActivityMomentDto,
   BulkCreatePackageActivityMomentsDto,
+  InstanceOwner,
+  CreateInstanceActivityMomentDto,
+  UpdateInstanceActivityMomentDto,
+  CreateInstanceEventDaySubjectDto,
+  UpdateInstanceEventDaySubjectDto,
+  CreateInstanceLocationSlotDto,
+  CreateInstanceDayOperatorDto,
+  UpdateInstanceDayOperatorDto,
 } from './dto';
 
 @Injectable()
@@ -358,6 +366,64 @@ export class ScheduleService {
     return this.prisma.filmSceneSchedule.delete({
       where: { id: scheduleId },
     });
+  }
+
+  // ─── Package Schedule Summary ──────────────────────────────────────────
+
+  /**
+   * Get aggregate counts for a package's schedule.
+   * Used for compact inline previews (e.g., needs assessment card).
+   */
+  async getPackageScheduleSummary(packageId: number) {
+    const pkg = await this.prisma.service_packages.findUnique({
+      where: { id: packageId },
+      select: { id: true, name: true, description: true },
+    });
+    if (!pkg) throw new NotFoundException(`Package ${packageId} not found`);
+
+    const [
+      eventDayCount,
+      activityCount,
+      momentCount,
+      subjectCount,
+      locationSlotCount,
+      operatorCount,
+      filmCount,
+      eventDays,
+    ] = await Promise.all([
+      this.prisma.packageEventDay.count({ where: { package_id: packageId } }),
+      this.prisma.packageActivity.count({ where: { package_id: packageId } }),
+      this.prisma.packageActivityMoment.count({
+        where: { package_activity: { package_id: packageId } },
+      }),
+      this.prisma.packageEventDaySubject.count({ where: { package_id: packageId } }),
+      this.prisma.packageLocationSlot.count({ where: { package_id: packageId } }),
+      this.prisma.packageDayOperator.count({ where: { package_id: packageId } }),
+      this.prisma.packageFilm.count({ where: { package_id: packageId } }),
+      // Event day names for a richer preview (parallel with counts)
+      this.prisma.packageEventDay.findMany({
+        where: { package_id: packageId },
+        include: { event_day: { select: { id: true, name: true } } },
+        orderBy: { order_index: 'asc' },
+      }),
+    ]);
+
+    return {
+      package_id: packageId,
+      package_name: pkg.name,
+      package_description: pkg.description,
+      has_schedule_data: eventDayCount > 0 || activityCount > 0,
+      counts: {
+        event_days: eventDayCount,
+        activities: activityCount,
+        moments: momentCount,
+        subjects: subjectCount,
+        location_slots: locationSlotCount,
+        operators: operatorCount,
+        films: filmCount,
+      },
+      event_day_names: eventDays.map((d) => d.event_day?.name ?? `Day ${d.order_index + 1}`),
+    };
   }
 
   // ─── Package Event Days (Join Table) ──────────────────────────────────
@@ -1829,6 +1895,896 @@ export class ScheduleService {
       film_id: film.id,
       film_name: film.name,
       scenes: resolvedScenes,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Instance-Level CRUD (dual-owner: project OR inquiry)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // These methods operate on the Project* tables which support dual ownership.
+  // An InstanceOwner is either { project_id: number } or { inquiry_id: number }.
+  // The existing project-specific methods are kept as wrappers for
+  // backward compatibility; new inquiry endpoints call these directly.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // ─── Instance Event Days ─────────────────────────────────────────────
+
+  async getInstanceEventDays(owner: InstanceOwner) {
+    return this.prisma.projectEventDay.findMany({
+      where: { ...owner },
+      include: {
+        event_day_template: true,
+        activities: { orderBy: { order_index: 'asc' } },
+        day_operators: { orderBy: { order_index: 'asc' } },
+        subjects: { orderBy: { order_index: 'asc' } },
+        location_slots: { orderBy: { location_number: 'asc' } },
+      },
+      orderBy: { order_index: 'asc' },
+    });
+  }
+
+  async createInstanceEventDay(owner: InstanceOwner, dto: CreateProjectEventDayDto) {
+    return this.prisma.projectEventDay.create({
+      data: {
+        ...owner,
+        event_day_template_id: dto.event_day_template_id,
+        name: dto.name,
+        date: new Date(dto.date),
+        start_time: dto.start_time,
+        end_time: dto.end_time,
+        order_index: dto.order_index ?? 0,
+        notes: dto.notes,
+      },
+      include: { event_day_template: true },
+    });
+  }
+
+  // update/delete by ID — reuse existing methods (no owner needed)
+  // updateProjectEventDay and deleteProjectEventDay already work for both owners
+
+  // ─── Instance Activities ─────────────────────────────────────────────
+
+  private readonly instanceActivityInclude = {
+    package_activity: true,
+    moments: { orderBy: { order_index: 'asc' as const } },
+    operators: { orderBy: { order_index: 'asc' as const } },
+    subjects: { orderBy: { order_index: 'asc' as const } },
+    location_slots: { orderBy: { location_number: 'asc' as const } },
+    scene_schedules: true,
+  };
+
+  async getInstanceActivities(owner: InstanceOwner, projectEventDayId: number) {
+    return this.prisma.projectActivity.findMany({
+      where: { ...owner, project_event_day_id: projectEventDayId },
+      include: this.instanceActivityInclude,
+      orderBy: { order_index: 'asc' },
+    });
+  }
+
+  async getInstanceAllActivities(owner: InstanceOwner) {
+    return this.prisma.projectActivity.findMany({
+      where: { ...owner },
+      include: this.instanceActivityInclude,
+      orderBy: [{ project_event_day_id: 'asc' }, { order_index: 'asc' }],
+    });
+  }
+
+  async createInstanceActivity(owner: InstanceOwner, dto: CreateProjectActivityDto) {
+    return this.prisma.projectActivity.create({
+      data: {
+        ...owner,
+        project_event_day_id: dto.project_event_day_id,
+        package_activity_id: dto.package_activity_id,
+        name: dto.name,
+        description: dto.description,
+        color: dto.color,
+        icon: dto.icon,
+        start_time: dto.start_time,
+        end_time: dto.end_time,
+        duration_minutes: dto.duration_minutes,
+        order_index: dto.order_index ?? 0,
+        notes: dto.notes,
+      },
+      include: this.instanceActivityInclude,
+    });
+  }
+
+  // update/delete by ID — reuse existing updateProjectActivity / deleteProjectActivity
+
+  // ─── Instance Activity Moments ───────────────────────────────────────
+
+  private readonly instanceMomentInclude = {
+    project_activity: true,
+  };
+
+  async getInstanceActivityMoments(activityId: number) {
+    return this.prisma.projectActivityMoment.findMany({
+      where: { project_activity_id: activityId },
+      include: this.instanceMomentInclude,
+      orderBy: { order_index: 'asc' },
+    });
+  }
+
+  async createInstanceActivityMoment(owner: InstanceOwner, dto: CreateInstanceActivityMomentDto) {
+    // Auto-assign next order index
+    const existing = await this.prisma.projectActivityMoment.findMany({
+      where: { project_activity_id: dto.project_activity_id },
+      orderBy: { order_index: 'desc' },
+      take: 1,
+    });
+    const nextOrder = existing.length > 0 ? existing[0].order_index + 1 : 0;
+
+    return this.prisma.projectActivityMoment.create({
+      data: {
+        ...owner,
+        project_activity_id: dto.project_activity_id,
+        name: dto.name,
+        order_index: dto.order_index ?? nextOrder,
+        duration_seconds: dto.duration_seconds ?? 60,
+        is_required: dto.is_required ?? true,
+        notes: dto.notes,
+      },
+      include: this.instanceMomentInclude,
+    });
+  }
+
+  async updateInstanceActivityMoment(momentId: number, dto: UpdateInstanceActivityMomentDto) {
+    const record = await this.prisma.projectActivityMoment.findUnique({ where: { id: momentId } });
+    if (!record) throw new NotFoundException('Activity moment not found');
+
+    return this.prisma.projectActivityMoment.update({
+      where: { id: momentId },
+      data: dto,
+      include: this.instanceMomentInclude,
+    });
+  }
+
+  async deleteInstanceActivityMoment(momentId: number) {
+    const record = await this.prisma.projectActivityMoment.findUnique({ where: { id: momentId } });
+    if (!record) throw new NotFoundException('Activity moment not found');
+    return this.prisma.projectActivityMoment.delete({ where: { id: momentId } });
+  }
+
+  async reorderInstanceActivityMoments(activityId: number, momentIds: number[]) {
+    const updates = momentIds.map((id, index) =>
+      this.prisma.projectActivityMoment.update({
+        where: { id },
+        data: { order_index: index },
+      }),
+    );
+    await this.prisma.$transaction(updates);
+    return this.getInstanceActivityMoments(activityId);
+  }
+
+  // ─── Instance Event Day Subjects ─────────────────────────────────────
+
+  private readonly instanceSubjectInclude = {
+    role_template: true,
+    project_activity: true,
+    project_event_day: true,
+    activity_assignments: { include: { project_activity: true } },
+  };
+
+  async getInstanceEventDaySubjects(owner: InstanceOwner, eventDayId?: number) {
+    return this.prisma.projectEventDaySubject.findMany({
+      where: {
+        ...owner,
+        ...(eventDayId ? { project_event_day_id: eventDayId } : {}),
+      },
+      include: this.instanceSubjectInclude,
+      orderBy: [{ project_event_day_id: 'asc' }, { order_index: 'asc' }],
+    });
+  }
+
+  async createInstanceEventDaySubject(owner: InstanceOwner, dto: CreateInstanceEventDaySubjectDto) {
+    // Auto-assign next order index
+    const existing = await this.prisma.projectEventDaySubject.findMany({
+      where: { ...owner, project_event_day_id: dto.project_event_day_id },
+      orderBy: { order_index: 'desc' },
+      take: 1,
+    });
+    const nextOrder = existing.length > 0 ? existing[0].order_index + 1 : 0;
+
+    return this.prisma.projectEventDaySubject.create({
+      data: {
+        ...owner,
+        project_event_day_id: dto.project_event_day_id,
+        project_activity_id: dto.project_activity_id,
+        role_template_id: dto.role_template_id,
+        name: dto.name,
+        real_name: dto.real_name,
+        category: dto.category ?? 'PEOPLE',
+        notes: dto.notes,
+        order_index: dto.order_index ?? nextOrder,
+      },
+      include: this.instanceSubjectInclude,
+    });
+  }
+
+  async updateInstanceEventDaySubject(subjectId: number, dto: UpdateInstanceEventDaySubjectDto) {
+    const record = await this.prisma.projectEventDaySubject.findUnique({ where: { id: subjectId } });
+    if (!record) throw new NotFoundException('Event day subject not found');
+
+    return this.prisma.projectEventDaySubject.update({
+      where: { id: subjectId },
+      data: dto,
+      include: this.instanceSubjectInclude,
+    });
+  }
+
+  async deleteInstanceEventDaySubject(subjectId: number) {
+    const record = await this.prisma.projectEventDaySubject.findUnique({ where: { id: subjectId } });
+    if (!record) throw new NotFoundException('Event day subject not found');
+    return this.prisma.projectEventDaySubject.delete({ where: { id: subjectId } });
+  }
+
+  async assignInstanceSubjectToActivity(subjectId: number, activityId: number) {
+    const existing = await this.prisma.projectEventDaySubject.findUnique({ where: { id: subjectId } });
+    if (!existing) throw new NotFoundException('Event day subject not found');
+
+    try {
+      await this.prisma.projectSubjectActivityAssignment.create({
+        data: {
+          project_event_day_subject_id: subjectId,
+          project_activity_id: activityId,
+        },
+      });
+    } catch {
+      // Already assigned — ignore
+    }
+
+    return this.prisma.projectEventDaySubject.findUnique({
+      where: { id: subjectId },
+      include: this.instanceSubjectInclude,
+    });
+  }
+
+  async unassignInstanceSubjectFromActivity(subjectId: number, activityId: number) {
+    const existing = await this.prisma.projectEventDaySubject.findUnique({ where: { id: subjectId } });
+    if (!existing) throw new NotFoundException('Event day subject not found');
+
+    await this.prisma.projectSubjectActivityAssignment.deleteMany({
+      where: {
+        project_event_day_subject_id: subjectId,
+        project_activity_id: activityId,
+      },
+    });
+
+    return this.prisma.projectEventDaySubject.findUnique({
+      where: { id: subjectId },
+      include: this.instanceSubjectInclude,
+    });
+  }
+
+  // ─── Instance Location Slots ─────────────────────────────────────────
+
+  private readonly instanceLocationSlotInclude = {
+    project_event_day: true,
+    project_activity: true,
+    location: true,
+    activity_assignments: { include: { project_activity: true } },
+  };
+
+  async getInstanceLocationSlots(owner: InstanceOwner, eventDayId?: number) {
+    return this.prisma.projectLocationSlot.findMany({
+      where: {
+        ...owner,
+        ...(eventDayId ? { project_event_day_id: eventDayId } : {}),
+      },
+      include: this.instanceLocationSlotInclude,
+      orderBy: { location_number: 'asc' },
+    });
+  }
+
+  async createInstanceLocationSlot(owner: InstanceOwner, dto: CreateInstanceLocationSlotDto) {
+    let locationNumber = dto.location_number;
+
+    if (!locationNumber) {
+      // Auto-assign next available number 1-5
+      const existing = await this.prisma.projectLocationSlot.findMany({
+        where: { ...owner, project_event_day_id: dto.project_event_day_id },
+        select: { location_number: true },
+        orderBy: { location_number: 'asc' },
+      });
+      const usedNumbers = new Set(existing.map((s) => s.location_number));
+      for (let i = 1; i <= 5; i++) {
+        if (!usedNumbers.has(i)) {
+          locationNumber = i;
+          break;
+        }
+      }
+      if (!locationNumber) {
+        throw new BadRequestException('Maximum of 5 location slots per event day');
+      }
+    }
+
+    if (locationNumber < 1 || locationNumber > 5) {
+      throw new BadRequestException('Location number must be between 1 and 5');
+    }
+
+    try {
+      return await this.prisma.projectLocationSlot.create({
+        data: {
+          ...owner,
+          project_event_day_id: dto.project_event_day_id,
+          location_number: locationNumber,
+          name: dto.name,
+          address: dto.address,
+          location_id: dto.location_id,
+          notes: dto.notes,
+        },
+        include: this.instanceLocationSlotInclude,
+      });
+    } catch {
+      throw new BadRequestException(
+        `Location ${locationNumber} already exists for this event day`,
+      );
+    }
+  }
+
+  async deleteInstanceLocationSlot(slotId: number) {
+    const record = await this.prisma.projectLocationSlot.findUnique({ where: { id: slotId } });
+    if (!record) throw new NotFoundException('Location slot not found');
+    return this.prisma.projectLocationSlot.delete({ where: { id: slotId } });
+  }
+
+  async assignInstanceLocationSlotToActivity(slotId: number, activityId: number) {
+    const existing = await this.prisma.projectLocationSlot.findUnique({ where: { id: slotId } });
+    if (!existing) throw new NotFoundException('Location slot not found');
+
+    try {
+      await this.prisma.projectLocationActivityAssignment.create({
+        data: {
+          project_location_slot_id: slotId,
+          project_activity_id: activityId,
+        },
+      });
+    } catch {
+      // Already assigned — ignore
+    }
+
+    return this.prisma.projectLocationSlot.findUnique({
+      where: { id: slotId },
+      include: this.instanceLocationSlotInclude,
+    });
+  }
+
+  async unassignInstanceLocationSlotFromActivity(slotId: number, activityId: number) {
+    const existing = await this.prisma.projectLocationSlot.findUnique({ where: { id: slotId } });
+    if (!existing) throw new NotFoundException('Location slot not found');
+
+    await this.prisma.projectLocationActivityAssignment.deleteMany({
+      where: {
+        project_location_slot_id: slotId,
+        project_activity_id: activityId,
+      },
+    });
+
+    return this.prisma.projectLocationSlot.findUnique({
+      where: { id: slotId },
+      include: this.instanceLocationSlotInclude,
+    });
+  }
+
+  // ─── Instance Day Operators (Crew Slots) ─────────────────────────────
+
+  private readonly instanceOperatorInclude = {
+    contributor: {
+      include: {
+        contact: {
+          select: { id: true, first_name: true, last_name: true, email: true },
+        },
+        contributor_job_roles: {
+          include: {
+            job_role: { select: { id: true, name: true, display_name: true } },
+            payment_bracket: {
+              select: { id: true, name: true, display_name: true, level: true, hourly_rate: true, day_rate: true },
+            },
+          },
+        },
+      },
+    },
+    job_role: { select: { id: true, name: true, display_name: true, category: true } },
+    equipment: { include: { equipment: true } },
+    project_event_day: true,
+    project_activity: true,
+    activity_assignments: { include: { project_activity: true } },
+  };
+
+  async getInstanceDayOperators(owner: InstanceOwner, eventDayId?: number) {
+    return this.prisma.projectDayOperator.findMany({
+      where: {
+        ...owner,
+        ...(eventDayId ? { project_event_day_id: eventDayId } : {}),
+      },
+      include: this.instanceOperatorInclude,
+      orderBy: [{ project_event_day_id: 'asc' }, { order_index: 'asc' }],
+    });
+  }
+
+  async createInstanceDayOperator(owner: InstanceOwner, dto: CreateInstanceDayOperatorDto) {
+    // If contributor_id is provided, verify they exist
+    if (dto.contributor_id) {
+      const contributor = await this.prisma.contributors.findUnique({
+        where: { id: dto.contributor_id },
+      });
+      if (!contributor) throw new NotFoundException('Crew member not found');
+    }
+
+    const maxOrder = await this.prisma.projectDayOperator.aggregate({
+      where: { ...owner, project_event_day_id: dto.project_event_day_id },
+      _max: { order_index: true },
+    });
+
+    return this.prisma.projectDayOperator.create({
+      data: {
+        ...owner,
+        project_event_day_id: dto.project_event_day_id,
+        position_name: dto.position_name,
+        position_color: dto.position_color ?? null,
+        contributor_id: dto.contributor_id ?? null,
+        job_role_id: dto.job_role_id ?? null,
+        hours: dto.hours ?? 8,
+        notes: dto.notes ?? null,
+        order_index: (maxOrder._max.order_index ?? -1) + 1,
+        project_activity_id: dto.project_activity_id ?? null,
+      },
+      include: this.instanceOperatorInclude,
+    });
+  }
+
+  async updateInstanceDayOperator(operatorId: number, dto: UpdateInstanceDayOperatorDto) {
+    const existing = await this.prisma.projectDayOperator.findUnique({ where: { id: operatorId } });
+    if (!existing) throw new NotFoundException('Crew slot not found');
+
+    await this.prisma.projectDayOperator.update({
+      where: { id: operatorId },
+      data: {
+        position_name: dto.position_name ?? undefined,
+        position_color: dto.position_color !== undefined ? dto.position_color : undefined,
+        contributor_id: dto.contributor_id !== undefined ? dto.contributor_id : undefined,
+        job_role_id: dto.job_role_id !== undefined ? dto.job_role_id : undefined,
+        hours: dto.hours ?? undefined,
+        notes: dto.notes !== undefined ? dto.notes : undefined,
+        order_index: dto.order_index ?? undefined,
+        project_activity_id: dto.project_activity_id !== undefined ? dto.project_activity_id : undefined,
+      },
+    });
+
+    return this.prisma.projectDayOperator.findUnique({
+      where: { id: operatorId },
+      include: this.instanceOperatorInclude,
+    });
+  }
+
+  async assignInstanceCrewToSlot(operatorId: number, contributorId: number | null) {
+    const existing = await this.prisma.projectDayOperator.findUnique({ where: { id: operatorId } });
+    if (!existing) throw new NotFoundException('Crew slot not found');
+
+    if (contributorId) {
+      const contributor = await this.prisma.contributors.findUnique({ where: { id: contributorId } });
+      if (!contributor) throw new NotFoundException('Crew member not found');
+    }
+
+    await this.prisma.projectDayOperator.update({
+      where: { id: operatorId },
+      data: { contributor_id: contributorId },
+    });
+
+    return this.prisma.projectDayOperator.findUnique({
+      where: { id: operatorId },
+      include: this.instanceOperatorInclude,
+    });
+  }
+
+  async removeInstanceDayOperator(operatorId: number) {
+    const existing = await this.prisma.projectDayOperator.findUnique({ where: { id: operatorId } });
+    if (!existing) throw new NotFoundException('Crew slot not found');
+    return this.prisma.projectDayOperator.delete({ where: { id: operatorId } });
+  }
+
+  async setInstanceOperatorEquipment(
+    operatorId: number,
+    equipmentIds: { equipment_id: number; is_primary: boolean }[],
+  ) {
+    const existing = await this.prisma.projectDayOperator.findUnique({ where: { id: operatorId } });
+    if (!existing) throw new NotFoundException('Crew slot not found');
+
+    await this.prisma.projectDayOperatorEquipment.deleteMany({
+      where: { project_day_operator_id: operatorId },
+    });
+
+    if (equipmentIds.length > 0) {
+      await this.prisma.projectDayOperatorEquipment.createMany({
+        data: equipmentIds.map((eq) => ({
+          project_day_operator_id: operatorId,
+          equipment_id: eq.equipment_id,
+          is_primary: eq.is_primary,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return this.prisma.projectDayOperator.findUnique({
+      where: { id: operatorId },
+      include: this.instanceOperatorInclude,
+    });
+  }
+
+  async assignInstanceOperatorToActivity(operatorId: number, activityId: number) {
+    const existing = await this.prisma.projectDayOperator.findUnique({ where: { id: operatorId } });
+    if (!existing) throw new NotFoundException('Crew slot not found');
+
+    try {
+      await this.prisma.projectOperatorActivityAssignment.create({
+        data: {
+          project_day_operator_id: operatorId,
+          project_activity_id: activityId,
+        },
+      });
+    } catch {
+      // Already assigned — ignore
+    }
+
+    return this.prisma.projectDayOperator.findUnique({
+      where: { id: operatorId },
+      include: this.instanceOperatorInclude,
+    });
+  }
+
+  async unassignInstanceOperatorFromActivity(operatorId: number, activityId: number) {
+    const existing = await this.prisma.projectDayOperator.findUnique({ where: { id: operatorId } });
+    if (!existing) throw new NotFoundException('Crew slot not found');
+
+    await this.prisma.projectOperatorActivityAssignment.deleteMany({
+      where: {
+        project_day_operator_id: operatorId,
+        project_activity_id: activityId,
+      },
+    });
+
+    return this.prisma.projectDayOperator.findUnique({
+      where: { id: operatorId },
+      include: this.instanceOperatorInclude,
+    });
+  }
+
+  // ─── Instance Films (inquiry support) ────────────────────────────────
+
+  async getInstanceFilms(owner: InstanceOwner) {
+    return this.prisma.projectFilm.findMany({
+      where: { ...owner },
+      include: {
+        film: {
+          include: {
+            scenes: {
+              orderBy: { order_index: 'asc' },
+              include: {
+                moments: { orderBy: { order_index: 'asc' } },
+                beats: { orderBy: { order_index: 'asc' } },
+              },
+            },
+          },
+        },
+        package_film: true,
+        scene_schedules: {
+          include: {
+            scene: true,
+            project_event_day: true,
+          },
+          orderBy: { order_index: 'asc' },
+        },
+      },
+      orderBy: { order_index: 'asc' },
+    });
+  }
+
+  async createInstanceFilm(owner: InstanceOwner, dto: CreateProjectFilmDto) {
+    return this.prisma.projectFilm.create({
+      data: {
+        ...owner,
+        film_id: dto.film_id,
+        package_film_id: dto.package_film_id,
+        order_index: dto.order_index ?? 0,
+      },
+      include: {
+        film: { include: { scenes: { orderBy: { order_index: 'asc' } } } },
+        package_film: true,
+      },
+    });
+  }
+
+  // deleteProjectFilm, upsertProjectFilmSceneSchedule etc. work by ID — reusable for inquiry
+
+  // ─── Schedule Diff (instance vs source package) ──────────────────────
+
+  /**
+   * Compare the current instance schedule against the source package schedule.
+   * Returns a structured diff showing added/removed/modified entities.
+   */
+  async getScheduleDiff(owner: InstanceOwner) {
+    // 1. Determine owner ID and type
+    const isProject = 'project_id' in owner && owner.project_id != null;
+    const ownerId = isProject ? owner.project_id : owner.inquiry_id;
+
+    // 2. Get source package ID from the owner record
+    let sourcePackageId: number | null = null;
+    if (isProject) {
+      const project = await this.prisma.projects.findUnique({
+        where: { id: ownerId! },
+        select: { source_package_id: true },
+      });
+      if (!project) throw new NotFoundException(`Project ${ownerId} not found`);
+      sourcePackageId = project.source_package_id;
+    } else {
+      const inquiry = await this.prisma.inquiries.findUnique({
+        where: { id: ownerId! },
+        select: { source_package_id: true },
+      });
+      if (!inquiry) throw new NotFoundException(`Inquiry ${ownerId} not found`);
+      sourcePackageId = inquiry.source_package_id;
+    }
+
+    if (!sourcePackageId) {
+      return {
+        has_source_package: false,
+        source_package_id: null,
+        diffs: { event_days: [], activities: [], subjects: [], operators: [], location_slots: [] },
+        summary: { total_changes: 0, added: 0, removed: 0, modified: 0 },
+      };
+    }
+
+    // 3. Fetch current instance data
+    const [instanceDays, instanceActivities, instanceSubjects, instanceOperators, instanceSlots] =
+      await Promise.all([
+        this.prisma.projectEventDay.findMany({
+          where: owner,
+          include: { event_day_template: { select: { id: true, name: true } } },
+          orderBy: { order_index: 'asc' },
+        }),
+        this.prisma.projectActivity.findMany({
+          where: owner,
+          include: {
+            project_event_day: { select: { id: true, name: true, event_day_template_id: true } },
+          },
+          orderBy: [{ project_event_day_id: 'asc' }, { order_index: 'asc' }],
+        }),
+        this.prisma.projectEventDaySubject.findMany({
+          where: owner,
+          include: { role_template: { select: { id: true, role_name: true } } },
+          orderBy: { order_index: 'asc' },
+        }),
+        this.prisma.projectDayOperator.findMany({
+          where: owner,
+          include: { job_role: { select: { id: true, name: true, display_name: true } } },
+          orderBy: { order_index: 'asc' },
+        }),
+        this.prisma.projectLocationSlot.findMany({
+          where: owner,
+          orderBy: { order_index: 'asc' },
+        }),
+      ]);
+
+    // 4. Fetch source package data
+    const [pkgDays, pkgActivities, pkgSubjects, pkgOperators, pkgSlots] =
+      await Promise.all([
+        this.prisma.packageEventDay.findMany({
+          where: { package_id: sourcePackageId },
+          include: { event_day: { select: { id: true, name: true } } },
+          orderBy: { order_index: 'asc' },
+        }),
+        this.prisma.packageActivity.findMany({
+          where: { package_id: sourcePackageId },
+          include: {
+            package_event_day: {
+              select: { id: true, event_day_template_id: true, event_day: { select: { name: true } } },
+            },
+          },
+          orderBy: [{ package_event_day_id: 'asc' }, { order_index: 'asc' }],
+        }),
+        this.prisma.packageEventDaySubject.findMany({
+          where: { package_id: sourcePackageId },
+          include: { role_template: { select: { id: true, role_name: true } } },
+          orderBy: { order_index: 'asc' },
+        }),
+        this.prisma.packageDayOperator.findMany({
+          where: { package_id: sourcePackageId },
+          include: { job_role: { select: { id: true, name: true, display_name: true } } },
+          orderBy: { order_index: 'asc' },
+        }),
+        this.prisma.packageLocationSlot.findMany({
+          where: { package_id: sourcePackageId },
+          orderBy: { location_number: 'asc' },
+        }),
+      ]);
+
+    // 5. Build diffs
+
+    // Event days diff (match by event_day_template_id)
+    const pkgDayTemplateIds = new Set(pkgDays.map((d) => d.event_day_template_id));
+    const instDayTemplateIds = new Set(instanceDays.map((d) => d.event_day_template_id));
+    const eventDayDiffs = [
+      ...pkgDays
+        .filter((d) => !instDayTemplateIds.has(d.event_day_template_id))
+        .map((d) => ({
+          change: 'removed' as const,
+          name: d.event_day?.name ?? `Day ${d.order_index + 1}`,
+          template_id: d.event_day_template_id,
+        })),
+      // Instance days linked to a template not present in the package
+      ...instanceDays
+        .filter((d) => d.event_day_template_id != null && !pkgDayTemplateIds.has(d.event_day_template_id!))
+        .map((d) => ({
+          change: 'added' as const,
+          name: d.event_day_template?.name ?? d.name ?? `Day ${d.order_index + 1}`,
+          template_id: d.event_day_template_id,
+        })),
+      // Custom instance days with no template link (user-created, always "added")
+      ...instanceDays
+        .filter((d) => d.event_day_template_id == null)
+        .map((d) => ({
+          change: 'added' as const,
+          name: d.name ?? `Day ${d.order_index + 1}`,
+          template_id: null,
+        })),
+    ];
+
+    // Activities diff (match by package_activity_id traceability link)
+    const pkgActivityIds = new Set(pkgActivities.map((a) => a.id));
+    const instActivitySourceIds = new Map(
+      instanceActivities
+        .filter((a) => a.package_activity_id != null)
+        .map((a) => [a.package_activity_id!, a]),
+    );
+    const activityDiffs: Array<{ change: string; name: string; detail?: string }> = [];
+
+    for (const pa of pkgActivities) {
+      const inst = instActivitySourceIds.get(pa.id);
+      if (!inst) {
+        activityDiffs.push({
+          change: 'removed',
+          name: pa.name,
+          detail: `Was in ${pa.package_event_day?.event_day?.name ?? 'Unknown Day'}`,
+        });
+      } else {
+        // Check for modifications
+        const changes: string[] = [];
+        if (inst.name !== pa.name) changes.push(`name: "${pa.name}" → "${inst.name}"`);
+        if (inst.start_time !== pa.start_time) changes.push('start time changed');
+        if (inst.end_time !== pa.end_time) changes.push('end time changed');
+        if (inst.duration_minutes !== pa.duration_minutes) changes.push('duration changed');
+        if (changes.length > 0) {
+          activityDiffs.push({ change: 'modified', name: inst.name, detail: changes.join(', ') });
+        }
+      }
+    }
+    // Activities without a package_activity_id link were added fresh
+    for (const ia of instanceActivities) {
+      if (!ia.package_activity_id) {
+        activityDiffs.push({ change: 'added', name: ia.name });
+      }
+    }
+
+    // Subjects diff (match by source_package_subject_id)
+    const subjectDiffs: Array<{ change: string; name: string; detail?: string }> = [];
+    const instSubjectSourceMap = new Map(
+      instanceSubjects
+        .filter((s) => s.source_package_subject_id != null)
+        .map((s) => [s.source_package_subject_id!, s]),
+    );
+    for (const ps of pkgSubjects) {
+      const inst = instSubjectSourceMap.get(ps.id);
+      if (!inst) {
+        subjectDiffs.push({ change: 'removed', name: ps.name ?? ps.role_template?.role_name ?? 'Unknown' });
+      } else {
+        // Check for modifications
+        const changes: string[] = [];
+        const pkgName = ps.name ?? ps.role_template?.role_name ?? '';
+        const instName = inst.name ?? inst.role_template?.role_name ?? '';
+        if (instName !== pkgName) changes.push(`name: "${pkgName}" → "${instName}"`);
+        if (changes.length > 0) {
+          subjectDiffs.push({ change: 'modified', name: instName || pkgName, detail: changes.join(', ') });
+        }
+      }
+    }
+    for (const is_ of instanceSubjects) {
+      if (!is_.source_package_subject_id) {
+        subjectDiffs.push({ change: 'added', name: is_.name ?? is_.role_template?.role_name ?? 'Unknown' });
+      }
+    }
+
+    // Operators diff (match by source_package_operator_id)
+    const operatorDiffs: Array<{ change: string; name: string; detail?: string }> = [];
+    const instOpSourceMap = new Map(
+      instanceOperators
+        .filter((o) => o.source_package_operator_id != null)
+        .map((o) => [o.source_package_operator_id!, o]),
+    );
+    for (const po of pkgOperators) {
+      const inst = instOpSourceMap.get(po.id);
+      if (!inst) {
+        operatorDiffs.push({
+          change: 'removed',
+          name: po.position_name ?? po.job_role?.display_name ?? po.job_role?.name ?? 'Unknown',
+        });
+      } else {
+        // Check for modifications
+        const changes: string[] = [];
+        const pkgName = po.position_name ?? po.job_role?.display_name ?? po.job_role?.name ?? '';
+        const instName = inst.position_name ?? inst.job_role?.display_name ?? inst.job_role?.name ?? '';
+        if (instName !== pkgName) changes.push(`position: "${pkgName}" → "${instName}"`);
+        if (inst.job_role_id !== po.job_role_id) changes.push('role changed');
+        if (changes.length > 0) {
+          operatorDiffs.push({ change: 'modified', name: instName || pkgName, detail: changes.join(', ') });
+        }
+      }
+    }
+    for (const io of instanceOperators) {
+      if (!io.source_package_operator_id) {
+        operatorDiffs.push({
+          change: 'added',
+          name: io.position_name ?? io.job_role?.display_name ?? io.job_role?.name ?? 'Unknown',
+        });
+      }
+    }
+
+    // Location slots diff (match by source_package_location_slot_id)
+    const locationDiffs: Array<{ change: string; name: string }> = [];
+    const instLocSourceIds = new Set(
+      instanceSlots.filter((l) => l.source_package_location_slot_id != null).map((l) => l.source_package_location_slot_id),
+    );
+    for (const pl of pkgSlots) {
+      if (!instLocSourceIds.has(pl.id)) {
+        locationDiffs.push({ change: 'removed', name: `Location ${pl.location_number}` });
+      }
+    }
+    for (const il of instanceSlots) {
+      if (!il.source_package_location_slot_id) {
+        locationDiffs.push({ change: 'added', name: il.name ?? `Location ${il.location_number}` });
+      }
+    }
+
+    // 6. Summary
+    const allDiffs = [
+      ...eventDayDiffs, ...activityDiffs, ...subjectDiffs, ...operatorDiffs, ...locationDiffs,
+    ];
+    const added = allDiffs.filter((d) => d.change === 'added').length;
+    const removed = allDiffs.filter((d) => d.change === 'removed').length;
+    const modified = allDiffs.filter((d) => d.change === 'modified').length;
+
+    return {
+      has_source_package: true,
+      source_package_id: sourcePackageId,
+      counts: {
+        package: {
+          event_days: pkgDays.length,
+          activities: pkgActivities.length,
+          subjects: pkgSubjects.length,
+          operators: pkgOperators.length,
+          location_slots: pkgSlots.length,
+        },
+        instance: {
+          event_days: instanceDays.length,
+          activities: instanceActivities.length,
+          subjects: instanceSubjects.length,
+          operators: instanceOperators.length,
+          location_slots: instanceSlots.length,
+        },
+      },
+      diffs: {
+        event_days: eventDayDiffs,
+        activities: activityDiffs,
+        subjects: subjectDiffs,
+        operators: operatorDiffs,
+        location_slots: locationDiffs,
+      },
+      summary: {
+        total_changes: added + removed + modified,
+        added,
+        removed,
+        modified,
+      },
     };
   }
 }

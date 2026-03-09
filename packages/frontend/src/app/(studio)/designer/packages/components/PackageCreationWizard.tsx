@@ -310,6 +310,18 @@ export default function PackageCreationWizard({
     });
   }, [crewAssignments, crewMembers]);
 
+  // Filtered options for camera slots — only show crew assigned with a Videographer role
+  const cameraOperatorOptions = useMemo(() => {
+    return equipmentOperatorOptions.filter((opt) => {
+      const crewMember = crewMembers.find((cm: CrewMember) => cm.id === opt.contributorId);
+      if (!crewMember) return false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const role = crewMember.contributor_job_roles?.find((r: any) => r.job_role.id === opt.jobRoleId);
+      const roleName = (role?.job_role?.display_name || role?.job_role?.name || '').toLowerCase();
+      return roleName.includes('videographer');
+    });
+  }, [equipmentOperatorOptions, crewMembers]);
+
   useEffect(() => {
     const isValidAssignment = (slot: CameraAudioSlot) => {
       if (!slot.assignedContributorId || !slot.assignedJobRoleId) return true;
@@ -358,6 +370,8 @@ export default function PackageCreationWizard({
       setSelectedMomentIds((prev) => { const n = new Set(prev); momentIds.forEach((id) => n.delete(id)); return n; });
     } else {
       setSelectedDayIds((prev) => new Set(prev).add(dayId));
+      setSelectedPresetIds((prev) => { const n = new Set(prev); presetIds.forEach((id) => n.add(id)); return n; });
+      setSelectedMomentIds((prev) => { const n = new Set(prev); momentIds.forEach((id) => n.add(id)); return n; });
     }
   };
 
@@ -594,7 +608,7 @@ export default function PackageCreationWizard({
     setSelectedDayIds(new Set());
     setSelectedPresetIds(new Set());
     setSelectedMomentIds(new Set());
-    setSelectedRoleIds(new Set());
+    setSelectedRoleIds(getAllRoleIds(eventType));
     setCustomActivities([]);
     setPresetTimeOverrides({});
     setPresetDurationOverrides({});
@@ -1408,7 +1422,7 @@ export default function PackageCreationWizard({
                           }}
                         >
                           <MenuItem value=""><em style={{ color: '#64748b' }}>No operator yet</em></MenuItem>
-                          {equipmentOperatorOptions.map((option) => (
+                          {cameraOperatorOptions.map((option) => (
                             <MenuItem key={`cam-op-${option.contributorId}-${option.jobRoleId}`} value={`${option.contributorId}:${option.jobRoleId}`}>
                               {option.label}
                             </MenuItem>

@@ -47,13 +47,24 @@ interface CreatedFilmResult {
     activityIds: number[];
 }
 
+/** Owner descriptor for instance mode (project or inquiry). */
+interface InstanceOwner {
+    type: 'project' | 'inquiry';
+    id: number;
+}
+
 interface ActivityFilmWizardProps {
     open: boolean;
     onClose: () => void;
-    packageId: number;
+    /** Package ID — required for package mode, null/undefined in instance mode. */
+    packageId: number | null;
     activities: PackageActivityRecord[];
     packageName?: string;
     onFilmCreated: (result: CreatedFilmResult) => void;
+    /** When provided, the wizard operates in instance mode. */
+    instanceOwner?: InstanceOwner;
+    /** Pre-loaded operator records for equipment counting in instance mode. */
+    externalOperators?: any[];
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -65,6 +76,8 @@ export function ActivityFilmWizard({
     activities,
     packageName,
     onFilmCreated,
+    instanceOwner,
+    externalOperators,
 }: ActivityFilmWizardProps) {
     const { currentBrand } = useBrand();
 
@@ -124,17 +137,16 @@ export function ActivityFilmWizard({
         try {
             const name = filmName.trim() || `${packageName || 'Package'} Film`;
 
-            // Count cameras + audio from package operators + day_equipment so the film
-            // is created with the correct number of tracks.
+            // Count cameras + audio so the film is created with correct track counts.
             let numCameras = 0;
             let numAudio = 0;
             try {
-                const [operators, pkgData] = await Promise.all([
-                    api.operators.packageDay.getAll(packageId),
-                    api.servicePackages.getOne(currentBrand.id, packageId),
-                ]);
                 const seenCameraIds = new Set<number>();
                 const seenAudioIds = new Set<number>();
+
+                // Get operators — from props (instance mode) or API (package mode)
+                const operators = externalOperators ?? (packageId ? await api.operators.packageDay.getAll(packageId) : []);
+
                 // 1. Count cameras and audio assigned to operators
                 (operators || []).forEach((op: any) => {
                     (op.equipment || []).forEach((eq: any) => {
@@ -149,32 +161,28 @@ export function ActivityFilmWizard({
                         }
                     });
                 });
-                console.log('[ActivityFilmWizard] Operator cameras found:', numCameras, 'IDs:', Array.from(seenCameraIds));
-                console.log('[ActivityFilmWizard] Operator audio found:', numAudio, 'IDs:', Array.from(seenAudioIds));
-                
-                // 2. Count cameras/audio in day_equipment not assigned to any operator
-                //    (these are unmanned / standalone devices)
-                const dayEquipMap = (pkgData?.contents as any)?.day_equipment || {};
-                console.log('[ActivityFilmWizard] day_equipment map:', dayEquipMap);
-                
-                Object.values(dayEquipMap).forEach((items: any) => {
-                    (items || []).forEach((item: any) => {
-                        const eqId = item.equipment_id;
-                        if (item.slot_type === 'CAMERA' && eqId && !seenCameraIds.has(eqId)) {
-                            console.log('[ActivityFilmWizard] Adding unmanned camera from day_equipment: eqId=', eqId);
-                            seenCameraIds.add(eqId);
-                            numCameras++;
-                        } else if (item.slot_type === 'AUDIO' && eqId && !seenAudioIds.has(eqId)) {
-                            console.log('[ActivityFilmWizard] Adding audio from day_equipment: eqId=', eqId);
-                            seenAudioIds.add(eqId);
-                            numAudio++;
-                        }
-                    });
-                });
-                console.log('[ActivityFilmWizard] Total cameras to create:', numCameras);
-                console.log('[ActivityFilmWizard] Total audio to create:', numAudio);
+
+                // 2. Count unmanned cameras/audio from day_equipment (package mode only)
+                if (packageId) {
+                    try {
+                        const pkgData = await api.servicePackages.getOne(currentBrand.id, packageId);
+                        const dayEquipMap = (pkgData?.contents as any)?.day_equipment || {};
+                        Object.values(dayEquipMap).forEach((items: any) => {
+                            (items || []).forEach((item: any) => {
+                                const eqId = item.equipment_id;
+                                if (item.slot_type === 'CAMERA' && eqId && !seenCameraIds.has(eqId)) {
+                                    seenCameraIds.add(eqId);
+                                    numCameras++;
+                                } else if (item.slot_type === 'AUDIO' && eqId && !seenAudioIds.has(eqId)) {
+                                    seenAudioIds.add(eqId);
+                                    numAudio++;
+                                }
+                            });
+                        });
+                    } catch { /* skip day_equipment count */ }
+                }
             } catch (err) {
-                console.warn('Could not count equipment from package:', err);
+                console.warn('Could not count equipment:', err);
             }
 
             // 1. Create the film with correct camera + audio count
@@ -185,15 +193,36 @@ export function ActivityFilmWizard({
                 num_audio: numAudio,
             } as any);
 
-            // 2. Create a PackageFilm record linking film to package
-            const packageFilm = await api.schedule.packageFilms.create(packageId, {
-                film_id: newFilm.id,
-                order_index: 0,
-            });
+            // 2. Create a film record linking film to owner (package or instance)
+            let ownerFilmId: number;
+            if (instanceOwner) {
+                const linkApi = instanceOwner.type === 'project'
+                    ? api.schedule.projectFilms
+                    : api.schedule.inquiryFilms;
+                const linked = await linkApi.create(instanceOwner.id, {
+                    film_id: newFilm.id,
+                    order_index: 0,
+                });
+                ownerFilmId = linked.id;
+            } else {
+                const packageFilm = await api.schedule.packageFilms.create(packageId!, {
+                    film_id: newFilm.id,
+                    order_index: 0,
+                });
+                ownerFilmId = packageFilm.id;
+            }
 
             // 3. Create a scene for each selected activity and link them
             const selectedActivities = sortedActivities.filter(a => selectedActivityIds.has(a.id));
             let totalMomentsPopulated = 0;
+
+            // Determine which upsertSceneSchedule endpoint to use
+            const upsertScene = instanceOwner?.type === 'project'
+                ? api.schedule.projectFilms.upsertSceneSchedule
+                : api.schedule.packageFilms.upsertSceneSchedule;
+
+            // Activity FK field name differs between package and instance
+            const activityFkField = instanceOwner ? 'project_activity_id' : 'package_activity_id';
 
             for (let i = 0; i < selectedActivities.length; i++) {
                 const activity = selectedActivities[i];
@@ -204,11 +233,10 @@ export function ActivityFilmWizard({
                     order_index: i,
                 });
 
-                // Link scene to activity via PackageFilmSceneSchedule
-                // This triggers autoPopulateSceneMomentsFromActivity on the backend
-                await api.schedule.packageFilms.upsertSceneSchedule(packageFilm.id, {
+                // Link scene to activity via scene schedule
+                await upsertScene(ownerFilmId, {
                     scene_id: scene.id,
-                    package_activity_id: activity.id,
+                    [activityFkField]: activity.id,
                     order_index: i,
                     scheduled_start_time: activity.start_time || undefined,
                     scheduled_duration_minutes: activity.duration_minutes || undefined,
@@ -220,7 +248,7 @@ export function ActivityFilmWizard({
             const createdResult: CreatedFilmResult = {
                 filmId: newFilm.id,
                 filmName: name,
-                packageFilmId: packageFilm.id,
+                packageFilmId: ownerFilmId,
                 scenesCreated: selectedActivities.length,
                 momentsPopulated: totalMomentsPopulated,
                 activityIds: selectedActivities.map(a => a.id),

@@ -16,14 +16,9 @@ import {
     Select,
     MenuItem,
     Grid,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemSecondaryAction,
     IconButton,
     Chip,
-    Paper,
-    Divider,
+    Stack,
 } from '@mui/material';
 import {
     Add as AddIcon,
@@ -49,7 +44,7 @@ interface MeetingEvent {
 }
 
 // Form data interface
-interface MeetingFormData {
+export interface MeetingFormData {
     title: string;
     start_time: string;
     end_time: string;
@@ -68,8 +63,11 @@ interface MeetingSchedulerProps {
     onUpdateMeeting: (meetingId: number, meetingData: Partial<MeetingFormData>) => Promise<void>;
     onDeleteMeeting: (meetingId: number) => Promise<void>;
     isLoading?: boolean;
-    eventType: EventType; // Fixed event type for this scheduler
-    defaultDurationMinutes?: number; // Default meeting duration in minutes
+    eventType: EventType;
+    defaultDurationMinutes?: number;
+    accentColor?: string;
+    scheduleLabel?: string;
+    emptyMessage?: string;
 }
 
 const MeetingScheduler: React.FC<MeetingSchedulerProps> = ({
@@ -79,7 +77,10 @@ const MeetingScheduler: React.FC<MeetingSchedulerProps> = ({
     onDeleteMeeting,
     isLoading = false,
     eventType,
-    defaultDurationMinutes = 60
+    defaultDurationMinutes = 60,
+    accentColor = '#3b82f6',
+    scheduleLabel = 'Schedule',
+    emptyMessage = 'No meetings scheduled yet',
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingMeeting, setEditingMeeting] = useState<MeetingEvent | null>(null);
@@ -264,109 +265,117 @@ const MeetingScheduler: React.FC<MeetingSchedulerProps> = ({
 
     return (
         <Box>
-            {/* Header */}
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6">
-                    Discovery Calls & Consultations
-                </Typography>
-                <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleOpenModal}
-                    disabled={isLoading}
-                >
-                    Schedule Meeting
-                </Button>
-            </Box>
+            {/* Schedule Button */}
+            <Button
+                startIcon={<AddIcon />}
+                onClick={handleOpenModal}
+                disabled={isLoading}
+                fullWidth
+                sx={{
+                    mb: 2,
+                    color: accentColor,
+                    bgcolor: `${accentColor}08`,
+                    border: `1px solid ${accentColor}18`,
+                    borderRadius: 2,
+                    fontSize: '0.76rem',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    py: 0.85,
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                        bgcolor: `${accentColor}15`,
+                        borderColor: `${accentColor}35`,
+                        boxShadow: `0 0 16px ${accentColor}10`,
+                    },
+                }}
+            >
+                {scheduleLabel}
+            </Button>
 
             {/* Meetings List */}
-            <Paper elevation={1}>
-                {meetings.length === 0 ? (
-                    <Box p={3} textAlign="center">
-                        <Typography variant="body2" color="text.secondary">
-                            No meetings scheduled yet. Click &quot;Schedule Meeting&quot; to add a discovery call or consultation.
-                        </Typography>
-                    </Box>
-                ) : (
-                    <List>
-                        {meetings.map((meeting, index) => (
-                            <React.Fragment key={meeting.id}>
-                                <ListItem>
-                                    <ListItemText
-                                        primary={
-                                            <>
-                                                <Typography variant="subtitle1" component="span">
-                                                    {meeting.title}
-                                                </Typography>
-                                                <Box component="span" sx={{ ml: 1 }}>
-                                                    <Chip
-                                                        size="small"
-                                                        label={meeting.event_type.replace('_', ' ').toUpperCase()}
-                                                        color={getEventTypeColor(meeting.event_type)}
-                                                    />
-                                                    {meeting.meeting_type && (
-                                                        <Chip
-                                                            size="small"
-                                                            label={meeting.meeting_type.replace('_', ' ')}
-                                                            color={getMeetingTypeColor(meeting.meeting_type)}
-                                                            variant="outlined"
-                                                            sx={{ ml: 0.5 }}
-                                                        />
-                                                    )}
-                                                </Box>
-                                            </>
-                                        }
-                                        secondary={
-                                            <>
-                                                <Typography variant="body2" color="text.secondary" component="span" display="block">
-                                                    {format(new Date(meeting.start_time), 'PPP p')} - {format(new Date(meeting.end_time), 'p')}
-                                                </Typography>
-                                                {meeting.location && (
-                                                    <Typography variant="body2" color="text.secondary" component="span" display="block">
-                                                        📍 {meeting.location}
-                                                    </Typography>
-                                                )}
-                                                {meeting.meeting_url && (
-                                                    <Typography variant="body2" color="text.secondary" component="span" display="block">
-                                                        🔗 {meeting.meeting_url}
-                                                    </Typography>
-                                                )}
-                                                {meeting.description && (
-                                                    <Typography variant="body2" color="text.secondary" component="span" display="block">
-                                                        {meeting.description}
-                                                    </Typography>
-                                                )}
-                                                {meeting.outcome_notes && (
-                                                    <Typography variant="body2" color="text.primary" component="span" display="block" sx={{ mt: 1 }}>
-                                                        <strong>Outcome:</strong> {meeting.outcome_notes}
-                                                    </Typography>
-                                                )}
-                                            </>
-                                        }
-                                    />
-                                    <ListItemSecondaryAction>
-                                        <IconButton
-                                            edge="end"
-                                            onClick={() => handleEditMeeting(meeting)}
-                                            disabled={isLoading}
-                                        >
-                                            <EditIcon />
-                                        </IconButton>
-                                        <IconButton
-                                            edge="end"
-                                            onClick={() => handleDeleteMeeting(meeting.id)}
-                                            disabled={isLoading}
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
-                                    </ListItemSecondaryAction>
-                                </ListItem>
-                                {index < meetings.length - 1 && <Divider />}
-                            </React.Fragment>
-                        ))}
-                    </List>
-                )}
-            </Paper>
+            {meetings.length === 0 ? (
+                <Box sx={{
+                    py: 3.5, px: 2, textAlign: 'center', borderRadius: 2,
+                    bgcolor: 'rgba(15, 23, 42, 0.25)',
+                    border: '1px dashed rgba(51, 65, 85, 0.2)',
+                }}>
+                    <Typography sx={{ fontSize: '0.76rem', color: '#475569' }}>
+                        {emptyMessage}
+                    </Typography>
+                </Box>
+            ) : (
+                <Stack spacing={1.5}>
+                    {meetings.map((meeting) => (
+                        <Box key={meeting.id} sx={{
+                            p: 1.5, borderRadius: 2,
+                            bgcolor: 'rgba(15, 23, 42, 0.35)',
+                            border: '1px solid rgba(51, 65, 85, 0.15)',
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                                bgcolor: 'rgba(15, 23, 42, 0.55)',
+                                borderColor: `${accentColor}18`,
+                            },
+                        }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+                                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0' }}>
+                                            {meeting.title}
+                                        </Typography>
+                                        {meeting.meeting_type && (
+                                            <Chip
+                                                size="small"
+                                                label={meeting.meeting_type.replace('_', ' ')}
+                                                sx={{
+                                                    height: 20, fontSize: '0.58rem', fontWeight: 600,
+                                                    bgcolor: `${accentColor}10`,
+                                                    color: accentColor,
+                                                    border: `1px solid ${accentColor}20`,
+                                                }}
+                                            />
+                                        )}
+                                    </Box>
+                                    <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8', mb: 0.25 }}>
+                                        {format(new Date(meeting.start_time), 'PPP p')} \u2013 {format(new Date(meeting.end_time), 'p')}
+                                    </Typography>
+                                    {meeting.location && (
+                                        <Typography sx={{ fontSize: '0.68rem', color: '#64748b' }}>\ud83d\udccd {meeting.location}</Typography>
+                                    )}
+                                    {meeting.meeting_url && (
+                                        <Typography sx={{ fontSize: '0.68rem', color: '#64748b' }}>\ud83d\udd17 {meeting.meeting_url}</Typography>
+                                    )}
+                                    {meeting.description && (
+                                        <Typography sx={{ fontSize: '0.68rem', color: '#64748b', mt: 0.5 }}>{meeting.description}</Typography>
+                                    )}
+                                    {meeting.outcome_notes && (
+                                        <Typography sx={{ fontSize: '0.7rem', color: '#94a3b8', mt: 0.5, fontStyle: 'italic' }}>
+                                            <strong>Outcome:</strong> {meeting.outcome_notes}
+                                        </Typography>
+                                    )}
+                                </Box>
+                                <Box sx={{ display: 'flex', gap: 0.25, ml: 1, flexShrink: 0 }}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => handleEditMeeting(meeting)}
+                                        disabled={isLoading}
+                                        sx={{ color: '#64748b', p: 0.5, '&:hover': { color: accentColor, bgcolor: `${accentColor}10` } }}
+                                    >
+                                        <EditIcon sx={{ fontSize: 15 }} />
+                                    </IconButton>
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => handleDeleteMeeting(meeting.id)}
+                                        disabled={isLoading}
+                                        sx={{ color: '#64748b', p: 0.5, '&:hover': { color: '#ef4444', bgcolor: 'rgba(239, 68, 68, 0.08)' } }}
+                                    >
+                                        <DeleteIcon sx={{ fontSize: 15 }} />
+                                    </IconButton>
+                                </Box>
+                            </Box>
+                        </Box>
+                    ))}
+                </Stack>
+            )}
 
             {/* Meeting Form Modal */}
             <Dialog

@@ -19,6 +19,7 @@ import {
 import { TimelineScene, TimelineTrack, DragState, PlaybackState, ViewState } from '@/lib/types/timeline';
 import type { FilmEquipmentAssignmentsBySlot } from '@/types/film-equipment.types';
 import { api } from '@/lib/api';
+import { useOptionalFilmApi, type FilmContentApi } from '@/components/films/FilmApiContext';
 
 type PackageSubject = Record<string, unknown>;
 
@@ -186,6 +187,9 @@ interface ContentBuilderProviderProps {
     music: number;
   };
   equipmentAssignmentsBySlot?: FilmEquipmentAssignmentsBySlot;
+  /** Optional FilmContentApi adapter — when provided (or available from
+   *  FilmApiContext), all persistence routes through it. */
+  filmApi?: FilmContentApi | null;
 }
 
 /**
@@ -210,7 +214,12 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
   onChange,
   readOnly = false,
   equipmentAssignmentsBySlot,
+  filmApi: filmApiProp,
 }) => {
+  // Resolve FilmContentApi: prop > context > null (library fallback)
+  const filmApiFromContext = useOptionalFilmApi();
+  const filmApi = filmApiProp ?? filmApiFromContext ?? null;
+
   // Timeline ref for drag and drop
   const timelineRef = useRef<HTMLDivElement>(null);
 
@@ -357,7 +366,8 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
   const timelineSave = useTimelineSave(
     typeof filmId === 'string' ? parseInt(filmId, 10) : (filmId || 0),
     saveTimeline,
-    saveTracks
+    saveTracks,
+    filmApi,
   );
   
   // Wrap the API save to call both the hook and the prop callback
@@ -425,7 +435,8 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
     (sceneId: number) => {
       // Remove from local state after API delete succeeds
       timelineState.setScenes(prev => prev.filter(scene => scene.id !== sceneId));
-    }
+    },
+    filmApi,
   );
   
 

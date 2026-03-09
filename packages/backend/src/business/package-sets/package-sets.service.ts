@@ -154,4 +154,40 @@ export class PackageSetsService {
     await this.prisma.$transaction(updates);
     return this.findOne(setId, brandId);
   }
+
+  // ─── Migrate assigned packages to a new category ──────────────────
+
+  async migratePackagesCategory(setId: number, brandId: number, newCategoryId: number) {
+    const set = await this.findOne(setId, brandId);
+    const assignedPackageIds = set.slots
+      .filter(s => s.service_package_id !== null)
+      .map(s => s.service_package_id!);
+
+    if (assignedPackageIds.length === 0) return { updated: 0 };
+
+    const result = await this.prisma.service_packages.updateMany({
+      where: { id: { in: assignedPackageIds }, brand_id: brandId },
+      data: { category_id: newCategoryId },
+    });
+
+    return { updated: result.count };
+  }
+
+  // ─── Clear all slot assignments in a set (without deleting packages) ──
+
+  async clearAllSlotAssignments(setId: number, brandId: number) {
+    const set = await this.findOne(setId, brandId);
+    const assignedSlotIds = set.slots
+      .filter(s => s.service_package_id !== null)
+      .map(s => s.id);
+
+    if (assignedSlotIds.length === 0) return { cleared: 0 };
+
+    const result = await this.prisma.package_set_slots.updateMany({
+      where: { id: { in: assignedSlotIds } },
+      data: { service_package_id: null },
+    });
+
+    return { cleared: result.count };
+  }
 }

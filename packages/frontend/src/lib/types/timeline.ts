@@ -221,6 +221,8 @@ export interface ContentBuilderProps {
         music: number;
     };
     equipmentAssignmentsBySlot?: FilmEquipmentAssignmentsBySlot;
+    /** Optional FilmContentApi adapter for instance-mode editing (project / inquiry) */
+    filmApi?: import('@/components/films/FilmApiContext').FilmContentApi | null;
 }
 
 export interface SaveState {

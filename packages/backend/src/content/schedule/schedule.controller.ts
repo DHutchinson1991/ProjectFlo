@@ -43,6 +43,13 @@ import {
   BulkCreatePackageActivityMomentsDto,
   CreatePresetMomentDto,
   UpdatePresetMomentDto,
+  CreateInstanceActivityMomentDto,
+  UpdateInstanceActivityMomentDto,
+  CreateInstanceEventDaySubjectDto,
+  UpdateInstanceEventDaySubjectDto,
+  CreateInstanceLocationSlotDto,
+  CreateInstanceDayOperatorDto,
+  UpdateInstanceDayOperatorDto,
 } from './dto';
 
 @Controller('schedule')
@@ -229,6 +236,13 @@ export class ScheduleController {
     @Param('scheduleId', ParseIntPipe) scheduleId: number,
   ) {
     return this.scheduleService.deleteFilmSceneSchedule(scheduleId);
+  }
+
+  // ─── Package Schedule Summary ────────────────────────────────────────
+
+  @Get('packages/:packageId/summary')
+  getPackageScheduleSummary(@Param('packageId', ParseIntPipe) packageId: number) {
+    return this.scheduleService.getPackageScheduleSummary(packageId);
   }
 
   // ─── Package Event Days ─────────────────────────────────────────────
@@ -676,5 +690,382 @@ export class ScheduleController {
       packageFilmId: packageFilmId ? parseInt(packageFilmId, 10) : undefined,
       projectFilmId: projectFilmId ? parseInt(projectFilmId, 10) : undefined,
     });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Instance CRUD (inquiry-owned schedules)
+  // ═══════════════════════════════════════════════════════════════════════
+  // These endpoints mirror the existing project endpoints but for inquiry-owned
+  // instance data. They use the same underlying service methods via InstanceOwner.
+
+  // ─── Inquiry Event Days ──────────────────────────────────────────────
+
+  @Get('inquiries/:inquiryId/event-days')
+  getInquiryEventDays(@Param('inquiryId', ParseIntPipe) inquiryId: number) {
+    return this.scheduleService.getInstanceEventDays({ inquiry_id: inquiryId });
+  }
+
+  @Post('inquiries/:inquiryId/event-days')
+  createInquiryEventDay(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Body() dto: CreateProjectEventDayDto,
+  ) {
+    return this.scheduleService.createInstanceEventDay({ inquiry_id: inquiryId }, dto);
+  }
+
+  // update/delete by ID — same as project (the record is found by PK)
+  @Patch('inquiries/event-days/:eventDayId')
+  updateInquiryEventDay(
+    @Param('eventDayId', ParseIntPipe) eventDayId: number,
+    @Body() dto: UpdateProjectEventDayDto,
+  ) {
+    return this.scheduleService.updateProjectEventDay(eventDayId, dto);
+  }
+
+  @Delete('inquiries/event-days/:eventDayId')
+  deleteInquiryEventDay(
+    @Param('eventDayId', ParseIntPipe) eventDayId: number,
+  ) {
+    return this.scheduleService.deleteProjectEventDay(eventDayId);
+  }
+
+  // ─── Inquiry Activities ──────────────────────────────────────────────
+
+  @Get('inquiries/:inquiryId/activities/:eventDayId')
+  getInquiryActivities(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Param('eventDayId', ParseIntPipe) eventDayId: number,
+  ) {
+    return this.scheduleService.getInstanceActivities({ inquiry_id: inquiryId }, eventDayId);
+  }
+
+  @Get('inquiries/:inquiryId/activities')
+  getInquiryAllActivities(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+  ) {
+    return this.scheduleService.getInstanceAllActivities({ inquiry_id: inquiryId });
+  }
+
+  @Post('inquiries/:inquiryId/activities')
+  createInquiryActivity(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Body() dto: CreateProjectActivityDto,
+  ) {
+    return this.scheduleService.createInstanceActivity({ inquiry_id: inquiryId }, dto);
+  }
+
+  @Patch('inquiries/activities/:activityId')
+  updateInquiryActivity(
+    @Param('activityId', ParseIntPipe) activityId: number,
+    @Body() dto: UpdateProjectActivityDto,
+  ) {
+    return this.scheduleService.updateProjectActivity(activityId, dto);
+  }
+
+  @Delete('inquiries/activities/:activityId')
+  deleteInquiryActivity(
+    @Param('activityId', ParseIntPipe) activityId: number,
+  ) {
+    return this.scheduleService.deleteProjectActivity(activityId);
+  }
+
+  // ─── Inquiry Films ───────────────────────────────────────────────────
+
+  @Get('inquiries/:inquiryId/films')
+  getInquiryFilms(@Param('inquiryId', ParseIntPipe) inquiryId: number) {
+    return this.scheduleService.getInstanceFilms({ inquiry_id: inquiryId });
+  }
+
+  @Post('inquiries/:inquiryId/films')
+  createInquiryFilm(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Body() dto: CreateProjectFilmDto,
+  ) {
+    return this.scheduleService.createInstanceFilm({ inquiry_id: inquiryId }, dto);
+  }
+
+  // delete/upsertScene by ID — reuse project endpoints (same table, found by PK)
+
+  // ─── Instance Activity Moments (project + inquiry) ───────────────────
+  // GET by activity ID (no owner needed — activity already belongs to an owner)
+
+  @Get('instance/activities/:activityId/moments')
+  getInstanceActivityMoments(
+    @Param('activityId', ParseIntPipe) activityId: number,
+  ) {
+    return this.scheduleService.getInstanceActivityMoments(activityId);
+  }
+
+  @Post('projects/:projectId/activity-moments')
+  createProjectActivityMoment(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() dto: CreateInstanceActivityMomentDto,
+  ) {
+    return this.scheduleService.createInstanceActivityMoment({ project_id: projectId }, dto);
+  }
+
+  @Post('inquiries/:inquiryId/activity-moments')
+  createInquiryActivityMoment(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Body() dto: CreateInstanceActivityMomentDto,
+  ) {
+    return this.scheduleService.createInstanceActivityMoment({ inquiry_id: inquiryId }, dto);
+  }
+
+  @Patch('instance/moments/:momentId')
+  updateInstanceActivityMoment(
+    @Param('momentId', ParseIntPipe) momentId: number,
+    @Body() dto: UpdateInstanceActivityMomentDto,
+  ) {
+    return this.scheduleService.updateInstanceActivityMoment(momentId, dto);
+  }
+
+  @Delete('instance/moments/:momentId')
+  deleteInstanceActivityMoment(
+    @Param('momentId', ParseIntPipe) momentId: number,
+  ) {
+    return this.scheduleService.deleteInstanceActivityMoment(momentId);
+  }
+
+  @Patch('instance/activities/:activityId/moments/reorder')
+  reorderInstanceActivityMoments(
+    @Param('activityId', ParseIntPipe) activityId: number,
+    @Body() body: { moment_ids: number[] },
+  ) {
+    return this.scheduleService.reorderInstanceActivityMoments(activityId, body.moment_ids);
+  }
+
+  // ─── Instance Event Day Subjects (project + inquiry) ─────────────────
+
+  @Get('projects/:projectId/subjects')
+  getProjectEventDaySubjects(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Query('eventDayId') eventDayId?: string,
+  ) {
+    return this.scheduleService.getInstanceEventDaySubjects(
+      { project_id: projectId },
+      eventDayId ? parseInt(eventDayId, 10) : undefined,
+    );
+  }
+
+  @Get('inquiries/:inquiryId/subjects')
+  getInquiryEventDaySubjects(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Query('eventDayId') eventDayId?: string,
+  ) {
+    return this.scheduleService.getInstanceEventDaySubjects(
+      { inquiry_id: inquiryId },
+      eventDayId ? parseInt(eventDayId, 10) : undefined,
+    );
+  }
+
+  @Post('projects/:projectId/subjects')
+  createProjectEventDaySubject(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() dto: CreateInstanceEventDaySubjectDto,
+  ) {
+    return this.scheduleService.createInstanceEventDaySubject({ project_id: projectId }, dto);
+  }
+
+  @Post('inquiries/:inquiryId/subjects')
+  createInquiryEventDaySubject(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Body() dto: CreateInstanceEventDaySubjectDto,
+  ) {
+    return this.scheduleService.createInstanceEventDaySubject({ inquiry_id: inquiryId }, dto);
+  }
+
+  @Patch('instance/subjects/:subjectId')
+  updateInstanceEventDaySubject(
+    @Param('subjectId', ParseIntPipe) subjectId: number,
+    @Body() dto: UpdateInstanceEventDaySubjectDto,
+  ) {
+    return this.scheduleService.updateInstanceEventDaySubject(subjectId, dto);
+  }
+
+  @Delete('instance/subjects/:subjectId')
+  deleteInstanceEventDaySubject(
+    @Param('subjectId', ParseIntPipe) subjectId: number,
+  ) {
+    return this.scheduleService.deleteInstanceEventDaySubject(subjectId);
+  }
+
+  @Post('instance/subjects/:subjectId/activities/:activityId')
+  assignInstanceSubjectToActivity(
+    @Param('subjectId', ParseIntPipe) subjectId: number,
+    @Param('activityId', ParseIntPipe) activityId: number,
+  ) {
+    return this.scheduleService.assignInstanceSubjectToActivity(subjectId, activityId);
+  }
+
+  @Delete('instance/subjects/:subjectId/activities/:activityId')
+  unassignInstanceSubjectFromActivity(
+    @Param('subjectId', ParseIntPipe) subjectId: number,
+    @Param('activityId', ParseIntPipe) activityId: number,
+  ) {
+    return this.scheduleService.unassignInstanceSubjectFromActivity(subjectId, activityId);
+  }
+
+  // ─── Instance Location Slots (project + inquiry) ─────────────────────
+
+  @Get('projects/:projectId/location-slots')
+  getProjectLocationSlots(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Query('eventDayId') eventDayId?: string,
+  ) {
+    return this.scheduleService.getInstanceLocationSlots(
+      { project_id: projectId },
+      eventDayId ? parseInt(eventDayId, 10) : undefined,
+    );
+  }
+
+  @Get('inquiries/:inquiryId/location-slots')
+  getInquiryLocationSlots(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Query('eventDayId') eventDayId?: string,
+  ) {
+    return this.scheduleService.getInstanceLocationSlots(
+      { inquiry_id: inquiryId },
+      eventDayId ? parseInt(eventDayId, 10) : undefined,
+    );
+  }
+
+  @Post('projects/:projectId/location-slots')
+  createProjectLocationSlot(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() dto: CreateInstanceLocationSlotDto,
+  ) {
+    return this.scheduleService.createInstanceLocationSlot({ project_id: projectId }, dto);
+  }
+
+  @Post('inquiries/:inquiryId/location-slots')
+  createInquiryLocationSlot(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Body() dto: CreateInstanceLocationSlotDto,
+  ) {
+    return this.scheduleService.createInstanceLocationSlot({ inquiry_id: inquiryId }, dto);
+  }
+
+  @Delete('instance/location-slots/:slotId')
+  deleteInstanceLocationSlot(
+    @Param('slotId', ParseIntPipe) slotId: number,
+  ) {
+    return this.scheduleService.deleteInstanceLocationSlot(slotId);
+  }
+
+  @Post('instance/location-slots/:slotId/activities/:activityId')
+  assignInstanceLocationSlotToActivity(
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Param('activityId', ParseIntPipe) activityId: number,
+  ) {
+    return this.scheduleService.assignInstanceLocationSlotToActivity(slotId, activityId);
+  }
+
+  @Delete('instance/location-slots/:slotId/activities/:activityId')
+  unassignInstanceLocationSlotFromActivity(
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Param('activityId', ParseIntPipe) activityId: number,
+  ) {
+    return this.scheduleService.unassignInstanceLocationSlotFromActivity(slotId, activityId);
+  }
+
+  // ─── Instance Day Operators / Crew (project + inquiry) ───────────────
+
+  @Get('projects/:projectId/operators')
+  getProjectDayOperators(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Query('eventDayId') eventDayId?: string,
+  ) {
+    return this.scheduleService.getInstanceDayOperators(
+      { project_id: projectId },
+      eventDayId ? parseInt(eventDayId, 10) : undefined,
+    );
+  }
+
+  @Get('inquiries/:inquiryId/operators')
+  getInquiryDayOperators(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Query('eventDayId') eventDayId?: string,
+  ) {
+    return this.scheduleService.getInstanceDayOperators(
+      { inquiry_id: inquiryId },
+      eventDayId ? parseInt(eventDayId, 10) : undefined,
+    );
+  }
+
+  @Post('projects/:projectId/operators')
+  createProjectDayOperator(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() dto: CreateInstanceDayOperatorDto,
+  ) {
+    return this.scheduleService.createInstanceDayOperator({ project_id: projectId }, dto);
+  }
+
+  @Post('inquiries/:inquiryId/operators')
+  createInquiryDayOperator(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Body() dto: CreateInstanceDayOperatorDto,
+  ) {
+    return this.scheduleService.createInstanceDayOperator({ inquiry_id: inquiryId }, dto);
+  }
+
+  @Patch('instance/operators/:operatorId')
+  updateInstanceDayOperator(
+    @Param('operatorId', ParseIntPipe) operatorId: number,
+    @Body() dto: UpdateInstanceDayOperatorDto,
+  ) {
+    return this.scheduleService.updateInstanceDayOperator(operatorId, dto);
+  }
+
+  @Patch('instance/operators/:operatorId/assign')
+  assignInstanceCrewToSlot(
+    @Param('operatorId', ParseIntPipe) operatorId: number,
+    @Body() dto: { contributor_id: number | null },
+  ) {
+    return this.scheduleService.assignInstanceCrewToSlot(operatorId, dto.contributor_id);
+  }
+
+  @Delete('instance/operators/:operatorId')
+  removeInstanceDayOperator(
+    @Param('operatorId', ParseIntPipe) operatorId: number,
+  ) {
+    return this.scheduleService.removeInstanceDayOperator(operatorId);
+  }
+
+  @Post('instance/operators/:operatorId/equipment')
+  setInstanceOperatorEquipment(
+    @Param('operatorId', ParseIntPipe) operatorId: number,
+    @Body() dto: { equipment: { equipment_id: number; is_primary: boolean }[] },
+  ) {
+    return this.scheduleService.setInstanceOperatorEquipment(operatorId, dto.equipment);
+  }
+
+  @Post('instance/operators/:operatorId/activities/:activityId')
+  assignInstanceOperatorToActivity(
+    @Param('operatorId', ParseIntPipe) operatorId: number,
+    @Param('activityId', ParseIntPipe) activityId: number,
+  ) {
+    return this.scheduleService.assignInstanceOperatorToActivity(operatorId, activityId);
+  }
+
+  @Delete('instance/operators/:operatorId/activities/:activityId')
+  unassignInstanceOperatorFromActivity(
+    @Param('operatorId', ParseIntPipe) operatorId: number,
+    @Param('activityId', ParseIntPipe) activityId: number,
+  ) {
+    return this.scheduleService.unassignInstanceOperatorFromActivity(operatorId, activityId);
+  }
+
+  // ─── Project Instance Event Days (enhanced) ──────────────────────────
+  // These wrap the instance methods with project owner, providing richer includes
+
+  @Get('projects/:projectId/instance-event-days')
+  getProjectInstanceEventDays(@Param('projectId', ParseIntPipe) projectId: number) {
+    return this.scheduleService.getInstanceEventDays({ project_id: projectId });
+  }
+
+  @Get('projects/:projectId/all-activities')
+  getProjectAllActivities(@Param('projectId', ParseIntPipe) projectId: number) {
+    return this.scheduleService.getInstanceAllActivities({ project_id: projectId });
   }
 }
