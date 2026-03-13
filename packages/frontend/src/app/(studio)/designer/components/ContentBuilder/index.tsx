@@ -44,6 +44,8 @@ const ContentBuilder: React.FC<ContentBuilderProps> = ({
     subjectCount = 0,
     packageId,
     linkedActivityId,
+    instanceOwnerType,
+    instanceOwnerId,
     equipmentConfig,
     equipmentAssignmentsBySlot,
     filmApi,
@@ -71,6 +73,8 @@ const ContentBuilder: React.FC<ContentBuilderProps> = ({
                 filmId={filmId}
                 packageId={packageId}
                 linkedActivityId={linkedActivityId}
+                instanceOwnerType={instanceOwnerType}
+                instanceOwnerId={instanceOwnerId}
                 initialScenes={initialScenes}
                 initialTracks={initialTracks}
                 onSave={onSave}

@@ -10,6 +10,9 @@ export interface SceneBeat {
   order_index: number;
   shot_count?: number | null;
   duration_seconds: number;
+  source_activity_id?: number | null;
+  source_moment_id?: number | null;
+  source_scene_id?: number | null;
   created_at: string;
   updated_at: string;
   recording_setup?: {
@@ -27,6 +30,9 @@ export interface CreateSceneBeatDto {
   order_index?: number;
   duration_seconds?: number;
   shot_count?: number | null;
+  source_activity_id?: number;
+  source_moment_id?: number;
+  source_scene_id?: number;
 }
 
 export interface UpdateSceneBeatDto {
@@ -34,4 +40,7 @@ export interface UpdateSceneBeatDto {
   order_index?: number;
   duration_seconds?: number;
   shot_count?: number | null;
+  source_activity_id?: number | null;
+  source_moment_id?: number | null;
+  source_scene_id?: number | null;
 }

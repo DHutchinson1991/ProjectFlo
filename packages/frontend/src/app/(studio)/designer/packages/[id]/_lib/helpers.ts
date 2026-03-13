@@ -79,12 +79,18 @@ export function getCrewDayRate(op: PackageDayOperatorRecord): number {
  * Build a map of (crewName|roleName) → total task hours from the
  * auto-generation preview. Used to display hours-per-role in the crew card
  * and compute hourly-based crew costs.
+ *
+ * Excludes sales-pipeline phases (Lead, Inquiry, Booking) so crew costs
+ * reflect only project-delivery work.
  */
+const EXCLUDED_PHASES = new Set(['Lead', 'Inquiry', 'Booking']);
+
 export function buildTaskHoursMap(preview: TaskAutoGenerationPreview | null): Map<string, number> {
     const map = new Map<string, number>();
     if (!preview?.tasks) return map;
     for (const task of preview.tasks) {
         if (!task.assigned_to_name || !task.role_name) continue;
+        if (EXCLUDED_PHASES.has(task.phase)) continue;
         const key = `${task.assigned_to_name}|${task.role_name}`;
         map.set(key, (map.get(key) || 0) + task.total_hours);
     }

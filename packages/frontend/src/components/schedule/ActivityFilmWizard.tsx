@@ -216,10 +216,13 @@ export function ActivityFilmWizard({
             const selectedActivities = sortedActivities.filter(a => selectedActivityIds.has(a.id));
             let totalMomentsPopulated = 0;
 
-            // Determine which upsertSceneSchedule endpoint to use
-            const upsertScene = instanceOwner?.type === 'project'
-                ? api.schedule.projectFilms.upsertSceneSchedule
+            // Inquiry and project instance films use the same underlying instance-film scene schedule routes.
+            const upsertScene = instanceOwner
+                ? (instanceOwner.type === 'project'
+                    ? api.schedule.projectFilms.upsertSceneSchedule
+                    : api.schedule.inquiryFilms.upsertSceneSchedule)
                 : api.schedule.packageFilms.upsertSceneSchedule;
+            const shouldCreateMomentsManually = Boolean(instanceOwner);
 
             // Activity FK field name differs between package and instance
             const activityFkField = instanceOwner ? 'project_activity_id' : 'package_activity_id';
@@ -231,6 +234,8 @@ export function ActivityFilmWizard({
                 const scene = await api.films.localScenes.create(newFilm.id, {
                     name: activity.name,
                     order_index: i,
+                    mode: 'MOMENTS',
+                    duration_seconds: activity.duration_minutes ? activity.duration_minutes * 60 : undefined,
                 });
 
                 // Link scene to activity via scene schedule
@@ -242,7 +247,21 @@ export function ActivityFilmWizard({
                     scheduled_duration_minutes: activity.duration_minutes || undefined,
                 });
 
+                if (shouldCreateMomentsManually) {
+                    for (const [momentIndex, moment] of (activity.moments || []).entries()) {
+                        await api.moments.create(scene.id, {
+                            name: moment.name,
+                            duration: moment.duration_seconds || 60,
+                            order_index: momentIndex,
+                        });
+                    }
+                }
+
                 totalMomentsPopulated += activity.moments?.length || 0;
+            }
+
+            if (instanceOwner) {
+                await api.instanceFilms.cloneFromLibrary(ownerFilmId);
             }
 
             const createdResult: CreatedFilmResult = {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { CalendarEvent, CalendarTask } from '../../types';
-import { isToday, filterEventsByDate, filterTasksByDate } from '../../utils';
+import { isToday, filterEventsByDate } from '../../utils';
 import { getEventColor } from '../../config';
 
 interface WeekDayHeaderProps {
@@ -9,9 +9,8 @@ interface WeekDayHeaderProps {
     index: number;
     dayName: string;
     events: CalendarEvent[];
-    tasks: CalendarTask[];
+    dayTasks: CalendarTask[];
     onDateClick: (date: Date) => void;
-    getDayTasks: (date: Date) => CalendarTask[];
 }
 
 const WeekDayHeader: React.FC<WeekDayHeaderProps> = ({
@@ -19,21 +18,18 @@ const WeekDayHeader: React.FC<WeekDayHeaderProps> = ({
     index,
     dayName,
     events,
-    tasks,
-    onDateClick,
-    getDayTasks
+    dayTasks,
+    onDateClick
 }) => {
     const isTodayDate = isToday(day);
     const dayEvents = filterEventsByDate(events, day);
-    const dayTasks = getDayTasks(day);
     const isWeekday = index >= 0 && index <= 4;
+    const taskCount = dayTasks.length;
 
     return (
         <Box
             key={day.toISOString()}
-            onClick={() => {
-                onDateClick(day);
-            }}
+            onClick={() => onDateClick(day)}
             sx={{
                 textAlign: 'center',
                 position: 'relative',
@@ -84,8 +80,8 @@ const WeekDayHeader: React.FC<WeekDayHeaderProps> = ({
                 })
             }}
         >
-            {/* Day name and date in a compact row */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
+            {/* Day name and date */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: taskCount > 0 ? 0.25 : 0 }}>
                 <Typography
                     variant="subtitle2"
                     sx={{
@@ -122,43 +118,55 @@ const WeekDayHeader: React.FC<WeekDayHeaderProps> = ({
                 </Typography>
             </Box>
 
-            {/* Event and Task indicators - Compact */}
-            {(dayEvents.length > 0 || dayTasks.length > 0) && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.25, flexWrap: 'wrap' }}>
-                    {dayEvents.slice(0, 2).map((event, i) => (
+            {/* Event dots + task count */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0.5, minHeight: 16 }}>
+                {dayEvents.slice(0, 2).map((event, i) => (
+                    <Box
+                        key={`event-${i}`}
+                        sx={{
+                            width: 5,
+                            height: 5,
+                            borderRadius: '50%',
+                            background: getEventColor(event.type),
+                            boxShadow: `0 0 4px ${getEventColor(event.type)}66`,
+                        }}
+                    />
+                ))}
+                {taskCount > 0 && (
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.3,
+                            backgroundColor: 'rgba(46,213,115,0.1)',
+                            border: '1px solid rgba(46,213,115,0.25)',
+                            borderRadius: '8px',
+                            px: 0.6,
+                            py: 0.1,
+                        }}
+                    >
                         <Box
-                            key={`event-${i}`}
                             sx={{
                                 width: 5,
                                 height: 5,
                                 borderRadius: '50%',
-                                background: getEventColor(event.type),
-                                boxShadow: `0 0 4px ${getEventColor(event.type)}66`,
-                                animation: 'pulse 2s ease-in-out infinite',
-                                animationDelay: `${i * 0.2}s`
+                                background: 'rgba(46,213,115,0.7)',
                             }}
                         />
-                    ))}
-                    {dayTasks.slice(0, 1).map((task, i) => (
-                        <Box
-                            key={`task-${i}`}
+                        <Typography
+                            variant="caption"
                             sx={{
-                                width: 5,
-                                height: 5,
-                                borderRadius: 0.5,
-                                background: task.completed
-                                    ? 'linear-gradient(135deg, #2ed573 0%, #26d467 100%)'
-                                    : task.priority === 'high'
-                                        ? '#ff4757'
-                                        : task.priority === 'medium'
-                                            ? '#ffa502'
-                                            : '#95a5a6',
-                                boxShadow: '0 0 2px rgba(0,0,0,0.3)'
+                                fontSize: '0.6rem',
+                                fontWeight: 700,
+                                color: 'rgba(46,213,115,0.7)',
+                                lineHeight: 1,
                             }}
-                        />
-                    ))}
-                </Box>
-            )}
+                        >
+                            {taskCount}
+                        </Typography>
+                    </Box>
+                )}
+            </Box>
         </Box>
     );
 };

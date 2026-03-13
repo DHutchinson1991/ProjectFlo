@@ -23,6 +23,24 @@ export class CreateFilmDto {
     brand_id: number;
 
     @IsOptional()
+    @IsString()
+    film_type?: string; // FilmType: ACTIVITY | FEATURE | MONTAGE | RAW_FOOTAGE
+
+    @IsOptional()
+    @IsInt()
+    montage_preset_id?: number;
+
+    @IsOptional()
+    @IsInt()
+    @Min(0)
+    target_duration_min?: number;
+
+    @IsOptional()
+    @IsInt()
+    @Min(0)
+    target_duration_max?: number;
+
+    @IsOptional()
     @IsInt()
     @Min(0)
     num_cameras?: number; // Auto-generates Camera 1, 2, 3...

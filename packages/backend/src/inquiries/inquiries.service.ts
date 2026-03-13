@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateInquiryDto, UpdateInquiryDto } from './dto/inquiries.dto';
 import { $Enums, Prisma } from '@prisma/client';
 import { ProjectPackageCloneService } from '../projects/project-package-clone.service';
+import { InquiryTasksService } from '../inquiry-tasks/inquiry-tasks.service';
 
 @Injectable()
 export class InquiriesService {
@@ -11,6 +12,7 @@ export class InquiriesService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly packageCloneService: ProjectPackageCloneService,
+        private readonly inquiryTasksService: InquiryTasksService,
     ) { }
 
     async findAll(brandId: number) {
@@ -72,7 +74,20 @@ export class InquiriesService {
                 //    brand_id: brandId,
                 // },
             },
-            include: {
+            select: {
+                id: true,
+                status: true,
+                wedding_date: true,
+                notes: true,
+                venue_details: true,
+                venue_address: true,
+                venue_lat: true,
+                venue_lng: true,
+                lead_source: true,
+                lead_source_details: true,
+                selected_package_id: true,
+                contact_id: true,
+                package_contents_snapshot: true,
                 contact: {
                     select: {
                         id: true,
@@ -117,6 +132,7 @@ export class InquiriesService {
             lead_source: inquiry.lead_source,
             lead_source_details: inquiry.lead_source_details,
             selected_package_id: inquiry.selected_package_id,
+            package_contents_snapshot: inquiry.package_contents_snapshot ?? null,
             created_at: new Date(), // Default since this field might not exist in the table yet
             updated_at: new Date(), // Default since this field might not exist in the table yet
             contact: {
@@ -179,6 +195,13 @@ export class InquiriesService {
                 },
             },
         });
+
+        // Auto-generate pipeline tasks from task library
+        try {
+            await this.inquiryTasksService.generateForInquiry(inquiry.id, brandId);
+        } catch (err) {
+            this.logger.warn(`Failed to auto-generate inquiry tasks for inquiry ${inquiry.id}: ${err}`);
+        }
 
         return {
             id: inquiry.id,
@@ -330,13 +353,15 @@ export class InquiriesService {
             if (!packageContentsSnapshot && inquiry.selected_package_id) {
                 const pkg = await prisma.service_packages.findUnique({
                     where: { id: inquiry.selected_package_id },
-                    select: { id: true, name: true, contents: true },
+                    select: { id: true, name: true, base_price: true, currency: true, contents: true },
                 });
                 if (pkg) {
                     packageContentsSnapshot = {
                         snapshot_taken_at: new Date().toISOString(),
                         package_id: pkg.id,
                         package_name: pkg.name,
+                        base_price: pkg.base_price ? Number(pkg.base_price) : 0,
+                        currency: pkg.currency ?? 'USD',
                         contents: pkg.contents,
                     };
                 }
@@ -438,7 +463,7 @@ export class InquiriesService {
                 // Capture snapshot of package contents
                 const pkg = await prisma.service_packages.findUnique({
                     where: { id: newPackageId },
-                    select: { id: true, name: true, contents: true },
+                    select: { id: true, name: true, base_price: true, currency: true, contents: true },
                 });
 
                 const packageContentsSnapshot = pkg
@@ -446,6 +471,8 @@ export class InquiriesService {
                         snapshot_taken_at: new Date().toISOString(),
                         package_id: pkg.id,
                         package_name: pkg.name,
+                        base_price: pkg.base_price ? Number(pkg.base_price) : 0,
+                        currency: pkg.currency ?? 'USD',
                         contents: pkg.contents,
                     }
                     : null;

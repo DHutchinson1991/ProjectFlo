@@ -1,8 +1,8 @@
 // Custom React hooks for calendar data management
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { CalendarEvent, EventType } from '../types';
+import { CalendarEvent, CalendarTask, EventType } from '../types';
 import { getCalendarApi } from '../services/calendarApi';
-import { transformBackendEvents, transformToBackendEvent, getDateRangeForView } from '../services/dataTransforms';
+import { transformBackendEvents, transformToBackendEvent, transformBackendTasks, getDateRangeForView } from '../services/dataTransforms';
 
 // Hook for managing calendar events
 export function useCalendarEvents(viewDate: Date, viewType: 'month' | 'week' | 'day') {
@@ -281,6 +281,38 @@ export function useCalendarTags() {
     }, [api]);
 
     return { tags, loading, error };
+}
+
+// Hook for fetching inquiry_tasks + project_tasks as CalendarTask[] for a date range
+export function useCalendarTasks(viewDate: Date, viewType: 'month' | 'week' | 'day') {
+    const [tasks, setTasks] = useState<CalendarTask[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const api = useMemo(() => getCalendarApi(), []);
+
+    const dateRange = useMemo(() => getDateRangeForView(viewDate, viewType), [viewDate, viewType]);
+
+    const fetchTasks = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const backendTasks = await api.getTasksForDateRange(dateRange.start, dateRange.end);
+            setTasks(transformBackendTasks(backendTasks));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load tasks');
+            console.error('Error fetching calendar tasks:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, [api, dateRange.start, dateRange.end]);
+
+    useEffect(() => {
+        fetchTasks();
+    }, [fetchTasks]);
+
+    return { tasks, loading, error, refreshTasks: fetchTasks };
 }
 
 // Hook for filtering events

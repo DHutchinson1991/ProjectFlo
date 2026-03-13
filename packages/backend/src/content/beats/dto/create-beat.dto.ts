@@ -23,4 +23,16 @@ export class CreateBeatDto {
     @IsOptional()
     @Min(1)
     duration_seconds?: number;
+
+    @IsNumber()
+    @IsOptional()
+    source_activity_id?: number;
+
+    @IsNumber()
+    @IsOptional()
+    source_moment_id?: number;
+
+    @IsNumber()
+    @IsOptional()
+    source_scene_id?: number;
 }

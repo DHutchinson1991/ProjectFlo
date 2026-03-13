@@ -25,6 +25,7 @@ import {
     Cancel as CancelIcon,
     ExpandMore as ExpandMoreIcon,
     ExpandLess as ExpandLessIcon,
+    CalendarMonth as CalendarMonthIcon,
 } from "@mui/icons-material";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -469,6 +470,68 @@ export function SortableTaskRow({
                 )}
             </TableCell>
 
+            {/* Due Days Offset */}
+            <TableCell align="center">
+                {isEditing ? (
+                    <TextField
+                        size="small"
+                        type="number"
+                        value={inlineEditData.due_date_offset_days ?? ''}
+                        onChange={(e) => {
+                            const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                            updateInlineEditData('due_date_offset_days', val);
+                        }}
+                        placeholder="—"
+                        sx={{
+                            width: '70px',
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                borderRadius: 2,
+                                fontSize: '0.875rem',
+                                '& fieldset': {
+                                    borderColor: 'rgba(255, 255, 255, 0.2)',
+                                },
+                                '&:hover fieldset': {
+                                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                                },
+                                '&.Mui-focused fieldset': {
+                                    borderColor: 'primary.main',
+                                },
+                            },
+                            '& .MuiInputBase-input': {
+                                color: 'white',
+                                textAlign: 'center',
+                                fontSize: '0.875rem',
+                            },
+                        }}
+                    />
+                ) : (
+                    <Tooltip title={task.due_date_offset_days != null
+                        ? `${task.due_date_offset_days} day${Math.abs(task.due_date_offset_days) !== 1 ? 's' : ''} ${task.due_date_offset_days >= 0 ? 'after' : 'before'} reference date`
+                        : 'No default due date'
+                    }>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                            {task.due_date_offset_days != null ? (
+                                <>
+                                    <CalendarMonthIcon sx={{ fontSize: 14, color: 'rgba(255, 183, 77, 0.7)' }} />
+                                    <Typography variant="body2" sx={{
+                                        color: task.due_date_offset_days < 0 ? 'rgba(255, 152, 0, 0.9)' : 'rgba(255, 183, 77, 0.85)',
+                                        fontWeight: 600,
+                                        fontSize: '0.75rem'
+                                    }}>
+                                        {task.due_date_offset_days > 0 ? '+' : ''}{task.due_date_offset_days}d
+                                    </Typography>
+                                </>
+                            ) : (
+                                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.72rem', fontStyle: 'italic' }}>
+                                    —
+                                </Typography>
+                            )}
+                        </Box>
+                    </Tooltip>
+                )}
+            </TableCell>
+
             {/* Trigger Type */}
             <TableCell align="center">
                 {isEditing ? (
@@ -636,7 +699,7 @@ export function SortableTaskRow({
                 ...(isExpanded ? {} : { display: 'none' }),
             }}
         >
-            <TableCell colSpan={10} sx={{ p: 0 }}>
+            <TableCell colSpan={11} sx={{ p: 0 }}>
                 <TaskRoleSkillsPanel
                     task={task}
                     open={isExpanded}

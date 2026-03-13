@@ -12,7 +12,7 @@ import {
     Snackbar,
 } from '@mui/material';
 import { Assignment } from '@mui/icons-material';
-import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
+import { Inquiry, InquiryTask, NeedsAssessmentSubmission } from '@/lib/types';
 import { inquiriesService, api } from '@/lib/api';
 
 // Extracted _detail barrel — types, constants, helpers, components
@@ -20,9 +20,7 @@ import {
     // helpers
     getConversionScore,
     getDaysInPipeline,
-    calculateWorkflowProgress,
-    // constants
-    WORKFLOW_PHASES,
+    getActivePhaseFromTasks,
     // components
     WorkflowCard,
     CommandCenterHeader,
@@ -36,12 +34,16 @@ import {
     ClientApprovalCard,
     ActivityLogCard,
     NeedsAssessmentDialog,
+    buildPipelineTasks,
+    buildPipelineTasksFromInquiry,
+    type PipelineTask,
+    // constants
+    WORKFLOW_PHASES,
 } from './_detail';
 
 // Existing per-inquiry sub-components (unchanged)
 import EventDetailsCard from './components/EventDetailsCard';
 import PackageScopeCard from './components/PackageScopeCard';
-import SalesBudgetCard from './components/SalesBudgetCard';
 import LeadInfoCard from './components/LeadInfoCard';
 
 
@@ -58,12 +60,16 @@ export default function InquiryDetailPage() {
         useState<NeedsAssessmentSubmission | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as const });
+    const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
     const [naDialogOpen, setNaDialogOpen] = useState(false);
+    const [pipelineTasks, setPipelineTasks] = useState<PipelineTask[]>([]);
+    const [hasRealTasks, setHasRealTasks] = useState(false);
+    const [taskActionPending, setTaskActionPending] = useState(false);
 
     /* ---- data loading ---- */
     useEffect(() => {
         loadInquiry();
+        loadPipelineTasks();
     }, [inquiryId]);
 
     const loadInquiry = async () => {
@@ -86,9 +92,68 @@ export default function InquiryDetailPage() {
         }
     };
 
+    const loadPipelineTasks = async () => {
+        // Try loading existing real tasks
+        try {
+            const inquiryTasks: InquiryTask[] = await api.inquiryTasks.getAll(inquiryId);
+            if (inquiryTasks.length > 0) {
+                setPipelineTasks(buildPipelineTasksFromInquiry(inquiryTasks));
+                setHasRealTasks(true);
+                return;
+            }
+        } catch (err) {
+            console.error('Error loading inquiry tasks:', err);
+        }
+
+        // No tasks loaded — try auto-generating from task library
+        try {
+            const generated: InquiryTask[] = await api.inquiryTasks.generate(inquiryId);
+            if (generated.length > 0) {
+                setPipelineTasks(buildPipelineTasksFromInquiry(generated));
+                setHasRealTasks(true);
+                return;
+            }
+        } catch (err) {
+            console.error('Error generating inquiry tasks:', err);
+        }
+
+        // Fallback: show read-only task library templates
+        try {
+            const grouped = await api.taskLibrary.getGroupedByPhase();
+            const inquiryPhaseTasks = grouped['Inquiry'] ?? [];
+            const bookingPhaseTasks = grouped['Booking'] ?? [];
+            setPipelineTasks(buildPipelineTasks([...inquiryPhaseTasks, ...bookingPhaseTasks]));
+        } catch (err) {
+            console.error('Error loading fallback pipeline tasks:', err);
+            setPipelineTasks([]);
+        }
+
+        setHasRealTasks(false);
+    };
+
     const handleRefresh = async () => {
-        await loadInquiry();
+        await Promise.all([loadInquiry(), loadPipelineTasks()]);
         setSnackbar({ open: true, message: 'Data refreshed successfully', severity: 'success' });
+    };
+
+    const handleToggleTask = async (task: PipelineTask) => {
+        if (!hasRealTasks || !task.inquiry_task_id || taskActionPending) return;
+
+        try {
+            setTaskActionPending(true);
+            await api.inquiryTasks.toggle(inquiryId, task.inquiry_task_id);
+            await loadPipelineTasks();
+            setSnackbar({
+                open: true,
+                message: task.status === 'Completed' ? 'Task reopened' : 'Task completed',
+                severity: 'success',
+            });
+        } catch (err) {
+            console.error('Error toggling inquiry task:', err);
+            setSnackbar({ open: true, message: 'Failed to update task', severity: 'error' });
+        } finally {
+            setTaskActionPending(false);
+        }
     };
 
     /* ---- loading / error guards ---- */
@@ -112,12 +177,7 @@ export default function InquiryDetailPage() {
     if (!inquiry) return <Box sx={{ width: '100%', px: 3, py: 4 }}><Alert severity="warning">Inquiry not found</Alert></Box>;
 
     /* ---- computed values ---- */
-    const workflowProgress = calculateWorkflowProgress(inquiry);
-    const completedCount = Math.floor((workflowProgress / 100) * WORKFLOW_PHASES.length);
-    const activeIndex = Math.min(completedCount, WORKFLOW_PHASES.length - 1);
-    const currentPhase = WORKFLOW_PHASES[activeIndex].id;
-    const currentPhaseData = WORKFLOW_PHASES[activeIndex];
-    const IconComponent = currentPhaseData?.icon || Assignment;
+    const currentPhase = getActivePhaseFromTasks(pipelineTasks, inquiry as Inquiry & { activity_logs?: unknown[] });
 
     const conversionData = getConversionScore(inquiry);
     const daysInPipeline = getDaysInPipeline(inquiry);
@@ -146,11 +206,11 @@ export default function InquiryDetailPage() {
 
             {/* --- PHASE OVERVIEW --- */}
             <PhaseOverview
-                currentPhase={currentPhase}
-                currentPhaseData={currentPhaseData}
-                activeIndex={activeIndex}
-                inquiryId={inquiry.id}
-                IconComponent={IconComponent}
+                inquiry={inquiry}
+                pipelineTasks={pipelineTasks}
+                hasRealTasks={hasRealTasks}
+                onToggleTask={handleToggleTask}
+                taskActionPending={taskActionPending}
             />
 
             {/* --- MAIN THREE-COLUMN WORKSPACE --- */}
@@ -181,14 +241,13 @@ export default function InquiryDetailPage() {
                                 />
                             </Box>
                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <SalesBudgetCard
-                                    inquiry={inquiry}
-                                    onRefresh={handleRefresh}
-                                    isActive={currentPhase === 'needs-assessment'}
-                                    activeColor={phaseColor('needs-assessment')}
-                                    submission={needsAssessmentSubmission}
-                                    WorkflowCard={WorkflowCard}
-                                />
+                                <WorkflowCard isActive={false} activeColor={undefined}>
+                                    <Box sx={{ p: 2.5 }}>
+                                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                            Coming soon
+                                        </Typography>
+                                    </Box>
+                                </WorkflowCard>
                             </Box>
                         </Box>
 

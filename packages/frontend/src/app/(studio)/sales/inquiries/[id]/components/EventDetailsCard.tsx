@@ -402,8 +402,11 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                     flex: 1,
                                     borderRadius: 3,
                                     overflow: 'hidden',
-                                    border: '1px solid rgba(51, 65, 85, 0.3)',
+                                    border: '1px solid rgba(59, 130, 246, 0.2)',
+                                    background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(2, 6, 23, 0.88))',
+                                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 30px rgba(2, 6, 23, 0.26)',
                                     minHeight: 180,
+                                    p: 0.35,
                                 }}>
                                     <VenueMap
                                         lat={formData.venue_lat!}

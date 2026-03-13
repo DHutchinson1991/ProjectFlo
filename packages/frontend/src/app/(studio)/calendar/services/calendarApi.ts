@@ -83,6 +83,24 @@ export interface BackendCalendarStats {
     past_events: number;
 }
 
+/** A unified task item returned by GET /calendar/tasks */
+export interface BackendCalendarTask {
+    id: number;
+    source: 'inquiry' | 'project';
+    inquiry_id: number | null;
+    project_id: number | null;
+    name: string;
+    description: string | null;
+    phase: string;
+    status: string;
+    due_date: string | null;
+    estimated_hours: number | null;
+    completed_at: string | null;
+    context_label: string;
+    project_name: string | null;
+    assignee: { id: number; name: string; email: string } | null;
+}
+
 export interface CalendarApiQuery {
     start_date?: string;
     end_date?: string;
@@ -250,6 +268,23 @@ class CalendarApiService {
 
         const endpoint = `/calendar/stats${searchParams.toString() ? `?${searchParams}` : ''}`;
         return this.makeRequest<BackendCalendarStats>(endpoint);
+    }
+
+    // Tasks (inquiry_tasks + project_tasks with due dates)
+    async getTasksForDateRange(startDate: Date, endDate: Date): Promise<BackendCalendarTask[]> {
+        const formatDate = (date: Date): string => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const params = new URLSearchParams({
+            start_date: formatDate(startDate),
+            end_date: formatDate(endDate),
+        });
+
+        return this.makeRequest<BackendCalendarTask[]>(`/calendar/tasks?${params}`);
     }
 }
 

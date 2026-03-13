@@ -283,6 +283,7 @@ export class ProjectPackageSnapshotService {
                 model: true,
                 is_unmanned: true,
                 is_active: true,
+                rental_price_per_day: true,
               },
             },
           },

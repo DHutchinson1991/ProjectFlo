@@ -25,6 +25,9 @@ export const ModalsContainer: React.FC = () => {
     scrollToTime,
     readOnly,
     packageId,
+    linkedActivityId,
+    instanceOwnerType,
+    instanceOwnerId,
   } = useContentBuilder();
 
   const handleSceneCreated = React.useCallback(async (newScene: any) => {
@@ -76,6 +79,9 @@ export const ModalsContainer: React.FC = () => {
       onSceneCreated={handleSceneCreated}
       filmId={typeof filmId === 'string' ? parseInt(filmId, 10) : filmId}
       packageId={packageId}
+      linkedActivityId={linkedActivityId}
+      instanceOwnerType={instanceOwnerType}
+      instanceOwnerId={instanceOwnerId}
       scenes={getFilteredScenes()}
       readOnly={readOnly}
       onSceneSelect={handleSceneSelect}

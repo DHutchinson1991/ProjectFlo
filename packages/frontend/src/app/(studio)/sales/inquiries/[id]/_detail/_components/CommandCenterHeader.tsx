@@ -106,6 +106,7 @@ export default function CommandCenterHeader({
               .slice(0, 2)
         : '?';
 
+
     /* ---- render ---- */
     return (
         <Box

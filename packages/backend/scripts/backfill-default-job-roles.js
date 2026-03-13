@@ -1,29 +1,31 @@
 /**
  * Backfill default_job_role_id for task_library entries
- * 
+ *
  * For each task that has skills_needed but no default_job_role_id,
- * this script fetches skill-role mappings and picks the best matching role.
- * 
- * Usage:
- *   1. Make sure the backend server is running (http://localhost:3002)
- *   2. Run: node scripts/backfill-default-job-roles.js
+ * this script uses skill-role mappings to pick the best matching role.
+ *
+ * Uses Prisma directly — no running server required.
+ *
+ * Usage (from packages/backend):
+ *   node scripts/backfill-default-job-roles.js
+ *
+ * Idempotent — safe to run multiple times.
  */
 
-const BASE_URL = 'http://localhost:3002';
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 
 async function main() {
     console.log('=== Backfill default_job_role_id for task library entries ===\n');
 
     // 1. Fetch all job roles
-    const rolesRes = await fetch(`${BASE_URL}/job-roles`);
-    if (!rolesRes.ok) throw new Error(`Failed to fetch job roles: ${rolesRes.status}`);
-    const jobRoles = await rolesRes.json();
+    const jobRoles = await prisma.job_roles.findMany();
     console.log(`Found ${jobRoles.length} job roles`);
 
-    // 2. Fetch all skill-role mappings
-    const mappingsRes = await fetch(`${BASE_URL}/skill-role-mappings`);
-    if (!mappingsRes.ok) throw new Error(`Failed to fetch mappings: ${mappingsRes.status}`);
-    const allMappings = await mappingsRes.json();
+    // 2. Fetch all skill-role mappings with their job_role relation
+    const allMappings = await prisma.skill_role_mappings.findMany({
+        include: { job_role: true },
+    });
     console.log(`Found ${allMappings.length} skill-role mappings`);
 
     // Build lookup: skill_name (lowercase) → [{ job_role_id, job_role_name }]
@@ -37,13 +39,10 @@ async function main() {
         });
     }
 
-    // 3. Fetch all tasks (grouped by phase)
-    const tasksRes = await fetch(`${BASE_URL}/task-library/grouped`);
-    if (!tasksRes.ok) throw new Error(`Failed to fetch tasks: ${tasksRes.status}`);
-    const tasksByPhase = await tasksRes.json();
-
-    // Flatten tasks
-    const allTasks = Object.values(tasksByPhase).flat();
+    // 3. Fetch all tasks
+    const allTasks = await prisma.task_library.findMany({
+        orderBy: [{ phase: 'asc' }, { order_index: 'asc' }],
+    });
     console.log(`Found ${allTasks.length} total tasks\n`);
 
     // 4. For each task with skills_needed but no default_job_role_id, resolve the best role
@@ -53,20 +52,18 @@ async function main() {
     let skippedNoMatch = 0;
 
     for (const task of allTasks) {
-        // Skip if already has a role assigned
         if (task.default_job_role_id) {
             skippedAlreadySet++;
             continue;
         }
 
-        // Skip if no skills
         if (!task.skills_needed || task.skills_needed.length === 0) {
             skippedNoSkills++;
             continue;
         }
 
         // Count role occurrences across all skills
-        const roleCounts = new Map(); // job_role_id → { count, name }
+        const roleCounts = new Map();
         for (const skill of task.skills_needed) {
             const entries = skillToRoles.get(skill.toLowerCase()) || [];
             for (const entry of entries) {
@@ -94,19 +91,14 @@ async function main() {
             }
         }
 
-        // Update via API
-        const updateRes = await fetch(`${BASE_URL}/task-library/${task.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ default_job_role_id: bestRoleId }),
+        // Update directly via Prisma
+        await prisma.task_library.update({
+            where: { id: task.id },
+            data: { default_job_role_id: bestRoleId },
         });
 
-        if (updateRes.ok) {
-            updated++;
-            console.log(`  ✅ "${task.name}" → ${bestName} (${bestCount}/${task.skills_needed.length} skills matched)`);
-        } else {
-            console.log(`  ❌ Failed to update "${task.name}": ${updateRes.status}`);
-        }
+        updated++;
+        console.log(`  ✅ "${task.name}" → ${bestName} (${bestCount}/${task.skills_needed.length} skills matched)`);
     }
 
     console.log('\n=== Summary ===');
@@ -117,7 +109,9 @@ async function main() {
     console.log(`  Total tasks:        ${allTasks.length}`);
 }
 
-main().catch(err => {
-    console.error('Backfill failed:', err);
-    process.exit(1);
-});
+main()
+    .catch(err => {
+        console.error('Backfill failed:', err);
+        process.exit(1);
+    })
+    .finally(() => prisma.$disconnect());

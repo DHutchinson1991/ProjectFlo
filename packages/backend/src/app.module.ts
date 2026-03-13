@@ -29,6 +29,7 @@ import { CalendarModule } from "./calendar/calendar.module";
 import { ProjectsModule } from "./projects/projects.module";
 // Lead Management
 import { InquiriesModule } from "./inquiries/inquiries.module";
+import { InquiryTasksModule } from "./inquiry-tasks/inquiry-tasks.module";
 import { ClientsModule } from "./clients/clients.module";
 import { ProposalsModule } from "./proposals/proposals.module";
 import { ActivityLogsModule } from "./activity-logs/activity-logs.module";
@@ -55,6 +56,10 @@ import { WorkflowsModule } from './business/workflows/workflows.module';
 import { NeedsAssessmentsModule } from './needs-assessments/needs-assessments.module';
 import { ScheduleModule } from './content/schedule/schedule.module';
 import { InstanceFilmsModule } from './content/instance-films/instance-films.module';
+import { PaymentSchedulesModule } from './payment-schedules/payment-schedules.module';
+import { MontagePresetsModule } from './content/montage-presets/montage-presets.module';
+import { FilmStructureTemplatesModule } from './content/film-structure-templates/film-structure-templates.module';
+import { SceneAudioSourcesModule } from './content/scene-audio-sources/scene-audio-sources.module';
 
 @Module({
   imports: [
@@ -80,6 +85,7 @@ import { InstanceFilmsModule } from './content/instance-films/instance-films.mod
     CalendarModule,
     ProjectsModule,
     InquiriesModule,
+    InquiryTasksModule,
     ClientsModule,
     ProposalsModule,
     ActivityLogsModule,
@@ -104,6 +110,10 @@ import { InstanceFilmsModule } from './content/instance-films/instance-films.mod
     NeedsAssessmentsModule,
     ScheduleModule,
     InstanceFilmsModule,
+    PaymentSchedulesModule,
+    MontagePresetsModule,
+    FilmStructureTemplatesModule,
+    SceneAudioSourcesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -23,6 +23,7 @@ import {
     Save as SaveIcon,
     Cancel as CancelIcon,
     DragIndicator as DragIndicatorIcon,
+    CalendarMonth as CalendarMonthIcon,
 } from "@mui/icons-material";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { TaskLibrary, JobRole, SkillRoleMapping, TriggerType, TRIGGER_TYPE_LABELS } from "@/lib/types";
@@ -103,6 +104,10 @@ export function TaskTable({
                         <TableCell align="center" sx={{ fontWeight: 600 }}>
                             <TimerIcon fontSize="small" sx={{ verticalAlign: "middle", mr: 1 }} />
                             Hours
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 600 }}>
+                            <CalendarMonthIcon fontSize="small" sx={{ verticalAlign: "middle", mr: 0.5 }} />
+                            Due Days
                         </TableCell>
                         <TableCell align="center" sx={{ fontWeight: 600 }}>Trigger</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 600 }}>Status</TableCell>
@@ -263,6 +268,43 @@ export function TaskTable({
                                     variant="outlined"
                                     sx={{
                                         width: '80px',
+                                        '& .MuiOutlinedInput-root': {
+                                            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                            borderRadius: 2,
+                                            fontSize: '0.875rem',
+                                            '& fieldset': {
+                                                borderColor: 'rgba(255, 255, 255, 0.2)',
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: 'rgba(255, 255, 255, 0.3)',
+                                            },
+                                            '&.Mui-focused fieldset': {
+                                                borderColor: 'primary.main',
+                                            },
+                                        },
+                                        '& .MuiInputBase-input': {
+                                            color: 'white',
+                                            textAlign: 'center',
+                                            fontSize: '0.875rem',
+                                        },
+                                    }}
+                                />
+                            </TableCell>
+
+                            {/* Due Days */}
+                            <TableCell align="center">
+                                <TextField
+                                    type="number"
+                                    placeholder="—"
+                                    value={quickAddData.due_date_offset_days ?? ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                                        updateQuickAddData('due_date_offset_days', val);
+                                    }}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{
+                                        width: '70px',
                                         '& .MuiOutlinedInput-root': {
                                             backgroundColor: 'rgba(255, 255, 255, 0.08)',
                                             borderRadius: 2,

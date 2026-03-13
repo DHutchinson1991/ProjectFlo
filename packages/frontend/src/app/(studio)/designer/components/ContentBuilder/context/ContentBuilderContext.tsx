@@ -106,6 +106,7 @@ interface ContentBuilderContextType {
   handleTimelineClick: (time: number) => void;
   jumpToTime: (time: number) => void;
   currentScene: TimelineScene | null;
+  currentMoment: any | null;
   
   // Scene Library
   getFilteredScenes: () => unknown[];
@@ -163,6 +164,8 @@ interface ContentBuilderContextType {
   packageLocationLookup: Map<string, PackageLocation>;
   /** The activity this film is scoped to (from URL ?activityId=) */
   linkedActivityId?: number | null;
+  instanceOwnerType?: 'project' | 'inquiry';
+  instanceOwnerId?: number | null;
   /** Per-track defaults: trackId → { subject_ids, shot_type, audio_enabled } */
 
   trackDefaults: Record<number, TrackDefault>;
@@ -181,6 +184,8 @@ interface ContentBuilderProviderProps {
   readOnly?: boolean;
   packageId?: number | null;
   linkedActivityId?: number | null;
+  instanceOwnerType?: 'project' | 'inquiry';
+  instanceOwnerId?: number | null;
   equipmentConfig?: {
     cameras: number;
     audio: number;
@@ -208,6 +213,8 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
   filmId,
   packageId,
   linkedActivityId,
+  instanceOwnerType,
+  instanceOwnerId,
   initialScenes,
   initialTracks,
   onSave,
@@ -409,6 +416,25 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
     timelineState.scenes,
     playbackControls.playbackState.currentTime
   );
+
+  // Compute current moment at playback cursor position
+  const currentMoment = React.useMemo(() => {
+    const scene = currentSceneHook.currentScene;
+    if (!scene) return null;
+    const originalScene = (scene as any).original_scene || scene;
+    const moments = originalScene.moments || [];
+    if (moments.length === 0) return null;
+    const relativeTime = playbackControls.playbackState.currentTime - (scene.start_time || 0);
+    let cumulativeTime = 0;
+    for (const m of moments) {
+      const momentDuration = m.duration || m.duration_seconds || 0;
+      if (relativeTime >= cumulativeTime && relativeTime < cumulativeTime + momentDuration) {
+        return m;
+      }
+      cumulativeTime += momentDuration;
+    }
+    return moments[moments.length - 1];
+  }, [currentSceneHook.currentScene, playbackControls.playbackState.currentTime]);
   
   const dragDrop = useTimelineDragDrop({
     scenes: timelineState.scenes,
@@ -466,6 +492,7 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
     // Playback
     ...playbackControls,
     currentScene: currentSceneHook.currentScene,
+    currentMoment,
     
     // Scene Library
     ...scenesLibrary,
@@ -521,6 +548,8 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
     packageLocations,
     packageLocationLookup,
     linkedActivityId,
+    instanceOwnerType,
+    instanceOwnerId,
     trackDefaults,
     setTrackDefault,
   };

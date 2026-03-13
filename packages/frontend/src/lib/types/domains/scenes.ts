@@ -8,6 +8,7 @@
 import type { SceneMoment } from './../moments';
 import type { SceneBeat } from './beats';
 import type { SceneMusic } from './music';
+import type { SceneAudioSource } from './audio-sources';
 import type { FilmSceneLocationAssignment } from '../locations';
 
 /**
@@ -75,6 +76,7 @@ export interface FilmScene {
   beats?: SceneBeat[];
   scene_music?: SceneMusic;
   location_assignment?: FilmSceneLocationAssignment | null;
+  audio_sources?: SceneAudioSource[];
 }
 
 /**

@@ -9,6 +9,7 @@ export interface SceneResponseDto {
     id: number;
     film_id: number;
     name: string;
+    mode: SceneType;
     scene_template_id: number | null;
     shot_count?: number | null;
     duration_seconds?: number | null;
@@ -36,6 +37,7 @@ export class ScenesService {
             id: scene.id,
             film_id: scene.film_id,
             name: scene.name,
+            mode: scene.mode,
             scene_template_id: scene.scene_template_id,
             shot_count: (scene as any).shot_count ?? null,
             duration_seconds: (scene as any).duration_seconds ?? null,
@@ -60,7 +62,8 @@ export class ScenesService {
         }
 
         // If scene_template_id provided, verify it exists and get mode
-        let sceneMode: 'MOMENTS' | 'MONTAGE' = 'MOMENTS';
+        let sceneMode: SceneType =
+            createSceneDto.mode === 'MONTAGE' ? SceneType.MONTAGE : SceneType.MOMENTS;
         if (createSceneDto.scene_template_id) {
             const template = await this.prisma.sceneTemplate.findUnique({
                 where: { id: createSceneDto.scene_template_id },

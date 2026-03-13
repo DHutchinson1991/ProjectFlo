@@ -6,7 +6,7 @@ import { FilmResponseDto } from "./dto/film-response.dto";
 import { FilmEquipmentService } from "./services/film-equipment.service";
 import { FilmScenesManagementService } from "./services/film-scenes-management.service";
 import { LoggerService } from "../../common/logging/logger.service";
-import { Prisma, FilmTimelineTrack } from "@prisma/client";
+import { Prisma, FilmTimelineTrack, FilmType } from "@prisma/client";
 import {
   AssignEquipmentDto,
   UpdateEquipmentAssignmentDto,
@@ -34,11 +34,28 @@ export class FilmsService {
   async create(createDto: CreateFilmDto): Promise<FilmResponseDto> {
     this.logger.log('Creating film', { name: createDto.name, brand_id: createDto.brand_id });
 
+    // If montage_preset_id provided, auto-set target durations from preset
+    let targetMin = createDto.target_duration_min ?? null;
+    let targetMax = createDto.target_duration_max ?? null;
+    if (createDto.montage_preset_id && (targetMin === null || targetMax === null)) {
+      const preset = await this.prisma.montagePreset.findUnique({
+        where: { id: createDto.montage_preset_id },
+      });
+      if (preset) {
+        targetMin = targetMin ?? preset.min_duration_seconds;
+        targetMax = targetMax ?? preset.max_duration_seconds;
+      }
+    }
+
     // Create film
     const film = await this.prisma.film.create({
       data: {
         name: createDto.name,
         brand_id: createDto.brand_id,
+        film_type: (createDto.film_type as any) ?? 'FEATURE',
+        montage_preset_id: createDto.montage_preset_id ?? null,
+        target_duration_min: targetMin,
+        target_duration_max: targetMax,
         created_at: new Date(),
         updated_at: new Date(),
       },
@@ -63,6 +80,7 @@ export class FilmsService {
     const films = await this.prisma.film.findMany({
       where: brandId ? { brand_id: brandId } : {},
       include: {
+        montage_preset: true,
         tracks: {
           orderBy: { order_index: 'asc' },
         },
@@ -110,6 +128,9 @@ export class FilmsService {
               },
             },
             scene_music: true,
+            audio_sources: {
+              orderBy: { order_index: 'asc' },
+            },
             location_assignment: {
               include: { location: true },
             },
@@ -130,6 +151,7 @@ export class FilmsService {
     const film = await this.prisma.film.findUnique({
       where: { id },
       include: {
+        montage_preset: true,
         tracks: {
           orderBy: { order_index: 'asc' },
         },
@@ -177,6 +199,9 @@ export class FilmsService {
               },
             },
             scene_music: true,
+            audio_sources: {
+              orderBy: { order_index: 'asc' },
+            },
             location_assignment: {
               include: { location: true },
             },
@@ -199,10 +224,12 @@ export class FilmsService {
   async update(id: number, updateData: UpdateFilmDto): Promise<FilmResponseDto> {
     this.logger.log('Updating film', { filmId: id, updates: updateData });
 
+    const { film_type, ...rest } = updateData;
     await this.prisma.film.update({
       where: { id },
       data: {
-        ...updateData,
+        ...rest,
+        ...(film_type !== undefined && { film_type: film_type as FilmType }),
         updated_at: new Date(),
       },
     });
@@ -331,8 +358,20 @@ export class FilmsService {
       id: film.id,
       name: film.name,
       brand_id: film.brand_id,
+      film_type: film.film_type ?? 'FEATURE',
+      montage_preset_id: film.montage_preset_id ?? null,
+      target_duration_min: film.target_duration_min ?? null,
+      target_duration_max: film.target_duration_max ?? null,
       created_at: film.created_at,
       updated_at: film.updated_at,
+      montage_preset: film.montage_preset
+        ? {
+            id: film.montage_preset.id,
+            name: film.montage_preset.name,
+            min_duration_seconds: film.montage_preset.min_duration_seconds,
+            max_duration_seconds: film.montage_preset.max_duration_seconds,
+          }
+        : null,
       tracks: film.tracks || [],
       subjects: film.subjects || [],
       locations: (film.locations || []).map((assignment) => ({
@@ -434,6 +473,9 @@ export class FilmsService {
           order_index: beat.order_index,
           shot_count: (beat as any).shot_count ?? null,
           duration_seconds: beat.duration_seconds,
+          source_activity_id: (beat as any).source_activity_id ?? null,
+          source_moment_id: (beat as any).source_moment_id ?? null,
+          source_scene_id: (beat as any).source_scene_id ?? null,
           recording_setup: (beat as any).recording_setup
             ? {
                 id: (beat as any).recording_setup.id,
@@ -472,6 +514,21 @@ export class FilmsService {
               updated_at: (scene as any).scene_music.updated_at,
             }
           : null,
+        audio_sources: ((scene as any).audio_sources || []).map((src: any) => ({
+          id: src.id,
+          scene_id: src.scene_id,
+          source_type: src.source_type,
+          source_activity_id: src.source_activity_id,
+          source_moment_id: src.source_moment_id,
+          source_scene_id: src.source_scene_id,
+          track_type: src.track_type,
+          start_offset_seconds: src.start_offset_seconds,
+          duration_seconds: src.duration_seconds,
+          order_index: src.order_index,
+          notes: src.notes,
+          created_at: src.created_at,
+          updated_at: src.updated_at,
+        })),
       })),
     };
   }

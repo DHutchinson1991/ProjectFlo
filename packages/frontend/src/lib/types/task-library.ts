@@ -54,6 +54,7 @@ export interface TaskLibrary extends BaseEntity {
     brand_id: number;
     order_index: number;
     trigger_type: TriggerType;
+    due_date_offset_days?: number | null;
     default_job_role_id?: number | null;
     default_job_role?: Pick<JobRole, 'id' | 'name' | 'display_name' | 'category'> | null;
     skills_needed?: string[];
@@ -100,6 +101,7 @@ export interface CreateTaskLibraryDto {
     is_active: boolean;
     brand_id: number;
     trigger_type?: TriggerType;
+    due_date_offset_days?: number | null;
     default_job_role_id?: number;
     skills_needed?: string[];
 }

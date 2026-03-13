@@ -19,4 +19,16 @@ export class UpdateBeatDto {
     @IsOptional()
     @Min(1)
     duration_seconds?: number | null;
+
+    @IsNumber()
+    @IsOptional()
+    source_activity_id?: number | null;
+
+    @IsNumber()
+    @IsOptional()
+    source_moment_id?: number | null;
+
+    @IsNumber()
+    @IsOptional()
+    source_scene_id?: number | null;
 }

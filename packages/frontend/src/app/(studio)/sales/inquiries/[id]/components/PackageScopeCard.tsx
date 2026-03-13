@@ -34,6 +34,15 @@ interface PackageSetInfo {
     tierLabel: string;
 }
 
+interface InquiryFilmRecord {
+    id: number;
+    film_id?: number;
+    film?: {
+        id: number;
+        name?: string | null;
+    } | null;
+}
+
 interface PackageScopeCardProps {
     inquiry: Inquiry & { activity_logs?: unknown[] };
     onRefresh?: () => Promise<void>;
@@ -58,6 +67,8 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     const [availablePackages, setAvailablePackages] = useState<any[]>([]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [packageSets, setPackageSets] = useState<any[]>([]);
+    const [liveFilms, setLiveFilms] = useState<InquiryFilmRecord[]>([]);
+    const [hasLoadedLiveFilms, setHasLoadedLiveFilms] = useState(false);
 
     // Fetch both service packages and package sets
     useEffect(() => {
@@ -66,6 +77,34 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
             api.packageSets.getAll(inquiry.brand_id).then(setPackageSets).catch(console.error);
         }
     }, [inquiry.brand_id]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        api.schedule.inquiryFilms.getAll(inquiry.id)
+            .then((films) => {
+                if (cancelled) return;
+                setLiveFilms(films || []);
+                setHasLoadedLiveFilms(true);
+            })
+            .catch((err: any) => {
+                if (cancelled) return;
+                const isNotFound = err?.status === 404 || err?.message?.includes?.('404');
+                if (isNotFound) {
+                    setLiveFilms([]);
+                    setHasLoadedLiveFilms(false);
+                    return;
+                }
+
+                console.warn('Failed to load inquiry films for package scope card:', err);
+                setLiveFilms([]);
+                setHasLoadedLiveFilms(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [inquiry.id]);
 
     // Build a map of packageId → set/tier info
     const packageSetInfoMap = useMemo(() => {
@@ -94,9 +133,18 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
 
     // Package stats (matches the FilledSlot card layout)
     const stats = selectedPkg ? getPackageStats(selectedPkg) : null;
+
     const catColor = selectedPkg ? getCategoryColor(selectedPkg.category) : '#64748b';
     const tierColor = selectedSetInfo ? getTierColor(selectedSetInfo.tierLabel) : '#648CFF';
-    const filmItems = selectedPkg ? ((selectedPkg.contents?.items || []).filter((i: { type: string }) => i.type === 'film')) : [];
+    const packageFilmItems = selectedPkg
+        ? ((selectedPkg.contents?.items || []).filter((i: { type: string }) => i.type === 'film'))
+        : [];
+    const displayFilms = hasLoadedLiveFilms
+        ? liveFilms.map((filmRecord) => ({
+            id: filmRecord.id,
+            description: filmRecord.film?.name || `Film #${filmRecord.film_id}`,
+        }))
+        : packageFilmItems;
 
     return (
         <WorkflowCard isActive={isActive} activeColor={activeColor}>
@@ -104,7 +152,7 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                 {/* Header */}
                 <Box sx={{ px: 2.5, pt: 2, pb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Videocam /> Package & Scope
+                        <Videocam /> Package
                     </Typography>
                     <Button
                         size="small"
@@ -235,9 +283,9 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                             }}>
                                 Films
                             </Typography>
-                            {filmItems.length > 0 ? (
+                            {displayFilms.length > 0 ? (
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                                    {filmItems.map((item: { id?: number; description?: string }, idx: number) => (
+                                    {displayFilms.map((item: { id?: number; description?: string }, idx: number) => (
                                         <Box key={item.id || idx} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <MovieIcon sx={{ fontSize: 13, color: '#648CFF', opacity: 0.7 }} />
                                             <Typography sx={{

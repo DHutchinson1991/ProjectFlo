@@ -92,7 +92,8 @@ const WeekView: React.FC<WeekViewProps> = ({
     onCreateEvent,
     onEventUpdate,
     onDateClick = () => { },
-    tasks = []
+    tasks = [],
+    onTaskClick = () => { }
 }) => {
     // Format hour display
     const formatHour = (hour: number) => {
@@ -544,7 +545,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                     }
                 }}
             >
-                {/* Days Header - Compact */}
+                {/* Days Header - Compact with expandable tasks */}
                 <WeekHeaderRow
                     weekDays={weekDays}
                     dayNames={dayNames}
@@ -552,6 +553,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                     tasks={tasks}
                     onDateClick={onDateClick}
                     getDayTasks={getDayTasks}
+                    onTaskClick={onTaskClick}
                 />
 
                 {/* Week Grid */}
@@ -585,6 +587,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                         setHoveredEvent={setHoveredEvent}
                     />
                 </Box>
+
             </Box>
         </WeekViewMoveContext>
     );

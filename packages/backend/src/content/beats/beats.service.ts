@@ -10,6 +10,9 @@ export interface BeatResponseDto {
     order_index: number;
     shot_count?: number | null;
     duration_seconds: number;
+    source_activity_id?: number | null;
+    source_moment_id?: number | null;
+    source_scene_id?: number | null;
     created_at: Date;
     updated_at: Date;
     recording_setup?: {
@@ -26,24 +29,7 @@ export interface BeatResponseDto {
 export class BeatsService {
     constructor(private prisma: PrismaService) {}
 
-    private mapToResponseDto(beat: {
-        id: number;
-        film_scene_id: number;
-        name: string;
-        order_index: number;
-        shot_count?: number | null;
-        duration_seconds: number;
-        created_at: Date;
-        updated_at: Date;
-        recording_setup?: {
-            id: number;
-            camera_track_ids: number[];
-            audio_track_ids: number[];
-            graphics_enabled: boolean;
-            created_at: Date;
-            updated_at: Date;
-        } | null;
-    }): BeatResponseDto {
+    private mapToResponseDto(beat: any): BeatResponseDto {
         return {
             id: beat.id,
             film_scene_id: beat.film_scene_id,
@@ -51,6 +37,9 @@ export class BeatsService {
             order_index: beat.order_index,
             shot_count: beat.shot_count ?? null,
             duration_seconds: beat.duration_seconds,
+            source_activity_id: beat.source_activity_id ?? null,
+            source_moment_id: beat.source_moment_id ?? null,
+            source_scene_id: beat.source_scene_id ?? null,
             created_at: beat.created_at,
             updated_at: beat.updated_at,
             recording_setup: beat.recording_setup
@@ -83,6 +72,9 @@ export class BeatsService {
                 order_index: orderIndex,
                 shot_count: createBeatDto.shot_count ?? null,
                 duration_seconds: createBeatDto.duration_seconds ?? 10,
+                source_activity_id: createBeatDto.source_activity_id ?? null,
+                source_moment_id: createBeatDto.source_moment_id ?? null,
+                source_scene_id: createBeatDto.source_scene_id ?? null,
             },
         });
 
@@ -133,6 +125,9 @@ export class BeatsService {
                 order_index: updateBeatDto.order_index,
                 shot_count: updateBeatDto.shot_count ?? beat.shot_count,
                 duration_seconds: updateBeatDto.duration_seconds ?? beat.duration_seconds,
+                source_activity_id: updateBeatDto.source_activity_id !== undefined ? updateBeatDto.source_activity_id : undefined,
+                source_moment_id: updateBeatDto.source_moment_id !== undefined ? updateBeatDto.source_moment_id : undefined,
+                source_scene_id: updateBeatDto.source_scene_id !== undefined ? updateBeatDto.source_scene_id : undefined,
             },
         });
 

@@ -209,11 +209,14 @@ export default function InstanceFilmEditorPage({ params }: { params: { id: strin
                     name: (s.name as string) || `Scene ${idx + 1}`,
                     duration: (s.duration_seconds as number) ?? 60,
                     scene_type: "video" as const,
+                    scene_mode: s.mode ?? null,
                     start_time: 0,
                     track_id: 0,
                     color: getSceneColorByType?.("video") ?? "#4a90d9",
                     order_index: (s.order_index as number) ?? idx,
                     scene_template_id: s.scene_template_id ?? null,
+                    scene_template_type: s.template?.type ?? s.mode ?? null,
+                    template: s.template ?? null,
                     shot_count: s.shot_count ?? null,
                     duration_seconds: s.duration_seconds ?? null,
                     recording_setup: s.recording_setup ?? null,
@@ -389,6 +392,8 @@ export default function InstanceFilmEditorPage({ params }: { params: { id: strin
                             subjectCount={subjects.length}
                             packageId={linkedPackageId ? Number(linkedPackageId) : undefined}
                             linkedActivityId={linkedActivityId ? Number(linkedActivityId) : undefined}
+                            instanceOwnerType={mode}
+                            instanceOwnerId={mode === "inquiry" ? (inquiryId ? Number(inquiryId) : null) : (projectId ? Number(projectId) : null)}
                             equipmentConfig={equipmentSummary || undefined}
                             equipmentAssignmentsBySlot={equipmentAssignmentsBySlot}
                             filmApi={filmApi}

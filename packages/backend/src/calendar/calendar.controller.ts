@@ -192,4 +192,13 @@ export class CalendarController {
         const limit = limitStr ? parseInt(limitStr, 10) : 10;
         return this.calendarService.getUpcomingEvents(parsedContributorId, limit);
     }
+
+    // Task deadlines for calendar display
+    @Get('tasks')
+    async getTasksForDateRange(
+        @Query('start_date') startDate: string,
+        @Query('end_date') endDate: string,
+    ) {
+        return this.calendarService.getTasksForDateRange(startDate, endDate);
+    }
 }

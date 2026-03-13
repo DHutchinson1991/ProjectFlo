@@ -116,7 +116,9 @@ export interface Estimate {
     is_primary?: boolean;
     notes?: string;
     terms?: string;
+    schedule_template_id?: number | null;
     items: EstimateItem[];
+    payment_milestones?: EstimatePaymentMilestone[];
     created_at: Date;
     updated_at: Date;
     inquiry?: Inquiry;
@@ -174,6 +176,14 @@ export interface Inquiry {
     lead_source?: string | null;
     lead_source_details?: string | null;
     selected_package_id?: number | null;
+    package_contents_snapshot?: {
+        snapshot_taken_at: string;
+        package_id: number;
+        package_name: string;
+        base_price?: number;
+        currency?: string;
+        contents?: Record<string, unknown>;
+    } | null;
     workflow_status?: Record<string, string>; // Track checklist state
     contact: Contact;
     contact_id: number;
@@ -186,6 +196,37 @@ export interface Inquiry {
     invoices?: Invoice[];
     estimates?: Estimate[];
     activity_logs?: unknown[];
+}
+
+export type InquiryTaskStatus = 'To_Do' | 'Ready_to_Start' | 'In_Progress' | 'Completed' | 'Archived';
+
+export interface InquiryTask {
+    id: number;
+    inquiry_id: number;
+    task_library_id: number | null;
+    name: string;
+    description: string | null;
+    phase: 'Inquiry' | 'Booking';
+    trigger_type: string;
+    estimated_hours: number | null;
+    due_date: string | null;
+    status: InquiryTaskStatus;
+    order_index: number;
+    completed_at: string | null;
+    completed_by_id: number | null;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    task_library?: {
+        id: number;
+        name: string;
+        effort_hours: number | null;
+        trigger_type: string;
+    } | null;
+    completed_by?: {
+        id: number;
+        contact: { first_name: string; last_name: string };
+    } | null;
 }
 
 export interface ClientProject {
@@ -564,6 +605,70 @@ export interface UpdateQuoteData {
     notes?: string;
     project_id?: number;
     items?: QuoteItem[];
+}
+
+// ── Payment Schedule Types ────────────────────────────────────────────────────
+
+export type PaymentTriggerType = 'AFTER_BOOKING' | 'BEFORE_EVENT' | 'AFTER_EVENT' | 'ON_DATE';
+export type PaymentAmountType = 'PERCENT' | 'FIXED';
+export type MilestoneStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'WAIVED';
+
+export interface PaymentScheduleRule {
+    id?: number;
+    template_id?: number;
+    label: string;
+    amount_type: PaymentAmountType;
+    amount_value: number;
+    trigger_type: PaymentTriggerType;
+    trigger_days?: number | null;
+    order_index?: number;
+}
+
+export interface PaymentScheduleTemplate {
+    id: number;
+    brand_id: number;
+    name: string;
+    description?: string;
+    is_default: boolean;
+    is_active: boolean;
+    rules: PaymentScheduleRule[];
+    created_at: Date;
+    updated_at: Date;
+}
+
+export interface EstimatePaymentMilestone {
+    id: number;
+    estimate_id: number;
+    label: string;
+    amount: number;
+    due_date: string;
+    status: MilestoneStatus;
+    notes?: string;
+    order_index: number;
+    created_at: Date;
+    updated_at: Date;
+}
+
+export interface CreatePaymentScheduleTemplateData {
+    name: string;
+    description?: string;
+    is_default?: boolean;
+    rules: PaymentScheduleRule[];
+}
+
+export interface UpdatePaymentScheduleTemplateData {
+    name?: string;
+    description?: string;
+    is_default?: boolean;
+    is_active?: boolean;
+    rules?: PaymentScheduleRule[];
+}
+
+export interface ApplyScheduleToEstimateData {
+    template_id: number;
+    booking_date: string;  // ISO
+    event_date: string;    // ISO
+    total_amount: number;
 }
 
 

@@ -66,6 +66,7 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
         contact_id: apiResponse.contact_id,
         brand_id: apiResponse.brand_id, // Updated to use actual brand_id
         selected_package_id: apiResponse.selected_package_id,
+        package_contents_snapshot: apiResponse.package_contents_snapshot ?? null,
         created_at: new Date(apiResponse.created_at),
         updated_at: new Date(apiResponse.updated_at),
     };

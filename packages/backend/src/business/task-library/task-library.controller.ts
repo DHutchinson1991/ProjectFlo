@@ -76,9 +76,11 @@ export class TaskLibraryController {
     previewAutoGeneration(
         @Param('packageId', ParseIntPipe) packageId: number,
         @Query('brandId', ParseIntPipe) brandId: number,
+        @Query('inquiryId') inquiryIdRaw: string | undefined,
         @Request() req: AuthenticatedRequest,
     ) {
-        return this.taskLibraryService.previewAutoGeneration(packageId, brandId, req.user.id);
+        const inquiryId = inquiryIdRaw ? parseInt(inquiryIdRaw, 10) : undefined;
+        return this.taskLibraryService.previewAutoGeneration(packageId, brandId, req.user.id, inquiryId);
     }
 
     @Post('auto-generate/execute')

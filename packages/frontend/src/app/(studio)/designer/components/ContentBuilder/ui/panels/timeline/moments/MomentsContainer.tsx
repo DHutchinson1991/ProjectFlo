@@ -1,12 +1,12 @@
 "use client";
 
 import React from 'react';
+
 import { Box, Typography } from "@mui/material";
 import CameraAltOutlinedIcon from "@mui/icons-material/CameraAltOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
 import { alpha, lighten } from "@mui/material/styles";
-import { formatTime } from "@/lib/utils/formatUtils";
 import { getDefaultTrackColor } from "../../../../utils/colorUtils";
 import { TimelineScene } from "@/lib/types/timeline";
 import { isLogEnabled } from "@/lib/debug/log-flags";
@@ -50,13 +50,16 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isMusicTrack = mediaComponents.some((c: any) => c.media_type === 'MUSIC');
 
-    // Calculate total duration from moments
+    // Use the scene's full duration as the denominator so moments occupy
+    // their real proportion of the scene, leaving gaps for unfilmed time.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const totalMomentsDuration = moments.reduce((sum: number, m: any) => {
         return sum + (m.duration || m.duration_seconds || 0);
     }, 0);
 
     if (totalMomentsDuration === 0) return null;
+
+    const sceneDuration = scene.duration || totalMomentsDuration;
 
     const rawTrackType = (trackType || scene.scene_type || 'video').toString();
     const normalizedTrackType = rawTrackType.toUpperCase();
@@ -98,15 +101,19 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
             .join(" ");
     };
 
-    // Calculate cumulative positions for moments
+    // Calculate cumulative positions for moments using scene duration
+    // so they occupy their real time proportion with gaps between them.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let cumulativePercent = 0;
     const momentPositions = moments.map((moment: any) => {
         const momentDuration = moment.duration || moment.duration_seconds || 0;
-        const widthPercent = (momentDuration / totalMomentsDuration) * 100;
+        const widthPercent = (momentDuration / sceneDuration) * 100;
+        const leftPercent = cumulativePercent;
+        cumulativePercent += widthPercent;
         // Use actual pixel width for label thresholds so zoom level is respected.
         // Falls back to a width-percent heuristic if sceneWidth is not yet known.
         const blockPx = sceneWidth ? (widthPercent / 100) * sceneWidth : widthPercent * 6;
-        return { moment, widthPercent, blockPx };
+        return { moment, widthPercent, leftPercent, blockPx };
     });
 
     return (
@@ -118,9 +125,10 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                 left: 0, // Starts from edge of content area (which is offset by header)
                 right: 0,
                 bottom: 1,
-                display: 'flex',
+                display: 'block',
                 pointerEvents: 'none',
                 borderRadius: 1,
+                backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(255,255,255,0.015) 3px, rgba(255,255,255,0.015) 4px)',
             }}
         >
             {isMusicTrackType && hasSceneMusic && (
@@ -156,7 +164,7 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                 </Box>
             )}
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {momentPositions.map(({ moment, widthPercent, blockPx }: any, idx: number) => {
+            {momentPositions.map(({ moment, widthPercent, leftPercent, blockPx }: any, idx: number) => {
                 const momentDuration = moment.duration || moment.duration_seconds || 0;
                 const isHovered = hoveredMomentId === moment.id;
                 // Recording setup assignments (Option A)
@@ -250,9 +258,11 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                         <Box 
                             key={`moment-spacer-${moment.id || idx}`}
                             sx={{
+                                position: 'absolute',
+                                left: `${leftPercent}%`,
                                 width: `${widthPercent}%`,
                                 height: '100%',
-                                position: 'relative',
+                                top: 0,
                                 pointerEvents: 'none', 
                                 bgcolor: isHovered ? 'rgba(123, 97, 255, 0.14)' : 'transparent',
                                 boxShadow: isHovered ? 'inset 0 0 0 1px rgba(123, 97, 255, 0.5), inset 0 0 16px rgba(123, 97, 255, 0.2)' : 'none',
@@ -339,7 +349,9 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                                 onMomentInfoClick(e, moment);
                             }}
                             sx={{
-                                position: 'relative',
+                                position: 'absolute',
+                                left: `${leftPercent}%`,
+                                top: 0,
                                 width: `${widthPercent}%`,
                                 height: '100%',
                                 minWidth: 4, 
@@ -501,6 +513,22 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                         </Box>
                 );
             })}
+
+            {/* ── Gap zone: diagonal stripes for unplanned time ─── */}
+            {cumulativePercent < 99 && (
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        left: `${cumulativePercent}%`,
+                        top: 0,
+                        width: `${100 - cumulativePercent}%`,
+                        height: '100%',
+                        pointerEvents: 'none',
+                        borderRadius: 1,
+                        backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(123, 97, 255, 0.03) 3px, rgba(123, 97, 255, 0.03) 4px)',
+                    }}
+                />
+            )}
         </Box>
     );
 };

@@ -742,8 +742,11 @@ const DayView: React.FC<DayViewProps> = ({
                     </Box>
                 )}
 
-                {/* Hourly Timeline */}
-                <Box sx={{ px: 2, pb: 2, flex: 1, overflow: 'hidden' }}>
+                {/* Two-Column Layout: Schedule + Tasks */}
+                <Box sx={{ display: 'flex', gap: 2, px: 2, pb: 2, flex: 1, overflow: 'hidden' }}>
+
+                {/* LEFT COLUMN: Hourly Timeline */}
+                <Box sx={{ flex: dayTasks.length > 0 ? '1 1 65%' : '1 1 100%', minWidth: 0, overflow: 'hidden' }}>
                     <Paper
                         elevation={0}
                         sx={{
@@ -1083,17 +1086,20 @@ const DayView: React.FC<DayViewProps> = ({
                     </Paper>
                 </Box>
 
-                {/* Tasks Section */}
+                {/* RIGHT COLUMN: Tasks Panel */}
                 {dayTasks.length > 0 && (
-                    <Box sx={{ px: 2, pb: 2 }}>
+                    <Box sx={{ flex: '0 0 35%', minWidth: 240, maxWidth: 400, overflow: 'auto' }}>
                         <Paper
                             elevation={0}
                             sx={{
                                 background: 'linear-gradient(135deg, rgba(46,213,115,0.05) 0%, rgba(46,213,115,0.02) 100%)',
                                 border: '1px solid rgba(46,213,115,0.2)',
-                                borderRadius: 2,
+                                borderRadius: 3,
                                 backdropFilter: 'blur(8px)',
-                                p: 2
+                                p: 2,
+                                height: '100%',
+                                display: 'flex',
+                                flexDirection: 'column'
                             }}
                         >
                             <Typography
@@ -1110,7 +1116,7 @@ const DayView: React.FC<DayViewProps> = ({
                                 Tasks ({dayTasks.length})
                             </Typography>
 
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflow: 'auto' }}>
                                 {dayTasks.map(task => (
                                     <Box
                                         key={task.id}
@@ -1133,22 +1139,55 @@ const DayView: React.FC<DayViewProps> = ({
                                             }
                                         }}
                                     >
-                                        <Typography
-                                            variant="subtitle2"
-                                            sx={{
-                                                fontWeight: 600,
-                                                color: task.completed ? '#2ed573' : '#ffa502',
-                                                mb: 0.5,
-                                                textDecoration: task.completed ? 'line-through' : 'none',
-                                                fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-                                            }}
-                                        >
-                                            {task.title}
-                                        </Typography>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                            <Box
+                                                sx={{
+                                                    width: 16,
+                                                    height: 16,
+                                                    borderRadius: 0.5,
+                                                    border: task.completed
+                                                        ? 'none'
+                                                        : task.priority === 'high'
+                                                            ? '2px solid #ff4757'
+                                                            : '2px solid #ffa502',
+                                                    background: task.completed
+                                                        ? 'linear-gradient(135deg, #2ed573 0%, #26d467 100%)'
+                                                        : 'transparent',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    flexShrink: 0,
+                                                    fontSize: '10px',
+                                                    color: '#fff',
+                                                    fontWeight: 'bold'
+                                                }}
+                                            >
+                                                {task.completed && '✓'}
+                                            </Box>
+                                            <Typography
+                                                variant="subtitle2"
+                                                sx={{
+                                                    fontWeight: 600,
+                                                    color: task.completed ? '#2ed573' : '#ffa502',
+                                                    textDecoration: task.completed ? 'line-through' : 'none',
+                                                    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                                                    fontSize: '0.85rem',
+                                                    lineHeight: 1.3
+                                                }}
+                                            >
+                                                {task.title}
+                                            </Typography>
+                                        </Box>
 
                                         {task.description && (
-                                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.8rem' }}>
+                                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.75rem', pl: 3.5 }}>
                                                 {task.description}
+                                            </Typography>
+                                        )}
+
+                                        {task.estimatedHours && (
+                                            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.7rem', pl: 3.5, mt: 0.25, display: 'block' }}>
+                                                Est. {task.estimatedHours}h
                                             </Typography>
                                         )}
                                     </Box>
@@ -1157,6 +1196,8 @@ const DayView: React.FC<DayViewProps> = ({
                         </Paper>
                     </Box>
                 )}
+
+                </Box> {/* End Two-Column Layout */}
             </Box>
         </CalendarDragContext>
     );

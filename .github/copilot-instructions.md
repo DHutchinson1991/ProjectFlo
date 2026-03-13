@@ -32,6 +32,7 @@
 - Auth token tooling lives in `tools/auth` (`tools/auth/get-auth-token.js`, `tools/auth/get-dev-token.js`), with tokens stored under `.auth/tokens`.
 - For API debugging, this repo commonly tests endpoints with curl + auth headers (see `tools/auth/README.md` and `v1.instructions.md`).
 - Agent operating rule for this repo: do not start/stop long-running dev servers automatically; ask user to run `pnpm dev` in a dedicated terminal.
+- Agent script execution: run one-off scripts (seeds, migrations, data fixes, test scripts) directly using the terminal tool without asking. If a script requires the backend server to be stopped first (e.g. database schema changes, Prisma generate), ask the user to confirm the server is stopped before proceeding.
 
 ## Project-specific conventions
 - Multi-tenant brand scoping is first-class:

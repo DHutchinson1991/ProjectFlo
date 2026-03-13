@@ -8,6 +8,10 @@ export interface FilmResponseDto {
     id: number;
     name: string;
     brand_id: number;
+    film_type: string;
+    montage_preset_id: number | null;
+    target_duration_min: number | null;
+    target_duration_max: number | null;
     created_at: Date;
     updated_at: Date;
     
@@ -16,6 +20,12 @@ export interface FilmResponseDto {
     subjects: FilmSubjectDto[];
     locations?: FilmLocationDto[];
     scenes: FilmSceneDto[];
+    montage_preset?: {
+        id: number;
+        name: string;
+        min_duration_seconds: number;
+        max_duration_seconds: number;
+    } | null;
 }
 
 export interface FilmTrackDto {
@@ -96,6 +106,23 @@ export interface FilmSceneDto {
         created_at: Date;
         updated_at: Date;
     } | null;
+    audio_sources?: SceneAudioSourceDto[];
+}
+
+export interface SceneAudioSourceDto {
+    id: number;
+    scene_id: number;
+    source_type: string;
+    source_activity_id: number | null;
+    source_moment_id: number | null;
+    source_scene_id: number | null;
+    track_type: string;
+    start_offset_seconds: number | null;
+    duration_seconds: number | null;
+    order_index: number;
+    notes: string | null;
+    created_at: Date;
+    updated_at: Date;
 }
 
 export interface SceneBeatDto {
@@ -105,6 +132,9 @@ export interface SceneBeatDto {
     order_index: number;
     shot_count?: number | null;
     duration_seconds: number;
+    source_activity_id?: number | null;
+    source_moment_id?: number | null;
+    source_scene_id?: number | null;
     created_at: Date;
     updated_at: Date;
     recording_setup?: {

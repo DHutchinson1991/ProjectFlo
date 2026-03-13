@@ -70,8 +70,9 @@ const DropZones: React.FC<DropZonesProps> = ({
                 return sum + (m.duration || m.duration_seconds || 0);
             }, 0);
 
-            const startRatio = offsetDuration / totalMomentsDuration;
-            const widthRatio = momentDuration / totalMomentsDuration;
+            const sceneDuration = scene.duration || totalMomentsDuration;
+            const startRatio = offsetDuration / sceneDuration;
+            const widthRatio = momentDuration / sceneDuration;
 
             const startTime = (scene.start_time || 0) + scene.duration * startRatio;
             const widthTime = scene.duration * widthRatio;

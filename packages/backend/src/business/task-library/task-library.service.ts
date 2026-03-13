@@ -438,8 +438,23 @@ export class TaskLibraryService {
      * contents (films, event days, crew, locations, activities) to calculate
      * how many tasks of each type would be created.
      */
-    async previewAutoGeneration(packageId: number, brandId: number, userId: number) {
+    async previewAutoGeneration(packageId: number, brandId: number, userId: number, inquiryId?: number) {
         await this.checkBrandAccess(brandId, userId);
+
+        // When an inquiryId is provided, restrict film-related queries to only those
+        // PackageFilm records that are still present on the inquiry (via ProjectFilm).
+        let activePackageFilmIds: number[] | null = null;
+        if (inquiryId) {
+            const inquiryFilms = await this.prisma.projectFilm.findMany({
+                where: { inquiry_id: inquiryId, package_film_id: { not: null } },
+                select: { package_film_id: true },
+            });
+            activePackageFilmIds = inquiryFilms.map(f => f.package_film_id!);
+        }
+
+        const packageFilmWhere = activePackageFilmIds
+            ? { package_id: packageId, id: { in: activePackageFilmIds } }
+            : { package_id: packageId };
 
         // 1. Fetch package contents counts
         const [
@@ -456,7 +471,7 @@ export class TaskLibraryService {
                 where: { id: packageId },
                 select: { id: true, name: true, brand_id: true },
             }),
-            this.prisma.packageFilm.count({ where: { package_id: packageId } }),
+            this.prisma.packageFilm.count({ where: packageFilmWhere }),
             this.prisma.packageEventDay.count({ where: { package_id: packageId } }),
             this.prisma.packageDayOperator.count({ where: { package_id: packageId } }),
             this.prisma.packageEventDayLocation.count({ where: { package_id: packageId } }),
@@ -469,7 +484,7 @@ export class TaskLibraryService {
             }),
             // Count film scenes across all films in this package for per_film_scene trigger
             this.prisma.packageFilmSceneSchedule.count({
-                where: { package_film: { package_id: packageId } },
+                where: { package_film: packageFilmWhere },
             }),
         ]);
 
@@ -627,9 +642,11 @@ export class TaskLibraryService {
                 const resolved = resolvedRoles.get(task.id);
                 const taskBracketLevel = resolved?.bracket_level ?? null;
                 const crew = pickPreviewCrew(defaultRoleId, taskBracketLevel);
-                // Rate priority: resolved bracket rate → bracket from assigned crew → role fallback → task's own rate
-                const hourly_rate = resolved?.hourly_rate
-                    ?? lookupRate(defaultRoleId, crew.bracketLevel)
+                // Rate priority: assigned crew's bracket rate → skill-mapping resolved rate → role fallback → task's own rate
+                // The crew member's actual bracket rate must take precedence so the preview
+                // matches the crew-card cost calculation on the frontend.
+                const hourly_rate = lookupRate(defaultRoleId, crew.bracketLevel)
+                    ?? resolved?.hourly_rate
                     ?? (task.hourly_rate ? Number(task.hourly_rate) : null);
                 return { role_name: roleName, assigned_to_name: crew.name, hourly_rate };
             }
@@ -638,8 +655,8 @@ export class TaskLibraryService {
             if (resolved?.job_role_id) {
                 const roleName = jobRoleNameMap.get(resolved.job_role_id) || null;
                 const crew = pickPreviewCrew(resolved.job_role_id, resolved.bracket_level);
-                const hourly_rate = resolved?.hourly_rate
-                    ?? lookupRate(resolved.job_role_id, crew.bracketLevel)
+                const hourly_rate = lookupRate(resolved.job_role_id, crew.bracketLevel)
+                    ?? resolved?.hourly_rate
                     ?? (task.hourly_rate ? Number(task.hourly_rate) : null);
                 return { role_name: roleName, assigned_to_name: crew.name, hourly_rate };
             }
@@ -657,7 +674,7 @@ export class TaskLibraryService {
 
         if (tasks.some(t => t.trigger_type === 'per_film_scene')) {
             const schedules = await this.prisma.packageFilmSceneSchedule.findMany({
-                where: { package_film: { package_id: packageId } },
+                where: { package_film: packageFilmWhere },
                 include: {
                     package_film: { include: { film: { select: { name: true } } } },
                     scene: { select: { name: true, duration_seconds: true } },
@@ -722,7 +739,7 @@ export class TaskLibraryService {
 
         if (tasks.some(t => t.trigger_type === 'per_film')) {
             const packageFilms = await this.prisma.packageFilm.findMany({
-                where: { package_id: packageId },
+                where: packageFilmWhere,
                 include: { film: { select: { name: true } } },
                 orderBy: { order_index: 'asc' },
             });
@@ -738,7 +755,7 @@ export class TaskLibraryService {
 
         if (tasks.some(t => t.trigger_type === 'per_film_with_music' || t.trigger_type === 'per_film_with_graphics')) {
             const packageFilms = await this.prisma.packageFilm.findMany({
-                where: { package_id: packageId },
+                where: packageFilmWhere,
                 include: {
                     film: {
                         select: {
@@ -802,6 +819,20 @@ export class TaskLibraryService {
             });
             activityDetails = packageActivities.map(a => ({
                 activityName: a.name,
+            }));
+        }
+
+        // 2f. For per_event_day preview, fetch event day names
+        let eventDayDetails: Array<{ dayName: string }> = [];
+
+        if (tasks.some(t => t.trigger_type === 'per_event_day')) {
+            const packageEventDays = await this.prisma.packageEventDay.findMany({
+                where: { package_id: packageId },
+                include: { event_day: { select: { name: true } } },
+                orderBy: { order_index: 'asc' },
+            });
+            eventDayDetails = packageEventDays.map((ed, i) => ({
+                dayName: ed.event_day?.name || `Day ${i + 1}`,
             }));
         }
 
@@ -956,6 +987,59 @@ export class TaskLibraryService {
                 }));
             }
 
+            // Special handling for per_event_day: expand per day × per crew member matching the role
+            if (task.trigger_type === 'per_event_day' && eventDayDetails.length > 0) {
+                const effortEach = task.effort_hours ? Number(task.effort_hours) : 0;
+                const roleId = task.default_job_role_id;
+                const crewForRole = roleId ? roleToCrewList.get(roleId) : null;
+
+                if (crewForRole && crewForRole.length > 0) {
+                    // Role-specific: one instance per event day × per crew member with that role
+                    const lookupRate = (rId: number, bracketLevel: number | null): number | null => {
+                        if (bracketLevel !== null && bracketLevel > 0) {
+                            const exact = bracketRateMap.get(`${rId}-${bracketLevel}`);
+                            if (exact !== undefined) return exact;
+                        }
+                        return roleFallbackRate.get(rId) ?? null;
+                    };
+                    return eventDayDetails.flatMap(day =>
+                        crewForRole.map(crew => {
+                            const rate = lookupRate(roleId!, crew.bracketLevel)
+                                ?? (task.hourly_rate ? Number(task.hourly_rate) : null);
+                            const label = eventDayDetails.length > 1
+                                ? `${task.name} — ${crew.name} (${day.dayName})`
+                                : `${task.name} — ${crew.name}`;
+                            return {
+                                task_library_id: task.id,
+                                name: label,
+                                phase: task.phase,
+                                trigger_type: task.trigger_type,
+                                effort_hours_each: effortEach,
+                                multiplier: 1,
+                                total_instances: 1,
+                                total_hours: effortEach,
+                                role_name: assignment.role_name,
+                                assigned_to_name: crew.name as string | null,
+                                hourly_rate: rate,
+                            };
+                        }),
+                    );
+                }
+
+                // No role or no matching crew: simple per-day expansion
+                return eventDayDetails.map(day => ({
+                    task_library_id: task.id,
+                    name: eventDayDetails.length > 1 ? `${task.name} — ${day.dayName}` : task.name,
+                    phase: task.phase,
+                    trigger_type: task.trigger_type,
+                    effort_hours_each: effortEach,
+                    multiplier: 1,
+                    total_instances: 1,
+                    total_hours: effortEach,
+                    ...assignment,
+                }));
+            }
+
             return [{
                 task_library_id: task.id,
                 name: task.name,
@@ -1023,7 +1107,7 @@ export class TaskLibraryService {
         // Verify project exists and belongs to this brand
         const project = await this.prisma.projects.findUnique({
             where: { id: projectId },
-            select: { id: true, project_name: true, brand_id: true },
+            select: { id: true, project_name: true, brand_id: true, wedding_date: true, booking_date: true },
         });
         if (!project) {
             throw new NotFoundException(`Project with ID ${projectId} not found`);
@@ -1297,11 +1381,28 @@ export class TaskLibraryService {
             fixed_price: typeof libraryTasks[number]['fixed_price'];
             hourly_rate: typeof libraryTasks[number]['hourly_rate'] | number;
             order_index: number;
+            due_date?: Date | null;
             resolved_job_role_id?: number | null;
             resolved_bracket_id?: number | null;
             resolved_rate?: number | null;
             resolved_skill?: string | null;
         }> = [];
+
+        // Helper: calculate due_date from task library offset
+        const eventDate = project.wedding_date ? new Date(project.wedding_date) : null;
+        const bookingDate = project.booking_date ? new Date(project.booking_date) : null;
+        const calcDueDate = (task: typeof libraryTasks[number]): Date | null => {
+            if (task.due_date_offset_days == null) return null;
+            // Pre-event phases: offset from booking date or now
+            // Production + later phases: offset from event date
+            const productionPhases = ['Production', 'Post_Production', 'Delivery'];
+            const refDate = productionPhases.includes(task.phase)
+                ? (eventDate || bookingDate || new Date())
+                : (bookingDate || new Date());
+            const d = new Date(refDate);
+            d.setDate(d.getDate() + task.due_date_offset_days);
+            return d;
+        };
 
         // Helper: get resolved role fields for a task library entry
         const getResolvedFields = (taskId: number) => {
@@ -1505,6 +1606,50 @@ export class TaskLibraryService {
                 continue;
             }
 
+            // Special handling for per_event_day with a role:
+            // Expand per event day × per crew member matching the task's role
+            if (task.trigger_type === 'per_event_day' && task.default_job_role_id) {
+                const effortEach = effectiveHours ? Number(effectiveHours) : 0;
+                const crewForRole = roleToCrewList.get(task.default_job_role_id);
+
+                if (crewForRole && crewForRole.length > 0) {
+                    for (const ed of eventDays) {
+                        const dayName = ed.event_day?.name || `Day #${ed.event_day_template_id}`;
+                        for (const crew of crewForRole) {
+                            // Find the operator record to get crew name
+                            const op = operators.find(o => o.contributor_id === crew.contributorId);
+                            const crewName = op?.contributor
+                                ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+                                : `Crew #${crew.contributorId}`;
+                            const label = eventDays.length > 1
+                                ? `${effectiveName} — ${crewName} (${dayName})`
+                                : `${effectiveName} — ${crewName}`;
+                            taskRecords.push({
+                                project_id: projectId,
+                                task_library_id: task.id,
+                                package_id: packageId,
+                                name: label,
+                                description: task.description,
+                                phase: override?.phase || task.phase,
+                                trigger_type: task.trigger_type,
+                                trigger_context: eventDays.length > 1
+                                    ? `${crewName} (${dayName})`
+                                    : crewName,
+                                estimated_hours: effortEach,
+                                assigned_to_id: crew.contributorId,
+                                pricing_type: task.pricing_type,
+                                fixed_price: task.fixed_price,
+                                hourly_rate: getEffectiveRate(task),
+                                order_index: globalOrderIndex++,
+                                ...getResolvedFields(task.id),
+                            });
+                        }
+                    }
+                    continue;
+                }
+                // Fall through to default handling if no crew matches the role
+            }
+
             // Special handling for per_crew_member:
             // Generate one task per crew member, auto-assigned to each
             if (task.trigger_type === 'per_crew_member') {
@@ -1557,6 +1702,14 @@ export class TaskLibraryService {
                     order_index: globalOrderIndex++,
                     ...getResolvedFields(task.id),
                 });
+            }
+        }
+
+        // ── Calculate due dates for all records from task library offsets ──
+        for (const record of taskRecords) {
+            const libraryTask = libraryTasks.find(t => t.id === record.task_library_id);
+            if (libraryTask) {
+                record.due_date = calcDueDate(libraryTask);
             }
         }
 

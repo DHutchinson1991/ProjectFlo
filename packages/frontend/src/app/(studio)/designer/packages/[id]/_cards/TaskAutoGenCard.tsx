@@ -134,9 +134,14 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                                     </IconButton>
                                 </span>
                             </Tooltip>
-                            {preview && preview.summary.total_generated_tasks > 0 && (
+                            {preview && (() => {
+                                const HEADER_EXCLUDED = new Set(['Lead', 'Inquiry', 'Booking']);
+                                const count = Object.entries(preview.byPhase)
+                                    .filter(([phase]) => !HEADER_EXCLUDED.has(phase))
+                                    .reduce((sum, [, tasks]) => sum + (tasks as Array<{ total_instances: number }>).reduce((s, t) => s + t.total_instances, 0), 0);
+                                return count > 0 ? (
                                 <Chip
-                                    label={`${preview.summary.total_generated_tasks} tasks`}
+                                    label={`${count} tasks`}
                                     size="small"
                                     sx={{
                                         height: 18, fontSize: '0.55rem', fontWeight: 700,
@@ -145,7 +150,7 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                                         '& .MuiChip-label': { px: 0.6 },
                                     }}
                                 />
-                            )}
+                            ) : null; })()}
                         </Box>
                     </Box>
                 </Box>
@@ -164,7 +169,15 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                         </Alert>
                     )}
 
-                    {!loading && !error && preview && (
+                    {!loading && !error && preview && (() => {
+                        const EXCLUDED_PHASES = new Set(['Lead', 'Inquiry', 'Booking']);
+                        const projectPhaseEntries = Object.entries(preview.byPhase).filter(([phase]) => !EXCLUDED_PHASES.has(phase));
+                        const projectPhaseTasks = projectPhaseEntries.flatMap(([, tasks]) => tasks as TaskAutoGenerationPreviewTask[]);
+                        const projectTotalTasks = projectPhaseTasks.reduce((sum, t) => sum + t.total_instances, 0);
+                        const projectTotalHours = projectPhaseTasks.reduce((sum, t) => sum + t.total_hours, 0);
+                        const projectTotalCost = projectPhaseTasks.reduce((sum, t) => sum + (t.estimated_cost ?? 0), 0);
+
+                        return (
                         <>
                             {/* Summary Stats */}
                             <Box sx={{
@@ -175,7 +188,7 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                             }}>
                                 <Box sx={{ flex: 1, textAlign: 'center' }}>
                                     <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: '#a78bfa' }}>
-                                        {preview.summary.total_generated_tasks}
+                                        {projectTotalTasks}
                                     </Typography>
                                     <Typography sx={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
                                         Tasks
@@ -184,7 +197,7 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                                 <Box sx={{ width: '1px', bgcolor: 'rgba(167, 139, 250, 0.15)' }} />
                                 <Box sx={{ flex: 1, textAlign: 'center' }}>
                                     <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: '#22d3ee' }}>
-                                        {preview.summary.total_estimated_hours}h
+                                        {Math.round(projectTotalHours * 10) / 10}h
                                     </Typography>
                                     <Typography sx={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
                                         Est. Hours
@@ -193,7 +206,7 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                                 <Box sx={{ width: '1px', bgcolor: 'rgba(167, 139, 250, 0.15)' }} />
                                 <Box sx={{ flex: 1, textAlign: 'center' }}>
                                     <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: '#f59e0b' }}>
-                                        {preview.summary.total_estimated_cost > 0 ? formatCurrency(preview.summary.total_estimated_cost, currency) : '—'}
+                                        {projectTotalCost > 0 ? formatCurrency(projectTotalCost, currency) : '—'}
                                     </Typography>
                                     <Typography sx={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
                                         Est. Cost
@@ -236,9 +249,9 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                                     <Box />
                                 </Box>
 
-                                {/* Phase groups */}
+                                {/* Phase groups — Lead/Inquiry/Booking excluded (sales overhead) */}
                                 <Stack spacing={0.5}>
-                                    {Object.entries(preview.byPhase).map(([phase, tasks]) => {
+                                    {projectPhaseEntries.map(([phase, tasks]) => {
                                         const phaseLabel = PHASE_LABELS[phase as ProjectPhase] || phase;
                                         const phaseColor = PHASE_COLORS[phase] || '#94a3b8';
                                         const isExpanded = expandedPhases.has(phase);
@@ -407,7 +420,7 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                             </Box>
 
                             {/* Empty state */}
-                            {preview.summary.total_generated_tasks === 0 && (
+                            {projectTotalTasks === 0 && (
                                 <Box sx={{ textAlign: 'center', py: 3 }}>
                                     <AssignmentIcon sx={{ fontSize: 36, color: '#475569', mb: 1, opacity: 0.4 }} />
                                     <Typography sx={{ fontSize: '0.75rem', color: '#64748b' }}>
@@ -419,7 +432,8 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                                 </Box>
                             )}
                         </>
-                    )}
+                        );
+                    })()}
 
                     {/* No preview / initial loading */}
                     {!loading && !error && !preview && (

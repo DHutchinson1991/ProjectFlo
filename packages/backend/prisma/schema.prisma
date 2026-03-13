@@ -25,6 +25,15 @@ model brands {
   timezone                     String                         @default("America/New_York")
   currency                     String                         @default("USD")
   logo_url                     String?
+  // Payment & tax defaults
+  default_tax_rate             Decimal?                       @default(0) @db.Decimal(5, 2)
+  tax_number                   String?
+  default_payment_method       String?                        @default("Bank Transfer")
+  payment_terms_days           Int?                           @default(30)
+  bank_name                    String?
+  bank_account_name            String?
+  bank_sort_code               String?
+  bank_account_number          String?
   is_active                    Boolean                        @default(true)
   created_at                   DateTime                       @default(now())
   updated_at                   DateTime                       @updatedAt
@@ -41,6 +50,8 @@ model brands {
   service_packages             service_packages[]
   service_package_categories   service_package_categories[]
   films                        Film[]
+  montage_presets              MontagePreset[]
+  film_structure_templates     FilmStructureTemplate[]
   needs_assessment_templates   needs_assessment_templates[]
   needs_assessment_submissions needs_assessment_submissions[]
   subject_type_templates       SubjectTypeTemplate[]
@@ -52,6 +63,7 @@ model brands {
   workflow_templates           workflow_templates[]
   package_sets                 package_sets[]
   skill_role_mappings          skill_role_mappings[]
+  payment_schedule_templates   payment_schedule_templates[]
 
   @@map("brands")
 }
@@ -173,7 +185,7 @@ model filmLibrary {
   delivery_timeline    Int?
   includes_music       Boolean                  @default(true)
   is_active            Boolean                  @default(true)
-  type                 FilmType                 @default(STANDARD)
+  type                 FilmType                 @default(FEATURE)
   updated_at           DateTime                 @updatedAt
   version              String                   @default("1.0")
   build_films          build_films[]
@@ -408,6 +420,7 @@ model inquiries {
   proposals                    proposals[]
   quotes                       quotes[]
   needs_assessment_submissions needs_assessment_submissions[]
+  inquiry_tasks                inquiry_tasks[]
 
   // Schedule snapshot (owned while inquiry, transferred to project on booking)
   schedule_event_days          ProjectEventDay[]
@@ -628,6 +641,7 @@ model contributors {
   task_library_benchmarks        task_library_benchmarks[]
   tasks_assigned                 tasks[]                       @relation("AssignedTasks")
   project_tasks_assigned         project_tasks[]               @relation("AssignedProjectTasks")
+  inquiry_tasks_completed        inquiry_tasks[]               @relation("CompletedInquiryTasks")
   timeline_sessions              TimelineEditingSession[]
   timeline_tracks                FilmTimelineTrack[]
   project_film_timeline_tracks   ProjectFilmTimelineTrack[]
@@ -1087,11 +1101,14 @@ model estimates {
   payment_method   String?          @default("Bank Transfer")
   installments     Int?             @default(1)
   is_primary       Boolean          @default(false)
-  created_at       DateTime         @default(now())
-  updated_at       DateTime         @updatedAt
+  created_at       DateTime                    @default(now())
+  updated_at       DateTime                    @updatedAt
   items            estimate_items[]
-  inquiry          inquiries        @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
-  project          projects?        @relation(fields: [project_id], references: [id])
+  payment_milestones estimate_payment_milestones[]
+  inquiry          inquiries                   @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project          projects?                   @relation(fields: [project_id], references: [id])
+  schedule_template payment_schedule_templates? @relation(fields: [schedule_template_id], references: [id])
+  schedule_template_id Int?
 
   @@map("estimates")
 }
@@ -1504,6 +1521,7 @@ model task_library {
   brand_id                 Int
   is_active                Boolean                    @default(true)
   trigger_type             task_trigger_type          @default(always)
+  due_date_offset_days     Int?                       // Days from reference date (inquiry created / event date) to set due_date
   created_at               DateTime                   @default(now())
   updated_at               DateTime                   @updatedAt
   brand                    brands                     @relation(fields: [brand_id], references: [id], onDelete: Cascade)
@@ -1512,6 +1530,7 @@ model task_library {
   task_library_skill_rates task_library_skill_rates[]
   workflow_template_tasks  workflow_template_tasks[]
   project_tasks            project_tasks[]
+  inquiry_tasks            inquiry_tasks[]
 
   @@index([brand_id])
   @@index([phase])
@@ -1600,6 +1619,39 @@ model project_tasks {
   @@index([phase])
   @@index([status])
   @@map("project_tasks")
+}
+
+// ─── Inquiry Tasks (auto-generated from task library for pre-booking) ─
+// Created when an inquiry is received/created.
+// Tracks per-task completion through the Inquiry → Booking pipeline.
+
+model inquiry_tasks {
+  id              Int               @id @default(autoincrement())
+  inquiry_id      Int
+  task_library_id Int?              // Source task from library (nullable for manual additions)
+  name            String
+  description     String?
+  phase           project_phase
+  trigger_type    task_trigger_type @default(always)
+  estimated_hours Decimal?          @db.Decimal(8, 2)
+  due_date        DateTime?
+  status          tasks_status      @default(To_Do)
+  order_index     Int               @default(0)
+  completed_at    DateTime?
+  completed_by_id Int?
+  is_active       Boolean           @default(true)
+  created_at      DateTime          @default(now())
+  updated_at      DateTime          @updatedAt
+
+  inquiry      inquiries     @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  task_library task_library? @relation(fields: [task_library_id], references: [id], onDelete: SetNull)
+  completed_by contributors? @relation("CompletedInquiryTasks", fields: [completed_by_id], references: [id], onDelete: SetNull)
+
+  @@index([inquiry_id])
+  @@index([task_library_id])
+  @@index([inquiry_id, order_index])
+  @@index([status])
+  @@map("inquiry_tasks")
 }
 
 // Legacy SceneMediaComponent removed
@@ -2058,13 +2110,18 @@ enum EquipmentTemplateSlotType {
 // ------------------------------------------------------------
 
 model Film {
-  id         Int      @id @default(autoincrement())
-  name       String
-  brand_id   Int
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id                  Int       @id @default(autoincrement())
+  name                String
+  brand_id            Int
+  film_type           FilmType  @default(FEATURE)
+  montage_preset_id   Int?
+  target_duration_min Int?      // seconds
+  target_duration_max Int?      // seconds
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
 
   brand                 brands                    @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  montage_preset        MontagePreset?            @relation(fields: [montage_preset_id], references: [id], onDelete: SetNull)
   tracks                FilmTimelineTrack[]
   subjects              FilmSubject[]
   locations             FilmLocation[]
@@ -2075,6 +2132,7 @@ model Film {
   project_films         ProjectFilm[]
 
   @@index([brand_id])
+  @@index([montage_preset_id])
   @@map("films")
 }
 
@@ -2327,6 +2385,9 @@ model FilmScene {
   package_schedules   PackageFilmSceneSchedule[]
   project_schedules   ProjectFilmSceneSchedule[]
   project_instances   ProjectFilmScene[]
+  audio_sources       SceneAudioSource[]         @relation("SceneAudioSources")
+  beat_source_refs    SceneBeat[]                @relation("BeatSourceScene")
+  audio_source_refs   SceneAudioSource[]         @relation("AudioSourceScene")
 
   @@index([film_id])
   @@index([scene_template_id])
@@ -2434,21 +2495,30 @@ model SceneMoment {
 }
 
 model SceneBeat {
-  id               Int      @id @default(autoincrement())
-  film_scene_id    Int
-  name             String
-  order_index      Int
-  shot_count       Int?
-  duration_seconds Int      @default(10)
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
+  id                  Int      @id @default(autoincrement())
+  film_scene_id       Int
+  name                String
+  order_index         Int
+  shot_count          Int?
+  duration_seconds    Int      @default(10)
+  source_activity_id  Int?     // PackageActivity providing footage
+  source_moment_id    Int?     // Specific PackageActivityMoment (cherry-picked)
+  source_scene_id     Int?     // Reference to a realtime FilmScene in another film
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
 
-  film_scene      FilmScene           @relation(fields: [film_scene_id], references: [id], onDelete: Cascade)
-  recording_setup BeatRecordingSetup?
+  film_scene        FilmScene              @relation(fields: [film_scene_id], references: [id], onDelete: Cascade)
+  source_activity   PackageActivity?       @relation(fields: [source_activity_id], references: [id], onDelete: SetNull)
+  source_moment     PackageActivityMoment? @relation("BeatSourceMoment", fields: [source_moment_id], references: [id], onDelete: SetNull)
+  source_scene      FilmScene?             @relation("BeatSourceScene", fields: [source_scene_id], references: [id], onDelete: SetNull)
+  recording_setup   BeatRecordingSetup?
   project_instances ProjectFilmSceneBeat[]
 
   @@unique([film_scene_id, order_index])
   @@index([film_scene_id])
+  @@index([source_activity_id])
+  @@index([source_moment_id])
+  @@index([source_scene_id])
   @@map("film_scene_beats")
 }
 
@@ -2529,9 +2599,111 @@ model MomentMusic {
   @@map("moment_music")
 }
 
+// ─── Montage Presets (brand-scoped, system-seeded defaults) ───
+model MontagePreset {
+  id                   Int      @id @default(autoincrement())
+  brand_id             Int?     // null = system-seeded global default
+  name                 String   // "Trailer", "Highlights", "Same-Day Edit"
+  min_duration_seconds Int      // Target minimum duration
+  max_duration_seconds Int      // Target maximum duration
+  is_system_seeded     Boolean  @default(false)
+  is_active            Boolean  @default(true)
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  brand brands? @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  films Film[]
+
+  @@unique([brand_id, name])
+  @@index([brand_id])
+  @@map("montage_presets")
+}
+
+// ─── Film Structure Templates (scene layout blueprints, brand-scoped) ───
+model FilmStructureTemplate {
+  id               Int      @id @default(autoincrement())
+  brand_id         Int?     // null = system-seeded global default
+  name             String   // "Classic 4-Scene", "Emotional Arc", "Music-Driven 3-Act"
+  description      String?
+  film_type        FilmType @default(MONTAGE) // which film type this template applies to
+  is_system_seeded Boolean  @default(false)
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  brand  brands?                      @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  scenes FilmStructureTemplateScene[]
+
+  @@unique([brand_id, name])
+  @@index([brand_id])
+  @@index([film_type])
+  @@map("film_structure_templates")
+}
+
+model FilmStructureTemplateScene {
+  id                         Int       @id @default(autoincrement())
+  film_structure_template_id Int
+  name                       String    // "Opening Montage", "Ceremony Highlights"
+  mode                       SceneType @default(MONTAGE)
+  suggested_duration_seconds Int?
+  order_index                Int
+  notes                      String?   // Creative direction hints
+  created_at                 DateTime  @default(now())
+  updated_at                 DateTime  @updatedAt
+
+  template FilmStructureTemplate @relation(fields: [film_structure_template_id], references: [id], onDelete: Cascade)
+
+  @@unique([film_structure_template_id, order_index])
+  @@index([film_structure_template_id])
+  @@map("film_structure_template_scenes")
+}
+
+// ─── Scene Audio Sources (audio layering — e.g. vows over montage) ───
+model SceneAudioSource {
+  id                   Int             @id @default(autoincrement())
+  scene_id             Int             // The montage scene using this audio
+  source_type          AudioSourceType
+  source_activity_id   Int?            // e.g., Ceremony activity
+  source_moment_id     Int?            // e.g., Vows moment
+  source_scene_id      Int?            // e.g., a realtime scene in another film
+  track_type           AudioTrackType  @default(SPEECH)
+  start_offset_seconds Int?            // Where in the source to start pulling
+  duration_seconds     Int?            // How much to use
+  order_index          Int             @default(0) // Layering order
+  notes                String?         // Editor notes ("use emotional part of vows")
+  created_at           DateTime        @default(now())
+  updated_at           DateTime        @updatedAt
+
+  scene           FilmScene              @relation("SceneAudioSources", fields: [scene_id], references: [id], onDelete: Cascade)
+  source_activity PackageActivity?       @relation(fields: [source_activity_id], references: [id], onDelete: SetNull)
+  source_moment   PackageActivityMoment? @relation("AudioSourceMoment", fields: [source_moment_id], references: [id], onDelete: SetNull)
+  source_scene    FilmScene?             @relation("AudioSourceScene", fields: [source_scene_id], references: [id], onDelete: SetNull)
+
+  @@index([scene_id])
+  @@index([source_activity_id])
+  @@index([source_moment_id])
+  @@index([source_scene_id])
+  @@map("scene_audio_sources")
+}
+
 enum FilmType {
-  STANDARD
+  ACTIVITY
+  FEATURE
+  MONTAGE
   RAW_FOOTAGE
+}
+
+enum AudioSourceType {
+  MOMENT
+  BEAT
+  SCENE
+  ACTIVITY
+}
+
+enum AudioTrackType {
+  SPEECH
+  AMBIENT
+  MUSIC
 }
 
 enum TrackType {
@@ -3157,6 +3329,8 @@ model PackageActivity {
   subject_assignments  SubjectActivityAssignment[]
   location_assignments LocationActivityAssignment[]
   moments              PackageActivityMoment[]
+  beat_sources         SceneBeat[]
+  audio_sources        SceneAudioSource[]
 
   @@index([package_id])
   @@index([package_event_day_id])
@@ -3176,6 +3350,8 @@ model PackageActivityMoment {
   updated_at          DateTime @updatedAt
 
   package_activity PackageActivity @relation(fields: [package_activity_id], references: [id], onDelete: Cascade)
+  beat_sources     SceneBeat[]     @relation("BeatSourceMoment")
+  audio_sources    SceneAudioSource[] @relation("AudioSourceMoment")
 
   @@unique([package_activity_id, order_index])
   @@index([package_activity_id])
@@ -4173,4 +4349,66 @@ model package_set_slots {
   @@index([package_set_id])
   @@index([service_package_id])
   @@map("package_set_slots")
+}
+
+// ─── Payment Schedule Templates ──────────────────────────────────────────────
+// Reusable templates defining when and how much clients pay.
+// e.g. "Standard 50/50", "3-way split", "Rush Booking Full Upfront"
+
+model payment_schedule_templates {
+  id          Int      @id @default(autoincrement())
+  brand_id    Int
+  name        String   // "Standard 50/50"
+  description String?
+  is_default  Boolean  @default(false)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  brand     brands                       @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  rules     payment_schedule_rules[]
+  estimates estimates[]
+
+  @@unique([brand_id, name])
+  @@index([brand_id])
+  @@map("payment_schedule_templates")
+}
+
+model payment_schedule_rules {
+  id           Int     @id @default(autoincrement())
+  template_id  Int
+  label        String  // "Booking Deposit", "Final Balance", "Post-Delivery"
+  // PERCENT = percentage of estimate total; FIXED = fixed £ amount
+  amount_type  String  @default("PERCENT") // PERCENT | FIXED
+  amount_value Decimal @db.Decimal(10, 2)  // 50 (for 50%) or 500.00 (for £500)
+  // When this payment is due relative to a reference date
+  trigger_type String  // AFTER_BOOKING | BEFORE_EVENT | AFTER_EVENT | ON_DATE
+  trigger_days Int?    // number of days offset; null if trigger_type = ON_DATE
+  order_index  Int     @default(0)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  template payment_schedule_templates @relation(fields: [template_id], references: [id], onDelete: Cascade)
+
+  @@index([template_id])
+  @@map("payment_schedule_rules")
+}
+
+// Resolved milestones per estimate — concrete dates + amounts calculated at estimate creation/send time
+model estimate_payment_milestones {
+  id          Int      @id @default(autoincrement())
+  estimate_id Int
+  label       String   // "Booking Deposit"
+  amount      Decimal  @db.Decimal(10, 2)
+  due_date    DateTime
+  status      String   @default("PENDING") // PENDING | PAID | OVERDUE | WAIVED
+  notes       String?
+  order_index Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  estimate estimates @relation(fields: [estimate_id], references: [id], onDelete: Cascade)
+
+  @@index([estimate_id])
+  @@map("estimate_payment_milestones")
 }

@@ -22,7 +22,6 @@ import {
 } from "@mui/material";
 import { 
     Event, 
-    AttachMoney, 
     Person, 
     Videocam, 
     Notes, 
@@ -141,11 +140,7 @@ export default function NeedsAssessmentReviewPage() {
                         Submitted on {new Date(submission.submitted_at).toLocaleDateString()} at {new Date(submission.submitted_at).toLocaleTimeString()}
                     </Typography>
                 </Box>
-                 <Chip 
-                    label={data.priority_level ? `${data.priority_level} Priority` : 'No Priority'} 
-                    color={data.priority_level === 'High' ? 'error' : data.priority_level === 'Medium' ? 'warning' : 'default'}
-                    sx={{ px: 1, height: 32 }}
-                />
+
             </Box>
 
             <Grid container spacing={3}>
@@ -163,15 +158,7 @@ export default function NeedsAssessmentReviewPage() {
                         </Stack>
                     ))}
                     
-                    <Box sx={{ mt: 3 }}>
-                         {renderSection("Sales Profile", <AttachMoney color="primary" />, (
-                            <Stack spacing={0}>
-                                <Field label="Budget Range" value={data.budget_range} />
-                                <Field label="Budget Flexibility" value={data.budget_flexible} />
-                                <Field label="Decision Timeline" value={data.decision_timeline} />
-                            </Stack>
-                        ))}
-                    </Box>
+
                 </Grid>
 
                 {/* Event & Scope */}

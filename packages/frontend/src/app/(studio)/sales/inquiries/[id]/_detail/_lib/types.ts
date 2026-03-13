@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
+import type { Inquiry, NeedsAssessmentSubmission, InquiryTaskStatus } from '@/lib/types';
 
 // ─── Shared prop interface for workflow card components ──────────────
 
@@ -37,6 +37,26 @@ export interface WorkflowPhase {
     description: string;
     tasks: string[];
     sectionId: string;
+}
+
+// ─── Pipeline task (from task library) ───────────────────────────────
+
+export interface PipelineTask {
+    id: number;
+    name: string;
+    phase: 'Inquiry' | 'Booking';
+    order_index: number;
+    color: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    icon: ComponentType<any>;
+    sectionId: string;
+    description?: string;
+    // Real task tracking fields (from inquiry_tasks)
+    status?: InquiryTaskStatus;
+    estimated_hours?: number | null;
+    due_date?: string | null;
+    completed_at?: string | null;
+    inquiry_task_id?: number; // the actual inquiry_tasks.id
 }
 
 // ─── Needs assessment category ───────────────────────────────────────

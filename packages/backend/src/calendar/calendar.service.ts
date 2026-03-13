@@ -527,6 +527,122 @@ export class CalendarService {
         return this.getEventsForDateRange(startOfDay, endOfDay, contributorId);
     }
 
+    /**
+     * Fetches inquiry_tasks and project_tasks with due_dates in the given range,
+     * returning them in a unified shape for the calendar frontend.
+     */
+    async getTasksForDateRange(startDate: string, endDate: string) {
+        let start: Date;
+        let end: Date;
+
+        if (startDate.includes('T') || startDate.includes(' ')) {
+            start = new Date(startDate);
+        } else {
+            const [y, m, d] = startDate.split('-').map(Number);
+            start = new Date(y, m - 1, d, 0, 0, 0, 0);
+        }
+
+        if (endDate.includes('T') || endDate.includes(' ')) {
+            end = new Date(endDate);
+        } else {
+            const [y, m, d] = endDate.split('-').map(Number);
+            end = new Date(y, m - 1, d, 23, 59, 59, 999);
+        }
+
+        const dueDateFilter = { gte: start, lte: end };
+
+        const [inquiryTasks, projectTasks] = await Promise.all([
+            this.prisma.inquiry_tasks.findMany({
+                where: {
+                    is_active: true,
+                    due_date: dueDateFilter,
+                },
+                include: {
+                    inquiry: {
+                        select: {
+                            id: true,
+                            contact: {
+                                select: { first_name: true, last_name: true },
+                            },
+                        },
+                    },
+                },
+                orderBy: { due_date: 'asc' },
+            }),
+            this.prisma.project_tasks.findMany({
+                where: {
+                    is_active: true,
+                    due_date: dueDateFilter,
+                },
+                include: {
+                    project: {
+                        select: { id: true, project_name: true },
+                    },
+                    assigned_to: {
+                        include: {
+                            contact: {
+                                select: { first_name: true, last_name: true, email: true },
+                            },
+                        },
+                    },
+                },
+                orderBy: { due_date: 'asc' },
+            }),
+        ]);
+
+        const unified = [
+            ...inquiryTasks.map(t => ({
+                id: t.id,
+                source: 'inquiry' as const,
+                inquiry_id: t.inquiry_id,
+                project_id: null as number | null,
+                name: t.name,
+                description: t.description,
+                phase: t.phase,
+                status: t.status,
+                due_date: t.due_date,
+                estimated_hours: t.estimated_hours ? Number(t.estimated_hours) : null,
+                completed_at: t.completed_at,
+                context_label: t.inquiry?.contact
+                    ? `${t.inquiry.contact.first_name} ${t.inquiry.contact.last_name}`
+                    : `Inquiry #${t.inquiry_id}`,
+                project_name: null as string | null,
+                assignee: null as { id: number; name: string; email: string } | null,
+            })),
+            ...projectTasks.map(t => ({
+                id: t.id,
+                source: 'project' as const,
+                inquiry_id: null as number | null,
+                project_id: t.project_id,
+                name: t.name,
+                description: t.description,
+                phase: t.phase,
+                status: t.status,
+                due_date: t.due_date,
+                estimated_hours: t.estimated_hours ? Number(t.estimated_hours) : null,
+                completed_at: null as Date | null,
+                context_label: t.project?.project_name ?? `Project #${t.project_id}`,
+                project_name: t.project?.project_name ?? null,
+                assignee: t.assigned_to?.contact
+                    ? {
+                        id: t.assigned_to.id,
+                        name: `${t.assigned_to.contact.first_name} ${t.assigned_to.contact.last_name}`.trim(),
+                        email: t.assigned_to.contact.email,
+                    }
+                    : null,
+            })),
+        ];
+
+        // Sort by due_date
+        unified.sort((a, b) => {
+            if (!a.due_date) return 1;
+            if (!b.due_date) return -1;
+            return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+        });
+
+        return unified;
+    }
+
     async getUpcomingEvents(contributorId?: number, limit: number = 10) {
         const where: Prisma.calendar_eventsWhereInput = {
             start_time: {

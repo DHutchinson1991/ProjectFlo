@@ -84,9 +84,9 @@ export default function NeedsAssessmentDialog({
     const naResponses = (submission?.responses ?? {}) as Record<string, unknown>;
     const { naGrouped, naUncategorized } = groupNaResponses(naResponses);
 
-    /* ---- all sections (grouped + uncategorized) ---- */
+    /* ---- all sections (grouped + uncategorized, budget excluded) ---- */
     const allSections = [
-        ...naGrouped,
+        ...naGrouped.filter(g => g.label !== 'Budget'),
         ...(naUncategorized.length > 0 ? [{ label: 'Other', entries: naUncategorized }] : []),
     ];
 

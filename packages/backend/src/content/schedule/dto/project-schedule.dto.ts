@@ -86,6 +86,10 @@ export class UpsertProjectFilmSceneScheduleDto {
 
   @IsOptional()
   @IsInt()
+  project_activity_id?: number | null;
+
+  @IsOptional()
+  @IsInt()
   project_event_day_id?: number | null;
 
   @IsOptional()

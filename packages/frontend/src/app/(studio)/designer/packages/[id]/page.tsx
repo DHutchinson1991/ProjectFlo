@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
 import { PackageScheduleCard } from '@/components/schedule/PackageScheduleCard';
 import { ActivitiesCard } from '@/components/schedule/ActivitiesCard';
-import { ActivityFilmWizard } from '@/components/schedule/ActivityFilmWizard';
+import { FilmCreationWizard } from '@/components/schedule/film-wizard';
 import PackageCreationWizard from '../components/PackageCreationWizard';
 
 // ─── Local submodules ─────────────────────────────────────────────────
@@ -215,15 +215,13 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                     open={addDialogOpen}
                     onClose={() => setAddDialogOpen(false)}
                     initialType={addDialogType}
-                    films={films}
-                    packageActivities={packageActivities}
-                    onAdd={handleAddItem}
-                    onOpenActivityWizard={() => setActivityWizardOpen(true)}
+                    onAddService={(description) => handleAddItem('service', undefined, description)}
+                    onOpenFilmWizard={() => setActivityWizardOpen(true)}
                 />
 
                 {/* ─── Activity Film Wizard ─── */}
                 {packageId && (
-                    <ActivityFilmWizard
+                    <FilmCreationWizard
                         open={activityWizardOpen}
                         onClose={() => setActivityWizardOpen(false)}
                         packageId={packageId}

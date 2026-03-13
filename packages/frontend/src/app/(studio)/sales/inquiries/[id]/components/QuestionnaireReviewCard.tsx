@@ -45,10 +45,6 @@ const RESPONSE_CATEGORIES: { label: string; keys: string[] }[] = [
         keys: ['wedding_date', 'venue_details', 'event_type', 'stakeholders'],
     },
     {
-        label: 'Budget',
-        keys: ['budget_range', 'budget_flexible', 'priority_level'],
-    },
-    {
         label: 'Scope',
         keys: ['coverage_hours', 'deliverables', 'add_ons', 'selected_package'],
     },

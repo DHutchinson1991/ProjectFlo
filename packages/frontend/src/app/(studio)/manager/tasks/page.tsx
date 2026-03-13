@@ -127,6 +127,7 @@ export default function TasksPage() {
             hourly_rate: task.hourly_rate,
             is_active: task.is_active,
             trigger_type: task.trigger_type,
+            due_date_offset_days: task.due_date_offset_days,
         });
     };
 
@@ -149,6 +150,7 @@ export default function TasksPage() {
                 hourly_rate: inlineEditData.hourly_rate,
                 is_active: inlineEditData.is_active ?? true,
                 trigger_type: inlineEditData.trigger_type,
+                due_date_offset_days: inlineEditData.due_date_offset_days ?? null,
             };
 
             await api.taskLibrary.update(inlineEditingTask, updatedTaskData);
@@ -255,6 +257,7 @@ export default function TasksPage() {
                 hourly_rate: quickAddData.hourly_rate,
                 is_active: quickAddData.is_active ?? true,
                 trigger_type: quickAddData.trigger_type,
+                due_date_offset_days: quickAddData.due_date_offset_days ?? null,
                 brand_id: currentBrand.id,
             };
 

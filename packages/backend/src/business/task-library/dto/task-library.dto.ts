@@ -93,6 +93,11 @@ export class CreateTaskLibraryDto {
     @IsOptional()
     @IsEnum(TaskTriggerType)
     trigger_type?: TaskTriggerType;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    due_date_offset_days?: number;
 }
 
 export class UpdateTaskLibraryDto {
@@ -160,6 +165,11 @@ export class UpdateTaskLibraryDto {
     @IsOptional()
     @IsEnum(TaskTriggerType)
     trigger_type?: TaskTriggerType;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    due_date_offset_days?: number | null;
 }
 
 export class TaskLibraryQueryDto {

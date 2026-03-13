@@ -20,6 +20,14 @@ export interface Brand {
     timezone: string;
     currency: string;
     logo_url?: string;
+    default_tax_rate?: number;
+    tax_number?: string;
+    default_payment_method?: string;
+    payment_terms_days?: number;
+    bank_name?: string;
+    bank_account_name?: string;
+    bank_sort_code?: string;
+    bank_account_number?: string;
     is_active: boolean;
     created_at: string;
     updated_at: string;

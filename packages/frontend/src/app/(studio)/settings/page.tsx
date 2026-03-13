@@ -43,6 +43,7 @@ import {
     Card,
     Menu,
     ListItemIcon,
+    ListSubheader,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import {
@@ -87,6 +88,14 @@ import {
     PersonAdd as PersonAddIcon,
     Block as BlockIcon,
     Restore as RestoreIcon,
+    Payments as PaymentsIcon,
+    Schedule as ScheduleIcon,
+    Star as StarIcon,
+    StarBorder as StarBorderIcon,
+    DragIndicator as DragIcon,
+    ContentCopy as CopyIcon,
+    CreditCard as CreditCardIcon,
+    ReceiptLong as ReceiptLongIcon,
 } from "@mui/icons-material";
 import { api } from "@/lib/api";
 import {
@@ -97,6 +106,12 @@ import {
     getUserInitials,
     getUserDisplayName,
     Role,
+} from "@/lib/types";
+import type {
+    PaymentScheduleTemplate,
+    PaymentScheduleRule,
+    PaymentAmountType,
+    PaymentTriggerType,
 } from "@/lib/types";
 import { useAuth } from "@/app/providers/AuthProvider";
 import { useBrand } from "@/app/providers/BrandProvider";
@@ -778,6 +793,14 @@ interface EditBrandData {
     timezone: string;
     currency: string;
     logo_url?: string;
+    default_tax_rate?: number;
+    tax_number?: string;
+    default_payment_method?: string;
+    payment_terms_days?: number;
+    bank_name?: string;
+    bank_account_name?: string;
+    bank_sort_code?: string;
+    bank_account_number?: string;
     is_active: boolean;
 }
 
@@ -809,7 +832,10 @@ function CompanySettings() {
         website: '', email: '', phone: '', address_line1: '',
         address_line2: '', city: '', state: '', country: 'US',
         postal_code: '', timezone: 'America/New_York', currency: 'USD',
-        logo_url: '', is_active: true,
+        logo_url: '', default_tax_rate: 0, tax_number: '',
+        default_payment_method: 'Bank Transfer', payment_terms_days: 30,
+        bank_name: '', bank_account_name: '', bank_sort_code: '', bank_account_number: '',
+        is_active: true,
     };
     const [newBrandData, setNewBrandData] = useState<EditBrandData>({ ...emptyNewBrand });
     const [newBrandErrors, setNewBrandErrors] = useState<BrandValidationErrors>({});
@@ -819,7 +845,10 @@ function CompanySettings() {
         website: '', email: '', phone: '', address_line1: '',
         address_line2: '', city: '', state: '', country: 'US',
         postal_code: '', timezone: 'America/New_York', currency: 'USD',
-        logo_url: '', is_active: true,
+        logo_url: '', default_tax_rate: 0, tax_number: '',
+        default_payment_method: 'Bank Transfer', payment_terms_days: 30,
+        bank_name: '', bank_account_name: '', bank_sort_code: '', bank_account_number: '',
+        is_active: true,
     };
     const [formData, setFormData] = useState<EditBrandData>(defaultForm);
     const [originalFormData, setOriginalFormData] = useState<EditBrandData>(defaultForm);
@@ -842,11 +871,19 @@ function CompanySettings() {
             address_line2: b.address_line2 || '',
             city: b.city || '',
             state: b.state || '',
-            country: b.country || 'US',
+            country: b.country || 'GB',
             postal_code: b.postal_code || '',
             timezone: b.timezone || 'America/New_York',
             currency: b.currency || 'USD',
             logo_url: b.logo_url || '',
+            default_tax_rate: b.default_tax_rate ?? 0,
+            tax_number: b.tax_number || '',
+            default_payment_method: b.default_payment_method || 'Bank Transfer',
+            payment_terms_days: b.payment_terms_days ?? 30,
+            bank_name: b.bank_name || '',
+            bank_account_name: b.bank_account_name || '',
+            bank_sort_code: b.bank_sort_code || '',
+            bank_account_number: b.bank_account_number || '',
             is_active: b.is_active,
         };
         setFormData(values);
@@ -965,7 +1002,7 @@ function CompanySettings() {
                 address_line2: newBrandData.address_line2 || undefined,
                 city: newBrandData.city || undefined,
                 state: newBrandData.state || undefined,
-                country: newBrandData.country || 'US',
+                country: newBrandData.country || 'GB',
                 postal_code: newBrandData.postal_code || undefined,
                 timezone: newBrandData.timezone || 'America/New_York',
                 currency: newBrandData.currency || 'USD',
@@ -1211,7 +1248,96 @@ function CompanySettings() {
                                 <Grid item xs={12} sm={4}><TextField label="City" value={formData.city} onChange={(e) => handleFormChange("city", e.target.value)} fullWidth size="small" sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }} /></Grid>
                                 <Grid item xs={12} sm={4}><TextField label="State / Province" value={formData.state} onChange={(e) => handleFormChange("state", e.target.value)} fullWidth size="small" sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }} /></Grid>
                                 <Grid item xs={12} sm={4}><TextField label="Postal Code" value={formData.postal_code} onChange={(e) => handleFormChange("postal_code", e.target.value)} fullWidth size="small" sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }} /></Grid>
-                                <Grid item xs={12}><TextField label="Country" value={formData.country} onChange={(e) => handleFormChange("country", e.target.value)} fullWidth size="small" sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }} /></Grid>
+                                <Grid item xs={12}>
+                                    <FormControl fullWidth size="small">
+                                        <InputLabel>Country</InputLabel>
+                                        <Select label="Country" value={formData.country} onChange={(e) => handleFormChange("country", e.target.value)} sx={{ borderRadius: 2 }}>
+                                            <ListSubheader>Popular</ListSubheader>
+                                            <MenuItem value="GB">United Kingdom</MenuItem>
+                                            <MenuItem value="US">United States</MenuItem>
+                                            <MenuItem value="CA">Canada</MenuItem>
+                                            <MenuItem value="AU">Australia</MenuItem>
+                                            <MenuItem value="IE">Ireland</MenuItem>
+                                            <MenuItem value="NZ">New Zealand</MenuItem>
+                                            <MenuItem value="FR">France</MenuItem>
+                                            <MenuItem value="DE">Germany</MenuItem>
+                                            <MenuItem value="ES">Spain</MenuItem>
+                                            <MenuItem value="IT">Italy</MenuItem>
+                                            <MenuItem value="NL">Netherlands</MenuItem>
+                                            <MenuItem value="PT">Portugal</MenuItem>
+                                            <ListSubheader>All Countries</ListSubheader>
+                                            <MenuItem value="AF">Afghanistan</MenuItem>
+                                            <MenuItem value="AL">Albania</MenuItem>
+                                            <MenuItem value="DZ">Algeria</MenuItem>
+                                            <MenuItem value="AR">Argentina</MenuItem>
+                                            <MenuItem value="AT">Austria</MenuItem>
+                                            <MenuItem value="BH">Bahrain</MenuItem>
+                                            <MenuItem value="BD">Bangladesh</MenuItem>
+                                            <MenuItem value="BE">Belgium</MenuItem>
+                                            <MenuItem value="BR">Brazil</MenuItem>
+                                            <MenuItem value="BG">Bulgaria</MenuItem>
+                                            <MenuItem value="KH">Cambodia</MenuItem>
+                                            <MenuItem value="CL">Chile</MenuItem>
+                                            <MenuItem value="CN">China</MenuItem>
+                                            <MenuItem value="CO">Colombia</MenuItem>
+                                            <MenuItem value="HR">Croatia</MenuItem>
+                                            <MenuItem value="CY">Cyprus</MenuItem>
+                                            <MenuItem value="CZ">Czech Republic</MenuItem>
+                                            <MenuItem value="DK">Denmark</MenuItem>
+                                            <MenuItem value="EG">Egypt</MenuItem>
+                                            <MenuItem value="EE">Estonia</MenuItem>
+                                            <MenuItem value="FI">Finland</MenuItem>
+                                            <MenuItem value="GH">Ghana</MenuItem>
+                                            <MenuItem value="GR">Greece</MenuItem>
+                                            <MenuItem value="HK">Hong Kong</MenuItem>
+                                            <MenuItem value="HU">Hungary</MenuItem>
+                                            <MenuItem value="IS">Iceland</MenuItem>
+                                            <MenuItem value="IN">India</MenuItem>
+                                            <MenuItem value="ID">Indonesia</MenuItem>
+                                            <MenuItem value="IL">Israel</MenuItem>
+                                            <MenuItem value="JM">Jamaica</MenuItem>
+                                            <MenuItem value="JP">Japan</MenuItem>
+                                            <MenuItem value="JO">Jordan</MenuItem>
+                                            <MenuItem value="KE">Kenya</MenuItem>
+                                            <MenuItem value="KR">South Korea</MenuItem>
+                                            <MenuItem value="KW">Kuwait</MenuItem>
+                                            <MenuItem value="LV">Latvia</MenuItem>
+                                            <MenuItem value="LB">Lebanon</MenuItem>
+                                            <MenuItem value="LT">Lithuania</MenuItem>
+                                            <MenuItem value="LU">Luxembourg</MenuItem>
+                                            <MenuItem value="MY">Malaysia</MenuItem>
+                                            <MenuItem value="MT">Malta</MenuItem>
+                                            <MenuItem value="MX">Mexico</MenuItem>
+                                            <MenuItem value="MA">Morocco</MenuItem>
+                                            <MenuItem value="NG">Nigeria</MenuItem>
+                                            <MenuItem value="NO">Norway</MenuItem>
+                                            <MenuItem value="OM">Oman</MenuItem>
+                                            <MenuItem value="PK">Pakistan</MenuItem>
+                                            <MenuItem value="PE">Peru</MenuItem>
+                                            <MenuItem value="PH">Philippines</MenuItem>
+                                            <MenuItem value="PL">Poland</MenuItem>
+                                            <MenuItem value="QA">Qatar</MenuItem>
+                                            <MenuItem value="RO">Romania</MenuItem>
+                                            <MenuItem value="RU">Russia</MenuItem>
+                                            <MenuItem value="SA">Saudi Arabia</MenuItem>
+                                            <MenuItem value="RS">Serbia</MenuItem>
+                                            <MenuItem value="SG">Singapore</MenuItem>
+                                            <MenuItem value="SK">Slovakia</MenuItem>
+                                            <MenuItem value="SI">Slovenia</MenuItem>
+                                            <MenuItem value="ZA">South Africa</MenuItem>
+                                            <MenuItem value="LK">Sri Lanka</MenuItem>
+                                            <MenuItem value="SE">Sweden</MenuItem>
+                                            <MenuItem value="CH">Switzerland</MenuItem>
+                                            <MenuItem value="TW">Taiwan</MenuItem>
+                                            <MenuItem value="TH">Thailand</MenuItem>
+                                            <MenuItem value="TR">Turkey</MenuItem>
+                                            <MenuItem value="UA">Ukraine</MenuItem>
+                                            <MenuItem value="AE">United Arab Emirates</MenuItem>
+                                            <MenuItem value="UY">Uruguay</MenuItem>
+                                            <MenuItem value="VN">Vietnam</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
                             </Grid>
                         </Box>
                     </Box>
@@ -2588,12 +2714,614 @@ function UsersSettings() {
 }
 
 // ---------------------------------------------------------------------------
+// Payment Schedule Settings
+// ---------------------------------------------------------------------------
+
+type RuleForm = Omit<PaymentScheduleRule, 'id' | 'template_id'>;
+
+/** Derive a human label from trigger type + days — no user input needed */
+function autoRuleLabel(rule: RuleForm): string {
+    switch (rule.trigger_type) {
+        case 'AFTER_BOOKING':
+            return rule.trigger_days === 0 ? 'Booking Deposit' : `Deposit (${rule.trigger_days} days after booking)`;
+        case 'BEFORE_EVENT':
+            if (rule.trigger_days === 0) return 'Final Balance';
+            return `Final Balance (${rule.trigger_days} days before)`;
+        case 'AFTER_EVENT':
+            return 'Post-Event Balance';
+        default:
+            return 'Payment';
+    }
+}
+
+/** Derive a template name from the set of rules */
+function autoTemplateName(rules: RuleForm[]): string {
+    if (rules.length === 0) return '';
+    if (rules.every(r => r.amount_type === 'PERCENT')) {
+        const pcts = rules.map(r => Number(r.amount_value));
+        if (pcts.length === 1 && pcts[0] === 100) return 'Full Upfront';
+        if (pcts.length === 2 && pcts[0] === 50 && pcts[1] === 50) return '50/50 Split';
+        if (pcts.length === 2 && pcts[0] === 25 && pcts[1] === 75) return '25/75 Split';
+        if (pcts.length === 2 && pcts[0] === 30 && pcts[1] === 70) return '30/70 Split';
+        if (pcts.length <= 5) return pcts.join('/') + ' Split';
+    }
+    return rules.map(r => `${r.amount_value}%`).join(' + ') + ' Schedule';
+}
+
+const EMPTY_RULE = (): RuleForm => ({
+    label: 'Booking Deposit',
+    amount_type: 'PERCENT',
+    amount_value: 0,
+    trigger_type: 'AFTER_BOOKING',
+    trigger_days: 0,
+    order_index: 0,
+});
+
+// Colours for milestone pills indexed by position
+const MILESTONE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6'];
+
+function PaymentScheduleSettings() {
+    const { currentBrand, refreshBrands } = useBrand();
+
+    // ── Brand payment/tax settings ───────────────────────────────────────────
+    const [paymentSettings, setPaymentSettings] = React.useState({
+        default_tax_rate: 0 as number,
+        tax_number: '',
+        default_payment_method: 'Bank Transfer',
+        payment_terms_days: 30 as number,
+        bank_name: '',
+        bank_account_name: '',
+        bank_sort_code: '',
+        bank_account_number: '',
+    });
+    const [originalPaymentSettings, setOriginalPaymentSettings] = React.useState(paymentSettings);
+    const [savingSettings, setSavingSettings] = React.useState(false);
+    const paymentSettingsChanged = JSON.stringify(paymentSettings) !== JSON.stringify(originalPaymentSettings);
+
+    const loadPaymentSettings = React.useCallback(async () => {
+        if (!currentBrand?.id) return;
+        try {
+            const b = await api.brands.getById(currentBrand.id);
+            const vals = {
+                default_tax_rate: b.default_tax_rate ?? 0,
+                tax_number: b.tax_number || '',
+                default_payment_method: b.default_payment_method || 'Bank Transfer',
+                payment_terms_days: b.payment_terms_days ?? 30,
+                bank_name: b.bank_name || '',
+                bank_account_name: b.bank_account_name || '',
+                bank_sort_code: b.bank_sort_code || '',
+                bank_account_number: b.bank_account_number || '',
+            };
+            setPaymentSettings(vals);
+            setOriginalPaymentSettings(vals);
+        } catch { /* ignore */ }
+    }, [currentBrand?.id]);
+
+    React.useEffect(() => { loadPaymentSettings(); }, [loadPaymentSettings]);
+
+    const handleSaveSettings = async () => {
+        if (!currentBrand?.id) return;
+        setSavingSettings(true);
+        try {
+            await api.brands.update(currentBrand.id, paymentSettings);
+            setOriginalPaymentSettings({ ...paymentSettings });
+            await refreshBrands();
+            setSnack('Payment settings saved');
+        } catch { setSnack('Failed to save settings'); }
+        finally { setSavingSettings(false); }
+    };
+
+    const handleDiscardSettings = () => setPaymentSettings({ ...originalPaymentSettings });
+
+    // ── Payment schedule templates ───────────────────────────────────────────
+    const [templates, setTemplates] = React.useState<PaymentScheduleTemplate[]>([]);
+    const [loading, setLoading] = React.useState(true);
+    const [dialogOpen, setDialogOpen] = React.useState(false);
+    const [editing, setEditing] = React.useState<PaymentScheduleTemplate | null>(null);
+    const [form, setForm] = React.useState<{ name: string; description: string; is_default: boolean; rules: RuleForm[] }>({
+        name: '', description: '', is_default: false, rules: [EMPTY_RULE()],
+    });
+    const nameIsAuto = React.useRef(true);
+    const [saving, setSaving] = React.useState(false);
+    const [snack, setSnack] = React.useState('');
+
+    const brandId = currentBrand?.id ?? 1;
+
+    // ── data ─────────────────────────────────────────────────────────────────
+    const loadTemplates = React.useCallback(async () => {
+        try {
+            const res = await api.paymentSchedules.getAll(brandId);
+            setTemplates(res);
+        } catch {
+            try {
+                const res = await api.paymentSchedules.getAll(1);
+                setTemplates(res);
+            } catch { /* ignore */ }
+        } finally {
+            setLoading(false);
+        }
+    }, [brandId]);
+
+    React.useEffect(() => { loadTemplates(); }, []);
+
+    // ── open dialog ───────────────────────────────────────────────────────────
+    const openNew = () => {
+        nameIsAuto.current = true;
+        setEditing(null);
+        const rules = [EMPTY_RULE()];
+        setForm({ name: autoTemplateName(rules), description: '', is_default: templates.length === 0, rules });
+        setDialogOpen(true);
+    };
+
+    const openEdit = (t: PaymentScheduleTemplate) => {
+        nameIsAuto.current = false;
+        setEditing(t);
+        setForm({
+            name: t.name,
+            description: t.description ?? '',
+            is_default: t.is_default,
+            rules: t.rules.map(r => ({
+                label: r.label,
+                amount_type: r.amount_type,
+                amount_value: r.amount_value,
+                trigger_type: r.trigger_type,
+                trigger_days: r.trigger_days ?? 0,
+                order_index: r.order_index ?? 0,
+            })),
+        });
+        setDialogOpen(true);
+    };
+
+    // ── rule helpers ─────────────────────────────────────────────────────────
+    const addRule = () => {
+        const newRule = { ...EMPTY_RULE(), label: autoRuleLabel(EMPTY_RULE()), order_index: form.rules.length };
+        const newRules = [...form.rules, newRule];
+        setForm(f => ({ ...f, name: nameIsAuto.current ? autoTemplateName(newRules) : f.name, rules: newRules }));
+    };
+
+    const removeRule = (i: number) => {
+        const newRules = form.rules.filter((_, idx) => idx !== i);
+        setForm(f => ({ ...f, name: nameIsAuto.current ? autoTemplateName(newRules) : f.name, rules: newRules }));
+    };
+
+    const updateRule = (i: number, patch: Partial<RuleForm>) => {
+        setForm(f => {
+            const newRules = f.rules.map((r, idx) => {
+                if (idx !== i) return r;
+                const updated = { ...r, ...patch };
+                updated.label = autoRuleLabel(updated);
+                return updated;
+            });
+            return { ...f, name: nameIsAuto.current ? autoTemplateName(newRules) : f.name, rules: newRules };
+        });
+    };
+
+    // ── save ─────────────────────────────────────────────────────────────────
+    const handleSave = async () => {
+        const finalName = form.name.trim() || autoTemplateName(form.rules) || 'Payment Schedule';
+        setSaving(true);
+        try {
+            const payload = { ...form, name: finalName, rules: form.rules.map((r, i) => ({ ...r, order_index: i })) };
+            if (editing) {
+                await api.paymentSchedules.update(brandId, editing.id, payload);
+            } else {
+                await api.paymentSchedules.create(brandId, { ...payload, brand_id: brandId });
+            }
+            setSnack(editing ? 'Template updated' : 'Template created');
+            setDialogOpen(false);
+            loadTemplates();
+        } catch (e: any) {
+            setSnack(e?.message?.includes('already exists') ? 'A template with that name already exists' : 'Failed to save template');
+        } finally { setSaving(false); }
+    };
+
+    const handleDelete = async (id: number) => {
+        try {
+            await api.paymentSchedules.delete(brandId, id);
+            setSnack('Template deleted');
+            loadTemplates();
+        } catch { setSnack('Failed to delete template'); }
+    };
+
+    const handleSetDefault = async (t: PaymentScheduleTemplate) => {
+        try {
+            await api.paymentSchedules.update(brandId, t.id, { is_default: true });
+            setSnack(`"${t.name}" is now the default`);
+            loadTemplates();
+        } catch { setSnack('Failed to update default'); }
+    };
+
+    const pctTotal = form.rules
+        .filter(r => r.amount_type === 'PERCENT')
+        .reduce((s, r) => s + Number(r.amount_value), 0);
+
+    if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
+
+    return (
+        <>
+            {/* Save/Discard bar for payment settings */}
+            {paymentSettingsChanged && (
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 2 }}>
+                    <Button onClick={handleDiscardSettings} sx={{ textTransform: 'none' }}>Discard</Button>
+                    <Button variant="contained" onClick={handleSaveSettings} disabled={savingSettings} disableElevation
+                        sx={{ fontWeight: 600, borderRadius: 2, textTransform: 'none' }}>
+                        {savingSettings ? 'Saving…' : 'Save Settings'}
+                    </Button>
+                </Box>
+            )}
+
+            {/* ─── Two-column layout ─── */}
+            <Grid container spacing={3}>
+                {/* LEFT COLUMN */}
+                <Grid item xs={12} md={7}>
+                    {/* Payment Defaults */}
+                    <Box sx={{ mb: 3.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                            <CreditCardIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+                            <Typography variant="subtitle2" fontWeight={700}>Payment Defaults</Typography>
+                        </Box>
+                        <Box sx={{ p: 2.5, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: (theme) => alpha(theme.palette.background.paper, 0.6) }}>
+                            <Grid container spacing={2.5}>
+                                <Grid item xs={12} sm={6}>
+                                    <FormControl fullWidth size="small">
+                                        <InputLabel>Default Payment Method</InputLabel>
+                                        <Select label="Default Payment Method"
+                                            value={paymentSettings.default_payment_method}
+                                            onChange={e => setPaymentSettings(s => ({ ...s, default_payment_method: e.target.value }))}
+                                            sx={{ borderRadius: 2 }}>
+                                            <MenuItem value="Bank Transfer">Bank Transfer</MenuItem>
+                                            <MenuItem value="Credit Card">Credit Card</MenuItem>
+                                            <MenuItem value="PayPal">PayPal</MenuItem>
+                                            <MenuItem value="Stripe">Stripe</MenuItem>
+                                            <MenuItem value="Cash">Cash</MenuItem>
+                                            <MenuItem value="Cheque">Cheque</MenuItem>
+                                            <MenuItem value="Other">Other</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <FormControl fullWidth size="small">
+                                        <InputLabel>Payment Terms</InputLabel>
+                                        <Select label="Payment Terms"
+                                            value={paymentSettings.payment_terms_days}
+                                            onChange={e => setPaymentSettings(s => ({ ...s, payment_terms_days: Number(e.target.value) }))}
+                                            sx={{ borderRadius: 2 }}>
+                                            <MenuItem value={0}>Due on receipt</MenuItem>
+                                            <MenuItem value={7}>Net 7 — 7 days</MenuItem>
+                                            <MenuItem value={14}>Net 14 — 14 days</MenuItem>
+                                            <MenuItem value={30}>Net 30 — 30 days</MenuItem>
+                                            <MenuItem value={45}>Net 45 — 45 days</MenuItem>
+                                            <MenuItem value={60}>Net 60 — 60 days</MenuItem>
+                                            <MenuItem value={90}>Net 90 — 90 days</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Divider sx={{ my: 0.5 }} />
+                                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>Bank Details</Typography>
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField label="Bank Name" fullWidth size="small"
+                                        value={paymentSettings.bank_name}
+                                        onChange={e => setPaymentSettings(s => ({ ...s, bank_name: e.target.value }))}
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField label="Account Name" fullWidth size="small"
+                                        value={paymentSettings.bank_account_name}
+                                        onChange={e => setPaymentSettings(s => ({ ...s, bank_account_name: e.target.value }))}
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField label="Sort Code" fullWidth size="small"
+                                        value={paymentSettings.bank_sort_code}
+                                        onChange={e => setPaymentSettings(s => ({ ...s, bank_sort_code: e.target.value }))}
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField label="Account Number" fullWidth size="small"
+                                        value={paymentSettings.bank_account_number}
+                                        onChange={e => setPaymentSettings(s => ({ ...s, bank_account_number: e.target.value }))}
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                    />
+                                </Grid>
+                            </Grid>
+                        </Box>
+                    </Box>
+
+                    {/* Tax Details */}
+                    <Box sx={{ mb: 3.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                            <ReceiptLongIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+                            <Typography variant="subtitle2" fontWeight={700}>Tax Details</Typography>
+                        </Box>
+                        <Box sx={{ p: 2.5, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: (theme) => alpha(theme.palette.background.paper, 0.6) }}>
+                            {(currentBrand?.country === 'GB' || currentBrand?.country === 'United Kingdom') ? (
+                                /* ── UK VAT ── */
+                                <Grid container spacing={2.5}>
+                                    <Grid item xs={12} sm={6}>
+                                        <FormControl fullWidth size="small">
+                                            <InputLabel>VAT Rate</InputLabel>
+                                            <Select label="VAT Rate"
+                                                value={paymentSettings.default_tax_rate}
+                                                onChange={e => setPaymentSettings(s => ({ ...s, default_tax_rate: Number(e.target.value) }))}
+                                                sx={{ borderRadius: 2 }}>
+                                                <MenuItem value={20}>Standard Rate — 20%</MenuItem>
+                                                <MenuItem value={5}>Reduced Rate — 5%</MenuItem>
+                                                <MenuItem value={0}>Zero Rate — 0%</MenuItem>
+                                            </Select>
+                                        </FormControl>
+                                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: 'block' }}>
+                                            Applied to new estimates, quotes & invoices
+                                        </Typography>
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField label="VAT Number" fullWidth size="small"
+                                            value={paymentSettings.tax_number}
+                                            onChange={e => setPaymentSettings(s => ({ ...s, tax_number: e.target.value }))}
+                                            placeholder="GB 123 4567 89"
+                                            helperText="Displayed on invoices & estimates"
+                                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                        <Typography variant="caption" color="text.disabled">
+                                            VAT rates based on HMRC guidelines. Register for VAT if your taxable turnover exceeds £90,000.
+                                        </Typography>
+                                    </Grid>
+                                </Grid>
+                            ) : (
+                                /* ── Generic / other countries ── */
+                                <Grid container spacing={2.5}>
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField label="Default Tax Rate" fullWidth size="small" type="number"
+                                            value={paymentSettings.default_tax_rate}
+                                            onChange={e => setPaymentSettings(s => ({ ...s, default_tax_rate: Number(e.target.value) }))}
+                                            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                            inputProps={{ min: 0, max: 100, step: 0.01 }}
+                                            helperText="Applied to new estimates, quotes & invoices"
+                                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField label="Tax Number" fullWidth size="small"
+                                            value={paymentSettings.tax_number}
+                                            onChange={e => setPaymentSettings(s => ({ ...s, tax_number: e.target.value }))}
+                                            placeholder="e.g. VAT, GST, EIN"
+                                            helperText="Displayed on invoices & estimates"
+                                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                        />
+                                    </Grid>
+                                </Grid>
+                            )}
+                        </Box>
+                    </Box>
+                </Grid>
+
+                {/* RIGHT COLUMN — Payment Schedules */}
+                <Grid item xs={12} md={5}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                        <ScheduleIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+                        <Typography variant="subtitle2" fontWeight={700} sx={{ flex: 1 }}>Payment Schedules</Typography>
+                        <Button size="small" startIcon={<AddIcon />} onClick={openNew}
+                            sx={{ fontWeight: 600, borderRadius: 2, textTransform: 'none', fontSize: '0.75rem' }}>
+                            New
+                        </Button>
+                    </Box>
+                    <Box sx={{ borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: (theme) => alpha(theme.palette.background.paper, 0.6), overflow: 'hidden' }}>
+                        {templates.length === 0 ? (
+                            <Box sx={{ py: 5, textAlign: 'center' }}>
+                                <PaymentsIcon sx={{ fontSize: 32, color: 'text.disabled', mb: 1 }} />
+                                <Typography variant="body2" color="text.secondary" fontWeight={600}>No templates yet</Typography>
+                                <Button onClick={openNew} size="small" startIcon={<AddIcon />}
+                                    sx={{ mt: 1.5, textTransform: 'none', fontWeight: 600, borderRadius: 2, fontSize: '0.75rem' }}>
+                                    Create template
+                                </Button>
+                            </Box>
+                        ) : (
+                            <Stack spacing={0} divider={<Divider />}>
+                                {templates.map((t) => {
+                                    const total = t.rules.reduce((s, r) => s + Number(r.amount_value), 0);
+                                    return (
+                                        <Box key={t.id}
+                                            onClick={() => openEdit(t)}
+                                            sx={{
+                                                px: 2.5, py: 2, cursor: 'pointer',
+                                                transition: 'background 0.15s',
+                                                '&:hover': { bgcolor: 'action.hover' },
+                                            }}>
+                                            {/* Title row — prominent */}
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
+                                                <Typography variant="subtitle2" fontWeight={700} color="text.primary"
+                                                    sx={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {t.name}
+                                                </Typography>
+                                                {t.is_default && (
+                                                    <Chip label="Default" size="small" color="primary" variant="outlined"
+                                                        sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600 }} />
+                                                )}
+                                                <Typography variant="caption" fontWeight={700} fontFamily="monospace"
+                                                    color={total === 100 ? 'success.main' : 'warning.main'}>
+                                                    {total}%
+                                                </Typography>
+                                                {!t.is_default && (
+                                                    <Box sx={{ display: 'flex', gap: 0.25, ml: 0.5 }}>
+                                                        <Tooltip title="Set as default">
+                                                            <IconButton size="small"
+                                                                onClick={e => { e.stopPropagation(); handleSetDefault(t); }}
+                                                                sx={{ p: 0.4, color: 'text.disabled', '&:hover': { color: 'warning.main' } }}>
+                                                                <StarBorderIcon sx={{ fontSize: 15 }} />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                        <Tooltip title="Delete">
+                                                            <IconButton size="small"
+                                                                onClick={e => { e.stopPropagation(); handleDelete(t.id); }}
+                                                                sx={{ p: 0.4, color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
+                                                                <DeleteIcon sx={{ fontSize: 15 }} />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    </Box>
+                                                )}
+                                            </Box>
+
+                                            {/* Segmented bar — subtle */}
+                                            <Box sx={{ display: 'flex', height: 4, borderRadius: 2, overflow: 'hidden', bgcolor: 'action.hover', mb: 1 }}>
+                                                {t.rules.map((r, i) => (
+                                                    <Box key={i} sx={{
+                                                        flex: Number(r.amount_value) || 1,
+                                                        bgcolor: MILESTONE_COLORS[i % MILESTONE_COLORS.length],
+                                                        opacity: 0.35,
+                                                        mr: i < t.rules.length - 1 ? '2px' : 0,
+                                                    }} />
+                                                ))}
+                                            </Box>
+
+                                            {/* Milestone labels — subdued text, no colored percentages */}
+                                            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                                                {t.rules.map((r, i) => (
+                                                    <Typography key={i} variant="caption" color="text.secondary"
+                                                        sx={{ display: 'flex', alignItems: 'center', gap: 0.5, lineHeight: 1.4 }}>
+                                                        <Box component="span" sx={{
+                                                            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                                                            bgcolor: MILESTONE_COLORS[i % MILESTONE_COLORS.length], opacity: 0.5,
+                                                        }} />
+                                                        {Number(r.amount_value)}% {r.label}
+                                                    </Typography>
+                                                ))}
+                                            </Box>
+                                        </Box>
+                                    );
+                                })}
+                            </Stack>
+                        )}
+                    </Box>
+                </Grid>
+            </Grid>
+
+            {/* ─── Create / Edit dialog ─── */}
+            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth
+                PaperProps={{ sx: { borderRadius: 2.5 } }}>
+                <DialogTitle sx={{ pb: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <ScheduleIcon sx={{ color: 'primary.main', fontSize: 22 }} />
+                        <Typography variant="h6" fontWeight={700}>{editing ? 'Edit Schedule' : 'New Schedule'}</Typography>
+                    </Box>
+                </DialogTitle>
+
+                <DialogContent>
+                    <Stack spacing={3} sx={{ pt: 1.5 }}>
+                        {/* Name + Default row */}
+                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                            <TextField label="Schedule Name" fullWidth value={form.name}
+                                onChange={e => { nameIsAuto.current = false; setForm(f => ({ ...f, name: e.target.value })); }}
+                                placeholder="Auto-generated from milestones"
+                                inputProps={{ autoComplete: 'off' }}
+                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                            />
+                            <FormControlLabel
+                                control={<Switch checked={form.is_default} onChange={e => setForm(f => ({ ...f, is_default: e.target.checked }))} />}
+                                label={<Typography variant="body2" color="text.secondary" noWrap>Default</Typography>}
+                                sx={{ flexShrink: 0, mt: 0.75 }}
+                            />
+                        </Box>
+
+                        {/* Milestones */}
+                        <Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                <Typography variant="subtitle2" fontWeight={700}>Milestones</Typography>
+                                {pctTotal > 0 && (
+                                    <Chip label={`${pctTotal}%`} size="small"
+                                        color={pctTotal === 100 ? 'success' : pctTotal > 100 ? 'error' : 'warning'}
+                                        variant="outlined"
+                                        sx={{ height: 22, fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace' }} />
+                                )}
+                            </Box>
+
+                            <Stack spacing={1.5}>
+                                {form.rules.map((rule, i) => {
+                                    const color = MILESTONE_COLORS[i % MILESTONE_COLORS.length];
+                                    return (
+                                        <Box key={i} sx={{ p: 2, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: (theme) => alpha(theme.palette.background.paper, 0.6) }}>
+                                            {/* Color accent line */}
+                                            <Box sx={{ height: 3, width: 32, borderRadius: 1.5, bgcolor: color, mb: 1.5, opacity: 0.5 }} />
+
+                                            {/* Controls row */}
+                                            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                                                <TextField size="small" type="number" value={rule.amount_value}
+                                                    onChange={e => updateRule(i, { amount_value: Number(e.target.value) })}
+                                                    inputProps={{ min: 0, autoComplete: 'off' }}
+                                                    InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                                    sx={{ width: 100, '& .MuiOutlinedInput-root': { borderRadius: 2 }, '& input': { fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', fontSize: '1rem' } }}
+                                                />
+                                                <FormControl size="small" sx={{ flex: 1 }}>
+                                                    <Select value={rule.trigger_type}
+                                                        onChange={e => updateRule(i, { trigger_type: e.target.value as PaymentTriggerType })}
+                                                        sx={{ borderRadius: 2 }}>
+                                                        <MenuItem value="AFTER_BOOKING">After booking</MenuItem>
+                                                        <MenuItem value="BEFORE_EVENT">Before event</MenuItem>
+                                                        <MenuItem value="AFTER_EVENT">After event</MenuItem>
+                                                        <MenuItem value="ON_DATE">Fixed date</MenuItem>
+                                                    </Select>
+                                                </FormControl>
+                                                {rule.trigger_type !== 'ON_DATE' ? (
+                                                    <TextField size="small" type="number" value={rule.trigger_days ?? 0}
+                                                        onChange={e => updateRule(i, { trigger_days: Number(e.target.value) })}
+                                                        inputProps={{ min: 0, autoComplete: 'off' }}
+                                                        InputProps={{ endAdornment: <InputAdornment position="end">days</InputAdornment> }}
+                                                        sx={{ width: 110, '& .MuiOutlinedInput-root': { borderRadius: 2 }, '& input': { textAlign: 'center' } }}
+                                                    />
+                                                ) : <Box sx={{ width: 110 }} />}
+                                                {form.rules.length > 1 ? (
+                                                    <IconButton size="small" onClick={() => removeRule(i)}
+                                                        sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}>
+                                                        <DeleteIcon sx={{ fontSize: 18 }} />
+                                                    </IconButton>
+                                                ) : <Box sx={{ width: 34 }} />}
+                                            </Box>
+
+                                            {/* Auto label */}
+                                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
+                                                {rule.label}
+                                            </Typography>
+                                        </Box>
+                                    );
+                                })}
+                            </Stack>
+
+                            <Button onClick={addRule} size="small" startIcon={<AddIcon />}
+                                sx={{ mt: 2, textTransform: 'none', fontWeight: 600, borderRadius: 2 }}>
+                                Add milestone
+                            </Button>
+                        </Box>
+                    </Stack>
+                </DialogContent>
+
+                <DialogActions sx={{ px: 3, py: 2 }}>
+                    <Button onClick={() => setDialogOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+                    <Button variant="contained" onClick={handleSave} disabled={saving} disableElevation
+                        sx={{ fontWeight: 600, borderRadius: 2, textTransform: 'none', px: 3 }}>
+                        {saving ? 'Saving…' : editing ? 'Save Changes' : 'Create'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Snackbar open={!!snack} autoHideDuration={3500} onClose={() => setSnack('')}
+                message={snack} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
+        </>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Settings sections registry
 // ---------------------------------------------------------------------------
 
 const settingsSections: SettingsSection[] = [
     { label: "Profile", icon: <ProfileIcon />, component: <ProfileSettings /> },
     { label: "Brand", icon: <CompanyIcon />, component: <CompanySettings /> },
+    { label: "Payment Details", icon: <PaymentsIcon />, component: <PaymentScheduleSettings /> },
     { label: "Roles", icon: <RolesIcon />, component: <RolesSettings /> },
     { label: "Users", icon: <UsersIcon />, component: <UsersSettings /> },
     {

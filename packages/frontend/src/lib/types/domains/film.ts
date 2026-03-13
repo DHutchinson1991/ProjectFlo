@@ -7,6 +7,17 @@ import type { FilmScene } from './scenes';
 import type { FilmSubject } from './subjects';
 import type { FilmTimelineTrack } from './equipment';
 import type { FilmLocationAssignment } from '../locations';
+import type { MontagePreset } from './montage-presets';
+
+/**
+ * FilmType Enum - Types of wedding films
+ */
+export enum FilmType {
+  ACTIVITY = 'ACTIVITY',
+  FEATURE = 'FEATURE',
+  MONTAGE = 'MONTAGE',
+  RAW_FOOTAGE = 'RAW_FOOTAGE',
+}
 
 /**
  * Film - Core film entity
@@ -16,6 +27,10 @@ export interface Film {
   id: number;
   name: string;
   brand_id: number;
+  film_type: FilmType;
+  montage_preset_id?: number | null;
+  target_duration_min?: number | null;
+  target_duration_max?: number | null;
   created_at: string;
   updated_at: string;
 
@@ -25,6 +40,7 @@ export interface Film {
     name: string;
     display_name?: string;
   };
+  montage_preset?: MontagePreset | null;
   tracks?: FilmTimelineTrack[];
   subjects?: FilmSubject[];
   locations?: FilmLocationAssignment[];
@@ -37,6 +53,12 @@ export interface Film {
 export interface CreateFilmDto {
   name: string;
   brand_id: number;
+  film_type?: FilmType;
+  montage_preset_id?: number;
+  target_duration_min?: number;
+  target_duration_max?: number;
+  num_cameras?: number;
+  num_audio?: number;
 }
 
 /**
@@ -44,6 +66,10 @@ export interface CreateFilmDto {
  */
 export interface UpdateFilmDto {
   name?: string;
+  film_type?: FilmType;
+  montage_preset_id?: number | null;
+  target_duration_min?: number | null;
+  target_duration_max?: number | null;
 }
 
 /**

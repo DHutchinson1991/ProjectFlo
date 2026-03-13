@@ -47,13 +47,12 @@ import {
     User,
     Project
 } from './types';
-import { useCalendarEvents } from './hooks/useCalendar';
+import { useCalendarEvents, useCalendarTasks } from './hooks/useCalendar';
 import { useContributors, ContributorOption } from './hooks/useContributors';
 import {
     eventTypeConfig,
     taskTypeConfig,
     priorityConfig,
-    mockTasks,
     mockProjects
 } from './config';
 import {
@@ -70,8 +69,6 @@ export default function CalendarPage() {
         type: 'month',
         date: new Date()
     });
-
-    const [tasks, setTasks] = useState<CalendarTask[]>(mockTasks);
 
     const filters: CalendarFilters = {
         projects: [],
@@ -95,7 +92,11 @@ export default function CalendarPage() {
     const [eventInitialData, setEventInitialData] = useState<{ start: Date; end: Date; title: string } | undefined>(undefined);
 
     // Use calendar hook for API operations - use current view type
-    const { events, loading: eventsLoading, error: eventsError, createEvent: apiCreateEvent, updateEvent: apiUpdateEvent, deleteEvent: apiDeleteEvent, refreshEvents } = useCalendarEvents(currentView.date, currentView.type === 'agenda' ? 'month' : currentView.type);
+    const viewTypeForHook = currentView.type === 'agenda' ? 'month' : currentView.type;
+    const { events, loading: eventsLoading, error: eventsError, createEvent: apiCreateEvent, updateEvent: apiUpdateEvent, deleteEvent: apiDeleteEvent, refreshEvents } = useCalendarEvents(currentView.date, viewTypeForHook);
+
+    // Fetch real tasks (inquiry + project) for the current view's date range
+    const { tasks: apiTasks } = useCalendarTasks(currentView.date, viewTypeForHook);
 
     // Use contributors hook for assignee selection
     const {
@@ -204,7 +205,7 @@ export default function CalendarPage() {
 
     // Filtered data (tasks only - events are managed by connected components)
     const filteredTasks = useMemo(() => {
-        let filtered = tasks;
+        let filtered = apiTasks;
 
         // Apply search filter
         if (filters.searchTerm) {
@@ -245,7 +246,7 @@ export default function CalendarPage() {
         }
 
         return filtered;
-    }, [tasks, filters]);
+    }, [apiTasks, filters]);
 
     // Statistics (simplified since events are handled by connected components)
     const stats = useMemo(() => {
@@ -414,23 +415,9 @@ export default function CalendarPage() {
     }, [newEvent, apiCreateEvent, refreshEvents, setRefreshKey]);
 
     const handleAddTask = useCallback(() => {
-        const task: CalendarTask = {
-            id: `task-${Date.now()}`,
-            title: newTask.title,
-            description: newTask.description,
-            dueDate: newTask.dueDate,
-            completed: false,
-            type: newTask.type,
-            priority: newTask.priority,
-            assignee: contributorToUser(newTask.assignee) || undefined,
-            project: newTask.project || undefined,
-            estimatedHours: newTask.estimatedHours,
-            tags: newTask.project ? [newTask.project.name] : [],
-            created_at: new Date(),
-            updated_at: new Date()
-        };
-
-        setTasks(prev => [...prev, task]);
+        // Tasks are managed in the task library and auto-generated for inquiries/projects.
+        // This dialog is kept for future manual task creation via API.
+        console.log('Task creation from calendar not yet supported — use the Tasks page.', newTask);
         setIsAddDialogOpen(false);
 
         // Reset form
@@ -472,6 +459,7 @@ export default function CalendarPage() {
                         onEventUpdate={handleEventDragUpdate}
                         onDateClick={handleDateClick}
                         tasks={filteredTasks}
+                        onTaskClick={handleTaskClick}
                         key={`week-${refreshKey}`}
                     />
                 );

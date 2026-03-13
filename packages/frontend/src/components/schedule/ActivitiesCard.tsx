@@ -19,6 +19,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CameraRollIcon from '@mui/icons-material/CameraRoll';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
+import { alpha } from '@mui/material/styles';
 
 import { api } from '@/lib/api';
 import { useOptionalScheduleApi } from '@/components/schedule/ScheduleApiContext';
@@ -571,6 +572,14 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                                         const moments = act.moments || [];
                                         const momentCount = moments.length;
 
+                                        // Coverage: how much of the activity duration is filled by moments
+                                        const totalMomentSec = moments.reduce((s, m) => s + (m.duration_seconds || 0), 0);
+                                        const actDurSec = dur * 60; // convert minutes → seconds
+                                        const coveragePercent = actDurSec > 0 && momentCount > 0
+                                            ? Math.min(Math.round((totalMomentSec / actDurSec) * 100), 100)
+                                            : (momentCount > 0 ? 100 : 0);
+                                        const coverageColor = coveragePercent >= 75 ? '#4CAF50' : coveragePercent >= 50 ? '#FFC107' : coveragePercent >= 25 ? '#FF9800' : '#f44336';
+
                                         // Count assigned subjects, locations & crew for this activity (using activity_assignments junction)
                                         const actSubjectCount = daySubjects.filter(s =>
                                             s.activity_assignments?.some((a: { package_activity_id: number }) => a.package_activity_id === act.id) ||
@@ -629,6 +638,21 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                                                                         size="small"
                                                                         sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(255,255,255,0.04)', color: '#94a3b8', border: 'none', '& .MuiChip-icon': { ml: 0.5 } }}
                                                                     />
+                                                                )}
+                                                                {/* Coverage % badge — shown when moments exist */}
+                                                                {momentCount > 0 && dur > 0 && (
+                                                                    <Tooltip title={`${Math.floor(totalMomentSec / 60)}m ${totalMomentSec % 60}s of ${formatDuration(dur)} planned`} arrow>
+                                                                        <Box sx={{
+                                                                            display: 'inline-flex', alignItems: 'center',
+                                                                            px: 0.5, py: 0.1, borderRadius: 0.5,
+                                                                            bgcolor: alpha(coverageColor, 0.1),
+                                                                            border: `1px solid ${alpha(coverageColor, 0.25)}`,
+                                                                        }}>
+                                                                            <Typography sx={{ fontSize: '0.55rem', fontWeight: 700, color: coverageColor, lineHeight: 1 }}>
+                                                                                {coveragePercent}%
+                                                                            </Typography>
+                                                                        </Box>
+                                                                    </Tooltip>
                                                                 )}
                                                             </Box>
                                                             {/* Subject/location/crew badges */}

@@ -1549,6 +1549,7 @@ export class ScheduleService {
       create: {
         project_film_id: projectFilmId,
         scene_id: dto.scene_id,
+        project_activity_id: dto.project_activity_id,
         project_event_day_id: dto.project_event_day_id,
         scheduled_start_time: dto.scheduled_start_time,
         scheduled_duration_minutes: dto.scheduled_duration_minutes,
@@ -1559,6 +1560,7 @@ export class ScheduleService {
         is_locked: dto.is_locked ?? false,
       },
       update: {
+        project_activity_id: dto.project_activity_id,
         project_event_day_id: dto.project_event_day_id,
         scheduled_start_time: dto.scheduled_start_time,
         scheduled_duration_minutes: dto.scheduled_duration_minutes,

@@ -1,9 +1,14 @@
 "use client";
 
 import React from "react";
-import { Box, Typography } from "@mui/material";
+import { useRouter } from "next/navigation";
+import { Box, Chip, Typography } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
+import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
+import { alpha } from "@mui/material/styles";
+import { formatTime } from "@/lib/utils/formatUtils";
 import { TimelineScene } from "@/lib/types/timeline";
+import { useContentBuilder } from "../../../../context/ContentBuilderContext";
 
 interface MomentsHeaderProps {
   moments: any[];
@@ -71,8 +76,13 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
     );
   }
 
-  // Calculate total duration of moments for proportional sizing
-  const totalDuration = moments.reduce((acc: number, m: any) => acc + (m.duration || m.duration_seconds || 0), 0);
+  const { packageId } = useContentBuilder();
+  const router = useRouter();
+
+  // Use scene duration so moments show at their real proportions (with gaps).
+  const totalMomentDuration = moments.reduce((acc: number, m: any) => acc + (m.duration || m.duration_seconds || 0), 0);
+  const totalDuration = primaryScene.duration || totalMomentDuration;
+  const hasGap = totalMomentDuration < totalDuration;
 
   return (
     <Box
@@ -85,9 +95,10 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
       }}
     >
       {moments.length > 0 ? (
-        moments.map((moment, mIdx) => {
+        <>
+        {moments.map((moment, mIdx) => {
           const momentDuration = moment.duration || moment.duration_seconds || 0;
-          const flexVal = totalDuration > 0 ? momentDuration / totalDuration : 1;
+          const widthPercent = totalDuration > 0 ? (momentDuration / totalDuration) * 100 : 0;
 
           return (
             <Box
@@ -100,7 +111,8 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
               onMouseEnter={() => onMomentHover?.(moment.id)}
               onMouseLeave={() => onMomentHover?.(null)}
               sx={{
-                flex: flexVal,
+                flex: 'none',
+                width: `${widthPercent}%`,
                 minWidth: 0,
                 borderRight: "1px solid rgba(255,255,255,0.1)",
                 borderLeft: mIdx > 0 ? "1px solid rgba(0,0,0,0.5)" : "none",
@@ -169,7 +181,54 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
               />
             </Box>
           );
-        })
+        })}
+        {/* Gap fill — remaining unplanned time with manage button */}
+        {hasGap && (
+            <Box
+                onClick={packageId ? (e) => {
+                    e.stopPropagation();
+                    router.push(`/designer/packages/${packageId}`);
+                } : undefined}
+                sx={{
+                    flex: 'none',
+                    width: `${((totalDuration - totalMomentDuration) / totalDuration) * 100}%`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: packageId ? 'pointer' : 'default',
+                    backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(255,255,255,0.02) 3px, rgba(255,255,255,0.02) 4px)',
+                    transition: 'all 0.15s ease-out',
+                    '&:hover': {
+                        bgcolor: 'rgba(123, 97, 255, 0.08)',
+                        '& .gap-chip': {
+                            bgcolor: alpha('#7B61FF', 0.18),
+                            borderColor: alpha('#7B61FF', 0.35),
+                        },
+                    },
+                }}
+            >
+                <Chip
+                    className="gap-chip"
+                    icon={<EditNoteRoundedIcon sx={{ fontSize: 13 }} />}
+                    label={`${formatTime(totalDuration - totalMomentDuration)} unplanned`}
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                        height: 18,
+                        fontSize: '0.6rem',
+                        fontWeight: 500,
+                        color: alpha('#7B61FF', 0.7),
+                        borderColor: alpha('#7B61FF', 0.18),
+                        bgcolor: alpha('#7B61FF', 0.06),
+                        transition: 'all 0.15s ease-out',
+                        '& .MuiChip-icon': { color: alpha('#7B61FF', 0.5), ml: 0.5 },
+                        '& .MuiChip-label': { px: 0.5 },
+                        pointerEvents: 'none',
+                    }}
+                />
+            </Box>
+        )}
+        </>
       ) : (
         <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Typography

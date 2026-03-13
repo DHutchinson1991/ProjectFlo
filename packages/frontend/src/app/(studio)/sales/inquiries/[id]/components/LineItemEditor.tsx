@@ -62,9 +62,80 @@ interface LineItemEditorProps {
     items: LineItem[];
     onChange: (items: LineItem[]) => void;
     currencySymbol?: string;
+    readOnly?: boolean;
 }
 
 const UNIT_TYPES = ['Qty', 'Hours', 'Days', 'Flat Rate', 'Service', 'Event', 'Fixed'];
+
+// Read-only row — no inputs, no drag handle, no delete
+const ReadOnlyLineItem = ({
+    item,
+    currencySymbol = '$',
+}: {
+    item: LineItem;
+    currencySymbol?: string;
+}) => {
+    const isDiscount = item.unit_price < 0;
+    return (
+        <Paper
+            elevation={0}
+            variant="outlined"
+            sx={{
+                p: 1.5,
+                mb: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                backgroundColor: isDiscount ? 'rgba(255, 0, 0, 0.02)' : 'background.paper',
+                borderLeft: isDiscount ? '4px solid #ef5350' : '4px solid transparent',
+            }}
+        >
+            {item.category && (
+                <Typography
+                    variant="caption"
+                    sx={{
+                        minWidth: 110,
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: 1,
+                        bgcolor: 'action.hover',
+                        color: 'text.secondary',
+                        fontWeight: 600,
+                        flexShrink: 0,
+                    }}
+                >
+                    {item.category}
+                </Typography>
+            )}
+            <Typography variant="body2" sx={{ flex: 1, color: 'text.primary' }}>
+                {item.description || <span style={{ color: '#64748b', fontStyle: 'italic' }}>No description</span>}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 80, textAlign: 'right' }}>
+                {currencySymbol}{Number(item.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 70, textAlign: 'center' }}>
+                {item.quantity} {item.unit || 'Qty'}
+            </Typography>
+            <Typography
+                variant="body2"
+                fontWeight="bold"
+                sx={{ minWidth: 90, textAlign: 'right', color: isDiscount ? 'error.main' : 'text.primary' }}
+            >
+                {currencySymbol}{(item.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </Typography>
+        </Paper>
+    );
+};
+
+const ITEM_CATEGORIES = [
+    { value: 'Coverage',         label: 'Coverage' },       // On-day filming time
+    { value: 'Films',            label: 'Films' },           // Deliverable films (wedding film, reel, SDE)
+    { value: 'Post-Production',  label: 'Post-Production' }, // Editing / colour grading
+    { value: 'Travel',           label: 'Travel' },
+    { value: 'Equipment',        label: 'Equipment' },
+    { value: 'Discount',         label: 'Discount' },
+    { value: 'Other',            label: 'Other' },
+];
 
 // Sortable Row Component
 const SortableLineItem = ({ 
@@ -133,14 +204,9 @@ const SortableLineItem = ({
                                         onChange={(e) => onChange(index, 'category', e.target.value)}
                                         label="Category"
                                     >
-                                        <MenuItem value="Photography">Photography</MenuItem>
-                                        <MenuItem value="Videography">Videography</MenuItem>
-                                        <MenuItem value="Editing">Editing</MenuItem>
-                                        <MenuItem value="Travel">Travel</MenuItem>
-                                        <MenuItem value="Equipment">Equipment</MenuItem>
-                                        <MenuItem value="Adjustment">Adjustment</MenuItem>
-                                        <MenuItem value="Discount">Discount</MenuItem>
-                                        <MenuItem value="Other">Other</MenuItem>
+                                        {ITEM_CATEGORIES.map(cat => (
+                                            <MenuItem key={cat.value} value={cat.value}>{cat.label}</MenuItem>
+                                        ))}
                                     </Select>
                                 </FormControl>
                                 <TextField
@@ -215,7 +281,7 @@ const SortableLineItem = ({
     );
 };
 
-const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, currencySymbol = '$' }) => {
+const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, currencySymbol = '$', readOnly = false }) => {
     // Sensors for DnD
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -264,7 +330,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
             unit: 'Fixed',
             unit_price: isDiscount ? -100 : 0,
             total: isDiscount ? -100 : 0,
-            category: isDiscount ? 'Adjustment' : 'Photography'
+            category: isDiscount ? 'Discount' : 'Coverage'
         };
         onChange([...items, newItem]);
     };
@@ -274,6 +340,183 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
     };
 
     const grandTotal = items.reduce((sum, item) => sum + (item.total || 0), 0);
+
+    // ── Read-only display mode (estimates are auto-generated; adjust the package to change costs) ──
+    if (readOnly) {
+        const categoryColors: Record<string, string> = {
+            Equipment: '#10b981',
+            Planning: '#a855f7',
+            Coverage: '#648CFF',
+            'Post-Production': '#f97316',
+            Travel: '#06b6d4',
+            Discount: '#ef4444',
+            Other: '#94a3b8',
+        };
+        const categoryOrder = ['Equipment', 'Planning', 'Coverage', 'Post-Production', 'Travel', 'Discount', 'Other'];
+
+        // Merge Post-Production:* sub-categories into the parent Post-Production bucket
+        const postProdPrefix = 'Post-Production:';
+        const grouped = items.reduce((acc: Record<string, LineItem[]>, item) => {
+            const cat = item.category || 'Other';
+            // Film sub-categories stay separate for sub-group rendering but live under Post-Production
+            if (!acc[cat]) acc[cat] = [];
+            acc[cat].push(item);
+            return acc;
+        }, {});
+
+        // Collect film sub-groups and build the ordered list
+        const filmSubCats = Object.keys(grouped)
+            .filter(c => c.startsWith(postProdPrefix))
+            .sort();
+        // For ordering, treat all Post-Production:* as part of Post-Production
+        const orderedCategories: string[] = [];
+        for (const c of categoryOrder) {
+            if (grouped[c] || (c === 'Post-Production' && filmSubCats.length > 0)) {
+                orderedCategories.push(c);
+            }
+        }
+        // Append any remaining unknown categories
+        const known = new Set([...categoryOrder, ...filmSubCats]);
+        for (const c of Object.keys(grouped)) {
+            if (!known.has(c)) orderedCategories.push(c);
+        }
+
+        if (orderedCategories.length === 0 && filmSubCats.length === 0) {
+            return (
+                <Box sx={{ py: 4, textAlign: 'center' }}>
+                    <Typography sx={{ color: '#334155', fontSize: '0.82rem' }}>No items — package not yet assigned.</Typography>
+                </Box>
+            );
+        }
+
+        // Renders a row of line items
+        const renderItem = (item: LineItem, color: string) => (
+            <Box key={item.tempId} sx={{
+                display: 'flex', alignItems: 'center', gap: 2,
+                py: 0.85, px: 1.5,
+                borderLeft: `3px solid ${color}22`,
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.02)', borderLeftColor: `${color}55` },
+                transition: 'background 0.1s',
+            }}>
+                <Typography sx={{ flex: 1, color: '#cbd5e1', fontSize: '0.82rem', lineHeight: 1.3 }}>
+                    {item.description || <em style={{ color: '#334155' }}>No description</em>}
+                </Typography>
+                <Typography sx={{ color: '#475569', fontSize: '0.72rem', minWidth: 85, textAlign: 'right', fontFamily: 'monospace' }}>
+                    {currencySymbol}{Number(item.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </Typography>
+                <Typography sx={{ color: '#334155', fontSize: '0.7rem', minWidth: 72, textAlign: 'center' }}>
+                    × {item.quantity} {item.unit || ''}
+                </Typography>
+                <Typography sx={{
+                    fontWeight: 700, fontSize: '0.82rem', minWidth: 90, textAlign: 'right',
+                    fontFamily: 'monospace',
+                    color: (item.unit_price < 0) ? '#ef4444' : '#f1f5f9',
+                }}>
+                    {currencySymbol}{(item.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </Typography>
+            </Box>
+        );
+
+        return (
+            <Box>
+                {orderedCategories.map(category => {
+                    const color = categoryColors[category] || '#94a3b8';
+
+                    // Post-Production: render parent header + general items + per-film sub-groups
+                    if (category === 'Post-Production') {
+                        const generalItems = grouped['Post-Production'] || [];
+                        const allPostProdItems = [
+                            ...generalItems,
+                            ...filmSubCats.flatMap(sc => grouped[sc] || []),
+                        ];
+                        const totalPostProd = allPostProdItems.reduce((s, i) => s + (i.total || 0), 0);
+
+                        return (
+                            <Box key={category} sx={{ mb: 2 }}>
+                                {/* Parent header */}
+                                <Box sx={{
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    px: 1.5, py: 0.65,
+                                    borderLeft: `3px solid ${color}`,
+                                    bgcolor: `${color}10`,
+                                    borderRadius: '0 4px 4px 0',
+                                    mb: 0.5,
+                                }}>
+                                    <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                                        Post-Production
+                                    </Typography>
+                                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color, fontFamily: 'monospace' }}>
+                                        {currencySymbol}{totalPostProd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </Typography>
+                                </Box>
+
+                                {/* General editing items */}
+                                {generalItems.map(item => renderItem(item, color))}
+
+                                {/* Per-film sub-groups */}
+                                {filmSubCats.map(sc => {
+                                    const filmName = sc.slice(postProdPrefix.length);
+                                    const filmItems = grouped[sc] || [];
+                                    const filmSubtotal = filmItems.reduce((s, i) => s + (i.total || 0), 0);
+                                    return (
+                                        <Box key={sc}>
+                                            {/* Film sub-header — lighter, indented feel */}
+                                            <Box sx={{
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                px: 1.5, py: 0.4, mt: 0.75,
+                                                borderLeft: `3px solid ${color}40`,
+                                                mb: 0.25,
+                                            }}>
+                                                <Typography sx={{
+                                                    fontSize: '0.55rem', fontWeight: 600, color: `${color}cc`,
+                                                    textTransform: 'uppercase', letterSpacing: '0.6px',
+                                                }}>
+                                                    {filmName}
+                                                </Typography>
+                                                <Typography sx={{
+                                                    fontSize: '0.62rem', fontWeight: 600, color: `${color}99`,
+                                                    fontFamily: 'monospace',
+                                                }}>
+                                                    {currencySymbol}{filmSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                </Typography>
+                                            </Box>
+                                            {filmItems.map(item => renderItem(item, color))}
+                                        </Box>
+                                    );
+                                })}
+                            </Box>
+                        );
+                    }
+
+                    // Standard flat category
+                    const catItems = grouped[category];
+                    const catSubtotal = catItems.reduce((s, i) => s + (i.total || 0), 0);
+                    return (
+                        <Box key={category} sx={{ mb: 2 }}>
+                            {/* Category header */}
+                            <Box sx={{
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                px: 1.5, py: 0.65,
+                                borderLeft: `3px solid ${color}`,
+                                bgcolor: `${color}10`,
+                                borderRadius: '0 4px 4px 0',
+                                mb: 0.5,
+                            }}>
+                                <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                                    {category}
+                                </Typography>
+                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color, fontFamily: 'monospace' }}>
+                                    {currencySymbol}{catSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </Typography>
+                            </Box>
+                            {/* Items in category */}
+                            {catItems.map((item) => renderItem(item, color))}
+                        </Box>
+                    );
+                })}
+            </Box>
+        );
+    }
 
     return (
         <Box>

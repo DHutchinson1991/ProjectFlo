@@ -104,39 +104,61 @@ const SKILL_ROLE_MAPPINGS = [
 // complexity_score 9-10 → Executive/Principal bracket
 
 const TASK_SKILLS = {
-  // LEAD PHASE — Sales/administrative work, low complexity
-  "Lead Qualification": {
-    skills_needed: ["Sales", "Communication", "Client Relations"],
-    complexity_score: 2,
-  },
-  "Lead Follow-up": {
-    skills_needed: ["Sales", "Communication"],
-    complexity_score: 1,
-  },
-  "Lead Nurturing": {
-    skills_needed: ["Client Relations", "Communication", "Sales"],
-    complexity_score: 2,
-  },
-
-  // INQUIRY PHASE — Client-facing, mid-low complexity
+  // INQUIRY PHASE — Client-facing, needs assessment to discovery
   "Initial Inquiry Response": {
     skills_needed: ["Communication", "Client Relations", "Sales"],
     complexity_score: 2,
   },
-  "Consultation Scheduling": {
+  "Date Availability Check": {
     skills_needed: ["Scheduling", "Communication"],
     complexity_score: 1,
+  },
+  "Send Needs Assessment": {
+    skills_needed: ["Communication", "Client Relations"],
+    complexity_score: 1,
+  },
+  "Review Needs Assessment": {
+    skills_needed: ["Planning", "Client Relations", "Sales"],
+    complexity_score: 3,
   },
   "Portfolio Presentation": {
     skills_needed: ["Presentation", "Client Relations", "Creative Direction"],
     complexity_score: 4,
   },
-  "Requirements Discovery": {
-    skills_needed: ["Consultation", "Planning", "Client Relations"],
+  "Estimate Preparation": {
+    skills_needed: ["Pricing", "Planning", "Client Relations"],
+    complexity_score: 3,
+  },
+  "Discovery Call Scheduling": {
+    skills_needed: ["Scheduling", "Communication"],
+    complexity_score: 1,
+  },
+  "Discovery Call": {
+    skills_needed: ["Consultation", "Communication", "Client Relations"],
     complexity_score: 4,
   },
+  "Budget Alignment": {
+    skills_needed: ["Pricing", "Client Relations", "Sales"],
+    complexity_score: 3,
+  },
 
-  // BOOKING PHASE — Business operations
+  // BOOKING PHASE — Proposal through to contract and confirmation
+  "Proposal Creation": {
+    skills_needed: ["Creative Direction", "Presentation", "Pricing"],
+    complexity_score: 5,
+  },
+  "Proposal Delivery": {
+    skills_needed: ["Communication", "Client Relations"],
+    complexity_score: 1,
+  },
+  "Consultation Scheduling": {
+    skills_needed: ["Scheduling", "Communication"],
+    complexity_score: 1,
+  },
+  "Consultation Meeting": {
+    skills_needed: ["Consultation", "Presentation", "Client Relations"],
+    complexity_score: 5,
+  },
   "Quote Generation": {
     skills_needed: ["Pricing", "Documentation", "Client Relations"],
     complexity_score: 3,

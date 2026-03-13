@@ -3,7 +3,7 @@
 import React from 'react';
 import { Box } from '@mui/material';
 import { useContentBuilder } from '../../../context/ContentBuilderContext';
-import { PlaybackScreen, PlaybackControls, SaveControls } from './';
+import { PlaybackScreen, PlaybackControls } from './';
 
 /**
  * Playback Panel Container
@@ -23,26 +23,9 @@ export const PlaybackPanel: React.FC = () => {
     handleStop,
     jumpToTime,
     handleSpeedChange,
-    saveState,
-    handleSave,
     tracks,
-    scenes,
     readOnly,
-    onSave,
   } = useContentBuilder();
-
-  // Wrap handleSave to match expected signature
-  const handleSaveWrapper = React.useCallback(async () => {
-    console.log('💾 [PLAYBACK] Save button clicked, calling handleSave...');
-    try {
-      // Always use the integrated context handleSave which manages API calls + UI state
-      await handleSave();
-      console.log('✅ [PLAYBACK] Save completed successfully');
-    } catch (error) {
-      console.error('❌ [PLAYBACK] Save failed:', error);
-      throw error;
-    }
-  }, [handleSave]);
 
   return (
     <Box sx={{
@@ -96,14 +79,14 @@ export const PlaybackPanel: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Unified Controls Panel */}
+      {/* Playback Controls Bar */}
       <Box sx={{
         padding: "6px 16px",
         borderBottom: "1px solid #2a2a2a",
         backgroundColor: "#0f0f0f",
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between",
+        justifyContent: "center",
         minHeight: "44px",
         maxHeight: "44px",
         flexShrink: 0,
@@ -113,9 +96,6 @@ export const PlaybackPanel: React.FC = () => {
         borderTop: "1px solid rgba(255, 255, 255, 0.02)",
         boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.01), 0 1px 2px rgba(0, 0, 0, 0.4)",
       }}>
-        {/* Left Spacer */}
-        <Box sx={{ flex: 1 }} />
-
         {/* Center - Playback Controls */}
         <Box sx={{
           display: "flex",
@@ -136,24 +116,6 @@ export const PlaybackPanel: React.FC = () => {
             onStop={handleStop}
             onSeek={jumpToTime}
             onSpeedChange={handleSpeedChange}
-            readOnly={readOnly}
-          />
-        </Box>
-
-        {/* Right - Save Controls */}
-        <Box sx={{
-          flex: 1,
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "center"
-        }}>
-          <SaveControls
-            saveState={{
-              ...saveState,
-              lastSavedAt: saveState.lastSaved,
-              saveError: null,
-            }}
-            onSave={handleSaveWrapper}
             readOnly={readOnly}
           />
         </Box>

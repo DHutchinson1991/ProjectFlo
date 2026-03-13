@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, CardContent, Chip, Stack } from '@mui/material';
-import { Phone, EventAvailable, Schedule, Videocam, PhoneInTalk, PersonPin } from '@mui/icons-material';
+import { Phone, Schedule, Videocam, PhoneInTalk, PersonPin } from '@mui/icons-material';
 import { getCalendarApi, BackendCalendarEvent } from '../../../../../calendar/services/calendarApi';
 import { useAuth } from '@/app/providers/AuthProvider';
 import MeetingScheduler, { MeetingFormData } from '../../components/MeetingScheduler';
@@ -129,122 +129,106 @@ const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, 
 
     return (
         <WorkflowCard isActive={isActive} activeColor={activeColor}>
-            <CardContent sx={{ p: '0 !important' }}>
+            <CardContent>
                 {/* ── Header ── */}
                 <Box sx={{
-                    px: 2.5, pt: 2, pb: 1.5,
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    borderBottom: '1px solid rgba(52, 58, 68, 0.3)',
-                    background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.06), transparent)',
+                    mb: 2,
                 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Box sx={{
-                            width: 34, height: 34, borderRadius: 2,
+                            width: 32, height: 32, borderRadius: 2,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(251, 191, 36, 0.08))',
-                            border: '1px solid rgba(245, 158, 11, 0.2)',
-                            boxShadow: '0 0 12px rgba(245, 158, 11, 0.08)',
+                            bgcolor: 'rgba(245, 158, 11, 0.1)',
+                            border: '1px solid rgba(245, 158, 11, 0.15)',
                         }}>
-                            <Phone sx={{ fontSize: 17, color: '#f59e0b' }} />
+                            <Phone sx={{ fontSize: 18, color: '#f59e0b' }} />
                         </Box>
-                        <Box>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#f1f5f9', lineHeight: 1.2, letterSpacing: '-0.01em' }}>
-                                Discovery Call
-                            </Typography>
-                            <Typography sx={{ fontSize: '0.6rem', color: '#64748b', letterSpacing: '0.03em' }}>
-                                Initial client outreach
-                            </Typography>
-                        </Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: '#f1f5f9' }}>
+                            Discovery Call
+                        </Typography>
+                        {meetings.length > 0 && (
+                            <Chip
+                                label={`${meetings.length} scheduled`}
+                                size="small"
+                                sx={{
+                                    height: 20, fontSize: '0.65rem', fontWeight: 700,
+                                    bgcolor: 'rgba(245, 158, 11, 0.1)',
+                                    color: '#f59e0b',
+                                }}
+                            />
+                        )}
                     </Box>
-                    {meetings.length > 0 && (
-                        <Chip
-                            icon={<Schedule sx={{ fontSize: 12 }} />}
-                            label={`${meetings.length} scheduled`}
-                            size="small"
-                            sx={{
-                                height: 24, fontSize: '0.65rem', fontWeight: 700,
-                                bgcolor: 'rgba(245, 158, 11, 0.08)',
-                                color: '#f59e0b',
-                                border: '1px solid rgba(245, 158, 11, 0.15)',
-                                '& .MuiChip-icon': { color: '#f59e0b' },
-                            }}
-                        />
-                    )}
                 </Box>
 
-                <Box sx={{ px: 2.5, py: 2 }}>
-                    {/* ── Client Call Preferences ── */}
-                    {hasCallPref && (
-                        <Box sx={{
-                            mb: 2, p: 1.5, borderRadius: 2.5,
-                            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.04), rgba(251, 191, 36, 0.02))',
-                            border: '1px solid rgba(245, 158, 11, 0.1)',
-                        }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.25 }}>
-                                <EventAvailable sx={{ fontSize: 13, color: '#fbbf24' }} />
-                                <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#fbbf24', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                                    Client Preferred
-                                </Typography>
-                            </Box>
-                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                {reqMethod && (
-                                    <Chip
-                                        icon={getMethodIcon(reqMethod)}
-                                        label={reqMethod}
-                                        size="small"
-                                        sx={{
-                                            height: 26, fontSize: '0.72rem', fontWeight: 600,
-                                            bgcolor: 'rgba(245, 158, 11, 0.06)',
-                                            color: '#fcd34d',
-                                            border: '1px solid rgba(245, 158, 11, 0.12)',
-                                            '& .MuiChip-icon': { color: '#fbbf24' },
-                                        }}
-                                    />
-                                )}
-                                {reqDate && (
-                                    <Chip
-                                        icon={<Schedule sx={{ fontSize: 12 }} />}
-                                        label={new Date(reqDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                        size="small"
-                                        sx={{
-                                            height: 26, fontSize: '0.72rem', fontWeight: 600,
-                                            bgcolor: 'rgba(245, 158, 11, 0.06)',
-                                            color: '#fcd34d',
-                                            border: '1px solid rgba(245, 158, 11, 0.12)',
-                                            '& .MuiChip-icon': { color: '#fbbf24' },
-                                        }}
-                                    />
-                                )}
-                                {reqTime && (
-                                    <Chip
-                                        label={reqTime}
-                                        size="small"
-                                        sx={{
-                                            height: 26, fontSize: '0.72rem', fontWeight: 600,
-                                            bgcolor: 'rgba(245, 158, 11, 0.06)',
-                                            color: '#fcd34d',
-                                            border: '1px solid rgba(245, 158, 11, 0.12)',
-                                        }}
-                                    />
-                                )}
-                            </Stack>
-                        </Box>
-                    )}
+                {/* ── Client Call Preferences ── */}
+                {hasCallPref && (
+                    <Box sx={{
+                        mb: 2, p: 1.5, borderRadius: 2,
+                        bgcolor: 'rgba(245, 158, 11, 0.03)',
+                        border: '1px solid rgba(245, 158, 11, 0.08)',
+                    }}>
+                        <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', mb: 1 }}>
+                            Client Preferred
+                        </Typography>
+                        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                            {reqMethod && (
+                                <Chip
+                                    icon={getMethodIcon(reqMethod)}
+                                    label={reqMethod}
+                                    size="small"
+                                    sx={{
+                                        height: 24, fontSize: '0.7rem', fontWeight: 600,
+                                        bgcolor: 'rgba(255, 255, 255, 0.03)',
+                                        color: '#94a3b8',
+                                        border: '1px solid rgba(148, 163, 184, 0.1)',
+                                        '& .MuiChip-icon': { color: '#64748b' },
+                                    }}
+                                />
+                            )}
+                            {reqDate && (
+                                <Chip
+                                    icon={<Schedule sx={{ fontSize: 12 }} />}
+                                    label={new Date(reqDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                    size="small"
+                                    sx={{
+                                        height: 24, fontSize: '0.7rem', fontWeight: 600,
+                                        bgcolor: 'rgba(255, 255, 255, 0.03)',
+                                        color: '#94a3b8',
+                                        border: '1px solid rgba(148, 163, 184, 0.1)',
+                                        '& .MuiChip-icon': { color: '#64748b' },
+                                    }}
+                                />
+                            )}
+                            {reqTime && (
+                                <Chip
+                                    label={reqTime}
+                                    size="small"
+                                    sx={{
+                                        height: 24, fontSize: '0.7rem', fontWeight: 600,
+                                        bgcolor: 'rgba(255, 255, 255, 0.03)',
+                                        color: '#94a3b8',
+                                        border: '1px solid rgba(148, 163, 184, 0.1)',
+                                    }}
+                                />
+                            )}
+                        </Stack>
+                    </Box>
+                )}
 
-                    {/* ── Scheduler ── */}
-                    <MeetingScheduler
-                        meetings={meetings}
-                        onScheduleMeeting={handleScheduleMeeting}
-                        onUpdateMeeting={handleUpdateMeeting}
-                        onDeleteMeeting={handleDeleteMeeting}
-                        isLoading={isLoading}
-                        eventType="discovery_call"
-                        defaultDurationMinutes={15}
-                        accentColor="#f59e0b"
-                        scheduleLabel="Schedule Call"
-                        emptyMessage="No discovery calls scheduled yet"
-                    />
-                </Box>
+                {/* ── Scheduler ── */}
+                <MeetingScheduler
+                    meetings={meetings}
+                    onScheduleMeeting={handleScheduleMeeting}
+                    onUpdateMeeting={handleUpdateMeeting}
+                    onDeleteMeeting={handleDeleteMeeting}
+                    isLoading={isLoading}
+                    eventType="discovery_call"
+                    defaultDurationMinutes={15}
+                    accentColor="#f59e0b"
+                    scheduleLabel="Schedule Call"
+                    emptyMessage="No discovery calls scheduled yet"
+                />
             </CardContent>
         </WorkflowCard>
     );

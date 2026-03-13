@@ -1,5 +1,5 @@
-import { IsString, IsOptional, IsEmail, IsUrl, IsBoolean } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { IsString, IsOptional, IsEmail, IsUrl, IsBoolean, IsNumber, IsInt, Min, Max } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export class CreateBrandDto {
     @IsString()
@@ -67,6 +67,43 @@ export class CreateBrandDto {
     @IsUrl({}, { message: 'Logo URL must be a valid URL' })
     @IsOptional()
     logo_url?: string;
+
+    @Type(() => Number)
+    @IsNumber({}, { message: 'Tax rate must be a number' })
+    @Min(0)
+    @Max(100)
+    @IsOptional()
+    default_tax_rate?: number;
+
+    @IsString()
+    @IsOptional()
+    tax_number?: string;
+
+    @IsString()
+    @IsOptional()
+    default_payment_method?: string;
+
+    @Type(() => Number)
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    payment_terms_days?: number;
+
+    @IsString()
+    @IsOptional()
+    bank_name?: string;
+
+    @IsString()
+    @IsOptional()
+    bank_account_name?: string;
+
+    @IsString()
+    @IsOptional()
+    bank_sort_code?: string;
+
+    @IsString()
+    @IsOptional()
+    bank_account_number?: string;
 
     @IsBoolean()
     @IsOptional()

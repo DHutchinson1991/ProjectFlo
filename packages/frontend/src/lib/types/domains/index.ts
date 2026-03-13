@@ -5,6 +5,7 @@
 
 // Film & Timeline
 export type { Film, CreateFilmDto, UpdateFilmDto, FilmResponse } from './film';
+export { FilmType } from './film';
 export type { TimelineLayer, CreateTimelineLayerDto, UpdateTimelineLayerDto } from './film';
 
 // Equipment & Tracks
@@ -35,3 +36,13 @@ export type { CameraSubjectAssignment, MomentRecordingSetup, CreateMomentRecordi
 // Crew
 export type { CrewMember, CrewWorkloadSummary, PackageCrewSlot, AddCrewSlotDto, UpdateCrewSlotDto, SetCrewStatusDto, UpdateCrewProfileDto } from './crew';
 export { getCrewMemberName, getCrewInitials, getSlotColor, CREW_COLORS } from './crew';
+
+// Montage Presets
+export type { MontagePreset, CreateMontagePresetDto, UpdateMontagePresetDto } from './montage-presets';
+
+// Film Structure Templates
+export type { FilmStructureTemplate, FilmStructureTemplateScene, CreateFilmStructureTemplateDto, UpdateFilmStructureTemplateDto, CreateFilmStructureTemplateSceneDto, UpdateFilmStructureTemplateSceneDto } from './film-structure-templates';
+
+// Audio Sources
+export type { SceneAudioSource, CreateSceneAudioSourceDto, UpdateSceneAudioSourceDto } from './audio-sources';
+export { AudioSourceType, AudioTrackType } from './audio-sources';

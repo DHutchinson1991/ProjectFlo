@@ -24,6 +24,14 @@ export interface InquiryApiResponse {
     contact_id: number;
     brand_id: number;
     selected_package_id?: number | null;
+    package_contents_snapshot?: {
+        snapshot_taken_at: string;
+        package_id: number;
+        package_name: string;
+        base_price?: number;
+        currency?: string;
+        contents?: Record<string, unknown>;
+    } | null;
     created_at: string;
     updated_at: string;
 }

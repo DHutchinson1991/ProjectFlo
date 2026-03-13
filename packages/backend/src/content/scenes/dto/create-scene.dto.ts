@@ -21,6 +21,10 @@ export class CreateSceneDto {
     @IsOptional()
     duration_seconds?: number;
 
+    @IsString()
+    @IsOptional()
+    mode?: string;
+
     @IsNumber()
     @IsOptional()
     @Min(0)

@@ -27,6 +27,8 @@ import {
 
   // Sales domain
   Inquiry,
+  InquiryTask,
+  InquiryTaskStatus,
   Client,
   ClientListItem,
   CreateInquiryData,
@@ -54,6 +56,14 @@ import {
   EstimateItem,
   CreateEstimateData,
   UpdateEstimateData,
+
+  // Payment Schedules domain
+  PaymentScheduleTemplate,
+  PaymentScheduleRule,
+  EstimatePaymentMilestone,
+  CreatePaymentScheduleTemplateData,
+  UpdatePaymentScheduleTemplateData,
+  ApplyScheduleToEstimateData,
 
   // Quotes domain
   Quote,
@@ -237,9 +247,28 @@ import {
 // Import Film types from domains
 import {
   Film,
+  FilmType,
   CreateFilmDto,
   UpdateFilmDto,
 } from "./types/domains/film";
+
+import type {
+  MontagePreset,
+  CreateMontagePresetDto,
+  UpdateMontagePresetDto,
+} from "./types/domains/montage-presets";
+
+import type {
+  FilmStructureTemplate,
+  CreateFilmStructureTemplateDto,
+  UpdateFilmStructureTemplateDto,
+} from "./types/domains/film-structure-templates";
+
+import type {
+  SceneAudioSource,
+  CreateSceneAudioSourceDto,
+  UpdateSceneAudioSourceDto,
+} from "./types/domains/audio-sources";
 
 // Brand context interface for API service
 interface BrandContextProvider {
@@ -872,7 +901,7 @@ class ApiService extends BaseApiClient {
         this.get(`/films/${filmId}/scenes/${sceneId}/duration`),
       getAllDurations: (filmId: number): Promise<SceneDurationInfo[]> =>
         this.get(`/films/${filmId}/scenes/durations`),
-      create: (filmId: number, data: { name: string; scene_template_id?: number; order_index?: number; shot_count?: number | null; duration_seconds?: number | null }): Promise<FilmLocalScene> =>
+      create: (filmId: number, data: { name: string; scene_template_id?: number; order_index?: number; shot_count?: number | null; duration_seconds?: number | null; mode?: 'MOMENTS' | 'MONTAGE' }): Promise<FilmLocalScene> =>
         this.post(`/scenes/films/${filmId}/scenes`, data),
       reorder: (filmId: number, sceneOrderings: Array<{ id: number; order_index: number }>): Promise<any> =>
         this.post(`/scenes/${filmId}/reorder`, sceneOrderings),
@@ -944,6 +973,57 @@ class ApiService extends BaseApiClient {
         this.patch(`/beats/${beatId}/recording-setup`, data),
       delete: (beatId: number): Promise<any> => this.delete(`/beats/${beatId}/recording-setup`),
     },
+  };
+
+  // Montage Presets (brand-scoped)
+  montagePresets = {
+    getAll: (brandId?: number): Promise<MontagePreset[]> => {
+      const query = brandId ? `?brandId=${brandId}` : '';
+      return this.get(`/montage-presets${query}`);
+    },
+    getById: (id: number): Promise<MontagePreset> =>
+      this.get(`/montage-presets/${id}`),
+    create: (data: CreateMontagePresetDto): Promise<MontagePreset> =>
+      this.post('/montage-presets', data),
+    update: (id: number, data: UpdateMontagePresetDto): Promise<MontagePreset> =>
+      this.patch(`/montage-presets/${id}`, data),
+    delete: (id: number): Promise<void> =>
+      this.delete(`/montage-presets/${id}`),
+  };
+
+  // Film Structure Templates (brand-scoped)
+  filmStructureTemplates = {
+    getAll: (brandId?: number, filmType?: FilmType): Promise<FilmStructureTemplate[]> => {
+      const params = new URLSearchParams();
+      if (brandId) params.set('brandId', String(brandId));
+      if (filmType) params.set('filmType', filmType);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      return this.get(`/film-structure-templates${query}`);
+    },
+    getById: (id: number): Promise<FilmStructureTemplate> =>
+      this.get(`/film-structure-templates/${id}`),
+    create: (data: CreateFilmStructureTemplateDto): Promise<FilmStructureTemplate> =>
+      this.post('/film-structure-templates', data),
+    update: (id: number, data: UpdateFilmStructureTemplateDto): Promise<FilmStructureTemplate> =>
+      this.patch(`/film-structure-templates/${id}`, data),
+    delete: (id: number): Promise<void> =>
+      this.delete(`/film-structure-templates/${id}`),
+  };
+
+  // Scene Audio Sources
+  sceneAudioSources = {
+    getByScene: (sceneId: number): Promise<SceneAudioSource[]> =>
+      this.get(`/scene-audio-sources/scenes/${sceneId}/audio-sources`),
+    getById: (id: number): Promise<SceneAudioSource> =>
+      this.get(`/scene-audio-sources/${id}`),
+    create: (sceneId: number, data: CreateSceneAudioSourceDto): Promise<SceneAudioSource> =>
+      this.post(`/scene-audio-sources/scenes/${sceneId}/audio-sources`, data),
+    update: (id: number, data: UpdateSceneAudioSourceDto): Promise<SceneAudioSource> =>
+      this.patch(`/scene-audio-sources/${id}`, data),
+    delete: (id: number): Promise<void> =>
+      this.delete(`/scene-audio-sources/${id}`),
+    reorder: (sceneId: number, orderings: Array<{ id: number; order_index: number }>): Promise<SceneAudioSource[]> =>
+      this.post(`/scene-audio-sources/scenes/${sceneId}/audio-sources/reorder`, orderings),
   };
 
   // Timeline methods - layers managed via Films API
@@ -1035,8 +1115,11 @@ class ApiService extends BaseApiClient {
     },
 
     // Auto-generation preview for packages
-    previewAutoGeneration: (packageId: number, brandId: number): Promise<TaskAutoGenerationPreview> =>
-      this.get(`/task-library/auto-generate/preview/${packageId}?brandId=${brandId}`),
+    previewAutoGeneration: (packageId: number, brandId: number, inquiryId?: number): Promise<TaskAutoGenerationPreview> => {
+      let url = `/task-library/auto-generate/preview/${packageId}?brandId=${brandId}`;
+      if (inquiryId) url += `&inquiryId=${inquiryId}`;
+      return this.get(url);
+    },
 
     // Execute auto-generation: create real project tasks
     executeAutoGeneration: (dto: ExecuteAutoGenerationDto): Promise<ExecuteAutoGenerationResult> =>
@@ -1269,6 +1352,18 @@ class ApiService extends BaseApiClient {
       getActivityMoments: (inquiryId: number, activityId: number): Promise<any[]> =>
         this.get(`/api/inquiries/${inquiryId}/schedule-snapshot/activities/${activityId}/moments`),
     },
+  };
+
+  // Inquiry Tasks (per-inquiry pipeline task tracking)
+  inquiryTasks = {
+    getAll: (inquiryId: number): Promise<InquiryTask[]> =>
+      this.get(`/api/inquiries/${inquiryId}/tasks`),
+    update: (inquiryId: number, taskId: number, data: { status?: InquiryTaskStatus; due_date?: string; order_index?: number }): Promise<InquiryTask> =>
+      this.patch(`/api/inquiries/${inquiryId}/tasks/${taskId}`, data),
+    toggle: (inquiryId: number, taskId: number, completedById?: number): Promise<InquiryTask> =>
+      this.patch(`/api/inquiries/${inquiryId}/tasks/${taskId}/toggle`, completedById ? { completed_by_id: completedById } : {}),
+    generate: (inquiryId: number): Promise<InquiryTask[]> =>
+      this.post(`/api/inquiries/${inquiryId}/tasks/generate`),
   };
 
   // Needs Assessment methods (brand-specific)
@@ -1834,9 +1929,13 @@ class ApiService extends BaseApiClient {
         this.get(`/schedule/inquiries/${inquiryId}/films`),
       create: (inquiryId: number, data: { film_id: number; package_film_id?: number; order_index?: number }): Promise<any> =>
         this.post(`/schedule/inquiries/${inquiryId}/films`, data),
-      // delete/upsertScene by ID — use projectFilms methods (same table, found by PK)
+      // Inquiry/project instance films share the same underlying scene-schedule table and PK routing.
       delete: (filmId: number): Promise<void> =>
         this.delete(`/schedule/projects/films/${filmId}`),
+      upsertSceneSchedule: (filmId: number, data: any): Promise<any> =>
+        this.post(`/schedule/projects/films/${filmId}/scenes`, data),
+      bulkUpsertSceneSchedules: (filmId: number, schedules: any[]): Promise<any[]> =>
+        this.post(`/schedule/projects/films/${filmId}/scenes/bulk`, schedules),
     },
 
     // ─── Instance CRUD (shared — works with both project & inquiry records) ──
@@ -2026,6 +2125,29 @@ class ApiService extends BaseApiClient {
       this.patch(`/api/inquiries/${inquiryId}/estimates/${estimateId}`, data),
     delete: (inquiryId: number, estimateId: number): Promise<void> =>
       this.delete(`/api/inquiries/${inquiryId}/estimates/${estimateId}`),
+  };
+
+  // Payment Schedule Templates (brand-scoped)
+  paymentSchedules = {
+    getAll: (brandId: number): Promise<PaymentScheduleTemplate[]> =>
+      this.get(`/api/brands/${brandId}/payment-schedules`),
+    getDefault: (brandId: number): Promise<PaymentScheduleTemplate | null> =>
+      this.get(`/api/brands/${brandId}/payment-schedules/default`),
+    getById: (brandId: number, id: number): Promise<PaymentScheduleTemplate> =>
+      this.get(`/api/brands/${brandId}/payment-schedules/${id}`),
+    create: (brandId: number, data: CreatePaymentScheduleTemplateData): Promise<PaymentScheduleTemplate> =>
+      this.post(`/api/brands/${brandId}/payment-schedules`, data),
+    update: (brandId: number, id: number, data: UpdatePaymentScheduleTemplateData): Promise<PaymentScheduleTemplate> =>
+      this.put(`/api/brands/${brandId}/payment-schedules/${id}`, data),
+    delete: (brandId: number, id: number): Promise<{ success: boolean }> =>
+      this.delete(`/api/brands/${brandId}/payment-schedules/${id}`),
+    // Milestone management per estimate
+    getMilestones: (estimateId: number): Promise<EstimatePaymentMilestone[]> =>
+      this.get(`/api/estimates/${estimateId}/milestones`),
+    applyToEstimate: (estimateId: number, data: ApplyScheduleToEstimateData): Promise<EstimatePaymentMilestone[]> =>
+      this.post(`/api/estimates/${estimateId}/apply-schedule`, data),
+    updateMilestoneStatus: (milestoneId: number, status: string): Promise<EstimatePaymentMilestone> =>
+      this.patch(`/api/estimates/milestones/${milestoneId}/status`, { status }),
   };
 
   // Quotes methods (brand-specific, nested under inquiries)

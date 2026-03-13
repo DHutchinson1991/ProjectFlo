@@ -215,6 +215,9 @@ export interface ContentBuilderProps {
     packageId?: number | null;
     /** When set, location slot count in the header is filtered to only this activity */
     linkedActivityId?: number | null;
+    /** Instance owner context for project/inquiry film editors */
+    instanceOwnerType?: 'project' | 'inquiry';
+    instanceOwnerId?: number | null;
     equipmentConfig?: {
         cameras: number;
         audio: number;

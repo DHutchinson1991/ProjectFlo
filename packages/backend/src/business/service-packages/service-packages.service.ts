@@ -119,6 +119,7 @@ export class ServicePackagesService {
           } else {
             totalCrewCost += rate * hours;
           }
+
         }
 
         // ── Equipment counts & cost ──

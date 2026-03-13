@@ -52,7 +52,7 @@ import { CrewCard } from '@/app/(studio)/designer/packages/[id]/_cards/CrewCard'
 import { EquipmentCard } from '@/app/(studio)/designer/packages/[id]/_cards/EquipmentCard';
 import { SummaryCard } from '@/app/(studio)/designer/packages/[id]/_cards/SummaryCard';
 import { PackageScheduleCard } from '@/components/schedule/PackageScheduleCard';
-import { ActivityFilmWizard } from '@/components/schedule/ActivityFilmWizard';
+import { FilmCreationWizard } from '@/components/schedule/film-wizard';
 
 import {
     useInstanceScheduleData,
@@ -186,14 +186,15 @@ function ScheduleEditorContent({
         setTaskPreviewLoading(true);
         setTaskPreviewError(null);
         try {
-            const previewData = await api.taskLibrary.previewAutoGeneration(sourcePackageId, safeBrandId);
+            const inquiryId = owner.type === 'inquiry' ? owner.id : undefined;
+            const previewData = await api.taskLibrary.previewAutoGeneration(sourcePackageId, safeBrandId, inquiryId);
             setTaskPreview(previewData);
         } catch (err) {
             setTaskPreviewError(err instanceof Error ? err.message : 'Failed to load task preview');
         } finally {
             setTaskPreviewLoading(false);
         }
-    }, [sourcePackageId, safeBrandId]);
+    }, [sourcePackageId, safeBrandId, owner]);
 
     useEffect(() => {
         loadTaskPreview();
@@ -468,6 +469,14 @@ function ScheduleEditorContent({
                                     {films.map((pf: any) => {
                                         const film = pf.film;
                                         const sceneCount = pf.scene_schedules?.length || film?.scenes?.length || 0;
+                                        const linkedActivityIds = Array.from(
+                                            new Set(
+                                                (pf.scene_schedules || [])
+                                                    .map((schedule: any) => schedule.project_activity_id)
+                                                    .filter((activityId: number | null | undefined) => Number.isFinite(activityId)),
+                                            ),
+                                        ) as number[];
+                                        const linkedActivityId = linkedActivityIds.length === 1 ? linkedActivityIds[0] : null;
                                         return (
                                             <Box
                                                 key={pf.id}
@@ -490,6 +499,7 @@ function ScheduleEditorContent({
                                                     if (owner.type === 'inquiry') params.set('inquiryId', String(owner.id));
                                                     if (sourcePackageId) params.set('packageId', String(sourcePackageId));
                                                     if (pf.film_id) params.set('filmId', String(pf.film_id));
+                                                    if (linkedActivityId) params.set('activityId', String(linkedActivityId));
                                                     router.push(`/designer/instance-films/${pf.id}?${params.toString()}`);
                                                 }}
                                             >
@@ -555,7 +565,7 @@ function ScheduleEditorContent({
             />
 
             {/* ── Film Creation Wizard ── */}
-            <ActivityFilmWizard
+            <FilmCreationWizard
                 open={filmWizardOpen}
                 onClose={() => setFilmWizardOpen(false)}
                 packageId={null}
@@ -682,7 +692,18 @@ function InstanceTaskPreviewCard({
                     </Alert>
                 )}
 
-                {!taskPreviewLoading && !taskPreviewError && taskPreview && (
+                {!taskPreviewLoading && !taskPreviewError && taskPreview && (() => {
+                    // Exclude sales pipeline phases — these are overhead tracked separately
+                    const EXCLUDED_PHASES = new Set(['Lead', 'Inquiry', 'Booking']);
+                    const projectPhaseEntries = Object.entries(taskPreview.byPhase).filter(
+                        ([phase]) => !EXCLUDED_PHASES.has(phase),
+                    );
+                    const projectPhaseTasks = projectPhaseEntries.flatMap(([, tasks]) => tasks as TaskAutoGenerationPreviewTask[]);
+                    const projectTotalTasks = projectPhaseTasks.reduce((sum, t) => sum + t.total_instances, 0);
+                    const projectTotalHours = projectPhaseTasks.reduce((sum, t) => sum + t.total_hours, 0);
+                    const projectTotalCost = projectPhaseTasks.reduce((sum, t) => sum + (t.estimated_cost ?? 0), 0);
+
+                    return (
                     <>
                         {/* Summary Stats */}
                         <Box sx={{
@@ -693,7 +714,7 @@ function InstanceTaskPreviewCard({
                         }}>
                             <Box sx={{ flex: 1, textAlign: 'center' }}>
                                 <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: '#a78bfa' }}>
-                                    {taskPreview.summary.total_generated_tasks}
+                                    {projectTotalTasks}
                                 </Typography>
                                 <Typography sx={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
                                     Tasks
@@ -702,7 +723,7 @@ function InstanceTaskPreviewCard({
                             <Box sx={{ width: '1px', bgcolor: 'rgba(167, 139, 250, 0.15)' }} />
                             <Box sx={{ flex: 1, textAlign: 'center' }}>
                                 <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: '#22d3ee' }}>
-                                    {taskPreview.summary.total_estimated_hours}h
+                                    {Math.round(projectTotalHours * 10) / 10}h
                                 </Typography>
                                 <Typography sx={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
                                     Est. Hours
@@ -711,7 +732,7 @@ function InstanceTaskPreviewCard({
                             <Box sx={{ width: '1px', bgcolor: 'rgba(167, 139, 250, 0.15)' }} />
                             <Box sx={{ flex: 1, textAlign: 'center' }}>
                                 <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: '#f59e0b' }}>
-                                    {taskPreview.summary.total_estimated_cost > 0 ? formatCurrency(taskPreview.summary.total_estimated_cost, currency) : '—'}
+                                    {projectTotalCost > 0 ? formatCurrency(projectTotalCost, currency) : '—'}
                                 </Typography>
                                 <Typography sx={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
                                     Est. Cost
@@ -743,9 +764,9 @@ function InstanceTaskPreviewCard({
                                 <Box />
                             </Box>
 
-                            {/* Phase groups */}
+                            {/* Phase groups — Lead/Inquiry/Booking excluded (sales overhead) */}
                             <Stack spacing={0.5}>
-                                {Object.entries(taskPreview.byPhase).map(([phase, tasks]) => {
+                                {projectPhaseEntries.map(([phase, tasks]) => {
                                     const phaseLabel = PHASE_LABELS[phase as ProjectPhase] || phase;
                                     const phaseColor = PHASE_COLORS[phase] || '#94a3b8';
                                     const isExpanded = expandedPhases.has(phase);
@@ -898,7 +919,7 @@ function InstanceTaskPreviewCard({
                         </Box>
 
                         {/* Empty state */}
-                        {taskPreview.summary.total_generated_tasks === 0 && (
+                        {projectTotalTasks === 0 && (
                             <Box sx={{ textAlign: 'center', py: 3 }}>
                                 <AssignmentIcon sx={{ fontSize: 36, color: '#475569', mb: 1, opacity: 0.4 }} />
                                 <Typography sx={{ fontSize: '0.75rem', color: '#64748b' }}>
@@ -910,7 +931,8 @@ function InstanceTaskPreviewCard({
                             </Box>
                         )}
                     </>
-                )}
+                    );
+                })()}
 
                 {/* No preview / no source package */}
                 {!taskPreviewLoading && !taskPreviewError && !taskPreview && (

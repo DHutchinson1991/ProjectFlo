@@ -1,6 +1,6 @@
 import type { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
-import type { ConversionData, NextActionData } from './types';
-import { NA_CATEGORIES } from './constants';
+import type { ConversionData, NextActionData, PipelineTask } from './types';
+import { NA_CATEGORIES, TASK_AUTO_COMPLETE, WORKFLOW_PHASES } from './constants';
 
 // ─── Deal intelligence ───────────────────────────────────────────────
 
@@ -54,6 +54,73 @@ export const calculateWorkflowProgress = (inquiry: Inquiry & { activity_logs?: u
     if (inquiry.activity_logs && inquiry.activity_logs.length > 0) completedSteps++;
     return Math.round((completedSteps / totalSteps) * 100);
 };
+
+// ─── Pipeline active-index computation ───────────────────────────────
+
+/** Compute the index of the currently-active pipeline task. */
+export function computeActiveIndex(
+    tasks: PipelineTask[],
+    inquiry: Inquiry & { activity_logs?: unknown[] },
+): number {
+    if (tasks.length === 0) return 0;
+
+    const hasRealStatus = tasks[0]?.status !== undefined;
+    if (hasRealStatus) {
+        const firstIncompleteIdx = tasks.findIndex(t => {
+            // Auto-complete rules override backend status
+            const autoRule = TASK_AUTO_COMPLETE[t.name];
+            if (autoRule && autoRule.check(inquiry)) return false; // auto-done → skip
+            return t.status !== 'Completed';
+        });
+        if (firstIncompleteIdx === -1) return tasks.length - 1;
+        return firstIncompleteIdx;
+    }
+
+    // Fallback: old heuristic for task-library-only mode
+    if (!inquiry?.workflow_status) return 0;
+    const status = inquiry.workflow_status;
+    let completedSteps = 0;
+    if (typeof status === 'object') {
+        if (status.needsAssessment === 'completed') completedSteps++;
+        if (status.discoveryCall === 'completed') completedSteps++;
+        if (status.clientApproval === 'completed') completedSteps++;
+    }
+    if (inquiry.estimates && inquiry.estimates.length > 0) completedSteps++;
+    if (inquiry.proposals && inquiry.proposals.length > 0) completedSteps++;
+    if (inquiry.quotes && inquiry.quotes.length > 0) completedSteps++;
+    if (inquiry.contracts && inquiry.contracts.length > 0) completedSteps++;
+    if (inquiry.activity_logs && inquiry.activity_logs.length > 0) completedSteps++;
+
+    const pct = completedSteps / 8;
+    return Math.min(Math.floor(pct * tasks.length), tasks.length - 1);
+}
+
+/**
+ * Maps a sectionId (e.g. 'estimates-section') to a WORKFLOW_PHASES id
+ * (e.g. 'estimates') so cards can compare with `currentPhase`.
+ */
+function sectionToPhaseId(sectionId: string): string {
+    return sectionId.replace(/-section$/, '');
+}
+
+/**
+ * Derive the active workflow phase id from real pipeline tasks.
+ * Falls back to the legacy progress-based heuristic when no tasks exist.
+ */
+export function getActivePhaseFromTasks(
+    tasks: PipelineTask[],
+    inquiry: Inquiry & { activity_logs?: unknown[] },
+): string {
+    if (tasks.length > 0) {
+        const idx = computeActiveIndex(tasks, inquiry);
+        return sectionToPhaseId(tasks[idx].sectionId);
+    }
+    // Fallback — legacy
+    const pct = calculateWorkflowProgress(inquiry);
+    const completedCount = Math.floor((pct / 100) * WORKFLOW_PHASES.length);
+    const activeIndex = Math.min(completedCount, WORKFLOW_PHASES.length - 1);
+    return WORKFLOW_PHASES[activeIndex].id;
+}
 
 // ─── Display helpers ─────────────────────────────────────────────────
 

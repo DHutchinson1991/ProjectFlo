@@ -2,9 +2,8 @@
 
 import React from 'react';
 import { api } from '@/lib/api';
-import { Box, Button } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import { TimelinePanel, PlaybackPanel, DetailsPanel, ModalsContainer } from './ui';
+import { Box } from '@mui/material';
+import { TimelinePanel, PlaybackPanel, DetailsPanel, MomentPanel, ModalsContainer } from './ui';
 import { useContentBuilder } from './context/ContentBuilderContext';
 import { FilmDetailHeader } from '@/components/films';
 
@@ -41,7 +40,7 @@ export const ContentBuilderContainer: React.FC<ContentBuilderContainerProps> = (
   packageId,
   linkedActivityId,
 }) => {
-  const { scenes, tracks, setShowCreateSceneDialog } = useContentBuilder();
+  const { scenes, tracks, saveState, handleSave, setShowCreateSceneDialog, readOnly } = useContentBuilder();
 
   // Count location slots assigned to this film's activity (for the header badge)
   const [activityLocationCount, setActivityLocationCount] = React.useState<number | null>(null);
@@ -131,8 +130,10 @@ export const ContentBuilderContainer: React.FC<ContentBuilderContainerProps> = (
           subjectCount={subjectCount}
           locationCount={locationCount}
           onSceneCreated={() => {}} // Not needed here as it's handled by context
-          onSaveFilm={onSaveFilmName}
-        />
+          onSaveFilm={onSaveFilmName}          saveState={{ ...saveState, lastSavedAt: saveState.lastSaved, saveError: null }}
+          onSaveContent={handleSave}
+          onAddScenes={() => setShowCreateSceneDialog(true)}
+          readOnly={readOnly}        />
       )}
 
       {/* Main Layout */}
@@ -164,73 +165,14 @@ export const ContentBuilderContainer: React.FC<ContentBuilderContainerProps> = (
               maxHeight: 'none'
             }
           }}>
-            {/* Details Panel – left side */}
-            <DetailsPanel rightPanel={rightPanel} />
+            {/* Details Panel – left side (placeholder) */}
+            <DetailsPanel />
 
             {/* Playback Panel */}
             <PlaybackPanel />
 
-            {/* Add Scene Panel – right side */}
-            <Box sx={{
-              width: "25%",
-              minWidth: "280px",
-              maxWidth: "400px",
-              flexShrink: 0,
-              borderLeft: "1px solid rgba(255,255,255,0.08)",
-              background: "#0d0d0d",
-              display: "flex",
-              flexDirection: "column",
-              height: "100%",
-              overflow: "hidden",
-            }}>
-              {/* Panel Header */}
-              <Box sx={{
-                px: 2,
-                py: 1.5,
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                bgcolor: "#111",
-                flexShrink: 0,
-              }}>
-                <Box sx={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                  Add Scene
-                </Box>
-              </Box>
-              {/* Panel Content */}
-              <Box sx={{
-                flex: 1,
-                overflow: "auto",
-                padding: "16px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-              }}>
-                <Box sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.75rem", lineHeight: 1.5 }}>
-                  Add a new scene to your film timeline from your scene library.
-                </Box>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon sx={{ fontSize: 16 }} />}
-                  onClick={() => setShowCreateSceneDialog(true)}
-                  fullWidth
-                  sx={{
-                    bgcolor: "#7B61FF",
-                    color: "white",
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
-                    textTransform: "none",
-                    py: 1,
-                    borderRadius: 1.5,
-                    '&:hover': { bgcolor: "#6B50EF" },
-                    boxShadow: "0 2px 8px rgba(123,97,255,0.3)",
-                  }}
-                >
-                  Browse Scenes
-                </Button>
-              </Box>
-            </Box>
+            {/* Moment Panel – right side */}
+            <MomentPanel />
           </Box>
 
           {/* Timeline Panel */}
