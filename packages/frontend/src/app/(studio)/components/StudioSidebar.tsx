@@ -18,6 +18,8 @@ import {
     Folder as ProjectIcon,
     ContactMail as InquiriesIcon,
     Category as ResourcesIcon,
+    People as CustomersIcon,
+    Assignment as FormsIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
 import { ProjectSelector } from "./ProjectSelector";
@@ -29,15 +31,18 @@ const studioNavItems = [
         icon: <DashboardIcon />,
     },
     {
-        title: "Sales",
-        href: "/sales",
+        title: "Inquiries",
+        href: "/sales/inquiries",
         icon: <InquiriesIcon />,
         subItems: [
-            { title: "Lead Inquiries", href: "/sales/inquiries" },
-            { title: "Lead Pipeline", href: "/sales/pipeline" },
-            { title: "Clients", href: "/sales/clients" },
-            { title: "Questionnaire", href: "/manager/sales" },
+            { title: "All Inquiries", href: "/sales/inquiries" },
+            { title: "Pipeline", href: "/sales/pipeline" },
         ],
+    },
+    {
+        title: "Customers",
+        href: "/sales/clients",
+        icon: <CustomersIcon />,
     },
     {
         title: "Projects",
@@ -78,6 +83,9 @@ const studioNavItems = [
         title: "Settings",
         href: "/settings",
         icon: <SettingsIcon />,
+        subItems: [
+            { title: "Forms", href: "/settings" },
+        ],
     },
 ];
 
@@ -88,8 +96,11 @@ export default function StudioSidebar() {
         if (href === "/dashboard") {
             return pathname === "/dashboard" || pathname === "/";
         }
-        if (href === "/sales") {
-            return pathname.startsWith("/sales");
+        if (href === "/sales/inquiries") {
+            return pathname.startsWith("/sales/inquiries") || pathname.startsWith("/sales/pipeline");
+        }
+        if (href === "/sales/clients") {
+            return pathname.startsWith("/sales/clients");
         }
         if (href === "/projects") {
             return pathname.startsWith("/projects");

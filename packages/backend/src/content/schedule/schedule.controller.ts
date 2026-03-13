@@ -48,6 +48,7 @@ import {
   CreateInstanceEventDaySubjectDto,
   UpdateInstanceEventDaySubjectDto,
   CreateInstanceLocationSlotDto,
+  UpdateInstanceLocationSlotDto,
   CreateInstanceDayOperatorDto,
   UpdateInstanceDayOperatorDto,
 } from './dto';
@@ -944,6 +945,14 @@ export class ScheduleController {
     @Body() dto: CreateInstanceLocationSlotDto,
   ) {
     return this.scheduleService.createInstanceLocationSlot({ inquiry_id: inquiryId }, dto);
+  }
+
+  @Patch('instance/location-slots/:slotId')
+  updateInstanceLocationSlot(
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Body() dto: UpdateInstanceLocationSlotDto,
+  ) {
+    return this.scheduleService.updateInstanceLocationSlot(slotId, dto);
   }
 
   @Delete('instance/location-slots/:slotId')

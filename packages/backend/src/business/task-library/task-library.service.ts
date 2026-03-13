@@ -16,6 +16,7 @@ export interface PreviewTaskRow {
     assigned_to_name: string | null;
     hourly_rate: number | null;
     estimated_cost: number | null;
+    film_name?: string | null;
 }
 
 @Injectable()
@@ -441,6 +442,19 @@ export class TaskLibraryService {
     async previewAutoGeneration(packageId: number, brandId: number, userId: number, inquiryId?: number) {
         await this.checkBrandAccess(brandId, userId);
 
+        // 0. Fetch package first so we can validate it and use its contents as the
+        //    authoritative list of which films belong to this package.
+        const pkg = await this.prisma.service_packages.findUnique({
+            where: { id: packageId },
+            select: { id: true, name: true, brand_id: true, contents: true },
+        });
+        if (!pkg) {
+            throw new NotFoundException(`Package with ID ${packageId} not found`);
+        }
+        if (pkg.brand_id !== brandId) {
+            throw new ForbiddenException('Package does not belong to this brand');
+        }
+
         // When an inquiryId is provided, restrict film-related queries to only those
         // PackageFilm records that are still present on the inquiry (via ProjectFilm).
         let activePackageFilmIds: number[] | null = null;
@@ -452,13 +466,27 @@ export class TaskLibraryService {
             activePackageFilmIds = inquiryFilms.map(f => f.package_film_id!);
         }
 
-        const packageFilmWhere = activePackageFilmIds
-            ? { package_id: packageId, id: { in: activePackageFilmIds } }
-            : { package_id: packageId };
+        // Build the PackageFilm filter:
+        // - Inquiry context: use ProjectFilm-linked package film IDs (existing behaviour).
+        // - Package context: use the package_film_id values stored in contents.items so that
+        //   only films currently listed in the package appear in the preview, preventing
+        //   orphaned PackageFilm records (from previously removed films) from showing tasks.
+        let packageFilmWhere: { package_id: number; id?: { in: number[] } };
+        if (activePackageFilmIds) {
+            packageFilmWhere = { package_id: packageId, id: { in: activePackageFilmIds } };
+        } else {
+            const contentsItems: Array<{ type: string; config?: { package_film_id?: number } }> =
+                (pkg.contents as any)?.items ?? [];
+            const contentsFilmIds = contentsItems
+                .filter(item => item.type === 'film' && item.config?.package_film_id)
+                .map(item => item.config!.package_film_id as number);
+            packageFilmWhere = contentsFilmIds.length > 0
+                ? { package_id: packageId, id: { in: contentsFilmIds } }
+                : { package_id: packageId };
+        }
 
         // 1. Fetch package contents counts
         const [
-            pkg,
             filmCount,
             eventDayCount,
             crewCount,
@@ -467,10 +495,6 @@ export class TaskLibraryService {
             activityCrewCount,
             filmSceneCount,
         ] = await Promise.all([
-            this.prisma.service_packages.findUnique({
-                where: { id: packageId },
-                select: { id: true, name: true, brand_id: true },
-            }),
             this.prisma.packageFilm.count({ where: packageFilmWhere }),
             this.prisma.packageEventDay.count({ where: { package_id: packageId } }),
             this.prisma.packageDayOperator.count({ where: { package_id: packageId } }),
@@ -487,13 +511,6 @@ export class TaskLibraryService {
                 where: { package_film: packageFilmWhere },
             }),
         ]);
-
-        if (!pkg) {
-            throw new NotFoundException(`Package with ID ${packageId} not found`);
-        }
-        if (pkg.brand_id !== brandId) {
-            throw new ForbiddenException('Package does not belong to this brand');
-        }
 
         // 2. Fetch active task library entries for this brand (include role relation)
         const tasks = await this.prisma.task_library.findMany({
@@ -699,6 +716,9 @@ export class TaskLibraryService {
             durationMinutes: number | null;
             crewName: string;
             positionName: string;
+            roleName: string | null;
+            contributorId: number | null;
+            jobRoleId: number | null;
         }> = [];
 
         if (tasks.some(t => t.trigger_type === 'per_activity_crew')) {
@@ -709,9 +729,12 @@ export class TaskLibraryService {
                     package_day_operator: {
                         select: {
                             position_name: true,
+                            contributor_id: true,
+                            job_role_id: true,
                             contributor: {
                                 include: { contact: { select: { first_name: true, last_name: true } } },
                             },
+                            job_role: { select: { name: true, display_name: true } },
                         },
                     },
                 },
@@ -725,11 +748,15 @@ export class TaskLibraryService {
                 const crewName = op.contributor
                     ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
                     : op.position_name;
+                const roleName = op.job_role?.display_name || op.job_role?.name || null;
                 return {
                     activityName: a.package_activity.name,
                     durationMinutes: a.package_activity.duration_minutes,
                     crewName,
                     positionName: op.position_name,
+                    roleName,
+                    contributorId: op.contributor_id ?? null,
+                    jobRoleId: op.job_role_id ?? null,
                 };
             });
         }
@@ -871,6 +898,7 @@ export class TaskLibraryService {
                         multiplier: 1,
                         total_instances: 1,
                         total_hours: Math.round(hours * 100) / 100,
+                        film_name: detail.filmName,
                         ...assignment,
                     };
                 });
@@ -882,6 +910,15 @@ export class TaskLibraryService {
                     const hours = detail.durationMinutes
                         ? detail.durationMinutes / 60
                         : (task.effort_hours ? Number(task.effort_hours) : 0);
+                    // Use the operator's actual rate for their specific role, not the task template's default role rate
+                    let crewHourlyRate = assignment.hourly_rate;
+                    if (detail.contributorId && detail.jobRoleId) {
+                        const bracketLevel = contributorBracketMap.get(`${detail.contributorId}-${detail.jobRoleId}`);
+                        const exactRate = bracketLevel !== undefined
+                            ? bracketRateMap.get(`${detail.jobRoleId}-${bracketLevel}`)
+                            : undefined;
+                        crewHourlyRate = exactRate ?? roleFallbackRate.get(detail.jobRoleId) ?? assignment.hourly_rate;
+                    }
                     return {
                         task_library_id: task.id,
                         name: `${detail.activityName} — ${detail.crewName} (${detail.positionName})`,
@@ -893,6 +930,8 @@ export class TaskLibraryService {
                         total_hours: Math.round(hours * 100) / 100,
                         ...assignment,
                         assigned_to_name: detail.crewName as string | null,
+                        role_name: detail.roleName ?? assignment.role_name,
+                        hourly_rate: crewHourlyRate,
                     };
                 });
             }
@@ -933,6 +972,7 @@ export class TaskLibraryService {
                     multiplier: 1,
                     total_instances: 1,
                     total_hours: effortEach,
+                    film_name: detail.filmName,
                     ...assignment,
                 }));
             }
@@ -950,6 +990,7 @@ export class TaskLibraryService {
                     multiplier: 1,
                     total_instances: 1,
                     total_hours: effortEach,
+                    film_name: detail.filmName,
                     ...assignment,
                 }));
             }
@@ -967,6 +1008,7 @@ export class TaskLibraryService {
                     multiplier: 1,
                     total_instances: 1,
                     total_hours: effortEach,
+                    film_name: detail.filmName,
                     ...assignment,
                 }));
             }
@@ -1054,7 +1096,8 @@ export class TaskLibraryService {
         });
 
         // 5. Compute estimated_cost per task and group by phase (hourly_rate × total_hours)
-        const tasksWithCost: PreviewTaskRow[] = generatedTasks.map(t => {
+        // Drop zero-instance tasks (e.g. per_film_with_music when no films have music)
+        const tasksWithCost: PreviewTaskRow[] = generatedTasks.filter(t => t.total_instances > 0).map(t => {
             const estimated_cost = (t.hourly_rate !== null && t.hourly_rate !== undefined && t.total_hours > 0)
                 ? Math.round(t.hourly_rate * t.total_hours * 100) / 100
                 : null;

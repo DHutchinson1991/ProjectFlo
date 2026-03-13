@@ -332,8 +332,7 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
     const rawTemplateId = (scene as any)?.scene_template_id;
     const hasTemplateId = Number.isFinite(rawTemplateId) && Number(rawTemplateId) > 0;
     const isMontageScene = (scene as any)?.scene_template_type === "MONTAGE"
-        || hasBeats
-        || (!hasMoments && (hasShotCount || hasDurationSeconds || !hasTemplateId));
+        || (scene as any)?.scene_mode === "MONTAGE";
     const isMusicTrack = trackType?.toLowerCase() === 'music';
     
     // For montage scenes on music tracks, show solid background instead of transparent
@@ -383,7 +382,7 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
             }}>
                 
                 {/* Render moments visualization inside - Now relative to Content Area */}
-                {isMomentsContainer && !isMontageScene && (
+                {isMomentsContainer && hasMoments && (
                     <MomentsContainer
                         scene={scene}
                         moments={localMoments}
@@ -397,7 +396,7 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
                     />
                 )}
 
-                {isMomentsContainer && isMontageScene && trackType?.toLowerCase() !== 'music' && (
+                {isMomentsContainer && !hasMoments && hasBeats && trackType?.toLowerCase() !== 'music' && (
                     <BeatsContainer
                         scene={scene}
                         beats={beats}
@@ -408,8 +407,8 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
                     />
                 )}
 
-                {/* Music track tile for montage scenes - styled to match moment tiles */}
-                {isMomentsContainer && isMontageScene && isMusicTrack && (
+                {/* Music track tile for montage scenes without moments (legacy) - styled to match moment tiles */}
+                {isMomentsContainer && !hasMoments && isMusicTrack && (
                      (() => {
                         const trackBaseColor = '#4a148c'; // Dark purple base
                         // Use 0.35 lighten to match MomentsContainer logic exactly

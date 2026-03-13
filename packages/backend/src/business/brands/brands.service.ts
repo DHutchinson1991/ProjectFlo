@@ -290,6 +290,59 @@ export class BrandsService {
         });
     }
 
+    // ─── Meeting Settings (structured batch helpers) ─────────────────────
+    readonly MEETING_SETTING_KEYS = [
+        'discovery_call_duration_minutes',
+        'discovery_call_description',
+        'discovery_call_available_days',
+        'discovery_call_available_from',
+        'discovery_call_available_to',
+        'discovery_call_google_meet_link',
+    ] as const;
+
+    async getMeetingSettings(brandId: number) {
+        await this.findOne(brandId);
+        const rows = await this.prisma.brand_settings.findMany({
+            where: { brand_id: brandId, category: 'meetings' },
+        });
+        const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+        return {
+            duration_minutes: map['discovery_call_duration_minutes'] ? parseInt(map['discovery_call_duration_minutes']) : 20,
+            description: map['discovery_call_description'] ?? '',
+            available_days: map['discovery_call_available_days'] ? JSON.parse(map['discovery_call_available_days']) : [1, 2, 3, 4, 5],
+            available_from: map['discovery_call_available_from'] ?? '09:00',
+            available_to: map['discovery_call_available_to'] ?? '17:00',
+            google_meet_link: map['discovery_call_google_meet_link'] ?? '',
+        };
+    }
+
+    async upsertMeetingSettings(brandId: number, data: {
+        duration_minutes?: number;
+        description?: string;
+        available_days?: number[];
+        available_from?: string;
+        available_to?: string;
+        google_meet_link?: string;
+    }) {
+        await this.findOne(brandId);
+        const entries: { key: string; value: string }[] = [
+            ...(data.duration_minutes !== undefined ? [{ key: 'discovery_call_duration_minutes', value: String(data.duration_minutes) }] : []),
+            ...(data.description !== undefined ? [{ key: 'discovery_call_description', value: data.description }] : []),
+            ...(data.available_days !== undefined ? [{ key: 'discovery_call_available_days', value: JSON.stringify(data.available_days) }] : []),
+            ...(data.available_from !== undefined ? [{ key: 'discovery_call_available_from', value: data.available_from }] : []),
+            ...(data.available_to !== undefined ? [{ key: 'discovery_call_available_to', value: data.available_to }] : []),
+            ...(data.google_meet_link !== undefined ? [{ key: 'discovery_call_google_meet_link', value: data.google_meet_link }] : []),
+        ];
+        for (const entry of entries) {
+            await this.prisma.brand_settings.upsert({
+                where: { brand_id_key: { brand_id: brandId, key: entry.key } },
+                create: { brand_id: brandId, key: entry.key, value: entry.value, category: 'meetings' },
+                update: { value: entry.value },
+            });
+        }
+        return this.getMeetingSettings(brandId);
+    }
+
     // Helper methods for brand context
     async getBrandContext(userId: number, brandId: number) {
         const userBrand = await this.prisma.user_brands.findUnique({

@@ -222,8 +222,8 @@ export interface AutoCompleteRule {
 /** Tasks whose completion is determined by inquiry data — not manually toggleable. */
 export const TASK_AUTO_COMPLETE: Record<string, AutoCompleteRule> = {
     'Estimate Preparation': {
-        check: (inq) => (inq.estimates?.length ?? 0) > 0,
-        doneLabel: 'Estimate created',
+        check: (inq) => (inq.estimates?.some(e => e.status === 'Sent' || e.status === 'Accepted') ?? false),
+        doneLabel: 'Estimate sent',
         pendingLabel: 'Create an estimate',
     },
     'Budget Alignment': {
@@ -261,8 +261,8 @@ export const TASK_AUTO_COMPLETE: Record<string, AutoCompleteRule> = {
 // ─── Needs assessment grouping categories ────────────────────────────
 
 export const NA_CATEGORIES: NaCategory[] = [
-    { label: 'Contact', keys: ['contact_first_name', 'contact_last_name', 'contact_email', 'contact_phone'] },
-    { label: 'Event', keys: ['wedding_date', 'venue_details', 'event_type', 'stakeholders'] },
+    { label: 'Contact', keys: ['contact_first_name', 'contact_last_name', 'contact_email', 'contact_phone', 'contact_role', 'partner_name'] },
+    { label: 'Event', keys: ['wedding_date', 'ceremony_location', 'venue_details', 'event_type', 'stakeholders', 'bridal_prep_location', 'groom_prep_location', 'reception_location'] },
     { label: 'Coverage', keys: ['coverage_hours', 'deliverables', 'add_ons', 'selected_package'] },
     { label: 'Budget', keys: ['budget_range', 'budget_flexible', 'priority_level'] },
     { label: 'Timeline', keys: ['decision_timeline', 'booking_date'] },

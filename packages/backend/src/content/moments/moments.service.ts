@@ -88,6 +88,7 @@ export class MomentsService {
                 name: createMomentDto.name,
                 order_index: orderIndex,
                 duration: createMomentDto.duration || 60,
+                source_activity_id: createMomentDto.source_activity_id ?? null,
             },
         });
 

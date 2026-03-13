@@ -188,8 +188,8 @@ export class NeedsAssessmentsService {
             if (!existingInquiry?.wedding_date && responses['wedding_date'])
                 inquiryUpdate.wedding_date = new Date(responses['wedding_date'] as string);
 
-            if (!existingInquiry?.venue_details && responses['venue_details'])
-                inquiryUpdate.venue_details = responses['venue_details'] as string;
+            if (!existingInquiry?.venue_details && (responses['ceremony_location'] || responses['venue_details']))
+                inquiryUpdate.venue_details = (responses['ceremony_location'] as string | undefined) || (responses['venue_details'] as string);
 
             if (!existingInquiry?.notes && responses['notes'])
                 inquiryUpdate.notes = responses['notes'] as string;
@@ -229,6 +229,18 @@ export class NeedsAssessmentsService {
                     });
                 }
             }
+
+            // Pre-fill location slots and subject names from collected NA responses
+            const prefillFirstName = ((responses['contact_first_name'] as string | undefined)?.trim()) || existingInquiry?.contact?.first_name || '';
+            const prefillLastName = ((responses['contact_last_name'] as string | undefined)?.trim()) || existingInquiry?.contact?.last_name || '';
+            const prefillContactName = [prefillFirstName, prefillLastName].filter(Boolean).join(' ');
+            try {
+                await this.prefillLocationSlots(payload.inquiry_id as number, responses as Record<string, unknown>);
+                await this.prefillSubjectNames(payload.inquiry_id as number, responses as Record<string, unknown>, prefillContactName);
+            } catch (err) {
+                // Pre-fill is best-effort — log but don't fail the submission
+                console.error(`NA prefill error for inquiry ${payload.inquiry_id}:`, err);
+            }
         } else if (payload.create_inquiry) {
             const responses = payload.responses || {};
             const contact = payload.contact || {};
@@ -236,7 +248,7 @@ export class NeedsAssessmentsService {
 
             const inferredInquiry = {
                 wedding_date: inquiry.wedding_date || (responses['wedding_date'] as string) || new Date().toISOString(),
-                venue_details: inquiry.venue_details || (responses['venue_details'] as string),
+                venue_details: inquiry.venue_details || (responses['ceremony_location'] as string) || (responses['venue_details'] as string),
                 notes: inquiry.notes || (responses['notes'] as string),
                 lead_source: inquiry.lead_source || (responses['lead_source'] as string) || 'Needs Assessment',
                 lead_source_details: inquiry.lead_source_details || JSON.stringify(responses),
@@ -284,7 +296,7 @@ export class NeedsAssessmentsService {
         const responses = submission.responses as Record<string, unknown>;
         const inferredInquiry = {
             wedding_date: (responses['wedding_date'] as string) || new Date().toISOString(),
-            venue_details: (responses['venue_details'] as string),
+            venue_details: (responses['ceremony_location'] as string) || (responses['venue_details'] as string),
             notes: (responses['notes'] as string),
             lead_source: (responses['lead_source'] as string) || 'Needs Assessment',
             lead_source_details: JSON.stringify(responses),
@@ -318,20 +330,25 @@ export class NeedsAssessmentsService {
             { order_index: 2, prompt: 'Contact last name', field_type: 'text', field_key: 'contact_last_name', required: true, category: 'contact' },
             { order_index: 3, prompt: 'Contact email', field_type: 'email', field_key: 'contact_email', required: true, category: 'contact' },
             { order_index: 4, prompt: 'Contact phone number', field_type: 'phone', field_key: 'contact_phone', required: false, category: 'contact' },
-            { order_index: 5, prompt: 'Wedding / Event date', field_type: 'date', field_key: 'wedding_date', required: true, category: 'event' },
-            { order_index: 6, prompt: 'Venue or location', field_type: 'text', field_key: 'venue_details', required: false, category: 'event' },
-            { order_index: 7, prompt: 'Priority level', field_type: 'select', field_key: 'priority_level', required: true, options: { values: ['Low', 'Medium', 'High'] }, category: 'event' },
-            { order_index: 8, prompt: 'Coverage hours needed', field_type: 'select', field_key: 'coverage_hours', required: false, options: { values: ['4-6 hours', '6-8 hours', '8-10 hours', 'Full day'] }, category: 'coverage' },
-            { order_index: 9, prompt: 'Deliverables requested', field_type: 'multiselect', field_key: 'deliverables', required: false, options: { values: ['Highlight film', 'Full ceremony', 'Speeches', 'Raw footage', 'Social clips'] }, category: 'coverage' },
-            { order_index: 10, prompt: 'Add-ons / extras', field_type: 'multiselect', field_key: 'add_ons', required: false, options: { values: ['Drone coverage', 'Second shooter', 'Same-day edit', 'Live stream'] }, category: 'coverage' },
-            { order_index: 11, prompt: 'Budget range', field_type: 'select', field_key: 'budget_range', required: false, options: { values: ['£2k-£4k', '£4k-£6k', '£6k-£8k', '£8k+'] }, category: 'budget' },
-            { order_index: 12, prompt: 'Budget flexibility', field_type: 'select', field_key: 'budget_flexible', required: false, options: { values: ['Fixed', 'Some flexibility', 'Flexible'] }, category: 'budget' },
-            { order_index: 13, prompt: 'Decision timeline', field_type: 'select', field_key: 'decision_timeline', required: false, options: { values: ['ASAP', '1-2 weeks', '1 month', 'Just exploring'] }, category: 'reach' },
-            { order_index: 14, prompt: 'Target booking date', field_type: 'date', field_key: 'booking_date', required: false, category: 'reach' },
-            { order_index: 15, prompt: 'Key stakeholders / who decides', field_type: 'text', field_key: 'stakeholders', required: false, category: 'reach' },
-            { order_index: 16, prompt: 'Preferred communication method', field_type: 'select', field_key: 'preferred_contact_method', required: false, options: { values: ['Email', 'Phone', 'Text', 'Zoom'] }, category: 'reach' },
-            { order_index: 17, prompt: 'Preferred contact time', field_type: 'text', field_key: 'preferred_contact_time', required: false, category: 'reach' },
-            { order_index: 18, prompt: 'Additional notes', field_type: 'textarea', field_key: 'notes', required: false, category: 'reach' },
+            { order_index: 5, prompt: 'Your role in the wedding', field_type: 'select', field_key: 'contact_role', required: false, options: { values: ['Bride', 'Groom', 'Partner', 'Prefer not to say'] }, help_text: 'This helps us personalise your experience.', category: 'contact' },
+            { order_index: 6, prompt: "Your partner's name", field_type: 'text', field_key: 'partner_name', required: false, help_text: 'Leave blank if you prefer not to say or are still deciding.', category: 'contact' },
+            { order_index: 7, prompt: 'Wedding / Event date', field_type: 'date', field_key: 'wedding_date', required: true, category: 'event' },
+            { order_index: 8, prompt: 'Ceremony venue name', field_type: 'text', field_key: 'ceremony_location', required: false, help_text: 'Where is your ceremony being held? Leave blank if TBC.', category: 'event' },
+            { order_index: 9, prompt: 'Bridal preparation venue', field_type: 'text', field_key: 'bridal_prep_location', required: false, help_text: 'e.g. hotel, home — leave blank if unknown.', category: 'event' },
+            { order_index: 10, prompt: 'Groom / partner preparation venue', field_type: 'text', field_key: 'groom_prep_location', required: false, help_text: 'Leave blank if unknown or prefer not to say.', category: 'event' },
+            { order_index: 11, prompt: 'Reception venue', field_type: 'text', field_key: 'reception_location', required: false, help_text: 'Leave blank if same as ceremony or TBC.', category: 'event' },
+            { order_index: 12, prompt: 'Priority level', field_type: 'select', field_key: 'priority_level', required: true, options: { values: ['Low', 'Medium', 'High'] }, category: 'event' },
+            { order_index: 13, prompt: 'Coverage hours needed', field_type: 'select', field_key: 'coverage_hours', required: false, options: { values: ['4-6 hours', '6-8 hours', '8-10 hours', 'Full day'] }, category: 'coverage' },
+            { order_index: 14, prompt: 'Deliverables requested', field_type: 'multiselect', field_key: 'deliverables', required: false, options: { values: ['Highlight film', 'Full ceremony', 'Speeches', 'Raw footage', 'Social clips'] }, category: 'coverage' },
+            { order_index: 15, prompt: 'Add-ons / extras', field_type: 'multiselect', field_key: 'add_ons', required: false, options: { values: ['Drone coverage', 'Second shooter', 'Same-day edit', 'Live stream'] }, category: 'coverage' },
+            { order_index: 16, prompt: 'Budget range', field_type: 'select', field_key: 'budget_range', required: false, options: { values: ['£2k-£4k', '£4k-£6k', '£6k-£8k', '£8k+'] }, category: 'budget' },
+            { order_index: 17, prompt: 'Budget flexibility', field_type: 'select', field_key: 'budget_flexible', required: false, options: { values: ['Fixed', 'Some flexibility', 'Flexible'] }, category: 'budget' },
+            { order_index: 18, prompt: 'Decision timeline', field_type: 'select', field_key: 'decision_timeline', required: false, options: { values: ['ASAP', '1-2 weeks', '1 month', 'Just exploring'] }, category: 'reach' },
+            { order_index: 19, prompt: 'Target booking date', field_type: 'date', field_key: 'booking_date', required: false, category: 'reach' },
+            { order_index: 20, prompt: 'Key stakeholders / who decides', field_type: 'text', field_key: 'stakeholders', required: false, category: 'reach' },
+            { order_index: 21, prompt: 'Preferred communication method', field_type: 'select', field_key: 'preferred_contact_method', required: false, options: { values: ['Email', 'Phone', 'Text', 'Zoom'] }, category: 'reach' },
+            { order_index: 22, prompt: 'Preferred contact time', field_type: 'text', field_key: 'preferred_contact_time', required: false, category: 'reach' },
+            { order_index: 23, prompt: 'Additional notes', field_type: 'textarea', field_key: 'notes', required: false, category: 'reach' },
         ];
 
         return this.prisma.needs_assessment_templates.create({
@@ -358,5 +375,99 @@ export class NeedsAssessmentsService {
             },
             include: { questions: { orderBy: { order_index: 'asc' } } },
         });
+    }
+
+    private async prefillLocationSlots(
+        inquiryId: number,
+        responses: Record<string, unknown>,
+    ): Promise<void> {
+        // Maps activity name keywords → the NA response field key containing the location name
+        const ACTIVITY_TO_RESPONSE_KEY: Record<string, string> = {
+            ceremony: 'ceremony_location',
+            'bridal prep': 'bridal_prep_location',
+            'bride prep': 'bridal_prep_location',
+            'groom prep': 'groom_prep_location',
+            reception: 'reception_location',
+        };
+
+        const slots = await this.prisma.projectLocationSlot.findMany({
+            where: { inquiry_id: inquiryId, name: null },
+            include: { project_activity: { select: { name: true } } },
+        });
+
+        if (slots.length === 0) return;
+
+        for (const slot of slots) {
+            const activityNameLower = slot.project_activity?.name?.toLowerCase() ?? '';
+            let locationName: string | null = null;
+
+            for (const [keyword, responseKey] of Object.entries(ACTIVITY_TO_RESPONSE_KEY)) {
+                if (activityNameLower.includes(keyword)) {
+                    const val = responses[responseKey];
+                    if (val && typeof val === 'string' && val.trim()) {
+                        locationName = val.trim();
+                        break;
+                    }
+                }
+            }
+
+            // Fallback: slot with no linked activity → use ceremony_location or venue_details
+            if (!locationName && !slot.project_activity_id) {
+                const fallback = responses['ceremony_location'] ?? responses['venue_details'];
+                if (fallback && typeof fallback === 'string' && fallback.trim()) {
+                    locationName = fallback.trim();
+                }
+            }
+
+            if (locationName) {
+                await this.prisma.projectLocationSlot.update({
+                    where: { id: slot.id },
+                    data: { name: locationName },
+                });
+            }
+        }
+    }
+
+    private async prefillSubjectNames(
+        inquiryId: number,
+        responses: Record<string, unknown>,
+        contactFullName: string,
+    ): Promise<void> {
+        const contactRole = ((responses['contact_role'] as string | undefined) ?? '').toLowerCase().trim();
+        const partnerName = ((responses['partner_name'] as string | undefined) ?? '').trim();
+
+        // Only auto-fill for recognised, unambiguous roles
+        if (!contactRole || contactRole === 'prefer not to say' || !contactFullName) return;
+
+        // Determine what role name the partner would have in the subject list
+        let partnerRole: string | null = null;
+        if (contactRole === 'bride') partnerRole = 'groom';
+        else if (contactRole === 'groom') partnerRole = 'bride';
+        // 'partner' stays null — both partners share the same role label, so we can't map unambiguously
+
+        const subjects = await this.prisma.projectEventDaySubject.findMany({
+            where: { inquiry_id: inquiryId, real_name: null },
+            orderBy: { order_index: 'asc' },
+        });
+
+        if (subjects.length === 0) return;
+
+        for (const subject of subjects) {
+            const subjectNameLower = subject.name.toLowerCase();
+            let realName: string | null = null;
+
+            if (subjectNameLower.includes(contactRole)) {
+                realName = contactFullName;
+            } else if (partnerRole && subjectNameLower.includes(partnerRole) && partnerName) {
+                realName = partnerName;
+            }
+
+            if (realName) {
+                await this.prisma.projectEventDaySubject.update({
+                    where: { id: subject.id },
+                    data: { real_name: realName },
+                });
+            }
+        }
     }
 }

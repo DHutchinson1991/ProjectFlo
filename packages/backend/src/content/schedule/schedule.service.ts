@@ -601,11 +601,25 @@ export class ScheduleService {
   /**
    * Auto-populate SceneMoment records from PackageActivityMoment records.
    * Only creates moments if the scene doesn't already have any.
+   * Does NOT auto-populate for MONTAGE scenes (they should only have beats).
    */
   private async autoPopulateSceneMomentsFromActivity(
     sceneId: number,
     activityId: number,
   ) {
+    // Get the scene to check its mode
+    const scene = await this.prisma.filmScene.findUnique({
+      where: { id: sceneId },
+    });
+    if (!scene) return;
+
+    // Do NOT auto-populate moments for MONTAGE scenes
+    // Montage scenes should only have beats, not moments
+    if (scene.mode === 'MONTAGE') {
+      console.log(`[autoPopulateSceneMomentsFromActivity] Skipping auto-population for MONTAGE scene ${sceneId}`);
+      return;
+    }
+
     // Check if scene already has moments
     const existingMoments = await this.prisma.sceneMoment.count({
       where: { film_scene_id: sceneId },
@@ -1164,6 +1178,7 @@ export class ScheduleService {
         package_activity_id: dto.package_activity_id,
         role_template_id: dto.role_template_id,
         name: dto.name,
+        count: dto.count,
         category: dto.category ?? 'PEOPLE',
         notes: dto.notes,
         order_index: dto.order_index ?? nextOrder,
@@ -2096,6 +2111,7 @@ export class ScheduleService {
         role_template_id: dto.role_template_id,
         name: dto.name,
         real_name: dto.real_name,
+        count: dto.count,
         category: dto.category ?? 'PEOPLE',
         notes: dto.notes,
         order_index: dto.order_index ?? nextOrder,
@@ -2223,6 +2239,16 @@ export class ScheduleService {
         `Location ${locationNumber} already exists for this event day`,
       );
     }
+  }
+
+  async updateInstanceLocationSlot(slotId: number, dto: { name?: string | null; address?: string | null; notes?: string | null }) {
+    const record = await this.prisma.projectLocationSlot.findUnique({ where: { id: slotId } });
+    if (!record) throw new NotFoundException('Location slot not found');
+    return this.prisma.projectLocationSlot.update({
+      where: { id: slotId },
+      data: dto,
+      include: this.instanceLocationSlotInclude,
+    });
   }
 
   async deleteInstanceLocationSlot(slotId: number) {

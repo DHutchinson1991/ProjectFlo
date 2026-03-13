@@ -18,4 +18,8 @@ export class CreateMomentDto {
     @IsOptional()
     @Min(1)
     duration?: number;
+
+    @IsInt()
+    @IsOptional()
+    source_activity_id?: number;
 }

@@ -32,6 +32,29 @@ export class InquiriesService {
                         phone_number: true,
                     },
                 },
+                selected_package: {
+                    select: {
+                        id: true,
+                        name: true,
+                        base_price: true,
+                        currency: true,
+                    },
+                },
+                estimates: {
+                    select: { id: true, total_amount: true, is_primary: true, status: true, created_at: true },
+                    orderBy: [{ is_primary: 'desc' }, { id: 'desc' }],
+                    take: 3,
+                },
+                proposals: {
+                    select: { id: true, status: true },
+                    orderBy: { id: 'desc' },
+                    take: 1,
+                },
+                contracts: {
+                    select: { id: true, status: true },
+                    orderBy: { id: 'desc' },
+                    take: 1,
+                },
             },
             orderBy: {
                 id: 'desc',
@@ -61,6 +84,27 @@ export class InquiriesService {
                 phone_number: inquiry.contact.phone_number,
             },
             contact_id: inquiry.contact_id,
+            selected_package_id: inquiry.selected_package_id,
+            selected_package: inquiry.selected_package
+                ? {
+                      id: inquiry.selected_package.id,
+                      name: inquiry.selected_package.name,
+                      base_price: inquiry.selected_package.base_price,
+                      currency: inquiry.selected_package.currency,
+                  }
+                : null,
+            primary_estimate_total: inquiry.estimates.length > 0
+                ? Number(inquiry.estimates[0].total_amount)
+                : null,
+            pipeline_stage: (() => {
+                if (inquiry.contracts.length > 0) return 'Contract Stage';
+                if (inquiry.proposals.length > 0) return 'Proposal Sent';
+                const ests = inquiry.estimates;
+                if (ests.some(e => e.status === 'Accepted')) return 'Estimate Accepted';
+                if (ests.some(e => e.status === 'Sent')) return 'Estimate Sent';
+                if (ests.length > 0) return 'Estimate Created';
+                return 'New Lead';
+            })(),
         }));
     }
 
@@ -86,6 +130,7 @@ export class InquiriesService {
                 lead_source: true,
                 lead_source_details: true,
                 selected_package_id: true,
+                source_package_id: true,
                 contact_id: true,
                 package_contents_snapshot: true,
                 contact: {
@@ -98,6 +143,15 @@ export class InquiriesService {
                         company_name: true,
                         brand_id: true,
                     },
+                },
+                estimates: {
+                    orderBy: { id: 'desc' },
+                },
+                proposals: {
+                    orderBy: { id: 'desc' },
+                },
+                quotes: {
+                    orderBy: { id: 'desc' },
                 },
                 contracts: {
                     orderBy: { id: 'desc' },
@@ -132,6 +186,7 @@ export class InquiriesService {
             lead_source: inquiry.lead_source,
             lead_source_details: inquiry.lead_source_details,
             selected_package_id: inquiry.selected_package_id,
+            source_package_id: inquiry.source_package_id ?? null,
             package_contents_snapshot: inquiry.package_contents_snapshot ?? null,
             created_at: new Date(), // Default since this field might not exist in the table yet
             updated_at: new Date(), // Default since this field might not exist in the table yet
@@ -146,6 +201,9 @@ export class InquiriesService {
             },
             brand_id: inquiry.contact.brand_id,
             contact_id: inquiry.contact_id,
+            estimates: inquiry.estimates,
+            proposals: inquiry.proposals,
+            quotes: inquiry.quotes,
             contracts: inquiry.contracts,
             invoices: inquiry.invoices,
         };

@@ -232,6 +232,7 @@ export class ProjectPackageCloneService {
           role_template_id: ps.role_template_id,
           name: ps.name,
           real_name: null, // User fills this in later
+          count: ps.count ?? null, // Preserve group headcount (e.g. Bridesmaids: 4)
           category: ps.category,
           notes: ps.notes,
           order_index: ps.order_index,
@@ -325,8 +326,20 @@ export class ProjectPackageCloneService {
     this.logger.debug(`  Operators cloned: ${operatorMap.size}`);
 
     // ── 8. Clone PackageFilm → ProjectFilm ────────────────────────
+    // Only clone the PackageFilm records that are currently listed in
+    // contents.items, so orphaned records (from previously removed films)
+    // are not carried over.
+    const contentsItems: Array<{ type: string; config?: { package_film_id?: number } }> =
+      (pkg.contents as any)?.items ?? [];
+    const contentsFilmIds = contentsItems
+      .filter(item => item.type === 'film' && item.config?.package_film_id)
+      .map(item => item.config!.package_film_id as number);
+    const packageFilmWhere = contentsFilmIds.length > 0
+      ? { package_id: packageId, id: { in: contentsFilmIds } }
+      : { package_id: packageId };
+
     const packageFilms = await prisma.packageFilm.findMany({
-      where: { package_id: packageId },
+      where: packageFilmWhere,
       include: {
         film: {
           include: {

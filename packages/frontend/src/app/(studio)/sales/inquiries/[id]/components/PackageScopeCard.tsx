@@ -25,6 +25,7 @@ import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
 import { api } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
 import { getPackageStats, getCategoryColor, getTierColor } from '@/app/(studio)/designer/packages/_listing/_lib/helpers';
+import { computeCrewCost, computeEquipmentCost } from '@/app/(studio)/designer/packages/[id]/_lib/selectors';
 import { formatCurrency } from '@/lib/utils/formatUtils';
 
 /** Metadata about which set/tier a package belongs to */
@@ -69,6 +70,14 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     const [packageSets, setPackageSets] = useState<any[]>([]);
     const [liveFilms, setLiveFilms] = useState<InquiryFilmRecord[]>([]);
     const [hasLoadedLiveFilms, setHasLoadedLiveFilms] = useState(false);
+    // Instance-accurate cost data
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [instanceOperators, setInstanceOperators] = useState<any[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [instanceEquipment, setInstanceEquipment] = useState<any[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [instanceTaskPreview, setInstanceTaskPreview] = useState<any>(null);
+    const [instanceCostLoaded, setInstanceCostLoaded] = useState(false);
 
     // Fetch both service packages and package sets
     useEffect(() => {
@@ -106,6 +115,56 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
         };
     }, [inquiry.id]);
 
+    // Fetch instance operators + equipment + task preview to compute accurate cost
+    useEffect(() => {
+        if (!inquiry.selected_package_id || !currentBrand?.id) return;
+        let cancelled = false;
+
+        Promise.all([
+            api.schedule.instanceOperators.getForInquiry(inquiry.id),
+            api.equipment.getGroupedByCategory(),
+            api.taskLibrary.previewAutoGeneration(inquiry.selected_package_id, currentBrand.id, inquiry.id),
+        ]).then(([ops, grouped, preview]) => {
+            if (cancelled) return;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const flat: any[] = [];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            Object.values(grouped as Record<string, any>).forEach((group: any) => {
+                if (group && Array.isArray(group.equipment)) flat.push(...group.equipment);
+            });
+
+            console.log('[PackageScopeCard] RAW ops from getForInquiry:', JSON.stringify(ops, null, 2));
+            console.log('[PackageScopeCard] ops count:', (ops || []).length);
+            if (ops && ops.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ops.forEach((op: any, i: number) => {
+                    console.log(`[PackageScopeCard] op[${i}]:`, {
+                        id: op.id,
+                        contributor_id: op.contributor_id,
+                        job_role_id: op.job_role_id,
+                        hours: op.hours,
+                        hourly_rate: op.hourly_rate,
+                        day_rate: op.day_rate,
+                        rate_type: op.rate_type,
+                        rate_bracket: op.rate_bracket,
+                        equipment: op.equipment,
+                    });
+                });
+            }
+            console.log('[PackageScopeCard] flat equipment count:', flat.length);
+            console.log('[PackageScopeCard] taskPreview tasks count:', (preview?.tasks ?? []).length);
+
+            setInstanceOperators(ops || []);
+            setInstanceEquipment(flat);
+            setInstanceTaskPreview(preview ?? null);
+            setInstanceCostLoaded(true);
+        }).catch(err => {
+            console.warn('Failed to load instance cost data for PackageScopeCard:', err);
+        });
+
+        return () => { cancelled = true; };
+    }, [inquiry.id, inquiry.selected_package_id, currentBrand?.id]);
+
     // Build a map of packageId → set/tier info
     const packageSetInfoMap = useMemo(() => {
         const infoMap = new Map<number, PackageSetInfo>();
@@ -133,6 +192,47 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
 
     // Package stats (matches the FilledSlot card layout)
     const stats = selectedPkg ? getPackageStats(selectedPkg) : null;
+
+    // Instance-accurate cost: computed from real inquiry crew + equipment + task preview (mirrors SummaryCard on review page)
+    const instanceCrewCost = computeCrewCost(instanceOperators, instanceTaskPreview);
+    const instanceEquipCost = computeEquipmentCost(null, instanceOperators, instanceEquipment);
+    const instanceTotalCost = instanceCrewCost + instanceEquipCost;
+    // Use instance cost if loaded, otherwise fall back to package template cost
+    const displayCost = instanceCostLoaded
+        ? instanceTotalCost
+        : (stats && stats.totalCost > 0 ? stats.totalCost : Number(selectedPkg?.base_price ?? 0));
+
+    console.log('[PackageScopeCard] RENDER STATE:', {
+        instanceCostLoaded,
+        instanceOperators_count: instanceOperators.length,
+        instanceEquipment_count: instanceEquipment.length,
+        instanceTaskPreview_tasks_count: instanceTaskPreview?.tasks?.length ?? 0,
+        instanceCrewCost,
+        instanceEquipCost,
+        instanceTotalCost,
+        statsTotalCost: stats?.totalCost,
+        displayCost,
+        selected_package_id: inquiry.selected_package_id,
+    });
+    if (instanceCostLoaded && instanceOperators.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        instanceOperators.forEach((op: any, i: number) => {
+            const c = op.contributor;
+            const roles = c?.contributor_job_roles || [];
+            const matchingRole = roles.find((r: any) => r.job_role_id === op.job_role_id);
+            console.log(`[PackageScopeCard] op[${i}] rate breakdown:`, {
+                position_name: op.position_name,
+                job_role_id: op.job_role_id,
+                contributor_id: op.contributor_id,
+                hours: op.hours,
+                has_contributor: !!c,
+                contributor_job_roles_count: roles.length,
+                matching_role_bracket: matchingRole?.payment_bracket ?? null,
+                hourly_rate_resolved: matchingRole?.payment_bracket?.hourly_rate ?? c?.default_hourly_rate ?? 0,
+                day_rate_resolved: matchingRole?.payment_bracket?.day_rate ?? 0,
+            });
+        });
+    }
 
     const catColor = selectedPkg ? getCategoryColor(selectedPkg.category) : '#64748b';
     const tierColor = selectedSetInfo ? getTierColor(selectedSetInfo.tierLabel) : '#648CFF';
@@ -218,7 +318,7 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                             <Typography sx={{
                                 fontWeight: 800, color: '#f59e0b', fontSize: '1.1rem', fontFamily: 'monospace',
                             }}>
-                                {formatCurrency(stats.totalCost > 0 ? stats.totalCost : Number(selectedPkg.base_price ?? 0), currencyCode)}
+                                {formatCurrency(displayCost, currencyCode)}
                             </Typography>
                         </Box>
 

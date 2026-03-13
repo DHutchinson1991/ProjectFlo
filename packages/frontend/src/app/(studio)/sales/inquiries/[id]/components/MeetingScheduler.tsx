@@ -65,6 +65,9 @@ interface MeetingSchedulerProps {
     isLoading?: boolean;
     eventType: EventType;
     defaultDurationMinutes?: number;
+    defaultTitle?: string;
+    defaultDescription?: string;
+    defaultMeetingUrl?: string;
     accentColor?: string;
     scheduleLabel?: string;
     emptyMessage?: string;
@@ -78,6 +81,9 @@ const MeetingScheduler: React.FC<MeetingSchedulerProps> = ({
     isLoading = false,
     eventType,
     defaultDurationMinutes = 60,
+    defaultTitle = '',
+    defaultDescription = '',
+    defaultMeetingUrl = '',
     accentColor = '#3b82f6',
     scheduleLabel = 'Schedule',
     emptyMessage = 'No meetings scheduled yet',
@@ -213,14 +219,14 @@ const MeetingScheduler: React.FC<MeetingSchedulerProps> = ({
         const endTime = calculateEndTime(startTime, defaultDurationMinutes);
 
         setFormData({
-            title: '',
+            title: defaultTitle,
             start_time: startTime,
             end_time: endTime,
             event_type: eventType, // Use the fixed event type
-            meeting_type: 'ONLINE',
-            meeting_url: '',
+            meeting_type: 'VIDEO_CALL',
+            meeting_url: defaultMeetingUrl,
             location: '',
-            description: '',
+            description: defaultDescription,
             assignee_id: undefined,
         });
         setErrors({});

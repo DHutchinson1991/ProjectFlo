@@ -14,6 +14,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import PersonIcon from '@mui/icons-material/Person';
 import PlaceIcon from '@mui/icons-material/Place';
 import VideocamIcon from '@mui/icons-material/Videocam';
+import MicIcon from '@mui/icons-material/Mic';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CameraRollIcon from '@mui/icons-material/CameraRoll';
@@ -581,17 +582,35 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                                         const coverageColor = coveragePercent >= 75 ? '#4CAF50' : coveragePercent >= 50 ? '#FFC107' : coveragePercent >= 25 ? '#FF9800' : '#f44336';
 
                                         // Count assigned subjects, locations & crew for this activity (using activity_assignments junction)
-                                        const actSubjectCount = daySubjects.filter(s =>
+                                        // Split into key subjects and guests (groups counted by their count value)
+                                        const _isAssignedToAct = (s: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
                                             s.activity_assignments?.some((a: { package_activity_id: number }) => a.package_activity_id === act.id) ||
-                                            (!s.activity_assignments?.length && s.package_activity_id === act.id)
-                                        ).length;
+                                            (!s.activity_assignments?.length && s.package_activity_id === act.id);
+                                        const actAssignedSubjects = daySubjects.filter(_isAssignedToAct);
+                                        const actKeySubjectCount = actAssignedSubjects
+                                            .filter((s: any) => (s.name as string).toLowerCase() !== 'guests') // eslint-disable-line @typescript-eslint/no-explicit-any
+                                            .reduce((sum: number, s: any) => sum + (s.count != null ? (s.count as number) : 1), 0); // eslint-disable-line @typescript-eslint/no-explicit-any
+                                        const actGuestCount = actAssignedSubjects
+                                            .filter((s: any) => (s.name as string).toLowerCase() === 'guests') // eslint-disable-line @typescript-eslint/no-explicit-any
+                                            .reduce((sum: number, s: any) => sum + (s.count != null ? (s.count as number) : 1), 0); // eslint-disable-line @typescript-eslint/no-explicit-any
+                                        const actSubjectCount = actKeySubjectCount + actGuestCount;
                                         const actLocationCount = dayLocationSlots.filter(s =>
                                             s.activity_assignments?.some((a: { package_activity_id: number }) => a.package_activity_id === act.id)
                                         ).length;
-                                        const actCrewCount = dayCrew.filter(o =>
+                                        const _isAssignedToCrew = (o: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
                                             o.activity_assignments?.some((a: { package_activity_id: number }) => a.package_activity_id === act.id) ||
-                                            (!o.activity_assignments?.length && o.package_activity_id === act.id)
-                                        ).length;
+                                            (!o.activity_assignments?.length && o.package_activity_id === act.id);
+                                        const actCrewCamCount = dayCrew.filter(o => {
+                                            if (!_isAssignedToCrew(o)) return false;
+                                            const rn = (o.job_role?.display_name || o.job_role?.name || '').toLowerCase();
+                                            return rn.includes('videographer') || rn.includes('camera');
+                                        }).length;
+                                        const actCrewSoundCount = dayCrew.filter(o => {
+                                            if (!_isAssignedToCrew(o)) return false;
+                                            const rn = (o.job_role?.display_name || o.job_role?.name || '').toLowerCase();
+                                            return rn.includes('sound') || rn.includes('audio') || rn.includes('mixer');
+                                        }).length;
+                                        const actCrewCount = actCrewCamCount + actCrewSoundCount;
 
                                         return (
                                             <React.Fragment key={act.id}>
@@ -656,18 +675,30 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                                                                 )}
                                                             </Box>
                                                             {/* Subject/location/crew badges */}
-                                                            {(actSubjectCount > 0 || actLocationCount > 0 || actCrewCount > 0) && (
+                                                            {(actSubjectCount > 0 || actLocationCount > 0 || actCrewCamCount > 0 || actCrewSoundCount > 0) && (
                                                                 <Box sx={{ display: 'flex', gap: 0.75, mt: 0.25 }}>
-                                                                    {actCrewCount > 0 && (
+                                                                    {actCrewCamCount > 0 && (
                                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                                                                             <VideocamIcon sx={{ fontSize: 10, color: '#EC4899' }} />
-                                                                            <Typography sx={{ fontSize: '0.6rem', color: '#EC4899' }}>{actCrewCount}</Typography>
+                                                                            <Typography sx={{ fontSize: '0.6rem', color: '#EC4899' }}>{actCrewCamCount}</Typography>
                                                                         </Box>
                                                                     )}
-                                                                    {actSubjectCount > 0 && (
+                                                                    {actCrewSoundCount > 0 && (
+                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                                                            <MicIcon sx={{ fontSize: 10, color: '#EC4899' }} />
+                                                                            <Typography sx={{ fontSize: '0.6rem', color: '#EC4899' }}>{actCrewSoundCount}</Typography>
+                                                                        </Box>
+                                                                    )}
+                                                                    {actKeySubjectCount > 0 && (
                                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                                                                             <PersonIcon sx={{ fontSize: 10, color: '#a78bfa' }} />
-                                                                            <Typography sx={{ fontSize: '0.6rem', color: '#a78bfa' }}>{actSubjectCount}</Typography>
+                                                                            <Typography sx={{ fontSize: '0.6rem', color: '#a78bfa' }}>{actKeySubjectCount}</Typography>
+                                                                        </Box>
+                                                                    )}
+                                                                    {actGuestCount > 0 && (
+                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                                                            <PersonIcon sx={{ fontSize: 10, color: '#6d5a8a' }} />
+                                                                            <Typography sx={{ fontSize: '0.6rem', color: '#6d5a8a' }}>{actGuestCount}</Typography>
                                                                         </Box>
                                                                     )}
                                                                     {actLocationCount > 0 && (

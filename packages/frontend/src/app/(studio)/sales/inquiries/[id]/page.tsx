@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { useBrand } from '@/app/providers/BrandProvider';
 import {
     Box,
     Typography,
@@ -45,6 +46,7 @@ import {
 import EventDetailsCard from './components/EventDetailsCard';
 import PackageScopeCard from './components/PackageScopeCard';
 import LeadInfoCard from './components/LeadInfoCard';
+import LocationsSubjectsCard from './components/LocationsSubjectsCard';
 
 
 /* ================================================================== */
@@ -53,6 +55,7 @@ import LeadInfoCard from './components/LeadInfoCard';
 export default function InquiryDetailPage() {
     const params = useParams();
     const inquiryId = parseInt(params.id as string);
+    const { currentBrand } = useBrand();
 
     /* ---- core state ---- */
     const [inquiry, setInquiry] = useState<Inquiry | null>(null);
@@ -69,8 +72,13 @@ export default function InquiryDetailPage() {
     /* ---- data loading ---- */
     useEffect(() => {
         loadInquiry();
-        loadPipelineTasks();
     }, [inquiryId]);
+
+    useEffect(() => {
+        if (currentBrand?.id) {
+            loadPipelineTasks();
+        }
+    }, [inquiryId, currentBrand?.id]);
 
     const loadInquiry = async () => {
         try {
@@ -241,13 +249,10 @@ export default function InquiryDetailPage() {
                                 />
                             </Box>
                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <WorkflowCard isActive={false} activeColor={undefined}>
-                                    <Box sx={{ p: 2.5 }}>
-                                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                                            Coming soon
-                                        </Typography>
-                                    </Box>
-                                </WorkflowCard>
+                                <LocationsSubjectsCard
+                                    inquiry={inquiry}
+                                    WorkflowCard={WorkflowCard}
+                                />
                             </Box>
                         </Box>
 

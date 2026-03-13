@@ -24,6 +24,14 @@ export interface InquiryApiResponse {
     contact_id: number;
     brand_id: number;
     selected_package_id?: number | null;
+    selected_package?: {
+        id: number;
+        name: string;
+        base_price: string; // Decimal serialised as string by Prisma
+        currency: string;
+    } | null;
+    primary_estimate_total?: number | null;
+    pipeline_stage?: string | null;
     package_contents_snapshot?: {
         snapshot_taken_at: string;
         package_id: number;

@@ -5,21 +5,26 @@ import { Box, Typography, CardContent, Chip, Stack } from '@mui/material';
 import { Phone, Schedule, Videocam, PhoneInTalk, PersonPin } from '@mui/icons-material';
 import { getCalendarApi, BackendCalendarEvent } from '../../../../../calendar/services/calendarApi';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { useBrand } from '@/app/providers/BrandProvider';
+import { api } from '@/lib/api';
+import { MeetingSettings } from '@/lib/types';
 import MeetingScheduler, { MeetingFormData } from '../../components/MeetingScheduler';
 import type { WorkflowCardProps } from '../_lib';
 import { WorkflowCard } from './WorkflowCard';
 
 const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, activeColor, submission }) => {
     const { user } = useAuth();
+    const { currentBrand } = useBrand();
     const [meetings, setMeetings] = useState<BackendCalendarEvent[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [meetingSettings, setMeetingSettings] = useState<MeetingSettings | null>(null);
 
     useEffect(() => {
         const fetchMeetings = async () => {
             try {
                 setIsLoading(true);
-                const api = getCalendarApi();
-                const events = await api.getEvents();
+                const calApi = getCalendarApi();
+                const events = await calApi.getEvents();
                 const inquiryMeetings = events.filter(event =>
                     event.inquiry_id === inquiry.id &&
                     event.event_type === 'DISCOVERY_CALL'
@@ -37,6 +42,20 @@ const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, 
             fetchMeetings();
         }
     }, [inquiry?.id]);
+
+    useEffect(() => {
+        if (currentBrand?.id) {
+            api.brands.getMeetingSettings(currentBrand.id)
+                .then(setMeetingSettings)
+                .catch(() => {}); // silently fall back to defaults
+        }
+    }, [currentBrand?.id]);
+
+    const contactName = inquiry?.contact?.full_name || inquiry?.contact?.first_name || '';
+    const defaultTitle = contactName ? `${contactName} - Discovery Call` : 'Discovery Call';
+    const defaultDescription = meetingSettings?.description || '';
+    const defaultMeetingUrl = meetingSettings?.google_meet_link || '';
+    const defaultDuration = meetingSettings?.duration_minutes ?? 20;
 
     const handleScheduleMeeting = async (meetingData: MeetingFormData) => {
         try {
@@ -224,7 +243,10 @@ const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, 
                     onDeleteMeeting={handleDeleteMeeting}
                     isLoading={isLoading}
                     eventType="discovery_call"
-                    defaultDurationMinutes={15}
+                    defaultDurationMinutes={defaultDuration}
+                    defaultTitle={defaultTitle}
+                    defaultDescription={defaultDescription}
+                    defaultMeetingUrl={defaultMeetingUrl}
                     accentColor="#f59e0b"
                     scheduleLabel="Schedule Call"
                     emptyMessage="No discovery calls scheduled yet"

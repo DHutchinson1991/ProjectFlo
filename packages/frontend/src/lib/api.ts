@@ -23,6 +23,7 @@ import {
   // Brand domain
   Brand,
   BrandSetting,
+  MeetingSettings,
   UserBrand,
 
   // Sales domain
@@ -901,7 +902,7 @@ class ApiService extends BaseApiClient {
         this.get(`/films/${filmId}/scenes/${sceneId}/duration`),
       getAllDurations: (filmId: number): Promise<SceneDurationInfo[]> =>
         this.get(`/films/${filmId}/scenes/durations`),
-      create: (filmId: number, data: { name: string; scene_template_id?: number; order_index?: number; shot_count?: number | null; duration_seconds?: number | null; mode?: 'MOMENTS' | 'MONTAGE' }): Promise<FilmLocalScene> =>
+      create: (filmId: number, data: { name: string; scene_template_id?: number; order_index?: number; shot_count?: number | null; duration_seconds?: number | null; mode?: 'MOMENTS' | 'MONTAGE'; montage_style?: string; montage_bpm?: number }): Promise<FilmLocalScene> =>
         this.post(`/scenes/films/${filmId}/scenes`, data),
       reorder: (filmId: number, sceneOrderings: Array<{ id: number; order_index: number }>): Promise<any> =>
         this.post(`/scenes/${filmId}/reorder`, sceneOrderings),
@@ -927,11 +928,12 @@ class ApiService extends BaseApiClient {
     getSceneMoments: (sceneId: number): Promise<any[]> =>
       this.get(`/moments/scenes/${sceneId}/moments`),
     
-    create: (sceneId: number, data: { name: string; duration?: number; order_index?: number }): Promise<any> => {
+    create: (sceneId: number, data: { name: string; duration?: number; order_index?: number; source_activity_id?: number }): Promise<any> => {
       const payload = {
         name: data.name,
         duration: data.duration || 10,
         order_index: data.order_index !== undefined ? data.order_index : 0,
+        source_activity_id: data.source_activity_id,
       };
       return this.post(`/moments/scenes/${sceneId}/moments`, payload);
     },
@@ -1065,6 +1067,10 @@ class ApiService extends BaseApiClient {
       this.post(`/brands/${brandId}/settings`, data, { skipBrandContext: true }),
     updateSetting: (brandId: number, key: string, data: { value?: string; description?: string; is_active?: boolean }): Promise<BrandSetting> =>
       this.patch(`/brands/${brandId}/settings/${key}`, data, { skipBrandContext: true }),
+    getMeetingSettings: (brandId: number): Promise<MeetingSettings> =>
+      this.get(`/brands/${brandId}/meeting-settings`, { skipBrandContext: true }),
+    saveMeetingSettings: (brandId: number, data: Partial<MeetingSettings>): Promise<MeetingSettings> =>
+      this.put(`/brands/${brandId}/meeting-settings`, data, { skipBrandContext: true }),
   };
 
   // Task Library methods (brand-specific)
@@ -1797,6 +1803,7 @@ class ApiService extends BaseApiClient {
       create: (packageId: number, data: {
         event_day_template_id: number;
         name: string;
+        count?: number;
         package_activity_id?: number;
         role_template_id?: number;
         category?: string;
@@ -1986,6 +1993,8 @@ class ApiService extends BaseApiClient {
         this.post(`/schedule/projects/${projectId}/location-slots`, data),
       createForInquiry: (inquiryId: number, data: any): Promise<any> =>
         this.post(`/schedule/inquiries/${inquiryId}/location-slots`, data),
+      update: (slotId: number, data: { name?: string | null; address?: string | null; notes?: string | null }): Promise<any> =>
+        this.patch(`/schedule/instance/location-slots/${slotId}`, data),
       delete: (slotId: number): Promise<void> =>
         this.delete(`/schedule/instance/location-slots/${slotId}`),
       assignActivity: (slotId: number, activityId: number): Promise<any> =>

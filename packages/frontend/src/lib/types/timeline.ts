@@ -122,6 +122,8 @@ export interface TimelineScene {
     shot_count?: number | null;
     duration_seconds?: number | null;
     scene_template_type?: "MOMENTS" | "MONTAGE";
+    montage_style?: string | null;
+    montage_bpm?: number | null;
 }
 
 export interface SceneGroup {

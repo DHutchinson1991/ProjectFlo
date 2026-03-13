@@ -73,6 +73,7 @@ export interface ScheduleApi {
       notes?: string;
       order_index?: number;
     }): Promise<any>;
+    update(subjectId: number, data: { count?: number | null; name?: string; notes?: string }): Promise<any>;
     delete(subjectId: number): Promise<void>;
     assignActivity(subjectId: number, activityId: number): Promise<any>;
     unassignActivity(subjectId: number, activityId: number): Promise<any>;
@@ -186,6 +187,8 @@ export function createPackageScheduleApi(packageId: number, brandId: number): Sc
           event_day_template_id: dayId,
           ...data,
         }),
+      update: (subjectId, data) =>
+        api.schedule.packageEventDaySubjects.update(subjectId, data),
       delete: (subjectId) =>
         api.schedule.packageEventDaySubjects.delete(subjectId),
       assignActivity: (subjectId, activityId) =>
@@ -296,6 +299,8 @@ export function createProjectScheduleApi(projectId: number): ScheduleApi {
           ...rest,
         });
       },
+      update: (subjectId, data) =>
+        api.schedule.instanceSubjects.update(subjectId, data),
       delete: (subjectId) =>
         api.schedule.instanceSubjects.delete(subjectId),
       assignActivity: (subjectId, activityId) =>
@@ -401,6 +406,8 @@ export function createInquiryScheduleApi(inquiryId: number): ScheduleApi {
           ...rest,
         });
       },
+      update: (subjectId, data) =>
+        api.schedule.instanceSubjects.update(subjectId, data),
       delete: (subjectId) =>
         api.schedule.instanceSubjects.delete(subjectId),
       assignActivity: (subjectId, activityId) =>

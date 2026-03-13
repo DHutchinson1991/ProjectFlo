@@ -11,9 +11,6 @@ import {
     getCrewHourlyRate,
     isCrewDayRate,
     getCrewDayRate,
-    buildTaskHoursMap,
-    getOperatorCrewName,
-    getOperatorRoleName,
 } from './helpers';
 
 // ─── Active day resolution ──────────────────────────────────────────
@@ -32,33 +29,48 @@ export function getActiveDayId(
 
 // ─── Crew cost computation ──────────────────────────────────────────
 
+const CREW_COST_EXCLUDED_PHASES = new Set(['Lead', 'Inquiry', 'Booking']);
+
 /**
  * Compute the total crew cost from a list of operators and an optional
- * task-auto-generation preview (for hours-per-role).
+ * task-auto-generation preview.
  *
- * This replaces the duplicated cost-reduction logic that appeared in:
- *   – The top-level "Total Cost Summary Card" IIFE
- *   – The "Crew Total" section inside the Crew card IIFE
+ * When a preview is available we sum `estimated_cost` directly from the
+ * backend-generated task rows (exactly what the TaskAutoGenCard displays),
+ * which avoids the floating-point divergence caused by re-multiplying
+ * aggregated hours in the frontend.  Day-rate operators are added on top
+ * because the backend preview returns `estimated_cost = 0` for them
+ * (their brackets carry a day_rate, not an hourly_rate).
+ *
+ * When no preview exists we fall back to operator-level rate × hours.
  */
 export function computeCrewCost(
     operators: PackageDayOperatorRecord[],
     taskPreview: TaskAutoGenerationPreview | null,
 ): number {
-    const taskHoursMap = buildTaskHoursMap(taskPreview);
-    return operators.reduce((sum, op) => {
-        // Only count operators with a contributor or job role (real crew)
-        if (!op.contributor_id && !op.job_role_id) return sum;
+    if (taskPreview?.tasks) {
+        // Sum estimated_cost from all non-sales-pipeline task rows
+        const taskCost = taskPreview.tasks
+            .filter(t => !CREW_COST_EXCLUDED_PHASES.has(t.phase) && t.estimated_cost != null)
+            .reduce((sum, t) => sum + (t.estimated_cost ?? 0), 0);
 
+        // Day-rate crew have hourly_rate=0 in the preview so estimated_cost=0;
+        // add their actual day-rate cost separately.
+        const dayRateCost = operators
+            .filter(op => isCrewDayRate(op))
+            .reduce((sum, op) => sum + getCrewDayRate(op) * Number(op.hours || 1), 0);
+
+        return taskCost + dayRateCost;
+    }
+
+    // Fallback: no preview available — compute directly from operator rates
+    return operators.reduce((sum, op) => {
+        if (!op.contributor_id && !op.job_role_id) return sum;
         if (isCrewDayRate(op)) {
             return sum + getCrewDayRate(op) * Number(op.hours || 1);
         }
-
-        const crewName = getOperatorCrewName(op);
-        const roleName = getOperatorRoleName(op);
-        const taskKey = crewName && roleName ? `${crewName}|${roleName}` : null;
-        const taskHours = taskKey ? (taskHoursMap.get(taskKey) || 0) : 0;
         const rate = getCrewHourlyRate(op);
-        const hours = taskHours > 0 ? taskHours : Number(op.hours || 0);
+        const hours = Number(op.hours || 0);
         return sum + rate * hours;
     }, 0);
 }

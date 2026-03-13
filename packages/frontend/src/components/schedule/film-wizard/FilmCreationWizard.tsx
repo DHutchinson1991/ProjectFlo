@@ -24,6 +24,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { api } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
 import { FilmType } from '@/lib/types/domains/film';
+import { MontageStyle } from '@/lib/types/domains/scenes';
 import type { MontagePreset } from '@/lib/types/domains/montage-presets';
 import type { FilmStructureTemplate, FilmStructureTemplateScene } from '@/lib/types/domains/film-structure-templates';
 import { AudioSourceType, AudioTrackType } from '@/lib/types/domains/audio-sources';
@@ -36,6 +37,7 @@ import { SceneAssignmentStep } from './steps/SceneAssignmentStep';
 import { AudioSourceStep } from './steps/AudioSourceStep';
 import { DurationReviewStep } from './steps/DurationReviewStep';
 import { SceneConfigStep } from './steps/SceneConfigStep';
+import { buildDefaultSceneOrder, type SceneOrderEntry } from './steps/SceneOrderStep';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -92,6 +94,8 @@ export interface SceneDurationOverride {
 export interface ActivitySceneConfig {
   mode: 'REALTIME' | 'MONTAGE';
   montageDurationSeconds?: number;
+  montageStyle?: MontageStyle;
+  montageBpm?: number;
 }
 
 interface FilmCreationWizardProps {
@@ -159,10 +163,15 @@ export function FilmCreationWizard({
   const [sceneAssignments, setSceneAssignments] = useState<SceneSourceAssignment[]>([]);
   const [audioConfigs, setAudioConfigs] = useState<SceneAudioConfig[]>([]);
   const [durationOverrides, setDurationOverrides] = useState<SceneDurationOverride[]>([]);
+  const [combineMontage, setCombineMontage] = useState(true);
+  const [combinedMontageStyle, setCombinedMontageStyle] = useState<MontageStyle>(MontageStyle.HIGHLIGHTS);
+  const [combinedMontageDuration, setCombinedMontageDuration] = useState<number>(120);
+  const [sceneOrder, setSceneOrder] = useState<SceneOrderEntry[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CreatedFilmResult | null>(null);
 
+  // Debug wizard initialization
   // ─── Derived Steps ─────────────────────────────────────────────────
 
   const visibleSteps = useMemo(
@@ -176,38 +185,58 @@ export function FilmCreationWizard({
 
   const canGoNext = useMemo(() => {
     if (!currentStep) return false;
-    switch (currentStep.id) {
-      case 'film-type':
-        return filmName.trim().length > 0;
-      case 'preset':
-        return selectedPreset !== null;
-      case 'activities':
-        if (filmType === FilmType.ACTIVITY) return selectedActivityIds.size === 1;
-        return selectedActivityIds.size > 0;
-      case 'scene-config':
-        return selectedActivityIds.size > 0;
-      case 'structure':
-        return selectedTemplate !== null;
-      case 'scene-assignment':
-        return true; // optional assignments
-      case 'audio':
-        return true; // optional audio
-      case 'duration-review':
-        return true;
-      default:
-        return false;
-    }
+    const result = (() => {
+      switch (currentStep.id) {
+        case 'film-type':
+          return filmName.trim().length > 0;
+        case 'preset':
+          return selectedPreset !== null;
+        case 'activities':
+          const isActivityMode = filmType === FilmType.ACTIVITY;
+          if (isActivityMode) return selectedActivityIds.size === 1;
+          return selectedActivityIds.size > 0;
+        case 'scene-config':
+          return selectedActivityIds.size > 0;
+        case 'structure':
+          return selectedTemplate !== null;
+        case 'scene-assignment':
+          return true; // optional assignments
+        case 'audio':
+          return true; // optional audio
+        case 'duration-review':
+          return true;
+        default:
+          return false;
+      }
+    })();
+    return result;
   }, [currentStep, filmName, selectedPreset, selectedActivityIds, filmType, selectedTemplate]);
 
   const isLastStep = activeStepIndex === visibleSteps.length - 1;
 
   const handleNext = useCallback(() => {
+    // Initialize scene configs for all selected activities when entering scene-config step
+    if (currentStep?.id === 'activities' && filmType === FilmType.FEATURE) {
+      const newConfigs = { ...sceneConfigs };
+      for (const actId of selectedActivityIds) {
+        if (!newConfigs[actId]) {
+          newConfigs[actId] = {
+            mode: 'REALTIME',
+            montageDurationSeconds: 60,
+            montageStyle: MontageStyle.HIGHLIGHTS,
+            montageBpm: undefined,
+          };
+        }
+      }
+      setSceneConfigs(newConfigs);
+    }
+    
     if (isLastStep) {
       handleCreate();
     } else {
       setActiveStepIndex(prev => Math.min(prev + 1, visibleSteps.length - 1));
     }
-  }, [isLastStep, visibleSteps.length]);
+  }, [isLastStep, visibleSteps.length, activeStepIndex, selectedActivityIds, currentBrand, currentStep, filmType, sceneConfigs, sceneOrder]);
 
   const handleBack = useCallback(() => {
     setActiveStepIndex(prev => Math.max(prev - 1, 0));
@@ -222,6 +251,10 @@ export function FilmCreationWizard({
     setSceneAssignments([]);
     setAudioConfigs([]);
     setDurationOverrides([]);
+    setCombineMontage(true);
+    setCombinedMontageStyle(MontageStyle.HIGHLIGHTS);
+    setCombinedMontageDuration(120);
+    setSceneOrder([]);
     // Don't reset activities or name — those can carry over
   }, []);
 
@@ -235,7 +268,15 @@ export function FilmCreationWizard({
   // ─── Create Film ──────────────────────────────────────────────────
 
   const handleCreate = async () => {
-    if (!currentBrand?.id || selectedActivityIds.size === 0) return;
+    if (!currentBrand?.id) {
+      setError('Brand context is not available. Please refresh the page or select a brand.');
+      return;
+    }
+    
+    if (selectedActivityIds.size === 0) {
+      setError('No activities selected. Please select at least one activity.');
+      return;
+    }
 
     setIsCreating(true);
     setError(null);
@@ -388,34 +429,145 @@ export function FilmCreationWizard({
           scenesCreated++;
         }
       } else if (filmType === FilmType.FEATURE) {
-        // FEATURE: one scene per activity, each with REALTIME or MONTAGE mode
-        for (let i = 0; i < selectedActivities.length; i++) {
-          const activity = selectedActivities[i];
-          const config = sceneConfigs[activity.id] ?? { mode: 'REALTIME' as const };
-          const isRealtime = config.mode === 'REALTIME';
+        // FEATURE: create scenes in user-defined order from the Scene Order step
+        const montageActivities = selectedActivities.filter(a =>
+          (sceneConfigs[a.id] ?? { mode: 'REALTIME' as const }).mode === 'MONTAGE'
+        );
+        const activityMap = new Map(selectedActivities.map(a => [a.id, a]));
 
-          const durationSec = isRealtime
-            ? (activity.duration_minutes ? activity.duration_minutes * 60 : undefined)
-            : (config.montageDurationSeconds ?? 60);
+        // Helper: 2-pass proportional scaling for montage moments
+        const scaleMoments = (
+          sourceMoments: Array<{ name: string; duration_seconds?: number; activityId: number }>,
+          targetDuration: number,
+        ) => {
+          const MIN_DURATION = 3;
+          if (sourceMoments.length === 0) return [];
 
-          const scene = await api.films.localScenes.create(newFilm.id, {
-            name: activity.name,
-            order_index: i,
-            mode: isRealtime ? 'MOMENTS' : 'MONTAGE',
-            duration_seconds: durationSec,
-          });
+          const totalOriginal = sourceMoments.reduce((s, m) => s + (m.duration_seconds || 60), 0);
+          const rawDurations = sourceMoments.map(m => ((m.duration_seconds || 60) / totalOriginal) * targetDuration);
 
-          // Link scene to the activity schedule
-          await upsertScene(ownerFilmId, {
-            scene_id: scene.id,
-            [activityFkField]: activity.id,
-            order_index: i,
-            scheduled_start_time: activity.start_time || undefined,
-            scheduled_duration_minutes: activity.duration_minutes || undefined,
-          });
+          // Pass 2: enforce minimum, redistribute deficit
+          const finalDurations = [...rawDurations];
+          let deficit = 0;
+          const aboveMinIndices: number[] = [];
+          for (let j = 0; j < finalDurations.length; j++) {
+            if (finalDurations[j] < MIN_DURATION) {
+              deficit += MIN_DURATION - finalDurations[j];
+              finalDurations[j] = MIN_DURATION;
+            } else {
+              aboveMinIndices.push(j);
+            }
+          }
+          if (deficit > 0 && aboveMinIndices.length > 0) {
+            const aboveMinTotal = aboveMinIndices.reduce((s, idx) => s + finalDurations[idx], 0);
+            for (const idx of aboveMinIndices) {
+              finalDurations[idx] -= (finalDurations[idx] / aboveMinTotal) * deficit;
+              if (finalDurations[idx] < MIN_DURATION) finalDurations[idx] = MIN_DURATION;
+            }
+          }
 
-          if (isRealtime) {
-            // REALTIME: populate moments from the activity
+          // Round and fix last
+          const rounded = finalDurations.map(d => Math.max(MIN_DURATION, Math.round(d)));
+          const roundedSum = rounded.reduce((s, d) => s + d, 0);
+          const diff = targetDuration - roundedSum;
+          if (diff !== 0 && rounded.length > 0) {
+            rounded[rounded.length - 1] = Math.max(MIN_DURATION, rounded[rounded.length - 1] + diff);
+          }
+
+          // Overflow: drop from end
+          let result = sourceMoments.map((m, idx) => ({
+            name: m.name,
+            duration: rounded[idx],
+            order_index: idx,
+            activityId: m.activityId,
+          }));
+          let total = result.reduce((s, m) => s + m.duration, 0);
+          while (total > targetDuration && result.length > 1) {
+            result.pop();
+            total = result.reduce((s, m) => s + m.duration, 0);
+            if (result.length > 0) {
+              const remaining = targetDuration - result.slice(0, -1).reduce((s, m) => s + m.duration, 0);
+              result[result.length - 1].duration = Math.max(MIN_DURATION, remaining);
+            }
+          }
+          return result;
+        };
+
+        // Iterate scene order entries (user-defined order from Scene Order step).
+        // Guard: if sceneOrder is empty (stale closure), derive it on the fly.
+        const effectiveSceneOrder = sceneOrder.length > 0
+          ? sceneOrder
+          : buildDefaultSceneOrder(
+              activities, selectedActivityIds, sceneConfigs,
+              combineMontage, combinedMontageStyle, combinedMontageDuration,
+            );
+        for (let sceneIndex = 0; sceneIndex < effectiveSceneOrder.length; sceneIndex++) {
+          const entry = effectiveSceneOrder[sceneIndex];
+
+          if (entry.isCombined) {
+            // Combined montage scene
+            const scene = await api.films.localScenes.create(newFilm.id, {
+              name: entry.label,
+              order_index: sceneIndex,
+              mode: 'MONTAGE',
+              duration_seconds: combinedMontageDuration,
+              montage_style: combinedMontageStyle,
+              montage_bpm: combinedMontageStyle === MontageStyle.RHYTHMIC ? 120 : undefined,
+            });
+
+            await upsertScene(ownerFilmId, {
+              scene_id: scene.id,
+              [activityFkField]: null as unknown as number,
+              order_index: sceneIndex,
+            });
+
+            // Gather all source moments across montage activities
+            const allSourceMoments: Array<{ name: string; duration_seconds?: number; activityId: number }> = [];
+            for (const actId of entry.activityIds) {
+              const ma = activityMap.get(actId);
+              if (!ma) continue;
+              const actMoments = ma.moments || [];
+              if (actMoments.length > 0) {
+                for (const m of actMoments) {
+                  allSourceMoments.push({ name: m.name, duration_seconds: m.duration_seconds, activityId: ma.id });
+                }
+              } else {
+                allSourceMoments.push({ name: ma.name, activityId: ma.id });
+              }
+            }
+
+            const scaled = scaleMoments(allSourceMoments, combinedMontageDuration);
+            for (const moment of scaled) {
+              await api.moments.create(scene.id, {
+                name: moment.name,
+                duration: moment.duration,
+                order_index: moment.order_index,
+                source_activity_id: moment.activityId,
+              });
+            }
+            totalMomentsPopulated += scaled.length;
+            scenesCreated++;
+          } else if (entry.mode === 'REALTIME') {
+            // Individual realtime scene
+            const activity = activityMap.get(entry.activityIds[0]);
+            if (!activity) continue;
+            const durationSec = activity.duration_minutes ? activity.duration_minutes * 60 : undefined;
+
+            const scene = await api.films.localScenes.create(newFilm.id, {
+              name: activity.name,
+              order_index: sceneIndex,
+              mode: 'MOMENTS',
+              duration_seconds: durationSec,
+            });
+
+            await upsertScene(ownerFilmId, {
+              scene_id: scene.id,
+              [activityFkField]: activity.id,
+              order_index: sceneIndex,
+              scheduled_start_time: activity.start_time || undefined,
+              scheduled_duration_minutes: activity.duration_minutes || undefined,
+            });
+
             if (shouldCreateMomentsManually) {
               for (const [momentIndex, moment] of (activity.moments || []).entries()) {
                 await api.moments.create(scene.id, {
@@ -426,16 +578,48 @@ export function FilmCreationWizard({
               }
             }
             totalMomentsPopulated += activity.moments?.length || 0;
+            scenesCreated++;
           } else {
-            // MONTAGE: create a single beat representing the condensed activity
-            await api.beats.create(scene.id, {
-              name: activity.name,
-              duration_seconds: config.montageDurationSeconds ?? 60,
-              order_index: 0,
-            });
-          }
+            // Individual montage scene
+            const activity = activityMap.get(entry.activityIds[0]);
+            if (!activity) continue;
+            const config = sceneConfigs[activity.id] ?? { mode: 'MONTAGE' as const };
+            const targetDuration = config.montageDurationSeconds ?? 60;
 
-          scenesCreated++;
+            const scene = await api.films.localScenes.create(newFilm.id, {
+              name: activity.name,
+              order_index: sceneIndex,
+              mode: 'MONTAGE',
+              duration_seconds: targetDuration,
+              montage_style: config.montageStyle ?? MontageStyle.HIGHLIGHTS,
+              montage_bpm: config.montageStyle === MontageStyle.RHYTHMIC ? 120 : config.montageBpm,
+            });
+
+            await upsertScene(ownerFilmId, {
+              scene_id: scene.id,
+              [activityFkField]: activity.id,
+              order_index: sceneIndex,
+              scheduled_start_time: activity.start_time || undefined,
+              scheduled_duration_minutes: activity.duration_minutes || undefined,
+            });
+
+            const actMoments = activity.moments || [];
+            const sourceMoments = actMoments.length > 0
+              ? actMoments.map(m => ({ name: m.name, duration_seconds: m.duration_seconds, activityId: activity.id }))
+              : [{ name: activity.name, activityId: activity.id }];
+
+            const scaled = scaleMoments(sourceMoments, targetDuration);
+            for (const moment of scaled) {
+              await api.moments.create(scene.id, {
+                name: moment.name,
+                duration: moment.duration,
+                order_index: moment.order_index,
+                source_activity_id: moment.activityId,
+              });
+            }
+            totalMomentsPopulated += scaled.length;
+            scenesCreated++;
+          }
         }
       } else {
         // ACTIVITY: one scene per selected activity with moments (existing behavior)
@@ -508,6 +692,9 @@ export function FilmCreationWizard({
     setSceneAssignments([]);
     setAudioConfigs([]);
     setDurationOverrides([]);
+    setCombineMontage(true);
+    setCombinedMontageStyle(MontageStyle.HIGHLIGHTS);
+    setCombinedMontageDuration(120);
     setError(null);
     setResult(null);
     setIsCreating(false);
@@ -575,6 +762,14 @@ export function FilmCreationWizard({
             selectedActivityIds={selectedActivityIds}
             sceneConfigs={sceneConfigs}
             onSceneConfigsChange={setSceneConfigs}
+            combineMontage={combineMontage}
+            combinedMontageStyle={combinedMontageStyle}
+            combinedMontageDuration={combinedMontageDuration}
+            onCombineMontageChange={setCombineMontage}
+            onCombinedStyleChange={setCombinedMontageStyle}
+            onCombinedDurationChange={setCombinedMontageDuration}
+            sceneOrder={sceneOrder}
+            onSceneOrderChange={setSceneOrder}
             disabled={isCreating}
           />
         );
@@ -743,6 +938,7 @@ export function FilmCreationWizard({
               onClick={handleNext}
               disabled={!canGoNext || isCreating}
               startIcon={isCreating ? <CircularProgress size={16} color="inherit" /> : isLastStep ? <AutoAwesomeIcon sx={{ fontSize: 16 }} /> : undefined}
+              title={!canGoNext ? `Current step (${currentStep?.id}): validation required` : ''}
               sx={{
                 bgcolor: isLastStep ? '#a78bfa' : '#648CFF',
                 '&:hover': { bgcolor: isLastStep ? '#8b5cf6' : '#5A7BF0' },

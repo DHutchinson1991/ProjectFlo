@@ -21,7 +21,7 @@ import {
 } from '@mui/icons-material';
 import CelebrationIcon from '@mui/icons-material/Celebration';
 import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
-import { inquiriesService } from '@/lib/api';
+import { inquiriesService, api } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
 import AddressSearch, { type AddressSelection } from './AddressSearch';
 
@@ -104,6 +104,46 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const responses = (submission?.responses ?? {}) as Record<string, any>;
 
+    // Ceremony location from package schedule location slots
+    const [ceremonySlot, setCeremonySlot] = useState<{
+        name: string; address: string; lat: number | null; lng: number | null;
+    } | null>(null);
+
+    useEffect(() => {
+        if (!inquiry.id) return;
+        api.schedule.instanceLocationSlots.getForInquiry(inquiry.id)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .then(async (slots: any[]) => {
+                if (!slots || slots.length === 0) return;
+                // Check both project_activity and activity_assignments for "Ceremony"
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const isCeremony = (s: any) =>
+                    s.project_activity?.name?.toLowerCase().includes('ceremony') ||
+                    s.activity_assignments?.some((a: any) =>
+                        a.project_activity?.name?.toLowerCase().includes('ceremony'),
+                    );
+                const ceremony = slots.find(isCeremony)
+                    || slots.find(s => s.name || s.address);
+                if (ceremony && (ceremony.name || ceremony.address)) {
+                    let lat: number | null = null;
+                    let lng: number | null = null;
+                    // Geocode ceremony address for the map
+                    const addrToGeocode = ceremony.address || ceremony.name;
+                    if (addrToGeocode) {
+                        const coords = await geocodeBrandAddress(addrToGeocode);
+                        if (coords) { lat = coords.lat; lng = coords.lng; }
+                    }
+                    setCeremonySlot({
+                        name: ceremony.name || '',
+                        address: ceremony.address || '',
+                        lat,
+                        lng,
+                    });
+                }
+            })
+            .catch(() => { /* ignore – will fall back to venue_details */ });
+    }, [inquiry.id]);
+
     const [formData, setFormData] = useState({
         wedding_date: inquiry.event_date
             ? new Date(inquiry.event_date).toISOString().split('T')[0]
@@ -146,16 +186,19 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         geocodeBrandAddress(parts.join(', ')).then(setBrandCoords);
     }, [currentBrand]);
 
-    const hasVenueCoords = formData.venue_lat != null && formData.venue_lng != null;
+    // Display coordinates: prefer geocoded ceremony slot, then inquiry venue
+    const displayLat = ceremonySlot?.lat ?? formData.venue_lat;
+    const displayLng = ceremonySlot?.lng ?? formData.venue_lng;
+    const hasVenueCoords = displayLat != null && displayLng != null;
 
     const distance = useMemo(() => {
         if (!hasVenueCoords || !brandCoords) return null;
         const km = haversineKm(
             brandCoords.lat, brandCoords.lng,
-            formData.venue_lat!, formData.venue_lng!,
+            displayLat!, displayLng!,
         );
         return formatDistance(km);
-    }, [hasVenueCoords, brandCoords, formData.venue_lat, formData.venue_lng]);
+    }, [hasVenueCoords, brandCoords, displayLat, displayLng]);
 
     /* ---- save handler ---- */
     const handleSave = async () => {
@@ -206,8 +249,10 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         ? dateObj.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' })
         : 'Date not set';
 
-    /* ---- short venue label ---- */
-    const venueShortName = formData.venue_details || formData.venue_address?.split(',')[0] || '';
+    /* ---- short venue label (prefer ceremony location slot) ---- */
+    const venueShortName = ceremonySlot?.name || formData.venue_details || formData.venue_address?.split(',')[0] || '';
+    const venueFullAddress = ceremonySlot?.address || formData.venue_address || '';
+    const venueLabel = 'Ceremony Venue';
 
     return (
         <WorkflowCard isActive={isActive} activeColor={activeColor}>
@@ -258,7 +303,7 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
 
                             <Box>
                                 <Typography sx={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600, mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                    Venue / Location
+                                    {venueLabel}
                                 </Typography>
                                 <AddressSearch
                                     value={formData.venue_address}
@@ -319,28 +364,48 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                 </Box>
                             </Box>
 
-                            {/* Venue row (when no map — full display here) */}
+                            {/* Venue / Ceremony location row (when no map) */}
                             {!hasVenueCoords && (
                                 <Box sx={{
-                                    display: 'flex', alignItems: 'center', gap: 1.5,
+                                    display: 'flex', alignItems: 'flex-start', gap: 1.5,
                                     p: 1.25, borderRadius: 2,
-                                    bgcolor: 'rgba(168, 85, 247, 0.04)',
+                                    bgcolor: venueShortName ? 'rgba(168, 85, 247, 0.06)' : 'rgba(168, 85, 247, 0.04)',
                                     border: '1px solid rgba(168, 85, 247, 0.08)',
                                 }}>
                                     <Box sx={{
                                         width: 32, height: 32, borderRadius: 1.5,
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        bgcolor: 'rgba(100, 116, 139, 0.1)', flexShrink: 0,
+                                        bgcolor: venueShortName ? 'rgba(168, 85, 247, 0.1)' : 'rgba(100, 116, 139, 0.1)', flexShrink: 0,
+                                        mt: 0.25,
                                     }}>
-                                        <LocationOff sx={{ fontSize: 16, color: '#64748b' }} />
+                                        {venueShortName
+                                            ? <Place sx={{ fontSize: 16, color: '#a855f7' }} />
+                                            : <LocationOff sx={{ fontSize: 16, color: '#64748b' }} />}
                                     </Box>
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
                                         <Typography sx={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                            Venue
+                                            {venueLabel}
                                         </Typography>
-                                        <Typography sx={{ fontSize: '0.82rem', color: '#475569', fontWeight: 500, fontStyle: 'italic' }}>
-                                            Location unknown
-                                        </Typography>
+                                        {venueShortName ? (
+                                            <>
+                                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0', lineHeight: 1.3 }}>
+                                                    {venueShortName}
+                                                </Typography>
+                                                {venueFullAddress && venueFullAddress !== venueShortName && (
+                                                    <Typography sx={{
+                                                        fontSize: '0.7rem', color: '#64748b', mt: 0.25, lineHeight: 1.35,
+                                                        overflow: 'hidden', textOverflow: 'ellipsis',
+                                                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                                                    }}>
+                                                        {venueFullAddress}
+                                                    </Typography>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <Typography sx={{ fontSize: '0.82rem', color: '#475569', fontWeight: 500, fontStyle: 'italic' }}>
+                                                Location unknown
+                                            </Typography>
+                                        )}
                                     </Box>
                                 </Box>
                             )}
@@ -356,13 +421,13 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                                     {venueShortName}
                                                 </Typography>
                                             )}
-                                            {formData.venue_address && formData.venue_address !== venueShortName && (
+                                            {venueFullAddress && venueFullAddress !== venueShortName && (
                                                 <Typography sx={{
                                                     fontSize: '0.7rem', color: '#64748b', mt: 0.25, lineHeight: 1.35,
                                                     overflow: 'hidden', textOverflow: 'ellipsis',
                                                     display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                                                 }}>
-                                                    {formData.venue_address}
+                                                    {venueFullAddress}
                                                 </Typography>
                                             )}
                                         </Box>
@@ -409,8 +474,8 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                     p: 0.35,
                                 }}>
                                     <VenueMap
-                                        lat={formData.venue_lat!}
-                                        lng={formData.venue_lng!}
+                                        lat={displayLat!}
+                                        lng={displayLng!}
                                         height="100%"
                                     />
                                 </Box>

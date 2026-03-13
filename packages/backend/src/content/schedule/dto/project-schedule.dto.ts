@@ -204,6 +204,10 @@ export class CreateInstanceEventDaySubjectDto {
 
   @IsOptional()
   @IsInt()
+  count?: number;
+
+  @IsOptional()
+  @IsInt()
   order_index?: number;
 }
 
@@ -238,10 +242,12 @@ export class UpdateInstanceEventDaySubjectDto {
 
   @IsOptional()
   @IsInt()
+  count?: number | null;
+
+  @IsOptional()
+  @IsInt()
   order_index?: number;
 }
-
-// ─── Instance Location Slots ───────────────────────────────────────────
 
 export class CreateInstanceLocationSlotDto {
   @IsInt()
@@ -268,6 +274,20 @@ export class CreateInstanceLocationSlotDto {
   @IsOptional()
   @IsString()
   notes?: string;
+}
+
+export class UpdateInstanceLocationSlotDto {
+  @IsOptional()
+  @IsString()
+  name?: string | null;
+
+  @IsOptional()
+  @IsString()
+  address?: string | null;
+
+  @IsOptional()
+  @IsString()
+  notes?: string | null;
 }
 
 // ─── Instance Day Operators (Crew Slots) ───────────────────────────────

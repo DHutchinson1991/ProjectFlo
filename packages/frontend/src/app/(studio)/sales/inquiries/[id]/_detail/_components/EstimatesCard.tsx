@@ -176,10 +176,7 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                 filmNames.push(filmName);
             }
 
-            // ── Categorize operators by job_role.category ──
-            // creative / production → Planning (Director, Producer)
-            // technical             → Coverage  (Videographer, Sound Engineer)
-            // post-production       → Post-Production per film (Editor)
+            // ── Categorize operators by job_role.category (used for fallback + category lookup) ──
             const PLANNING_CATEGORIES = new Set(['creative', 'production']);
             const POST_PROD_CATEGORIES = new Set(['post-production']);
 
@@ -198,7 +195,6 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                 const hours = Number(op.hours || 0);
                 const category = op.job_role?.category?.toLowerCase() || '';
 
-                // Pick the right bucket based on role category
                 const bucket = PLANNING_CATEGORIES.has(category)
                     ? planningCrew
                     : POST_PROD_CATEGORIES.has(category)
@@ -211,10 +207,7 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                     existing.days += 1;
                 } else {
                     bucket.set(key, {
-                        name,
-                        role,
-                        hours,
-                        days: 1,
+                        name, role, hours, days: 1,
                         hourlyRate: resolveHourlyRate(op),
                         dayRate: resolveDayRate(op),
                         useDayRate: isDayRate(op),
@@ -222,105 +215,164 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                 }
             }
 
-            // Helper: push crew items into initialItems for a given category
-            const pushCrewItems = (crew: Map<string, CrewAccum>, categoryLabel: string) => {
-                for (const c of crew.values()) {
-                    const description = c.role ? `${c.name} — ${c.role}` : c.name;
-                    if (c.useDayRate && c.dayRate > 0) {
-                        initialItems.push({
-                            tempId: makeTempId(),
-                            description,
-                            category: categoryLabel,
-                            quantity: c.days,
-                            unit: 'Days',
-                            unit_price: c.dayRate,
-                            total: c.dayRate * c.days,
-                        });
+            // ── Build line items from ALL non-excluded task preview rows ──
+            // This mirrors computeCrewCost() in selectors.ts exactly: sum estimated_cost
+            // across ALL non-excluded phases (including Delivery & Post_Production) per person+role.
+            // Previous approach split phases and missed Delivery-phase Editor costs.
+            const TASK_EXCLUDED = new Set(['Lead', 'Inquiry', 'Booking']);
+
+            if (taskPreview?.tasks) {
+                // One entry per name|role: accumulate hours + cost from every task phase
+                const allCrewMap = new Map<string, {
+                    name: string; role: string; category: string;
+                    hours: number; cost: number; rate: number;
+                    // track Post_Production task costs per film for the per-film breakdown
+                    ppFilmCosts: Map<string, { hours: number; cost: number }>;
+                }>();
+
+                // Expected total per computeCrewCost (for comparison logging)
+                let expectedCrewTotal = 0;
+
+                console.log('[EstimateBuilder] ── TASK PREVIEW FULL BREAKDOWN ──');
+                console.log('[EstimateBuilder] All task rows:', taskPreview.tasks.map((t: any) => ({
+                    phase: t.phase, name: t.name, assigned_to_name: t.assigned_to_name,
+                    role_name: t.role_name, total_hours: t.total_hours,
+                    hourly_rate: t.hourly_rate, estimated_cost: t.estimated_cost,
+                })));
+
+                for (const task of taskPreview.tasks) {
+                    if (TASK_EXCLUDED.has(task.phase)) continue;
+                    if (!task.assigned_to_name) continue;
+                    const cost = task.estimated_cost ?? 0;
+                    if (cost != null) expectedCrewTotal += cost;
+
+                    const k = `${task.assigned_to_name}|${task.role_name ?? ''}`;
+                    const ex = allCrewMap.get(k);
+                    if (ex) {
+                        ex.hours += task.total_hours;
+                        ex.cost += cost;
+                        if (task.phase === 'Post_Production') {
+                            const fk = filmNames.find(fn => task.name?.includes(fn)) || 'General';
+                            const fc = ex.ppFilmCosts.get(fk);
+                            if (fc) { fc.hours += task.total_hours; fc.cost += cost; }
+                            else { ex.ppFilmCosts.set(fk, { hours: task.total_hours, cost }); }
+                        }
                     } else {
-                        initialItems.push({
-                            tempId: makeTempId(),
-                            description,
-                            category: categoryLabel,
-                            quantity: c.hours,
-                            unit: 'Hours',
-                            unit_price: c.hourlyRate,
-                            total: c.hourlyRate * c.hours,
+                        // Determine crew category from the matching operator
+                        const op = operators.find(o => {
+                            const n = o.contributor
+                                ? `${o.contributor.contact?.first_name || ''} ${o.contributor.contact?.last_name || ''}`.trim()
+                                : '';
+                            return n === task.assigned_to_name &&
+                                (o.job_role?.display_name === task.role_name || o.job_role?.name === task.role_name);
+                        });
+                        const cat = op?.job_role?.category?.toLowerCase() || '';
+                        const lineCategory = PLANNING_CATEGORIES.has(cat) ? 'Planning'
+                            : POST_PROD_CATEGORIES.has(cat) ? 'Post-Production'
+                            : 'Coverage';
+                        const ppFilmCosts = new Map<string, { hours: number; cost: number }>();
+                        if (task.phase === 'Post_Production') {
+                            const fk = filmNames.find(fn => task.name?.includes(fn)) || 'General';
+                            ppFilmCosts.set(fk, { hours: task.total_hours, cost });
+                        }
+                        allCrewMap.set(k, {
+                            name: task.assigned_to_name, role: task.role_name ?? '',
+                            category: lineCategory, hours: task.total_hours, cost,
+                            rate: task.hourly_rate ?? 0, ppFilmCosts,
                         });
                     }
                 }
-            };
 
-            pushCrewItems(planningCrew, 'Planning');
-            pushCrewItems(coverageCrew, 'Coverage');
+                // ── Logging: compare computed totals ──
+                const lineCrewTotal = Array.from(allCrewMap.values()).reduce((s, v) => s + v.cost, 0);
+                console.log('[EstimateBuilder] ── CREW COST COMPARISON ──');
+                console.log('[EstimateBuilder] allCrewMap entries:', Array.from(allCrewMap.entries()).map(([k, v]) => ({
+                    key: k, category: v.category, hours: v.hours, cost: v.cost, rate: v.rate,
+                })));
+                console.log('[EstimateBuilder] expectedCrewTotal (sum of task estimated_costs):', expectedCrewTotal);
+                console.log('[EstimateBuilder] lineCrewTotal (sum of allCrewMap.cost):', lineCrewTotal);
+                console.log('[EstimateBuilder] Match:', Math.abs(expectedCrewTotal - lineCrewTotal) < 0.01 ? '✅ YES' : '❌ NO - diff=' + (expectedCrewTotal - lineCrewTotal));
 
-            // ── Post-Production: per-film breakdown from task preview ──
-            // Task preview already expands per_film tasks (e.g. "Edit Film — Ceremony V8").
-            // We use that for the detailed per-film cost breakdown.
-            // Additionally, coverage-day editors (postProdCrew) are listed under
-            // the first post-prod sub-heading so their event-day hours are visible.
-            if (taskPreview?.tasks) {
-                // Group post-prod tasks by film name
-                const postProdByFilm = new Map<string, { items: { name: string; role: string; hours: number; rate: number; cost: number }[] }>();
-                for (const task of taskPreview.tasks) {
-                    if (task.phase !== 'Post_Production') continue;
-                    // Filter out inquiry/booking phase costs
-                    if (task.phase === 'Inquiry' || task.phase === 'Booking') continue;
-                    if (!task.assigned_to_name) continue;
-                    // Task names from per_film trigger include the film name (e.g. "Edit Film — Ceremony V8")
-                    // Try to match a film name from the schedule
-                    const matchedFilm = filmNames.find(fn => task.name?.includes(fn));
-                    const filmKey = matchedFilm || 'General';
-                    if (!postProdByFilm.has(filmKey)) {
-                        postProdByFilm.set(filmKey, { items: [] });
-                    }
-                    postProdByFilm.get(filmKey)!.items.push({
-                        name: task.assigned_to_name,
-                        role: task.role_name ?? '',
-                        hours: task.total_hours,
-                        rate: task.hourly_rate ?? 0,
-                        cost: task.estimated_cost ?? 0,
+                // ── Emit Planning + Coverage line items ──
+                for (const entry of allCrewMap.values()) {
+                    if (entry.category !== 'Planning' && entry.category !== 'Coverage') continue;
+                    initialItems.push({
+                        tempId: makeTempId(),
+                        description: entry.role ? `${entry.name} — ${entry.role}` : entry.name,
+                        category: entry.category,
+                        quantity: Math.round(entry.hours * 100) / 100,
+                        unit: 'Hours',
+                        unit_price: entry.rate,
+                        total: Math.round(entry.cost * 100) / 100,
                     });
                 }
 
+                // ── Emit Post-Production line items ──
+                // PP tasks get per-film sub-groups; non-PP (e.g. Delivery) go to 'General'
+                const ppEntries = Array.from(allCrewMap.values()).filter(v => v.category === 'Post-Production');
+                if (ppEntries.length > 0) {
+                    // filmKey → name|role → { name, role, hours, cost, rate }
+                    const ppByFilm = new Map<string, Map<string, { name: string; role: string; hours: number; cost: number; rate: number }>>();
 
-                // If we have per-film breakdown, create sub-grouped items
-                if (postProdByFilm.size > 0) {
-                    for (const [filmKey, group] of postProdByFilm) {
-                        // 'Post-Production' = general, 'Post-Production:<Film>' = per-film sub-group
-                        const catLabel = filmKey === 'General' ? 'Post-Production' : `Post-Production:${filmKey}`;
-                        // Merge by person+role within each film
-                        const merged = new Map<string, { name: string; role: string; hours: number; rate: number; cost: number }>();
-                        for (const item of group.items) {
-                            const k = `${item.name}|${item.role}`;
-                            const ex = merged.get(k);
-                            if (ex) {
-                                ex.hours += item.hours;
-                                ex.cost += item.cost;
-                            } else {
-                                merged.set(k, { ...item });
-                            }
+                    for (const entry of ppEntries) {
+                        const ppFilmHours = Array.from(entry.ppFilmCosts.values()).reduce((s, v) => s + v.hours, 0);
+                        const ppFilmCost  = Array.from(entry.ppFilmCosts.values()).reduce((s, v) => s + v.cost,  0);
+                        const deliveryHours = entry.hours - ppFilmHours;
+                        const deliveryCost  = entry.cost  - ppFilmCost;
+
+                        // Per-film Post_Production
+                        for (const [fk, fc] of entry.ppFilmCosts) {
+                            if (!ppByFilm.has(fk)) ppByFilm.set(fk, new Map());
+                            const k = `${entry.name}|${entry.role}`;
+                            const ex = ppByFilm.get(fk)!.get(k);
+                            if (ex) { ex.hours += fc.hours; ex.cost += fc.cost; }
+                            else { ppByFilm.get(fk)!.set(k, { name: entry.name, role: entry.role, hours: fc.hours, cost: fc.cost, rate: entry.rate }); }
                         }
-                        for (const pp of merged.values()) {
-                            const baseDesc = pp.role ? `${pp.name} — ${pp.role}` : pp.name;
-                            const description = baseDesc;
+
+                        // Delivery (non-film) post-prod costs → 'General'
+                        if (deliveryCost > 0.001) {
+                            if (!ppByFilm.has('General')) ppByFilm.set('General', new Map());
+                            const k = `${entry.name}|${entry.role}`;
+                            const ex2 = ppByFilm.get('General')!.get(k);
+                            if (ex2) { ex2.hours += deliveryHours; ex2.cost += deliveryCost; }
+                            else { ppByFilm.get('General')!.set(k, { name: entry.name, role: entry.role, hours: deliveryHours, cost: deliveryCost, rate: entry.rate }); }
+                        }
+                    }
+
+                    console.log('[EstimateBuilder] ppByFilm breakdown:', Array.from(ppByFilm.entries()).map(([fk, m]) => ({
+                        film: fk, items: Array.from(m.values()),
+                    })));
+
+                    for (const [filmKey, filmMap] of ppByFilm) {
+                        const catLabel = filmKey === 'General' ? 'Post-Production' : `Post-Production:${filmKey}`;
+                        for (const pp of filmMap.values()) {
                             initialItems.push({
                                 tempId: makeTempId(),
-                                description,
+                                description: pp.role ? `${pp.name} — ${pp.role}` : pp.name,
                                 category: catLabel,
-                                quantity: Math.round(pp.hours * 10) / 10,
+                                quantity: Math.round(pp.hours * 100) / 100,
                                 unit: 'Hours',
                                 unit_price: pp.rate,
-                                total: pp.cost,
+                                total: Math.round(pp.cost * 100) / 100,
                             });
                         }
                     }
-                } else {
-                    // Fallback: no task preview post-prod, use coverage-day editors
-                    pushCrewItems(postProdCrew, 'Post-Production');
                 }
             } else {
-                // No task preview available — fall back to coverage-day post-prod crew
-                pushCrewItems(postProdCrew, 'Post-Production');
+                // ── Fallback: no task preview — use operator rate × hours ──
+                const pushFallback = (crew: Map<string, CrewAccum>, categoryLabel: string) => {
+                    for (const c of crew.values()) {
+                        const description = c.role ? `${c.name} — ${c.role}` : c.name;
+                        if (c.useDayRate && c.dayRate > 0) {
+                            initialItems.push({ tempId: makeTempId(), description, category: categoryLabel, quantity: c.days, unit: 'Days', unit_price: c.dayRate, total: c.dayRate * c.days });
+                        } else {
+                            initialItems.push({ tempId: makeTempId(), description, category: categoryLabel, quantity: c.hours, unit: 'Hours', unit_price: c.hourlyRate, total: c.hourlyRate * c.hours });
+                        }
+                    }
+                };
+                pushFallback(planningCrew, 'Planning');
+                pushFallback(coverageCrew, 'Coverage');
+                pushFallback(postProdCrew, 'Post-Production');
             }
 
             // Equipment — deduplicate by equipment_id, use rental_price_per_day

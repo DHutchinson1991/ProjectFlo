@@ -122,6 +122,7 @@ export interface PackageActivityRecord {
 export interface PackageEventDaySubjectRecord {
     id: number;
     name: string;
+    count?: number | null;
     category?: string;
     event_day_template_id?: number;
     package_activity_id?: number | null;

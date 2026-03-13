@@ -3,10 +3,11 @@
 import React, { useState } from 'react';
 import {
     Box, Typography, Button, TextField, Select, MenuItem,
-    IconButton, Chip, Menu,
+    IconButton, Chip, Menu, Tooltip,
 } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
+import GroupsIcon from '@mui/icons-material/Groups';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
@@ -54,6 +55,7 @@ export function SubjectsCard({
     const contextApi = useOptionalScheduleApi();
     const subjectApi = contextApi?.subjects ?? {
         create: (dayId: number, data: any) => api.schedule.packageEventDaySubjects.create(packageId!, { event_day_template_id: dayId, ...data }),
+        update: (id: number, data: any) => api.schedule.packageEventDaySubjects.update(id, data),
         delete: (id: number) => api.schedule.packageEventDaySubjects.delete(id),
         assignActivity: (subjectId: number, activityId: number) => api.schedule.packageEventDaySubjects.assignActivity(subjectId, activityId),
         unassignActivity: (subjectId: number, activityId: number) => api.schedule.packageEventDaySubjects.unassignActivity(subjectId, activityId),
@@ -66,13 +68,24 @@ export function SubjectsCard({
     const [addSubjectDayId, setAddSubjectDayId] = useState<number | null>(null);
     const [newSubjectName, setNewSubjectName] = useState('');
     const [newSubjectCategory, setNewSubjectCategory] = useState('PEOPLE');
+    // Inline count editing — track which subject is being typed into
+    const [editingCountId, setEditingCountId] = useState<number | null>(null);
+    const [editingCountValue, setEditingCountValue] = useState('');
 
     // ─── Derived values ──────────────────────────────────────────────
     const activeEventDayId = scheduleActiveDayId || packageEventDays[0]?.id;
     const activeDay = packageEventDays.find(d => d.id === activeEventDayId);
     const selectedActivity = selectedActivityId ? packageActivities.find(a => a.id === selectedActivityId) : null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const daySubjects = packageSubjects.filter((s: any) => s.event_day_template_id === activeEventDayId);
+    const daySubjects = packageSubjects
+        .filter((s: any) => s.event_day_template_id === activeEventDayId) // eslint-disable-line @typescript-eslint/no-explicit-any
+        .sort((a: any, b: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+            const aGuests = (a.name as string).toLowerCase() === 'guests';
+            const bGuests = (b.name as string).toLowerCase() === 'guests';
+            if (aGuests && !bGuests) return 1;
+            if (!aGuests && bGuests) return -1;
+            return 0;
+        });
 
     // ── Multi-activity subject assignments (DB-backed via activity_assignments) ──
     const isSubjectAssigned = (s: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -170,7 +183,7 @@ export function SubjectsCard({
                             </Box>
                         </Box>
                         {daySubjects.length > 0 && (
-                            <Chip label={`${daySubjects.length}`} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(167, 139, 250, 0.1)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.2)', '& .MuiChip-label': { px: 0.6 } }} />
+                            <Chip label={`${daySubjects.reduce((sum: number, s: any) => sum + (s.count != null ? (s.count as number) : 1), 0)}`} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(167, 139, 250, 0.1)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.2)', '& .MuiChip-label': { px: 0.6 } }} />
                         )}
                     </Box>
                 </Box>
@@ -179,6 +192,40 @@ export function SubjectsCard({
                     {/* Existing subjects */}
                     {daySubjects.map((subj: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                         const subjAssigned = isSubjectAssigned(subj);
+                        const isGroup = subj.count !== null && subj.count !== undefined;
+                        const currentCount: number = subj.count ?? 1;
+                        const isEditingThis = editingCountId === subj.id;
+
+                        const applyCount = async (rawVal: string) => {
+                            setEditingCountId(null);
+                            const n = parseInt(rawVal, 10);
+                            const next = isNaN(n) ? currentCount : Math.max(1, n);
+                            if (next === currentCount) return;
+                            try {
+                                const updated = await subjectApi.update(subj.id, { count: next });
+                                setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, count: updated?.count ?? next } : s)); // eslint-disable-line @typescript-eslint/no-explicit-any
+                            } catch (err) { console.warn('Failed to update count:', err); }
+                        };
+
+                        const adjustCount = async (e: React.MouseEvent, delta: number) => {
+                            e.stopPropagation();
+                            const next = Math.max(1, currentCount + delta);
+                            if (next === currentCount) return;
+                            try {
+                                const updated = await subjectApi.update(subj.id, { count: next });
+                                setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, count: updated?.count ?? next } : s)); // eslint-disable-line @typescript-eslint/no-explicit-any
+                            } catch (err) { console.warn('Failed to update count:', err); }
+                        };
+
+                        const toggleGroup = async (e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            const newCount = isGroup ? null : 2;
+                            try {
+                                const updated = await subjectApi.update(subj.id, { count: newCount });
+                                setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, count: updated?.count ?? newCount } : s)); // eslint-disable-line @typescript-eslint/no-explicit-any
+                            } catch (err) { console.warn('Failed to toggle group:', err); }
+                        };
+
                         return (
                         <Box
                             key={subj.id}
@@ -187,7 +234,7 @@ export function SubjectsCard({
                                 toggleSubjectActivity(subj);
                             }}
                             sx={{
-                                display: 'flex', alignItems: 'center', gap: 1,
+                                display: 'flex', alignItems: 'center', gap: 0.75,
                                 py: 0.5, px: 1, mx: -1, borderRadius: 1.5,
                                 transition: 'all 0.2s ease',
                                 opacity: subjAssigned ? 1 : 0.3,
@@ -196,6 +243,7 @@ export function SubjectsCard({
                                     bgcolor: selectedActivityId ? 'rgba(167, 139, 250, 0.12)' : 'rgba(167, 139, 250, 0.05)',
                                     opacity: selectedActivityId && !subjAssigned ? 0.7 : (subjAssigned ? 1 : 0.3),
                                     '& .subj-del': { opacity: !selectedActivityId ? 1 : (subjAssigned ? 1 : 0) },
+                                    '& .subj-group-toggle': { opacity: 1 },
                                 },
                             }}
                         >
@@ -203,13 +251,88 @@ export function SubjectsCard({
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {subj.name}
+                                    {(subj as any).real_name && (
+                                        <Box component="span" sx={{ color: '#94a3b8', fontWeight: 400 }}> — {(subj as any).real_name}</Box>
+                                    )}
                                 </Typography>
                                 {subj.category && (
                                     <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.55rem', display: 'block', mt: -0.2, textTransform: 'capitalize' }}>
-                                        {(subj.category as string).toLowerCase()}
+                                        {(subj.category as string).toLowerCase()}{isGroup ? ' group' : ''}
                                     </Typography>
                                 )}
                             </Box>
+
+                            {/* Group toggle icon */}
+                            <Tooltip title={isGroup ? 'Remove group' : 'Make group'} arrow placement="top">
+                                <IconButton
+                                    size="small"
+                                    className="subj-group-toggle"
+                                    onClick={toggleGroup}
+                                    sx={{
+                                        p: 0.25, flexShrink: 0,
+                                        opacity: isGroup ? 1 : 0,
+                                        transition: 'opacity 0.15s',
+                                        color: isGroup ? '#a78bfa' : '#475569',
+                                        '&:hover': { color: isGroup ? '#c4b5fd' : '#a78bfa', bgcolor: 'rgba(167,139,250,0.12)' },
+                                    }}
+                                >
+                                    <GroupsIcon sx={{ fontSize: 13 }} />
+                                </IconButton>
+                            </Tooltip>
+
+                            {/* Count stepper — only when group */}
+                            {isGroup && (
+                                <Box
+                                    onClick={e => e.stopPropagation()}
+                                    sx={{ display: 'flex', alignItems: 'center', gap: 0.15, flexShrink: 0 }}
+                                >
+                                    <IconButton size="small" onClick={(e) => adjustCount(e, -1)}
+                                        sx={{ p: 0.15, color: '#64748b', '&:hover': { color: '#a78bfa', bgcolor: 'rgba(167,139,250,0.12)' } }}>
+                                        <Box component="span" sx={{ fontSize: 13, lineHeight: 1, fontWeight: 700 }}>−</Box>
+                                    </IconButton>
+                                    {isEditingThis ? (
+                                        <Box
+                                            component="input"
+                                            type="number"
+                                            autoFocus
+                                            value={editingCountValue}
+                                            onChange={e => setEditingCountValue(e.target.value)}
+                                            onBlur={e => applyCount(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') applyCount((e.target as HTMLInputElement).value);
+                                                if (e.key === 'Escape') setEditingCountId(null);
+                                                e.stopPropagation();
+                                            }}
+                                            onClick={e => e.stopPropagation()}
+                                            sx={{
+                                                width: 36, textAlign: 'center', border: '1px solid rgba(167,139,250,0.5)',
+                                                borderRadius: '4px', bgcolor: 'rgba(167,139,250,0.1)', color: '#a78bfa',
+                                                fontSize: '0.65rem', fontWeight: 700, py: '1px', px: '2px',
+                                                outline: 'none',
+                                                '&::-webkit-inner-spin-button': { display: 'none' },
+                                            }}
+                                        />
+                                    ) : (
+                                        <Typography
+                                            onClick={(e) => { e.stopPropagation(); setEditingCountId(subj.id); setEditingCountValue(String(currentCount)); }}
+                                            sx={{
+                                                fontSize: '0.65rem', fontWeight: 700, color: '#a78bfa',
+                                                minWidth: 20, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
+                                                cursor: 'text', px: 0.25,
+                                                borderRadius: '4px',
+                                                '&:hover': { bgcolor: 'rgba(167,139,250,0.1)' },
+                                            }}
+                                        >
+                                            {currentCount}
+                                        </Typography>
+                                    )}
+                                    <IconButton size="small" onClick={(e) => adjustCount(e, +1)}
+                                        sx={{ p: 0.15, color: '#64748b', '&:hover': { color: '#a78bfa', bgcolor: 'rgba(167,139,250,0.12)' } }}>
+                                        <Box component="span" sx={{ fontSize: 13, lineHeight: 1, fontWeight: 700 }}>+</Box>
+                                    </IconButton>
+                                </Box>
+                            )}
+
                             <Box className="subj-del" sx={{ opacity: 0, transition: 'opacity 0.15s' }}>
                                 <IconButton
                                     size="small"

@@ -452,12 +452,14 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
                                 </Typography>
                             </Box>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1 }}>
-                                {eventDaySubjects.map((subj: SubjectRecord) => {
+                                {/* Key subjects first */}
+                                {eventDaySubjects.filter((s: SubjectRecord) => (s.name as string).toLowerCase() !== 'guests').map((subj: SubjectRecord) => {
                                     const assigned = assignedSubjectIds.has(subj.id);
+                                    const label = subj.count != null ? `${subj.name} · ${subj.count}` : subj.name;
                                     return (
                                         <Chip
                                             key={subj.id}
-                                            label={subj.name}
+                                            label={label}
                                             size="small"
                                             onClick={() => toggleSubject(subj.id)}
                                             sx={{
@@ -470,6 +472,31 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
                                                 transition: 'all 0.15s ease',
                                                 '&:hover': {
                                                     bgcolor: assigned ? 'rgba(167, 139, 250, 0.25)' : 'rgba(255,255,255,0.08)',
+                                                },
+                                            }}
+                                        />
+                                    );
+                                })}
+                                {/* Guests — always last, muted styling */}
+                                {eventDaySubjects.filter((s: SubjectRecord) => (s.name as string).toLowerCase() === 'guests').map((subj: SubjectRecord) => {
+                                    const assigned = assignedSubjectIds.has(subj.id);
+                                    const label = subj.count != null ? `${subj.name} · ${subj.count}` : subj.name;
+                                    return (
+                                        <Chip
+                                            key={subj.id}
+                                            label={label}
+                                            size="small"
+                                            onClick={() => toggleSubject(subj.id)}
+                                            sx={{
+                                                cursor: 'pointer',
+                                                bgcolor: assigned ? 'rgba(109, 90, 138, 0.2)' : 'rgba(255,255,255,0.03)',
+                                                color: assigned ? '#9d87c0' : '#64748b',
+                                                border: `1px solid ${assigned ? 'rgba(109, 90, 138, 0.4)' : 'rgba(255,255,255,0.06)'}`,
+                                                fontWeight: assigned ? 500 : 400,
+                                                fontSize: '0.7rem',
+                                                transition: 'all 0.15s ease',
+                                                '&:hover': {
+                                                    bgcolor: assigned ? 'rgba(109, 90, 138, 0.3)' : 'rgba(255,255,255,0.06)',
                                                 },
                                             }}
                                         />

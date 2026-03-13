@@ -63,7 +63,7 @@ export async function enrichScenesWithBeats(filmScenes: any[]): Promise<Timeline
             });
         }
 
-        if (isMomentsScene && scene.moments && scene.moments.length > 0) {
+        if ((isMomentsScene || isMontageScene) && scene.moments && scene.moments.length > 0) {
             momentsList = scene.moments;
         } else if (isMomentsScene && scene.scene_template_id) {
             if (!template) {
@@ -81,11 +81,12 @@ export async function enrichScenesWithBeats(filmScenes: any[]): Promise<Timeline
                 : (scene as any).database_type || "VIDEO";
         const colorType = sceneTemplateType || scene.type || "VIDEO";
 
+        const useMomentsView = isMomentsScene || (isMontageScene && momentsList.length > 0);
         const momentsDuration = momentsList.reduce((sum: number, m: any) => sum + (m.duration || 10), 0);
         const beatsDuration = beatsList.reduce((sum: number, b: any) => sum + (b.duration_seconds || 0), 0);
         const resolvedDuration = scene.duration
             || scene.duration_seconds
-            || (isMomentsScene ? (momentsDuration > 0 ? momentsDuration : 60) : (beatsDuration > 0 ? beatsDuration : 60));
+            || (useMomentsView ? (momentsDuration > 0 ? momentsDuration : 60) : (beatsDuration > 0 ? beatsDuration : 60));
 
         const timelineScene = {
             id: scene.id,
@@ -100,8 +101,10 @@ export async function enrichScenesWithBeats(filmScenes: any[]): Promise<Timeline
             database_type: databaseType as const,
             original_scene_id: scene.id,
             order_index: scene.order_index,
-            moments: isMomentsScene ? momentsList : [],
-            beats: !isMomentsScene ? beatsList : [],
+            moments: useMomentsView ? momentsList : [],
+            beats: !useMomentsView ? beatsList : [],
+            montage_style: scene.montage_style || null,
+            montage_bpm: scene.montage_bpm || null,
             media_components: scene.media_components || [],
             coverage_items: scene.coverage_items || [],
             music: scene.music || undefined,

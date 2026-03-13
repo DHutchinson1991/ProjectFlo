@@ -4,6 +4,7 @@ import {
     Post,
     Body,
     Patch,
+    Put,
     Param,
     Delete,
     ParseIntPipe,
@@ -108,6 +109,27 @@ export class BrandsController {
         @Param('key') key: string,
     ) {
         return this.brandsService.deleteSetting(brandId, key);
+    }
+
+    // Meeting Settings (batch get/save)
+    @Get(':brandId/meeting-settings')
+    getMeetingSettings(@Param('brandId', ParseIntPipe) brandId: number) {
+        return this.brandsService.getMeetingSettings(brandId);
+    }
+
+    @Put(':brandId/meeting-settings')
+    upsertMeetingSettings(
+        @Param('brandId', ParseIntPipe) brandId: number,
+        @Body() body: {
+            duration_minutes?: number;
+            description?: string;
+            available_days?: number[];
+            available_from?: string;
+            available_to?: string;
+            google_meet_link?: string;
+        },
+    ) {
+        return this.brandsService.upsertMeetingSettings(brandId, body);
     }
 
     // Brand context endpoints

@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-import { Box, Typography } from "@mui/material";
+import { Box, Tooltip, Typography } from "@mui/material";
 import CameraAltOutlinedIcon from "@mui/icons-material/CameraAltOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
@@ -328,6 +328,16 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                 const graphicsLabel = isGraphicsTrack ? graphicsTitle : "";
                 const displayLabel = graphicsLabel || strongLabel;
 
+                // Build tooltip text for when labels are clipped/hidden
+                const tooltipParts: string[] = [moment.name];
+                if (hasShot) tooltipParts.push(shotLabel);
+                if (hasSubjects) tooltipParts.push(subjectLabel);
+                if (graphicsLabel) tooltipParts.push(graphicsLabel);
+                if (momentDuration) tooltipParts.push(`${momentDuration}s`);
+                const tooltipText = tooltipParts.join(' · ');
+                // Show tooltip when block is too small to display full label
+                const needsTooltip = blockPx <= 100;
+
                 // Stronger variation for distinction
                 const isEven = idx % 2 === 0;
                 const tileColor = isEven 
@@ -335,8 +345,15 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                     : alpha(momentBaseColor, 0.85);
 
                 return (
+                    <Tooltip
+                        key={`moment-${moment.id || idx}`}
+                        title={needsTooltip ? tooltipText : ''}
+                        arrow
+                        placement="top"
+                        enterDelay={200}
+                        disableHoverListener={!needsTooltip}
+                    >
                         <Box
-                            key={`moment-${moment.id || idx}`}
                             onClick={(e) => {
                                 if (shouldLog) {
                                     console.info("[MOMENT] Open editor", {
@@ -385,7 +402,7 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                             }}
                         >
                             {/* ── Graphics track label ─────────────────────────────── */}
-                            {blockPx > 30 && graphicsLabel && (
+                            {blockPx > 35 && graphicsLabel && (
                                 <Box
                                     className="moment-label-text"
                                     sx={{
@@ -396,7 +413,7 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                                     }}
                                 >
                                     <PaletteOutlinedIcon sx={{ fontSize: '0.75rem', color: 'white', flexShrink: 0 }} />
-                                    {blockPx > 50 && (
+                                    {blockPx > 80 && (
                                         <Typography variant="caption" sx={{ color: 'inherit', fontSize: '0.65rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                             {graphicsLabel}
                                         </Typography>
@@ -406,8 +423,8 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
 
                             {/* ── Camera / Audio track label — progressive degradation ── */}
                             {!graphicsLabel && displayLabel && (() => {
-                                // Full: shot icon + shot + person icon + subjects
-                                if (blockPx > 60) {
+                                // Full: shot icon + shot + person icon + subjects (wide blocks only)
+                                if (blockPx > 100) {
                                     return (
                                         <Box
                                             className="moment-label-text"
@@ -433,8 +450,8 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                                         </Box>
                                     );
                                 }
-                                // Medium: shot icon + shot only (drop subjects)
-                                if (blockPx > 35 && hasShot) {
+                                // Medium: shot icon + shot label only (drop subjects)
+                                if (blockPx > 55 && hasShot) {
                                     return (
                                         <Box
                                             className="moment-label-text"
@@ -450,24 +467,8 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                                         </Box>
                                     );
                                 }
-                                // Small: just shot text, no icon
-                                if (blockPx > 18 && hasShot) {
-                                    return (
-                                        <Typography
-                                            className="moment-label-text"
-                                            variant="caption"
-                                            sx={{
-                                                fontSize: '0.58rem', color: 'rgba(255,255,255,0.9)', fontWeight: 700,
-                                                overflow: 'hidden', whiteSpace: 'nowrap', px: 0.25, pointerEvents: 'none',
-                                                opacity: isHovered ? 1 : 0.9, letterSpacing: '-0.01em',
-                                            }}
-                                        >
-                                            {shotLabel}
-                                        </Typography>
-                                    );
-                                }
-                                // Subjects-only fallback (no shot set, only subjects)
-                                if (blockPx > 50 && hasSubjects) {
+                                // Subjects-only with text (no shot set, wide enough for text)
+                                if (blockPx > 80 && !hasShot && hasSubjects) {
                                     return (
                                         <Box
                                             className="moment-label-text"
@@ -479,9 +480,22 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                                             }}
                                         >
                                             <PersonOutlineIcon sx={{ fontSize: '0.7rem', color: 'white', flexShrink: 0 }} />
-                                            {blockPx > 60 && (
-                                                <Typography variant="caption" sx={{ color: 'inherit', fontSize: '0.65rem' }}>{subjectLabel}</Typography>
-                                            )}
+                                            <Typography variant="caption" sx={{ color: 'inherit', fontSize: '0.65rem' }}>{subjectLabel}</Typography>
+                                        </Box>
+                                    );
+                                }
+                                // Small: icon only — clean appearance, no truncated text
+                                if (blockPx > 30) {
+                                    return (
+                                        <Box className="moment-label-text" sx={{
+                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                            pointerEvents: 'none', opacity: isHovered ? 1 : 0.85,
+                                        }}>
+                                            {hasShot ? (
+                                                <CameraAltOutlinedIcon sx={{ fontSize: '0.7rem', color: 'white' }} />
+                                            ) : hasSubjects ? (
+                                                <PersonOutlineIcon sx={{ fontSize: '0.7rem', color: 'white' }} />
+                                            ) : null}
                                         </Box>
                                     );
                                 }
@@ -489,7 +503,7 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                             })()}
 
                             {/* ── Fallback: moment name when no recording setup ────── */}
-                            {!displayLabel && !graphicsLabel && blockPx > 45 && (
+                            {!displayLabel && !graphicsLabel && blockPx > 80 && (
                                 <Typography
                                     variant="caption"
                                     sx={{
@@ -511,6 +525,7 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                             )}
 
                         </Box>
+                    </Tooltip>
                 );
             })}
 

@@ -20,6 +20,18 @@ export enum SceneType {
 }
 
 /**
+ * MontageStyle Enum - Editing approach for montage scenes
+ */
+export enum MontageStyle {
+  RHYTHMIC = 'RHYTHMIC',
+  IMPRESSIONISTIC = 'IMPRESSIONISTIC',
+  SEQUENTIAL = 'SEQUENTIAL',
+  PARALLEL = 'PARALLEL',
+  HIGHLIGHTS = 'HIGHLIGHTS',
+  NARRATIVE_ARC = 'NARRATIVE_ARC',
+}
+
+/**
  * SceneTemplate - Template for building scenes
  * Suggests which subjects should be filmed and recommended moments
  */
@@ -62,6 +74,8 @@ export interface FilmScene {
   name: string;
   shot_count?: number | null;
   duration_seconds?: number | null;
+  montage_style?: MontageStyle | null;
+  montage_bpm?: number | null;
   order_index: number;
   created_at: string;
   updated_at: string;
@@ -89,6 +103,9 @@ export interface CreateFilmSceneDto {
   shot_count?: number | null;
   duration_seconds?: number | null;
   order_index: number;
+  mode?: 'MOMENTS' | 'MONTAGE';
+  montage_style?: string;
+  montage_bpm?: number;
 }
 
 /**
@@ -100,6 +117,8 @@ export interface UpdateFilmSceneDto {
   scene_template_id?: number;
   shot_count?: number | null;
   duration_seconds?: number | null;
+  montage_style?: string | null;
+  montage_bpm?: number | null;
 }
 
 /**

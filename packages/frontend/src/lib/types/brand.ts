@@ -46,6 +46,15 @@ export interface BrandSetting {
     updated_at: string;
 }
 
+export interface MeetingSettings {
+    duration_minutes: number;
+    description: string;
+    available_days: number[]; // 0=Sun, 1=Mon ... 6=Sat
+    available_from: string;   // "09:00"
+    available_to: string;     // "17:00"
+    google_meet_link: string;
+}
+
 export interface UserBrand {
     id: number;
     user_id: number;

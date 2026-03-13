@@ -31,6 +31,10 @@ export class CreatePackageEventDaySubjectDto {
 
   @IsOptional()
   @IsInt()
+  count?: number;
+
+  @IsOptional()
+  @IsInt()
   order_index?: number;
 }
 
@@ -58,6 +62,10 @@ export class UpdatePackageEventDaySubjectDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsInt()
+  count?: number | null;
 
   @IsOptional()
   @IsInt()

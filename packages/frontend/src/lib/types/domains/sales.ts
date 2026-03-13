@@ -176,6 +176,15 @@ export interface Inquiry {
     lead_source?: string | null;
     lead_source_details?: string | null;
     selected_package_id?: number | null;
+    selected_package?: {
+        id: number;
+        name: string;
+        base_price: number;
+        currency: string;
+    } | null;
+    primary_estimate_total?: number | null;
+    pipeline_stage?: string | null;
+    source_package_id?: number | null;
     package_contents_snapshot?: {
         snapshot_taken_at: string;
         package_id: number;

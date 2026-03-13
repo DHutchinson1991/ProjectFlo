@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { Box, Chip, Typography } from "@mui/material";
+import { Box, Chip, Tooltip, Typography } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import { alpha } from "@mui/material/styles";
@@ -84,6 +84,12 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
   const totalDuration = primaryScene.duration || totalMomentDuration;
   const hasGap = totalMomentDuration < totalDuration;
 
+  // Detect montage scene with multiple activity sources for group dividers
+  const isMontageScene = (primaryScene as any)?.scene_template_type === "MONTAGE"
+    || (primaryScene as any)?.scene_mode === "MONTAGE";
+  const hasMultipleSources = isMontageScene && moments.length > 1
+    && new Set(moments.map((m: any) => m.source_activity_id).filter(Boolean)).size >= 2;
+
   return (
     <Box
       sx={{
@@ -99,10 +105,24 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
         {moments.map((moment, mIdx) => {
           const momentDuration = moment.duration || moment.duration_seconds || 0;
           const widthPercent = totalDuration > 0 ? (momentDuration / totalDuration) * 100 : 0;
+          const momentPx = momentDuration * zoomLevel;
+          const prevSourceId = mIdx > 0 ? moments[mIdx - 1]?.source_activity_id : undefined;
+          const curSourceId = moment.source_activity_id;
+          const showDivider = hasMultipleSources && mIdx > 0 && curSourceId && prevSourceId && curSourceId !== prevSourceId;
 
           return (
+            <React.Fragment key={`moment-header-${moment.id || mIdx}`}>
+              {showDivider && (
+                <Box
+                  sx={{
+                    flex: 'none',
+                    width: '2px',
+                    alignSelf: 'stretch',
+                    bgcolor: 'rgba(255,255,255,0.15)',
+                  }}
+                />
+              )}
             <Box
-              key={`moment-header-${moment.id || mIdx}`}
               draggable
               onDragStart={(e) => onMomentDragStart(e, moment.id, mIdx, primaryScene)}
               onDragOver={onMomentDragOver}
@@ -134,21 +154,45 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
                 },
               }}
             >
-              <Typography
-                className="moment-header-text"
-                sx={{
-                  fontSize: "10px",
-                  color: "rgba(255,255,255,0.8)",
-                  px: 0.5,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  opacity: 1,
-                  transition: "color 0.15s ease-out",
-                }}
-              >
-                {moment.name}
-              </Typography>
+              {/* Adaptive label: full text when enough room, tooltip-only when cramped */}
+              {(() => {
+                const name = moment.name || '';
+                // Estimate chars that fit: ~6px per char at 10px font
+                const estChars = Math.floor(momentPx / 6);
+                const canShowFull = estChars >= name.length;
+                const canShowTruncated = momentPx >= 50;
+                const tooltipText = `${name}${momentDuration ? ` \u00b7 ${momentDuration}s` : ''}`;
+
+                if (canShowFull || canShowTruncated) {
+                  return (
+                    <Tooltip title={!canShowFull ? tooltipText : ''} arrow placement="top" enterDelay={300} disableHoverListener={canShowFull}>
+                      <Typography
+                        className="moment-header-text"
+                        sx={{
+                          fontSize: "10px",
+                          color: "rgba(255,255,255,0.8)",
+                          px: 0.5,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          opacity: 1,
+                          transition: "color 0.15s ease-out",
+                          width: '100%',
+                          textAlign: 'center',
+                        }}
+                      >
+                        {name}
+                      </Typography>
+                    </Tooltip>
+                  );
+                }
+                // Too small for text — clean empty block with tooltip
+                return (
+                  <Tooltip title={tooltipText} arrow placement="top" enterDelay={150}>
+                    <Box sx={{ width: '100%', height: '100%' }} />
+                  </Tooltip>
+                );
+              })()}
 
               <EditIcon
                 className="edit-icon"
@@ -180,6 +224,7 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
                 }}
               />
             </Box>
+            </React.Fragment>
           );
         })}
         {/* Gap fill — remaining unplanned time with manage button */}

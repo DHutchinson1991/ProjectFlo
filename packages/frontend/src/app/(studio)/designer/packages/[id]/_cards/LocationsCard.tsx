@@ -136,8 +136,11 @@ export function LocationsCard({
                         >
                             <PlaceIcon sx={{ fontSize: 12, color: '#f59e0b', flexShrink: 0 }} />
                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#f1f5f9' }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     Location {slot.location_number}
+                                    {(slot as any).name && (
+                                        <Box component="span" sx={{ color: '#94a3b8', fontWeight: 400 }}> · {(slot as any).name}</Box>
+                                    )}
                                 </Typography>
                                 {assignedCount > 0 && (
                                     <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.55rem', display: 'block', mt: -0.2 }}>

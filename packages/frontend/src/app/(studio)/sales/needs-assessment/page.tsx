@@ -505,6 +505,12 @@ export default function NeedsAssessmentPage() {
                                                     </Typography>
                                                 </Box>
 
+                                                {q.help_text && (
+                                                    <Typography sx={{ color: muted, fontSize: "0.78rem", mb: 1.5, lineHeight: 1.5 }}>
+                                                        {q.help_text}
+                                                    </Typography>
+                                                )}
+
                                                 {/* ── Preferred contact time → chip-toggle time slots ── */}
                                                 {(key === "preferred_contact_time" || key.toLowerCase().includes("contact_time")) ? (
                                                     <Box>

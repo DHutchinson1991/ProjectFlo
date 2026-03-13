@@ -327,90 +327,131 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                                                     </Box>
                                                 </Box>
 
-                                                {/* Expanded task rows — aligned to column headers */}
+                                                {/* Expanded task rows — grouped by film where applicable */}
                                                 <Collapse in={isExpanded}>
                                                     <Box sx={{ mt: 0.25 }}>
-                                                        {tasks.map((task: TaskAutoGenerationPreviewTask, idx: number) => (
-                                                            <Box
-                                                                key={`${task.task_library_id}-${idx}`}
-                                                                sx={{
-                                                                    display: 'grid',
-                                                                    gridTemplateColumns: '1fr 60px 100px 120px 80px 55px 30px',
-                                                                    gap: 0.5,
-                                                                    alignItems: 'center',
-                                                                    py: 0.5, px: 1.5,
-                                                                    borderLeft: `2px solid ${phaseColor}30`,
-                                                                    borderBottom: '1px solid rgba(52, 58, 68, 0.08)',
-                                                                    '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
-                                                                }}
-                                                            >
-                                                                {/* Col 1: Task name */}
-                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-                                                                    {triggerIcon(task.trigger_type as TriggerType)}
-                                                                    <Typography sx={{ fontSize: '0.68rem', color: '#cbd5e1', minWidth: 0 }} noWrap>
-                                                                        {task.name}
+                                                        {(() => {
+                                                            // Separate film-specific tasks from general tasks
+                                                            const filmGroups = new Map<string, TaskAutoGenerationPreviewTask[]>();
+                                                            const generalTasks: TaskAutoGenerationPreviewTask[] = [];
+                                                            (tasks as TaskAutoGenerationPreviewTask[]).forEach(t => {
+                                                                if (t.film_name) {
+                                                                    if (!filmGroups.has(t.film_name)) filmGroups.set(t.film_name, []);
+                                                                    filmGroups.get(t.film_name)!.push(t);
+                                                                } else {
+                                                                    generalTasks.push(t);
+                                                                }
+                                                            });
+
+                                                            const renderRow = (task: TaskAutoGenerationPreviewTask, key: string, displayName?: string) => (
+                                                                <Box
+                                                                    key={key}
+                                                                    sx={{
+                                                                        display: 'grid',
+                                                                        gridTemplateColumns: '1fr 60px 100px 120px 80px 55px 30px',
+                                                                        gap: 0.5, alignItems: 'center',
+                                                                        py: 0.5, px: 1.5,
+                                                                        borderLeft: `2px solid ${phaseColor}30`,
+                                                                        borderBottom: '1px solid rgba(52, 58, 68, 0.08)',
+                                                                        '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
+                                                                    }}
+                                                                >
+                                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                                                                        {triggerIcon(task.trigger_type as TriggerType)}
+                                                                        <Typography sx={{ fontSize: '0.68rem', color: '#cbd5e1', minWidth: 0 }} noWrap>
+                                                                            {displayName ?? task.name}
+                                                                        </Typography>
+                                                                    </Box>
+                                                                    <Typography sx={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 600, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+                                                                        {task.multiplier > 1 ? `×${task.multiplier}` : ''}
                                                                     </Typography>
+                                                                    <Box sx={{ minWidth: 0 }}>
+                                                                        {task.role_name ? (
+                                                                            <Tooltip title={`Role: ${task.role_name}`} arrow placement="top">
+                                                                                <Chip icon={<WorkIcon sx={{ fontSize: 10 }} />} label={task.role_name} size="small"
+                                                                                    sx={{ height: 20, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(167, 139, 250, 0.12)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.25)', '& .MuiChip-icon': { color: '#a78bfa' }, '& .MuiChip-label': { px: 0.5 }, maxWidth: '100%' }} />
+                                                                            </Tooltip>
+                                                                        ) : <Typography sx={{ fontSize: '0.6rem', color: '#334155' }}>—</Typography>}
+                                                                    </Box>
+                                                                    <Box sx={{ minWidth: 0 }}>
+                                                                        {task.assigned_to_name ? (
+                                                                            <Tooltip title={`Assigned to: ${task.assigned_to_name}`} arrow placement="top">
+                                                                                <Chip icon={<PersonIcon sx={{ fontSize: 10 }} />} label={task.assigned_to_name} size="small"
+                                                                                    sx={{ height: 20, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(34, 211, 238, 0.12)', color: '#22d3ee', border: '1px solid rgba(34, 211, 238, 0.25)', '& .MuiChip-icon': { color: '#22d3ee' }, '& .MuiChip-label': { px: 0.5 }, maxWidth: '100%' }} />
+                                                                            </Tooltip>
+                                                                        ) : <Typography sx={{ fontSize: '0.6rem', color: '#334155' }}>—</Typography>}
+                                                                    </Box>
+                                                                    <Typography sx={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                                                        {task.estimated_cost != null && task.estimated_cost > 0 ? formatCurrency(task.estimated_cost, currency) : '—'}
+                                                                    </Typography>
+                                                                    <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                                                        {task.total_hours > 0 ? `${Math.round(task.total_hours * 10) / 10}h` : '—'}
+                                                                    </Typography>
+                                                                    <Box />
                                                                 </Box>
-                                                                {/* Col 2: Multiplier / instance count */}
-                                                                <Typography sx={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 600, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
-                                                                    {task.multiplier > 1 ? `×${task.multiplier}` : ''}
-                                                                </Typography>
-                                                                {/* Col 3: Role */}
-                                                                <Box sx={{ minWidth: 0 }}>
-                                                                    {task.role_name ? (
-                                                                        <Tooltip title={`Role: ${task.role_name}`} arrow placement="top">
-                                                                            <Chip
-                                                                                icon={<WorkIcon sx={{ fontSize: 10 }} />}
-                                                                                label={task.role_name}
-                                                                                size="small"
-                                                                                sx={{
-                                                                                    height: 20, fontSize: '0.6rem', fontWeight: 600,
-                                                                                    bgcolor: 'rgba(167, 139, 250, 0.12)', color: '#a78bfa',
-                                                                                    border: '1px solid rgba(167, 139, 250, 0.25)',
-                                                                                    '& .MuiChip-icon': { color: '#a78bfa' },
-                                                                                    '& .MuiChip-label': { px: 0.5 },
-                                                                                    maxWidth: '100%',
-                                                                                }}
-                                                                            />
-                                                                        </Tooltip>
-                                                                    ) : (
-                                                                        <Typography sx={{ fontSize: '0.6rem', color: '#334155' }}>—</Typography>
-                                                                    )}
-                                                                </Box>
-                                                                {/* Col 4: Crew */}
-                                                                <Box sx={{ minWidth: 0 }}>
-                                                                    {task.assigned_to_name ? (
-                                                                        <Tooltip title={`Assigned to: ${task.assigned_to_name}`} arrow placement="top">
-                                                                            <Chip
-                                                                                icon={<PersonIcon sx={{ fontSize: 10 }} />}
-                                                                                label={task.assigned_to_name}
-                                                                                size="small"
-                                                                                sx={{
-                                                                                    height: 20, fontSize: '0.6rem', fontWeight: 600,
-                                                                                    bgcolor: 'rgba(34, 211, 238, 0.12)', color: '#22d3ee',
-                                                                                    border: '1px solid rgba(34, 211, 238, 0.25)',
-                                                                                    '& .MuiChip-icon': { color: '#22d3ee' },
-                                                                                    '& .MuiChip-label': { px: 0.5 },
-                                                                                    maxWidth: '100%',
-                                                                                }}
-                                                                            />
-                                                                        </Tooltip>
-                                                                    ) : (
-                                                                        <Typography sx={{ fontSize: '0.6rem', color: '#334155' }}>—</Typography>
-                                                                    )}
-                                                                </Box>
-                                                                {/* Col 5: Cost */}
-                                                                <Typography sx={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                                                                    {task.estimated_cost != null && task.estimated_cost > 0 ? formatCurrency(task.estimated_cost, currency) : '—'}
-                                                                </Typography>
-                                                                {/* Col 6: Hours */}
-                                                                <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                                                                    {task.total_hours > 0 ? `${Math.round(task.total_hours * 10) / 10}h` : '—'}
-                                                                </Typography>
-                                                                {/* Col 7: Empty (chevron only in phase header) */}
-                                                                <Box />
-                                                            </Box>
-                                                        ))}
+                                                            );
+
+                                                            return (
+                                                                <>
+                                                                    {/* General (non-film) tasks */}
+                                                                    {generalTasks.map((task, idx) => renderRow(task, `${task.task_library_id}-${idx}`))}
+                                                                    {/* Film-grouped tasks */}
+                                                                    {Array.from(filmGroups.entries()).map(([filmName, filmTasks], groupIdx) => {
+                                                                        const filmHours = filmTasks.reduce((s, t) => s + t.total_hours, 0);
+                                                                        const filmCost = filmTasks.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
+                                                                        const stripFilm = (name: string) => {
+                                                                            if (name.endsWith(` (${filmName})`)) return name.slice(0, -(` (${filmName})`).length);
+                                                                            if (name.endsWith(` — ${filmName}`)) return name.slice(0, -(` — ${filmName}`).length);
+                                                                            return name;
+                                                                        };
+                                                                        return (
+                                                                            <Box key={`filmgroup-${filmName}`}>
+                                                                                {/* Film sub-header */}
+                                                                                <Box sx={{
+                                                                                    display: 'grid',
+                                                                                    gridTemplateColumns: '1fr 60px 100px 120px 80px 55px 30px',
+                                                                                    gap: 0.5,
+                                                                                    alignItems: 'center',
+                                                                                    px: 1.5, py: 0.45,
+                                                                                    bgcolor: 'rgba(74, 222, 128, 0.05)',
+                                                                                    borderLeft: '2px solid rgba(74, 222, 128, 0.4)',
+                                                                                    borderBottom: '1px solid rgba(52, 58, 68, 0.15)',
+                                                                                    mt: (generalTasks.length > 0 || groupIdx > 0) ? 0.5 : 0,
+                                                                                }}>
+                                                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                                                                                        <MovieIcon sx={{ fontSize: 11, color: '#4ade80', flexShrink: 0 }} />
+                                                                                        <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#4ade80', minWidth: 0 }} noWrap>
+                                                                                            {filmName}
+                                                                                        </Typography>
+                                                                                    </Box>
+                                                                                    <Chip
+                                                                                        label={`${filmTasks.length}`}
+                                                                                        size="small"
+                                                                                        sx={{
+                                                                                            height: 18, fontSize: '0.55rem', fontWeight: 700,
+                                                                                            bgcolor: `${phaseColor}12`, color: phaseColor,
+                                                                                            border: `1px solid ${phaseColor}25`,
+                                                                                            '& .MuiChip-label': { px: 0.6 },
+                                                                                            justifySelf: 'center',
+                                                                                        }}
+                                                                                    />
+                                                                                    <Box /><Box />
+                                                                                    <Typography sx={{ fontSize: '0.62rem', fontWeight: 600, color: '#f59e0b', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                                                                        {filmCost > 0 ? formatCurrency(filmCost, currency) : '—'}
+                                                                                    </Typography>
+                                                                                    <Typography sx={{ fontSize: '0.62rem', fontWeight: 600, color: '#94a3b8', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                                                                        {filmHours > 0 ? `${Math.round(filmHours * 10) / 10}h` : '—'}
+                                                                                    </Typography>
+                                                                                    <Box />
+                                                                                </Box>
+                                                                                {/* Tasks for this film */}
+                                                                                {filmTasks.map((task, idx) => renderRow(task, `film-${filmName}-${task.task_library_id}-${idx}`, stripFilm(task.name)))}
+                                                                            </Box>
+                                                                        );
+                                                                    })}
+                                                                </>
+                                                            );
+                                                        })()}
                                                     </Box>
                                                 </Collapse>
                                             </Box>

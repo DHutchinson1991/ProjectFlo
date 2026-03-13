@@ -126,6 +126,13 @@ export function CrewCard({
         }
     };
 
+    // Roles that can be toggled per-activity: videographers / camera ops and sound / audio roles
+    const isActivatableRole = (op: PackageDayOperatorRecord): boolean => {
+        const rn = (op.job_role?.display_name || op.job_role?.name || op.position_name || '').toLowerCase();
+        return rn.includes('videographer') || rn.includes('camera') ||
+               rn.includes('sound') || rn.includes('audio') || rn.includes('mixer');
+    };
+
     // ── Task hours map ──
     const taskHoursMap = buildTaskHoursMap(taskPreview);
 
@@ -225,6 +232,7 @@ export function CrewCard({
                             {/* Roles for this crew member */}
                             {group.ops.map((op) => {
                                 const assigned = isCrewAssigned(op);
+                                const activatable = isActivatableRole(op);
                                 const dayRate = isCrewDayRate(op);
                                 const roleName = op.job_role ? (op.job_role.display_name || op.job_role.name) : null;
                                 const taskKey = roleName ? `${group.name}|${roleName}` : null;
@@ -232,27 +240,35 @@ export function CrewCard({
                                 const rate = dayRate ? getCrewDayRate(op) : getCrewHourlyRate(op);
                                 const hours = dayRate ? Number(op.hours || 1) : (taskHours > 0 ? taskHours : Number(op.hours || 0));
                                 const cost = rate * hours;
+
+                                // Derived activity-selection states
+                                const isLocked = !!selectedActivityId && !activatable;
+                                const isActiveAssigned = !!selectedActivityId && activatable && assigned;
+                                const isDimUnassigned = !!selectedActivityId && activatable && !assigned;
                                 return (
                                     <Box
                                         key={op.id}
                                         onClick={() => {
-                                            if (!selectedActivityId) return;
+                                            if (!selectedActivityId || isLocked) return;
                                             toggleCrewActivity(op);
                                         }}
                                         sx={{
                                             display: 'flex', alignItems: 'center', gap: 1,
                                             py: 0.25, pl: 2.5, pr: 1, mx: -1, borderRadius: 1.5,
                                             transition: 'all 0.2s ease',
-                                            opacity: assigned ? 1 : 0.3,
-                                            cursor: selectedActivityId ? 'pointer' : 'default',
-                                            '&:hover': {
-                                                bgcolor: selectedActivityId ? 'rgba(236, 72, 153, 0.1)' : 'rgba(236, 72, 153, 0.04)',
-                                                opacity: selectedActivityId && !assigned ? 0.7 : (assigned ? 1 : 0.3),
-                                                '& .op-del': { opacity: !selectedActivityId ? 1 : (assigned ? 1 : 0) },
-                                            },
+                                            opacity: isLocked ? 0.28 : (isDimUnassigned ? 0.3 : 1),
+                                            cursor: isLocked ? 'default' : (selectedActivityId ? 'pointer' : 'default'),
+                                            bgcolor: isActiveAssigned ? 'rgba(236, 72, 153, 0.07)' : 'transparent',
+                                            ...(isLocked ? {} : {
+                                                '&:hover': {
+                                                    bgcolor: selectedActivityId ? 'rgba(236, 72, 153, 0.1)' : 'rgba(236, 72, 153, 0.04)',
+                                                    opacity: isDimUnassigned ? 0.7 : 1,
+                                                    '& .op-del': { opacity: !selectedActivityId ? 1 : (assigned ? 1 : 0) },
+                                                },
+                                            }),
                                         }}
                                     >
-                                        <Box sx={{ width: 4, height: 4, borderRadius: '50%', flexShrink: 0, bgcolor: op.position_color || group.color, opacity: 0.5 }} />
+                                        <Box sx={{ width: 4, height: 4, borderRadius: '50%', flexShrink: 0, bgcolor: op.position_color || group.color, opacity: isActiveAssigned ? 1 : 0.5 }} />
                                         <Box
                                             sx={{ flex: 1, minWidth: 0, cursor: !selectedActivityId ? 'pointer' : undefined }}
                                             onClick={(e) => {
@@ -262,7 +278,7 @@ export function CrewCard({
                                                 setCrewAssignSlotId(op.id);
                                             }}
                                         >
-                                            <Typography variant="caption" sx={{ fontWeight: 500, fontSize: '0.6rem', color: '#94a3b8' }}>
+                                            <Typography variant="caption" sx={{ fontWeight: 500, fontSize: '0.6rem', color: isActiveAssigned ? '#f1f5f9' : '#94a3b8' }}>
                                                 {(() => {
                                                     let tierName: string | null = null;
                                                     if (op?.contributor && op?.job_role) {

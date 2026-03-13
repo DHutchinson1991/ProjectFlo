@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSceneDto } from './dto/create-scene.dto';
 import { UpdateSceneDto } from './dto/update-scene.dto';
 import { FilmScene } from '@prisma/client';
-import { SceneType } from '@prisma/client';
+import { SceneType, MontageStyle } from '@prisma/client';
 
 export interface SceneResponseDto {
     id: number;
@@ -13,6 +13,8 @@ export interface SceneResponseDto {
     scene_template_id: number | null;
     shot_count?: number | null;
     duration_seconds?: number | null;
+    montage_style?: MontageStyle | null;
+    montage_bpm?: number | null;
     order_index: number;
     created_at: Date;
     updated_at: Date;
@@ -41,6 +43,8 @@ export class ScenesService {
             scene_template_id: scene.scene_template_id,
             shot_count: (scene as any).shot_count ?? null,
             duration_seconds: (scene as any).duration_seconds ?? null,
+            montage_style: scene.montage_style ?? null,
+            montage_bpm: scene.montage_bpm ?? null,
             order_index: scene.order_index,
             created_at: scene.created_at,
             updated_at: scene.updated_at,
@@ -89,6 +93,10 @@ export class ScenesService {
                 mode: sceneMode,
                 shot_count: createSceneDto.shot_count ?? null,
                 duration_seconds: createSceneDto.duration_seconds ?? null,
+                montage_style: createSceneDto.montage_style
+                    ? (createSceneDto.montage_style as MontageStyle)
+                    : null,
+                montage_bpm: createSceneDto.montage_bpm ?? null,
                 order_index: orderIndex,
             },
         });
@@ -530,6 +538,12 @@ export class ScenesService {
                 ...updateSceneDto,
                 shot_count: updateSceneDto.shot_count ?? null,
                 duration_seconds: updateSceneDto.duration_seconds ?? null,
+                montage_style: updateSceneDto.montage_style !== undefined
+                    ? (updateSceneDto.montage_style as unknown as MontageStyle | null)
+                    : undefined,
+                montage_bpm: updateSceneDto.montage_bpm !== undefined
+                    ? updateSceneDto.montage_bpm
+                    : undefined,
             },
         });
 

@@ -66,6 +66,16 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
         contact_id: apiResponse.contact_id,
         brand_id: apiResponse.brand_id, // Updated to use actual brand_id
         selected_package_id: apiResponse.selected_package_id,
+        selected_package: apiResponse.selected_package
+            ? {
+                  id: apiResponse.selected_package.id,
+                  name: apiResponse.selected_package.name,
+                  base_price: parseFloat(apiResponse.selected_package.base_price),
+                  currency: apiResponse.selected_package.currency,
+              }
+            : null,
+        primary_estimate_total: apiResponse.primary_estimate_total ?? null,
+        pipeline_stage: apiResponse.pipeline_stage ?? null,
         package_contents_snapshot: apiResponse.package_contents_snapshot ?? null,
         created_at: new Date(apiResponse.created_at),
         updated_at: new Date(apiResponse.updated_at),

@@ -220,6 +220,7 @@ export interface TaskAutoGenerationPreviewTask {
     assigned_to_name?: string | null;
     hourly_rate?: number | null;
     estimated_cost?: number | null;
+    film_name?: string | null;
 }
 
 export interface TaskAutoGenerationPreview {

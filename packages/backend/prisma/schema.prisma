@@ -2366,7 +2366,9 @@ model FilmScene {
   film_id           Int
   scene_template_id Int?
   name              String
-  mode              SceneType @default(MOMENTS)
+  mode              SceneType    @default(MOMENTS)
+  montage_style     MontageStyle?
+  montage_bpm       Int?
   shot_count        Int?
   duration_seconds  Int?
   order_index       Int
@@ -2475,13 +2477,14 @@ model SceneCameraAssignment {
 }
 
 model SceneMoment {
-  id            Int      @id @default(autoincrement())
-  film_scene_id Int
-  name          String
-  order_index   Int
-  duration      Int      @default(60)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  id                 Int      @id @default(autoincrement())
+  film_scene_id      Int
+  name               String
+  order_index        Int
+  duration           Int      @default(60)
+  source_activity_id Int?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
 
   film_scene      FilmScene                @relation(fields: [film_scene_id], references: [id], onDelete: Cascade)
   recording_setup MomentRecordingSetup?
@@ -2722,6 +2725,15 @@ enum SubjectCategory {
 enum SceneType {
   MOMENTS
   MONTAGE
+}
+
+enum MontageStyle {
+  RHYTHMIC
+  IMPRESSIONISTIC
+  SEQUENTIAL
+  PARALLEL
+  HIGHLIGHTS
+  NARRATIVE_ARC
 }
 
 enum MediaType {
@@ -3418,6 +3430,7 @@ model PackageEventDaySubject {
   package_activity_id   Int? // Optional: assign to a specific activity
   role_template_id      Int? // Link to SubjectRoleTemplate (e.g., "Bride")
   name                  String // Display name ("Bride", "Groom", etc.)
+  count                 Int?    // Optional headcount for groups (e.g. 6 Bridesmaids)
   category              SubjectCategory @default(PEOPLE)
   notes                 String?
   order_index           Int             @default(0)
@@ -4039,6 +4052,7 @@ model ProjectEventDaySubject {
   role_template_id            Int? // Link to SubjectRoleTemplate (e.g., "Bride")
   name                        String // Role display name ("Bride", "Groom", etc.)
   real_name                   String? // Actual person name ("Sarah Johnson")
+  count                       Int?    // Optional headcount for groups
   category                    SubjectCategory @default(PEOPLE)
   notes                       String?
   order_index                 Int             @default(0)

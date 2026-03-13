@@ -1,4 +1,6 @@
-import { IsString, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsInt, IsIn, Min, Max } from 'class-validator';
+
+const MONTAGE_STYLE_VALUES = ['RHYTHMIC', 'IMPRESSIONISTIC', 'SEQUENTIAL', 'PARALLEL', 'HIGHLIGHTS', 'NARRATIVE_ARC'];
 
 export class UpdateSceneDto {
     @IsString()
@@ -20,4 +22,15 @@ export class UpdateSceneDto {
     @IsNumber()
     @IsOptional()
     order_index?: number;
+
+    @IsString()
+    @IsOptional()
+    @IsIn(MONTAGE_STYLE_VALUES)
+    montage_style?: string | null;
+
+    @IsInt()
+    @IsOptional()
+    @Min(40)
+    @Max(240)
+    montage_bpm?: number | null;
 }
