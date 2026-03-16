@@ -41,8 +41,9 @@ export class CreateEstimateItemDto {
 }
 
 export class CreateEstimateDto {
+    @IsOptional()
     @IsString()
-    estimate_number: string;
+    estimate_number?: string;
 
     @IsOptional()
     @IsString()

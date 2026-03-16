@@ -98,8 +98,12 @@ import {
     CreditCard as CreditCardIcon,
     ReceiptLong as ReceiptLongIcon,
     Assignment as FormsIcon,
+    Description as ProposalsIcon,
+    Gavel as ContractsIcon,
+    Language as PortalIcon,
 } from "@mui/icons-material";
-import FormsSettings from "./_components/FormsSettings";
+import ClientPortalSettings from "./_components/ClientPortalSettings";
+import ContractSettings from "./_components/ContractSettings";
 import { api } from "@/lib/api";
 import {
     Contributor,
@@ -2776,6 +2780,10 @@ function PaymentScheduleSettings() {
         bank_account_name: '',
         bank_sort_code: '',
         bank_account_number: '',
+        late_fee_percent: 2 as number,
+        cancellation_tier1_days: 90 as number,
+        cancellation_tier2_days: 30 as number,
+        cancellation_tier1_percent: 50 as number,
     });
     const [originalPaymentSettings, setOriginalPaymentSettings] = React.useState(paymentSettings);
     const [savingSettings, setSavingSettings] = React.useState(false);
@@ -2794,6 +2802,10 @@ function PaymentScheduleSettings() {
                 bank_account_name: b.bank_account_name || '',
                 bank_sort_code: b.bank_sort_code || '',
                 bank_account_number: b.bank_account_number || '',
+                late_fee_percent: b.late_fee_percent ?? 2,
+                cancellation_tier1_days: b.cancellation_tier1_days ?? 90,
+                cancellation_tier2_days: b.cancellation_tier2_days ?? 30,
+                cancellation_tier1_percent: b.cancellation_tier1_percent ?? 50,
             };
             setPaymentSettings(vals);
             setOriginalPaymentSettings(vals);
@@ -3100,6 +3112,61 @@ function PaymentScheduleSettings() {
                                     </Grid>
                                 </Grid>
                             )}
+                        </Box>
+                    </Box>
+
+                    {/* Contract Policies */}
+                    <Box sx={{ mb: 3.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                            <ContractsIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+                            <Typography variant="subtitle2" fontWeight={700}>Contract Policies</Typography>
+                        </Box>
+                        <Box sx={{ p: 2.5, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: (theme) => alpha(theme.palette.background.paper, 0.6) }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                                These values are used as contract template variables (e.g. {'{{brand.late_fee_percent}}'}) so your clauses stay in sync with your policies.
+                            </Typography>
+                            <Grid container spacing={2.5}>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField label="Late Fee" fullWidth size="small" type="number"
+                                        value={paymentSettings.late_fee_percent}
+                                        onChange={e => setPaymentSettings(s => ({ ...s, late_fee_percent: Number(e.target.value) }))}
+                                        InputProps={{ endAdornment: <InputAdornment position="end">% / month</InputAdornment> }}
+                                        inputProps={{ min: 0, max: 100, step: 0.5 }}
+                                        helperText="Charged on overdue invoices"
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField label="Cancellation Fee" fullWidth size="small" type="number"
+                                        value={paymentSettings.cancellation_tier1_percent}
+                                        onChange={e => setPaymentSettings(s => ({ ...s, cancellation_tier1_percent: Number(e.target.value) }))}
+                                        InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                        inputProps={{ min: 0, max: 100, step: 5 }}
+                                        helperText="Charged when cancelled within tier 1"
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField label="Cancellation Tier 1" fullWidth size="small" type="number"
+                                        value={paymentSettings.cancellation_tier1_days}
+                                        onChange={e => setPaymentSettings(s => ({ ...s, cancellation_tier1_days: Number(e.target.value) }))}
+                                        InputProps={{ endAdornment: <InputAdornment position="end">days</InputAdornment> }}
+                                        inputProps={{ min: 0 }}
+                                        helperText="Partial fee applies within this window"
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField label="Cancellation Tier 2" fullWidth size="small" type="number"
+                                        value={paymentSettings.cancellation_tier2_days}
+                                        onChange={e => setPaymentSettings(s => ({ ...s, cancellation_tier2_days: Number(e.target.value) }))}
+                                        InputProps={{ endAdornment: <InputAdornment position="end">days</InputAdornment> }}
+                                        inputProps={{ min: 0 }}
+                                        helperText="Full fee applies within this window"
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                    />
+                                </Grid>
+                            </Grid>
                         </Box>
                     </Box>
                 </Grid>
@@ -3545,9 +3612,14 @@ const settingsSections: SettingsSection[] = [
         placeholder: true,
     },
     {
-        label: "Forms",
-        icon: <FormsIcon />,
-        component: <FormsSettings />,
+        label: "Client Portal",
+        icon: <PortalIcon />,
+        component: <ClientPortalSettings />,
+    },
+    {
+        label: "Contracts",
+        icon: <ContractsIcon />,
+        component: <ContractSettings />,
     },
 ];
 

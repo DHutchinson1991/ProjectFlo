@@ -62,6 +62,7 @@ export function SubjectsCard({
     };
     // When using ScheduleApi, we always have a valid owner, so packageId check can be relaxed
     const hasOwner = !!contextApi || !!packageId;
+    const isInstanceMode = !!contextApi && contextApi.mode !== 'package';
 
     // ─── Internalized UI state ───────────────────────────────────────
     const [addSubjectMenuAnchor, setAddSubjectMenuAnchor] = useState<null | HTMLElement>(null);
@@ -71,6 +72,9 @@ export function SubjectsCard({
     // Inline count editing — track which subject is being typed into
     const [editingCountId, setEditingCountId] = useState<number | null>(null);
     const [editingCountValue, setEditingCountValue] = useState('');
+    // Inline real_name editing (instance mode only)
+    const [editingRealNameId, setEditingRealNameId] = useState<number | null>(null);
+    const [editingRealNameValue, setEditingRealNameValue] = useState('');
 
     // ─── Derived values ──────────────────────────────────────────────
     const activeEventDayId = scheduleActiveDayId || packageEventDays[0]?.id;
@@ -249,11 +253,74 @@ export function SubjectsCard({
                         >
                             <Box sx={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, bgcolor: '#a78bfa' }} />
                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <Typography variant="body2" component="div" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
                                     {subj.name}
-                                    {(subj as any).real_name && (
+                                    {isInstanceMode && !isGroup && subj.name.toLowerCase() !== 'guests' ? (
+                                        editingRealNameId === subj.id ? (
+                                            <Box
+                                                component="input"
+                                                type="text"
+                                                autoFocus
+                                                value={editingRealNameValue}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingRealNameValue(e.target.value)}
+                                                onBlur={async () => {
+                                                    const val = editingRealNameValue.trim() || null;
+                                                    setEditingRealNameId(null);
+                                                    if (val !== ((subj as any).real_name ?? null)) {
+                                                        try {
+                                                            const updated = await subjectApi.update(subj.id, { real_name: val });
+                                                            setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, real_name: updated?.real_name ?? val } : s));
+                                                        } catch { /* ignore */ }
+                                                    }
+                                                }}
+                                                onKeyDown={(e: React.KeyboardEvent) => {
+                                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                                    if (e.key === 'Escape') setEditingRealNameId(null);
+                                                    e.stopPropagation();
+                                                }}
+                                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                                sx={{
+                                                    ml: 0.5,
+                                                    border: '1px solid rgba(167,139,250,0.4)',
+                                                    borderRadius: '3px',
+                                                    bgcolor: 'rgba(167,139,250,0.08)',
+                                                    color: '#94a3b8',
+                                                    fontSize: '0.72rem',
+                                                    fontWeight: 400,
+                                                    py: '1px',
+                                                    px: '4px',
+                                                    outline: 'none',
+                                                    width: 120,
+                                                    fontFamily: 'inherit',
+                                                }}
+                                            />
+                                        ) : (
+                                            <Box
+                                                component="span"
+                                                onClick={(e: React.MouseEvent) => {
+                                                    e.stopPropagation();
+                                                    setEditingRealNameId(subj.id);
+                                                    setEditingRealNameValue((subj as any).real_name ?? '');
+                                                }}
+                                                sx={{
+                                                    color: (subj as any).real_name ? '#94a3b8' : 'rgba(255,255,255,0.15)',
+                                                    fontWeight: 400,
+                                                    fontStyle: (subj as any).real_name ? 'normal' : 'italic',
+                                                    fontSize: (subj as any).real_name ? 'inherit' : '0.65rem',
+                                                    cursor: 'pointer',
+                                                    borderRadius: '3px',
+                                                    ml: 0.25,
+                                                    px: 0.25,
+                                                    '&:hover': { bgcolor: 'rgba(167,139,250,0.08)' },
+                                                    transition: 'background 0.15s',
+                                                }}
+                                            >
+                                                {(subj as any).real_name ? ` — ${(subj as any).real_name}` : '— Add name...'}
+                                            </Box>
+                                        )
+                                    ) : (subj as any).real_name ? (
                                         <Box component="span" sx={{ color: '#94a3b8', fontWeight: 400 }}> — {(subj as any).real_name}</Box>
-                                    )}
+                                    ) : null}
                                 </Typography>
                                 {subj.category && (
                                     <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.55rem', display: 'block', mt: -0.2, textTransform: 'capitalize' }}>

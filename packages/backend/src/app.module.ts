@@ -54,6 +54,7 @@ import { WeddingTypesModule } from './business/wedding-types/wedding-types.modul
 import { EventTypesModule } from './business/event-types/event-types.module';
 import { WorkflowsModule } from './business/workflows/workflows.module';
 import { NeedsAssessmentsModule } from './needs-assessments/needs-assessments.module';
+import { DiscoveryQuestionnaireModule } from './discovery-questionnaire/discovery-questionnaire.module';
 import { ScheduleModule } from './content/schedule/schedule.module';
 import { InstanceFilmsModule } from './content/instance-films/instance-films.module';
 import { PaymentSchedulesModule } from './payment-schedules/payment-schedules.module';
@@ -108,6 +109,7 @@ import { SceneAudioSourcesModule } from './content/scene-audio-sources/scene-aud
     EventTypesModule,
     WorkflowsModule,
     NeedsAssessmentsModule,
+    DiscoveryQuestionnaireModule,
     ScheduleModule,
     InstanceFilmsModule,
     PaymentSchedulesModule,

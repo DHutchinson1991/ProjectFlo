@@ -42,7 +42,7 @@ export class CalendarService {
             createData.inquiry = { connect: { id: createEventDto.inquiry_id } };
         }
 
-        return this.prisma.calendar_events.create({
+        const event = await this.prisma.calendar_events.create({
             data: createData,
             include: {
                 contributor: {
@@ -71,6 +71,24 @@ export class CalendarService {
                 },
             },
         });
+
+        // Auto-complete discovery call tasks when a discovery call is created for an inquiry
+        if (createEventDto.inquiry_id && createEventDto.event_type === 'DISCOVERY_CALL') {
+            await this.prisma.inquiry_tasks.updateMany({
+                where: {
+                    inquiry_id: createEventDto.inquiry_id,
+                    name: { in: ['Discovery Call Scheduling', 'Discovery Call'] },
+                    is_active: true,
+                    status: { not: 'Completed' },
+                },
+                data: {
+                    status: 'Completed',
+                    completed_at: new Date(),
+                },
+            });
+        }
+
+        return event;
     }
 
     async findAllEvents(query: CalendarQueryDto) {
@@ -639,6 +657,121 @@ export class CalendarService {
             if (!b.due_date) return -1;
             return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
         });
+
+        return unified;
+    }
+
+    /**
+     * Fetches all active (non-archived) tasks across inquiries and projects,
+     * with optional status filtering. Used by the Monday.com-style task board.
+     */
+    async getActiveTasks(status?: string) {
+        const statusFilter = status
+            ? { status: status as any }
+            : { status: { not: 'Archived' as any } };
+
+        const [inquiryTasks, projectTasks] = await Promise.all([
+            this.prisma.inquiry_tasks.findMany({
+                where: {
+                    is_active: true,
+                    ...statusFilter,
+                },
+                include: {
+                    inquiry: {
+                        select: {
+                            id: true,
+                            wedding_date: true,
+                            status: true,
+                            contact: {
+                                select: { first_name: true, last_name: true, email: true },
+                            },
+                        },
+                    },
+                    completed_by: {
+                        include: {
+                            contact: {
+                                select: { first_name: true, last_name: true, email: true },
+                            },
+                        },
+                    },
+                },
+                orderBy: [{ phase: 'asc' }, { order_index: 'asc' }],
+            }),
+            this.prisma.project_tasks.findMany({
+                where: {
+                    is_active: true,
+                    ...statusFilter,
+                },
+                include: {
+                    project: {
+                        select: { id: true, project_name: true, wedding_date: true },
+                    },
+                    assigned_to: {
+                        include: {
+                            contact: {
+                                select: { first_name: true, last_name: true, email: true },
+                            },
+                        },
+                    },
+                },
+                orderBy: [{ phase: 'asc' }, { order_index: 'asc' }],
+            }),
+        ]);
+
+        const unified = [
+            ...inquiryTasks.map(t => ({
+                id: t.id,
+                source: 'inquiry' as const,
+                inquiry_id: t.inquiry_id,
+                project_id: null as number | null,
+                name: t.name,
+                description: t.description,
+                phase: t.phase,
+                status: t.status,
+                due_date: t.due_date,
+                estimated_hours: t.estimated_hours ? Number(t.estimated_hours) : null,
+                actual_hours: null as number | null,
+                completed_at: t.completed_at,
+                context_label: t.inquiry?.contact
+                    ? `${t.inquiry.contact.first_name} ${t.inquiry.contact.last_name}`
+                    : `Inquiry #${t.inquiry_id}`,
+                project_name: null as string | null,
+                event_date: t.inquiry?.wedding_date ?? null,
+                assignee: t.completed_by?.contact
+                    ? {
+                        id: t.completed_by.id,
+                        name: `${t.completed_by.contact.first_name} ${t.completed_by.contact.last_name}`.trim(),
+                        email: t.completed_by.contact.email,
+                    }
+                    : null,
+                priority: t.due_date && new Date(t.due_date) < new Date() && t.status !== 'Completed' ? 'overdue' : null,
+            })),
+            ...projectTasks.map(t => ({
+                id: t.id,
+                source: 'project' as const,
+                inquiry_id: null as number | null,
+                project_id: t.project_id,
+                name: t.name,
+                description: t.description,
+                phase: t.phase,
+                status: t.status,
+                due_date: t.due_date,
+                estimated_hours: t.estimated_hours ? Number(t.estimated_hours) : null,
+                actual_hours: t.actual_hours ? Number(t.actual_hours) : null,
+                completed_at: null as Date | null,
+                context_label: t.project?.project_name ?? `Project #${t.project_id}`,
+                project_name: t.project?.project_name ?? null,
+                event_date: t.project?.wedding_date ?? null,
+                assignee: t.assigned_to?.contact
+                    ? {
+                        id: t.assigned_to.id,
+                        name: `${t.assigned_to.contact.first_name} ${t.assigned_to.contact.last_name}`.trim(),
+                        email: t.assigned_to.contact.email,
+                    }
+                    : null,
+                priority: t.due_date && new Date(t.due_date) < new Date() && t.status !== 'Completed' ? 'overdue' : null,
+            })),
+        ];
 
         return unified;
     }

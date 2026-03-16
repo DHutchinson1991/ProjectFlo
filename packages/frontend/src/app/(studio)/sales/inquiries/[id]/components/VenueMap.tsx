@@ -63,6 +63,10 @@ function Recenter({ lat, lng }: { lat: number; lng: number }) {
     const map = useMap();
     const prev = useRef({ lat, lng });
     useEffect(() => {
+        // Invalidate size on mount so tiles load when container uses % height
+        setTimeout(() => map.invalidateSize(), 100);
+    }, [map]);
+    useEffect(() => {
         if (prev.current.lat !== lat || prev.current.lng !== lng) {
             map.flyTo([lat, lng], 14, { duration: 1.2 });
             prev.current = { lat, lng };

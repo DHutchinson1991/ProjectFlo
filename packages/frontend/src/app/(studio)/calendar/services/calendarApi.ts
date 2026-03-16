@@ -12,7 +12,7 @@ export interface BackendCalendarEvent {
     start_time: string;
     end_time: string;
     is_all_day?: boolean;
-    event_type: 'PROJECT_ASSIGNMENT' | 'ABSENCE' | 'HOLIDAY' | 'EXTERNAL_SYNC' | 'PERSONAL' | 'DISCOVERY_CALL' | 'CONSULTATION';
+    event_type: 'PROJECT_ASSIGNMENT' | 'ABSENCE' | 'HOLIDAY' | 'EXTERNAL_SYNC' | 'PERSONAL' | 'DISCOVERY_CALL' | 'PROPOSAL_REVIEW';
     meeting_type?: 'ONLINE' | 'PHONE_CALL' | 'IN_PERSON' | 'VIDEO_CALL';
     contributor_id: number;
     project_id?: number;

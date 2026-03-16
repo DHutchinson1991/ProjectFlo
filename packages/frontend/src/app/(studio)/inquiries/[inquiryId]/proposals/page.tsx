@@ -1,62 +1,57 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
     Box,
     Typography,
-    Card,
-    CardContent,
     Button,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     IconButton,
     Alert,
     Snackbar,
     Chip,
     Paper,
     CircularProgress,
-} from '@mui/material';
+    Stack,
+    List,
+    ListItem,
+    ListItemText,
+    alpha,
+} from "@mui/material";
 import {
     Add as AddIcon,
-    Edit as EditIcon,
     Delete as DeleteIcon,
     Send as SendIcon,
-    Visibility as ViewIcon,
+    OpenInNew as PreviewIcon,
+    Link as LinkIcon,
     ArrowBack as BackIcon,
-} from '@mui/icons-material';
-import { useRouter, useParams } from 'next/navigation';
-import { proposalsService, inquiriesService } from '@/lib/api';
-import { Proposal, Inquiry, CreateProposalData } from '@/lib/types';
-import { useBrand } from '../../../../providers/BrandProvider';
+} from "@mui/icons-material";
+import { useRouter, useParams } from "next/navigation";
+import { proposalsService, inquiriesService } from "@/lib/api";
+import type { Proposal, Inquiry } from "@/lib/types";
+import { useBrand } from "../../../../providers/BrandProvider";
+
+const STATUS_COLORS: Record<string, "default" | "primary" | "success" | "error" | "warning"> = {
+    Draft: "default",
+    Sent: "primary",
+    Accepted: "success",
+    Declined: "error",
+};
 
 export default function ProposalsPage() {
-    // Brand context
     const { currentBrand } = useBrand();
-
-    // Router and params
     const router = useRouter();
     const params = useParams();
     const inquiryId = parseInt(params.inquiryId as string);
 
-    // State
     const [proposals, setProposals] = useState<Proposal[]>([]);
     const [inquiry, setInquiry] = useState<Inquiry | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [notification, setNotification] = useState<{
         open: boolean;
         message: string;
-        severity: 'success' | 'error' | 'info' | 'warning';
-    }>({
-        open: false,
-        message: '',
-        severity: 'success',
-    });
+        severity: "success" | "error" | "info" | "warning";
+    }>({ open: false, message: "", severity: "success" });
 
-    // Load data
     useEffect(() => {
         if (!currentBrand || isNaN(inquiryId)) return;
         loadData();
@@ -65,100 +60,81 @@ export default function ProposalsPage() {
     const loadData = async () => {
         try {
             setIsLoading(true);
-            // Load inquiry details and proposals
             const [inquiryData, proposalsData] = await Promise.all([
                 inquiriesService.getById(inquiryId),
-                proposalsService.getAllByInquiry(inquiryId)
+                proposalsService.getAllByInquiry(inquiryId),
             ]);
             setInquiry(inquiryData);
             setProposals(proposalsData);
-        } catch (error) {
-            console.error('Failed to load data:', error);
-            showNotification('Failed to load proposals data', 'error');
+        } catch {
+            showNotification("Failed to load proposals data", "error");
         } finally {
             setIsLoading(false);
         }
     };
 
-    const showNotification = (message: string, severity: 'success' | 'error' | 'info' | 'warning') => {
+    const showNotification = (message: string, severity: "success" | "error" | "info" | "warning") => {
         setNotification({ open: true, message, severity });
     };
 
-    const handleCloseNotification = () => {
-        setNotification(prev => ({ ...prev, open: false }));
-    };
+    /* -- Actions ---------------------------------------------------- */
 
-    const handleCreateProposal = async () => {
+    const handleGenerate = async () => {
         try {
-            const proposalData: CreateProposalData = {
-                title: `Proposal for ${inquiry?.contact.first_name} ${inquiry?.contact.last_name}`,
-                content: {
-                    blocks: [
-                        {
-                            type: "header",
-                            data: {
-                                text: "Wedding Video Proposal",
-                                level: 1
-                            }
-                        },
-                        {
-                            type: "paragraph",
-                            data: {
-                                text: "Thank you for considering us for your special day. We're excited to create a beautiful video that captures your wedding memories."
-                            }
-                        }
-                    ]
-                }
-            };
-
-            const newProposal = await proposalsService.create(inquiryId, proposalData);
-            showNotification('Proposal created successfully!', 'success');
-
-            // Navigate to the new proposal editor
-            router.push(`/inquiries/${inquiryId}/proposals/${newProposal.id}`);
-        } catch (error) {
-            console.error('Failed to create proposal:', error);
-            showNotification('Failed to create proposal', 'error');
+            const newProposal = await proposalsService.create(inquiryId, {});
+            showNotification("Proposal generated!", "success");
+            await loadData();
+        } catch {
+            showNotification("Failed to generate proposal", "error");
         }
     };
 
-    const handleViewProposal = (proposalId: number) => {
-        router.push(`/inquiries/${inquiryId}/proposals/${proposalId}`);
-    };
-
-    const handleDeleteProposal = async (proposalId: number) => {
-        if (!confirm('Are you sure you want to delete this proposal?')) return;
-
+    const handlePreview = async (proposal: Proposal) => {
         try {
-            await proposalsService.delete(inquiryId, proposalId);
-            setProposals(prev => prev.filter(p => p.id !== proposalId));
-            showNotification('Proposal deleted successfully', 'success');
-        } catch (error) {
-            console.error('Failed to delete proposal:', error);
-            showNotification('Failed to delete proposal', 'error');
+            const token =
+                proposal.share_token ||
+                (await proposalsService.generateShareToken(inquiryId, proposal.id));
+            window.open(`/proposals/${token}`, "_blank");
+        } catch {
+            showNotification("Failed to generate preview link", "error");
         }
     };
 
-    const handleSendProposal = async (proposalId: number) => {
+    const handleCopyLink = async (proposal: Proposal) => {
+        try {
+            const token =
+                proposal.share_token ||
+                (await proposalsService.generateShareToken(inquiryId, proposal.id));
+            const shareUrl = `${window.location.origin}/proposals/${token}`;
+            await navigator.clipboard.writeText(shareUrl);
+            showNotification("Share link copied!", "success");
+        } catch {
+            showNotification("Failed to copy link", "error");
+        }
+    };
+
+    const handleSend = async (proposalId: number) => {
         try {
             await proposalsService.sendProposal(inquiryId, proposalId);
-            showNotification('Proposal sent successfully!', 'success');
-            await loadData(); // Refresh to update status
-        } catch (error) {
-            console.error('Failed to send proposal:', error);
-            showNotification('Failed to send proposal', 'error');
+            showNotification("Proposal sent!", "success");
+            await loadData();
+        } catch {
+            showNotification("Failed to send proposal", "error");
         }
     };
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'Draft': return 'default';
-            case 'Sent': return 'primary';
-            case 'Accepted': return 'success';
-            case 'Rejected': return 'error';
-            default: return 'default';
+    const handleDelete = async (proposalId: number) => {
+        if (!confirm("Delete this proposal? This cannot be undone.")) return;
+        try {
+            await proposalsService.delete(inquiryId, proposalId);
+            setProposals((prev) => prev.filter((p) => p.id !== proposalId));
+            showNotification("Proposal deleted", "success");
+        } catch {
+            showNotification("Failed to delete proposal", "error");
         }
     };
+
+    /* -- Render ----------------------------------------------------- */
 
     if (isLoading) {
         return (
@@ -169,138 +145,175 @@ export default function ProposalsPage() {
     }
 
     return (
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ maxWidth: 780, mx: "auto", p: { xs: 2, md: 4 } }}>
             {/* Header */}
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconButton onClick={() => router.back()}>
+            <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+                <IconButton onClick={() => router.back()} sx={{ color: "#94a3b8" }}>
                     <BackIcon />
                 </IconButton>
-                <Box>
-                    <Typography variant="h4" gutterBottom>
+                <Box sx={{ flex: 1 }}>
+                    <Typography variant="h5" fontWeight={700} sx={{ color: "#f1f5f9" }}>
                         Proposals
                     </Typography>
                     {inquiry && (
-                        <Typography variant="subtitle1" color="text.secondary">
-                            For {inquiry.contact.first_name} {inquiry.contact.last_name} • {inquiry.contact.email}
+                        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+                            {inquiry.contact.first_name} {inquiry.contact.last_name} &bull;{" "}
+                            {inquiry.contact.email}
                         </Typography>
                     )}
                 </Box>
-            </Box>
-
-            {/* Create Proposal Button */}
-            <Box sx={{ mb: 3 }}>
                 <Button
                     variant="contained"
                     startIcon={<AddIcon />}
-                    onClick={handleCreateProposal}
+                    onClick={handleGenerate}
+                    sx={{
+                        textTransform: "none",
+                        bgcolor: "#7c4dff",
+                        fontWeight: 600,
+                        "&:hover": { bgcolor: "#651fff" },
+                    }}
                 >
-                    Create New Proposal
+                    Generate Proposal
                 </Button>
-            </Box>
+            </Stack>
 
-            {/* Proposals List */}
-            <Card>
-                <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                        Proposals ({proposals.length})
+            {/* Info banner */}
+            <Paper
+                sx={{
+                    p: 2,
+                    mb: 3,
+                    bgcolor: alpha("#7c4dff", 0.06),
+                    border: "1px solid",
+                    borderColor: alpha("#7c4dff", 0.15),
+                    borderRadius: 2,
+                }}
+            >
+                <Typography variant="body2" sx={{ color: "#a78bfa" }}>
+                    Proposals are auto-generated from your{" "}
+                    <strong>Settings &gt; Proposal Defaults</strong> and the
+                    inquiry&rsquo;s data. The hero title is tailored to the event type
+                    and the intro message uses the customer&rsquo;s name.
+                </Typography>
+            </Paper>
+
+            {/* Proposals list */}
+            {proposals.length === 0 ? (
+                <Paper
+                    sx={{
+                        p: 4,
+                        textAlign: "center",
+                        bgcolor: "#161b22",
+                        border: "1px solid #1e1e1e",
+                        borderRadius: 2,
+                    }}
+                >
+                    <Typography sx={{ color: "#94a3b8", mb: 2 }}>
+                        No proposals generated yet.
                     </Typography>
-
-                    {proposals.length === 0 ? (
-                        <Box sx={{ textAlign: 'center', py: 4 }}>
-                            <Typography variant="body1" color="text.secondary">
-                                No proposals created yet.
-                            </Typography>
-                            <Button
-                                variant="outlined"
-                                startIcon={<AddIcon />}
-                                onClick={handleCreateProposal}
-                                sx={{ mt: 2 }}
+                    <Button
+                        variant="outlined"
+                        startIcon={<AddIcon />}
+                        onClick={handleGenerate}
+                        sx={{ textTransform: "none" }}
+                    >
+                        Generate First Proposal
+                    </Button>
+                </Paper>
+            ) : (
+                <Stack spacing={1.5}>
+                    {proposals.map((proposal) => (
+                        <Paper
+                            key={proposal.id}
+                            sx={{
+                                p: 2,
+                                bgcolor: "#161b22",
+                                border: "1px solid #1e1e1e",
+                                borderRadius: 2,
+                                "&:hover": { borderColor: "#333" },
+                            }}
+                        >
+                            <Stack
+                                direction="row"
+                                alignItems="center"
+                                justifyContent="space-between"
                             >
-                                Create First Proposal
-                            </Button>
-                        </Box>
-                    ) : (
-                        <TableContainer component={Paper}>
-                            <Table>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>Title</TableCell>
-                                        <TableCell>Status</TableCell>
-                                        <TableCell>Version</TableCell>
-                                        <TableCell>Created</TableCell>
-                                        <TableCell>Sent</TableCell>
-                                        <TableCell>Actions</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {proposals.map((proposal) => (
-                                        <TableRow key={proposal.id}>
-                                            <TableCell>
-                                                <Typography variant="subtitle2">
-                                                    {proposal.title}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    label={proposal.status}
-                                                    size="small"
-                                                    color={getStatusColor(proposal.status)}
-                                                />
-                                            </TableCell>
-                                            <TableCell>v{proposal.version}</TableCell>
-                                            <TableCell>
-                                                {proposal.created_at.toLocaleDateString()}
-                                            </TableCell>
-                                            <TableCell>
-                                                {proposal.sent_at ? proposal.sent_at.toLocaleDateString() : '-'}
-                                            </TableCell>
-                                            <TableCell>
-                                                <IconButton
-                                                    onClick={() => handleViewProposal(proposal.id)}
-                                                    size="small"
-                                                    color="primary"
-                                                    title="View/Edit Proposal"
-                                                >
-                                                    <ViewIcon fontSize="small" />
-                                                </IconButton>
-                                                {proposal.status === 'Draft' && (
-                                                    <IconButton
-                                                        onClick={() => handleSendProposal(proposal.id)}
-                                                        size="small"
-                                                        color="success"
-                                                        title="Send Proposal"
-                                                    >
-                                                        <SendIcon fontSize="small" />
-                                                    </IconButton>
-                                                )}
-                                                <IconButton
-                                                    onClick={() => handleDeleteProposal(proposal.id)}
-                                                    size="small"
-                                                    color="error"
-                                                    title="Delete Proposal"
-                                                >
-                                                    <DeleteIcon fontSize="small" />
-                                                </IconButton>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    )}
-                </CardContent>
-            </Card>
+                                <Box sx={{ flex: 1 }}>
+                                    <Stack direction="row" alignItems="center" spacing={1.5}>
+                                        <Typography
+                                            variant="subtitle1"
+                                            fontWeight={600}
+                                            sx={{ color: "#e0e0e0" }}
+                                        >
+                                            {proposal.title}
+                                        </Typography>
+                                        <Chip
+                                            label={proposal.status}
+                                            size="small"
+                                            color={STATUS_COLORS[proposal.status] || "default"}
+                                        />
+                                    </Stack>
+                                    <Typography variant="caption" sx={{ color: "#64748b" }}>
+                                        v{proposal.version} &bull; Created{" "}
+                                        {proposal.created_at.toLocaleDateString()}
+                                        {proposal.sent_at &&
+                                            ` \u2022 Sent ${proposal.sent_at.toLocaleDateString()}`}
+                                    </Typography>
+                                </Box>
 
-            {/* Notification Snackbar */}
+                                <Stack direction="row" spacing={0.5}>
+                                    <IconButton
+                                        size="small"
+                                        title="Preview"
+                                        onClick={() => handlePreview(proposal)}
+                                        sx={{ color: "#7c4dff" }}
+                                    >
+                                        <PreviewIcon fontSize="small" />
+                                    </IconButton>
+                                    <IconButton
+                                        size="small"
+                                        title="Copy share link"
+                                        onClick={() => handleCopyLink(proposal)}
+                                        sx={{ color: "#64b5f6" }}
+                                    >
+                                        <LinkIcon fontSize="small" />
+                                    </IconButton>
+                                    {proposal.status === "Draft" && (
+                                        <IconButton
+                                            size="small"
+                                            title="Send proposal"
+                                            onClick={() => handleSend(proposal.id)}
+                                            sx={{ color: "#66bb6a" }}
+                                        >
+                                            <SendIcon fontSize="small" />
+                                        </IconButton>
+                                    )}
+                                    <IconButton
+                                        size="small"
+                                        title="Delete"
+                                        onClick={() => handleDelete(proposal.id)}
+                                        sx={{
+                                            color: "#ef5350",
+                                            "&:hover": { bgcolor: "rgba(239,68,68,0.1)" },
+                                        }}
+                                    >
+                                        <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                </Stack>
+                            </Stack>
+                        </Paper>
+                    ))}
+                </Stack>
+            )}
+
             <Snackbar
                 open={notification.open}
                 autoHideDuration={6000}
-                onClose={handleCloseNotification}
+                onClose={() => setNotification((p) => ({ ...p, open: false }))}
             >
                 <Alert
-                    onClose={handleCloseNotification}
+                    onClose={() => setNotification((p) => ({ ...p, open: false }))}
                     severity={notification.severity}
-                    sx={{ width: '100%' }}
+                    sx={{ width: "100%" }}
                 >
                     {notification.message}
                 </Alert>

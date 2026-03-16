@@ -51,7 +51,7 @@ export type EventType =
     | 'planning'
     | 'personal'
     | 'discovery_call'
-    | 'consultation'
+    | 'proposal_review'
     | 'other';
 
 export type MeetingType =

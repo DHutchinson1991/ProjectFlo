@@ -314,9 +314,13 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
     const hasTasks = pipelineTasks.length > 0;
     const totalTasks = hasTasks ? pipelineTasks.length : WORKFLOW_PHASES.length;
     const activeIndex = computeActiveIndex(pipelineTasks, inquiry);
-    // For real tasks, count actual completions; for fallback, use heuristic
+    // For real tasks, count actual completions + auto-complete overrides; for fallback, use heuristic
     const completedCount = hasRealTasks
-        ? pipelineTasks.filter(t => t.status === 'Completed').length
+        ? pipelineTasks.filter(t => {
+              const autoRule = TASK_AUTO_COMPLETE[t.name];
+              if (autoRule && autoRule.check(inquiry)) return true;
+              return t.status === 'Completed';
+          }).length
         : activeIndex;
     const pct = Math.round((completedCount / totalTasks) * 100);
     const isComplete = completedCount >= totalTasks;
@@ -510,9 +514,13 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
         tasks.map((task, localIdx) => {
             const globalIdx = globalOffset + localIdx;
             const prevIdx = globalOffset + localIdx - 1;
-            // Connector is lit if the current dot is completed
+            // Connector is lit if the current dot is completed (including auto-complete rules)
             const connDone = hasRealTasks
-                ? task.status === 'Completed'
+                ? (() => {
+                      const autoRule = TASK_AUTO_COMPLETE[task.name];
+                      if (autoRule && autoRule.check(inquiry)) return true;
+                      return task.status === 'Completed';
+                  })()
                 : globalIdx <= activeIndex;
             return (
                 <React.Fragment key={task.id}>
@@ -767,7 +775,11 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
 
                         {inquiryTasks.length > 0 && bookingTasks.length > 0 && (() => {
                             const allInquiryDone = hasRealTasks
-                                ? inquiryTasks.every(t => t.status === 'Completed')
+                                ? inquiryTasks.every(t => {
+                                      const autoRule = TASK_AUTO_COMPLETE[t.name];
+                                      if (autoRule && autoRule.check(inquiry)) return true;
+                                      return t.status === 'Completed';
+                                  })
                                 : activeIndex >= inquiryTasks.length;
                             return (
                             <>

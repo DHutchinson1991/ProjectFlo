@@ -294,3 +294,24 @@ export interface ExecuteAutoGenerationDto {
     packageId: number;
     brandId: number;
 }
+
+// Unified active task (from calendar/active-tasks endpoint)
+export interface ActiveTask {
+    id: number;
+    source: 'inquiry' | 'project';
+    inquiry_id: number | null;
+    project_id: number | null;
+    name: string;
+    description: string | null;
+    phase: string;
+    status: string;
+    due_date: string | null;
+    estimated_hours: number | null;
+    actual_hours: number | null;
+    completed_at: string | null;
+    context_label: string;
+    project_name: string | null;
+    event_date: string | null;
+    assignee: { id: number; name: string; email: string } | null;
+    priority: string | null;
+}

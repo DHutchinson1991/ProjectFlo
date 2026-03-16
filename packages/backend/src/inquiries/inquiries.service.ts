@@ -55,6 +55,9 @@ export class InquiriesService {
                     orderBy: { id: 'desc' },
                     take: 1,
                 },
+                event_type: {
+                    select: { id: true, name: true },
+                },
             },
             orderBy: {
                 id: 'desc',
@@ -165,6 +168,13 @@ export class InquiriesService {
                 activity_logs: {
                     orderBy: { created_at: 'desc' },
                 },
+                event_type_id: true,
+                event_type: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
             },
         });
 
@@ -201,6 +211,8 @@ export class InquiriesService {
             },
             brand_id: inquiry.contact.brand_id,
             contact_id: inquiry.contact_id,
+            event_type_id: inquiry.event_type_id ?? null,
+            event_type: inquiry.event_type ?? null,
             estimates: inquiry.estimates,
             proposals: inquiry.proposals,
             quotes: inquiry.quotes,

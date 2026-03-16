@@ -43,14 +43,36 @@ import {
   NeedsAssessmentTemplate,
   NeedsAssessmentSubmission,
   NeedsAssessmentSubmissionPayload,
+  DiscoveryQuestionnaireTemplate,
+  DiscoveryQuestionnaireSubmission,
+  CreateDiscoverySubmissionPayload,
 
   // Contracts and Invoices domain
   Contract,
+  ContractSigner,
   Invoice,
   CreateContractData,
   UpdateContractData,
+  ComposeContractData,
+  SendContractData,
+  SigningContractView,
   CreateInvoiceData,
   UpdateInvoiceData,
+
+  // Contract Clause Settings
+  ContractClauseCategory,
+  ContractClause,
+  CreateContractClauseCategoryData,
+  UpdateContractClauseCategoryData,
+  CreateContractClauseData,
+  UpdateContractClauseData,
+
+  // Contract Templates
+  ContractTemplate,
+  CreateContractTemplateData,
+  UpdateContractTemplateData,
+  ContractVariableCategory,
+  ContractPreview,
 
   // Estimates domain
   Estimate,
@@ -62,9 +84,11 @@ import {
   PaymentScheduleTemplate,
   PaymentScheduleRule,
   EstimatePaymentMilestone,
+  QuotePaymentMilestone,
   CreatePaymentScheduleTemplateData,
   UpdatePaymentScheduleTemplateData,
   ApplyScheduleToEstimateData,
+  ApplyScheduleToQuoteData,
 
   // Quotes domain
   Quote,
@@ -98,6 +122,7 @@ import {
   TaskAutoGenerationPreview,
   ExecuteAutoGenerationResult,
   ExecuteAutoGenerationDto,
+  ActiveTask,
 
   // Workflow Management domain
   WorkflowTemplate,
@@ -1372,6 +1397,12 @@ class ApiService extends BaseApiClient {
       this.post(`/api/inquiries/${inquiryId}/tasks/generate`),
   };
 
+  // Active Tasks (unified view across inquiries and projects)
+  activeTasks = {
+    getAll: (status?: string): Promise<ActiveTask[]> =>
+      this.get(`/calendar/active-tasks${status ? `?status=${status}` : ''}`),
+  };
+
   // Needs Assessment methods (brand-specific)
   needsAssessmentTemplates = {
     getActive: (): Promise<NeedsAssessmentTemplate> =>
@@ -1397,6 +1428,58 @@ class ApiService extends BaseApiClient {
       this.post("/api/needs-assessments/submissions", data),
     convert: (id: number): Promise<NeedsAssessmentSubmission> =>
       this.post(`/api/needs-assessments/submissions/${id}/convert`),
+  };
+
+  // Public needs assessment methods (no auth required)
+  publicNeedsAssessment = {
+    getByShareToken: async (token: string): Promise<any> => {
+      const res = await fetch(`${this.baseURL}/api/needs-assessments/share/${encodeURIComponent(token)}`);
+      if (!res.ok) throw new Error('Questionnaire not found');
+      return res.json();
+    },
+    submit: async (token: string, data: Record<string, unknown>): Promise<any> => {
+      const res = await fetch(`${this.baseURL}/api/needs-assessments/share/${encodeURIComponent(token)}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to submit');
+      return res.json();
+    },
+    generateShareToken: (templateId: number): Promise<{ share_token: string }> =>
+      this.post(`/api/needs-assessments/templates/${templateId}/share-token`),
+  };
+
+  // Client Portal methods (public, no auth)
+  clientPortal = {
+    getByToken: async (token: string): Promise<any> => {
+      const res = await fetch(`${this.baseURL}/api/client-portal/${encodeURIComponent(token)}`);
+      if (!res.ok) throw new Error('Portal not found');
+      return res.json();
+    },
+    generateToken: (inquiryId: number): Promise<{ portal_token: string }> =>
+      this.post(`/api/inquiries/${inquiryId}/portal-token`),
+  };
+
+  // Discovery Questionnaire methods (brand-specific)
+  discoveryQuestionnaireTemplates = {
+    getActive: (): Promise<DiscoveryQuestionnaireTemplate> =>
+      this.get("/api/discovery-questionnaire/templates/active"),
+    getAll: (): Promise<DiscoveryQuestionnaireTemplate[]> =>
+      this.get("/api/discovery-questionnaire/templates"),
+    getById: (id: number): Promise<DiscoveryQuestionnaireTemplate> =>
+      this.get(`/api/discovery-questionnaire/templates/${id}`),
+    update: (id: number, data: Partial<DiscoveryQuestionnaireTemplate>): Promise<DiscoveryQuestionnaireTemplate> =>
+      this.put(`/api/discovery-questionnaire/templates/${id}`, data),
+  };
+
+  discoveryQuestionnaireSubmissions = {
+    getByInquiryId: (inquiryId: number): Promise<DiscoveryQuestionnaireSubmission | null> =>
+      this.get(`/api/discovery-questionnaire/submissions/by-inquiry/${inquiryId}`),
+    getById: (id: number): Promise<DiscoveryQuestionnaireSubmission> =>
+      this.get(`/api/discovery-questionnaire/submissions/${id}`),
+    create: (data: CreateDiscoverySubmissionPayload): Promise<DiscoveryQuestionnaireSubmission> =>
+      this.post("/api/discovery-questionnaire/submissions", data),
   };
 
   // Clients methods (brand-specific, full CRUD)
@@ -1444,6 +1527,28 @@ class ApiService extends BaseApiClient {
     getOne: async (inquiryId: number, proposalId: number): Promise<Proposal> => {
       const apiResponse: ProposalApiResponse = await this.get(`/api/inquiries/${inquiryId}/proposals/${proposalId}`);
       return mapProposalResponse(apiResponse);
+    },
+    generateShareToken: async (inquiryId: number, proposalId: number): Promise<string> => {
+      const result: { share_token: string } = await this.post(`/api/inquiries/${inquiryId}/proposals/${proposalId}/share-token`);
+      return result.share_token;
+    },
+  };
+
+  // Public proposal methods (no auth required)
+  publicProposals = {
+    getByShareToken: async (token: string): Promise<any> => {
+      const res = await fetch(`${this.baseURL}/api/proposals/share/${encodeURIComponent(token)}`);
+      if (!res.ok) throw new Error('Proposal not found');
+      return res.json();
+    },
+    respond: async (token: string, response: 'Accepted' | 'ChangesRequested', message?: string): Promise<any> => {
+      const res = await fetch(`${this.baseURL}/api/proposals/share/${encodeURIComponent(token)}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response, message }),
+      });
+      if (!res.ok) throw new Error('Failed to respond');
+      return res.json();
     },
   };
 
@@ -2106,6 +2211,90 @@ class ApiService extends BaseApiClient {
       this.patch(`/api/inquiries/${inquiryId}/contracts/${contractId}`, data),
     delete: (inquiryId: number, contractId: number): Promise<void> =>
       this.delete(`/api/inquiries/${inquiryId}/contracts/${contractId}`),
+    compose: (inquiryId: number, data: ComposeContractData): Promise<Contract> =>
+      this.post(`/api/inquiries/${inquiryId}/contracts/compose`, data),
+    syncTemplate: (inquiryId: number, contractId: number): Promise<Contract> =>
+      this.post(`/api/inquiries/${inquiryId}/contracts/${contractId}/sync-template`, {}),
+    send: (inquiryId: number, contractId: number, data: SendContractData): Promise<Contract> =>
+      this.post(`/api/inquiries/${inquiryId}/contracts/${contractId}/send`, data),
+  };
+
+  // Public contract signing (no auth required)
+  contractSigning = {
+    getContract: (token: string): Promise<SigningContractView> =>
+      this.get(`/api/signing/${token}`),
+    submitSignature: (token: string, signatureText: string): Promise<{ success: boolean; allSigned: boolean }> =>
+      this.post(`/api/signing/${token}/sign`, { signature_text: signatureText }),
+  };
+
+  // Contract Clause Settings (brand-scoped via header)
+  contractClauses = {
+    // Categories
+    getCategories: (): Promise<ContractClauseCategory[]> => {
+      const url = this.addBrandContextToUrl('/api/contract-clauses/categories');
+      return this.get(url);
+    },
+    getCategory: (id: number): Promise<ContractClauseCategory> => {
+      const url = this.addBrandContextToUrl(`/api/contract-clauses/categories/${id}`);
+      return this.get(url);
+    },
+    createCategory: (data: CreateContractClauseCategoryData): Promise<ContractClauseCategory> =>
+      this.post('/api/contract-clauses/categories', data),
+    updateCategory: (id: number, data: UpdateContractClauseCategoryData): Promise<ContractClauseCategory> =>
+      this.patch(`/api/contract-clauses/categories/${id}`, data),
+    deleteCategory: (id: number): Promise<void> =>
+      this.delete(`/api/contract-clauses/categories/${id}`),
+
+    // Clauses
+    getAll: (categoryId?: number): Promise<ContractClause[]> => {
+      const params = categoryId ? `?categoryId=${categoryId}` : '';
+      const url = this.addBrandContextToUrl(`/api/contract-clauses${params}`);
+      return this.get(url);
+    },
+    getById: (id: number): Promise<ContractClause> => {
+      const url = this.addBrandContextToUrl(`/api/contract-clauses/${id}`);
+      return this.get(url);
+    },
+    create: (data: CreateContractClauseData): Promise<ContractClause> =>
+      this.post('/api/contract-clauses', data),
+    update: (id: number, data: UpdateContractClauseData): Promise<ContractClause> =>
+      this.patch(`/api/contract-clauses/${id}`, data),
+    delete: (id: number): Promise<void> =>
+      this.delete(`/api/contract-clauses/${id}`),
+
+    // Seed defaults
+    seedDefaults: (countryCode: string): Promise<ContractClauseCategory[]> =>
+      this.post('/api/contract-clauses/seed-defaults', { countryCode }),
+
+    // Reorder
+    reorderCategories: (ids: number[]): Promise<ContractClauseCategory[]> =>
+      this.patch('/api/contract-clauses/categories/reorder', { ids }),
+    reorderClauses: (categoryId: number, ids: number[]): Promise<ContractClauseCategory> =>
+      this.patch(`/api/contract-clauses/categories/${categoryId}/reorder-clauses`, { ids }),
+  };
+
+  // Contract Templates
+  contractTemplates = {
+    getAll: (): Promise<ContractTemplate[]> => {
+      const url = this.addBrandContextToUrl('/api/contract-templates');
+      return this.get(url);
+    },
+    getById: (id: number): Promise<ContractTemplate> => {
+      const url = this.addBrandContextToUrl(`/api/contract-templates/${id}`);
+      return this.get(url);
+    },
+    create: (data: CreateContractTemplateData): Promise<ContractTemplate> =>
+      this.post('/api/contract-templates', data),
+    update: (id: number, data: UpdateContractTemplateData): Promise<ContractTemplate> =>
+      this.patch(`/api/contract-templates/${id}`, data),
+    delete: (id: number): Promise<void> =>
+      this.delete(`/api/contract-templates/${id}`),
+    getVariables: (): Promise<ContractVariableCategory[]> =>
+      this.get('/api/contract-templates/variables'),
+    preview: (id: number, inquiryId?: number): Promise<ContractPreview> =>
+      this.post(`/api/contract-templates/${id}/preview`, { inquiryId }),
+    seedDefaults: (): Promise<ContractTemplate[]> =>
+      this.post('/api/contract-templates/seed-defaults', {}),
   };
 
   // Invoices methods (brand-specific, nested under inquiries)
@@ -2157,6 +2346,13 @@ class ApiService extends BaseApiClient {
       this.post(`/api/estimates/${estimateId}/apply-schedule`, data),
     updateMilestoneStatus: (milestoneId: number, status: string): Promise<EstimatePaymentMilestone> =>
       this.patch(`/api/estimates/milestones/${milestoneId}/status`, { status }),
+    // Milestone management per quote
+    getQuoteMilestones: (quoteId: number): Promise<QuotePaymentMilestone[]> =>
+      this.get(`/api/quotes/${quoteId}/milestones`),
+    applyToQuote: (quoteId: number, data: ApplyScheduleToQuoteData): Promise<QuotePaymentMilestone[]> =>
+      this.post(`/api/quotes/${quoteId}/apply-schedule`, data),
+    updateQuoteMilestoneStatus: (milestoneId: number, status: string): Promise<QuotePaymentMilestone> =>
+      this.patch(`/api/quotes/milestones/${milestoneId}/status`, { status }),
   };
 
   // Quotes methods (brand-specific, nested under inquiries)
@@ -2595,7 +2791,9 @@ export const contactsService = api.contacts;
 export const inquiriesService = api.inquiries;
 export const clientsService = api.clients;
 export const proposalsService = api.proposals;
+export const publicProposalsService = api.publicProposals;
 export const contractsService = api.contracts;
+export const contractSigningService = api.contractSigning;
 export const invoicesService = api.invoices;
 export const estimatesService = api.estimates;
 export const quotesService = api.quotes;
@@ -2609,6 +2807,7 @@ export const filmsService = api.films;
 export const editingStylesService = api.editingStyles;
 export const timelineService = api.timeline;
 export const taskLibraryService = api.taskLibrary;
+export const activeTasksService = api.activeTasks;
 export const workflowsService = api.workflows;
 export const locationsService = api.locations;
 

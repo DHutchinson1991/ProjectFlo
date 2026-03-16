@@ -28,6 +28,10 @@ export interface Brand {
     bank_account_name?: string;
     bank_sort_code?: string;
     bank_account_number?: string;
+    late_fee_percent?: number;
+    cancellation_tier1_days?: number;
+    cancellation_tier2_days?: number;
+    cancellation_tier1_percent?: number;
     is_active: boolean;
     created_at: string;
     updated_at: string;

@@ -17,6 +17,7 @@ import { ProjectPackageSnapshotService } from '../projects/project-package-snaps
 import { ProjectPackageCloneService } from '../projects/project-package-clone.service';
 import { ScheduleService } from '../content/schedule/schedule.service';
 import { CreateInquiryDto, UpdateInquiryDto } from './dto/inquiries.dto';
+import { ClientPortalService } from './client-portal.service';
 
 @Controller('api/inquiries')
 @UseGuards(AuthGuard('jwt'))
@@ -26,7 +27,19 @@ export class InquiriesController {
         private readonly snapshotService: ProjectPackageSnapshotService,
         private readonly cloneService: ProjectPackageCloneService,
         private readonly scheduleService: ScheduleService,
+        private readonly clientPortalService: ClientPortalService,
     ) { }
+
+    @Post(':id/portal-token')
+    async getPortalToken(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        const token = await this.clientPortalService.getOrCreatePortalToken(id, brandIdNum);
+        return { portal_token: token };
+    }
 
     @Get()
     async findAll(@Headers('x-brand-context') brandId: string) {

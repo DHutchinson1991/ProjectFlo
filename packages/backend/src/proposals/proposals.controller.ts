@@ -97,4 +97,18 @@ export class ProposalsController {
         }
         return this.proposalsService.sendProposal(id, inquiryId, brandIdNum);
     }
+
+    @Post(':id/share-token')
+    async generateShareToken(
+        @Param('id', ParseIntPipe) id: number,
+        @Param('inquiryId', ParseIntPipe) inquiryId: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) {
+            throw new NotFoundException('Brand ID is required');
+        }
+        const token = await this.proposalsService.generateShareToken(id, inquiryId, brandIdNum);
+        return { share_token: token };
+    }
 }

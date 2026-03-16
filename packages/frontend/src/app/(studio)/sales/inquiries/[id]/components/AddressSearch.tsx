@@ -10,7 +10,7 @@ import {
     Button,
     ClickAwayListener,
 } from '@mui/material';
-import { Search, LocationOff } from '@mui/icons-material';
+import { Search, LocationOff, EditOutlined } from '@mui/icons-material';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -29,6 +29,7 @@ export interface NominatimResult {
         state?: string;
         postcode?: string;
         country?: string;
+        county?: string;
     };
 }
 
@@ -38,6 +39,14 @@ export interface AddressSelection {
     lng: number;
 }
 
+interface AddressParts {
+    street: string;
+    city: string;
+    county: string;
+    postcode: string;
+    country: string;
+}
+
 interface AddressSearchProps {
     value?: string;
     onSelect: (result: AddressSelection | null) => void;
@@ -45,8 +54,49 @@ interface AddressSearchProps {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Nominatim geocoding (free, OpenStreetMap-based)                    */
+/*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
+const UK_POSTCODE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
+const COUNTRIES = new Set([
+    'united kingdom', 'england', 'wales', 'scotland', 'northern ireland',
+    'ireland', 'united states', 'usa', 'canada', 'australia', 'france',
+    'germany', 'spain', 'italy', 'netherlands',
+]);
+
+function extractParts(addr: NominatimResult['address']): AddressParts {
+    if (!addr) return { street: '', city: '', county: '', postcode: '', country: '' };
+    const street = [addr.house_number, addr.road].filter(Boolean).join(' ');
+    const city = addr.city || addr.town || addr.village || '';
+    const county = addr.state || addr.county || '';
+    return { street, city, county, postcode: addr.postcode || '', country: addr.country || '' };
+}
+
+/** Best-effort parse of a comma-separated address string from the DB */
+function parseAddressString(raw: string): AddressParts {
+    const segs = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    const parts: AddressParts = { street: '', city: '', county: '', postcode: '', country: '' };
+    if (segs.length === 0) return parts;
+
+    // Pull out postcode & country first
+    const remaining: string[] = [];
+    for (const seg of segs) {
+        if (!parts.postcode && UK_POSTCODE.test(seg)) {
+            parts.postcode = seg;
+        } else if (!parts.country && COUNTRIES.has(seg.toLowerCase())) {
+            parts.country = seg;
+        } else {
+            remaining.push(seg);
+        }
+    }
+
+    // Assign remaining segments by position
+    if (remaining.length >= 1) parts.street = remaining[0];
+    if (remaining.length >= 2) parts.city = remaining[1];
+    if (remaining.length >= 3) parts.county = remaining.slice(2).join(', ');
+
+    return parts;
+}
+
 async function searchNominatim(query: string): Promise<NominatimResult[]> {
     if (!query || query.length < 3) return [];
     const params = new URLSearchParams({
@@ -69,6 +119,23 @@ async function searchNominatim(query: string): Promise<NominatimResult[]> {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Structured address row                                             */
+/* ------------------------------------------------------------------ */
+function AddressRow({ label, value }: { label: string; value: string }) {
+    if (!value) return null;
+    return (
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, py: 0.15 }}>
+            <Typography sx={{ fontSize: '0.68rem', color: '#64748b', minWidth: 52, textAlign: 'right', flexShrink: 0 }}>
+                {label}
+            </Typography>
+            <Typography sx={{ fontSize: '0.78rem', color: '#e2e8f0' }}>
+                {value}
+            </Typography>
+        </Box>
+    );
+}
+
+/* ------------------------------------------------------------------ */
 /*  AddressSearch Component                                            */
 /* ------------------------------------------------------------------ */
 const AddressSearch: React.FC<AddressSearchProps> = ({
@@ -76,16 +143,23 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
     onSelect,
     placeholder = 'Search for venue address…',
 }) => {
-    const [query, setQuery] = useState(value);
+    const [query, setQuery] = useState('');
     const [results, setResults] = useState<NominatimResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [open, setOpen] = useState(false);
+    const [searching, setSearching] = useState(!value);
+    const [parts, setParts] = useState<AddressParts | null>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Sync external value
+    // If value exists but no parts (loaded from DB), parse a simple fallback
     useEffect(() => {
-        setQuery(value);
-    }, [value]);
+        if (value && !parts) {
+            setSearching(false);
+        } else if (!value) {
+            setSearching(true);
+            setParts(null);
+        }
+    }, [value, parts]);
 
     const handleSearch = useCallback((text: string) => {
         setQuery(text);
@@ -108,13 +182,15 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
             } finally {
                 setLoading(false);
             }
-        }, 600); // 600ms debounce — respect Nominatim 1req/s policy
+        }, 600);
     }, []);
 
     const handleSelect = (result: NominatimResult) => {
-        setQuery(result.display_name);
+        setQuery('');
         setOpen(false);
         setResults([]);
+        setSearching(false);
+        setParts(extractParts(result.address));
         onSelect({
             display_name: result.display_name,
             lat: parseFloat(result.lat),
@@ -126,9 +202,84 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
         setQuery('');
         setOpen(false);
         setResults([]);
+        setParts(null);
+        setSearching(true);
         onSelect(null);
     };
 
+    const handleChangeAddress = () => {
+        setQuery('');
+        setParts(null);
+        setSearching(true);
+    };
+
+    // ── Selected / DB-loaded view ──
+    if (!searching) {
+        const hasStructured = parts && (parts.street || parts.city || parts.postcode);
+        return (
+            <Box
+                sx={{
+                    bgcolor: 'rgba(15, 23, 42, 0.4)',
+                    border: '1px solid rgba(51, 65, 85, 0.3)',
+                    borderRadius: 1.5,
+                    px: 1.5,
+                    py: 0.75,
+                }}
+            >
+                {(() => {
+                    const p = hasStructured ? parts : value ? parseAddressString(value) : null;
+                    if (!p) return null;
+                    return (
+                        <Box>
+                            <AddressRow label="Street" value={p.street} />
+                            <AddressRow label="City" value={p.city} />
+                            <AddressRow label="County" value={p.county} />
+                            <AddressRow label="Postcode" value={p.postcode} />
+                            <AddressRow label="Country" value={p.country} />
+                        </Box>
+                    );
+                })()}
+                <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
+                    <Button
+                        size="small"
+                        onClick={handleChangeAddress}
+                        startIcon={<EditOutlined sx={{ fontSize: 12 }} />}
+                        sx={{
+                            color: '#94a3b8',
+                            fontSize: '0.68rem',
+                            textTransform: 'none',
+                            fontWeight: 500,
+                            px: 0.75,
+                            py: 0.15,
+                            minWidth: 0,
+                            '&:hover': { color: '#e2e8f0', bgcolor: 'rgba(100,116,139,0.08)' },
+                        }}
+                    >
+                        Change
+                    </Button>
+                    <Button
+                        size="small"
+                        onClick={handleSetUnknown}
+                        startIcon={<LocationOff sx={{ fontSize: 12 }} />}
+                        sx={{
+                            color: '#64748b',
+                            fontSize: '0.68rem',
+                            textTransform: 'none',
+                            fontWeight: 500,
+                            px: 0.75,
+                            py: 0.15,
+                            minWidth: 0,
+                            '&:hover': { color: '#94a3b8', bgcolor: 'rgba(100,116,139,0.08)' },
+                        }}
+                    >
+                        Clear
+                    </Button>
+                </Box>
+            </Box>
+        );
+    }
+
+    // ── Search view ──
     return (
         <ClickAwayListener onClickAway={() => setOpen(false)}>
             <Box sx={{ position: 'relative' }}>
@@ -139,6 +290,7 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
                     onChange={(e) => handleSearch(e.target.value)}
                     onFocus={() => results.length > 0 && setOpen(true)}
                     placeholder={placeholder}
+                    autoFocus
                     InputProps={{
                         startAdornment: (
                             <InputAdornment position="start">
@@ -225,24 +377,26 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
                     </Box>
                 )}
 
-                {/* Set as Unknown button */}
-                <Button
-                    size="small"
-                    onClick={handleSetUnknown}
-                    startIcon={<LocationOff sx={{ fontSize: 14 }} />}
-                    sx={{
-                        mt: 1,
-                        color: '#64748b',
-                        fontSize: '0.7rem',
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        px: 1,
-                        py: 0.25,
-                        '&:hover': { color: '#94a3b8', bgcolor: 'rgba(100,116,139,0.08)' },
-                    }}
-                >
-                    Set as unknown
-                </Button>
+                {/* Cancel search if there was a previous value */}
+                {value && (
+                    <Button
+                        size="small"
+                        onClick={() => setSearching(false)}
+                        sx={{
+                            mt: 0.5,
+                            color: '#64748b',
+                            fontSize: '0.68rem',
+                            textTransform: 'none',
+                            fontWeight: 500,
+                            px: 0.75,
+                            py: 0.15,
+                            minWidth: 0,
+                            '&:hover': { color: '#94a3b8', bgcolor: 'rgba(100,116,139,0.08)' },
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                )}
             </Box>
         </ClickAwayListener>
     );

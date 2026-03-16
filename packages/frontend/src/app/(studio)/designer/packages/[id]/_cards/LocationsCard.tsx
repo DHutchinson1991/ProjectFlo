@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
     Box, Typography, Button,
     IconButton, Chip,
@@ -51,11 +51,19 @@ export function LocationsCard({
     const contextApi = useOptionalScheduleApi();
     const locationApi = contextApi?.locationSlots ?? {
         create: (dayId: number, data?: any) => api.schedule.packageLocationSlots.create(packageId!, { event_day_template_id: dayId, ...data }),
+        update: () => Promise.resolve(null) as Promise<any>,
         delete: (id: number) => api.schedule.packageLocationSlots.delete(id),
         assignActivity: (slotId: number, activityId: number) => api.schedule.packageLocationSlots.assignActivity(slotId, activityId),
         unassignActivity: (slotId: number, activityId: number) => api.schedule.packageLocationSlots.unassignActivity(slotId, activityId),
     };
     const hasOwner = !!contextApi || !!packageId;
+    const isInstanceMode = !!contextApi && contextApi.mode !== 'package';
+
+    // ─── Inline editing state (instance mode) ────────────────────────
+    const [editingNameId, setEditingNameId] = useState<number | null>(null);
+    const [editingNameValue, setEditingNameValue] = useState('');
+    const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
+    const [editingAddressValue, setEditingAddressValue] = useState('');
 
     // ─── Derived values ──────────────────────────────────────────────
     const activeEventDayId = scheduleActiveDayId || packageEventDays[0]?.id;
@@ -134,16 +142,152 @@ export function LocationsCard({
                                 },
                             }}
                         >
-                            <PlaceIcon sx={{ fontSize: 12, color: '#f59e0b', flexShrink: 0 }} />
+                            <PlaceIcon sx={{ fontSize: 12, color: '#f59e0b', flexShrink: 0, mt: isInstanceMode ? 0.4 : 0 }} />
                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <Typography variant="body2" component="div" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
                                     Location {slot.location_number}
-                                    {(slot as any).name && (
+                                    {isInstanceMode ? (
+                                        editingNameId === slot.id ? (
+                                            <Box
+                                                component="input"
+                                                type="text"
+                                                autoFocus
+                                                value={editingNameValue}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingNameValue(e.target.value)}
+                                                onBlur={async () => {
+                                                    const val = editingNameValue.trim() || null;
+                                                    setEditingNameId(null);
+                                                    if (val !== ((slot as any).name ?? null)) {
+                                                        try {
+                                                            const updated = await locationApi.update(slot.id, { name: val });
+                                                            setPackageLocationSlots(prev => prev.map((s: any) => s.id === slot.id ? { ...s, name: updated?.name ?? val } : s));
+                                                        } catch { /* ignore */ }
+                                                    }
+                                                }}
+                                                onKeyDown={(e: React.KeyboardEvent) => {
+                                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                                    if (e.key === 'Escape') setEditingNameId(null);
+                                                    e.stopPropagation();
+                                                }}
+                                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                                sx={{
+                                                    ml: 0.5,
+                                                    border: '1px solid rgba(245,158,11,0.4)',
+                                                    borderRadius: '3px',
+                                                    bgcolor: 'rgba(245,158,11,0.08)',
+                                                    color: '#94a3b8',
+                                                    fontSize: '0.72rem',
+                                                    fontWeight: 400,
+                                                    py: '1px',
+                                                    px: '4px',
+                                                    outline: 'none',
+                                                    width: 120,
+                                                    fontFamily: 'inherit',
+                                                }}
+                                            />
+                                        ) : (
+                                            <Box
+                                                component="span"
+                                                onClick={(e: React.MouseEvent) => {
+                                                    e.stopPropagation();
+                                                    setEditingNameId(slot.id);
+                                                    setEditingNameValue((slot as any).name ?? '');
+                                                }}
+                                                sx={{
+                                                    color: (slot as any).name ? '#94a3b8' : 'rgba(255,255,255,0.15)',
+                                                    fontWeight: 400,
+                                                    fontStyle: (slot as any).name ? 'normal' : 'italic',
+                                                    fontSize: (slot as any).name ? 'inherit' : '0.65rem',
+                                                    cursor: 'pointer',
+                                                    borderRadius: '3px',
+                                                    ml: 0.25,
+                                                    px: 0.25,
+                                                    '&:hover': { bgcolor: 'rgba(245,158,11,0.08)' },
+                                                    transition: 'background 0.15s',
+                                                }}
+                                            >
+                                                {(slot as any).name ? ` · ${(slot as any).name}` : '· Add name...'}
+                                            </Box>
+                                        )
+                                    ) : (slot as any).name ? (
                                         <Box component="span" sx={{ color: '#94a3b8', fontWeight: 400 }}> · {(slot as any).name}</Box>
-                                    )}
+                                    ) : null}
                                 </Typography>
-                                {assignedCount > 0 && (
+                                {/* Address line (instance mode) */}
+                                {isInstanceMode && (
+                                    editingAddressId === slot.id ? (
+                                        <Box
+                                            component="input"
+                                            type="text"
+                                            autoFocus
+                                            value={editingAddressValue}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingAddressValue(e.target.value)}
+                                            onBlur={async () => {
+                                                const val = editingAddressValue.trim() || null;
+                                                setEditingAddressId(null);
+                                                if (val !== ((slot as any).address ?? null)) {
+                                                    try {
+                                                        const updated = await locationApi.update(slot.id, { address: val });
+                                                        setPackageLocationSlots(prev => prev.map((s: any) => s.id === slot.id ? { ...s, address: updated?.address ?? val } : s));
+                                                    } catch { /* ignore */ }
+                                                }
+                                            }}
+                                            onKeyDown={(e: React.KeyboardEvent) => {
+                                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                                if (e.key === 'Escape') setEditingAddressId(null);
+                                                e.stopPropagation();
+                                            }}
+                                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                            placeholder="Enter address..."
+                                            sx={{
+                                                width: '100%',
+                                                border: '1px solid rgba(245,158,11,0.3)',
+                                                borderRadius: '3px',
+                                                bgcolor: 'rgba(245,158,11,0.06)',
+                                                color: '#94a3b8',
+                                                fontSize: '0.62rem',
+                                                py: '2px',
+                                                px: '6px',
+                                                outline: 'none',
+                                                fontFamily: 'inherit',
+                                                mt: 0.25,
+                                            }}
+                                        />
+                                    ) : (
+                                        <Typography
+                                            variant="caption"
+                                            onClick={(e: React.MouseEvent) => {
+                                                e.stopPropagation();
+                                                setEditingAddressId(slot.id);
+                                                setEditingAddressValue((slot as any).address ?? '');
+                                            }}
+                                            sx={{
+                                                color: (slot as any).address ? '#64748b' : 'rgba(255,255,255,0.12)',
+                                                fontSize: '0.55rem',
+                                                display: 'block',
+                                                mt: -0.2,
+                                                fontStyle: (slot as any).address ? 'normal' : 'italic',
+                                                cursor: 'pointer',
+                                                borderRadius: '3px',
+                                                px: 0.25,
+                                                '&:hover': { bgcolor: 'rgba(245,158,11,0.06)' },
+                                                transition: 'background 0.15s',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            {(slot as any).address || 'Add address...'}
+                                        </Typography>
+                                    )
+                                )}
+                                {!isInstanceMode && assignedCount > 0 && (
                                     <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.55rem', display: 'block', mt: -0.2 }}>
+                                        {assignedCount} {assignedCount === 1 ? 'activity' : 'activities'}
+                                    </Typography>
+                                )}
+                                {isInstanceMode && assignedCount > 0 && (
+                                    <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.55rem', display: 'block', mt: 0.15 }}>
                                         {assignedCount} {assignedCount === 1 ? 'activity' : 'activities'}
                                     </Typography>
                                 )}

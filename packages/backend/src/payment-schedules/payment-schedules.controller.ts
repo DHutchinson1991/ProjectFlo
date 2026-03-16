@@ -7,6 +7,7 @@ import {
   CreatePaymentScheduleTemplateDto,
   UpdatePaymentScheduleTemplateDto,
   ApplyScheduleToEstimateDto,
+  ApplyScheduleToQuoteDto,
 } from './dto/payment-schedule.dto';
 
 // ── Brand-scoped template management ──────────────────────────────────────────
@@ -82,5 +83,32 @@ export class EstimateMilestonesController {
     @Body('status') status: string,
   ) {
     return this.svc.updateMilestoneStatus(milestoneId, status);
+  }
+}
+
+// ── Quote-scoped milestone endpoints ──────────────────────────────────────────
+@Controller('api/quotes')
+export class QuoteMilestonesController {
+  constructor(private readonly svc: PaymentSchedulesService) {}
+
+  @Get(':quoteId/milestones')
+  getMilestones(@Param('quoteId', ParseIntPipe) quoteId: number) {
+    return this.svc.getMilestonesForQuote(quoteId);
+  }
+
+  @Post(':quoteId/apply-schedule')
+  applySchedule(
+    @Param('quoteId', ParseIntPipe) quoteId: number,
+    @Body() dto: ApplyScheduleToQuoteDto,
+  ) {
+    return this.svc.applyToQuote(quoteId, dto);
+  }
+
+  @Patch('milestones/:milestoneId/status')
+  updateStatus(
+    @Param('milestoneId', ParseIntPipe) milestoneId: number,
+    @Body('status') status: string,
+  ) {
+    return this.svc.updateQuoteMilestoneStatus(milestoneId, status);
   }
 }

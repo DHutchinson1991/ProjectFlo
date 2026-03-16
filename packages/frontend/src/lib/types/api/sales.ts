@@ -20,6 +20,8 @@ export interface InquiryApiResponse {
     venue_lng?: number | null;
     lead_source: string | null;
     lead_source_details: string | null;
+    event_type_id?: number | null;
+    event_type?: { id: number; name: string } | null;
     contact: ContactApiResponse;
     contact_id: number;
     brand_id: number;
@@ -42,6 +44,10 @@ export interface InquiryApiResponse {
     } | null;
     created_at: string;
     updated_at: string;
+    estimates?: EstimateApiResponse[];
+    proposals?: ProposalApiResponse[];
+    quotes?: Array<{ id: number; status: string }>;
+    contracts?: Array<{ id: number; status: string }>;
 }
 
 export interface ClientProjectApiResponse {
@@ -118,6 +124,10 @@ export interface ProposalApiResponse {
     status: string;
     version: number;
     sent_at: string | null;
+    share_token: string | null;
+    client_response: string | null;
+    client_response_at: string | null;
+    client_response_message: string | null;
     created_at: string;
     updated_at: string;
     inquiry?: InquiryApiResponse;
@@ -150,6 +160,7 @@ export interface EstimateApiResponse {
     deposit_required?: number;
     notes?: string;
     terms?: string;
+    version?: number;
     items: EstimateItemApiResponse[];
     created_at: string;
     updated_at: string;

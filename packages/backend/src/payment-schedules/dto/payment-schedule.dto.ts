@@ -29,3 +29,10 @@ export class ApplyScheduleToEstimateDto {
   event_date: string;     // ISO date — the wedding/event date
   total_amount: number;
 }
+
+export class ApplyScheduleToQuoteDto {
+  template_id: number;
+  booking_date: string;
+  event_date: string;
+  total_amount: number;
+}

@@ -31,10 +31,11 @@ import {
     QuotesCard,
     ContractsCard,
     CallsCard,
-    ConsultationCard,
+    ProposalReviewCard,
     ClientApprovalCard,
     ActivityLogCard,
     NeedsAssessmentDialog,
+    DiscoveryQuestionnaireCard,
     buildPipelineTasks,
     buildPipelineTasksFromInquiry,
     type PipelineTask,
@@ -46,7 +47,7 @@ import {
 import EventDetailsCard from './components/EventDetailsCard';
 import PackageScopeCard from './components/PackageScopeCard';
 import LeadInfoCard from './components/LeadInfoCard';
-import LocationsSubjectsCard from './components/LocationsSubjectsCard';
+
 
 
 /* ================================================================== */
@@ -237,8 +238,8 @@ export default function InquiryDetailPage() {
                             />
                         </div>
 
-                        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'flex-start' }}>
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} sm={6}>
                                 <PackageScopeCard
                                     inquiry={inquiry}
                                     onRefresh={handleRefresh}
@@ -247,14 +248,17 @@ export default function InquiryDetailPage() {
                                     submission={needsAssessmentSubmission}
                                     WorkflowCard={WorkflowCard}
                                 />
-                            </Box>
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <LocationsSubjectsCard
-                                    inquiry={inquiry}
-                                    WorkflowCard={WorkflowCard}
-                                />
-                            </Box>
-                        </Box>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <Box sx={{
+                                    border: '1px dashed rgba(255,255,255,0.08)',
+                                    borderRadius: 2,
+                                    height: '100%',
+                                    minHeight: 200,
+                                    bgcolor: 'rgba(255,255,255,0.02)',
+                                }} />
+                            </Grid>
+                        </Grid>
 
                         <LeadInfoCard inquiry={inquiry} submission={needsAssessmentSubmission} WorkflowCard={WorkflowCard} />
 
@@ -270,11 +274,14 @@ export default function InquiryDetailPage() {
                         <div id="calls-section">
                             <CallsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor={phaseColor('calls')} submission={needsAssessmentSubmission} />
                         </div>
+                        <div id="discovery-questionnaire-section">
+                            <DiscoveryQuestionnaireCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor="#3b82f6" />
+                        </div>
                         <div id="proposals-section">
                             <ProposalsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'proposals'} activeColor={phaseColor('proposals')} />
                         </div>
-                        <div id="consultation-section">
-                            <ConsultationCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'consultation'} activeColor={phaseColor('consultation')} submission={needsAssessmentSubmission} />
+                        <div id="proposal-review-section">
+                            <ProposalReviewCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'proposal-review'} activeColor={phaseColor('proposal-review')} submission={needsAssessmentSubmission} />
                         </div>
                         <div id="quotes-section">
                             <QuotesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'quotes'} activeColor={phaseColor('quotes')} />

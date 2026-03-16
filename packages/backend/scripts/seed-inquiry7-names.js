@@ -7,32 +7,45 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
+  const INQUIRY_ID = 7;
+
   // Location slots — real Shropshire venues with full addresses
+  // Looked up by inquiry_id + location_number (not hardcoded IDs)
   const slotUpdates = [
-    { id: 44, name: 'St Chad\'s Church', address: 'St Chad\'s Terrace, Shrewsbury, Shropshire, SY1 1JX' },
-    { id: 45, name: 'Iscoyd Park', address: 'Iscoyd Park, Whitchurch, Shropshire, SY13 3AT' },
-    { id: 46, name: 'The Lion Hotel', address: '49-50 Wyle Cop, Shrewsbury, Shropshire, SY1 1XJ' },
+    { location_number: 1, name: 'Iscoyd Park', address: 'Iscoyd Park, Whitchurch, Shropshire, SY13 3AT' },
+    { location_number: 2, name: 'St Chad\'s Church', address: 'St Chad\'s Terrace, Shrewsbury, Shropshire, SY1 1JX' },
+    { location_number: 3, name: 'The Lion Hotel', address: '49-50 Wyle Cop, Shrewsbury, Shropshire, SY1 1XJ' },
   ];
 
-  for (const { id, name, address } of slotUpdates) {
-    const slot = await prisma.projectLocationSlot.findUnique({ where: { id }, select: { id: true } });
-    if (!slot) { console.log(`Slot ${id} not found — skipping`); continue; }
-    await prisma.projectLocationSlot.update({ where: { id }, data: { name, address } });
-    console.log(`Slot ${id} → "${name}" (${address})`);
+  const allSlots = await prisma.projectLocationSlot.findMany({
+    where: { inquiry_id: INQUIRY_ID },
+    orderBy: { location_number: 'asc' },
+  });
+
+  for (const upd of slotUpdates) {
+    const slot = allSlots.find(s => s.location_number === upd.location_number);
+    if (!slot) { console.log(`Slot #${upd.location_number} not found — skipping`); continue; }
+    await prisma.projectLocationSlot.update({ where: { id: slot.id }, data: { name: upd.name, address: upd.address } });
+    console.log(`Slot #${upd.location_number} (id ${slot.id}) → "${upd.name}" (${upd.address})`);
   }
 
-  // Subject real names
+  // Subject real names — looked up by inquiry_id + role name
   const subjectUpdates = [
-    { id: 105, real_name: 'Emily Thompson' },  // Bride
-    { id: 106, real_name: 'James Hutchinson' }, // Groom
-    { id: 110, real_name: 'Sarah Davis' },      // Maid of Honor
+    { role: 'Bride', real_name: 'Emily Thompson' },
+    { role: 'Groom', real_name: 'James Hutchinson' },
+    { role: 'Maid of Honor', real_name: 'Sarah Davis' },
   ];
 
-  for (const { id, real_name } of subjectUpdates) {
-    const subject = await prisma.projectEventDaySubject.findUnique({ where: { id }, select: { id: true, name: true } });
-    if (!subject) { console.log(`Subject ${id} not found — skipping`); continue; }
-    await prisma.projectEventDaySubject.update({ where: { id }, data: { real_name } });
-    console.log(`Subject ${id} (${subject.name}) → "${real_name}"`);
+  const allSubjects = await prisma.projectEventDaySubject.findMany({
+    where: { inquiry_id: INQUIRY_ID },
+    orderBy: { order_index: 'asc' },
+  });
+
+  for (const upd of subjectUpdates) {
+    const subject = allSubjects.find(s => s.name === upd.role);
+    if (!subject) { console.log(`Subject "${upd.role}" not found — skipping`); continue; }
+    await prisma.projectEventDaySubject.update({ where: { id: subject.id }, data: { real_name: upd.real_name } });
+    console.log(`Subject "${upd.role}" (id ${subject.id}) → "${upd.real_name}"`);
   }
 
   // Update contact name to bridal name

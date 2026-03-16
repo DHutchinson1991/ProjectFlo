@@ -73,7 +73,7 @@ export interface ScheduleApi {
       notes?: string;
       order_index?: number;
     }): Promise<any>;
-    update(subjectId: number, data: { count?: number | null; name?: string; notes?: string }): Promise<any>;
+    update(subjectId: number, data: { count?: number | null; name?: string; real_name?: string | null; notes?: string }): Promise<any>;
     delete(subjectId: number): Promise<void>;
     assignActivity(subjectId: number, activityId: number): Promise<any>;
     unassignActivity(subjectId: number, activityId: number): Promise<any>;
@@ -82,6 +82,7 @@ export interface ScheduleApi {
   // ─── Location Slots ────────────────────────────────────────────────
   locationSlots: {
     create(dayId: number, data?: { location_number?: number }): Promise<any>;
+    update(slotId: number, data: { name?: string | null; address?: string | null }): Promise<any>;
     delete(slotId: number): Promise<void>;
     assignActivity(slotId: number, activityId: number): Promise<any>;
     unassignActivity(slotId: number, activityId: number): Promise<any>;
@@ -203,6 +204,7 @@ export function createPackageScheduleApi(packageId: number, brandId: number): Sc
           event_day_template_id: dayId,
           ...(data || {}),
         }),
+      update: () => Promise.resolve(null),
       delete: (slotId) =>
         api.schedule.packageLocationSlots.delete(slotId),
       assignActivity: (slotId, activityId) =>
@@ -315,6 +317,8 @@ export function createProjectScheduleApi(projectId: number): ScheduleApi {
           project_event_day_id: dayId,
           ...(data || {}),
         }),
+      update: (slotId, data) =>
+        api.schedule.instanceLocationSlots.update(slotId, data),
       delete: (slotId) =>
         api.schedule.instanceLocationSlots.delete(slotId),
       assignActivity: (slotId, activityId) =>
@@ -422,6 +426,8 @@ export function createInquiryScheduleApi(inquiryId: number): ScheduleApi {
           project_event_day_id: dayId,
           ...(data || {}),
         }),
+      update: (slotId, data) =>
+        api.schedule.instanceLocationSlots.update(slotId, data),
       delete: (slotId) =>
         api.schedule.instanceLocationSlots.delete(slotId),
       assignActivity: (slotId, activityId) =>

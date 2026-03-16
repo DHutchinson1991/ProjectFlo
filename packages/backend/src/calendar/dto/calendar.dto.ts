@@ -8,7 +8,7 @@ export enum CalendarEventType {
     EXTERNAL_SYNC = 'EXTERNAL_SYNC',
     PERSONAL = 'PERSONAL',
     DISCOVERY_CALL = 'DISCOVERY_CALL',
-    CONSULTATION = 'CONSULTATION'
+    PROPOSAL_REVIEW = 'PROPOSAL_REVIEW'
 }
 
 export enum MeetingType {

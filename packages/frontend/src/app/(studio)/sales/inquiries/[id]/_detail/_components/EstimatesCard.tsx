@@ -467,7 +467,7 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
             const currentStatus = typeof statusOverride === 'string' ? statusOverride : (editingEstimate?.status || 'Draft');
 
             const estimateData = {
-                estimate_number: editingEstimate?.estimate_number || `EST-${Date.now()}`,
+                estimate_number: editingEstimate?.estimate_number || undefined,
                 title: editingEstimate?.title || undefined,
                 issue_date: editingEstimate?.issue_date
                     ? new Date(editingEstimate.issue_date).toISOString().split('T')[0]
@@ -547,7 +547,6 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
     const handleDuplicate = async () => {
         try {
             const estimateData = {
-                estimate_number: `EST-${Date.now()}`,
                 title: `${editingEstimate?.title || 'Estimate'} (Copy)`,
                 issue_date: new Date().toISOString().split('T')[0],
                 expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -686,9 +685,17 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                                 <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#f1f5f9', lineHeight: 1.2 }}>
                                                     {estimate.title || `Estimate #${estimate.estimate_number}`}
                                                 </Typography>
-                                                <Typography sx={{ fontSize: '0.68rem', color: '#475569', mt: 0.25 }}>
-                                                    {new Date(estimate.issue_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                                </Typography>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
+                                                    <Typography sx={{ fontSize: '0.68rem', color: '#475569' }}>
+                                                        {estimate.estimate_number}
+                                                    </Typography>
+                                                    {(estimate.version ?? 1) > 1 && (
+                                                        <Chip label={`v${estimate.version}`} size="small" sx={{ height: 16, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(139,92,246,0.12)', color: '#a78bfa', border: 'none' }} />
+                                                    )}
+                                                    <Typography sx={{ fontSize: '0.62rem', color: '#334155' }}>
+                                                        {new Date(estimate.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                    </Typography>
+                                                </Box>
                                             </Box>
                                         </Box>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -864,9 +871,22 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                             <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: '#f1f5f9', lineHeight: 1.2 }}>
                                 {editingEstimate?.id ? 'Edit Estimate' : 'Estimate Builder'}
                             </Typography>
-                            {editingEstimate?.title && (
-                                <Typography sx={{ fontSize: '0.72rem', color: '#64748b', mt: 0.25 }}>{editingEstimate.title}</Typography>
-                            )}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
+                                {editingEstimate?.title && (
+                                    <Typography sx={{ fontSize: '0.72rem', color: '#64748b' }}>{editingEstimate.title}</Typography>
+                                )}
+                                {editingEstimate?.estimate_number && (
+                                    <Chip label={editingEstimate.estimate_number} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(148,163,184,0.08)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.15)' }} />
+                                )}
+                                {editingEstimate?.id && (editingEstimate?.version ?? 1) > 1 && (
+                                    <Chip label={`v${editingEstimate.version}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: 'rgba(139,92,246,0.12)', color: '#a78bfa', border: 'none' }} />
+                                )}
+                                {editingEstimate?.created_at && (
+                                    <Typography sx={{ fontSize: '0.65rem', color: '#334155' }}>
+                                        Created {new Date(editingEstimate.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </Typography>
+                                )}
+                            </Box>
                         </Box>
                         {editingEstimate?.status && (
                             <Chip

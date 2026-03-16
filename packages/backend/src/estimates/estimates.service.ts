@@ -9,6 +9,56 @@ import { Decimal } from '@prisma/client/runtime/library';
 export class EstimatesService {
   constructor(private prisma: PrismaService) { }
 
+  /**
+   * Auto-promote the newest estimate to primary when no primary exists for an inquiry.
+   */
+  private async ensurePrimaryEstimate(inquiryId: number, tx?: any): Promise<void> {
+    const db = tx || this.prisma;
+    const hasPrimary = await db.estimates.findFirst({
+      where: { inquiry_id: inquiryId, is_primary: true },
+      select: { id: true },
+    });
+    if (hasPrimary) return;
+
+    const newest = await db.estimates.findFirst({
+      where: { inquiry_id: inquiryId },
+      orderBy: { updated_at: 'desc' },
+      select: { id: true },
+    });
+    if (newest) {
+      await db.estimates.update({
+        where: { id: newest.id },
+        data: { is_primary: true },
+      });
+    }
+  }
+
+  /**
+   * Generate a random memorable estimate number: EST-L1L2 (letter-digit-letter-digit).
+   * Collision-checked against existing estimate numbers.
+   */
+  private async generateEstimateNumber(tx?: any): Promise<string> {
+    const db = tx || this.prisma;
+    const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O (ambiguous)
+    const digits = '23456789'; // no 0 or 1 (ambiguous)
+
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const code =
+        letters[Math.floor(Math.random() * letters.length)] +
+        digits[Math.floor(Math.random() * digits.length)] +
+        letters[Math.floor(Math.random() * letters.length)] +
+        digits[Math.floor(Math.random() * digits.length)];
+      const candidate = `EST-${code}`;
+      const exists = await db.estimates.findFirst({
+        where: { estimate_number: candidate },
+        select: { id: true },
+      });
+      if (!exists) return candidate;
+    }
+    // Fallback: timestamp-based suffix
+    return `EST-${Date.now().toString(36).slice(-6).toUpperCase()}`;
+  }
+
   async create(inquiryId: number, createEstimateDto: CreateEstimateDto): Promise<Estimate> {
     // Calculate total amount from items
     const totalAmount = createEstimateDto.items.reduce(
@@ -25,12 +75,16 @@ export class EstimatesService {
         });
       }
 
-      // Create the estimate
+      // Create the estimate — accept client-provided or auto-generate random code
+      const estimateNumber = createEstimateDto.estimate_number
+        ? createEstimateDto.estimate_number
+        : await this.generateEstimateNumber(tx);
+
       const estimate = await tx.estimates.create({
         data: {
           inquiry_id: inquiryId,
           project_id: createEstimateDto.project_id || null,
-          estimate_number: createEstimateDto.estimate_number,
+          estimate_number: estimateNumber,
           title: createEstimateDto.title,
           is_primary: createEstimateDto.is_primary || false,
           issue_date: new Date(createEstimateDto.issue_date),
@@ -63,6 +117,9 @@ export class EstimatesService {
         });
       }
 
+      // Auto-promote if no primary exists
+      await this.ensurePrimaryEstimate(inquiryId, tx);
+
       // Return estimate with converted total_amount for Estimate interface
       return {
         ...estimate,
@@ -84,6 +141,7 @@ export class EstimatesService {
     return estimates.map(estimate => ({
       ...estimate,
       total_amount: Number(estimate.total_amount),
+      version: estimate.version ?? 1,
       tax_rate: estimate.tax_rate ? Number(estimate.tax_rate) : undefined,
       deposit_required: estimate.deposit_required ? Number(estimate.deposit_required) : undefined,
       items: estimate.items.map(item => ({
@@ -113,6 +171,7 @@ export class EstimatesService {
     return {
       ...estimate,
       total_amount: Number(estimate.total_amount),
+      version: estimate.version ?? 1,
       items: estimate.items.map(item => ({
         ...item,
         quantity: Number(item.quantity),
@@ -123,7 +182,7 @@ export class EstimatesService {
 
   async update(inquiryId: number, id: number, updateEstimateDto: UpdateEstimateDto) {
     // First verify the estimate exists and belongs to the inquiry
-    await this.findOne(inquiryId, id);
+    const existing = await this.findOne(inquiryId, id);
 
     return await this.prisma.$transaction(async (tx) => {
       let totalAmount: number | undefined;
@@ -171,6 +230,7 @@ export class EstimatesService {
         title?: string;
         project_id?: number | null;
         total_amount?: Decimal;
+        version?: number;
       } = {};
 
       if (updateEstimateDto.estimate_number) updateData.estimate_number = updateEstimateDto.estimate_number;
@@ -195,6 +255,12 @@ export class EstimatesService {
       }
       if (updateEstimateDto.project_id !== undefined) updateData.project_id = updateEstimateDto.project_id;
       if (totalAmount !== undefined) updateData.total_amount = new Decimal(totalAmount);
+
+      // Auto-increment version on meaningful updates
+      const hasContentChange = updateEstimateDto.items || totalAmount !== undefined || updateEstimateDto.title !== undefined;
+      if (hasContentChange) {
+        updateData.version = (existing.version ?? 1) + 1;
+      }
 
       // Handle items update
       if (updateEstimateDto.items) {
@@ -226,10 +292,14 @@ export class EstimatesService {
         },
       });
 
+      // Auto-promote if no primary exists
+      await this.ensurePrimaryEstimate(inquiryId, tx);
+
       // Convert Decimal to number for the interface
       return {
         ...updatedEstimate,
         total_amount: Number(updatedEstimate.total_amount),
+        version: updatedEstimate.version ?? 1,
         tax_rate: updatedEstimate.tax_rate ? Number(updatedEstimate.tax_rate) : undefined,
         deposit_required: updatedEstimate.deposit_required ? Number(updatedEstimate.deposit_required) : undefined,
         items: updatedEstimate.items.map(item => ({
@@ -245,9 +315,14 @@ export class EstimatesService {
     // First verify the estimate exists and belongs to the inquiry
     await this.findOne(inquiryId, id);
 
-    return await this.prisma.estimates.delete({
+    const deleted = await this.prisma.estimates.delete({
       where: { id },
     });
+
+    // If the deleted estimate was primary, promote the newest remaining one
+    await this.ensurePrimaryEstimate(inquiryId);
+
+    return deleted;
   }
 
   async send(inquiryId: number, id: number) {

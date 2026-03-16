@@ -5,6 +5,7 @@ import {
   CreatePaymentScheduleTemplateDto,
   UpdatePaymentScheduleTemplateDto,
   ApplyScheduleToEstimateDto,
+  ApplyScheduleToQuoteDto,
 } from './dto/payment-schedule.dto';
 
 @Injectable()
@@ -202,6 +203,84 @@ export class PaymentSchedulesService {
     return this.prisma.payment_schedule_templates.findFirst({
       where: { brand_id: brandId, is_default: true, is_active: true },
       include: { rules: { orderBy: { order_index: 'asc' } } },
+    });
+  }
+
+  // ── Apply template to a quote → create resolved milestones ──────────────────
+
+  async applyToQuote(quoteId: number, dto: ApplyScheduleToQuoteDto) {
+    const template = await this.prisma.payment_schedule_templates.findUnique({
+      where: { id: dto.template_id },
+      include: { rules: { orderBy: { order_index: 'asc' } } },
+    });
+    if (!template) throw new NotFoundException(`Template ${dto.template_id} not found`);
+
+    const bookingDate = new Date(dto.booking_date);
+    const eventDate = new Date(dto.event_date);
+    const total = dto.total_amount;
+
+    const pctSum = template.rules
+      .filter(r => r.amount_type === 'PERCENT')
+      .reduce((s, r) => s + Number(r.amount_value), 0);
+    if (pctSum > 100) throw new BadRequestException('Template rules percentages exceed 100%');
+
+    const milestones = template.rules.map((rule, i) => {
+      const amount = rule.amount_type === 'PERCENT'
+        ? (Number(rule.amount_value) / 100) * total
+        : Number(rule.amount_value);
+
+      let dueDate: Date;
+      const days = rule.trigger_days ?? 0;
+      switch (rule.trigger_type) {
+        case 'AFTER_BOOKING':
+          dueDate = new Date(bookingDate);
+          dueDate.setDate(dueDate.getDate() + days);
+          break;
+        case 'BEFORE_EVENT':
+          dueDate = new Date(eventDate);
+          dueDate.setDate(dueDate.getDate() - days);
+          break;
+        case 'AFTER_EVENT':
+          dueDate = new Date(eventDate);
+          dueDate.setDate(dueDate.getDate() + days);
+          break;
+        default:
+          dueDate = new Date(bookingDate);
+      }
+
+      return {
+        quote_id: quoteId,
+        label: rule.label,
+        amount: new Decimal(amount.toFixed(2)),
+        due_date: dueDate,
+        status: 'PENDING',
+        order_index: rule.order_index ?? i,
+      };
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.quote_payment_milestones.deleteMany({ where: { quote_id: quoteId } });
+      await tx.quote_payment_milestones.createMany({ data: milestones });
+      await tx.quotes.update({
+        where: { id: quoteId },
+        data: { schedule_template_id: dto.template_id },
+      });
+    });
+
+    return this.getMilestonesForQuote(quoteId);
+  }
+
+  async getMilestonesForQuote(quoteId: number) {
+    return this.prisma.quote_payment_milestones.findMany({
+      where: { quote_id: quoteId },
+      orderBy: { order_index: 'asc' },
+    });
+  }
+
+  async updateQuoteMilestoneStatus(milestoneId: number, status: string) {
+    return this.prisma.quote_payment_milestones.update({
+      where: { id: milestoneId },
+      data: { status },
     });
   }
 }

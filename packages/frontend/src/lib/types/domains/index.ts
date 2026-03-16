@@ -46,3 +46,6 @@ export type { FilmStructureTemplate, FilmStructureTemplateScene, CreateFilmStruc
 // Audio Sources
 export type { SceneAudioSource, CreateSceneAudioSourceDto, UpdateSceneAudioSourceDto } from './audio-sources';
 export { AudioSourceType, AudioTrackType } from './audio-sources';
+
+// Discovery Questionnaire
+export type { DiscoveryQuestion, DiscoveryQuestionnaireTemplate, DiscoveryQuestionnaireSubmission, CreateDiscoverySubmissionPayload } from './discovery-questionnaire';

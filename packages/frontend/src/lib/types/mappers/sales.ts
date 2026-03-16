@@ -40,7 +40,7 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
             : apiResponse.wedding_date
                 ? new Date(apiResponse.wedding_date)
                 : null,
-        event_type: null,
+        event_type: apiResponse.event_type?.name ?? null,
         budget_range: null,
         message: null,
         notes: apiResponse.notes,
@@ -79,6 +79,22 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
         package_contents_snapshot: apiResponse.package_contents_snapshot ?? null,
         created_at: new Date(apiResponse.created_at),
         updated_at: new Date(apiResponse.updated_at),
+        estimates: apiResponse.estimates?.map((e) => ({
+            ...e,
+            issue_date: new Date(e.issue_date),
+            expiry_date: new Date(e.expiry_date),
+            created_at: new Date(e.created_at),
+            updated_at: new Date(e.updated_at),
+            items: e.items ?? [],
+        })),
+        proposals: apiResponse.proposals?.map((p) => ({
+            ...p,
+            sent_at: p.sent_at ? new Date(p.sent_at) : null,
+            created_at: new Date(p.created_at),
+            updated_at: new Date(p.updated_at),
+        })),
+        quotes: apiResponse.quotes,
+        contracts: apiResponse.contracts,
     };
 }
 
@@ -179,6 +195,10 @@ export function mapProposalResponse(apiResponse: ProposalApiResponse): Proposal 
         status: apiResponse.status,
         version: apiResponse.version,
         sent_at: apiResponse.sent_at ? new Date(apiResponse.sent_at) : null,
+        share_token: apiResponse.share_token ?? null,
+        client_response: apiResponse.client_response ?? null,
+        client_response_at: apiResponse.client_response_at ? new Date(apiResponse.client_response_at) : null,
+        client_response_message: apiResponse.client_response_message ?? null,
         created_at: new Date(apiResponse.created_at),
         updated_at: new Date(apiResponse.updated_at),
         inquiry: apiResponse.inquiry ? mapInquiryResponse(apiResponse.inquiry) : undefined,
@@ -202,6 +222,7 @@ export function mapEstimateResponse(apiResponse: EstimateApiResponse): Estimate 
         deposit_required: apiResponse.deposit_required,
         notes: apiResponse.notes,
         terms: apiResponse.terms,
+        version: apiResponse.version ?? 1,
         items: apiResponse.items.map(item => ({
             id: item.id,
             category: item.category,

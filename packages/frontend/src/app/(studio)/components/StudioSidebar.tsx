@@ -19,7 +19,7 @@ import {
     ContactMail as InquiriesIcon,
     Category as ResourcesIcon,
     People as CustomersIcon,
-    Assignment as FormsIcon,
+    Assignment as TasksIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
 import { ProjectSelector } from "./ProjectSelector";
@@ -62,6 +62,11 @@ const studioNavItems = [
         ],
     },
     {
+        title: "Active Tasks",
+        href: "/manager/active-tasks",
+        icon: <TasksIcon />,
+    },
+    {
         title: "Resources",
         href: "/resources",
         icon: <ResourcesIcon />,
@@ -76,16 +81,13 @@ const studioNavItems = [
         href: "/manager",
         icon: <ManageAccountsIcon />,
         subItems: [
-            { title: "Tasks", href: "/manager/tasks" },
+            { title: "Task Library", href: "/manager/tasks" },
         ],
     },
     {
         title: "Settings",
         href: "/settings",
         icon: <SettingsIcon />,
-        subItems: [
-            { title: "Forms", href: "/settings" },
-        ],
     },
 ];
 
@@ -108,8 +110,11 @@ export default function StudioSidebar() {
         if (href === "/designer") {
             return pathname.startsWith("/designer");
         }
+        if (href === "/manager/active-tasks") {
+            return pathname.startsWith("/manager/active-tasks");
+        }
         if (href === "/manager") {
-            return pathname.startsWith("/manager");
+            return pathname.startsWith("/manager") && !pathname.startsWith("/manager/active-tasks");
         }
         if (href === "/settings") {
             return pathname.startsWith("/settings");

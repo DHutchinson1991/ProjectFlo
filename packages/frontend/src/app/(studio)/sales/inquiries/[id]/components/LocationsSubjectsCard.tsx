@@ -5,18 +5,13 @@ import {
     Box,
     Typography,
     CardContent,
-    TextField,
-    IconButton,
     CircularProgress,
-    Tooltip,
 } from '@mui/material';
 import PlaceIcon from '@mui/icons-material/Place';
-import PeopleIcon from '@mui/icons-material/People';
-import CheckIcon from '@mui/icons-material/Check';
-import EditIcon from '@mui/icons-material/Edit';
-import CloseIcon from '@mui/icons-material/Close';
 import { Inquiry } from '@/lib/types';
 import { api } from '@/lib/api';
+
+const PURPLE = '#a855f7';
 
 interface LocationsSubjectsCardProps {
     inquiry: Inquiry;
@@ -36,97 +31,8 @@ interface EventDaySubject {
     id: number;
     name: string;
     real_name: string | null;
+    count: number | null;
     category: string;
-}
-
-function InlineEditField({
-    value,
-    placeholder,
-    onSave,
-}: {
-    value: string | null;
-    placeholder: string;
-    onSave: (v: string | null) => Promise<void>;
-}) {
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState(value ?? '');
-    const [saving, setSaving] = useState(false);
-
-    const handleSave = async () => {
-        setSaving(true);
-        try {
-            await onSave(draft.trim() || null);
-            setEditing(false);
-        } catch {
-            // keep editing open on error
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleCancel = () => {
-        setDraft(value ?? '');
-        setEditing(false);
-    };
-
-    if (editing) {
-        return (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
-                <TextField
-                    size="small"
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    placeholder={placeholder}
-                    autoFocus
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSave();
-                        if (e.key === 'Escape') handleCancel();
-                    }}
-                    sx={{ flex: 1, '& .MuiInputBase-input': { fontSize: '0.82rem', py: 0.5 } }}
-                    disabled={saving}
-                />
-                {saving ? (
-                    <CircularProgress size={16} />
-                ) : (
-                    <>
-                        <Tooltip title="Save">
-                            <IconButton size="small" onClick={handleSave} sx={{ color: '#4ade80' }}>
-                                <CheckIcon sx={{ fontSize: 16 }} />
-                            </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Cancel">
-                            <IconButton size="small" onClick={handleCancel}>
-                                <CloseIcon sx={{ fontSize: 16 }} />
-                            </IconButton>
-                        </Tooltip>
-                    </>
-                )}
-            </Box>
-        );
-    }
-
-    return (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
-            <Typography
-                sx={{
-                    fontSize: '0.82rem',
-                    color: value ? 'text.primary' : 'text.disabled',
-                    fontStyle: value ? 'normal' : 'italic',
-                    flex: 1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                }}
-            >
-                {value || placeholder}
-            </Typography>
-            <Tooltip title="Edit">
-                <IconButton size="small" onClick={() => setEditing(true)} sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}>
-                    <EditIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-            </Tooltip>
-        </Box>
-    );
 }
 
 const LocationsSubjectsCard: React.FC<LocationsSubjectsCardProps> = ({ inquiry, WorkflowCard }) => {
@@ -135,7 +41,7 @@ const LocationsSubjectsCard: React.FC<LocationsSubjectsCardProps> = ({ inquiry, 
     const [loaded, setLoaded] = useState(false);
 
     const load = useCallback(() => {
-        if (!inquiry.source_package_id) return;
+        if (!inquiry.source_package_id && !inquiry.selected_package_id) return;
         Promise.all([
             api.schedule.instanceLocationSlots.getForInquiry(inquiry.id),
             api.schedule.instanceSubjects.getForInquiry(inquiry.id),
@@ -146,29 +52,13 @@ const LocationsSubjectsCard: React.FC<LocationsSubjectsCardProps> = ({ inquiry, 
                 setLoaded(true);
             })
             .catch(() => setLoaded(true));
-    }, [inquiry.id, inquiry.source_package_id]);
+    }, [inquiry.id, inquiry.source_package_id, inquiry.selected_package_id]);
 
     useEffect(() => {
         load();
     }, [load]);
 
-    // Only show if a package has been cloned to this inquiry
-    if (!inquiry.source_package_id) return null;
-
-    const handleSlotNameSave = async (slotId: number, name: string | null) => {
-        const updated = await api.schedule.instanceLocationSlots.update(slotId, { name });
-        setLocationSlots((prev) => prev.map((s) => (s.id === slotId ? { ...s, name: updated.name } : s)));
-    };
-
-    const handleSlotAddressSave = async (slotId: number, address: string | null) => {
-        const updated = await api.schedule.instanceLocationSlots.update(slotId, { address });
-        setLocationSlots((prev) => prev.map((s) => (s.id === slotId ? { ...s, address: updated.address } : s)));
-    };
-
-    const handleSubjectRealNameSave = async (subjectId: number, real_name: string | null) => {
-        const updated = await api.schedule.instanceSubjects.update(subjectId, { real_name });
-        setSubjects((prev) => prev.map((s) => (s.id === subjectId ? { ...s, real_name: updated.real_name } : s)));
-    };
+    if (!inquiry.source_package_id && !inquiry.selected_package_id) return null;
 
     const hasContent = locationSlots.length > 0 || subjects.length > 0;
 
@@ -177,7 +67,7 @@ const LocationsSubjectsCard: React.FC<LocationsSubjectsCardProps> = ({ inquiry, 
             <CardContent sx={{ p: '0 !important' }}>
                 {/* Header */}
                 <Box sx={{ px: 2.5, pt: 2, pb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <PlaceIcon sx={{ fontSize: 18, color: '#a855f7' }} />
+                    <PlaceIcon sx={{ fontSize: 18, color: PURPLE }} />
                     <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600 }}>
                         Locations &amp; Subjects
                     </Typography>
@@ -198,77 +88,98 @@ const LocationsSubjectsCard: React.FC<LocationsSubjectsCardProps> = ({ inquiry, 
                     </Box>
                 )}
 
+                {/* ── Locations (read-only summary) ── */}
                 {loaded && locationSlots.length > 0 && (
                     <Box sx={{ px: 2.5, pb: 1.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
-                            <PlaceIcon sx={{ fontSize: 14, color: '#a855f7' }} />
-                            <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Locations
-                            </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: PURPLE, textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>
+                            Locations
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                             {locationSlots.map((slot) => (
-                                <Box key={slot.id} sx={{ display: 'flex', gap: 1 }}>
-                                    <Typography sx={{ fontSize: '0.72rem', color: 'text.disabled', minWidth: 20, textAlign: 'right', pt: 0.25 }}>
-                                        L{slot.location_number}
+                                <Box key={slot.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, pl: 0.5 }}>
+                                    <Typography
+                                        sx={{
+                                            fontSize: '0.8rem',
+                                            fontWeight: 600,
+                                            color: '#e2e8f0',
+                                            whiteSpace: 'nowrap',
+                                            flexShrink: 0,
+                                        }}
+                                    >
+                                        Location {slot.location_number}
                                     </Typography>
-                                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                            {slot.project_activity?.name && (
-                                                <Typography sx={{
-                                                    fontSize: '0.72rem', color: 'text.secondary',
-                                                    bgcolor: 'rgba(168,85,247,0.08)', px: 0.75, py: 0.25,
-                                                    borderRadius: 0.5, whiteSpace: 'nowrap', flexShrink: 0,
-                                                }}>
-                                                    {slot.project_activity.name}
-                                                </Typography>
-                                            )}
-                                            <InlineEditField
-                                                value={slot.name}
-                                                placeholder="Add location name…"
-                                                onSave={(v) => handleSlotNameSave(slot.id, v)}
-                                            />
-                                        </Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', ml: slot.project_activity?.name ? 0 : 0 }}>
-                                            <InlineEditField
-                                                value={slot.address}
-                                                placeholder="Add address…"
-                                                onSave={(v) => handleSlotAddressSave(slot.id, v)}
-                                            />
-                                        </Box>
-                                    </Box>
+                                    {slot.name && (
+                                        <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
+                                            {slot.name}
+                                        </Typography>
+                                    )}
+                                    {!slot.name && !slot.address && (
+                                        <Typography sx={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.15)', fontStyle: 'italic' }}>
+                                            Not set
+                                        </Typography>
+                                    )}
                                 </Box>
                             ))}
                         </Box>
                     </Box>
                 )}
 
+                {/* ── Subjects (read-only summary) ── */}
                 {loaded && subjects.length > 0 && (
-                    <Box sx={{ px: 2.5, pb: 2, borderTop: locationSlots.length > 0 ? '1px solid rgba(52,58,68,0.3)' : 'none', pt: locationSlots.length > 0 ? 1.5 : 0 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
-                            <PeopleIcon sx={{ fontSize: 14, color: '#648CFF' }} />
-                            <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#648CFF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Subjects
-                            </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                    <Box
+                        sx={{
+                            px: 2.5,
+                            pb: 2,
+                            borderTop: locationSlots.length > 0 ? '1px solid rgba(52,58,68,0.3)' : 'none',
+                            pt: locationSlots.length > 0 ? 1.5 : 0,
+                        }}
+                    >
+                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: PURPLE, textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>
+                            Subjects
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                             {subjects.map((subject) => (
-                                <Box key={subject.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <Typography sx={{
-                                        fontSize: '0.72rem', color: 'text.secondary',
-                                        bgcolor: 'rgba(100,140,255,0.08)', px: 0.75, py: 0.25,
-                                        borderRadius: 0.5, whiteSpace: 'nowrap', flexShrink: 0, minWidth: 50, textAlign: 'center',
-                                    }}>
+                                <Box key={subject.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 0.5 }}>
+                                    <Typography
+                                        sx={{
+                                            fontSize: '0.8rem',
+                                            fontWeight: 600,
+                                            color: '#e2e8f0',
+                                            minWidth: 80,
+                                            textAlign: 'right',
+                                            whiteSpace: 'nowrap',
+                                            flexShrink: 0,
+                                        }}
+                                    >
                                         {subject.name}
                                     </Typography>
-                                    <InlineEditField
-                                        value={subject.real_name}
-                                        placeholder="Add real name…"
-                                        onSave={(v) => handleSubjectRealNameSave(subject.id, v)}
-                                    />
+                                    {subject.count && subject.count > 1 && (
+                                        <Typography sx={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                            ×{subject.count}
+                                        </Typography>
+                                    )}
+                                    <Typography
+                                        sx={{
+                                            fontSize: '0.78rem',
+                                            color: subject.real_name ? 'text.secondary' : 'rgba(255,255,255,0.15)',
+                                            fontStyle: subject.real_name ? 'normal' : 'italic',
+                                            fontSize: subject.real_name ? '0.78rem' : '0.72rem',
+                                        }}
+                                    >
+                                        {subject.real_name || '—'}
+                                    </Typography>
                                 </Box>
                             ))}
                         </Box>
+                    </Box>
+                )}
+
+                {/* ── Edit hint ── */}
+                {loaded && hasContent && (
+                    <Box sx={{ px: 2.5, pb: 1.5 }}>
+                        <Typography sx={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>
+                            Edit in Package Review →
+                        </Typography>
                     </Box>
                 )}
             </CardContent>

@@ -95,4 +95,14 @@ export class NeedsAssessmentsController {
     ) {
         return this.needsAssessmentsService.convertSubmission(id, Number(brandId));
     }
+
+    @Post('templates/:id/share-token')
+    generateShareToken(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        return this.needsAssessmentsService.generateShareToken(id, Number(brandId)).then(
+            (share_token) => ({ share_token }),
+        );
+    }
 }

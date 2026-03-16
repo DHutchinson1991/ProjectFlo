@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsEnum, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsObject, IsArray, ValidateNested, IsEmail, IsNumber } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum ContractStatus {
     DRAFT = 'Draft',
@@ -20,4 +21,37 @@ export class CreateContractDto {
 
     @IsOptional()
     project_id?: number;
+}
+
+export class SignerDto {
+    @IsString()
+    name!: string;
+
+    @IsEmail()
+    email!: string;
+
+    @IsOptional()
+    @IsString()
+    role?: string;
+}
+
+export class SendContractDto {
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => SignerDto)
+    signers!: SignerDto[];
+}
+
+export class ComposeContractDto {
+    @IsNumber()
+    template_id!: number;
+
+    @IsOptional()
+    @IsString()
+    title?: string;
+}
+
+export class SubmitSignatureDto {
+    @IsString()
+    signature_text!: string;
 }

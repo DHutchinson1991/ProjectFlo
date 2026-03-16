@@ -105,8 +105,10 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
     const responses = (submission?.responses ?? {}) as Record<string, any>;
 
     // Ceremony location from package schedule location slots
+    const [slotsLoading, setSlotsLoading] = useState(true);
     const [ceremonySlot, setCeremonySlot] = useState<{
         name: string; address: string; lat: number | null; lng: number | null;
+        slotIndex: number; totalSlots: number;
     } | null>(null);
 
     useEffect(() => {
@@ -123,25 +125,51 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                         a.project_activity?.name?.toLowerCase().includes('ceremony'),
                     );
                 const ceremony = slots.find(isCeremony)
-                    || slots.find(s => s.name || s.address);
-                if (ceremony && (ceremony.name || ceremony.address)) {
-                    let lat: number | null = null;
-                    let lng: number | null = null;
-                    // Geocode ceremony address for the map
-                    const addrToGeocode = ceremony.address || ceremony.name;
-                    if (addrToGeocode) {
-                        const coords = await geocodeBrandAddress(addrToGeocode);
-                        if (coords) { lat = coords.lat; lng = coords.lng; }
+                    || slots.find(s => s.name || s.address || s.location);
+                if (!ceremony) return;
+
+                // Build name + address from slot fields AND linked LocationsLibrary
+                const loc = ceremony.location;
+                const slotName = ceremony.name || loc?.name || '';
+                const slotAddr = ceremony.address || '';
+
+                // Build a structured address from location library if available
+                let fullAddress = slotAddr;
+                if (loc) {
+                    const parts = [
+                        loc.address_line1,
+                        loc.address_line2,
+                        loc.city,
+                        loc.state,
+                        loc.postal_code,
+                    ].filter(Boolean);
+                    if (parts.length > 0) {
+                        fullAddress = parts.join(', ');
                     }
-                    setCeremonySlot({
-                        name: ceremony.name || '',
-                        address: ceremony.address || '',
-                        lat,
-                        lng,
-                    });
                 }
+
+                if (!slotName && !fullAddress) return;
+
+                let lat: number | null = null;
+                let lng: number | null = null;
+                // Geocode using the best address available
+                const addrToGeocode = fullAddress || slotName;
+                if (addrToGeocode) {
+                    const coords = await geocodeBrandAddress(addrToGeocode);
+                    if (coords) { lat = coords.lat; lng = coords.lng; }
+                }
+                const slotIndex = slots.indexOf(ceremony) + 1;
+                setCeremonySlot({
+                    name: slotName,
+                    address: fullAddress,
+                    lat,
+                    lng,
+                    slotIndex,
+                    totalSlots: slots.length,
+                });
             })
-            .catch(() => { /* ignore – will fall back to venue_details */ });
+            .catch(() => { /* ignore – will fall back to venue_details */ })
+            .finally(() => setSlotsLoading(false));
     }, [inquiry.id]);
 
     const [formData, setFormData] = useState({
@@ -186,9 +214,9 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         geocodeBrandAddress(parts.join(', ')).then(setBrandCoords);
     }, [currentBrand]);
 
-    // Display coordinates: prefer geocoded ceremony slot, then inquiry venue
-    const displayLat = ceremonySlot?.lat ?? formData.venue_lat;
-    const displayLng = ceremonySlot?.lng ?? formData.venue_lng;
+    // Display coordinates: prefer geocoded ceremony slot, then inquiry venue (only after slots loaded)
+    const displayLat = ceremonySlot?.lat ?? (slotsLoading ? null : formData.venue_lat);
+    const displayLng = ceremonySlot?.lng ?? (slotsLoading ? null : formData.venue_lng);
     const hasVenueCoords = displayLat != null && displayLng != null;
 
     const distance = useMemo(() => {
@@ -250,9 +278,38 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         : 'Date not set';
 
     /* ---- short venue label (prefer ceremony location slot) ---- */
-    const venueShortName = ceremonySlot?.name || formData.venue_details || formData.venue_address?.split(',')[0] || '';
-    const venueFullAddress = ceremonySlot?.address || formData.venue_address || '';
-    const venueLabel = 'Ceremony Venue';
+    const slotAddress = ceremonySlot?.address || '';
+    const slotName = ceremonySlot?.name || '';
+    // While slots are loading, don't fall back to inquiry venue fields
+    const venueShortName = slotsLoading
+        ? ''
+        : (slotName
+            || slotAddress.split(',')[0]?.trim()
+            || formData.venue_details
+            || formData.venue_address?.split(',')[0]
+            || '');
+    const venueFullAddress = slotsLoading
+        ? ''
+        : (slotAddress || formData.venue_address || '');
+    const venueLabel = ceremonySlot
+        ? `Location ${ceremonySlot.slotIndex} of ${ceremonySlot.totalSlots}`
+        : 'Venue';
+
+    /* ---- parse address into structured parts ---- */
+    const addressParts = venueFullAddress
+        .split(',')
+        .map((p: string) => p.trim())
+        .filter(Boolean);
+    // Try to identify: street, city, county, postcode (heuristic)
+    const formattedAddress = (() => {
+        if (addressParts.length === 0) return null;
+        // Skip the first part if it matches venueShortName
+        const parts = addressParts[0] === venueShortName
+            ? addressParts.slice(1)
+            : addressParts;
+        if (parts.length === 0) return null;
+        return parts;
+    })();
 
     return (
         <WorkflowCard isActive={isActive} activeColor={activeColor}>
@@ -368,7 +425,7 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                             {!hasVenueCoords && (
                                 <Box sx={{
                                     display: 'flex', alignItems: 'flex-start', gap: 1.5,
-                                    p: 1.25, borderRadius: 2,
+                                    p: 1.5, borderRadius: 2,
                                     bgcolor: venueShortName ? 'rgba(168, 85, 247, 0.06)' : 'rgba(168, 85, 247, 0.04)',
                                     border: '1px solid rgba(168, 85, 247, 0.08)',
                                 }}>
@@ -383,7 +440,7 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                             : <LocationOff sx={{ fontSize: 16, color: '#64748b' }} />}
                                     </Box>
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                                        <Typography sx={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                        <Typography sx={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
                                             {venueLabel}
                                         </Typography>
                                         {venueShortName ? (
@@ -391,14 +448,17 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                                 <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0', lineHeight: 1.3 }}>
                                                     {venueShortName}
                                                 </Typography>
-                                                {venueFullAddress && venueFullAddress !== venueShortName && (
-                                                    <Typography sx={{
-                                                        fontSize: '0.7rem', color: '#64748b', mt: 0.25, lineHeight: 1.35,
-                                                        overflow: 'hidden', textOverflow: 'ellipsis',
-                                                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                                                    }}>
-                                                        {venueFullAddress}
-                                                    </Typography>
+                                                {formattedAddress && formattedAddress.length > 0 && (
+                                                    <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.25 }}>
+                                                        {formattedAddress.map((part: string, i: number) => (
+                                                            <Typography key={i} component="span" sx={{
+                                                                fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4,
+                                                                '&:not(:last-of-type)::after': { content: '" · "', color: '#475569' },
+                                                            }}>
+                                                                {part}
+                                                            </Typography>
+                                                        ))}
+                                                    </Stack>
                                                 )}
                                             </>
                                         ) : (
@@ -412,23 +472,41 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
 
                             {/* Venue name + address when map is shown */}
                             {hasVenueCoords && (
-                                <Box sx={{ mt: 0.5 }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                        <Place sx={{ fontSize: 16, color: '#a855f7', mt: 0.2, flexShrink: 0 }} />
+                                <Box sx={{
+                                    mt: 0.5,
+                                    p: 1.5, borderRadius: 2,
+                                    bgcolor: 'rgba(168, 85, 247, 0.06)',
+                                    border: '1px solid rgba(168, 85, 247, 0.08)',
+                                }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                                        <Box sx={{
+                                            width: 32, height: 32, borderRadius: 1.5,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            bgcolor: 'rgba(168, 85, 247, 0.1)', flexShrink: 0,
+                                            mt: 0.25,
+                                        }}>
+                                            <Place sx={{ fontSize: 16, color: '#a855f7' }} />
+                                        </Box>
                                         <Box sx={{ minWidth: 0, flex: 1 }}>
+                                            <Typography sx={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                                                {venueLabel}
+                                            </Typography>
                                             {venueShortName && (
                                                 <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0', lineHeight: 1.3 }}>
                                                     {venueShortName}
                                                 </Typography>
                                             )}
-                                            {venueFullAddress && venueFullAddress !== venueShortName && (
-                                                <Typography sx={{
-                                                    fontSize: '0.7rem', color: '#64748b', mt: 0.25, lineHeight: 1.35,
-                                                    overflow: 'hidden', textOverflow: 'ellipsis',
-                                                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                                                }}>
-                                                    {venueFullAddress}
-                                                </Typography>
+                                            {formattedAddress && formattedAddress.length > 0 && (
+                                                <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.25 }}>
+                                                    {formattedAddress.map((part: string, i: number) => (
+                                                        <Typography key={i} component="span" sx={{
+                                                            fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4,
+                                                            '&:not(:last-of-type)::after': { content: '" · "', color: '#475569' },
+                                                        }}>
+                                                            {part}
+                                                        </Typography>
+                                                    ))}
+                                                </Stack>
                                             )}
                                         </Box>
                                     </Box>
@@ -440,6 +518,7 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                             size="small"
                                             sx={{
                                                 mt: 1.5,
+                                                ml: 5.5,
                                                 height: 24,
                                                 bgcolor: 'rgba(59, 130, 246, 0.08)',
                                                 border: '1px solid rgba(59, 130, 246, 0.15)',

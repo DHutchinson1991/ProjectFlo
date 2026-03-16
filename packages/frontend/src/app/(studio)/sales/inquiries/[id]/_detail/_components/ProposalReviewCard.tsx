@@ -9,7 +9,7 @@ import MeetingScheduler, { MeetingFormData } from '../../components/MeetingSched
 import type { WorkflowCardProps } from '../_lib';
 import { WorkflowCard } from './WorkflowCard';
 
-const ConsultationCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, activeColor }) => {
+const ProposalReviewCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, activeColor }) => {
     const { user } = useAuth();
     const [meetings, setMeetings] = useState<BackendCalendarEvent[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -22,7 +22,7 @@ const ConsultationCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isA
                 const events = await api.getEvents();
                 const consultationMeetings = events.filter(event =>
                     event.inquiry_id === inquiry.id &&
-                    event.event_type === 'CONSULTATION'
+                    event.event_type === 'PROPOSAL_REVIEW'
                 );
                 setMeetings(consultationMeetings);
             } catch (error) {
@@ -44,7 +44,7 @@ const ConsultationCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isA
             const calApi = getCalendarApi();
             await calApi.createEvent({
                 ...meetingData,
-                event_type: 'CONSULTATION',
+                event_type: 'PROPOSAL_REVIEW',
                 inquiry_id: inquiry.id,
                 contributor_id: user?.id || 1
             });
@@ -52,13 +52,13 @@ const ConsultationCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isA
             const events = await calApi.getEvents();
             const consultationMeetings = events.filter(event =>
                 event.inquiry_id === inquiry.id &&
-                event.event_type === 'CONSULTATION'
+                event.event_type === 'PROPOSAL_REVIEW'
             );
             setMeetings(consultationMeetings);
 
             if (onRefresh) onRefresh();
         } catch (error) {
-            console.error('Error scheduling consultation:', error);
+            console.error('Error scheduling proposal review:', error);
             throw error;
         } finally {
             setIsLoading(false);
@@ -71,19 +71,19 @@ const ConsultationCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isA
             const calApi = getCalendarApi();
             await calApi.updateEvent(meetingId, {
                 ...meetingData,
-                event_type: 'CONSULTATION'
+                event_type: 'PROPOSAL_REVIEW'
             });
 
             const events = await calApi.getEvents();
             const consultationMeetings = events.filter(event =>
                 event.inquiry_id === inquiry.id &&
-                event.event_type === 'CONSULTATION'
+                event.event_type === 'PROPOSAL_REVIEW'
             );
             setMeetings(consultationMeetings);
 
             if (onRefresh) onRefresh();
         } catch (error) {
-            console.error('Error updating consultation:', error);
+            console.error('Error updating proposal review:', error);
             throw error;
         } finally {
             setIsLoading(false);
@@ -99,13 +99,13 @@ const ConsultationCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isA
             const events = await calApi.getEvents();
             const consultationMeetings = events.filter(event =>
                 event.inquiry_id === inquiry.id &&
-                event.event_type === 'CONSULTATION'
+                event.event_type === 'PROPOSAL_REVIEW'
             );
             setMeetings(consultationMeetings);
 
             if (onRefresh) onRefresh();
         } catch (error) {
-            console.error('Error deleting consultation:', error);
+            console.error('Error deleting proposal review:', error);
             throw error;
         } finally {
             setIsLoading(false);
@@ -130,7 +130,7 @@ const ConsultationCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isA
                             <Handshake sx={{ fontSize: 18, color: '#ec4899' }} />
                         </Box>
                         <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: '#f1f5f9' }}>
-                            Consultation
+                            Proposal Review
                         </Typography>
                         {meetings.length > 0 && (
                             <Chip
@@ -153,15 +153,15 @@ const ConsultationCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isA
                     onUpdateMeeting={handleUpdateMeeting}
                     onDeleteMeeting={handleDeleteMeeting}
                     isLoading={isLoading}
-                    eventType="consultation"
+                    eventType="proposal_review"
                     defaultDurationMinutes={60}
                     accentColor="#ec4899"
-                    scheduleLabel="Book Consultation"
-                    emptyMessage="No consultations booked yet"
+                    scheduleLabel="Book Proposal Review"
+                    emptyMessage="No proposal reviews scheduled yet"
                 />
             </CardContent>
         </WorkflowCard>
     );
 };
 
-export { ConsultationCard };
+export { ProposalReviewCard };

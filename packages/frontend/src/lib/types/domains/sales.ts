@@ -57,6 +57,20 @@ export interface ClientProject {
     end_date?: Date | null;
 }
 
+export interface ContractSigner {
+    id: number;
+    contract_id: number;
+    name: string;
+    email: string;
+    role: string;
+    token: string;
+    status: 'pending' | 'viewed' | 'signed';
+    signed_at: string | null;
+    signature_text: string | null;
+    viewed_at: string | null;
+    created_at: string;
+}
+
 export interface Contract {
     id: number;
     inquiry_id: number;
@@ -66,8 +80,48 @@ export interface Contract {
     status: ContractStatus;
     created_at: Date;
     updated_at: Date;
+    signing_token?: string | null;
+    rendered_html?: string | null;
+    template_id?: number | null;
+    sent_at?: Date | null;
+    signed_date?: Date | null;
+    signers?: ContractSigner[];
     inquiry?: Inquiry;
     project?: ClientProject | null;
+}
+
+export interface ComposeContractData {
+    template_id: number;
+    title?: string;
+}
+
+export interface SendContractData {
+    signers: Array<{ name: string; email: string; role?: string }>;
+}
+
+export interface SigningContractView {
+    signer: {
+        id: number;
+        name: string;
+        email: string;
+        role: string;
+        status: string;
+        signed_at: string | null;
+    };
+    contract: {
+        id: number;
+        title: string;
+        status: string;
+        rendered_html: string | null;
+        content: unknown;
+        sent_at: string | null;
+    };
+    signers: Array<{
+        name: string;
+        role: string;
+        status: string;
+        signed_at: string | null;
+    }>;
 }
 
 export interface Invoice {
@@ -114,6 +168,7 @@ export interface Estimate {
     payment_method?: string;
     installments?: number;
     is_primary?: boolean;
+    version?: number;
     notes?: string;
     terms?: string;
     schedule_template_id?: number | null;
@@ -152,7 +207,10 @@ export interface Quote {
     consultation_notes?: string | null;
     notes?: string;
     terms?: string;
+    version?: number;
+    schedule_template_id?: number | null;
     items: QuoteItem[];
+    payment_milestones?: QuotePaymentMilestone[];
     created_at: Date;
     updated_at: Date;
     inquiry?: Inquiry;
@@ -326,7 +384,7 @@ export interface ServicePackage {
 }
 
 // Proposal Section Types
-export type SectionType = 'hero' | 'text' | 'pricing' | 'media' | 'interactive' | 'schedule';
+export type SectionType = 'hero' | 'text' | 'pricing' | 'media' | 'interactive' | 'schedule' | 'films' | 'subjects' | 'locations' | 'event-details' | 'package-details' | 'crew' | 'equipment' | 'terms';
 
 export interface BaseSection {
     id: string;
@@ -407,7 +465,71 @@ export interface ScheduleSection extends BaseSection {
     };
 }
 
-export type ProposalSection = HeroSection | TextSection | PricingSection | MediaSection | InteractiveSection | ScheduleSection;
+export interface FilmsSection extends BaseSection {
+    type: 'films';
+    data: {
+        title?: string;
+        showDuration?: boolean;
+    };
+}
+
+export interface SubjectsSection extends BaseSection {
+    type: 'subjects';
+    data: {
+        title?: string;
+        showRealNames?: boolean;
+    };
+}
+
+export interface LocationsSection extends BaseSection {
+    type: 'locations';
+    data: {
+        title?: string;
+        showAddress?: boolean;
+    };
+}
+
+export interface EventDetailsSection extends BaseSection {
+    type: 'event-details';
+    data: {
+        title?: string;
+        showVenue?: boolean;
+        showDate?: boolean;
+    };
+}
+
+export interface PackageDetailsSection extends BaseSection {
+    type: 'package-details';
+    data: {
+        title?: string;
+        showDescription?: boolean;
+        showItems?: boolean;
+    };
+}
+
+export interface CrewSection extends BaseSection {
+    type: 'crew';
+    data: {
+        title?: string;
+    };
+}
+
+export interface EquipmentSection extends BaseSection {
+    type: 'equipment';
+    data: {
+        title?: string;
+    };
+}
+
+export interface TermsSection extends BaseSection {
+    type: 'terms';
+    data: {
+        title?: string;
+        customTerms?: string;
+    };
+}
+
+export type ProposalSection = HeroSection | TextSection | PricingSection | MediaSection | InteractiveSection | ScheduleSection | FilmsSection | SubjectsSection | LocationsSection | EventDetailsSection | PackageDetailsSection | CrewSection | EquipmentSection | TermsSection;
 
 export interface ProposalContent {
     theme: 'cinematic-dark' | 'clean-light' | 'soft-romance';
@@ -429,6 +551,10 @@ export interface Proposal {
     status: string; // "Draft", "Sent", "Accepted", "Declined"
     version: number;
     sent_at?: Date | null;
+    share_token?: string | null;
+    client_response?: string | null;
+    client_response_at?: Date | null;
+    client_response_message?: string | null;
     created_at: Date;
     updated_at: Date;
     inquiry?: Inquiry;
@@ -658,6 +784,19 @@ export interface EstimatePaymentMilestone {
     updated_at: Date;
 }
 
+export interface QuotePaymentMilestone {
+    id: number;
+    quote_id: number;
+    label: string;
+    amount: number;
+    due_date: string;
+    status: MilestoneStatus;
+    notes?: string;
+    order_index: number;
+    created_at: Date;
+    updated_at: Date;
+}
+
 export interface CreatePaymentScheduleTemplateData {
     name: string;
     description?: string;
@@ -680,4 +819,153 @@ export interface ApplyScheduleToEstimateData {
     total_amount: number;
 }
 
+export interface ApplyScheduleToQuoteData {
+    template_id: number;
+    booking_date: string;
+    event_date: string;
+    total_amount: number;
+}
 
+// ---------------------------------------------------------------------------
+// Contract Clause Settings
+// ---------------------------------------------------------------------------
+
+export interface ContractClauseCategory {
+    id: number;
+    brand_id: number;
+    name: string;
+    description: string | null;
+    order_index: number;
+    is_default: boolean;
+    country_code: string | null;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    clauses: ContractClause[];
+}
+
+export interface ContractClause {
+    id: number;
+    category_id: number;
+    brand_id: number;
+    title: string;
+    body: string;
+    clause_type: 'STANDARD' | 'EXTRA';
+    country_code: string | null;
+    is_default: boolean;
+    is_active: boolean;
+    order_index: number;
+    created_at: string;
+    updated_at: string;
+    category?: ContractClauseCategory;
+}
+
+export interface CreateContractClauseCategoryData {
+    name: string;
+    description?: string;
+    order_index?: number;
+    country_code?: string;
+}
+
+export interface UpdateContractClauseCategoryData {
+    name?: string;
+    description?: string;
+    order_index?: number;
+    country_code?: string;
+    is_active?: boolean;
+}
+
+export interface CreateContractClauseData {
+    category_id: number;
+    title: string;
+    body: string;
+    clause_type?: 'STANDARD' | 'EXTRA';
+    country_code?: string;
+    order_index?: number;
+}
+
+export interface UpdateContractClauseData {
+    category_id?: number;
+    title?: string;
+    body?: string;
+    clause_type?: 'STANDARD' | 'EXTRA';
+    country_code?: string;
+    is_active?: boolean;
+    order_index?: number;
+}
+
+// ── Contract Templates ────────────────────────────────────────────
+
+export interface ContractTemplateClause {
+    id: number;
+    template_id: number;
+    clause_id: number;
+    order_index: number;
+    override_body: string | null;
+    created_at: string;
+    clause: ContractClause & { category: ContractClauseCategory | null };
+}
+
+export interface ContractTemplate {
+    id: number;
+    brand_id: number;
+    name: string;
+    description: string | null;
+    payment_schedule_template_id: number | null;
+    is_default: boolean;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    template_clauses: ContractTemplateClause[];
+    payment_schedule?: PaymentScheduleTemplate | null;
+}
+
+export interface TemplateClauseInput {
+    clause_id: number;
+    order_index?: number;
+    override_body?: string;
+}
+
+export interface CreateContractTemplateData {
+    name: string;
+    description?: string;
+    payment_schedule_template_id?: number;
+    is_default?: boolean;
+    clauses?: TemplateClauseInput[];
+}
+
+export interface UpdateContractTemplateData {
+    name?: string;
+    description?: string;
+    payment_schedule_template_id?: number | null;
+    is_default?: boolean;
+    is_active?: boolean;
+    clauses?: TemplateClauseInput[];
+}
+
+export interface ContractVariableInfo {
+    key: string;
+    label: string;
+    example: string;
+}
+
+export interface ContractVariableCategory {
+    category: string;
+    variables: ContractVariableInfo[];
+}
+
+export interface ContractPreviewSection {
+    clause_id: number;
+    title: string;
+    category: string;
+    body: string;
+    order_index: number;
+}
+
+export interface ContractPreview {
+    template_id: number;
+    template_name: string;
+    inquiry_id: number | null;
+    sections: ContractPreviewSection[];
+    available_variables: ContractVariableCategory[];
+}

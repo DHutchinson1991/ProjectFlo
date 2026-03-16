@@ -16,6 +16,8 @@ export * from "./domains/users";
 export * from "./domains/sales";
 // Needs assessment types
 export * from "./domains/needs-assessment";
+// Discovery questionnaire types
+export * from "./domains/discovery-questionnaire";
 
 // Brand and organization types
 export * from "./brand";

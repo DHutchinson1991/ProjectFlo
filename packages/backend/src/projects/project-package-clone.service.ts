@@ -531,6 +531,17 @@ export class ProjectPackageCloneService {
         JSON.stringify(summary),
     );
 
+    // ── Post-clone: prefill locations & subjects from NA responses ─
+    if (target.inquiryId) {
+      try {
+        await this._prefillFromNeedsAssessment(prisma, target.inquiryId);
+      } catch (err) {
+        this.logger.warn(
+          `Post-clone NA prefill for inquiry ${target.inquiryId} failed (non-fatal): ${err}`,
+        );
+      }
+    }
+
     return summary;
   }
 
@@ -619,5 +630,131 @@ export class ProjectPackageCloneService {
     await tx.projectEventDay.deleteMany({ where });
 
     this.logger.debug(`Deleted all instance data for ${JSON.stringify(owner)}`);
+  }
+
+  /**
+   * After cloning, check if the inquiry already has a submitted NA.
+   * If so, prefill newly-created location slot names and subject real_names
+   * from the NA responses (+ inquiry venue_details as fallback).
+   */
+  private async _prefillFromNeedsAssessment(
+    prisma: Prisma.TransactionClient | PrismaService,
+    inquiryId: number,
+  ) {
+    const submission = await prisma.needs_assessment_submissions.findFirst({
+      where: { inquiry_id: inquiryId, status: 'submitted' },
+      select: { responses: true },
+      orderBy: { submitted_at: 'desc' },
+    });
+
+    const responses = (submission?.responses ?? {}) as Record<string, unknown>;
+
+    // Also grab the inquiry's own venue_details as a fallback source
+    const inquiry = await prisma.inquiries.findUnique({
+      where: { id: inquiryId },
+      select: {
+        venue_details: true,
+        contact: { select: { first_name: true, last_name: true } },
+      },
+    });
+
+    // ── Prefill location slots ───────────────────────────────────
+    const ACTIVITY_LOCATION_MAP: Record<string, string> = {
+      ceremony: 'ceremony_location',
+      'bridal prep': 'bridal_prep_location',
+      'bride prep': 'bridal_prep_location',
+      'groom prep': 'groom_prep_location',
+      reception: 'reception_location',
+    };
+
+    const emptySlots = await prisma.projectLocationSlot.findMany({
+      where: { inquiry_id: inquiryId, name: null },
+      include: { project_activity: { select: { name: true } } },
+    });
+
+    let locationsFilled = 0;
+    for (const slot of emptySlots) {
+      const activityLower = slot.project_activity?.name?.toLowerCase() ?? '';
+      let locationName: string | null = null;
+
+      for (const [keyword, responseKey] of Object.entries(ACTIVITY_LOCATION_MAP)) {
+        if (activityLower.includes(keyword)) {
+          const val = responses[responseKey];
+          if (val && typeof val === 'string' && val.trim()) {
+            locationName = val.trim();
+            break;
+          }
+        }
+      }
+
+      // Fallback: use NA venue_details, then inquiry venue_details
+      if (!locationName) {
+        const fallback =
+          responses['ceremony_location'] ??
+          responses['venue_details'] ??
+          inquiry?.venue_details;
+        if (fallback && typeof fallback === 'string' && fallback.trim()) {
+          locationName = fallback.trim();
+        }
+      }
+
+      if (locationName) {
+        await prisma.projectLocationSlot.update({
+          where: { id: slot.id },
+          data: { name: locationName },
+        });
+        locationsFilled++;
+      }
+    }
+
+    // ── Prefill subject real names ───────────────────────────────
+    const contactFirstName =
+      ((responses['contact_first_name'] as string | undefined)?.trim()) ||
+      inquiry?.contact?.first_name || '';
+    const contactLastName =
+      ((responses['contact_last_name'] as string | undefined)?.trim()) ||
+      inquiry?.contact?.last_name || '';
+    const contactFullName = [contactFirstName, contactLastName].filter(Boolean).join(' ');
+
+    const contactRole = ((responses['contact_role'] as string | undefined) ?? '').toLowerCase().trim();
+    const partnerName = ((responses['partner_name'] as string | undefined) ?? '').trim();
+
+    const emptySubjects = await prisma.projectEventDaySubject.findMany({
+      where: { inquiry_id: inquiryId, real_name: null },
+      orderBy: { order_index: 'asc' },
+    });
+
+    let subjectsFilled = 0;
+    if (contactRole && contactRole !== 'prefer not to say' && contactFullName) {
+      let partnerRole: string | null = null;
+      if (contactRole === 'bride') partnerRole = 'groom';
+      else if (contactRole === 'groom') partnerRole = 'bride';
+
+      for (const subject of emptySubjects) {
+        const subjectLower = subject.name.toLowerCase();
+        let realName: string | null = null;
+
+        if (subjectLower.includes(contactRole)) {
+          realName = contactFullName;
+        } else if (partnerRole && subjectLower.includes(partnerRole) && partnerName) {
+          realName = partnerName;
+        }
+
+        if (realName) {
+          await prisma.projectEventDaySubject.update({
+            where: { id: subject.id },
+            data: { real_name: realName },
+          });
+          subjectsFilled++;
+        }
+      }
+    }
+
+    if (locationsFilled || subjectsFilled) {
+      this.logger.log(
+        `Post-clone NA prefill for inquiry ${inquiryId}: ` +
+          `${locationsFilled} location(s), ${subjectsFilled} subject(s)`,
+      );
+    }
   }
 }

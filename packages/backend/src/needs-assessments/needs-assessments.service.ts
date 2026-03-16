@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
     CreateNeedsAssessmentSubmissionDto,
@@ -263,6 +264,13 @@ export class NeedsAssessmentsService {
             const createdInquiry = await this.inquiriesService.create(inferredInquiry, brandId);
             inquiryId = createdInquiry.id;
 
+            // Auto-generate a portal token so the client gets a persistent link
+            const portalToken = randomUUID();
+            await this.prisma.inquiries.update({
+                where: { id: createdInquiry.id },
+                data: { portal_token: portalToken },
+            });
+
             const linkedContact = await this.prisma.contacts.findUnique({
                 where: { email: inferredInquiry.email },
                 select: { id: true },
@@ -281,7 +289,7 @@ export class NeedsAssessmentsService {
             },
             include: {
                 template: { include: { questions: { orderBy: { order_index: 'asc' } } } },
-                inquiry: true,
+                inquiry: { select: { id: true, portal_token: true } },
                 contact: true,
             },
         });
@@ -411,11 +419,20 @@ export class NeedsAssessmentsService {
                 }
             }
 
-            // Fallback: slot with no linked activity → use ceremony_location or venue_details
-            if (!locationName && !slot.project_activity_id) {
+            // Fallback: use ceremony_location, venue_details from NA, or inquiry venue_details
+            if (!locationName) {
                 const fallback = responses['ceremony_location'] ?? responses['venue_details'];
                 if (fallback && typeof fallback === 'string' && fallback.trim()) {
                     locationName = fallback.trim();
+                } else {
+                    // Last resort: read venue_details from the inquiry itself
+                    const inquiry = await this.prisma.inquiries.findUnique({
+                        where: { id: inquiryId },
+                        select: { venue_details: true },
+                    });
+                    if (inquiry?.venue_details?.trim()) {
+                        locationName = inquiry.venue_details.trim();
+                    }
                 }
             }
 
@@ -469,5 +486,88 @@ export class NeedsAssessmentsService {
                 });
             }
         }
+    }
+
+    /* ── Public share-token methods ─────────────────────────────────────────── */
+
+    async generateShareToken(templateId: number, brandId: number): Promise<string> {
+        const template = await this.getTemplateById(templateId, brandId);
+
+        if (template.share_token) {
+            return template.share_token;
+        }
+
+        const token = randomUUID();
+        await this.prisma.needs_assessment_templates.update({
+            where: { id: template.id },
+            data: { share_token: token },
+        });
+
+        return token;
+    }
+
+    async findByShareToken(token: string) {
+        const template = await this.prisma.needs_assessment_templates.findUnique({
+            where: { share_token: token },
+            include: {
+                questions: { orderBy: { order_index: 'asc' } },
+                brand: {
+                    select: {
+                        id: true,
+                        name: true,
+                        display_name: true,
+                        description: true,
+                        website: true,
+                        email: true,
+                        phone: true,
+                        address_line1: true,
+                        address_line2: true,
+                        city: true,
+                        state: true,
+                        country: true,
+                        postal_code: true,
+                        logo_url: true,
+                        currency: true,
+                    },
+                },
+            },
+        });
+
+        if (!template || !template.is_active) {
+            throw new NotFoundException('Questionnaire not found or no longer active');
+        }
+
+        // Fetch packages and package sets for the brand so the public page can
+        // render the package-select step without authentication.
+        const [packages, packageSets] = await Promise.all([
+            this.prisma.service_packages.findMany({
+                where: { brand_id: template.brand_id, is_active: true },
+                orderBy: { created_at: 'desc' },
+            }),
+            this.prisma.package_sets.findMany({
+                where: { brand_id: template.brand_id },
+                include: {
+                    category: { select: { id: true, name: true } },
+                    slots: {
+                        orderBy: { order_index: 'asc' },
+                        select: { id: true, slot_label: true, service_package_id: true, order_index: true },
+                    },
+                },
+                orderBy: { order_index: 'asc' },
+            }),
+        ]);
+
+        return { ...template, packages, package_sets: packageSets };
+    }
+
+    async createPublicSubmission(
+        token: string,
+        payload: CreateNeedsAssessmentSubmissionDto,
+    ) {
+        const template = await this.findByShareToken(token);
+        return this.createSubmission(
+            { ...payload, template_id: template.id },
+            template.brand_id,
+        );
     }
 }

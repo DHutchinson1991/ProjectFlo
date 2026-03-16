@@ -201,4 +201,12 @@ export class CalendarController {
     ) {
         return this.calendarService.getTasksForDateRange(startDate, endDate);
     }
+
+    // Active tasks (non-completed) for task board
+    @Get('active-tasks')
+    async getActiveTasks(
+        @Query('status') status?: string,
+    ) {
+        return this.calendarService.getActiveTasks(status);
+    }
 }
