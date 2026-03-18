@@ -671,7 +671,9 @@ EstimatesCard and QuotesCard display milestones inline:
 | Inquiry deal value KPI | `KpiMetricsStrip.tsx` | Tax-inclusive deal value (optional `taxRate` prop) |
 | Inquiry Estimate editor | `EstimatesCard.tsx` | Line items, subtotal, tax, total, milestones |
 | Inquiry Quote editor | `QuotesCard.tsx` | Line items, subtotal, tax, total, milestones |
-| Inquiry Estimates list | `EstimatesCard.tsx` line 713 | `estimate.total_amount` (stored value) |
+| Inquiry Estimates list | `EstimatesCard.tsx` lines 713, 820 | `estimate.total_with_tax ?? estimate.total_amount` — shows tax-inclusive total; "incl. X% tax" label when tax > 0 |
+| Inquiry Quotes list | `QuotesCard.tsx` lines 478, 581 | `quote.total_with_tax ?? quote.total_amount` — shows tax-inclusive total; "incl. X% tax" label when tax > 0 |
+| Quote: import estimate picker | `QuotesCard.tsx` line 710 | `est.total_with_tax ?? est.total_amount` — tax-inclusive total for consistency |
 | Package cards (designer) | `CreatePackageSetDialog.tsx` | Verify separately — may use stored price fields |
 | Client portal | `(portal)/portal/[token]/page.tsx` | Uses `computeTaxBreakdown()` for `itemsSubtotal`, `taxAmount`, and `grandTotal` |
 | Proposals | `(portal)/proposals/[token]/page.tsx` | Uses `computeTaxBreakdown()` for tax and Total Investment display |

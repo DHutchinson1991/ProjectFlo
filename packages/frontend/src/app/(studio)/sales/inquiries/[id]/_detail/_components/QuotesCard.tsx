@@ -475,7 +475,7 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
                                                 }}
                                             />
                                             <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: '#f59e0b', fontFamily: 'monospace', minWidth: 70, textAlign: 'right' }}>
-                                                {currencySymbol}{Number(quote.total_amount || 0).toLocaleString()}
+                                                {currencySymbol}{Number(quote.total_with_tax ?? quote.total_amount || 0).toLocaleString()}
                                             </Typography>
                                             <Box sx={{ display: 'flex', ml: 0.5 }}>
                                                 <Tooltip title={quote.is_primary ? 'Primary' : 'Set as Primary'}>
@@ -577,8 +577,8 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
                                                     <Typography sx={{ fontSize: '0.72rem', color: '#475569' }}>Deposit: <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{currencySymbol}{Number(quote.deposit_required).toLocaleString()}</span></Typography>
                                                 )}
                                                 <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                    {Number(quote.tax_rate) > 0 && <Typography sx={{ fontSize: '0.7rem', color: '#475569' }}>+{quote.tax_rate}% tax</Typography>}
-                                                    <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', fontFamily: 'monospace', color: '#f59e0b' }}>{currencySymbol}{Number(quote.total_amount).toLocaleString()}</Typography>
+                                                    {Number(quote.tax_rate) > 0 && <Typography sx={{ fontSize: '0.7rem', color: '#475569' }}>incl. {quote.tax_rate}% tax</Typography>}
+                                                    <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', fontFamily: 'monospace', color: '#f59e0b' }}>{currencySymbol}{Number(quote.total_with_tax ?? quote.total_amount).toLocaleString()}</Typography>
                                                 </Box>
                                             </Box>
                                             {(quote.consultation_notes || quote.notes) && (
@@ -707,7 +707,7 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
                                                         {est.title || `Estimate #${est.estimate_number}`}
                                                     </Box>
                                                     <Typography variant="caption" color="text.secondary">
-                                                        {currencySymbol}{Number(est.total_amount).toLocaleString()}
+                                                        {currencySymbol}{Number(est.total_with_tax ?? est.total_amount).toLocaleString()}
                                                     </Typography>
                                                 </Box>
                                             </MenuItem>

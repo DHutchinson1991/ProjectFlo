@@ -710,7 +710,7 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                                 }}
                                             />
                                             <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: '#f59e0b', fontFamily: 'monospace', minWidth: 70, textAlign: 'right' }}>
-                                                {currencySymbol}{Number(estimate.total_amount || 0).toLocaleString()}
+                                                {currencySymbol}{Number(estimate.total_with_tax ?? estimate.total_amount || 0).toLocaleString()}
                                             </Typography>
                                             <Box sx={{ display: 'flex', ml: 0.5 }}>
                                                 <Tooltip title={estimate.is_primary ? 'Primary' : 'Set as Primary'}>
@@ -816,8 +816,8 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                                     <Typography sx={{ fontSize: '0.72rem', color: '#475569' }}>Deposit: <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{currencySymbol}{Number(estimate.deposit_required).toLocaleString()}</span></Typography>
                                                 )}
                                                 <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                    {Number(estimate.tax_rate) > 0 && <Typography sx={{ fontSize: '0.7rem', color: '#475569' }}>+{estimate.tax_rate}% tax</Typography>}
-                                                    <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', fontFamily: 'monospace', color: '#f59e0b' }}>{currencySymbol}{Number(estimate.total_amount).toLocaleString()}</Typography>
+                                                    {Number(estimate.tax_rate) > 0 && <Typography sx={{ fontSize: '0.7rem', color: '#475569' }}>incl. {estimate.tax_rate}% tax</Typography>}
+                                                    <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', fontFamily: 'monospace', color: '#f59e0b' }}>{currencySymbol}{Number(estimate.total_with_tax ?? estimate.total_amount).toLocaleString()}</Typography>
                                                 </Box>
                                             </Box>
                                             {estimate.notes && (
