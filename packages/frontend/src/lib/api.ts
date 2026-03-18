@@ -24,12 +24,14 @@ import {
   Brand,
   BrandSetting,
   MeetingSettings,
+  WelcomeSettings,
   UserBrand,
 
   // Sales domain
   Inquiry,
   InquiryTask,
   InquiryTaskStatus,
+  InquiryTaskEvent,
   Client,
   ClientListItem,
   CreateInquiryData,
@@ -43,6 +45,8 @@ import {
   NeedsAssessmentTemplate,
   NeedsAssessmentSubmission,
   NeedsAssessmentSubmissionPayload,
+  NaDateConflictResult,
+  NaCrewConflictResult,
   DiscoveryQuestionnaireTemplate,
   DiscoveryQuestionnaireSubmission,
   CreateDiscoverySubmissionPayload,
@@ -739,7 +743,7 @@ class ApiService extends BaseApiClient {
       this.delete(`/subjects/type-templates/${templateId}`),
 
     // Add a role to a type template
-    addRoleToTemplate: (templateId: number, data: { role_name: string; description?: string; is_core?: boolean }): Promise<any> =>
+    addRoleToTemplate: (templateId: number, data: { role_name: string; description?: string; is_core?: boolean; is_group?: boolean }): Promise<any> =>
       this.post(`/subjects/type-templates/${templateId}/roles`, data),
 
     // Remove a role from a type template
@@ -1096,6 +1100,10 @@ class ApiService extends BaseApiClient {
       this.get(`/brands/${brandId}/meeting-settings`, { skipBrandContext: true }),
     saveMeetingSettings: (brandId: number, data: Partial<MeetingSettings>): Promise<MeetingSettings> =>
       this.put(`/brands/${brandId}/meeting-settings`, data, { skipBrandContext: true }),
+    getWelcomeSettings: (brandId: number): Promise<WelcomeSettings> =>
+      this.get(`/brands/${brandId}/welcome-settings`, { skipBrandContext: true }),
+    saveWelcomeSettings: (brandId: number, data: Partial<WelcomeSettings>): Promise<WelcomeSettings> =>
+      this.put(`/brands/${brandId}/welcome-settings`, data, { skipBrandContext: true }),
   };
 
   // Task Library methods (brand-specific)
@@ -1155,6 +1163,10 @@ class ApiService extends BaseApiClient {
     // Execute auto-generation: create real project tasks
     executeAutoGeneration: (dto: ExecuteAutoGenerationDto): Promise<ExecuteAutoGenerationResult> =>
       this.post('/task-library/auto-generate/execute', dto),
+
+    // Bulk-sync assigned_to_id on all inquiry tasks from task library defaults
+    syncContributors: (): Promise<{ updated: number }> =>
+      this.post('/task-library/sync-contributors', {}),
   };
 
   // Workflow Management methods (brand-specific)
@@ -1363,6 +1375,8 @@ class ApiService extends BaseApiClient {
     convert: (inquiryId: number): Promise<{ projectId: number }> =>
       this.post(`/api/inquiries/${inquiryId}/convert`),
     delete: (id: number): Promise<void> => this.delete(`/api/inquiries/${id}`),
+    sendWelcomePack: (id: number): Promise<{ welcome_sent_at: string }> =>
+      this.post(`/api/inquiries/${id}/send-welcome-pack`),
 
     // Schedule snapshot endpoints (cloned package data owned by inquiry)
     scheduleSnapshot: {
@@ -1389,18 +1403,33 @@ class ApiService extends BaseApiClient {
   inquiryTasks = {
     getAll: (inquiryId: number): Promise<InquiryTask[]> =>
       this.get(`/api/inquiries/${inquiryId}/tasks`),
-    update: (inquiryId: number, taskId: number, data: { status?: InquiryTaskStatus; due_date?: string; order_index?: number }): Promise<InquiryTask> =>
+    update: (inquiryId: number, taskId: number, data: { status?: InquiryTaskStatus; due_date?: string; order_index?: number; assigned_to_id?: number | null }): Promise<InquiryTask> =>
       this.patch(`/api/inquiries/${inquiryId}/tasks/${taskId}`, data),
     toggle: (inquiryId: number, taskId: number, completedById?: number): Promise<InquiryTask> =>
       this.patch(`/api/inquiries/${inquiryId}/tasks/${taskId}/toggle`, completedById ? { completed_by_id: completedById } : {}),
     generate: (inquiryId: number): Promise<InquiryTask[]> =>
       this.post(`/api/inquiries/${inquiryId}/tasks/generate`),
+    getEvents: (inquiryId: number, taskId: number): Promise<InquiryTaskEvent[]> =>
+      this.get(`/api/inquiries/${inquiryId}/tasks/${taskId}/events`),
   };
 
   // Active Tasks (unified view across inquiries and projects)
   activeTasks = {
     getAll: (status?: string): Promise<ActiveTask[]> =>
       this.get(`/calendar/active-tasks${status ? `?status=${status}` : ''}`),
+    assign: (taskId: number, source: 'inquiry' | 'project', assignedToId: number | null): Promise<unknown> =>
+      this.patch(`/calendar/active-tasks/${taskId}/assign`, { source, assigned_to_id: assignedToId }),
+    toggle: (taskId: number, source: 'inquiry' | 'project'): Promise<unknown> =>
+      this.patch(`/calendar/active-tasks/${taskId}/toggle`, { source }),
+  };
+
+  calendar = {
+    getDiscoveryCallSlots: (brandId: number, date: string): Promise<{
+      date: string;
+      duration_minutes?: number;
+      slots: { time: string; available: boolean; operator_id?: number }[];
+      unavailable_reason?: string;
+    }> => this.get(`/calendar/discovery-call-slots?brandId=${brandId}&date=${date}`),
   };
 
   // Needs Assessment methods (brand-specific)
@@ -1428,6 +1457,12 @@ class ApiService extends BaseApiClient {
       this.post("/api/needs-assessments/submissions", data),
     convert: (id: number): Promise<NeedsAssessmentSubmission> =>
       this.post(`/api/needs-assessments/submissions/${id}/convert`),
+    checkDateConflicts: (id: number): Promise<NaDateConflictResult> =>
+      this.get(`/api/needs-assessments/submissions/${id}/conflict-check`),
+    checkCrewConflicts: (id: number): Promise<NaCrewConflictResult> =>
+      this.get(`/api/needs-assessments/submissions/${id}/crew-conflict-check`),
+    review: (id: number, data: { review_notes?: string; review_checklist_state?: Record<string, boolean> }): Promise<NeedsAssessmentSubmission> =>
+      this.patch(`/api/needs-assessments/submissions/${id}/review`, data),
   };
 
   // Public needs assessment methods (no auth required)
@@ -1446,6 +1481,15 @@ class ApiService extends BaseApiClient {
       if (!res.ok) throw new Error('Failed to submit');
       return res.json();
     },
+    updateSubmission: async (submissionId: number, responses: Record<string, unknown>): Promise<any> => {
+      const res = await fetch(`${this.baseURL}/api/needs-assessments/share/submission/${submissionId}/responses`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ responses }),
+      });
+      if (!res.ok) throw new Error('Failed to update');
+      return res.json();
+    },
     generateShareToken: (templateId: number): Promise<{ share_token: string }> =>
       this.post(`/api/needs-assessments/templates/${templateId}/share-token`),
   };
@@ -1459,6 +1503,20 @@ class ApiService extends BaseApiClient {
     },
     generateToken: (inquiryId: number): Promise<{ portal_token: string }> =>
       this.post(`/api/inquiries/${inquiryId}/portal-token`),
+    getPackageOptions: async (token: string): Promise<any> => {
+      const res = await fetch(`${this.baseURL}/api/client-portal/${encodeURIComponent(token)}/packages`);
+      if (!res.ok) throw new Error('Failed to load packages');
+      return res.json();
+    },
+    submitPackageRequest: async (token: string, data: Record<string, unknown>): Promise<any> => {
+      const res = await fetch(`${this.baseURL}/api/client-portal/${encodeURIComponent(token)}/package-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to submit package request');
+      return res.json();
+    },
   };
 
   // Discovery Questionnaire methods (brand-specific)
@@ -1558,6 +1616,35 @@ class ApiService extends BaseApiClient {
      create: (brandId: number, data: Partial<ServicePackage>): Promise<ServicePackage> => this.post(`/service-packages/${brandId}`, data),
      update: (brandId: number, id: number, data: Partial<ServicePackage>): Promise<ServicePackage> => this.patch(`/service-packages/${brandId}/${id}`, data),
      delete: (brandId: number, id: number): Promise<void> => this.delete(`/service-packages/${brandId}/${id}`),
+     createFromBuilder: (brandId: number, data: {
+       eventTypeId: number;
+       selectedActivityPresetIds: number[];
+       operatorCount: number;
+       cameraCount?: number;
+       filmPreferences: Array<{ type: string; activityPresetId?: number; activityName?: string }>;
+       inquiryId?: number;
+       clientName?: string;
+     }): Promise<ServicePackage> => this.post(`/service-packages/${brandId}/from-builder`, data),
+     estimatePrice: (brandId: number, packageId: number): Promise<{
+       packageId: number;
+       packageName: string;
+       currency: string;
+       equipment: { cameras: number; audio: number; totalItems: number; dailyCost: number; items: Array<{ name: string; category: string; dailyRate: number }> };
+       crew: { operatorCount: number; totalHours: number; totalCost: number; operators: Array<{ position: string; hours: number; rate: number; cost: number }> };
+       tasks: { totalTasks: number; totalHours: number; totalCost: number; byPhase: Record<string, { taskCount: number; hours: number; cost: number }> };
+       summary: { equipmentCost: number; crewCost: number; subtotal: number };
+       tax: { rate: number; amount: number; totalWithTax: number };
+     }> => this.get(`/pricing/${brandId}/package/${packageId}`),
+     estimateInquiryPrice: (brandId: number, inquiryId: number): Promise<{
+       packageId: number;
+       packageName: string;
+       currency: string;
+       equipment: { cameras: number; audio: number; totalItems: number; dailyCost: number; items: Array<{ name: string; category: string; dailyRate: number }> };
+       crew: { operatorCount: number; totalHours: number; totalCost: number; operators: Array<{ position: string; hours: number; rate: number; cost: number }> };
+       tasks: { totalTasks: number; totalHours: number; totalCost: number; byPhase: Record<string, { taskCount: number; hours: number; cost: number }> };
+       summary: { equipmentCost: number; crewCost: number; subtotal: number };
+       tax: { rate: number; amount: number; totalWithTax: number };
+     }> => this.get(`/pricing/${brandId}/inquiry/${inquiryId}`),
      // Version History
      versions: {
        getAll: (brandId: number, packageId: number): Promise<any[]> =>
@@ -2691,6 +2778,22 @@ class ApiService extends BaseApiClient {
         this.delete(`/instance-films/scenes/${sceneId}/location`),
     },
   };
+
+  // Projects
+  projects = {
+    getAll: (brandId?: number): Promise<any[]> => {
+      const params = brandId ? `?brandId=${brandId}` : '';
+      return this.get(`/projects${params}`);
+    },
+    getById: (id: number): Promise<any> =>
+      this.get(`/projects/${id}`),
+    create: (data: { project_name: string; wedding_date?: string; booking_date?: string; edit_start_date?: string; phase?: string; client_id?: number; workflow_template_id?: number }): Promise<any> =>
+      this.post('/projects', data),
+    update: (id: number, data: { project_name?: string; wedding_date?: string; booking_date?: string; edit_start_date?: string; phase?: string; client_id?: number; workflow_template_id?: number }): Promise<any> =>
+      this.put(`/projects/${id}`, data),
+    delete: (id: number): Promise<void> =>
+      this.delete(`/projects/${id}`),
+  };
 }
 
 /**
@@ -2810,6 +2913,7 @@ export const taskLibraryService = api.taskLibrary;
 export const activeTasksService = api.activeTasks;
 export const workflowsService = api.workflows;
 export const locationsService = api.locations;
+export const projectsService = api.projects;
 
 // Export the main instance as default
 export default api;

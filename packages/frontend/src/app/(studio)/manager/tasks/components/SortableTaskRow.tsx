@@ -32,9 +32,16 @@ import { CSS } from "@dnd-kit/utilities";
 import { TaskLibrary, JobRole, SkillRoleMapping, TriggerType, TRIGGER_TYPE_LABELS } from "@/lib/types";
 import { TaskRoleSkillsPanel } from "./TaskRoleSkillsPanel";
 
+interface ContributorOption {
+    id: number;
+    contact: { first_name?: string; last_name?: string };
+    contributor_job_roles?: { job_role_id: number; payment_bracket_id?: number | null; payment_bracket?: { id: number; level: number } | null }[];
+}
+
 interface SortableTaskRowProps {
     task: TaskLibrary;
     phase: string;
+    isChild?: boolean;
     inlineEditingTask: number | null;
     inlineEditData: Partial<TaskLibrary>;
     updateInlineEditData: (field: keyof TaskLibrary, value: unknown) => void;
@@ -47,14 +54,17 @@ interface SortableTaskRowProps {
     isDragging: boolean;
     jobRoles: JobRole[];
     allMappings: SkillRoleMapping[];
+    contributors: ContributorOption[];
     expandedTaskId: number | null;
     onToggleExpand: (taskId: number) => void;
     onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
+    onUpdateContributor: (taskId: number, contributorId: number | null) => Promise<void>;
 }
 
 export function SortableTaskRow({
     task,
     phase,
+    isChild = false,
     inlineEditingTask,
     inlineEditData,
     updateInlineEditData,
@@ -67,9 +77,11 @@ export function SortableTaskRow({
     isDragging,
     jobRoles,
     allMappings,
+    contributors,
     expandedTaskId,
     onToggleExpand,
     onUpdateRoleSkills,
+    onUpdateContributor,
 }: SortableTaskRowProps) {
     const {
         attributes,
@@ -196,6 +208,7 @@ export function SortableTaskRow({
                         placeholder="Task name"
                         sx={{
                             maxWidth: '300px', // Constrain the width like quick add
+                            ml: isChild ? 3 : 0,
                             '& .MuiOutlinedInput-root': {
                                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                                 borderRadius: 2,
@@ -223,6 +236,7 @@ export function SortableTaskRow({
                             display: "flex",
                             alignItems: "center",
                             gap: 1,
+                            ml: isChild ? 3 : 0,
                             "&:hover": {
                                 color: phaseStyle.color,
                             },
@@ -371,6 +385,84 @@ export function SortableTaskRow({
                     >
                         £{resolvedBracket.hourly_rate}/hr
                     </Typography>
+                ) : (
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.72rem', fontStyle: 'italic' }}>
+                        —
+                    </Typography>
+                )}
+            </TableCell>
+
+            {/* Contributor */}
+            <TableCell>
+                {task.default_contributor ? (
+                    <Chip
+                        label={`${task.default_contributor.contact.first_name} ${task.default_contributor.contact.last_name}`}
+                        size="small"
+                        onDelete={() => onUpdateContributor(task.id, null)}
+                        sx={{
+                            background: 'rgba(100, 255, 218, 0.1)',
+                            color: 'rgba(100, 255, 218, 0.85)',
+                            fontWeight: 500,
+                            fontSize: '0.72rem',
+                            height: 24,
+                            border: '1px solid rgba(100, 255, 218, 0.2)',
+                            '& .MuiChip-deleteIcon': {
+                                color: 'rgba(100, 255, 218, 0.4)',
+                                fontSize: 14,
+                                '&:hover': { color: 'rgba(255, 100, 100, 0.7)' },
+                            },
+                        }}
+                    />
+                ) : task.default_job_role_id ? (
+                    <FormControl size="small" sx={{ minWidth: 100 }}>
+                        <Select
+                            value=""
+                            displayEmpty
+                            onChange={(e) => {
+                                const val = e.target.value === '' ? null : Number(e.target.value);
+                                if (val) onUpdateContributor(task.id, val);
+                            }}
+                            sx={{
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: 1.5,
+                                fontSize: '0.72rem',
+                                height: 28,
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: 'rgba(255,255,255,0.12)',
+                                },
+                                '&:hover .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: 'rgba(255,255,255,0.25)',
+                                },
+                                '& .MuiSelect-select': {
+                                    color: 'rgba(255,255,255,0.4)',
+                                    fontSize: '0.72rem',
+                                    py: 0.25,
+                                },
+                                '& .MuiSvgIcon-root': {
+                                    color: 'rgba(255,255,255,0.3)',
+                                    fontSize: 14,
+                                },
+                            }}
+                        >
+                            <MenuItem value="" disabled>
+                                <em style={{ color: 'rgba(255,255,255,0.4)' }}>Pick…</em>
+                            </MenuItem>
+                            {contributors
+                                .filter((c) => c.contributor_job_roles?.some((r) => {
+                                    if (r.job_role_id !== task.default_job_role_id) return false;
+                                    // If no bracket set on this role entry, contributor is untiered → always eligible
+                                    if (!r.payment_bracket) return true;
+                                    // If task has a required tier, contributor must be at that level or above
+                                    if (resolvedBracket) return r.payment_bracket.level >= resolvedBracket.level;
+                                    return true;
+                                }))
+                                .map((c) => (
+                                <MenuItem key={c.id} value={c.id}>
+                                    {c.contact.first_name} {c.contact.last_name}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
                 ) : (
                     <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.72rem', fontStyle: 'italic' }}>
                         —

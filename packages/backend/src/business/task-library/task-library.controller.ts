@@ -11,6 +11,8 @@ import {
     Request,
     ParseIntPipe,
     ValidationPipe,
+    Headers,
+    BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { TaskLibraryService } from './task-library.service';
@@ -89,6 +91,16 @@ export class TaskLibraryController {
         @Request() req: AuthenticatedRequest,
     ) {
         return this.taskLibraryService.executeAutoGeneration(dto, req.user.id);
+    }
+
+    /** Bulk-sync assigned_to_id on all inquiry tasks from task library defaults */
+    @Post('sync-contributors')
+    syncContributors(
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new BadRequestException('Brand ID is required');
+        return this.taskLibraryService.syncContributorsToInquiryTasks(brandIdNum);
     }
 
     @Get(':id')

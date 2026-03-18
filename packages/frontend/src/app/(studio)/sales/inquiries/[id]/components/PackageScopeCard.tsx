@@ -7,12 +7,18 @@ import {
     CardContent,
     Chip,
     Alert,
-    Button,
+    Stack,
+    Checkbox,
+    FormControlLabel,
+    CircularProgress,
 } from '@mui/material';
 import {
     Videocam,
     WarningAmber,
-    OpenInNew,
+    CheckCircle,
+    ErrorOutline,
+    Build,
+    AttachMoney,
 } from '@mui/icons-material';
 import MovieIcon from '@mui/icons-material/Movie';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
@@ -20,12 +26,10 @@ import MicIcon from '@mui/icons-material/Mic';
 import EventIcon from '@mui/icons-material/Event';
 import PlaceIcon from '@mui/icons-material/Place';
 import PeopleIcon from '@mui/icons-material/People';
-import { useRouter } from 'next/navigation';
 import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
 import { api } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
 import { getPackageStats, getCategoryColor, getTierColor } from '@/app/(studio)/designer/packages/_listing/_lib/helpers';
-import { computeCrewCost, computeEquipmentCost } from '@/app/(studio)/designer/packages/[id]/_lib/selectors';
 import { formatCurrency } from '@/lib/utils/formatUtils';
 
 /** Metadata about which set/tier a package belongs to */
@@ -52,6 +56,7 @@ interface PackageScopeCardProps {
     submission?: NeedsAssessmentSubmission | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     WorkflowCard: React.ComponentType<any>;
+    onPackageDetailsClick?: () => void;
 }
 
 const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
@@ -60,24 +65,65 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     activeColor,
     submission,
     WorkflowCard,
+    onPackageDetailsClick,
 }) => {
-    const router = useRouter();
     const { currentBrand } = useBrand();
     const currencyCode = currentBrand?.currency || 'GBP';
+
+    // NA response data
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const responses = (submission?.responses ?? {}) as Record<string, any>;
+    const packagePath = responses.package_path as string | undefined;
+    const budgetRange = responses.budget_range as string | undefined;
+    const builderActivities = responses.builder_activities as number[] | undefined;
+    const builderFilms = responses.builder_films as { type: string; activityName?: string }[] | undefined;
+    const naOperatorCount = responses.operator_count as number | undefined;
+    const naCameraCount = responses.camera_count as number | undefined;
+
+    // Crew conflicts
+    const [crewConflicts, setCrewConflicts] = useState<{
+        conflicts: { contributor_id: number; name: string; role: string; event_type: string; event_title: string }[];
+    } | null>(null);
+    const [loadingCrewConflicts, setLoadingCrewConflicts] = useState(false);
+
+    useEffect(() => {
+        if (!submission?.id) return;
+        setLoadingCrewConflicts(true);
+        api.needsAssessmentSubmissions.checkCrewConflicts(submission.id)
+            .then(setCrewConflicts)
+            .catch(() => setCrewConflicts(null))
+            .finally(() => setLoadingCrewConflicts(false));
+    }, [submission?.id]);
+
+    // Manual review checks
+    const existingChecklist = (submission?.review_checklist_state ?? {}) as Record<string, boolean>;
+    const [coverageVerified, setCoverageVerified] = useState(existingChecklist['coverage_scope'] ?? false);
+    const [budgetAligned, setBudgetAligned] = useState(existingChecklist['budget_alignment'] ?? false);
+
+    const handleCheckToggle = async (key: string, current: boolean, setter: (v: boolean) => void) => {
+        if (!submission) return;
+        const next = !current;
+        setter(next);
+        try {
+            await api.needsAssessmentSubmissions.review(submission.id, {
+                review_checklist_state: { ...existingChecklist, [key]: next },
+            });
+        } catch {
+            setter(current); // revert
+        }
+    };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [availablePackages, setAvailablePackages] = useState<any[]>([]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [packageSets, setPackageSets] = useState<any[]>([]);
     const [liveFilms, setLiveFilms] = useState<InquiryFilmRecord[]>([]);
     const [hasLoadedLiveFilms, setHasLoadedLiveFilms] = useState(false);
-    // Instance-accurate cost data
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [instanceOperators, setInstanceOperators] = useState<any[]>([]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [instanceEquipment, setInstanceEquipment] = useState<any[]>([]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [instanceTaskPreview, setInstanceTaskPreview] = useState<any>(null);
-    const [instanceCostLoaded, setInstanceCostLoaded] = useState(false);
+    // Backend-computed pricing for this inquiry (uses real instance operators)
+    const [inquiryPricing, setInquiryPricing] = useState<{
+        summary: { equipmentCost: number; crewCost: number; subtotal: number };
+        tax: { rate: number; amount: number; totalWithTax: number };
+    } | null>(null);
+    const [pricingLoaded, setPricingLoaded] = useState(false);
 
     // Fetch both service packages and package sets
     useEffect(() => {
@@ -115,52 +161,20 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
         };
     }, [inquiry.id]);
 
-    // Fetch instance operators + equipment + task preview to compute accurate cost
+    // Fetch accurate pricing from backend (uses real inquiry instance operators)
     useEffect(() => {
         if (!inquiry.selected_package_id || !currentBrand?.id) return;
         let cancelled = false;
 
-        Promise.all([
-            api.schedule.instanceOperators.getForInquiry(inquiry.id),
-            api.equipment.getGroupedByCategory(),
-            api.taskLibrary.previewAutoGeneration(inquiry.selected_package_id, currentBrand.id, inquiry.id),
-        ]).then(([ops, grouped, preview]) => {
-            if (cancelled) return;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const flat: any[] = [];
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            Object.values(grouped as Record<string, any>).forEach((group: any) => {
-                if (group && Array.isArray(group.equipment)) flat.push(...group.equipment);
+        api.servicePackages.estimateInquiryPrice(currentBrand.id, inquiry.id)
+            .then((pricing) => {
+                if (cancelled) return;
+                setInquiryPricing(pricing);
+                setPricingLoaded(true);
+            })
+            .catch((_err) => {
+                console.warn('Failed to load inquiry pricing:', _err);
             });
-
-            console.log('[PackageScopeCard] RAW ops from getForInquiry:', JSON.stringify(ops, null, 2));
-            console.log('[PackageScopeCard] ops count:', (ops || []).length);
-            if (ops && ops.length > 0) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                ops.forEach((op: any, i: number) => {
-                    console.log(`[PackageScopeCard] op[${i}]:`, {
-                        id: op.id,
-                        contributor_id: op.contributor_id,
-                        job_role_id: op.job_role_id,
-                        hours: op.hours,
-                        hourly_rate: op.hourly_rate,
-                        day_rate: op.day_rate,
-                        rate_type: op.rate_type,
-                        rate_bracket: op.rate_bracket,
-                        equipment: op.equipment,
-                    });
-                });
-            }
-            console.log('[PackageScopeCard] flat equipment count:', flat.length);
-            console.log('[PackageScopeCard] taskPreview tasks count:', (preview?.tasks ?? []).length);
-
-            setInstanceOperators(ops || []);
-            setInstanceEquipment(flat);
-            setInstanceTaskPreview(preview ?? null);
-            setInstanceCostLoaded(true);
-        }).catch(err => {
-            console.warn('Failed to load instance cost data for PackageScopeCard:', err);
-        });
 
         return () => { cancelled = true; };
     }, [inquiry.id, inquiry.selected_package_id, currentBrand?.id]);
@@ -193,46 +207,13 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     // Package stats (matches the FilledSlot card layout)
     const stats = selectedPkg ? getPackageStats(selectedPkg) : null;
 
-    // Instance-accurate cost: computed from real inquiry crew + equipment + task preview (mirrors SummaryCard on review page)
-    const instanceCrewCost = computeCrewCost(instanceOperators, instanceTaskPreview);
-    const instanceEquipCost = computeEquipmentCost(null, instanceOperators, instanceEquipment);
-    const instanceTotalCost = instanceCrewCost + instanceEquipCost;
-    // Use instance cost if loaded, otherwise fall back to package template cost
-    const displayCost = instanceCostLoaded
-        ? instanceTotalCost
+    // Use backend-computed pricing (accurate, uses real instance operators + 4-tier rate fallback)
+    // Pre-tax subtotal from backend, with tax-inclusive total available
+    const displayCost = pricingLoaded && inquiryPricing
+        ? inquiryPricing.tax.totalWithTax
         : (stats && stats.totalCost > 0 ? stats.totalCost : Number(selectedPkg?.base_price ?? 0));
-
-    console.log('[PackageScopeCard] RENDER STATE:', {
-        instanceCostLoaded,
-        instanceOperators_count: instanceOperators.length,
-        instanceEquipment_count: instanceEquipment.length,
-        instanceTaskPreview_tasks_count: instanceTaskPreview?.tasks?.length ?? 0,
-        instanceCrewCost,
-        instanceEquipCost,
-        instanceTotalCost,
-        statsTotalCost: stats?.totalCost,
-        displayCost,
-        selected_package_id: inquiry.selected_package_id,
-    });
-    if (instanceCostLoaded && instanceOperators.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        instanceOperators.forEach((op: any, i: number) => {
-            const c = op.contributor;
-            const roles = c?.contributor_job_roles || [];
-            const matchingRole = roles.find((r: any) => r.job_role_id === op.job_role_id);
-            console.log(`[PackageScopeCard] op[${i}] rate breakdown:`, {
-                position_name: op.position_name,
-                job_role_id: op.job_role_id,
-                contributor_id: op.contributor_id,
-                hours: op.hours,
-                has_contributor: !!c,
-                contributor_job_roles_count: roles.length,
-                matching_role_bracket: matchingRole?.payment_bracket ?? null,
-                hourly_rate_resolved: matchingRole?.payment_bracket?.hourly_rate ?? c?.default_hourly_rate ?? 0,
-                day_rate_resolved: matchingRole?.payment_bracket?.day_rate ?? 0,
-            });
-        });
-    }
+    const displaySubtotal = pricingLoaded && inquiryPricing ? inquiryPricing.summary.subtotal : null;
+    const displayTax = pricingLoaded && inquiryPricing ? inquiryPricing.tax : null;
 
     const catColor = selectedPkg ? getCategoryColor(selectedPkg.category) : '#64748b';
     const tierColor = selectedSetInfo ? getTierColor(selectedSetInfo.tierLabel) : '#648CFF';
@@ -254,16 +235,70 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                     <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Videocam /> Package
                     </Typography>
-                    <Button
-                        size="small"
-                        variant="outlined"
-                        endIcon={<OpenInNew sx={{ fontSize: 14 }} />}
-                        onClick={() => router.push(`/sales/inquiries/${inquiry.id}/package`)}
-                        sx={{ textTransform: 'none', borderRadius: 1, fontSize: '0.8rem' }}
-                    >
-                        {noPackageSelected ? 'Select Package' : 'Review'}
-                    </Button>
                 </Box>
+
+                {/* NA context strip: budget range + package path */}
+                {(budgetRange || packagePath) && (
+                    <Box sx={{
+                        px: 2.5, py: 1, display: 'flex', gap: 1, flexWrap: 'wrap',
+                        borderBottom: '1px solid rgba(52, 58, 68, 0.2)',
+                        bgcolor: 'rgba(245,158,11,0.03)',
+                    }}>
+                        {packagePath && (
+                            <Chip
+                                size="small"
+                                icon={packagePath === 'build' ? <Build sx={{ fontSize: 12 }} /> : undefined}
+                                label={packagePath === 'build' ? 'Custom Build' : 'Picked a Package'}
+                                sx={{
+                                    height: 20, fontSize: '0.62rem', fontWeight: 600,
+                                    bgcolor: 'rgba(139,92,246,0.1)', color: '#a78bfa',
+                                    border: '1px solid rgba(139,92,246,0.2)',
+                                }}
+                            />
+                        )}
+                        {budgetRange && (
+                            <Chip
+                                size="small"
+                                icon={<AttachMoney sx={{ fontSize: 12 }} />}
+                                label={budgetRange}
+                                sx={{
+                                    height: 20, fontSize: '0.62rem', fontWeight: 600,
+                                    bgcolor: 'rgba(245,158,11,0.1)', color: '#f59e0b',
+                                    border: '1px solid rgba(245,158,11,0.2)',
+                                }}
+                            />
+                        )}
+                    </Box>
+                )}
+
+                {/* Builder summary (custom build path) */}
+                {packagePath === 'build' && (builderActivities?.length || builderFilms?.length || naOperatorCount) && (
+                    <Box sx={{
+                        px: 2.5, py: 1, display: 'flex', gap: 1.5, flexWrap: 'wrap',
+                        borderBottom: '1px solid rgba(52, 58, 68, 0.2)',
+                    }}>
+                        {builderActivities && builderActivities.length > 0 && (
+                            <Typography sx={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                                {builderActivities.length} activities
+                            </Typography>
+                        )}
+                        {builderFilms && builderFilms.length > 0 && (
+                            <Typography sx={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                                {builderFilms.length} films
+                            </Typography>
+                        )}
+                        {naOperatorCount && (
+                            <Typography sx={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                                {naOperatorCount} operators
+                            </Typography>
+                        )}
+                        {naCameraCount && (
+                            <Typography sx={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                                {naCameraCount} cameras
+                            </Typography>
+                        )}
+                    </Box>
+                )}
 
                 {/* No-package warning */}
                 {noPackageSelected && (
@@ -315,11 +350,18 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                                     textTransform: 'uppercase', letterSpacing: '0.5px',
                                 }}
                             />
-                            <Typography sx={{
-                                fontWeight: 800, color: '#f59e0b', fontSize: '1.1rem', fontFamily: 'monospace',
-                            }}>
-                                {formatCurrency(displayCost, currencyCode)}
-                            </Typography>
+                            <Box sx={{ textAlign: 'right' }}>
+                                <Typography sx={{
+                                    fontWeight: 800, color: '#f59e0b', fontSize: '1.1rem', fontFamily: 'monospace',
+                                }}>
+                                    {formatCurrency(displayCost, currencyCode)}
+                                </Typography>
+                                {displayTax && displayTax.rate > 0 && (
+                                    <Typography sx={{ fontSize: '0.55rem', color: '#64748b', fontWeight: 500, mt: -0.25 }}>
+                                        incl. {displayTax.rate}% tax
+                                    </Typography>
+                                )}
+                            </Box>
                         </Box>
 
                         {/* Name + Description */}
@@ -403,6 +445,72 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                                 </Typography>
                             )}
                         </Box>
+                    </Box>
+                )}
+
+                {/* ── Crew conflicts + review checks ── */}
+                {submission && (
+                    <Box sx={{
+                        px: 2.5, py: 1.5,
+                        borderTop: '1px solid rgba(52, 58, 68, 0.3)',
+                    }}>
+                        {/* Crew conflicts */}
+                        {loadingCrewConflicts ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <CircularProgress size={14} sx={{ color: '#64748b' }} />
+                                <Typography sx={{ fontSize: '0.72rem', color: '#64748b' }}>Checking crew availability…</Typography>
+                            </Box>
+                        ) : crewConflicts && (
+                            <Box sx={{ mb: 1 }}>
+                                {crewConflicts.conflicts.length === 0 ? (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                        <CheckCircle sx={{ fontSize: 16, color: '#10b981' }} />
+                                        <Typography sx={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>
+                                            Crew is available
+                                        </Typography>
+                                    </Box>
+                                ) : (
+                                    <Stack spacing={0.5}>
+                                        {crewConflicts.conflicts.map((c) => (
+                                            <Box key={c.contributor_id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                <ErrorOutline sx={{ fontSize: 14, color: '#f59e0b' }} />
+                                                <Typography sx={{ fontSize: '0.72rem', color: '#fcd34d' }}>
+                                                    {c.name} ({c.role}) — busy: {c.event_title}
+                                                </Typography>
+                                            </Box>
+                                        ))}
+                                    </Stack>
+                                )}
+                            </Box>
+                        )}
+
+                        {/* Manual checks */}
+                        <Stack spacing={0}>
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        size="small"
+                                        checked={coverageVerified}
+                                        onChange={() => handleCheckToggle('coverage_scope', coverageVerified, setCoverageVerified)}
+                                        sx={{ color: '#475569', '&.Mui-checked': { color: '#10b981' }, p: 0.5 }}
+                                    />
+                                }
+                                label={<Typography sx={{ fontSize: '0.72rem', color: coverageVerified ? '#10b981' : '#94a3b8' }}>Package covers what they need</Typography>}
+                                sx={{ ml: -0.5 }}
+                            />
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        size="small"
+                                        checked={budgetAligned}
+                                        onChange={() => handleCheckToggle('budget_alignment', budgetAligned, setBudgetAligned)}
+                                        sx={{ color: '#475569', '&.Mui-checked': { color: '#10b981' }, p: 0.5 }}
+                                    />
+                                }
+                                label={<Typography sx={{ fontSize: '0.72rem', color: budgetAligned ? '#10b981' : '#94a3b8' }}>Their budget works</Typography>}
+                                sx={{ ml: -0.5 }}
+                            />
+                        </Stack>
                     </Box>
                 )}
             </CardContent>

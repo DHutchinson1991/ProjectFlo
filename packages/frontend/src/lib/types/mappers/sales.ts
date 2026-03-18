@@ -48,6 +48,8 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
         venue_address: apiResponse.venue_address ?? null,
         venue_lat: apiResponse.venue_lat ?? null,
         venue_lng: apiResponse.venue_lng ?? null,
+        venue_source: apiResponse.venue_source ?? null,
+        venue_updated_at: apiResponse.venue_updated_at ? new Date(apiResponse.venue_updated_at) : null,
         lead_source: apiResponse.lead_source,
         lead_source_details: apiResponse.lead_source_details,
         // Handle case where contact might not be included in update responses
@@ -95,6 +97,7 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
         })),
         quotes: apiResponse.quotes,
         contracts: apiResponse.contracts,
+        welcome_sent_at: apiResponse.welcome_sent_at ?? null,
     };
 }
 

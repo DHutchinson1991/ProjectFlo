@@ -84,63 +84,10 @@ export async function createMoonriseProjects(): Promise<{ brand: Brand; clients:
     // Create sample wedding projects
     logger.sectionDivider('Creating sample wedding projects');
 
-    // Check if projects already exist to avoid duplicates
-    const existingProject1 = await prisma.projects.findFirst({
-        where: {
-            client_id: client1.id,
-            project_name: "Sarah & Michael's Garden Wedding"
-        }
-    });
-
-    const existingProject2 = await prisma.projects.findFirst({
-        where: {
-            client_id: client2.id,
-            project_name: "Emily & David's Vineyard Celebration"
-        }
-    });
-
+    // DISABLED: Sample projects cleared (keeping only inquiry 13)
     let project1, project2;
-
-    let created = 0;
-    let skipped = 0;
-
-    if (!existingProject1) {
-        project1 = await prisma.projects.create({
-            data: {
-                client_id: client1.id,
-                brand_id: moonriseBrand.id,
-                project_name: "Sarah & Michael's Garden Wedding",
-                wedding_date: new Date("2025-09-15T16:00:00Z"), // September 15, 2025
-                booking_date: new Date("2025-01-20T10:00:00Z"), // Booked in January
-                phase: "PLANNING"
-            }
-        });
-        created += 1;
-        logger.created(`Project: "${project1.project_name}" (ID: ${project1.id})`);
-    } else {
-        project1 = existingProject1;
-        skipped += 1;
-        logger.skipped(`Project "${project1.project_name}" already exists (ID: ${project1.id})`);
-    }
-
-    if (!existingProject2) {
-        project2 = await prisma.projects.create({
-            data: {
-                client_id: client2.id,
-                brand_id: moonriseBrand.id,
-                project_name: "Emily & David's Vineyard Celebration",
-                wedding_date: new Date("2025-10-22T17:30:00Z"), // October 22, 2025
-                booking_date: new Date("2025-02-14T14:00:00Z"), // Booked on Valentine's Day
-                phase: "PLANNING"
-            }
-        });
-        created += 1;
-        logger.created(`Project: "${project2.project_name}" (ID: ${project2.id})`);
-    } else {
-        project2 = existingProject2;
-        skipped += 1;
-        logger.skipped(`Project "${project2.project_name}" already exists (ID: ${project2.id})`);
-    }
+    const created = 0;
+    const skipped = 0;
 
     const summary: SeedSummary = { created, updated: 0, skipped, total: created + skipped };
     logger.summary('Projects', summary);
@@ -148,7 +95,7 @@ export async function createMoonriseProjects(): Promise<{ brand: Brand; clients:
     return {
         brand: moonriseBrand,
         clients: [client1, client2],
-        projects: [project1, project2],
+        projects: [],
         contacts: [sarahContact, emilyContact],
         summary
     };

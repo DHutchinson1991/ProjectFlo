@@ -193,6 +193,7 @@ export default function DiscoveryQuestionnaireFormDialog({
     const [template, setTemplate] = useState<DiscoveryQuestionnaireTemplate | null>(null);
     const [responses, setResponses] = useState<Record<string, string | string[]>>({});
     const [callNotes, setCallNotes] = useState('');
+    const [transcript, setTranscript] = useState('');
     const [sectionIndex, setSectionIndex] = useState(0);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -212,9 +213,11 @@ export default function DiscoveryQuestionnaireFormDialog({
                 if (existingSubmission?.responses) {
                     setResponses(existingSubmission.responses as Record<string, string | string[]>);
                     setCallNotes(existingSubmission.call_notes ?? '');
+                    setTranscript(existingSubmission.transcript ?? '');
                 } else {
                     setResponses({});
                     setCallNotes('');
+                    setTranscript('');
                 }
                 setSectionIndex(0);
                 setSubmitted(false);
@@ -251,6 +254,7 @@ export default function DiscoveryQuestionnaireFormDialog({
                 inquiry_id: inquiryId,
                 responses,
                 call_notes: callNotes || undefined,
+                transcript: transcript || undefined,
             });
             setSubmitted(true);
             onSubmitted?.(submission);
@@ -318,7 +322,7 @@ export default function DiscoveryQuestionnaireFormDialog({
                             Discovery Notes Saved!
                         </Typography>
                         <Typography sx={{ color: '#64748b', fontSize: '0.85rem', mb: 3 }}>
-                            The Requirements Discovery task has been automatically completed.
+                            The Discovery Call task has been automatically completed.
                         </Typography>
                         <Button
                             variant="outlined"
@@ -404,10 +408,32 @@ export default function DiscoveryQuestionnaireFormDialog({
                                     </Box>
                                 ))}
 
-                                {/* Call notes on last section */}
+                                                {/* Call notes + transcript on last section */}
                                 {sectionIndex === sections.length - 1 && (
                                     <>
                                         <Divider sx={{ borderColor: 'rgba(100,116,139,0.2)', my: 1 }} />
+                                        <Box>
+                                            <Typography sx={{ color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 600, mb: 0.75 }}>
+                                                Call Transcript
+                                            </Typography>
+                                            <Typography sx={{ color: '#64748b', fontSize: '0.75rem', mb: 1 }}>
+                                                Paste the full call transcript here (optional).
+                                            </Typography>
+                                            <TextField
+                                                fullWidth
+                                                multiline
+                                                minRows={4}
+                                                maxRows={12}
+                                                size="small"
+                                                value={transcript}
+                                                onChange={(e) => setTranscript(e.target.value)}
+                                                placeholder="Paste transcript here…"
+                                                sx={{
+                                                    '& .MuiInputBase-root': { bgcolor: 'rgba(255,255,255,0.04)', color: '#e2e8f0', fontSize: '0.82rem', fontFamily: 'monospace' },
+                                                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(100,116,139,0.3)' },
+                                                }}
+                                            />
+                                        </Box>
                                         <Box>
                                             <Typography sx={{ color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 600, mb: 0.75 }}>
                                                 Overall Call Notes

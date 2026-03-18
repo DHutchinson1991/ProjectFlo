@@ -1,11 +1,10 @@
 import React, { useCallback, useRef, useState, useMemo } from 'react';
-import { Box, Typography, Chip, Tooltip, Checkbox } from '@mui/material';
+import { Box, Typography, Chip, Tooltip } from '@mui/material';
 import {
     CheckCircle,
     EmojiEvents,
     Bolt,
     OpenInNew,
-    ArrowForward,
     TrendingUp,
     AccessTime,
     CalendarMonth,
@@ -240,6 +239,110 @@ const TaskTooltip: React.FC<{
 );
 
 /* ------------------------------------------------------------------ */
+/*  Stage tooltip — shows sub-task checklist inside a stage dot        */
+/* ------------------------------------------------------------------ */
+interface StageItem {
+    label: string;
+    color: string;
+    sectionId: string;
+    tasks: PipelineTask[];
+    completedCount: number;
+    totalCount: number;
+    isDone: boolean;
+    isActive: boolean;
+    isFuture: boolean;
+    stageIndex: number;
+}
+
+const StageTooltip: React.FC<{
+    stage: StageItem;
+    totalStages: number;
+    inquiry: Inquiry & { activity_logs?: unknown[] };
+}> = ({ stage, totalStages, inquiry }) => (
+    <Box sx={{ p: 1.5, maxWidth: 320, minWidth: 220 }}>
+        {/* Stage header */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: stage.color, flexShrink: 0 }} />
+            <Typography sx={{ fontSize: '0.9rem', fontWeight: 800, color: '#f1f5f9' }}>
+                {stage.label}
+            </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1, flexWrap: 'wrap' }}>
+            <Typography sx={{ fontSize: '0.65rem', color: '#64748b' }}>
+                Stage {stage.stageIndex + 1} of {totalStages}
+            </Typography>
+            <Typography sx={{ fontSize: '0.65rem', color: '#64748b' }}>
+                · {stage.completedCount}/{stage.totalCount} tasks
+            </Typography>
+            {stage.isDone && <CheckCircle sx={{ fontSize: 14, color: '#22c55e', ml: 'auto' }} />}
+            {stage.isActive && (
+                <Chip label="Current" size="small" sx={{
+                    ml: 'auto', height: 20, fontSize: '0.6rem', fontWeight: 800,
+                    bgcolor: `${stage.color}25`, color: stage.color, border: `1px solid ${stage.color}40`,
+                    '& .MuiChip-label': { px: 0.75 },
+                }} />
+            )}
+        </Box>
+
+        {/* Mini progress bar */}
+        <Box sx={{ height: 4, borderRadius: 2, bgcolor: 'rgba(52,58,68,0.2)', mb: 1.25, overflow: 'hidden' }}>
+            <Box sx={{
+                height: '100%', borderRadius: 2,
+                width: `${stage.totalCount > 0 ? (stage.completedCount / stage.totalCount) * 100 : 0}%`,
+                bgcolor: stage.color, transition: 'width 0.4s ease',
+            }} />
+        </Box>
+
+        {/* Sub-task list (read-only) */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            {stage.tasks.map((task) => {
+                const autoRule = TASK_AUTO_COMPLETE[task.name];
+                const isTaskDone = autoRule
+                    ? autoRule.check(inquiry)
+                    : task.status === 'Completed';
+
+                return (
+                    <Box
+                        key={task.id}
+                        sx={{
+                            display: 'flex', alignItems: 'center', gap: 0.75,
+                            py: 0.4, px: 0.5, borderRadius: 1,
+                        }}
+                    >
+                        {isTaskDone ? (
+                            <CheckCircle sx={{ fontSize: 13, color: '#22c55e', flexShrink: 0 }} />
+                        ) : (
+                            <Box sx={{
+                                width: 13, height: 13, borderRadius: '50%', flexShrink: 0,
+                                border: '1.5px solid rgba(71,85,105,0.5)',
+                                bgcolor: 'transparent',
+                            }} />
+                        )}
+                        <Typography sx={{
+                            fontSize: '0.72rem', fontWeight: 500, lineHeight: 1.3,
+                            color: isTaskDone ? '#4ade80' : '#94a3b8',
+                            textDecoration: isTaskDone ? 'line-through' : 'none',
+                            opacity: isTaskDone ? 0.7 : 1,
+                            flex: 1,
+                        }}>
+                            {task.name}
+                        </Typography>
+                        {autoRule && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                <Bolt sx={{ fontSize: 9, color: '#FDAB3D', opacity: 0.75 }} />
+                                <Typography sx={{ fontSize: '0.5rem', color: '#FDAB3D', fontWeight: 700, opacity: 0.8 }}>
+                                    Auto
+                                </Typography>
+                            </Box>
+                        )}
+                    </Box>
+                );
+            })}
+        </Box>
+    </Box>
+);
+
+/* ------------------------------------------------------------------ */
 /*  Scroll-to-highlight helper                                         */
 /* ------------------------------------------------------------------ */
 const scrollToSection = (sectionId: string, color: string) => {
@@ -270,8 +373,6 @@ interface PhaseOverviewProps {
     inquiry: Inquiry & { activity_logs?: unknown[] };
     pipelineTasks: PipelineTask[];
     hasRealTasks: boolean;
-    onToggleTask: (task: PipelineTask) => Promise<void> | void;
-    taskActionPending?: boolean;
     /** Legacy props kept for backward compatibility */
     currentPhase?: string;
     currentPhaseData?: WorkflowPhase;
@@ -281,34 +382,10 @@ interface PhaseOverviewProps {
     IconComponent?: React.ComponentType<any>;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Phase-group divider                                                */
-/* ------------------------------------------------------------------ */
-const PhaseDivider: React.FC<{ label: string; color: string }> = ({ label, color }) => (
-    <Box
-        sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            mx: 1.5,
-            gap: 0.25,
-        }}
-    >
-        <Box sx={{ width: 2, height: 20, borderRadius: 1, bgcolor: `${color}30` }} />
-        <ArrowForward
-            sx={{
-                fontSize: 11,
-                color: `${color}66`,
-            }}
-        />
-        <Box sx={{ width: 2, height: 20, borderRadius: 1, bgcolor: `${color}30` }} />
-    </Box>
-);
-
 /* ================================================================== */
 /*  PhaseOverview Component                                            */
 /* ================================================================== */
-const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, hasRealTasks, onToggleTask, taskActionPending = false }) => {
+const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, hasRealTasks }) => {
 
     /* ── Derived state ── */
     const hasTasks = pipelineTasks.length > 0;
@@ -330,8 +407,46 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
     const tempColor = getTempColor(activeIndex, totalTasks);
     const color = tempColor;
 
-    const inquiryTasks = useMemo(() => pipelineTasks.filter(t => t.phase === 'Inquiry'), [pipelineTasks]);
-    const bookingTasks = useMemo(() => pipelineTasks.filter(t => t.phase === 'Booking'), [pipelineTasks]);
+    // Dynamic stage grouping — uses parent/child hierarchy when available,
+    // falls back to sectionId grouping via WORKFLOW_PHASES
+    const stageGroups = useMemo(() => {
+        const hasHierarchy = pipelineTasks.some(t => t.parentStageId != null);
+        if (hasHierarchy) {
+            const result: { label: string; color: string; tasks: PipelineTask[] }[] = [];
+            const seen = new Map<number, number>();
+            for (const task of pipelineTasks) {
+                const key = task.parentStageId;
+                if (key != null && seen.has(key)) {
+                    result[seen.get(key)!].tasks.push(task);
+                } else if (key != null) {
+                    seen.set(key, result.length);
+                    const label = task.sectionId.replace(/-section$/, '').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    result.push({ label, color: task.color, tasks: [task] });
+                } else if (result.length > 0) {
+                    result[result.length - 1].tasks.push(task);
+                } else {
+                    result.push({ label: task.phase, color: task.color, tasks: [task] });
+                }
+            }
+            return result;
+        }
+        // Fallback: group tasks by their sectionId, using WORKFLOW_PHASES order and colors
+        const sectionOrder = WORKFLOW_PHASES.map(p => p.sectionId);
+        const sectionMeta = Object.fromEntries(WORKFLOW_PHASES.map(p => [p.sectionId, { label: p.name, color: p.color }]));
+        const groups = new Map<string, PipelineTask[]>();
+        for (const task of pipelineTasks) {
+            const sec = task.sectionId ?? 'needs-assessment-section';
+            if (!groups.has(sec)) groups.set(sec, []);
+            groups.get(sec)!.push(task);
+        }
+        return sectionOrder
+            .filter(sec => groups.has(sec))
+            .map(sec => ({
+                label: sectionMeta[sec]?.label ?? sec,
+                color: sectionMeta[sec]?.color ?? '#3b82f6',
+                tasks: groups.get(sec)!,
+            }));
+    }, [pipelineTasks]);
 
     const [hoveredId, setHoveredId] = useState<number | null>(null);
     const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -345,153 +460,53 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
         hoverTimeout.current = setTimeout(() => setHoveredId(null), 150);
     }, []);
 
-    /* ── Render a single task dot ── */
-    const renderTaskDot = useCallback(
-        (task: PipelineTask, globalIdx: number) => {
-            // Check if this task is auto-determined from inquiry data
-            const autoRule = TASK_AUTO_COMPLETE[task.name];
-            const autoStatus = autoRule
-                ? { isDone: autoRule.check(inquiry), doneLabel: autoRule.doneLabel, pendingLabel: autoRule.pendingLabel }
-                : undefined;
-
-            // Determine state: auto-complete overrides backend status
-            const isDone = autoStatus
-                ? autoStatus.isDone
-                : (task.status ? task.status === 'Completed' : globalIdx < activeIndex);
-            const isActive = !isDone && (task.status
-                ? globalIdx === activeIndex
-                : globalIdx === activeIndex);
-            const isFuture = !isDone && (task.status
-                ? globalIdx > activeIndex
-                : globalIdx > activeIndex);
-            const TaskIcon = task.icon;
-            const isHovered = hoveredId === task.id;
-            // Temperature color for this specific dot
-            const dotTempColor = getTempColor(globalIdx, totalTasks);
-            const dotColor = isDone ? dotTempColor : isActive ? dotTempColor : task.color;
-
-            const handleDotClick = () => {
-                scrollToSection(task.sectionId, dotColor);
+    /* ── Build enriched stage items from groups ── */
+    const stageItems: StageItem[] = useMemo(() => {
+        let foundActive = false;
+        return stageGroups.map((group, idx) => {
+            const completed = group.tasks.filter(t => {
+                const autoRule = TASK_AUTO_COMPLETE[t.name];
+                return autoRule ? autoRule.check(inquiry) : t.status === 'Completed';
+            }).length;
+            const total = group.tasks.length;
+            const isDone = completed >= total;
+            const isActive = !isDone && !foundActive;
+            if (isActive) foundActive = true;
+            return {
+                label: group.label,
+                color: group.color,
+                sectionId: group.tasks[0]?.sectionId ?? '',
+                tasks: group.tasks,
+                completedCount: completed,
+                totalCount: total,
+                isDone,
+                isActive,
+                isFuture: !isDone && !isActive,
+                stageIndex: idx,
             };
+        });
+    }, [stageGroups, inquiry]);
 
-            return (
-                <Tooltip
-                    key={task.id}
-                    title={
-                        <TaskTooltip
-                            task={{ ...task, color: dotColor }}
-                            idx={globalIdx}
-                            total={totalTasks}
-                            isDone={isDone}
-                            isActive={isActive}
-                            onToggle={!autoStatus && hasRealTasks && task.inquiry_task_id ? () => { if (!taskActionPending) void onToggleTask(task); } : undefined}
-                            pending={taskActionPending}
-                            autoComplete={autoStatus}
-                        />
-                    }
-                    arrow
-                    placement="top"
-                    enterDelay={150}
-                    leaveDelay={100}
-                    slotProps={{
-                        tooltip: {
-                            sx: {
-                                bgcolor: 'rgba(15, 17, 23, 0.97)',
-                                border: `1px solid ${dotColor}30`,
-                                backdropFilter: 'blur(16px)',
-                                boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 20px ${dotColor}10`,
-                                '& .MuiTooltip-arrow': { color: 'rgba(15, 17, 23, 0.97)' },
-                            },
-                        },
-                    }}
-                >
-                    <Box
-                        onClick={handleDotClick}
-                        onMouseEnter={() => handleHoverEnter(task.id)}
-                        onMouseLeave={handleHoverLeave}
-                        sx={{
-                            position: 'relative',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            cursor: 'pointer',
-                            '&:hover .pfo-dot': {
-                                transform: 'scale(1.15)',
-                                boxShadow: `0 0 20px ${dotColor}40`,
-                            },
-                        }}
-                    >
-                        {isActive && (
-                            <Box
-                                sx={{
-                                    position: 'absolute',
-                                    inset: -5,
-                                    borderRadius: '50%',
-                                    '--ring-color': `${dotColor}50`,
-                                    animation: 'pfo-pulse-ring 2s ease-in-out infinite',
-                                }}
-                            />
-                        )}
-
-                        <Box
-                            className="pfo-dot"
-                            sx={{
-                                width: isActive ? 46 : 34,
-                                height: isActive ? 46 : 34,
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                bgcolor: isDone
-                                    ? `${dotColor}20`
-                                    : isActive
-                                      ? `${dotColor}1A`
-                                      : isHovered
-                                        ? 'rgba(52, 58, 68, 0.25)'
-                                        : 'rgba(52, 58, 68, 0.12)',
-                                border: `2px solid ${
-                                    isDone
-                                        ? `${dotColor}60`
-                                        : isActive
-                                          ? dotColor
-                                          : isHovered
-                                            ? `${dotColor}40`
-                                            : 'rgba(52, 58, 68, 0.22)'
-                                }`,
-                                transition: 'all 0.3s ease',
-                                boxShadow: isActive
-                                    ? `0 0 24px ${dotColor}40, 0 0 48px ${dotColor}15`
-                                    : isDone
-                                      ? `0 0 10px ${dotColor}18`
-                                      : 'none',
-                            }}
-                        >
-                            {isDone ? (
-                                <CheckCircle sx={{ fontSize: isActive ? 22 : 17, color: dotColor }} />
-                            ) : (
-                                <TaskIcon
-                                    sx={{
-                                        fontSize: isActive ? 22 : 16,
-                                        color: isActive ? dotColor : isFuture ? '#475569' : dotColor,
-                                        opacity: isFuture ? 0.5 : 1,
-                                    }}
-                                />
-                            )}
-                        </Box>
-                    </Box>
-                </Tooltip>
-            );
-        },
-        [activeIndex, hoveredId, totalTasks, hasRealTasks, inquiry, handleHoverEnter, handleHoverLeave, onToggleTask, taskActionPending],
-    );
+    const totalStages = stageItems.length;
+    const activeStage = stageItems.find(s => s.isActive) ?? stageItems[stageItems.length - 1];
+    const completedStages = stageItems.filter(s => s.isDone).length;
+    // Current sub-task within the active stage.
+    // Split into manual (actionable) vs auto (system-handled) so the hero
+    // never tells the user to act on something the system will do itself.
+    const pendingTasks = activeStage?.tasks.filter(t => {
+        const autoRule = TASK_AUTO_COMPLETE[t.name];
+        return !(autoRule ? autoRule.check(inquiry) : t.status === 'Completed');
+    }) ?? [];
+    const pendingAutoSubTask = pendingTasks.find(t => !!(TASK_AUTO_COMPLETE[t.name] || t.is_auto_only)) ?? null;
+    const currentSubTask = pendingTasks.find(t => !TASK_AUTO_COMPLETE[t.name] && !t.is_auto_only) ?? null;
 
     /* ── Connector between dots (light path when done) ── */
     const Connector: React.FC<{ done: boolean; dotColor: string; nextColor?: string }> = ({ done, dotColor, nextColor }) => (
         <Box
             sx={{
                 flex: 1,
-                maxWidth: 24,
-                minWidth: 8,
+                maxWidth: 48,
+                minWidth: 12,
                 height: done ? 3.5 : 2,
                 borderRadius: 2,
                 position: 'relative',
@@ -508,33 +523,6 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
             }}
         />
     );
-
-    /* ── Render a group of task dots with connectors ── */
-    const renderGroup = (tasks: PipelineTask[], globalOffset: number) =>
-        tasks.map((task, localIdx) => {
-            const globalIdx = globalOffset + localIdx;
-            const prevIdx = globalOffset + localIdx - 1;
-            // Connector is lit if the current dot is completed (including auto-complete rules)
-            const connDone = hasRealTasks
-                ? (() => {
-                      const autoRule = TASK_AUTO_COMPLETE[task.name];
-                      if (autoRule && autoRule.check(inquiry)) return true;
-                      return task.status === 'Completed';
-                  })()
-                : globalIdx <= activeIndex;
-            return (
-                <React.Fragment key={task.id}>
-                    {localIdx > 0 && (
-                        <Connector
-                            done={connDone}
-                            dotColor={getTempColor(prevIdx, totalTasks)}
-                            nextColor={getTempColor(globalIdx, totalTasks)}
-                        />
-                    )}
-                    {renderTaskDot(task, globalIdx)}
-                </React.Fragment>
-            );
-        });
 
     /* ── Legacy fallback (no task library data) ── */
     if (!hasTasks) {
@@ -589,18 +577,13 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                     }}
                 />
 
-                {/* ════════ Current Task Hero ════════ */}
+                {/* ════════ Current Stage Hero ════════ */}
                 <Box sx={{ px: 3, pt: 3.5, pb: 2, position: 'relative', zIndex: 2 }}>
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 2,
-                        }}
-                    >
-                        {/* Active task icon — large */}
-                        {currentTask && (() => {
-                            const ActiveIcon = currentTask.icon;
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        {/* Active stage icon — large */}
+                        {(() => {
+                            const StageIcon = currentSubTask?.icon ?? pendingAutoSubTask?.icon ?? currentTask?.icon;
+                            if (!StageIcon) return null;
                             return (
                                 <Box
                                     sx={{
@@ -618,16 +601,16 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                                         flexShrink: 0,
                                     }}
                                 >
-                                    <ActiveIcon sx={{ fontSize: 26, color }} />
+                                    <StageIcon sx={{ fontSize: 26, color }} />
                                 </Box>
                             );
                         })()}
 
-                        {/* Task name + phase + motivational line */}
+                        {/* Stage name + current sub-task */}
                         <Box sx={{ minWidth: 0, flex: 1 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                                 <Chip
-                                    label={currentTask?.phase ?? 'Inquiry'}
+                                    label={activeStage?.label ?? 'Inquiry'}
                                     size="small"
                                     sx={{
                                         height: 22,
@@ -640,37 +623,44 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                                     }}
                                 />
                                 <Typography sx={{ fontSize: '0.7rem', color: '#475569' }}>
-                                    Step {activeIndex + 1} of {totalTasks}
+                                    Stage {(activeStage?.stageIndex ?? 0) + 1} of {totalStages}
                                 </Typography>
+                                {activeStage && (
+                                    <Typography sx={{ fontSize: '0.65rem', color: '#475569' }}>
+                                        · {activeStage.completedCount}/{activeStage.totalCount} tasks
+                                    </Typography>
+                                )}
                             </Box>
                             <Typography
                                 sx={{
                                     fontSize: '1.1rem',
                                     fontWeight: 800,
-                                    color: '#f1f5f9',
+                                    color: currentSubTask ? '#f1f5f9' : 'rgba(253,171,61,0.7)',
                                     letterSpacing: '-0.01em',
                                     lineHeight: 1.2,
+                                    fontStyle: currentSubTask ? 'normal' : 'italic',
                                 }}
                             >
-                                {currentTask?.name ?? 'Loading...'}
+                                {currentSubTask?.name ?? pendingAutoSubTask?.name ?? currentTask?.name ?? 'Loading...'}
                             </Typography>
-                            {currentTask?.description && (
-                                <Typography
-                                    sx={{
-                                        fontSize: '0.75rem',
-                                        color: '#64748b',
-                                        mt: 0.5,
-                                        lineHeight: 1.4,
-                                    }}
-                                >
-                                    {currentTask.description}
+                            {!currentSubTask && pendingAutoSubTask && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.375 }}>
+                                    <Bolt sx={{ fontSize: 12, color: 'rgba(253,171,61,0.6)' }} />
+                                    <Typography sx={{ fontSize: '0.72rem', color: 'rgba(253,171,61,0.55)', fontStyle: 'italic' }}>
+                                        System handling · awaiting trigger
+                                    </Typography>
+                                </Box>
+                            )}
+                            {currentSubTask?.description && (
+                                <Typography sx={{ fontSize: '0.75rem', color: '#64748b', mt: 0.5, lineHeight: 1.4 }}>
+                                    {currentSubTask.description}
                                 </Typography>
                             )}
-                            {/* Due date & effort for current task */}
-                            {currentTask && (currentTask.due_date || currentTask.estimated_hours != null) && (
+                            {/* Due date & effort — only for manual tasks */}
+                            {currentSubTask && (currentSubTask.due_date || currentSubTask.estimated_hours != null) && (
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.75, flexWrap: 'wrap' }}>
-                                    {currentTask.due_date && (() => {
-                                        const due = new Date(currentTask.due_date);
+                                    {currentSubTask.due_date && (() => {
+                                        const due = new Date(currentSubTask.due_date);
                                         const now = new Date();
                                         now.setHours(0, 0, 0, 0);
                                         due.setHours(0, 0, 0, 0);
@@ -691,11 +681,11 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                                             </Box>
                                         );
                                     })()}
-                                    {currentTask.estimated_hours != null && (
+                                    {currentSubTask.estimated_hours != null && (
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                             <AccessTime sx={{ fontSize: 13, color: '#64748b' }} />
                                             <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#94a3b8' }}>
-                                                {Number(currentTask.estimated_hours)}h est.
+                                                {Number(currentSubTask.estimated_hours)}h est.
                                             </Typography>
                                         </Box>
                                     )}
@@ -725,39 +715,9 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                     </Box>
                 </Box>
 
-                {/* ════════ Pipeline Task Track ════════ */}
+                {/* ════════ Stage Dot Track ════════ */}
                 <Box sx={{ px: 3, pb: 1.5, position: 'relative', zIndex: 2 }}>
-                    {/* Phase labels above the track */}
-                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mb: 1.5 }}>
-                        {inquiryTasks.length > 0 && (
-                            <Typography
-                                sx={{
-                                    fontSize: '0.65rem',
-                                    fontWeight: 800,
-                                    color: '#3b82f688',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.1em',
-                                }}
-                            >
-                                Inquiry ({inquiryTasks.length})
-                            </Typography>
-                        )}
-                        {bookingTasks.length > 0 && (
-                            <Typography
-                                sx={{
-                                    fontSize: '0.65rem',
-                                    fontWeight: 800,
-                                    color: '#8b5cf688',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.1em',
-                                }}
-                            >
-                                Booking ({bookingTasks.length})
-                            </Typography>
-                        )}
-                    </Box>
-
-                    {/* The dot track */}
+                    {/* The stage dot track — one dot per stage */}
                     <Box
                         sx={{
                             display: 'flex',
@@ -765,40 +725,179 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                             justifyContent: 'center',
                             gap: 0,
                             mb: 1.5,
-                            flexWrap: 'nowrap',
-                            overflowX: 'auto',
                             py: 0.75,
-                            '&::-webkit-scrollbar': { display: 'none' },
                         }}
                     >
-                        {renderGroup(inquiryTasks, 0)}
-
-                        {inquiryTasks.length > 0 && bookingTasks.length > 0 && (() => {
-                            const allInquiryDone = hasRealTasks
-                                ? inquiryTasks.every(t => {
-                                      const autoRule = TASK_AUTO_COMPLETE[t.name];
-                                      if (autoRule && autoRule.check(inquiry)) return true;
-                                      return t.status === 'Completed';
-                                  })
-                                : activeIndex >= inquiryTasks.length;
+                        {stageItems.map((stage, idx) => {
+                            const isHovered = hoveredId === idx;
+                            const dotColor = stage.isDone
+                                ? getTempColor(idx, totalStages)
+                                : stage.isActive
+                                  ? getTempColor(idx, totalStages)
+                                  : stage.color;
+                            const StageIcon = stage.tasks[0]?.icon;
+                            const nextPendingTask = stage.tasks.find(t => {
+                                const autoRule = TASK_AUTO_COMPLETE[t.name];
+                                return !(autoRule ? autoRule.check(inquiry) : t.status === 'Completed');
+                            });
+                            const nextTaskIsAuto = !!(nextPendingTask && (TASK_AUTO_COMPLETE[nextPendingTask.name] || nextPendingTask.is_auto_only));
                             return (
-                            <>
-                                <Connector
-                                    done={allInquiryDone}
-                                    dotColor={getTempColor(inquiryTasks.length - 1, totalTasks)}
-                                    nextColor={getTempColor(inquiryTasks.length, totalTasks)}
-                                />
-                                <PhaseDivider label="▸" color="#64748b" />
-                                <Connector
-                                    done={allInquiryDone}
-                                    dotColor={getTempColor(inquiryTasks.length - 1, totalTasks)}
-                                    nextColor={getTempColor(inquiryTasks.length, totalTasks)}
-                                />
-                            </>
+                                <React.Fragment key={stage.label}>
+                                    {idx > 0 && (
+                                        <Connector
+                                            done={stageItems[idx - 1].isDone}
+                                            dotColor={getTempColor(idx - 1, totalStages)}
+                                            nextColor={getTempColor(idx, totalStages)}
+                                        />
+                                    )}
+                                    <Tooltip
+                                        title={
+                                            <StageTooltip
+                                                stage={stage}
+                                                totalStages={totalStages}
+                                                inquiry={inquiry}
+                                            />
+                                        }
+                                        arrow
+                                        placement="top"
+                                        enterDelay={150}
+                                        leaveDelay={200}
+                                        slotProps={{
+                                            tooltip: {
+                                                sx: {
+                                                    bgcolor: 'rgba(15, 17, 23, 0.97)',
+                                                    border: `1px solid ${dotColor}30`,
+                                                    backdropFilter: 'blur(16px)',
+                                                    boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 20px ${dotColor}10`,
+                                                    '& .MuiTooltip-arrow': { color: 'rgba(15, 17, 23, 0.97)' },
+                                                },
+                                            },
+                                        }}
+                                    >
+                                        <Box
+                                            onClick={() => scrollToSection(stage.sectionId, dotColor)}
+                                            onMouseEnter={() => handleHoverEnter(idx)}
+                                            onMouseLeave={handleHoverLeave}
+                                            sx={{
+                                                position: 'relative',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: 'center',
+                                                cursor: 'pointer',
+                                                '&:hover .pfo-dot': {
+                                                    transform: 'scale(1.12)',
+                                                    boxShadow: `0 0 20px ${dotColor}40`,
+                                                },
+                                            }}
+                                        >
+                                            {stage.isActive && (
+                                                <Box
+                                                    sx={{
+                                                        position: 'absolute',
+                                                        inset: -5,
+                                                        borderRadius: '50%',
+                                                        '--ring-color': `${dotColor}50`,
+                                                        animation: 'pfo-pulse-ring 2s ease-in-out infinite',
+                                                    }}
+                                                />
+                                            )}
+                                            <Box
+                                                className="pfo-dot"
+                                                sx={{
+                                                    width: stage.isActive ? 48 : 38,
+                                                    height: stage.isActive ? 48 : 38,
+                                                    borderRadius: '50%',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    bgcolor: stage.isDone
+                                                        ? `${dotColor}20`
+                                                        : stage.isActive
+                                                          ? `${dotColor}1A`
+                                                          : isHovered
+                                                            ? 'rgba(52, 58, 68, 0.25)'
+                                                            : 'rgba(52, 58, 68, 0.12)',
+                                                    border: `2px solid ${
+                                                        stage.isDone
+                                                            ? `${dotColor}60`
+                                                            : stage.isActive
+                                                              ? dotColor
+                                                              : isHovered
+                                                                ? `${dotColor}40`
+                                                                : 'rgba(52, 58, 68, 0.22)'
+                                                    }`,
+                                                    transition: 'all 0.3s ease',
+                                                    boxShadow: stage.isActive
+                                                        ? `0 0 24px ${dotColor}40, 0 0 48px ${dotColor}15`
+                                                        : stage.isDone
+                                                          ? `0 0 10px ${dotColor}18`
+                                                          : 'none',
+                                                }}
+                                            >
+                                                {stage.isDone ? (
+                                                    <CheckCircle sx={{ fontSize: stage.isActive ? 22 : 18, color: dotColor }} />
+                                                ) : StageIcon ? (
+                                                    <StageIcon
+                                                        sx={{
+                                                            fontSize: stage.isActive ? 24 : 18,
+                                                            color: stage.isActive ? dotColor : stage.isFuture ? '#475569' : dotColor,
+                                                            opacity: stage.isFuture ? 0.5 : 1,
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <Box sx={{
+                                                        width: 8, height: 8, borderRadius: '50%',
+                                                        bgcolor: stage.isFuture ? '#475569' : dotColor,
+                                                        opacity: stage.isFuture ? 0.5 : 1,
+                                                    }} />
+                                                )}
+                                            </Box>
+                                            {/* Auto badge — shown when next pending task is system-automated */}
+                                            {nextTaskIsAuto && (
+                                                <Box sx={{
+                                                    position: 'absolute',
+                                                    top: stage.isActive ? 30 : 23,
+                                                    right: -8,
+                                                    width: 15,
+                                                    height: 15,
+                                                    borderRadius: '50%',
+                                                    bgcolor: 'rgba(12,14,20,0.95)',
+                                                    border: '1.5px solid rgba(253,171,61,0.65)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    zIndex: 2,
+                                                    boxShadow: '0 0 6px rgba(253,171,61,0.3)',
+                                                }}>
+                                                    <Bolt sx={{ fontSize: 9, color: '#FDAB3D' }} />
+                                                </Box>
+                                            )}
+                                            {/* Stage label below the dot */}
+                                            <Typography
+                                                sx={{
+                                                    fontSize: '0.52rem',
+                                                    fontWeight: 700,
+                                                    color: stage.isDone
+                                                        ? `${dotColor}aa`
+                                                        : stage.isActive
+                                                          ? dotColor
+                                                          : '#475569',
+                                                    mt: 0.5,
+                                                    textAlign: 'center',
+                                                    maxWidth: 64,
+                                                    lineHeight: 1.2,
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                }}
+                                            >
+                                                {stage.label}
+                                            </Typography>
+                                        </Box>
+                                    </Tooltip>
+                                </React.Fragment>
                             );
-                        })()}
-
-                        {renderGroup(bookingTasks, inquiryTasks.length)}
+                        })}
                     </Box>
                 </Box>
 
@@ -859,8 +958,8 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                         {(() => {
                             // Define milestones at meaningful pipeline points
                             const milestones = [
-                                { pct: Math.round((inquiryTasks.length / totalTasks) * 100), label: 'Qualified', color: '#6366f1' },
-                                { pct: Math.round(((inquiryTasks.length + Math.ceil(bookingTasks.length * 0.4)) / totalTasks) * 100), label: 'Proposal Sent', color: '#a855f7' },
+                                { pct: 30, label: 'Qualified', color: '#6366f1' },
+                                { pct: 65, label: 'Proposal Sent', color: '#a855f7' },
                                 { pct: Math.round(((totalTasks - 1) / totalTasks) * 100), label: 'Ready to Book', color: '#22c55e' },
                             ];
                             return milestones.map((ms) => {
@@ -900,8 +999,8 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                     <Box sx={{ position: 'relative', height: 16, mt: 0.5 }}>
                         {(() => {
                             const milestones = [
-                                { pct: Math.round((inquiryTasks.length / totalTasks) * 100), label: 'Qualified', color: '#6366f1' },
-                                { pct: Math.round(((inquiryTasks.length + Math.ceil(bookingTasks.length * 0.4)) / totalTasks) * 100), label: 'Proposal Sent', color: '#a855f7' },
+                                { pct: 30, label: 'Qualified', color: '#6366f1' },
+                                { pct: 65, label: 'Proposal Sent', color: '#a855f7' },
                                 { pct: Math.round(((totalTasks - 1) / totalTasks) * 100), label: 'Ready to Book', color: '#22c55e' },
                             ];
                             return milestones.map((ms) => {
@@ -928,14 +1027,14 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                     </Box>
 
                     {/* Motivational footer */}
-                    {!isComplete && completedCount > 0 && (
+                    {!isComplete && completedStages > 0 && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1, justifyContent: 'center' }}>
                             <TrendingUp sx={{ fontSize: 13, color: '#22c55e' }} />
                             <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: '#4ade80' }}>
-                                {completedCount} {completedCount === 1 ? 'step' : 'steps'} completed
+                                {completedStages} {completedStages === 1 ? 'stage' : 'stages'} completed
                             </Typography>
                             <Typography sx={{ fontSize: '0.68rem', color: '#475569' }}>
-                                · {totalTasks - completedCount} remaining
+                                · {totalStages - completedStages} remaining
                             </Typography>
                         </Box>
                     )}

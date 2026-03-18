@@ -61,6 +61,7 @@ import { PaymentSchedulesModule } from './payment-schedules/payment-schedules.mo
 import { MontagePresetsModule } from './content/montage-presets/montage-presets.module';
 import { FilmStructureTemplatesModule } from './content/film-structure-templates/film-structure-templates.module';
 import { SceneAudioSourcesModule } from './content/scene-audio-sources/scene-audio-sources.module';
+import { PricingModule } from './business/pricing/pricing.module';
 
 @Module({
   imports: [
@@ -116,6 +117,7 @@ import { SceneAudioSourcesModule } from './content/scene-audio-sources/scene-aud
     MontagePresetsModule,
     FilmStructureTemplatesModule,
     SceneAudioSourcesModule,
+    PricingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

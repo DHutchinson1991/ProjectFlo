@@ -47,6 +47,10 @@ export class CreateInquiryDto {
     lead_source_details?: string;
 
     @IsOptional()
+    @IsString()
+    guest_count?: string;
+
+    @IsOptional()
     @IsInt()
     selected_package_id?: number;
 }
@@ -96,11 +100,19 @@ export class UpdateInquiryDto {
 
     @IsOptional()
     @IsString()
+    venue_source?: string;
+
+    @IsOptional()
+    @IsString()
     lead_source?: string;
 
     @IsOptional()
     @IsString()
     lead_source_details?: string;
+
+    @IsOptional()
+    @IsString()
+    guest_count?: string;
 
     @IsOptional()
     @IsInt()

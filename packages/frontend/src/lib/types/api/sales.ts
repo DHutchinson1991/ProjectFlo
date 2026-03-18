@@ -18,6 +18,8 @@ export interface InquiryApiResponse {
     venue_address?: string | null;
     venue_lat?: number | null;
     venue_lng?: number | null;
+    venue_source?: string | null;
+    venue_updated_at?: string | null;
     lead_source: string | null;
     lead_source_details: string | null;
     event_type_id?: number | null;
@@ -44,6 +46,7 @@ export interface InquiryApiResponse {
     } | null;
     created_at: string;
     updated_at: string;
+    welcome_sent_at?: string | null;
     estimates?: EstimateApiResponse[];
     proposals?: ProposalApiResponse[];
     quotes?: Array<{ id: number; status: string }>;

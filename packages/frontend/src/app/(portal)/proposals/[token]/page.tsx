@@ -32,6 +32,7 @@ import {
 } from "@mui/icons-material";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { computeTaxBreakdown } from "@/lib/utils/pricing";
 
 /* ------------------------------------------------------------------ */
 /* Keyframe animations                                                 */
@@ -1321,8 +1322,7 @@ export default function PublicProposalPage() {
                                                 </Typography>
                                                 <Typography sx={{ color: colors.muted, fontSize: "0.85rem" }}>
                                                     {formatCurrency(
-                                                        parseFloat(estimate.total_amount) -
-                                                            parseFloat(estimate.total_amount) / (1 + parseFloat(estimate.tax_rate) / 100),
+                                                        computeTaxBreakdown(parseFloat(estimate.total_amount), parseFloat(estimate.tax_rate)).taxAmount,
                                                         currency,
                                                     )}
                                                 </Typography>
@@ -1357,9 +1357,11 @@ export default function PublicProposalPage() {
                                                 }}
                                             >
                                                 {formatCurrency(
-                                                    parseFloat(estimate.total_amount) > 0
-                                                        ? estimate.total_amount
-                                                        : (pkg?.base_price ?? estimate.total_amount),
+                                                    (() => {
+                                                        const amt = parseFloat(estimate.total_amount);
+                                                        if (amt <= 0) return pkg?.base_price ?? estimate.total_amount;
+                                                        return computeTaxBreakdown(amt, estimate.tax_rate ? parseFloat(estimate.tax_rate) : 0).total;
+                                                    })(),
                                                     currency,
                                                 )}
                                             </Typography>

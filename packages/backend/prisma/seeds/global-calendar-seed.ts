@@ -421,17 +421,6 @@ async function seedCalendar(): Promise<SeedSummary> {
                     skills_needed: ['Presentation', 'Client Relations'],
                     complexity_score: 3,
                 },
-                {
-                    name: "Requirements Discovery",
-                    description: "Detailed discussion of client needs and expectations",
-                    phase: 'Inquiry' as const,
-                    pricing_type: 'Fixed' as const,
-                    effort_hours: 1.5,
-                    order_index: 2,
-                    brand_id: moonriseBrand.id,
-                    skills_needed: ['Consultation', 'Planning'],
-                    complexity_score: 4,
-                },
 
                 // BOOKING PHASE
                 {

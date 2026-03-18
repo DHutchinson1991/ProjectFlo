@@ -127,6 +127,7 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
                 contents={formData.contents}
                 allEquipment={allEquipment}
                 currency={currentBrand?.currency || 'USD'}
+                taxRate={Number(currentBrand?.default_tax_rate ?? 0)}
                 cardSx={cardSx}
             />
 

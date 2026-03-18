@@ -10,6 +10,9 @@ import {
     Chip,
     Collapse,
     LinearProgress,
+    TextField,
+    Button,
+    CircularProgress,
 } from "@mui/material";
 import { alpha, keyframes } from "@mui/material/styles";
 import {
@@ -31,9 +34,15 @@ import {
     ExpandMore as ExpandMoreIcon,
     OpenInNew as OpenInNewIcon,
     Videocam as FilmIcon,
+    Edit as EditIcon,
+    Save as SaveIcon,
+    Close as CloseIcon,
+    CardGiftcard as WelcomePackIcon,
+    MarkEmailRead as MarkEmailReadIcon,
 } from "@mui/icons-material";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { computeTaxBreakdown } from "@/lib/utils/pricing";
 
 /* ------------------------------------------------------------------ */
 /* Keyframe animations                                                 */
@@ -96,7 +105,7 @@ interface PortalBrand {
     currency: string | null;
 }
 
-interface AnswerItem { prompt: string; field_type: string; value: unknown }
+interface AnswerItem { field_key: string; prompt: string; field_type: string; value: unknown; options?: unknown }
 interface ReviewStep { key: string; label: string; description: string | null; answers: AnswerItem[] }
 interface InquiryReview { submission_id: number; template_name: string; submitted_at: string; steps: ReviewStep[] }
 
@@ -139,6 +148,7 @@ interface PortalData {
     event_type: string | null;
     venue: string | null;
     venue_address: string | null;
+    is_contract_signed?: boolean;
     contact: { first_name: string | null; last_name: string | null };
     brand: PortalBrand | null;
     sections: {
@@ -148,6 +158,7 @@ interface PortalData {
         proposal: Section<{ proposal_status: string; share_token: string | null; client_response: string | null }> | null;
         contract: Section<ContractData> | null;
         invoices: Section<InvoiceData[]> | null;
+        welcome_pack: Section<{ sent_at: string }> | null;
     };
 }
 
@@ -407,6 +418,24 @@ export default function ClientPortalPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Questionnaire edit mode
+    const [editingQuestionnaire, setEditingQuestionnaire] = useState(false);
+    const [editResponses, setEditResponses] = useState<Record<string, unknown>>({});
+    const [savingQuestionnaire, setSavingQuestionnaire] = useState(false);
+
+    // Package browsing
+    const [browsingPackages, setBrowsingPackages] = useState(false);
+    const [availablePackages, setAvailablePackages] = useState<Array<{
+        id: number; name: string; description: string | null;
+        category: string | null; base_price: string | number;
+        currency: string; contents: unknown;
+    }>>([]);
+    const [loadingPackages, setLoadingPackages] = useState(false);
+    const [selectedPkgId, setSelectedPkgId] = useState<number | null>(null);
+    const [packageNotes, setPackageNotes] = useState("");
+    const [submittingPackage, setSubmittingPackage] = useState(false);
+    const [packageRequestSent, setPackageRequestSent] = useState(false);
+
     const heroReveal = useReveal();
     const footerReveal = useReveal();
 
@@ -425,6 +454,76 @@ export default function ClientPortalPage() {
     useEffect(() => {
         if (token) fetchPortal();
     }, [token, fetchPortal]);
+
+    /* ── Questionnaire edit handlers ─────────────────────── */
+
+    const startEditingQuestionnaire = () => {
+        if (!data?.sections?.questionnaire) return;
+        const current: Record<string, unknown> = {};
+        for (const step of data.sections.questionnaire.data.steps) {
+            for (const a of step.answers) {
+                current[a.field_key] = a.value;
+            }
+        }
+        setEditResponses(current);
+        setEditingQuestionnaire(true);
+    };
+
+    const saveQuestionnaireEdits = async () => {
+        if (!data?.sections?.questionnaire) return;
+        const submissionId = data.sections.questionnaire.data.submission_id;
+        try {
+            setSavingQuestionnaire(true);
+            const updates: Record<string, unknown> = {};
+            for (const step of data.sections.questionnaire.data.steps) {
+                for (const a of step.answers) {
+                    if (editResponses[a.field_key] !== undefined && editResponses[a.field_key] !== a.value) {
+                        updates[a.field_key] = editResponses[a.field_key];
+                    }
+                }
+            }
+            if (Object.keys(updates).length > 0) {
+                await api.publicNeedsAssessment.updateSubmission(submissionId, updates);
+                await fetchPortal();
+            }
+            setEditingQuestionnaire(false);
+        } catch {
+            // Keep editing mode open on error
+        } finally {
+            setSavingQuestionnaire(false);
+        }
+    };
+
+    /* ── Package browsing handlers ───────────────────────── */
+
+    const openPackageBrowser = async () => {
+        setBrowsingPackages(true);
+        setLoadingPackages(true);
+        try {
+            const result = await api.clientPortal.getPackageOptions(token);
+            setAvailablePackages(result.packages ?? []);
+        } catch {
+            setAvailablePackages([]);
+        } finally {
+            setLoadingPackages(false);
+        }
+    };
+
+    const submitPackageRequest = async () => {
+        try {
+            setSubmittingPackage(true);
+            await api.clientPortal.submitPackageRequest(token, {
+                selected_package_id: selectedPkgId ?? undefined,
+                notes: packageNotes || undefined,
+            });
+            setPackageRequestSent(true);
+            await fetchPortal();
+        } catch {
+            // stay on form
+        } finally {
+            setSubmittingPackage(false);
+        }
+    };
 
     /* ── Derived ─────────────────────────────────────────── */
 
@@ -464,17 +563,17 @@ export default function ClientPortalPage() {
     /* ── Section configs for the journey progress bar ─── */
 
     const journeySteps = [
-        { key: "questionnaire", label: "Inquiry", color: colors.green, icon: <FormIcon sx={{ fontSize: 18 }} />, section: sections.questionnaire },
-        { key: "package", label: "Package", color: "#f59e0b", icon: <PackageIcon sx={{ fontSize: 18 }} />, section: sections.package },
-        { key: "estimate", label: "Estimate", color: "#06b6d4", icon: <EstimateIcon sx={{ fontSize: 18 }} />, section: sections.estimate },
-        { key: "proposal", label: "Proposal", color: "#a855f7", icon: <ProposalIcon sx={{ fontSize: 18 }} />, section: sections.proposal },
-        { key: "contract", label: "Contract", color: "#6366f1", icon: <ContractIcon sx={{ fontSize: 18 }} />, section: sections.contract },
-        { key: "invoices", label: "Payments", color: "#ec4899", icon: <InvoiceIcon sx={{ fontSize: 18 }} />, section: sections.invoices },
+        { key: "inquiry", label: "Inquiry Submitted", color: colors.green, icon: <FormIcon sx={{ fontSize: 18 }} />, done: !!sections.questionnaire },
+        { key: "estimate", label: "Estimate Sent", color: "#06b6d4", icon: <EstimateIcon sx={{ fontSize: 18 }} />, done: !!sections.estimate?.data },
+        { key: "proposal_sent", label: "Proposal Sent", color: "#a855f7", icon: <ProposalIcon sx={{ fontSize: 18 }} />, done: !!(sections.proposal?.data?.proposal_status) },
+        { key: "proposal", label: "Proposal Accepted", color: "#8b5cf6", icon: <CheckCircleIcon sx={{ fontSize: 18 }} />, done: sections.proposal?.data?.client_response === "Accepted" },
+        { key: "contract", label: "Contract Signed", color: "#6366f1", icon: <ContractIcon sx={{ fontSize: 18 }} />, done: sections.contract?.data?.contract_status === "Signed" },
+        { key: "booked", label: "Booking Confirmed", color: "#ec4899", icon: <PackageIcon sx={{ fontSize: 18 }} />, done: data.status === "Booked" },
+        { key: "welcome_pack", label: "Welcome Pack", color: "#10b981", icon: <WelcomePackIcon sx={{ fontSize: 18 }} />, done: !!sections.welcome_pack },
     ];
 
-    const completedCount = journeySteps.filter(s => s.section?.status === "complete").length;
-    const availableCount = journeySteps.filter(s => s.section !== null).length;
-    const progress = availableCount > 0 ? Math.round((completedCount / journeySteps.length) * 100) : 0;
+    const completedCount = journeySteps.filter(s => s.done).length;
+    const progress = Math.round((completedCount / journeySteps.length) * 100);
 
     /* ================================================================ */
     /* Render                                                            */
@@ -640,30 +739,25 @@ export default function ClientPortalPage() {
                     {/* Journey step indicators */}
                     <Box sx={{ display: "flex", gap: { xs: 0.5, sm: 1 }, justifyContent: "center", flexWrap: "wrap" }}>
                         {journeySteps.map((step) => {
-                            const isComplete = step.section?.status === "complete";
-                            const isAvailable = step.section !== null;
                             return (
                                 <Box key={step.key} sx={{
                                     display: "flex", alignItems: "center", gap: 0.5,
                                     px: { xs: 1, sm: 1.5 }, py: 0.75, borderRadius: "10px",
-                                    bgcolor: isComplete
+                                    bgcolor: step.done
                                         ? alpha(step.color, 0.1)
-                                        : isAvailable
-                                            ? alpha(step.color, 0.05)
-                                            : alpha(colors.border, 0.15),
+                                        : alpha(colors.border, 0.15),
                                     border: `1px solid ${
-                                        isComplete ? alpha(step.color, 0.3)
-                                            : isAvailable ? alpha(step.color, 0.15)
+                                        step.done ? alpha(step.color, 0.3)
                                             : alpha(colors.border, 0.3)
                                     }`,
                                     transition: "all 0.3s",
                                 }}>
-                                    <Box sx={{ color: isComplete ? step.color : isAvailable ? alpha(step.color, 0.7) : colors.muted, display: "flex" }}>
-                                        {isComplete ? <CheckCircleIcon sx={{ fontSize: 14 }} /> : step.icon}
+                                    <Box sx={{ color: step.done ? step.color : colors.muted, display: "flex" }}>
+                                        {step.done ? <CheckCircleIcon sx={{ fontSize: 14 }} /> : step.icon}
                                     </Box>
                                     <Typography sx={{
-                                        fontSize: "0.65rem", fontWeight: isComplete ? 700 : 500,
-                                        color: isAvailable ? colors.text : alpha(colors.muted, 0.5),
+                                        fontSize: "0.65rem", fontWeight: step.done ? 700 : 500,
+                                        color: step.done ? colors.text : alpha(colors.muted, 0.5),
                                         display: { xs: "none", sm: "block" },
                                     }}>
                                         {step.label}
@@ -690,10 +784,59 @@ export default function ClientPortalPage() {
                             : undefined}
                         locked={!sections.questionnaire}
                         lockedMessage="Your questionnaire will appear here after submission"
+                        defaultOpen
                         colors={colors}
                     >
                         {sections.questionnaire && (
                             <Box sx={{ px: { xs: 2.5, md: 3 }, py: 2.5 }}>
+                                {/* Edit / Save / Cancel controls */}
+                                <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2, gap: 1 }}>
+                                    {editingQuestionnaire ? (
+                                        <>
+                                            <Button
+                                                size="small"
+                                                onClick={() => setEditingQuestionnaire(false)}
+                                                startIcon={<CloseIcon sx={{ fontSize: 14 }} />}
+                                                sx={{
+                                                    color: colors.muted, fontSize: "0.75rem", textTransform: "none",
+                                                    borderRadius: "8px", px: 1.5,
+                                                    "&:hover": { bgcolor: alpha(colors.border, 0.2) },
+                                                }}
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button
+                                                size="small"
+                                                onClick={saveQuestionnaireEdits}
+                                                disabled={savingQuestionnaire}
+                                                startIcon={savingQuestionnaire ? <CircularProgress size={12} /> : <SaveIcon sx={{ fontSize: 14 }} />}
+                                                sx={{
+                                                    background: `linear-gradient(135deg, ${colors.green}, ${alpha(colors.green, 0.7)})`,
+                                                    color: "#fff", fontSize: "0.75rem", textTransform: "none",
+                                                    borderRadius: "8px", px: 2,
+                                                    "&:hover": { opacity: 0.9 },
+                                                }}
+                                            >
+                                                Save Changes
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <Button
+                                            size="small"
+                                            onClick={startEditingQuestionnaire}
+                                            startIcon={<EditIcon sx={{ fontSize: 14 }} />}
+                                            sx={{
+                                                color: colors.accent, fontSize: "0.75rem", textTransform: "none",
+                                                borderRadius: "8px", px: 1.5,
+                                                border: `1px solid ${alpha(colors.accent, 0.3)}`,
+                                                "&:hover": { bgcolor: alpha(colors.accent, 0.08) },
+                                            }}
+                                        >
+                                            Edit Answers
+                                        </Button>
+                                    )}
+                                </Box>
+
                                 <Stack spacing={2.5}>
                                     {sections.questionnaire.data.steps.map((step) => (
                                         <Box key={step.key}>
@@ -702,13 +845,34 @@ export default function ClientPortalPage() {
                                             </Typography>
                                             <Stack spacing={1}>
                                                 {step.answers.map((answer, idx) => (
-                                                    <Box key={idx} sx={{ display: "flex", gap: 2, py: 1, px: 2, borderRadius: "10px", bgcolor: alpha(colors.card, 0.5), border: `1px solid ${alpha(colors.border, 0.35)}` }}>
+                                                    <Box key={idx} sx={{ display: "flex", gap: 2, py: 1, px: 2, borderRadius: "10px", bgcolor: alpha(colors.card, 0.5), border: `1px solid ${alpha(colors.border, 0.35)}`, alignItems: "center" }}>
                                                         <Typography sx={{ color: colors.muted, fontSize: "0.72rem", fontWeight: 500, minWidth: "35%", flexShrink: 0 }}>
                                                             {answer.prompt}
                                                         </Typography>
-                                                        <Typography sx={{ color: colors.text, fontSize: "0.82rem", lineHeight: 1.5, wordBreak: "break-word" }}>
-                                                            {formatAnswerValue(answer.value)}
-                                                        </Typography>
+                                                        {editingQuestionnaire ? (
+                                                            <TextField
+                                                                size="small"
+                                                                fullWidth
+                                                                value={editResponses[answer.field_key] ?? ""}
+                                                                onChange={(e) => setEditResponses((prev) => ({ ...prev, [answer.field_key]: e.target.value }))}
+                                                                variant="outlined"
+                                                                sx={{
+                                                                    "& .MuiOutlinedInput-root": {
+                                                                        fontSize: "0.82rem", color: colors.text,
+                                                                        bgcolor: alpha(colors.card, 0.8),
+                                                                        borderRadius: "8px",
+                                                                        "& fieldset": { borderColor: alpha(colors.border, 0.5) },
+                                                                        "&:hover fieldset": { borderColor: alpha(colors.accent, 0.3) },
+                                                                        "&.Mui-focused fieldset": { borderColor: colors.accent },
+                                                                    },
+                                                                    "& .MuiOutlinedInput-input": { py: 0.75, px: 1.5 },
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <Typography sx={{ color: colors.text, fontSize: "0.82rem", lineHeight: 1.5, wordBreak: "break-word" }}>
+                                                                {formatAnswerValue(answer.value)}
+                                                            </Typography>
+                                                        )}
                                                     </Box>
                                                 ))}
                                             </Stack>
@@ -720,18 +884,50 @@ export default function ClientPortalPage() {
                     </ExpandableCard>
 
                     {/* PACKAGE */}
-                    <ExpandableCard
-                        icon={<PackageIcon sx={{ fontSize: 20 }} />}
-                        iconColor="#f59e0b"
-                        title={sections.package?.data.name ?? "Your Package"}
-                        subtitle={sections.package?.data.base_price
-                            ? `Starting at ${fmtCurrency(sections.package.data.base_price, sections.package.data.currency || currency)}`
-                            : undefined}
-                        statusChip={sections.package ? { label: "Selected", color: "#f59e0b" } : undefined}
-                        locked={!sections.package}
-                        lockedMessage="Your package details will appear here once selected"
-                        colors={colors}
-                    >
+                    {(() => {
+                        const hasPackage = !!sections.package;
+                        const showBrowser = browsingPackages && !hasPackage;
+                        const showBrowseButton = !hasPackage && !browsingPackages;
+
+                        const cardProps = {
+                            icon: <PackageIcon sx={{ fontSize: 20 }} />,
+                            iconColor: "#f59e0b",
+                            title: hasPackage ? (sections.package?.data.name ?? "Your Package") : "Your Package",
+                            subtitle: hasPackage
+                                ? `Starting at ${fmtCurrency(sections.package!.data.base_price, sections.package!.data.currency || currency)}`
+                                : showBrowser ? "Browse available packages" : "Select a package to get started",
+                            statusChip: hasPackage ? { label: "Selected", color: "#f59e0b" } as const : undefined,
+                            locked: false,
+                            colors,
+                        };
+
+                        // No package, not browsing: show action button, no expandable children
+                        if (showBrowseButton) {
+                            return (
+                                <ExpandableCard
+                                    {...cardProps}
+                                    action={
+                                        <Button
+                                            size="small"
+                                            onClick={(e) => { e.stopPropagation(); openPackageBrowser(); }}
+                                            sx={{
+                                                fontSize: "0.75rem", fontWeight: 600,
+                                                color: "#f59e0b", borderColor: alpha("#f59e0b", 0.3),
+                                                borderRadius: "10px", textTransform: "none",
+                                                "&:hover": { borderColor: "#f59e0b", bgcolor: alpha("#f59e0b", 0.08) },
+                                            }}
+                                            variant="outlined"
+                                        >
+                                            Browse Packages
+                                        </Button>
+                                    }
+                                />
+                            );
+                        }
+
+                        return (
+                            <ExpandableCard {...cardProps} defaultOpen>
+                        {/* Already-selected package view */}
                         {sections.package && (
                             <Box sx={{ px: { xs: 2.5, md: 3 }, py: 2.5 }}>
                                 {sections.package.data.description && (
@@ -758,7 +954,132 @@ export default function ClientPortalPage() {
                                 )}
                             </Box>
                         )}
+
+                        {/* Package browser view */}
+                        {browsingPackages && !sections.package && (
+                            <Box sx={{ px: { xs: 2.5, md: 3 }, py: 2.5 }}>
+                                {loadingPackages ? (
+                                    <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                                        <CircularProgress size={28} sx={{ color: "#f59e0b" }} />
+                                    </Box>
+                                ) : packageRequestSent ? (
+                                    <Box sx={{ textAlign: "center", py: 3 }}>
+                                        <CheckCircleIcon sx={{ fontSize: 40, color: colors.green, mb: 1 }} />
+                                        <Typography sx={{ color: colors.text, fontWeight: 600, mb: 0.5 }}>
+                                            Package Request Submitted
+                                        </Typography>
+                                        <Typography sx={{ color: colors.muted, fontSize: "0.82rem" }}>
+                                            We&apos;ll review your selection and get back to you soon.
+                                        </Typography>
+                                    </Box>
+                                ) : (
+                                    <>
+                                        {/* Package comparison grid */}
+                                        <Box sx={{
+                                            display: "grid",
+                                            gridTemplateColumns: { xs: "1fr", sm: availablePackages.length > 2 ? "repeat(3, 1fr)" : `repeat(${availablePackages.length || 1}, 1fr)` },
+                                            gap: 2, mb: 3,
+                                        }}>
+                                            {availablePackages.map((pkg) => {
+                                                const isSelected = selectedPkgId === pkg.id;
+                                                return (
+                                                    <Box
+                                                        key={pkg.id}
+                                                        onClick={() => setSelectedPkgId(isSelected ? null : pkg.id)}
+                                                        sx={{
+                                                            p: 2.5, borderRadius: "14px", cursor: "pointer",
+                                                            bgcolor: isSelected ? alpha("#f59e0b", 0.08) : alpha(colors.bg, 0.5),
+                                                            border: `1.5px solid ${isSelected ? "#f59e0b" : alpha(colors.border, 0.5)}`,
+                                                            transition: "all 0.25s cubic-bezier(0.16,1,0.3,1)",
+                                                            "&:hover": {
+                                                                borderColor: isSelected ? "#f59e0b" : alpha("#f59e0b", 0.3),
+                                                                bgcolor: alpha("#f59e0b", 0.04),
+                                                            },
+                                                        }}
+                                                    >
+                                                        <Typography sx={{ color: colors.text, fontWeight: 600, fontSize: "0.9rem", mb: 0.5 }}>
+                                                            {pkg.name}
+                                                        </Typography>
+                                                        <Typography sx={{ color: "#f59e0b", fontWeight: 700, fontSize: "1.1rem", mb: 1 }}>
+                                                            {fmtCurrency(pkg.base_price, pkg.currency)}
+                                                        </Typography>
+                                                        {pkg.description && (
+                                                            <Typography sx={{ color: colors.muted, fontSize: "0.78rem", lineHeight: 1.5 }}>
+                                                                {pkg.description}
+                                                            </Typography>
+                                                        )}
+                                                        {isSelected && (
+                                                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 1.5 }}>
+                                                                <CheckCircleIcon sx={{ fontSize: 16, color: "#f59e0b" }} />
+                                                                <Typography sx={{ color: "#f59e0b", fontSize: "0.72rem", fontWeight: 600 }}>Selected</Typography>
+                                                            </Box>
+                                                        )}
+                                                    </Box>
+                                                );
+                                            })}
+                                        </Box>
+
+                                        {availablePackages.length === 0 && (
+                                            <Typography sx={{ color: colors.muted, fontSize: "0.85rem", textAlign: "center", py: 2 }}>
+                                                No packages available at this time.
+                                            </Typography>
+                                        )}
+
+                                        {/* Notes field */}
+                                        <TextField
+                                            multiline
+                                            rows={3}
+                                            placeholder="Any notes or customization requests…"
+                                            value={packageNotes}
+                                            onChange={(e) => setPackageNotes(e.target.value)}
+                                            fullWidth
+                                            sx={{
+                                                mb: 2,
+                                                "& .MuiOutlinedInput-root": {
+                                                    color: colors.text, fontSize: "0.85rem",
+                                                    bgcolor: alpha(colors.bg, 0.5),
+                                                    borderRadius: "12px",
+                                                    "& fieldset": { borderColor: alpha(colors.border, 0.5) },
+                                                    "&:hover fieldset": { borderColor: alpha("#f59e0b", 0.3) },
+                                                    "&.Mui-focused fieldset": { borderColor: "#f59e0b" },
+                                                },
+                                                "& .MuiInputBase-input::placeholder": { color: colors.muted, opacity: 1 },
+                                            }}
+                                        />
+
+                                        {/* Actions */}
+                                        <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end" }}>
+                                            <Button
+                                                size="small"
+                                                onClick={() => { setBrowsingPackages(false); setSelectedPkgId(null); setPackageNotes(""); }}
+                                                sx={{ color: colors.muted, textTransform: "none", fontSize: "0.8rem" }}
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button
+                                                size="small"
+                                                variant="contained"
+                                                disabled={!selectedPkgId || submittingPackage}
+                                                onClick={submitPackageRequest}
+                                                startIcon={submittingPackage ? <CircularProgress size={14} /> : undefined}
+                                                sx={{
+                                                    textTransform: "none", fontWeight: 600, fontSize: "0.8rem",
+                                                    borderRadius: "10px",
+                                                    background: `linear-gradient(135deg, #f59e0b, #d97706)`,
+                                                    "&:hover": { background: `linear-gradient(135deg, #fbbf24, #f59e0b)` },
+                                                    "&.Mui-disabled": { opacity: 0.5 },
+                                                }}
+                                            >
+                                                {submittingPackage ? "Submitting…" : "Request This Package"}
+                                            </Button>
+                                        </Box>
+                                    </>
+                                )}
+                            </Box>
+                        )}
                     </ExpandableCard>
+                        );
+                    })()}
 
                     {/* ESTIMATE */}
                     <ExpandableCard
@@ -801,9 +1122,8 @@ export default function ClientPortalPage() {
                                 groups.push({ category, items, subtotal });
                             }
 
-                            const subtotal = toNum(est.total_amount);
-                            const taxRate = est.tax_rate ? toNum(est.tax_rate) : 0;
-                            const preTax = taxRate > 0 ? subtotal / (1 + taxRate / 100) : subtotal;
+                            const itemsSubtotal = toNum(est.total_amount); // total_amount is pre-tax (pure items sum)
+                            const { taxRate, taxAmount, total: grandTotal } = computeTaxBreakdown(itemsSubtotal, est.tax_rate ? toNum(est.tax_rate) : 0);
 
                             return (
                                 <Box sx={{ px: { xs: 2.5, md: 3 }, py: 2.5 }}>
@@ -901,11 +1221,11 @@ export default function ClientPortalPage() {
                                                     Total Amount
                                                 </Typography>
                                                 <Typography sx={{ color: "#06b6d4", fontSize: "1.5rem", fontWeight: 700, lineHeight: 1.2 }}>
-                                                    {fmtCurrency(est.total_amount, currency)}
+                                                    {fmtCurrency(grandTotal, currency)}
                                                 </Typography>
                                                 {taxRate > 0 && (
                                                     <Typography sx={{ color: colors.muted, fontSize: "0.65rem", mt: 0.25 }}>
-                                                        {fmtCurrency(preTax, currency)} + {taxRate}% tax
+                                                        {fmtCurrency(itemsSubtotal, currency)} + {taxRate}% tax
                                                     </Typography>
                                                 )}
                                             </Box>
@@ -916,7 +1236,7 @@ export default function ClientPortalPage() {
                                             <Stack spacing={1} sx={{ mb: 1.5 }}>
                                                 <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                                                     <Typography sx={{ color: colors.muted, fontSize: "0.72rem" }}>Subtotal</Typography>
-                                                    <Typography sx={{ color: colors.text, fontSize: "0.72rem", fontWeight: 600 }}>{fmtCurrency(preTax, currency)}</Typography>
+                                                    <Typography sx={{ color: colors.text, fontSize: "0.72rem", fontWeight: 600 }}>{fmtCurrency(itemsSubtotal, currency)}</Typography>
                                                 </Box>
                                                 {taxRate > 0 && (
                                                     <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1131,6 +1451,38 @@ export default function ClientPortalPage() {
                             </Box>
                         )}
                     </ExpandableCard>
+
+                    {/* WELCOME PACK */}
+                    {sections.welcome_pack && (
+                        <ExpandableCard
+                            icon={<WelcomePackIcon sx={{ fontSize: 20 }} />}
+                            iconColor="#10b981"
+                            title="Welcome Pack"
+                            subtitle={`Sent ${formatDate(sections.welcome_pack.data.sent_at)}`}
+                            statusChip={{ label: "Sent", color: "#10b981" }}
+                            locked={false}
+                            lockedMessage=""
+                            defaultOpen
+                            colors={colors}
+                        >
+                            <Box sx={{ px: { xs: 2.5, md: 3 }, py: 2.5 }}>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 2, p: 2, borderRadius: "12px", bgcolor: alpha("#10b981", 0.06), border: `1px solid ${alpha("#10b981", 0.15)}`, mb: 2 }}>
+                                    <MarkEmailReadIcon sx={{ fontSize: 32, color: "#10b981", flexShrink: 0 }} />
+                                    <Box>
+                                        <Typography sx={{ color: colors.text, fontWeight: 700, fontSize: "0.95rem", mb: 0.25 }}>
+                                            You&apos;re all booked! 🎉
+                                        </Typography>
+                                        <Typography sx={{ color: colors.muted, fontSize: "0.82rem", lineHeight: 1.5 }}>
+                                            Your welcome pack has been sent. We&apos;re so excited to work with you and can&apos;t wait for your big day!
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                                <Typography sx={{ color: alpha(colors.muted, 0.7), fontSize: "0.68rem", textAlign: "right" }}>
+                                    Welcome pack sent on {formatDate(sections.welcome_pack.data.sent_at, { month: "long", day: "numeric", year: "numeric" })}
+                                </Typography>
+                            </Box>
+                        </ExpandableCard>
+                    )}
 
                 </Stack>
             </Box>

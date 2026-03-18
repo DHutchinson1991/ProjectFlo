@@ -12,6 +12,7 @@ export class SubjectTypeTemplateResponseDto {
         role_name: string;
         description?: string;
         is_core: boolean;
+        is_group: boolean;
         order_index: number;
     }>;
 }

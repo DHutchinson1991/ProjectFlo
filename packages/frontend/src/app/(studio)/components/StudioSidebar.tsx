@@ -34,10 +34,6 @@ const studioNavItems = [
         title: "Inquiries",
         href: "/sales/inquiries",
         icon: <InquiriesIcon />,
-        subItems: [
-            { title: "All Inquiries", href: "/sales/inquiries" },
-            { title: "Pipeline", href: "/sales/pipeline" },
-        ],
     },
     {
         title: "Customers",
@@ -99,7 +95,7 @@ export default function StudioSidebar() {
             return pathname === "/dashboard" || pathname === "/";
         }
         if (href === "/sales/inquiries") {
-            return pathname.startsWith("/sales/inquiries") || pathname.startsWith("/sales/pipeline");
+            return pathname.startsWith("/sales/inquiries");
         }
         if (href === "/sales/clients") {
             return pathname.startsWith("/sales/clients");

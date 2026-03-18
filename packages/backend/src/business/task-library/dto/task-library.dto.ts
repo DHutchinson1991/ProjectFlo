@@ -83,6 +83,11 @@ export class CreateTaskLibraryDto {
     default_job_role_id?: number;
 
     @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    default_contributor_id?: number;
+
+    @IsOptional()
     @IsString()
     notes?: string;
 
@@ -98,6 +103,19 @@ export class CreateTaskLibraryDto {
     @IsNumber()
     @Type(() => Number)
     due_date_offset_days?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    parent_task_id?: number;
+
+    @IsOptional()
+    @IsBoolean()
+    is_stage?: boolean;
+
+    @IsOptional()
+    @IsString()
+    stage_color?: string;
 }
 
 export class UpdateTaskLibraryDto {
@@ -155,6 +173,11 @@ export class UpdateTaskLibraryDto {
     default_job_role_id?: number | null;
 
     @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    default_contributor_id?: number | null;
+
+    @IsOptional()
     @IsString()
     notes?: string;
 
@@ -170,6 +193,19 @@ export class UpdateTaskLibraryDto {
     @IsNumber()
     @Type(() => Number)
     due_date_offset_days?: number | null;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    parent_task_id?: number | null;
+
+    @IsOptional()
+    @IsBoolean()
+    is_stage?: boolean;
+
+    @IsOptional()
+    @IsString()
+    stage_color?: string | null;
 }
 
 export class TaskLibraryQueryDto {

@@ -5,6 +5,7 @@ import type { ConversionData } from '../_lib';
 
 interface KpiMetricsStripProps {
     dealValue: number;
+    taxRate?: number;
     daysInPipeline: number;
     conversionData: ConversionData;
     completedCount: number;
@@ -13,6 +14,7 @@ interface KpiMetricsStripProps {
 
 const KpiMetricsStrip: React.FC<KpiMetricsStripProps> = ({
     dealValue,
+    taxRate,
     daysInPipeline,
     conversionData,
     completedCount,
@@ -34,6 +36,9 @@ const KpiMetricsStrip: React.FC<KpiMetricsStripProps> = ({
             <Typography sx={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981', letterSpacing: '-0.02em' }}>
                 {dealValue > 0 ? `$${dealValue.toLocaleString()}` : '\u2014'}
             </Typography>
+            {dealValue > 0 && (taxRate ?? 0) > 0 && (
+                <Typography sx={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 500 }}>incl. {taxRate}% tax</Typography>
+            )}
             {dealValue === 0 && <Typography sx={{ fontSize: '0.65rem', color: '#475569', mt: 0.25 }}>Create an estimate</Typography>}
         </Box>
 

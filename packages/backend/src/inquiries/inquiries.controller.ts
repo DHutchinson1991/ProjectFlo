@@ -176,4 +176,17 @@ export class InquiriesController {
     async getScheduleDiff(@Param('id', ParseIntPipe) id: number) {
         return this.scheduleService.getScheduleDiff({ inquiry_id: id });
     }
+
+    // ─── Welcome Pack ───────────────────────────────────────────────
+
+    /** Mark welcome pack as sent for this inquiry */
+    @Post(':id/send-welcome-pack')
+    async sendWelcomePack(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        return this.inquiriesService.sendWelcomePack(id, brandIdNum);
+    }
 }

@@ -57,6 +57,13 @@ export interface PipelineTask {
     due_date?: string | null;
     completed_at?: string | null;
     inquiry_task_id?: number; // the actual inquiry_tasks.id
+    parentStageId?: number;   // parent inquiry_task.id for grouping
+    assigned_to_id?: number | null;
+    assigned_to?: {
+        id: number;
+        contact: { first_name: string; last_name: string; email?: string };
+    } | null;
+    is_auto_only?: boolean;
 }
 
 // ─── Needs assessment category ───────────────────────────────────────

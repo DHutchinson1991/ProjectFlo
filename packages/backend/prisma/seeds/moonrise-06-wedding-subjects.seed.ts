@@ -104,12 +104,14 @@ async function seedWeddingSubjects() {
               role_name: 'Wedding Party',
               description: 'General wedding party member',
               is_core: false,
+              is_group: true,
               order_index: 8
             },
             {
               role_name: 'Guest',
               description: 'Wedding guest',
               is_core: false,
+              is_group: true,
               order_index: 9
             }
           ]

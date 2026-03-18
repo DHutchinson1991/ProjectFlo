@@ -576,16 +576,41 @@ export class ProjectPackageCloneService {
   async syncInquiryScheduleFromPackage(inquiryId: number) {
     const inquiry = await this.prisma.inquiries.findUnique({
       where: { id: inquiryId },
-      select: { id: true, source_package_id: true },
+      select: { id: true, source_package_id: true, selected_package_id: true },
     });
     if (!inquiry) throw new NotFoundException(`Inquiry ${inquiryId} not found`);
-    if (!inquiry.source_package_id) {
+    const packageId = inquiry.source_package_id ?? inquiry.selected_package_id;
+    if (!packageId) {
       throw new NotFoundException(`Inquiry ${inquiryId} has no source package`);
+    }
+
+    if (!inquiry.source_package_id && inquiry.selected_package_id) {
+      const pkg = await this.prisma.service_packages.findUnique({
+        where: { id: inquiry.selected_package_id },
+        select: { id: true, name: true, base_price: true, currency: true, contents: true },
+      });
+
+      await this.prisma.inquiries.update({
+        where: { id: inquiryId },
+        data: {
+          source_package_id: inquiry.selected_package_id,
+          package_contents_snapshot: pkg
+            ? {
+                snapshot_taken_at: new Date().toISOString(),
+                package_id: pkg.id,
+                package_name: pkg.name,
+                base_price: pkg.base_price ? Number(pkg.base_price) : 0,
+                currency: pkg.currency ?? 'USD',
+                contents: pkg.contents,
+              }
+            : Prisma.JsonNull,
+        },
+      });
     }
 
     return this.prisma.$transaction(async (tx) => {
       await this._deleteInstanceData(tx, { inquiry_id: inquiryId });
-      return this._clone(tx, { inquiryId, packageId: inquiry.source_package_id! });
+      return this._clone(tx, { inquiryId, packageId });
     });
   }
 

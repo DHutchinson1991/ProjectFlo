@@ -96,7 +96,7 @@ const QuestionnaireReviewCard: React.FC<QuestionnaireReviewCardProps> = ({
     // Build the public questionnaire URL
     const questionnaireUrl =
         typeof window !== 'undefined'
-            ? `${window.location.origin}/sales/needs-assessment?inquiry=${inquiry.id}`
+            ? `${window.location.origin}/needs-assessment/preview?inquiry=${inquiry.id}`
             : '';
 
     const handleCopyLink = () => {

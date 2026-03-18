@@ -13,6 +13,11 @@ import {
     IconButton,
     Chip,
     Grid,
+    Checkbox,
+    CircularProgress,
+    Divider,
+    TextField,
+    FormControlLabel,
 } from '@mui/material';
 import {
     Assignment,
@@ -28,9 +33,16 @@ import {
     Phone,
     Notes,
     HelpOutline,
+    Warning,
+    CheckCircle,
+    RateReview,
+    ErrorOutline,
+    InfoOutlined,
+    Videocam as VideocamIcon,
 } from '@mui/icons-material';
-import type { NeedsAssessmentSubmission } from '@/lib/types';
+import type { NeedsAssessmentSubmission, NaDateConflictResult, NaCrewConflictResult } from '@/lib/types';
 import { groupNaResponses, fmtVal } from '../_lib';
+import { api } from '@/lib/api';
 
 /* ------------------------------------------------------------------ */
 /*  Section icon map                                                   */
@@ -67,14 +79,62 @@ export default function NeedsAssessmentDialog({
     inquiryId,
 }: NeedsAssessmentDialogProps) {
     const [naCopied, setNaCopied] = useState(false);
+    const [portalToken, setPortalToken] = useState<string | null>(null);
 
-    const questionnaireUrl =
-        typeof window !== 'undefined'
-            ? `${window.location.origin}/sales/needs-assessment?inquiry=${inquiryId}`
+    // ── Review state ──────────────────────────────────────────────────────────
+    const [dateConflicts, setDateConflicts] = useState<NaDateConflictResult | null>(null);
+    const [crewConflicts, setCrewConflicts] = useState<NaCrewConflictResult | null>(null);
+    const [loadingConflicts, setLoadingConflicts] = useState(false);
+    const [reviewNotes, setReviewNotes] = useState('');
+    const [checklistState, setChecklistState] = useState<Record<string, boolean>>({});
+    const [submittingReview, setSubmittingReview] = useState(false);
+    const [reviewDone, setReviewDone] = useState(false);
+
+    // Generate (or fetch) the portal token when the dialog opens
+    React.useEffect(() => {
+        if (open && inquiryId) {
+            api.clientPortal.generateToken(inquiryId)
+                .then((res) => setPortalToken(res.portal_token))
+                .catch(() => setPortalToken(null));
+        }
+    }, [open, inquiryId]);
+
+    // Fetch conflict data and restore review state when dialog opens with a submission
+    React.useEffect(() => {
+        if (open && submission) {
+            // Restore persisted review state
+            setReviewNotes(submission.review_notes ?? '');
+            setChecklistState((submission.review_checklist_state as Record<string, boolean>) ?? {});
+            setReviewDone(!!submission.reviewed_at);
+
+            // Fetch conflict data
+            setLoadingConflicts(true);
+            setDateConflicts(null);
+            setCrewConflicts(null);
+            Promise.all([
+                api.needsAssessmentSubmissions.checkDateConflicts(submission.id),
+                api.needsAssessmentSubmissions.checkCrewConflicts(submission.id),
+            ])
+                .then(([dc, cc]) => {
+                    setDateConflicts(dc);
+                    setCrewConflicts(cc);
+                })
+                .catch(() => {
+                    setDateConflicts({ wedding_date: null, booked_conflicts: [], soft_conflicts: [] });
+                    setCrewConflicts({ conflicts: [] });
+                })
+                .finally(() => setLoadingConflicts(false));
+        }
+    }, [open, submission]);
+
+    const portalUrl =
+        typeof window !== 'undefined' && portalToken
+            ? `${window.location.origin}/portal/${portalToken}`
             : '';
 
     const handleCopyNaLink = () => {
-        navigator.clipboard.writeText(questionnaireUrl).then(() => {
+        if (!portalUrl) return;
+        navigator.clipboard.writeText(portalUrl).then(() => {
             setNaCopied(true);
             setTimeout(() => setNaCopied(false), 2000);
         });
@@ -89,6 +149,33 @@ export default function NeedsAssessmentDialog({
         ...naGrouped.filter(g => g.label !== 'Budget'),
         ...(naUncategorized.length > 0 ? [{ label: 'Other', entries: naUncategorized }] : []),
     ];
+
+    /* ---- manual checklist items ---- */
+    const MANUAL_CHECKLIST = [
+        { key: 'venue_feasibility', label: 'Venue feasibility checked' },
+        { key: 'coverage_scope', label: 'Coverage scope verified' },
+        { key: 'budget_alignment', label: 'Budget alignment confirmed' },
+    ];
+
+    const handleToggleChecklist = (key: string) => {
+        setChecklistState(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const handleCompleteReview = async () => {
+        if (!submission) return;
+        setSubmittingReview(true);
+        try {
+            await api.needsAssessmentSubmissions.review(submission.id, {
+                review_notes: reviewNotes || undefined,
+                review_checklist_state: checklistState,
+            });
+            setReviewDone(true);
+        } catch {
+            // silently ignore — user can retry
+        } finally {
+            setSubmittingReview(false);
+        }
+    };
 
     /* ---- render ---- */
     return (
@@ -135,7 +222,7 @@ export default function NeedsAssessmentDialog({
                     </Box>
                     <Box>
                         <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', color: '#f1f5f9', lineHeight: 1.2 }}>
-                            Needs Assessment
+                            Inquiry Wizard
                         </Typography>
                         {submission && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
@@ -289,6 +376,166 @@ export default function NeedsAssessmentDialog({
                                 ))}
                             </Grid>
                         )}
+                        {/* ── Review Panel ── */}
+                        <Box sx={{ mt: 3 }}>
+                            <Divider sx={{ borderColor: 'rgba(52, 58, 68, 0.3)', mb: 2.5 }} />
+                            {/* Header */}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                                <RateReview sx={{ fontSize: 18, color: reviewDone ? '#22c55e' : '#8b5cf6' }} />
+                                <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: reviewDone ? '#22c55e' : '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                    Review Checklist
+                                </Typography>
+                                {reviewDone && (
+                                    <Chip label="Reviewed" size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', border: '1px solid rgba(34, 197, 94, 0.2)', '& .MuiChip-label': { px: 0.75 } }} />
+                                )}
+                            </Box>
+                            {/* Smart checklist — date conflicts */}
+                            <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, border: '1px solid rgba(52, 58, 68, 0.25)', bgcolor: 'rgba(255,255,255,0.015)' }}>
+                                <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1 }}>
+                                    Date Conflicts
+                                </Typography>
+                                {loadingConflicts ? (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
+                                        <CircularProgress size={13} sx={{ color: '#64748b' }} />
+                                        <Typography sx={{ fontSize: '0.75rem', color: '#64748b' }}>Checking…</Typography>
+                                    </Box>
+                                ) : dateConflicts ? (
+                                    <Stack spacing={0.5}>
+                                        {dateConflicts.booked_conflicts.length === 0 && dateConflicts.soft_conflicts.length === 0 ? (
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <CheckCircle sx={{ fontSize: 14, color: '#22c55e' }} />
+                                                <Typography sx={{ fontSize: '0.78rem', color: '#22c55e' }}>No date conflicts found</Typography>
+                                            </Box>
+                                        ) : (
+                                            <>
+                                                {dateConflicts.booked_conflicts.map((c) => (
+                                                    <Box key={`${c.type}-${c.id}`} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <ErrorOutline sx={{ fontSize: 14, color: '#ef4444' }} />
+                                                        <Typography sx={{ fontSize: '0.78rem', color: '#fca5a5' }}>
+                                                            <strong>BOOKED:</strong> {c.name} ({c.status})
+                                                        </Typography>
+                                                    </Box>
+                                                ))}
+                                                {dateConflicts.soft_conflicts.map((c) => (
+                                                    <Box key={`${c.type}-${c.id}`} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <InfoOutlined sx={{ fontSize: 14, color: '#f59e0b' }} />
+                                                        <Typography sx={{ fontSize: '0.78rem', color: '#fde68a' }}>
+                                                            <strong>UNBOOKED:</strong> {c.name} ({c.status})
+                                                        </Typography>
+                                                    </Box>
+                                                ))}
+                                            </>
+                                        )}
+                                    </Stack>
+                                ) : null}
+                            </Box>
+                            {/* Smart checklist — crew conflicts */}
+                            <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, border: '1px solid rgba(52, 58, 68, 0.25)', bgcolor: 'rgba(255,255,255,0.015)' }}>
+                                <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1 }}>
+                                    Crew Availability
+                                </Typography>
+                                {loadingConflicts ? (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
+                                        <CircularProgress size={13} sx={{ color: '#64748b' }} />
+                                        <Typography sx={{ fontSize: '0.75rem', color: '#64748b' }}>Checking…</Typography>
+                                    </Box>
+                                ) : crewConflicts ? (
+                                    crewConflicts.conflicts.length === 0 ? (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <CheckCircle sx={{ fontSize: 14, color: '#22c55e' }} />
+                                            <Typography sx={{ fontSize: '0.78rem', color: '#22c55e' }}>No crew conflicts found</Typography>
+                                        </Box>
+                                    ) : (
+                                        <Stack spacing={0.5}>
+                                            {crewConflicts.conflicts.map((c) => (
+                                                <Box key={c.contributor_id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Warning sx={{ fontSize: 14, color: '#ef4444' }} />
+                                                    <Typography sx={{ fontSize: '0.78rem', color: '#fca5a5' }}>
+                                                        <strong>{c.name}</strong> ({c.role}) — {c.event_title}
+                                                    </Typography>
+                                                </Box>
+                                            ))}
+                                        </Stack>
+                                    )
+                                ) : null}
+                            </Box>
+                            {/* Manual checklist */}
+                            <Stack spacing={0.25} sx={{ mb: 2 }}>
+                                {MANUAL_CHECKLIST.map((item) => (
+                                    <FormControlLabel
+                                        key={item.key}
+                                        control={
+                                            <Checkbox
+                                                size="small"
+                                                checked={!!checklistState[item.key]}
+                                                onChange={() => handleToggleChecklist(item.key)}
+                                                sx={{
+                                                    color: 'rgba(139, 92, 246, 0.4)',
+                                                    '&.Mui-checked': { color: '#8b5cf6' },
+                                                    p: 0.5,
+                                                }}
+                                            />
+                                        }
+                                        label={
+                                            <Typography sx={{ fontSize: '0.82rem', color: checklistState[item.key] ? '#c4b5fd' : '#94a3b8' }}>
+                                                {item.label}
+                                            </Typography>
+                                        }
+                                        sx={{ m: 0, ml: 0.5 }}
+                                    />
+                                ))}
+                            </Stack>
+                            {/* Notes */}
+                            <TextField
+                                fullWidth
+                                multiline
+                                minRows={2}
+                                placeholder="Review notes (optional)…"
+                                value={reviewNotes}
+                                onChange={(e) => setReviewNotes(e.target.value)}
+                                size="small"
+                                sx={{
+                                    mb: 2,
+                                    '& .MuiOutlinedInput-root': {
+                                        fontSize: '0.82rem',
+                                        color: '#e2e8f0',
+                                        bgcolor: 'rgba(255,255,255,0.02)',
+                                        '& fieldset': { borderColor: 'rgba(52, 58, 68, 0.4)' },
+                                        '&:hover fieldset': { borderColor: 'rgba(139, 92, 246, 0.3)' },
+                                        '&.Mui-focused fieldset': { borderColor: 'rgba(139, 92, 246, 0.6)' },
+                                    },
+                                    '& .MuiInputBase-input::placeholder': { color: '#475569', opacity: 1 },
+                                }}
+                            />
+                            {/* Complete button */}
+                            <Button
+                                variant="contained"
+                                size="small"
+                                disabled={submittingReview || reviewDone}
+                                onClick={handleCompleteReview}
+                                startIcon={reviewDone ? <CheckCircle sx={{ fontSize: 15 }} /> : <RateReview sx={{ fontSize: 15 }} />}
+                                sx={{
+                                    bgcolor: reviewDone ? 'rgba(34, 197, 94, 0.15)' : 'rgba(139, 92, 246, 0.15)',
+                                    color: reviewDone ? '#22c55e' : '#a78bfa',
+                                    border: `1px solid ${reviewDone ? 'rgba(34, 197, 94, 0.25)' : 'rgba(139, 92, 246, 0.25)'}`,
+                                    fontSize: '0.78rem',
+                                    fontWeight: 600,
+                                    textTransform: 'none',
+                                    borderRadius: 2,
+                                    boxShadow: 'none',
+                                    '&:hover': {
+                                        bgcolor: reviewDone ? 'rgba(34, 197, 94, 0.2)' : 'rgba(139, 92, 246, 0.25)',
+                                        boxShadow: 'none',
+                                    },
+                                    '&.Mui-disabled': {
+                                        bgcolor: reviewDone ? 'rgba(34, 197, 94, 0.1)' : 'rgba(52, 58, 68, 0.3)',
+                                        color: reviewDone ? '#22c55e' : '#475569',
+                                    },
+                                }}
+                            >
+                                {submittingReview ? 'Saving…' : reviewDone ? 'Review Complete' : 'Complete Review'}
+                            </Button>
+                        </Box>
                     </Box>
                 ) : (
                     /* ── Empty state ── */
@@ -313,14 +560,14 @@ export default function NeedsAssessmentDialog({
                             No questionnaire submitted yet
                         </Typography>
                         <Typography sx={{ fontSize: '0.78rem', color: '#64748b', mb: 3, maxWidth: 320, mx: 'auto', lineHeight: 1.5 }}>
-                            Send the link to the client or complete the questionnaire on their behalf.
+                            Send the Client Portal link to the client or complete the questionnaire on their behalf.
                         </Typography>
                         <Stack direction="row" spacing={1.5} justifyContent="center">
                             <Button
                                 variant="outlined"
                                 size="small"
                                 startIcon={<EditNote sx={{ fontSize: 16 }} />}
-                                onClick={() => window.open(questionnaireUrl, '_blank')}
+                                onClick={() => portalUrl && window.open(portalUrl, '_blank')}
                                 sx={{
                                     borderColor: 'rgba(245, 158, 11, 0.25)',
                                     color: '#f59e0b',
@@ -353,7 +600,7 @@ export default function NeedsAssessmentDialog({
                                     textTransform: 'none',
                                 }}
                             >
-                                {naCopied ? 'Copied!' : 'Copy Link'}
+                                {naCopied ? 'Copied!' : 'Copy Client Portal Link'}
                             </Button>
                         </Stack>
                     </Box>

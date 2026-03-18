@@ -9,6 +9,7 @@ export class SubjectResponseDto {
         role_name: string;
         description?: string;
         is_core: boolean;
+        is_group: boolean;
     };
     is_custom: boolean;
     created_at: Date;

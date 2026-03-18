@@ -11,10 +11,13 @@ import {
     Stack,
     Grid,
     Snackbar,
+    Tabs,
+    Tab,
 } from '@mui/material';
 import { Assignment } from '@mui/icons-material';
-import { Inquiry, InquiryTask, NeedsAssessmentSubmission } from '@/lib/types';
+import { Inquiry, InquiryTask, NeedsAssessmentSubmission, Contributor } from '@/lib/types';
 import { inquiriesService, api } from '@/lib/api';
+import { computeTaxBreakdown } from '@/lib/utils/pricing';
 
 // Extracted _detail barrel — types, constants, helpers, components
 import {
@@ -34,8 +37,9 @@ import {
     ProposalReviewCard,
     ClientApprovalCard,
     ActivityLogCard,
-    NeedsAssessmentDialog,
+    ClientUpdatesCard,
     DiscoveryQuestionnaireCard,
+    ReviewNotesCard,
     buildPipelineTasks,
     buildPipelineTasksFromInquiry,
     type PipelineTask,
@@ -46,8 +50,8 @@ import {
 // Existing per-inquiry sub-components (unchanged)
 import EventDetailsCard from './components/EventDetailsCard';
 import PackageScopeCard from './components/PackageScopeCard';
-import LeadInfoCard from './components/LeadInfoCard';
-
+import ClientInfoCard from './_detail/_components/ClientInfoCard';
+import InquirySchedulePreview from './components/InquirySchedulePreview';
 
 
 /* ================================================================== */
@@ -65,10 +69,11 @@ export default function InquiryDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
-    const [naDialogOpen, setNaDialogOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'overview' | 'package-details'>('overview');
+
     const [pipelineTasks, setPipelineTasks] = useState<PipelineTask[]>([]);
     const [hasRealTasks, setHasRealTasks] = useState(false);
-    const [taskActionPending, setTaskActionPending] = useState(false);
+    const [contributors, setContributors] = useState<Contributor[]>([]);
 
     /* ---- data loading ---- */
     useEffect(() => {
@@ -78,6 +83,7 @@ export default function InquiryDetailPage() {
     useEffect(() => {
         if (currentBrand?.id) {
             loadPipelineTasks();
+            loadContributors();
         }
     }, [inquiryId, currentBrand?.id]);
 
@@ -98,6 +104,15 @@ export default function InquiryDetailPage() {
             setError('Failed to load inquiry details');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadContributors = async () => {
+        try {
+            const data = await api.contributors.getAll();
+            setContributors(data);
+        } catch (err) {
+            console.error('Error loading contributors:', err);
         }
     };
 
@@ -145,26 +160,6 @@ export default function InquiryDetailPage() {
         setSnackbar({ open: true, message: 'Data refreshed successfully', severity: 'success' });
     };
 
-    const handleToggleTask = async (task: PipelineTask) => {
-        if (!hasRealTasks || !task.inquiry_task_id || taskActionPending) return;
-
-        try {
-            setTaskActionPending(true);
-            await api.inquiryTasks.toggle(inquiryId, task.inquiry_task_id);
-            await loadPipelineTasks();
-            setSnackbar({
-                open: true,
-                message: task.status === 'Completed' ? 'Task reopened' : 'Task completed',
-                severity: 'success',
-            });
-        } catch (err) {
-            console.error('Error toggling inquiry task:', err);
-            setSnackbar({ open: true, message: 'Failed to update task', severity: 'error' });
-        } finally {
-            setTaskActionPending(false);
-        }
-    };
-
     /* ---- loading / error guards ---- */
     if (loading) {
         return (
@@ -190,9 +185,19 @@ export default function InquiryDetailPage() {
 
     const conversionData = getConversionScore(inquiry);
     const daysInPipeline = getDaysInPipeline(inquiry);
+    const taxRate = Number(currentBrand?.default_tax_rate ?? 0);
     const dealValue = (() => {
+        // 1. Primary estimate total (pre-tax, from estimate line items)
         const primaryEst = inquiry.estimates?.find(e => e.is_primary) ?? inquiry.estimates?.[0];
-        return primaryEst ? Number(primaryEst.total_amount || 0) : 0;
+        if (primaryEst && Number(primaryEst.total_amount || 0) > 0) {
+            return computeTaxBreakdown(Number(primaryEst.total_amount), taxRate).total;
+        }
+        // 2. Package base price from snapshot (taken when package was selected)
+        const snapshot = inquiry.package_contents_snapshot as { base_price?: number } | null;
+        if (snapshot?.base_price && snapshot.base_price > 0) {
+            return computeTaxBreakdown(snapshot.base_price, taxRate).total;
+        }
+        return 0;
     })();
 
     /* ---- helpers for phase lookup ---- */
@@ -208,8 +213,8 @@ export default function InquiryDetailPage() {
                 conversionData={conversionData}
                 daysInPipeline={daysInPipeline}
                 dealValue={dealValue}
+                taxRate={taxRate}
                 onRefresh={handleRefresh}
-                onOpenAssessment={() => setNaDialogOpen(true)}
                 onSnackbar={(msg) => setSnackbar({ open: true, message: msg, severity: 'success' })}
             />
 
@@ -218,29 +223,44 @@ export default function InquiryDetailPage() {
                 inquiry={inquiry}
                 pipelineTasks={pipelineTasks}
                 hasRealTasks={hasRealTasks}
-                onToggleTask={handleToggleTask}
-                taskActionPending={taskActionPending}
             />
 
-            {/* --- MAIN THREE-COLUMN WORKSPACE --- */}
-            <Grid container spacing={3} sx={{ mt: 0.5 }}>
-                {/* LEFT COLUMN */}
-                <Grid item xs={12} md={5}>
-                    <Stack spacing={3}>
-                        <div id="needs-assessment-section">
-                            <EventDetailsCard
-                                inquiry={inquiry}
-                                onRefresh={handleRefresh}
-                                isActive={currentPhase === 'needs-assessment'}
-                                activeColor={phaseColor('needs-assessment')}
-                                submission={needsAssessmentSubmission}
-                                WorkflowCard={WorkflowCard}
-                            />
-                        </div>
+            {/* --- TABS & CONTENT --- */}
+            <Box sx={{ mb: 3 }}>
+                <Tabs
+                    value={activeTab}
+                    onChange={(_, newValue) => setActiveTab(newValue)}
+                    sx={{
+                        borderBottom: '1px solid rgba(148, 163, 184, 0.12)',
+                        '& .MuiTab-root': {
+                            textTransform: 'none',
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            color: '#64748b',
+                            minHeight: 44,
+                            '&.Mui-selected': {
+                                color: '#3b82f6',
+                            },
+                        },
+                        '& .MuiTabs-indicator': {
+                            height: 3,
+                            backgroundColor: '#3b82f6',
+                        },
+                    }}
+                >
+                    <Tab label="Overview" value="overview" />
+                    {inquiry.selected_package_id && <Tab label="Package Details" value="package-details" />}
+                </Tabs>
+            </Box>
 
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6}>
-                                <PackageScopeCard
+            {/* --- OVERVIEW TAB --- */}
+            {activeTab === 'overview' && (
+                <Grid container spacing={3}>
+                    {/* LEFT COLUMN */}
+                    <Grid item xs={12} md={5}>
+                        <Stack spacing={3}>
+                            <div id="needs-assessment-section">
+                                <EventDetailsCard
                                     inquiry={inquiry}
                                     onRefresh={handleRefresh}
                                     isActive={currentPhase === 'needs-assessment'}
@@ -248,70 +268,93 @@ export default function InquiryDetailPage() {
                                     submission={needsAssessmentSubmission}
                                     WorkflowCard={WorkflowCard}
                                 />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <Box sx={{
-                                    border: '1px dashed rgba(255,255,255,0.08)',
-                                    borderRadius: 2,
-                                    height: '100%',
-                                    minHeight: 200,
-                                    bgcolor: 'rgba(255,255,255,0.02)',
-                                }} />
-                            </Grid>
-                        </Grid>
+                            </div>
 
-                        <LeadInfoCard inquiry={inquiry} submission={needsAssessmentSubmission} WorkflowCard={WorkflowCard} />
+                            <Box
+                                sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+                                    gap: 2,
+                                    alignItems: 'start',
+                                }}
+                            >
+                                <ClientInfoCard
+                                    inquiry={inquiry}
+                                    onRefresh={handleRefresh}
+                                    isActive={currentPhase === 'needs-assessment'}
+                                    activeColor={phaseColor('needs-assessment')}
+                                    submission={needsAssessmentSubmission}
+                                />
 
-                        <div id="estimates-section">
-                            <EstimatesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'estimates'} activeColor={phaseColor('estimates')} />
-                        </div>
-                    </Stack>
+                                <PackageScopeCard
+                                    inquiry={inquiry}
+                                    onRefresh={handleRefresh}
+                                    isActive={currentPhase === 'needs-assessment'}
+                                    activeColor={phaseColor('needs-assessment')}
+                                    submission={needsAssessmentSubmission}
+                                    WorkflowCard={WorkflowCard}
+                                    onPackageDetailsClick={() => setActiveTab('package-details')}
+                                />
+                            </Box>
+
+                            <div id="estimates-section">
+                                <EstimatesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'estimates'} activeColor={phaseColor('estimates')} />
+                            </div>
+                        </Stack>
+                    </Grid>
+
+                    {/* MIDDLE COLUMN */}
+                    <Grid item xs={12} md={4}>
+                        <Stack spacing={3}>
+                            <div id="calls-section">
+                                <CallsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor={phaseColor('calls')} submission={needsAssessmentSubmission} />
+                            </div>
+                            <div id="discovery-questionnaire-section">
+                                <DiscoveryQuestionnaireCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor="#3b82f6" />
+                            </div>
+                            <div id="proposals-section">
+                                <ProposalsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'proposals'} activeColor={phaseColor('proposals')} />
+                            </div>
+                            <div id="proposal-review-section">
+                                <ProposalReviewCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'proposal-review'} activeColor={phaseColor('proposal-review')} submission={needsAssessmentSubmission} />
+                            </div>
+                            <div id="quotes-section">
+                                <QuotesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'quotes'} activeColor={phaseColor('quotes')} />
+                            </div>
+                        </Stack>
+                    </Grid>
+
+                    {/* RIGHT COLUMN */}
+                    <Grid item xs={12} md={3}>
+                        <Stack spacing={3}>
+                            <div id="contracts-section">
+                                <ContractsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'contracts'} activeColor={phaseColor('contracts')} />
+                            </div>
+                            <div id="approval-section">
+                                <ClientApprovalCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'approval'} activeColor={phaseColor('approval')} />
+                            </div>
+                            <ReviewNotesCard
+                                inquiry={inquiry}
+                                onRefresh={handleRefresh}
+                                submission={needsAssessmentSubmission}
+                            />
+                            <div id="activity-section">
+                                <ActivityLogCard inquiry={inquiry} onRefresh={handleRefresh} />
+                            </div>
+                            <div id="client-updates-section">
+                                <ClientUpdatesCard inquiry={inquiry} onRefresh={handleRefresh} />
+                            </div>
+                        </Stack>
+                    </Grid>
                 </Grid>
+            )}
 
-                {/* MIDDLE COLUMN */}
-                <Grid item xs={12} md={4}>
-                    <Stack spacing={3}>
-                        <div id="calls-section">
-                            <CallsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor={phaseColor('calls')} submission={needsAssessmentSubmission} />
-                        </div>
-                        <div id="discovery-questionnaire-section">
-                            <DiscoveryQuestionnaireCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor="#3b82f6" />
-                        </div>
-                        <div id="proposals-section">
-                            <ProposalsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'proposals'} activeColor={phaseColor('proposals')} />
-                        </div>
-                        <div id="proposal-review-section">
-                            <ProposalReviewCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'proposal-review'} activeColor={phaseColor('proposal-review')} submission={needsAssessmentSubmission} />
-                        </div>
-                        <div id="quotes-section">
-                            <QuotesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'quotes'} activeColor={phaseColor('quotes')} />
-                        </div>
-                    </Stack>
-                </Grid>
-
-                {/* RIGHT COLUMN */}
-                <Grid item xs={12} md={3}>
-                    <Stack spacing={3}>
-                        <div id="contracts-section">
-                            <ContractsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'contracts'} activeColor={phaseColor('contracts')} />
-                        </div>
-                        <div id="approval-section">
-                            <ClientApprovalCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'approval'} activeColor={phaseColor('approval')} />
-                        </div>
-                        <div id="activity-section">
-                            <ActivityLogCard inquiry={inquiry} onRefresh={handleRefresh} />
-                        </div>
-                    </Stack>
-                </Grid>
-            </Grid>
-
-            {/* --- NEEDS ASSESSMENT DIALOG --- */}
-            <NeedsAssessmentDialog
-                open={naDialogOpen}
-                onClose={() => setNaDialogOpen(false)}
-                submission={needsAssessmentSubmission}
-                inquiryId={inquiryId}
-            />
+            {/* --- PACKAGE DETAILS TAB --- */}
+            {activeTab === 'package-details' && inquiry.selected_package_id && (
+                <Box sx={{ mb: 3 }}>
+                    <InquirySchedulePreview inquiryId={inquiry.id} sourcePackageId={inquiry.selected_package_id} />
+                </Box>
+            )}
 
             {/* --- SNACKBAR --- */}
             <Snackbar

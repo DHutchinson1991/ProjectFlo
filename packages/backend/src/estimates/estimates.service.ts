@@ -60,13 +60,19 @@ export class EstimatesService {
   }
 
   async create(inquiryId: number, createEstimateDto: CreateEstimateDto): Promise<Estimate> {
-    // Calculate total amount from items
-    const totalAmount = createEstimateDto.items.reduce(
-      (sum, item) => sum + (item.quantity * item.unit_price),
-      0
-    );
+    // Calculate total amount from items using Decimal for precision
+    const totalAmount = createEstimateDto.items
+      .reduce((sum, item) => sum.add(new Decimal(item.quantity).mul(new Decimal(item.unit_price))), new Decimal(0))
+      .toNumber();
 
     return await this.prisma.$transaction(async (tx) => {
+      // Resolve brand currency from inquiry → contact → brand
+      const inquiry = await tx.inquiries.findUnique({
+        where: { id: inquiryId },
+        select: { contact: { select: { brand: { select: { currency: true } } } } },
+      });
+      const currency = inquiry?.contact?.brand?.currency || 'USD';
+
       // Handle Primary Exclusivity
       if (createEstimateDto.is_primary) {
         await tx.estimates.updateMany({
@@ -97,6 +103,7 @@ export class EstimatesService {
           terms: createEstimateDto.terms,
           payment_method: createEstimateDto.payment_method,
           installments: createEstimateDto.installments,
+          currency,
         },
       });
 
@@ -138,18 +145,23 @@ export class EstimatesService {
     });
 
     // Convert Decimal to number for the interface
-    return estimates.map(estimate => ({
-      ...estimate,
-      total_amount: Number(estimate.total_amount),
-      version: estimate.version ?? 1,
-      tax_rate: estimate.tax_rate ? Number(estimate.tax_rate) : undefined,
-      deposit_required: estimate.deposit_required ? Number(estimate.deposit_required) : undefined,
-      items: estimate.items.map(item => ({
-        ...item,
-        quantity: Number(item.quantity),
-        unit_price: Number(item.unit_price),
-      })),
-    }));
+    return estimates.map(estimate => {
+      const totalAmount = Number(estimate.total_amount);
+      const taxRate = estimate.tax_rate ? Number(estimate.tax_rate) : 0;
+      return {
+        ...estimate,
+        total_amount: totalAmount,
+        total_with_tax: Math.round((totalAmount + totalAmount * (taxRate / 100)) * 100) / 100,
+        version: estimate.version ?? 1,
+        tax_rate: taxRate || undefined,
+        deposit_required: estimate.deposit_required ? Number(estimate.deposit_required) : undefined,
+        items: estimate.items.map(item => ({
+          ...item,
+          quantity: Number(item.quantity),
+          unit_price: Number(item.unit_price),
+        })),
+      };
+    });
   }
 
   async findOne(inquiryId: number, id: number) {
@@ -171,6 +183,7 @@ export class EstimatesService {
     return {
       ...estimate,
       total_amount: Number(estimate.total_amount),
+      total_with_tax: Math.round((Number(estimate.total_amount) + Number(estimate.total_amount) * (Number(estimate.tax_rate || 0) / 100)) * 100) / 100,
       version: estimate.version ?? 1,
       items: estimate.items.map(item => ({
         ...item,
@@ -189,10 +202,9 @@ export class EstimatesService {
 
       // If items are being updated, calculate new total
       if (updateEstimateDto.items) {
-        totalAmount = updateEstimateDto.items.reduce(
-          (sum, item) => sum + ((item.quantity || 0) * (item.unit_price || 0)),
-          0
-        );
+        totalAmount = updateEstimateDto.items
+          .reduce((sum, item) => sum.add(new Decimal(item.quantity || 0).mul(new Decimal(item.unit_price || 0))), new Decimal(0))
+          .toNumber();
 
         // Delete existing items
         await tx.estimate_items.deleteMany({
@@ -299,6 +311,7 @@ export class EstimatesService {
       return {
         ...updatedEstimate,
         total_amount: Number(updatedEstimate.total_amount),
+        total_with_tax: Math.round((Number(updatedEstimate.total_amount) + Number(updatedEstimate.total_amount) * (Number(updatedEstimate.tax_rate || 0) / 100)) * 100) / 100,
         version: updatedEstimate.version ?? 1,
         tax_rate: updatedEstimate.tax_rate ? Number(updatedEstimate.tax_rate) : undefined,
         deposit_required: updatedEstimate.deposit_required ? Number(updatedEstimate.deposit_required) : undefined,
@@ -351,6 +364,7 @@ export class EstimatesService {
     return {
       ...updatedEstimate,
       total_amount: Number(updatedEstimate.total_amount),
+      total_with_tax: Math.round((Number(updatedEstimate.total_amount) + Number(updatedEstimate.total_amount) * (Number(updatedEstimate.tax_rate || 0) / 100)) * 100) / 100,
       items: updatedEstimate.items.map(item => ({
         ...item,
         unit_price: Number(item.unit_price),

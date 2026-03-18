@@ -197,7 +197,7 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
                     ? eventDaySubjects.filter((s: SubjectRecord) =>
                         s.activity_assignments?.some((a: { package_activity_id: number }) => a.package_activity_id === activityId)
                     )
-                    : []
+                    : eventDaySubjects
                 ).map((s: SubjectRecord) => s.id as number),
             );
             setAssignedSubjectIds(new Set(subjIds));

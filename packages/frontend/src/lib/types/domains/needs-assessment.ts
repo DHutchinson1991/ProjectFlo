@@ -47,6 +47,19 @@ export interface NeedsAssessmentSubmission {
     template?: NeedsAssessmentTemplate;
     inquiry?: Record<string, unknown> | null;
     contact?: Record<string, unknown> | null;
+    review_notes?: string | null;
+    reviewed_at?: string | null;
+    review_checklist_state?: Record<string, boolean> | null;
+}
+
+export interface NaDateConflictResult {
+    wedding_date: string | null;
+    booked_conflicts: { type: string; id: number; name: string; status: string }[];
+    soft_conflicts: { type: string; id: number; name: string; status: string }[];
+}
+
+export interface NaCrewConflictResult {
+    conflicts: { contributor_id: number; name: string; role: string; event_type: string; event_title: string }[];
 }
 
 export interface NeedsAssessmentSubmissionPayload {
@@ -63,6 +76,7 @@ export interface NeedsAssessmentSubmissionPayload {
     inquiry?: {
         wedding_date?: string;
         venue_details?: string;
+        guest_count?: string;
         notes?: string;
         lead_source?: string;
         lead_source_details?: string;

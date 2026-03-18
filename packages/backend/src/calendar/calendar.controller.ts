@@ -3,6 +3,7 @@ import {
     Get,
     Post,
     Put,
+    Patch,
     Delete,
     Body,
     Param,
@@ -208,5 +209,32 @@ export class CalendarController {
         @Query('status') status?: string,
     ) {
         return this.calendarService.getActiveTasks(status);
+    }
+
+    // Assign a contributor to an active task
+    @Patch('active-tasks/:taskId/assign')
+    async assignActiveTask(
+        @Param('taskId', ParseIntPipe) taskId: number,
+        @Body() body: { source: 'inquiry' | 'project'; assigned_to_id: number | null },
+    ) {
+        return this.calendarService.assignActiveTask(taskId, body.source, body.assigned_to_id);
+    }
+
+    // Toggle a task between To_Do and Completed
+    @Patch('active-tasks/:taskId/toggle')
+    async toggleActiveTask(
+        @Param('taskId', ParseIntPipe) taskId: number,
+        @Body() body: { source: 'inquiry' | 'project' },
+    ) {
+        return this.calendarService.toggleActiveTask(taskId, body.source);
+    }
+
+    // Discovery call availability slots
+    @Get('discovery-call-slots')
+    async getDiscoveryCallSlots(
+        @Query('brandId', ParseIntPipe) brandId: number,
+        @Query('date') date: string,
+    ) {
+        return this.calendarService.getDiscoveryCallSlots(brandId, date);
     }
 }

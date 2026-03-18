@@ -1,7 +1,9 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, ParseIntPipe, Query, HttpCode } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ServicePackagesService } from './service-packages.service';
 import { CreateServicePackageDto } from './dto/create-service-package.dto';
 import { UpdateServicePackageDto } from './dto/update-service-package.dto';
+import { CreatePackageFromBuilderDto } from './dto/create-package-from-builder.dto';
 // Validating auth guard import - usually exist in auth module
 // Assuming a standard JwtAuthGuard exists or something similar. 
 // For now, I'll assume usage without specific guards to keep it generic, 
@@ -23,9 +25,22 @@ export class ServicePackagesController {
     return this.servicePackagesService.create(brandId, createDto);
   }
 
+  @Post(':brandId/from-builder')
+  @HttpCode(201)
+  createFromBuilder(
+    @Param('brandId', ParseIntPipe) brandId: number,
+    @Body() dto: CreatePackageFromBuilderDto,
+  ) {
+    return this.servicePackagesService.createFromBuilder(brandId, dto);
+  }
+
   @Get(':brandId')
-  findAll(@Param('brandId', ParseIntPipe) brandId: number) {
-    return this.servicePackagesService.findAll(brandId);
+  @UseGuards(AuthGuard('jwt'))
+  findAll(
+    @Param('brandId', ParseIntPipe) brandId: number,
+    @Request() req: { user?: { id: number } },
+  ) {
+    return this.servicePackagesService.findAll(brandId, req.user?.id);
   }
 
   @Get(':brandId/:id')

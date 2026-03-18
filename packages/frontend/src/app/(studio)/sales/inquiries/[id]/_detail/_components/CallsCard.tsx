@@ -133,10 +133,14 @@ const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, 
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const submissionResponses = (submission?.responses ?? {}) as Record<string, any>;
+    const callInterest = submissionResponses.discovery_call_interest;
     const reqMethod = submissionResponses.discovery_call_method;
     const reqDate = submissionResponses.discovery_call_date;
     const reqTime = submissionResponses.discovery_call_time;
     const hasCallPref = reqMethod || reqDate || reqTime;
+    const wantsCall = callInterest === 'yes';
+    const declinedCall = callInterest === 'no';
+    const hasMeetingScheduled = meetings.length > 0;
 
     const getMethodIcon = (method: string) => {
         const lower = (method || '').toLowerCase();
@@ -179,6 +183,37 @@ const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, 
                         )}
                     </Box>
                 </Box>
+
+                {/* ── Call interest status banner ── */}
+                {wantsCall && !hasMeetingScheduled && hasCallPref && (
+                    <Box sx={{
+                        mb: 2, p: 1.5, borderRadius: 2,
+                        bgcolor: 'rgba(245,158,11,0.06)',
+                        border: '1px solid rgba(245,158,11,0.15)',
+                    }}>
+                        <Typography sx={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 600 }}>
+                            Client requested a discovery call
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: '#94a3b8', mt: 0.25 }}>
+                            Schedule below to match their preference
+                        </Typography>
+                    </Box>
+                )}
+                {wantsCall && hasMeetingScheduled && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 2 }}>
+                        <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#10b981' }} />
+                        </Box>
+                        <Typography sx={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>
+                            Discovery call scheduled
+                        </Typography>
+                    </Box>
+                )}
+                {declinedCall && (
+                    <Typography sx={{ fontSize: '0.72rem', color: '#64748b', fontStyle: 'italic', mb: 2 }}>
+                        Client declined a discovery call
+                    </Typography>
+                )}
 
                 {/* ── Client Call Preferences ── */}
                 {hasCallPref && (

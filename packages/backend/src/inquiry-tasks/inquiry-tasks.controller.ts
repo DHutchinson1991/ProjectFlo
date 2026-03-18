@@ -66,4 +66,12 @@ export class InquiryTasksController {
         if (!brandIdNum) throw new BadRequestException('Brand ID is required');
         return this.inquiryTasksService.generateForInquiry(inquiryId, brandIdNum);
     }
+
+    /** Get event history for a specific inquiry task */
+    @Get(':taskId/events')
+    async getEvents(
+        @Param('taskId', ParseIntPipe) taskId: number,
+    ) {
+        return this.inquiryTasksService.getTaskEvents(taskId);
+    }
 }

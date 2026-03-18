@@ -152,12 +152,12 @@ type AnyRecord = Record<string, any>;
 
 function getColors() {
     return {
-        bg: "#09090b",
-        card: "#18181b",
+        bg: "#0c0c10",
+        card: "#16161e",
         text: "#fafafa",
-        muted: "#a1a1aa",
+        muted: "#b0b0be",
         accent: "#7c4dff",
-        border: "#27272a",
+        border: "#2a2a38",
         accentSoft: "#1e1b4b",
         gradient1: "#7c4dff",
         gradient2: "#a855f7",
@@ -266,6 +266,7 @@ export default function PublicNeedsAssessmentPage() {
     const [selectedEventType, setSelectedEventType] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [portalToken, setPortalToken] = useState<string | null>(null);
     const [fieldErrors, setFieldErrors] = useState<AnyRecord>({});
 
     const heroReveal = useReveal();
@@ -424,15 +425,24 @@ export default function PublicNeedsAssessmentPage() {
         try {
             setSubmitting(true);
             setError(null);
-            await api.publicNeedsAssessment.submit(token, {
+            const result = await api.publicNeedsAssessment.submit(token, {
                 template_id: template.id,
                 responses,
                 selected_package_id: selectedPackageId,
                 create_inquiry: true,
             });
             setSubmitted(true);
+
+            // Redirect to client portal after a brief delay
+            const pToken = result?.inquiry?.portal_token;
+            if (pToken) {
+                setPortalToken(pToken);
+                setTimeout(() => {
+                    window.location.href = `/portal/portal/${pToken}`;
+                }, 2000);
+            }
         } catch {
-            setError("Failed to submit the questionnaire. Please try again.");
+            setError("Failed to submit. Please try again.");
         } finally {
             setSubmitting(false);
         }
@@ -566,7 +576,7 @@ export default function PublicNeedsAssessmentPage() {
                     }}
                 >
                     <Typography variant="h6" sx={{ color: colors.text, mb: 1, fontWeight: 600 }}>
-                        Questionnaire Not Found
+                        Inquiry Wizard Not Found
                     </Typography>
                     <Typography variant="body2" sx={{ color: colors.muted, lineHeight: 1.6 }}>
                         {error}
@@ -631,8 +641,28 @@ export default function PublicNeedsAssessmentPage() {
                             All done!
                         </Typography>
                         <Typography sx={{ color: colors.muted, fontSize: "0.95rem", lineHeight: 1.7, maxWidth: 380, mx: "auto" }}>
-                            Your questionnaire has been submitted successfully. We&apos;ll be in touch soon to discuss next steps.
+                            Your inquiry has been submitted successfully. We&apos;ll be in touch soon to discuss next steps.
                         </Typography>
+
+                        {portalToken && (
+                            <Box sx={{ mt: 3 }}>
+                                <Typography sx={{ color: alpha(colors.muted, 0.7), fontSize: "0.8rem", mb: 2 }}>
+                                    Redirecting to your portal…
+                                </Typography>
+                                <Button
+                                    href={`/portal/portal/${portalToken}`}
+                                    sx={{
+                                        background: `linear-gradient(135deg, ${colors.gradient1}, ${colors.gradient2})`,
+                                        color: "#fff", fontWeight: 600, fontSize: "0.85rem",
+                                        px: 4, py: 1.25, borderRadius: "12px", textTransform: "none",
+                                        boxShadow: `0 4px 20px ${alpha(colors.accent, 0.3)}`,
+                                        "&:hover": { background: `linear-gradient(135deg, ${colors.gradient2}, ${colors.gradient1})`, transform: "translateY(-1px)" },
+                                    }}
+                                >
+                                    View Your Portal
+                                </Button>
+                            </Box>
+                        )}
 
                         <SectionDivider color={colors.accent} />
 

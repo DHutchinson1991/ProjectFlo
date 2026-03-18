@@ -343,6 +343,95 @@ export class BrandsService {
         return this.getMeetingSettings(brandId);
     }
 
+    // ─── Welcome / Inquiry Page Settings (structured batch helpers) ────
+    readonly WELCOME_SETTING_KEYS = [
+        'welcome_headline',
+        'welcome_subtitle',
+        'welcome_cta_text',
+        'welcome_trust_badges',
+        'welcome_social_proof_text',
+        'welcome_social_proof_count',
+        'welcome_social_proof_start',
+        'welcome_social_links',
+        'welcome_testimonials',
+        'welcome_time_estimate',
+    ] as const;
+
+    async getWelcomeSettings(brandId: number) {
+        await this.findOne(brandId);
+        const rows = await this.prisma.brand_settings.findMany({
+            where: { brand_id: brandId, category: 'welcome' },
+        });
+        const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+
+        // Social proof count = manual starting number + completed jobs count
+        const startNumber = map['welcome_social_proof_start']
+            ? parseInt(map['welcome_social_proof_start'])
+            : 0;
+        const liveCount = await this.prisma.projects.count({
+            where: {
+                brand_id: brandId,
+                phase: 'Delivery',
+            },
+        });
+
+        return {
+            headline: map['welcome_headline'] ?? '',
+            subtitle: map['welcome_subtitle'] ?? '',
+            cta_text: map['welcome_cta_text'] ?? 'Plan My Day',
+            trust_badges: map['welcome_trust_badges']
+                ? JSON.parse(map['welcome_trust_badges'])
+                : [
+                    { icon: '✨', text: 'Personalised quote' },
+                    { icon: '📅', text: 'Same-day response' },
+                    { icon: '🎬', text: 'No commitment' },
+                ],
+            social_proof_text: map['welcome_social_proof_text'] ?? 'happy customers',
+            social_proof_count: startNumber + liveCount,
+            social_proof_start: startNumber,
+            social_links: map['welcome_social_links']
+                ? JSON.parse(map['welcome_social_links'])
+                : [],
+            testimonials: map['welcome_testimonials']
+                ? JSON.parse(map['welcome_testimonials'])
+                : [],
+            time_estimate: map['welcome_time_estimate'] ?? '~2 min',
+        };
+    }
+
+    async upsertWelcomeSettings(brandId: number, data: {
+        headline?: string;
+        subtitle?: string;
+        cta_text?: string;
+        trust_badges?: Array<{ icon: string; text: string }>;
+        social_proof_text?: string;
+        social_proof_start?: number;
+        social_links?: Array<{ platform: string; url: string }>;
+        testimonials?: Array<{ name: string; text: string; rating: number; image_url: string }>;
+        time_estimate?: string;
+    }) {
+        await this.findOne(brandId);
+        const entries: { key: string; value: string }[] = [
+            ...(data.headline !== undefined ? [{ key: 'welcome_headline', value: data.headline }] : []),
+            ...(data.subtitle !== undefined ? [{ key: 'welcome_subtitle', value: data.subtitle }] : []),
+            ...(data.cta_text !== undefined ? [{ key: 'welcome_cta_text', value: data.cta_text }] : []),
+            ...(data.trust_badges !== undefined ? [{ key: 'welcome_trust_badges', value: JSON.stringify(data.trust_badges) }] : []),
+            ...(data.social_proof_text !== undefined ? [{ key: 'welcome_social_proof_text', value: data.social_proof_text }] : []),
+            ...(data.social_proof_start !== undefined ? [{ key: 'welcome_social_proof_start', value: String(data.social_proof_start) }] : []),
+            ...(data.social_links !== undefined ? [{ key: 'welcome_social_links', value: JSON.stringify(data.social_links) }] : []),
+            ...(data.testimonials !== undefined ? [{ key: 'welcome_testimonials', value: JSON.stringify(data.testimonials) }] : []),
+            ...(data.time_estimate !== undefined ? [{ key: 'welcome_time_estimate', value: data.time_estimate }] : []),
+        ];
+        for (const entry of entries) {
+            await this.prisma.brand_settings.upsert({
+                where: { brand_id_key: { brand_id: brandId, key: entry.key } },
+                create: { brand_id: brandId, key: entry.key, value: entry.value, category: 'welcome' },
+                update: { value: entry.value },
+            });
+        }
+        return this.getWelcomeSettings(brandId);
+    }
+
     // Helper methods for brand context
     async getBrandContext(userId: number, brandId: number) {
         const userBrand = await this.prisma.user_brands.findUnique({

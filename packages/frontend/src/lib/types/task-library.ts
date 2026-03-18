@@ -57,9 +57,15 @@ export interface TaskLibrary extends BaseEntity {
     due_date_offset_days?: number | null;
     default_job_role_id?: number | null;
     default_job_role?: Pick<JobRole, 'id' | 'name' | 'display_name' | 'category'> | null;
+    default_contributor_id?: number | null;
+    default_contributor?: { id: number; contact: { first_name: string; last_name: string } } | null;
     skills_needed?: string[];
     benchmarks?: TaskLibraryBenchmark[];
     skill_rates?: TaskLibrarySkillRate[];
+    parent_task_id?: number | null;
+    is_stage?: boolean;
+    stage_color?: string | null;
+    children?: TaskLibrary[];
 }
 
 // Task library benchmark interface
@@ -103,6 +109,7 @@ export interface CreateTaskLibraryDto {
     trigger_type?: TriggerType;
     due_date_offset_days?: number | null;
     default_job_role_id?: number;
+    default_contributor_id?: number;
     skills_needed?: string[];
 }
 
@@ -314,4 +321,10 @@ export interface ActiveTask {
     event_date: string | null;
     assignee: { id: number; name: string; email: string } | null;
     priority: string | null;
+    is_stage: boolean;
+    parent_task_id: number | null;
+    stage_color: string | null;
+    is_auto_only?: boolean;
+    children_count?: number;
+    children_completed?: number;
 }

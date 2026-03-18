@@ -108,7 +108,7 @@ const DiscoveryQuestionnaireCard: React.FC<WorkflowCardProps> = ({
                             <Typography sx={{ color: '#64748b', fontSize: '0.78rem', mb: 2, lineHeight: 1.6 }}>
                                 Use the guided questionnaire during or after your discovery call
                                 to capture key details and automatically complete the{' '}
-                                <Box component="span" sx={{ color: '#93c5fd' }}>Requirements Discovery</Box>{' '}
+                                <Box component="span" sx={{ color: '#93c5fd' }}>Discovery Call</Box>{' '}
                                 task.
                             </Typography>
                             <Button
@@ -162,12 +162,20 @@ const DiscoveryQuestionnaireCard: React.FC<WorkflowCardProps> = ({
                                             WebkitBoxOrient: 'vertical',
                                             overflow: 'hidden',
                                             cursor: 'default',
-                                            mb: 1.5,
+                                            mb: 1,
                                         }}>
                                             &quot;{submission.call_notes}&quot;
                                         </Typography>
                                     </Tooltip>
                                 </>
+                            )}
+
+                            {submission.transcript && (
+                                <Chip
+                                    size="small"
+                                    label="Transcript attached"
+                                    sx={{ height: 18, fontSize: '0.68rem', bgcolor: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)', mb: 1 }}
+                                />
                             )}
 
                             <Button

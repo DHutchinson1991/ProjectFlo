@@ -14,6 +14,10 @@ export class CreateRoleDto {
     is_core?: boolean;
 
     @IsOptional()
+    @IsBoolean()
+    is_group?: boolean;
+
+    @IsOptional()
     @IsInt()
     order_index?: number;
 }

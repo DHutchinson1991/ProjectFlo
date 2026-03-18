@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     Box, Typography, Button, TextField, Select, MenuItem,
     IconButton, Chip, Menu, Tooltip,
@@ -80,6 +80,7 @@ export function SubjectsCard({
     const activeEventDayId = scheduleActiveDayId || packageEventDays[0]?.id;
     const activeDay = packageEventDays.find(d => d.id === activeEventDayId);
     const selectedActivity = selectedActivityId ? packageActivities.find(a => a.id === selectedActivityId) : null;
+    const activeDayActivities = packageActivities.filter((activity: PackageActivityRecord) => activity.package_event_day_id === activeEventDayId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const daySubjects = packageSubjects
         .filter((s: any) => s.event_day_template_id === activeEventDayId) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -126,23 +127,65 @@ export function SubjectsCard({
     const existingNames = new Set(daySubjects.map((s: any) => s.name)); // eslint-disable-line @typescript-eslint/no-explicit-any
     // Suggested roles from matched templates not yet added
     const suggestedRoles = matchedTemplates.flatMap(t => t.roles).filter(r => !existingNames.has(r.role_name));
+    const autoConnectInFlightRef = useRef<Set<number>>(new Set());
+
+    useEffect(() => {
+        if (!hasOwner || activeDayActivities.length === 0) return;
+
+        const subjectsNeedingAssignments = daySubjects.filter((subject: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+            if (autoConnectInFlightRef.current.has(subject.id)) return false;
+            if (subject.activity_assignments?.length) return false;
+            if (subject.package_activity_id) return false;
+            return true;
+        });
+
+        if (subjectsNeedingAssignments.length === 0) return;
+
+        let cancelled = false;
+
+        const autoConnect = async () => {
+            for (const subject of subjectsNeedingAssignments) {
+                autoConnectInFlightRef.current.add(subject.id);
+                try {
+                    let latest = subject;
+                    for (const activity of activeDayActivities) {
+                        latest = await subjectApi.assignActivity(subject.id, activity.id);
+                    }
+                    if (!cancelled) {
+                        setPackageSubjects(prev => prev.map((item: any) => item.id === subject.id ? { ...item, ...latest } : item)); // eslint-disable-line @typescript-eslint/no-explicit-any
+                    }
+                } catch (err) {
+                    console.warn('Failed to auto-connect subject to activities:', err);
+                } finally {
+                    autoConnectInFlightRef.current.delete(subject.id);
+                }
+            }
+        };
+
+        autoConnect();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [activeDayActivities, daySubjects, hasOwner, setPackageSubjects, subjectApi]);
 
     // ─── Helpers ─────────────────────────────────────────────────────
-    const addSubjectFromTemplate = async (role: { id: number; role_name: string }) => {
+    const addSubjectFromTemplate = async (role: { id: number; role_name: string; is_group?: boolean }) => {
         if (!activeEventDayId || !hasOwner) return;
         try {
             const created = await subjectApi.create(activeEventDayId, {
                 name: role.role_name,
                 category: 'PEOPLE',
                 role_template_id: role.id,
+                ...(role.is_group ? { count: 2 } : {}),
             });
-            // Auto-assign to selected activity via DB
-            if (selectedActivityId && created?.id) {
-                const assignedSubj = await subjectApi.assignActivity(created.id, selectedActivityId);
-                setPackageSubjects(prev => [...prev, { ...created, ...assignedSubj }]);
-            } else {
-                setPackageSubjects(prev => [...prev, created]);
+            let nextSubject = created;
+            if (created?.id && activeDayActivities.length > 0) {
+                for (const activity of activeDayActivities) {
+                    nextSubject = await subjectApi.assignActivity(created.id, activity.id);
+                }
             }
+            setPackageSubjects(prev => [...prev, { ...created, ...nextSubject }]);
         } catch (err) { console.warn('Failed to add subject:', err); }
     };
 
@@ -153,13 +196,13 @@ export function SubjectsCard({
                 name: newSubjectName.trim(),
                 category: newSubjectCategory,
             });
-            // Auto-assign to selected activity via DB
-            if (selectedActivityId && created?.id) {
-                const assignedSubj = await subjectApi.assignActivity(created.id, selectedActivityId);
-                setPackageSubjects(prev => [...prev, { ...created, ...assignedSubj }]);
-            } else {
-                setPackageSubjects(prev => [...prev, created]);
+            let nextSubject = created;
+            if (created?.id && activeDayActivities.length > 0) {
+                for (const activity of activeDayActivities) {
+                    nextSubject = await subjectApi.assignActivity(created.id, activity.id);
+                }
             }
+            setPackageSubjects(prev => [...prev, { ...created, ...nextSubject }]);
             setNewSubjectName('');
             setAddSubjectMenuAnchor(null);
             setAddSubjectDayId(null);
@@ -196,8 +239,9 @@ export function SubjectsCard({
                     {/* Existing subjects */}
                     {daySubjects.map((subj: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                         const subjAssigned = isSubjectAssigned(subj);
-                        const isGroup = subj.count !== null && subj.count !== undefined;
-                        const currentCount: number = subj.count ?? 1;
+                        const isFixedGroup = !!(subj as any).role_template?.is_group;
+                        const isGroup = isFixedGroup || (subj.count !== null && subj.count !== undefined);
+                        const currentCount: number = subj.count ?? (isFixedGroup ? 2 : 1);
                         const isEditingThis = editingCountId === subj.id;
 
                         const applyCount = async (rawVal: string) => {
@@ -329,7 +373,8 @@ export function SubjectsCard({
                                 )}
                             </Box>
 
-                            {/* Group toggle icon */}
+                            {/* Group toggle icon — hidden for fixed-group roles */}
+                            {!isFixedGroup && (
                             <Tooltip title={isGroup ? 'Remove group' : 'Make group'} arrow placement="top">
                                 <IconButton
                                     size="small"
@@ -346,6 +391,7 @@ export function SubjectsCard({
                                     <GroupsIcon sx={{ fontSize: 13 }} />
                                 </IconButton>
                             </Tooltip>
+                            )}
 
                             {/* Count stepper — only when group */}
                             {isGroup && (

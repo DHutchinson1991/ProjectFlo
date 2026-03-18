@@ -15,12 +15,15 @@ import {
     EmailOutlined,
     Phone,
     AccessTime,
-    Assignment,
     TrendingUp,
     LocalFireDepartment,
+    TravelExplore,
+    OpenInNew,
+    CardGiftcard,
 } from '@mui/icons-material';
 import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
-import { inquiriesService } from '@/lib/api';
+import { inquiriesService, api } from '@/lib/api';
+import { useBrand } from '@/app/providers/BrandProvider';
 import { getDisplayEmail } from '../_lib';
 import type { ConversionData } from '../_lib';
 
@@ -33,8 +36,8 @@ export interface CommandCenterHeaderProps {
     conversionData: ConversionData;
     daysInPipeline: number;
     dealValue: number;
+    taxRate?: number;
     onRefresh: () => Promise<void>;
-    onOpenAssessment: () => void;
     onSnackbar: (msg: string) => void;
 }
 
@@ -47,10 +50,20 @@ export default function CommandCenterHeader({
     conversionData,
     daysInPipeline,
     dealValue,
+    taxRate,
     onRefresh,
-    onOpenAssessment,
     onSnackbar,
 }: CommandCenterHeaderProps) {
+    const { currentBrand } = useBrand();
+
+    /* ---- currency symbol ---- */
+    const currencySymbol = (() => {
+        const code = (inquiry.package_contents_snapshot as { currency?: string } | null)?.currency
+            || currentBrand?.currency || 'GBP';
+        try { return new Intl.NumberFormat('en', { style: 'currency', currency: code }).formatToParts(0).find(p => p.type === 'currency')?.value || '£'; }
+        catch { return '£'; }
+    })();
+
     /* ---- inline-editing state ---- */
     const [editingField, setEditingField] = useState<string | null>(null);
     const [contactForm, setContactForm] = useState({
@@ -59,6 +72,8 @@ export default function CommandCenterHeader({
         email: '',
         phone_number: '',
     });
+    const [sendingWelcomePack, setSendingWelcomePack] = useState(false);
+    const [welcomePackSent, setWelcomePackSent] = useState(!!inquiry.welcome_sent_at);
 
     useEffect(() => {
         if (inquiry) {
@@ -88,6 +103,26 @@ export default function CommandCenterHeader({
     const handleContactKeyDown = (e: React.KeyboardEvent, field: string) => {
         if (e.key === 'Enter') handleContactFieldSave(field);
         if (e.key === 'Escape') setEditingField(null);
+    };
+
+    /* ---- derived lead source ---- */
+    const naResponses = (needsAssessmentSubmission?.responses ?? {}) as Record<string, unknown>;
+    const leadSource = inquiry.lead_source || naResponses.lead_source || null;
+
+    /* ---- send welcome pack ---- */
+    const handleSendWelcomePack = async () => {
+        if (welcomePackSent || sendingWelcomePack) return;
+        try {
+            setSendingWelcomePack(true);
+            await api.inquiries.sendWelcomePack(inquiry.id);
+            setWelcomePackSent(true);
+            onSnackbar('Welcome pack sent!');
+            await onRefresh();
+        } catch {
+            onSnackbar('Failed to send welcome pack');
+        } finally {
+            setSendingWelcomePack(false);
+        }
     };
 
     /* ---- derived display values ---- */
@@ -291,6 +326,24 @@ export default function CommandCenterHeader({
 
                 {/* Right side: metrics pills + assessment button */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0, ml: 'auto' }}>
+                    {/* Lead Source pill */}
+                    {leadSource && (
+                        <Box sx={{
+                            display: 'flex', alignItems: 'center', gap: 0.75,
+                            px: 1.5, py: 0.75, borderRadius: 2,
+                            bgcolor: 'rgba(139, 92, 246, 0.06)',
+                            border: '1px solid rgba(139, 92, 246, 0.12)',
+                        }}>
+                            <TravelExplore sx={{ fontSize: 14, color: '#8b5cf6' }} />
+                            <Box>
+                                <Typography sx={{ fontSize: '0.5rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1 }}>Source</Typography>
+                                <Typography sx={{ fontSize: '0.9rem', fontWeight: 800, color: '#8b5cf6', lineHeight: 1.2, letterSpacing: '-0.02em', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {String(leadSource)}
+                                </Typography>
+                            </Box>
+                        </Box>
+                    )}
+
                     {/* Deal Value pill */}
                     <Box sx={{
                         display: 'flex', alignItems: 'center', gap: 0.75,
@@ -302,8 +355,13 @@ export default function CommandCenterHeader({
                         <Box>
                             <Typography sx={{ fontSize: '0.5rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1 }}>Value</Typography>
                             <Typography sx={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
-                                {dealValue > 0 ? `£${dealValue.toLocaleString()}` : '\u2014'}
+                                {dealValue > 0 ? `${currencySymbol}${dealValue.toLocaleString()}` : '\u2014'}
                             </Typography>
+                            {dealValue > 0 && (taxRate ?? 0) > 0 && (
+                                <Typography sx={{ fontSize: '0.45rem', color: '#64748b', fontWeight: 500, lineHeight: 1 }}>
+                                    incl. {taxRate}% tax
+                                </Typography>
+                            )}
                         </Box>
                     </Box>
 
@@ -359,15 +417,58 @@ export default function CommandCenterHeader({
                         </Box>
                     </Box>
 
-                    {/* Assessment button */}
+                    {/* Send Welcome Pack button — shown only when inquiry is Booked */}
+                    {inquiry.status === 'Booked' && (
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={
+                                sendingWelcomePack
+                                    ? <LinearProgress sx={{ width: 14 }} />
+                                    : <CardGiftcard sx={{ fontSize: 14 }} />
+                            }
+                            disabled={welcomePackSent || sendingWelcomePack}
+                            onClick={handleSendWelcomePack}
+                            sx={{
+                                borderColor: welcomePackSent ? 'rgba(16, 185, 129, 0.4)' : 'rgba(16, 185, 129, 0.3)',
+                                color: welcomePackSent ? '#10b981' : '#10b981',
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                borderRadius: 2,
+                                textTransform: 'none',
+                                px: 1.5,
+                                py: 0.5,
+                                '&:hover': {
+                                    bgcolor: 'rgba(16, 185, 129, 0.08)',
+                                    borderColor: 'rgba(16, 185, 129, 0.5)',
+                                },
+                                '&.Mui-disabled': {
+                                    borderColor: 'rgba(16, 185, 129, 0.25)',
+                                    color: '#10b981',
+                                    opacity: 0.6,
+                                },
+                            }}
+                        >
+                            {welcomePackSent ? 'Welcome Pack Sent' : 'Send Welcome Pack'}
+                        </Button>
+                    )}
+
+                    {/* Client Portal button */}
                     <Button
                         variant="outlined"
                         size="small"
-                        startIcon={<Assignment sx={{ fontSize: 15 }} />}
-                        onClick={onOpenAssessment}
+                        startIcon={<OpenInNew sx={{ fontSize: 14 }} />}
+                        onClick={async () => {
+                            try {
+                                const res = await api.clientPortal.generateToken(inquiry.id);
+                                window.open(`${window.location.origin}/portal/${res.portal_token}`, '_blank');
+                            } catch {
+                                onSnackbar('Failed to open Client Portal');
+                            }
+                        }}
                         sx={{
-                            borderColor: needsAssessmentSubmission ? 'rgba(34, 197, 94, 0.3)' : 'rgba(245, 158, 11, 0.3)',
-                            color: needsAssessmentSubmission ? '#22c55e' : '#f59e0b',
+                            borderColor: 'rgba(96, 165, 250, 0.3)',
+                            color: '#60a5fa',
                             fontSize: '0.72rem',
                             fontWeight: 600,
                             borderRadius: 2,
@@ -375,12 +476,12 @@ export default function CommandCenterHeader({
                             px: 1.5,
                             py: 0.5,
                             '&:hover': {
-                                bgcolor: needsAssessmentSubmission ? 'rgba(34, 197, 94, 0.08)' : 'rgba(245, 158, 11, 0.08)',
-                                borderColor: needsAssessmentSubmission ? 'rgba(34, 197, 94, 0.5)' : 'rgba(245, 158, 11, 0.5)',
+                                bgcolor: 'rgba(96, 165, 250, 0.08)',
+                                borderColor: 'rgba(96, 165, 250, 0.5)',
                             },
                         }}
                     >
-                        {needsAssessmentSubmission ? 'View Assessment' : 'Assessment'}
+                        View Client Portal
                     </Button>
                 </Box>
             </Box>

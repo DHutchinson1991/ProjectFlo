@@ -30,6 +30,19 @@ export class TaskLibraryService {
         // Check if user has access to the brand
         await this.checkBrandAccess(createTaskLibraryDto.brand_id, userId);
 
+        // Auto-resolve default contributor if a role is set
+        if (createTaskLibraryDto.default_job_role_id && createTaskLibraryDto.default_contributor_id == null) {
+            const bracketId = await this.resolveBracketForRoleSkills(
+                createTaskLibraryDto.default_job_role_id,
+                createTaskLibraryDto.skills_needed ?? [],
+            );
+            createTaskLibraryDto.default_contributor_id = (await this.resolveContributorForRole(
+                createTaskLibraryDto.default_job_role_id,
+                bracketId,
+                createTaskLibraryDto.brand_id,
+            )) ?? undefined;
+        }
+
         return this.prisma.task_library.create({
             data: {
                 ...createTaskLibraryDto,
@@ -48,6 +61,17 @@ export class TaskLibraryService {
                         name: true,
                         display_name: true,
                         category: true,
+                    },
+                },
+                default_contributor: {
+                    select: {
+                        id: true,
+                        contact: {
+                            select: {
+                                first_name: true,
+                                last_name: true,
+                            },
+                        },
                     },
                 },
             },
@@ -115,6 +139,17 @@ export class TaskLibraryService {
                         category: true,
                     },
                 },
+                default_contributor: {
+                    select: {
+                        id: true,
+                        contact: {
+                            select: {
+                                first_name: true,
+                                last_name: true,
+                            },
+                        },
+                    },
+                },
                 task_library_benchmarks: {
                     include: {
                         contributor: {
@@ -130,6 +165,31 @@ export class TaskLibraryService {
                     },
                 },
                 task_library_skill_rates: true,
+                children: {
+                    include: {
+                        default_job_role: {
+                            select: {
+                                id: true,
+                                name: true,
+                                display_name: true,
+                                category: true,
+                            },
+                        },
+                        default_contributor: {
+                            select: {
+                                id: true,
+                                contact: {
+                                    select: {
+                                        first_name: true,
+                                        last_name: true,
+                                    },
+                                },
+                            },
+                        },
+                        task_library_skill_rates: true,
+                    },
+                    orderBy: { order_index: 'asc' },
+                },
             },
             orderBy: [
                 { phase: 'asc' },
@@ -173,6 +233,17 @@ export class TaskLibraryService {
                         category: true,
                     },
                 },
+                default_contributor: {
+                    select: {
+                        id: true,
+                        contact: {
+                            select: {
+                                first_name: true,
+                                last_name: true,
+                            },
+                        },
+                    },
+                },
                 task_library_benchmarks: {
                     include: {
                         contributor: {
@@ -203,9 +274,31 @@ export class TaskLibraryService {
 
     async update(id: number, updateTaskLibraryDto: UpdateTaskLibraryDto, userId: number) {
         // Verify user has access to this task
-        await this.findOne(id, userId);
+        const existing = await this.findOne(id, userId);
 
-        return this.prisma.task_library.update({
+        // Auto-resolve default contributor when role changes.
+        // Use !== undefined (not `in`) because class-transformer with transform:true registers
+        // ALL decorated properties as own keys with undefined — so `in` is always true.
+        if (updateTaskLibraryDto.default_job_role_id !== undefined) {
+            const newRoleId = updateTaskLibraryDto.default_job_role_id;
+            if (newRoleId) {
+                // Only auto-resolve if caller didn't explicitly set a contributor
+                if (updateTaskLibraryDto.default_contributor_id === undefined) {
+                    const skills = updateTaskLibraryDto.skills_needed ?? existing.skills_needed ?? [];
+                    const bracketId = await this.resolveBracketForRoleSkills(newRoleId, skills);
+                    updateTaskLibraryDto.default_contributor_id = await this.resolveContributorForRole(
+                        newRoleId,
+                        bracketId,
+                        existing.brand_id,
+                    );
+                }
+            } else {
+                // Role cleared → clear contributor too
+                updateTaskLibraryDto.default_contributor_id = null;
+            }
+        }
+
+        const updated = await this.prisma.task_library.update({
             where: { id },
             data: updateTaskLibraryDto,
             include: {
@@ -221,6 +314,17 @@ export class TaskLibraryService {
                         name: true,
                         display_name: true,
                         category: true,
+                    },
+                },
+                default_contributor: {
+                    select: {
+                        id: true,
+                        contact: {
+                            select: {
+                                first_name: true,
+                                last_name: true,
+                            },
+                        },
                     },
                 },
                 task_library_benchmarks: {
@@ -240,6 +344,40 @@ export class TaskLibraryService {
                 task_library_skill_rates: true,
             },
         });
+
+        // Propagate new default_contributor_id to all linked inquiry tasks so
+        // active tasks immediately reflect the library default.
+        if (updateTaskLibraryDto.default_contributor_id !== undefined) {
+            await this.prisma.inquiry_tasks.updateMany({
+                where: { task_library_id: id, is_active: true, is_stage: false },
+                data: { assigned_to_id: updateTaskLibraryDto.default_contributor_id },
+            });
+        }
+
+        return updated;
+    }
+
+    /**
+     * Bulk-sync assigned_to_id on all inquiry tasks from their linked task
+     * library entry's current default_contributor_id.  Only updates tasks where
+     * the library entry has a non-null default_contributor_id set.
+     */
+    async syncContributorsToInquiryTasks(brandId: number): Promise<{ updated: number }> {
+        const libraryTasks = await this.prisma.task_library.findMany({
+            where: { brand_id: brandId, is_active: true, default_contributor_id: { not: null } },
+            select: { id: true, default_contributor_id: true },
+        });
+
+        let updated = 0;
+        for (const lt of libraryTasks) {
+            const result = await this.prisma.inquiry_tasks.updateMany({
+                where: { task_library_id: lt.id, is_active: true, is_stage: false },
+                data: { assigned_to_id: lt.default_contributor_id },
+            });
+            updated += result.count;
+        }
+
+        return { updated };
     }
 
     async remove(id: number, userId: number) {
@@ -304,6 +442,25 @@ export class TaskLibraryService {
                         name: true,
                     },
                 },
+                default_job_role: {
+                    select: {
+                        id: true,
+                        name: true,
+                        display_name: true,
+                        category: true,
+                    },
+                },
+                default_contributor: {
+                    select: {
+                        id: true,
+                        contact: {
+                            select: {
+                                first_name: true,
+                                last_name: true,
+                            },
+                        },
+                    },
+                },
                 task_library_benchmarks: {
                     include: {
                         contributor: {
@@ -360,6 +517,78 @@ export class TaskLibraryService {
         await Promise.all(updatePromises);
 
         return { success: true, message: 'Task order updated successfully' };
+    }
+
+    /**
+     * Auto-select a contributor for a role, scoped to a brand:
+     * 1. If bracketId is given → get that bracket's level, find all contributors
+     *    at that role with bracket level >= required level (same logic as frontend filter).
+     *    If exactly 1 qualifies → return them.
+     * 2. Fallback (no bracket) → find all contributors at that role regardless of tier.
+     *    If exactly 1 → return them.
+     * Returns null when multiple people qualify (manual pick needed).
+     */
+    private async resolveContributorForRole(jobRoleId: number, bracketId?: number | null, brandId?: number): Promise<number | null> {
+        const brandFilter = brandId ? {
+            contributor: {
+                contact: {
+                    OR: [
+                        { brand_id: brandId },
+                        { brand_id: null }, // include Global Admins
+                    ],
+                },
+            },
+        } : {};
+
+        if (bracketId != null) {
+            const bracket = await this.prisma.payment_brackets.findUnique({
+                where: { id: bracketId },
+                select: { level: true },
+            });
+            if (bracket) {
+                const eligible = await this.prisma.contributor_job_roles.findMany({
+                    where: {
+                        job_role_id: jobRoleId,
+                        payment_bracket: { level: { gte: bracket.level } },
+                        ...brandFilter,
+                    },
+                    select: { contributor_id: true },
+                });
+                if (eligible.length === 1) return eligible[0].contributor_id;
+                if (eligible.length > 1) return null;
+            }
+        }
+
+        // Fallback: only 1 contributor for the role in this brand
+        const allRows = await this.prisma.contributor_job_roles.findMany({
+            where: { job_role_id: jobRoleId, ...brandFilter },
+            select: { contributor_id: true },
+        });
+        return allRows.length === 1 ? allRows[0].contributor_id : null;
+    }
+
+    /**
+     * Resolve the highest-level payment bracket for a role+skills combination.
+     */
+    private async resolveBracketForRoleSkills(jobRoleId: number, skills: string[]): Promise<number | null> {
+        if (!skills.length) return null;
+        const mappings = await this.prisma.skill_role_mappings.findMany({
+            where: {
+                job_role_id: jobRoleId,
+                skill_name: { in: skills, mode: 'insensitive' },
+                payment_bracket_id: { not: null },
+                is_active: true,
+            },
+            include: { payment_bracket: { select: { id: true, level: true } } },
+        });
+        let highest: { id: number; level: number } | null = null;
+        for (const m of mappings) {
+            if (!m.payment_bracket) continue;
+            if (!highest || m.payment_bracket.level > highest.level) {
+                highest = { id: m.payment_bracket.id, level: m.payment_bracket.level };
+            }
+        }
+        return highest?.id ?? null;
     }
 
     private async checkBrandAccess(brandId: number, userId: number) {
@@ -441,7 +670,14 @@ export class TaskLibraryService {
      */
     async previewAutoGeneration(packageId: number, brandId: number, userId: number, inquiryId?: number) {
         await this.checkBrandAccess(brandId, userId);
+        return this.previewAutoGenerationCore(packageId, brandId, inquiryId);
+    }
 
+    async previewAutoGenerationForSystem(packageId: number, brandId: number, inquiryId?: number) {
+        return this.previewAutoGenerationCore(packageId, brandId, inquiryId);
+    }
+
+    private async previewAutoGenerationCore(packageId: number, brandId: number, inquiryId?: number) {
         // 0. Fetch package first so we can validate it and use its contents as the
         //    authoritative list of which films belong to this package.
         const pkg = await this.prisma.service_packages.findUnique({
@@ -547,6 +783,13 @@ export class TaskLibraryService {
                 include: { payment_bracket: { select: { level: true } } },
             })
             : [];
+        const contributorRoleAssignmentsPreview = new Set(
+            contributorJobRolesPreview.map(cjr => `${cjr.contributor_id}-${cjr.job_role_id}`),
+        );
+        const hasValidPreviewRoleAssignment = (contributorId: number | null | undefined, jobRoleId: number | null | undefined) => {
+            if (!contributorId || !jobRoleId) return true;
+            return contributorRoleAssignmentsPreview.has(`${contributorId}-${jobRoleId}`);
+        };
         // Map "contributorId-roleId" → bracket level
         const contributorBracketMap = new Map<string, number>();
         for (const cjr of contributorJobRolesPreview) {
@@ -560,6 +803,7 @@ export class TaskLibraryService {
         const roleToCrewList = new Map<number, PreviewCrewMember[]>();
         for (const op of operators) {
             if (!op.job_role_id || !op.contributor) continue;
+            if (!contributorRoleAssignmentsPreview.has(`${op.contributor_id}-${op.job_role_id}`)) continue;
             const name = `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim();
             if (!name) continue;
             const bracketLevel = contributorBracketMap.get(`${op.contributor_id}-${op.job_role_id}`) ?? 0;
@@ -745,6 +989,9 @@ export class TaskLibraryService {
             });
             activityCrewDetails = assignments.map(a => {
                 const op = a.package_day_operator;
+                if (!hasValidPreviewRoleAssignment(op.contributor_id, op.job_role_id)) {
+                    return null;
+                }
                 const crewName = op.contributor
                     ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
                     : op.position_name;
@@ -758,7 +1005,7 @@ export class TaskLibraryService {
                     contributorId: op.contributor_id ?? null,
                     jobRoleId: op.job_role_id ?? null,
                 };
-            });
+            }).filter((detail): detail is NonNullable<typeof detail> => Boolean(detail));
         }
 
         // 2d. For per_film preview, fetch film names so we can expand into per-film rows
@@ -906,7 +1153,10 @@ export class TaskLibraryService {
 
             // Special handling for per_activity_crew: expand into individual preview rows
             if (task.trigger_type === 'per_activity_crew' && activityCrewDetails.length > 0) {
-                return activityCrewDetails.map(detail => {
+                const relevantCrewDetails = task.default_job_role?.id
+                    ? activityCrewDetails.filter(d => d.jobRoleId === task.default_job_role!.id)
+                    : activityCrewDetails;
+                return relevantCrewDetails.map(detail => {
                     const hours = detail.durationMinutes
                         ? detail.durationMinutes / 60
                         : (task.effort_hours ? Number(task.effort_hours) : 0);
@@ -939,12 +1189,15 @@ export class TaskLibraryService {
             // Special handling for per_crew_member: expand into per-crew preview rows
             if (task.trigger_type === 'per_crew_member' && operators.length > 0) {
                 const effortEach = task.effort_hours ? Number(task.effort_hours) : 0;
-                return operators.map(op => {
+                return operators.flatMap(op => {
+                    if (!hasValidPreviewRoleAssignment(op.contributor_id, op.job_role_id)) {
+                        return [];
+                    }
                     const crewName = op.contributor
                         ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
                         : op.position_name;
                     const opRoleName = op.job_role?.display_name || op.job_role?.name || null;
-                    return {
+                    return [{
                         task_library_id: task.id,
                         name: `${task.name} — ${crewName}`,
                         phase: task.phase,
@@ -956,7 +1209,7 @@ export class TaskLibraryService {
                         role_name: opRoleName || assignment.role_name,
                         assigned_to_name: crewName as string | null,
                         hourly_rate: assignment.hourly_rate,
-                    };
+                    }];
                 });
             }
 
@@ -1219,6 +1472,7 @@ export class TaskLibraryService {
                         select: {
                             position_name: true,
                             contributor_id: true,
+                            job_role_id: true,
                             contributor: {
                                 include: { contact: { select: { first_name: true, last_name: true } } },
                             },
@@ -1366,6 +1620,13 @@ export class TaskLibraryService {
                 include: { payment_bracket: { select: { level: true } } },
             })
             : [];
+        const contributorRoleAssignmentsExec = new Set(
+            contributorJobRolesExec.map(cjr => `${cjr.contributor_id}-${cjr.job_role_id}`),
+        );
+        const hasValidExecRoleAssignment = (contributorId: number | null | undefined, jobRoleId: number | null | undefined) => {
+            if (!contributorId || !jobRoleId) return true;
+            return contributorRoleAssignmentsExec.has(`${contributorId}-${jobRoleId}`);
+        };
         const execBracketMap = new Map<string, number>(); // "contributorId-roleId" → level
         for (const cjr of contributorJobRolesExec) {
             if (cjr.payment_bracket_id && cjr.payment_bracket) {
@@ -1377,6 +1638,7 @@ export class TaskLibraryService {
         const roleToCrewList = new Map<number, ExecCrewEntry[]>();
         for (const op of operators) {
             if (!op.job_role_id || !op.contributor_id) continue;
+            if (!contributorRoleAssignmentsExec.has(`${op.contributor_id}-${op.job_role_id}`)) continue;
             const bracketLevel = execBracketMap.get(`${op.contributor_id}-${op.job_role_id}`) ?? 0;
             if (!roleToCrewList.has(op.job_role_id)) roleToCrewList.set(op.job_role_id, []);
             const list = roleToCrewList.get(op.job_role_id)!;
@@ -1517,6 +1779,9 @@ export class TaskLibraryService {
             if (task.trigger_type === 'per_activity_crew') {
                 for (const assignment of activityCrewAssignments) {
                     const op = assignment.package_day_operator;
+                    if (!hasValidExecRoleAssignment(op.contributor_id, op.job_role_id)) continue;
+                    // Only generate tasks for crew whose role matches the task's default role
+                    if (task.default_job_role_id && op.job_role_id !== task.default_job_role_id) continue;
                     const crewName = op.contributor
                         ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
                         : op.position_name;
@@ -1698,6 +1963,7 @@ export class TaskLibraryService {
             if (task.trigger_type === 'per_crew_member') {
                 const effortEach = effectiveHours ? Number(effectiveHours) : 0;
                 for (const op of operators) {
+                    if (!hasValidExecRoleAssignment(op.contributor_id, op.job_role_id)) continue;
                     const crewName = op.contributor
                         ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
                         : op.position_name;

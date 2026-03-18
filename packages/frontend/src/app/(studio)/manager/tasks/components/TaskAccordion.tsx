@@ -38,15 +38,17 @@ interface TaskAccordionProps {
     isDragging: boolean;
     quickAddPhase: string | null;
     quickAddData: Partial<TaskLibrary>;
-    startQuickAdd: (phase: string) => void;
+    startQuickAdd: (phase: string, parentStageId?: number) => void;
     cancelQuickAdd: () => void;
     saveQuickAdd: () => void;
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
     jobRoles: JobRole[];
     allMappings: SkillRoleMapping[];
+    contributors: { id: number; contact: { first_name?: string; last_name?: string } }[];
     expandedTaskId: number | null;
     onToggleExpand: (taskId: number) => void;
     onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
+    onUpdateContributor: (taskId: number, contributorId: number | null) => Promise<void>;
 }
 
 export function TaskAccordion({
@@ -69,9 +71,11 @@ export function TaskAccordion({
     updateQuickAddData,
     jobRoles,
     allMappings,
+    contributors,
     expandedTaskId,
     onToggleExpand,
     onUpdateRoleSkills,
+    onUpdateContributor,
 }: TaskAccordionProps) {
     const phaseColors = {
         'Lead': 'rgba(102, 126, 234, 0.3)',
@@ -188,7 +192,7 @@ export function TaskAccordion({
                             {group.label} <span style={{ fontWeight: 300, color: 'rgba(255, 255, 255, 0.6)' }}>Phase</span>
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            {group.tasks.length} tasks • {group.tasks.filter(t => t.is_active).length} active
+                            {group.tasks.filter(t => t.is_stage).length > 0 && <>{group.tasks.filter(t => t.is_stage).length} stages • </>}{group.tasks.filter(t => !t.is_stage).length} tasks • {group.tasks.filter(t => t.is_active && !t.is_stage).length} active
                         </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -240,14 +244,17 @@ export function TaskAccordion({
                         isDragging={isDragging}
                         quickAddPhase={quickAddPhase}
                         quickAddData={quickAddData}
+                        startQuickAdd={startQuickAdd}
                         cancelQuickAdd={cancelQuickAdd}
                         saveQuickAdd={saveQuickAdd}
                         updateQuickAddData={updateQuickAddData}
                         jobRoles={jobRoles}
                         allMappings={allMappings}
+                        contributors={contributors}
                         expandedTaskId={expandedTaskId}
                         onToggleExpand={onToggleExpand}
                         onUpdateRoleSkills={onUpdateRoleSkills}
+                        onUpdateContributor={onUpdateContributor}
                     />
                 )}
             </AccordionDetails>

@@ -55,6 +55,9 @@ export default function PackageReviewPage() {
     const [packageSets, setPackageSets] = useState<any[]>([]);
     const [selectedPackageId, setSelectedPackageId] = useState<number | ''>('');
     const [saving, setSaving] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [packageSummary, setPackageSummary] = useState<any>(null);
+    const [summaryLoading, setSummaryLoading] = useState(false);
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
         open: false,
         message: '',
@@ -88,6 +91,19 @@ export default function PackageReviewPage() {
             api.packageSets.getAll(inquiry.brand_id).then(setPackageSets).catch(console.error);
         }
     }, [inquiry?.brand_id]);
+
+    // Fetch package schedule summary whenever the dropdown selection changes (for live preview)
+    useEffect(() => {
+        if (!selectedPackageId) {
+            setPackageSummary(null);
+            return;
+        }
+        setSummaryLoading(true);
+        api.schedule.packageSummary.get(Number(selectedPackageId))
+            .then(setPackageSummary)
+            .catch(() => setPackageSummary(null))
+            .finally(() => setSummaryLoading(false));
+    }, [selectedPackageId]);
 
     // ─── Derive active packages & grouping ───────────────────────────
 
@@ -326,6 +342,41 @@ export default function PackageReviewPage() {
                     )}
                 </Box>
             </Box>
+
+            {/* ── Package Schedule Preview (shown for unsaved draft selection) ── */}
+            {selectedPackageId !== '' && hasUnsavedChanges && (
+                <Box sx={{ mb: 2, px: 2.5, py: 1.75, borderRadius: 2, bgcolor: 'rgba(100,140,255,0.04)', border: '1px solid rgba(100,140,255,0.1)', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', minHeight: 42 }}>
+                    {summaryLoading ? (
+                        <CircularProgress size={14} sx={{ color: '#648CFF' }} />
+                    ) : packageSummary?.has_schedule_data ? (
+                        <>
+                            {(packageSummary.event_day_names as string[]).map((name: string) => (
+                                <Chip
+                                    key={name}
+                                    label={name}
+                                    size="small"
+                                    sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: 'rgba(100,140,255,0.1)', color: '#818cf8', border: '1px solid rgba(100,140,255,0.2)', borderRadius: 1 }}
+                                />
+                            ))}
+                            <Box sx={{ width: '1px', height: 16, bgcolor: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+                            {[
+                                { count: packageSummary.counts?.activities ?? 0, label: 'activities' },
+                                { count: packageSummary.counts?.operators ?? 0, label: 'crew' },
+                                { count: packageSummary.counts?.films ?? 0, label: 'films' },
+                            ].filter((s) => s.count > 0).map(({ count, label }) => (
+                                <Typography key={label} sx={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                    <Box component="span" sx={{ color: '#94a3b8', fontWeight: 700, fontFamily: 'monospace' }}>{count}</Box>
+                                    {' '}{label}
+                                </Typography>
+                            ))}
+                        </>
+                    ) : packageSummary && !packageSummary.has_schedule_data ? (
+                        <Typography sx={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic' }}>
+                            No schedule configured for this package
+                        </Typography>
+                    ) : null}
+                </Box>
+            )}
 
             {/* ── Schedule Editor (full width) ── */}
             {inquiry.selected_package_id ? (

@@ -2,6 +2,7 @@ import {
     Controller,
     Get,
     Post,
+    Patch,
     Body,
     Param,
     NotFoundException,
@@ -44,6 +45,11 @@ class PublicSubmissionDto {
     inquiry?: NeedsAssessmentSubmissionInquiryDto;
 }
 
+class UpdateSubmissionResponsesDto {
+    @IsObject()
+    responses: Record<string, unknown>;
+}
+
 @Controller('api/needs-assessments/share')
 export class PublicNeedsAssessmentsController {
     constructor(private readonly needsAssessmentsService: NeedsAssessmentsService) {}
@@ -65,5 +71,15 @@ export class PublicNeedsAssessmentsController {
             throw new NotFoundException('Invalid share token');
         }
         return this.needsAssessmentsService.createPublicSubmission(token, dto);
+    }
+
+    @Patch('submission/:submissionId/responses')
+    async updateResponses(
+        @Param('submissionId') submissionId: string,
+        @Body() dto: UpdateSubmissionResponsesDto,
+    ) {
+        const id = parseInt(submissionId, 10);
+        if (isNaN(id)) throw new NotFoundException('Invalid submission ID');
+        return this.needsAssessmentsService.updateSubmissionResponses(id, dto.responses);
     }
 }

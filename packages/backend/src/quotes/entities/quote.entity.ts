@@ -7,6 +7,8 @@ export interface Quote {
     issue_date: Date;
     expiry_date: Date;
     total_amount: number;
+    total_with_tax?: number;
+    currency?: string;
     consultation_notes?: string | null;
     created_at: Date;
     updated_at: Date;

@@ -31,6 +31,7 @@ export interface DiscoveryQuestionnaireSubmission {
     inquiry_id?: number | null;
     responses: Record<string, unknown>;
     call_notes?: string | null;
+    transcript?: string | null;
     submitted_at: string;
     created_at: string;
     updated_at: string;
@@ -42,4 +43,5 @@ export interface CreateDiscoverySubmissionPayload {
     inquiry_id?: number;
     responses: Record<string, unknown>;
     call_notes?: string;
+    transcript?: string;
 }

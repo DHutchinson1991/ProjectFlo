@@ -26,7 +26,6 @@ const OFFSET_MAP = {
     'Estimate Preparation': 7,
     'Discovery Call Scheduling': 8,
     'Discovery Call': 10,
-    'Requirements Discovery': 12,
     'Budget Alignment': 14,
 
     // ── Booking phase (days after inquiry received) ──

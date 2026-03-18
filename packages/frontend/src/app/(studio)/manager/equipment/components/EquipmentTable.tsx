@@ -98,8 +98,8 @@ export function EquipmentTable({
                         <TableCell sx={{ fontWeight: 600, minWidth: 100 }}>Status</TableCell>
                         <TableCell sx={{ fontWeight: 600, minWidth: 100 }}>Condition</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 600, minWidth: 120 }}>
-                            <MoneyIcon fontSize="small" sx={{ verticalAlign: "middle", mr: 1 }} />
-                            Daily Rate
+                            <MoneyIcon fontSize="small" sx={{ verticalAlign: "middle", mr: 0.75 }} />
+                            {currencySymbol} Daily Rate
                         </TableCell>
                         <TableCell sx={{ fontWeight: 600, minWidth: 120 }}>Location</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 600, minWidth: 150 }}>Actions</TableCell>

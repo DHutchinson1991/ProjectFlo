@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInquiryDto, UpdateInquiryDto } from './dto/inquiries.dto';
 import { $Enums, Prisma } from '@prisma/client';
@@ -58,6 +59,20 @@ export class InquiriesService {
                 event_type: {
                     select: { id: true, name: true },
                 },
+                inquiry_tasks: {
+                    where: { is_active: true, is_stage: true },
+                    orderBy: { order_index: 'asc' },
+                    select: {
+                        id: true,
+                        name: true,
+                        stage_color: true,
+                        order_index: true,
+                        children: {
+                            where: { is_active: true },
+                            select: { id: true, status: true },
+                        },
+                    },
+                },
             },
             orderBy: {
                 id: 'desc',
@@ -100,6 +115,19 @@ export class InquiriesService {
                 ? Number(inquiry.estimates[0].total_amount)
                 : null,
             pipeline_stage: (() => {
+                // Dynamic: derive from task hierarchy if stages exist
+                const stages = inquiry.inquiry_tasks;
+                if (stages.length > 0) {
+                    // Find the first stage where NOT all children are completed
+                    for (const stage of stages) {
+                        if (stage.children.length === 0) continue;
+                        const allDone = stage.children.every(c => c.status === 'Completed');
+                        if (!allDone) return stage.name;
+                    }
+                    // All stages complete — last stage name
+                    return stages[stages.length - 1].name;
+                }
+                // Fallback: legacy heuristic for inquiries without tasks generated
                 if (inquiry.contracts.length > 0) return 'Contract Stage';
                 if (inquiry.proposals.length > 0) return 'Proposal Sent';
                 const ests = inquiry.estimates;
@@ -108,6 +136,14 @@ export class InquiriesService {
                 if (ests.length > 0) return 'Estimate Created';
                 return 'New Lead';
             })(),
+            // Include stage definitions for dynamic kanban columns
+            pipeline_stages: inquiry.inquiry_tasks.map(s => ({
+                name: s.name,
+                color: s.stage_color,
+                order_index: s.order_index,
+                total_children: s.children.length,
+                completed_children: s.children.filter(c => c.status === 'Completed').length,
+            })),
         }));
     }
 
@@ -175,6 +211,7 @@ export class InquiriesService {
                         name: true,
                     },
                 },
+                welcome_sent_at: true,
             },
         });
 
@@ -251,8 +288,14 @@ export class InquiriesService {
                 status: inquiryData.status,
                 notes: inquiryData.notes,
                 venue_details: inquiryData.venue_details,
+                venue_address: inquiryData.venue_address ?? null,
+                venue_lat: inquiryData.venue_lat ?? null,
+                venue_lng: inquiryData.venue_lng ?? null,
+                guest_count: inquiryData.guest_count,
                 lead_source: inquiryData.lead_source,
                 lead_source_details: inquiryData.lead_source_details,
+                selected_package_id: inquiryData.selected_package_id ?? null,
+                portal_token: randomUUID(),
             },
             include: {
                 contact: {
@@ -271,6 +314,17 @@ export class InquiriesService {
             await this.inquiryTasksService.generateForInquiry(inquiry.id, brandId);
         } catch (err) {
             this.logger.warn(`Failed to auto-generate inquiry tasks for inquiry ${inquiry.id}: ${err}`);
+        }
+
+        if (inquiryData.selected_package_id) {
+            try {
+                await this.handlePackageSelection(inquiry.id, inquiryData.selected_package_id, brandId);
+            } catch (err) {
+                this.logger.error(
+                    `Failed to create package snapshot for inquiry ${inquiry.id}`,
+                    err instanceof Error ? err.stack : String(err),
+                );
+            }
         }
 
         return {
@@ -338,6 +392,11 @@ export class InquiriesService {
                 ...(inquiryData.venue_address !== undefined && { venue_address: inquiryData.venue_address }),
                 ...(inquiryData.venue_lat !== undefined && { venue_lat: inquiryData.venue_lat }),
                 ...(inquiryData.venue_lng !== undefined && { venue_lng: inquiryData.venue_lng }),
+                // Track venue source and timestamp when any venue field changes
+                ...((inquiryData.venue_details !== undefined || inquiryData.venue_address !== undefined) && {
+                    venue_source: inquiryData.venue_source || 'manual',
+                    venue_updated_at: new Date(),
+                }),
                 ...(inquiryData.lead_source !== undefined && { lead_source: inquiryData.lead_source }),
                 ...(inquiryData.lead_source_details !== undefined && { lead_source_details: inquiryData.lead_source_details }),
                 ...(inquiryData.selected_package_id !== undefined && { selected_package_id: inquiryData.selected_package_id }),
@@ -364,6 +423,50 @@ export class InquiriesService {
                     error instanceof Error ? error.stack : error,
                 );
                 // Don't throw — the inquiry update itself succeeded
+            }
+        }
+
+        // Status-change hooks
+        if (inquiryData.status && inquiryData.status !== existingInquiry.status) {
+            const newStatus = inquiryData.status as string;
+
+            if (newStatus === 'Contacted') {
+                await this.inquiryTasksService.autoCompleteByName(id, 'Qualify & Respond');
+            }
+
+            if (newStatus === 'Booked') {
+                // Create a WEDDING_DAY calendar event if a wedding date exists
+                if (updatedInquiry.wedding_date) {
+                    try {
+                        const existing = await this.prisma.calendar_events.findFirst({
+                            where: { inquiry_id: id, event_type: 'WEDDING_DAY' },
+                        });
+                        if (!existing) {
+                            // Find a contributor to associate (required field on calendar_events)
+                            const contributor = await this.prisma.contributors.findFirst({
+                                where: { contact: { brand_id: existingInquiry.contact.brand_id } },
+                                select: { id: true },
+                            });
+                            if (contributor) {
+                                await this.prisma.calendar_events.create({
+                                    data: {
+                                        inquiry_id: id,
+                                        contributor_id: contributor.id,
+                                        event_type: 'WEDDING_DAY',
+                                        title: 'Wedding Day',
+                                        start_time: updatedInquiry.wedding_date,
+                                        end_time: updatedInquiry.wedding_date,
+                                        is_all_day: true,
+                                    },
+                                });
+                            }
+                        }
+                    } catch (err) {
+                        this.logger.error(`Failed to create WEDDING_DAY event for inquiry ${id}`, err);
+                    }
+                }
+                await this.inquiryTasksService.autoCompleteByName(id, 'Block Wedding Date');
+                await this.inquiryTasksService.autoCompleteByName(id, 'Confirm Booking');
             }
         }
 
@@ -658,14 +761,39 @@ export class InquiriesService {
             throw new NotFoundException(`Inquiry with ID ${id} not found`);
         }
 
-        // Soft delete the inquiry
-        await this.prisma.inquiries.update({
-            where: { id },
-            data: {
-                archived_at: new Date(),
-            },
+        await this.prisma.$transaction(async (tx) => {
+            // Soft-deleted inquiries should not leave active pipeline tasks behind.
+            await tx.inquiry_tasks.deleteMany({
+                where: { inquiry_id: id },
+            });
+
+            // Soft delete the inquiry itself.
+            await tx.inquiries.update({
+                where: { id },
+                data: {
+                    archived_at: new Date(),
+                },
+            });
         });
 
         return { message: 'Inquiry deleted successfully' };
+    }
+
+    async sendWelcomePack(id: number, brandId: number): Promise<{ welcome_sent_at: Date }> {
+        const inquiry = await this.prisma.inquiries.findFirst({
+            where: { id, archived_at: null, contact: { brand_id: brandId } },
+            select: { id: true },
+        });
+        if (!inquiry) throw new NotFoundException(`Inquiry with ID ${id} not found`);
+
+        const updated = await this.prisma.inquiries.update({
+            where: { id },
+            data: { welcome_sent_at: new Date() },
+            select: { welcome_sent_at: true },
+        });
+
+        await this.inquiryTasksService.autoCompleteByName(id, 'Send Welcome Pack');
+
+        return { welcome_sent_at: updated.welcome_sent_at! };
     }
 }

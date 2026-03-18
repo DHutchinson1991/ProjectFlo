@@ -83,28 +83,23 @@ interface EquipContentsForCost {
 }
 
 /**
- * Compute the total equipment cost across all event days.
+ * Compute the total equipment cost from operator-linked equipment only.
  *
- * Gathers unique equipment IDs from:
- *  1. The `day_equipment` JSON field on the package contents
- *  2. The relational operator→equipment links on each operator
+ * Uses only the relational operator→equipment links, matching the backend
+ * `estimatePackagePrice` behaviour. The `day_equipment` JSON field is
+ * intentionally excluded — it can contain orphaned entries from deleted
+ * event days that are invisible in the UI but would inflate the total.
  *
- * Then sums the `rental_price_per_day` from the full equipment inventory.
+ * Deduplicates by equipment_id (shared equipment counted once).
  */
 export function computeEquipmentCost(
-    contents: EquipContentsForCost | undefined | null,
+    _contents: EquipContentsForCost | undefined | null,
     operators: PackageDayOperatorRecord[],
     allEquipment: EquipmentRecord[],
 ): number {
-    const dayEquipMap = contents?.day_equipment || {};
     const allEquipIds = new Set<number>();
 
-    // From day_equipment JSON
-    Object.values(dayEquipMap).forEach(items => {
-        (items || []).forEach(item => allEquipIds.add(item.equipment_id));
-    });
-
-    // From relational operator-equipment links
+    // Only relational operator-equipment links (matches backend behaviour)
     operators.forEach(op => {
         (op.equipment || []).forEach(eq => allEquipIds.add(eq.equipment_id));
     });

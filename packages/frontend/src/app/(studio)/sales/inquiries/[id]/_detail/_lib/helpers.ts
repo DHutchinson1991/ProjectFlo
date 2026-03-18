@@ -1,6 +1,6 @@
 import type { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
 import type { ConversionData, NextActionData, PipelineTask } from './types';
-import { NA_CATEGORIES, TASK_AUTO_COMPLETE, WORKFLOW_PHASES } from './constants';
+import { NA_CATEGORIES, NA_HIDDEN_KEYS, TASK_AUTO_COMPLETE, WORKFLOW_PHASES } from './constants';
 
 // ─── Deal intelligence ───────────────────────────────────────────────
 
@@ -162,8 +162,9 @@ export const groupNaResponses = (responses: Record<string, unknown>) => {
     }).filter(c => c.entries.length > 0);
 
     const naCatKeys = new Set(NA_CATEGORIES.flatMap(c => c.keys));
+    const hiddenSet = new Set(NA_HIDDEN_KEYS);
     const naUncategorized = Object.entries(responses)
-        .filter(([k, v]) => !naCatKeys.has(k) && v !== undefined && v !== null && v !== '')
+        .filter(([k, v]) => !naCatKeys.has(k) && !hiddenSet.has(k) && v !== undefined && v !== null && v !== '')
         .map(([k, v]) => ({ key: k, label: humanize(k), value: v }));
 
     return { naGrouped, naUncategorized };

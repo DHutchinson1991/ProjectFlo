@@ -7,13 +7,31 @@ import {
     UpdateNeedsAssessmentTemplateDto,
 } from './dto/needs-assessment.dto';
 import { InquiriesService } from '../inquiries/inquiries.service';
+import { InquiryTasksService } from '../inquiry-tasks/inquiry-tasks.service';
+import { EstimatesService } from '../estimates/estimates.service';
 import { $Enums, Prisma } from '@prisma/client';
+import { ProjectPackageSnapshotService } from '../projects/project-package-snapshot.service';
+import { TaskLibraryService } from '../business/task-library/task-library.service';
+import { PaymentSchedulesService } from '../payment-schedules/payment-schedules.service';
+
+type AutoEstimateItem = {
+    category?: string;
+    description: string;
+    quantity: number;
+    unit: string;
+    unit_price: number;
+};
 
 @Injectable()
 export class NeedsAssessmentsService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly inquiriesService: InquiriesService,
+        private readonly inquiryTasksService: InquiryTasksService,
+        private readonly estimatesService: EstimatesService,
+        private readonly snapshotService: ProjectPackageSnapshotService,
+        private readonly taskLibraryService: TaskLibraryService,
+        private readonly paymentSchedulesService: PaymentSchedulesService,
     ) {}
 
     async getActiveTemplate(brandId?: number) {
@@ -189,8 +207,27 @@ export class NeedsAssessmentsService {
             if (!existingInquiry?.wedding_date && responses['wedding_date'])
                 inquiryUpdate.wedding_date = new Date(responses['wedding_date'] as string);
 
-            if (!existingInquiry?.venue_details && (responses['ceremony_location'] || responses['venue_details']))
-                inquiryUpdate.venue_details = (responses['ceremony_location'] as string | undefined) || (responses['venue_details'] as string);
+            if (!existingInquiry?.guest_count && responses['guest_count'])
+                inquiryUpdate.guest_count = responses['guest_count'] as string;
+
+            if (!existingInquiry?.venue_details && (responses['ceremony_location'] || responses['venue_name'] || responses['venue_details'])) {
+                // venue_name is the human-readable place name; venue_details is the short address fallback
+                inquiryUpdate.venue_details = (responses['venue_name'] as string | undefined)
+                    || (responses['ceremony_location'] as string | undefined)
+                    || (responses['venue_details'] as string);
+            }
+            if (!existingInquiry?.venue_address && responses['venue_address'])
+                inquiryUpdate.venue_address = responses['venue_address'] as string;
+            if (existingInquiry?.venue_lat == null && responses['venue_lat'] != null)
+                inquiryUpdate.venue_lat = parseFloat(String(responses['venue_lat']));
+            if (existingInquiry?.venue_lng == null && responses['venue_lng'] != null)
+                inquiryUpdate.venue_lng = parseFloat(String(responses['venue_lng']));
+
+            // If venue is being set from client submission, track the source
+            if (inquiryUpdate.venue_details || inquiryUpdate.venue_lat) {
+                inquiryUpdate.venue_source = 'client_submission';
+                inquiryUpdate.venue_updated_at = new Date();
+            }
 
             if (!existingInquiry?.notes && responses['notes'])
                 inquiryUpdate.notes = responses['notes'] as string;
@@ -201,15 +238,27 @@ export class NeedsAssessmentsService {
             // Always update lead_source_details with the full response JSON so it stays fresh
             inquiryUpdate.lead_source_details = JSON.stringify(responses);
 
-            // selected_package_id from payload (wizard package step)
-            if (payload.selected_package_id && !existingInquiry?.selected_package_id)
-                inquiryUpdate.selected_package_id = payload.selected_package_id;
+            // selected_package_id from payload (wizard package step) or responses fallback
+            const pkgIdFromPayload = payload.selected_package_id;
+            const pkgIdFromResponses = responses['selected_package'] ? Number(responses['selected_package']) : null;
+            const resolvedPkgId = (pkgIdFromPayload && !isNaN(pkgIdFromPayload)) ? pkgIdFromPayload
+                : (pkgIdFromResponses && !isNaN(pkgIdFromResponses) ? pkgIdFromResponses : null);
+            if (resolvedPkgId && !existingInquiry?.selected_package_id)
+                inquiryUpdate.selected_package_id = resolvedPkgId;
 
             if (Object.keys(inquiryUpdate).length > 0) {
                 await this.prisma.inquiries.update({
                     where: { id: payload.inquiry_id },
-                    data: inquiryUpdate as Parameters<typeof this.prisma.inquiries.update>[0]['data'],
+                    data: inquiryUpdate as Prisma.inquiriesUpdateInput,
                 });
+
+                if (resolvedPkgId && !existingInquiry?.selected_package_id) {
+                    try {
+                        await this.inquiriesService.handlePackageSelection(payload.inquiry_id, resolvedPkgId, brandId);
+                    } catch (err) {
+                        console.error(`Failed to create inquiry package snapshot for inquiry ${payload.inquiry_id}:`, err);
+                    }
+                }
             }
 
             // Update contact fields if they were blank
@@ -249,7 +298,11 @@ export class NeedsAssessmentsService {
 
             const inferredInquiry = {
                 wedding_date: inquiry.wedding_date || (responses['wedding_date'] as string) || new Date().toISOString(),
-                venue_details: inquiry.venue_details || (responses['ceremony_location'] as string) || (responses['venue_details'] as string),
+                venue_details: inquiry.venue_details || (responses['venue_name'] as string) || (responses['ceremony_location'] as string) || (responses['venue_details'] as string),
+                venue_address: inquiry.venue_address || (responses['venue_address'] as string) || undefined,
+                venue_lat: inquiry.venue_lat ?? (responses['venue_lat'] != null ? parseFloat(String(responses['venue_lat'])) : undefined),
+                venue_lng: inquiry.venue_lng ?? (responses['venue_lng'] != null ? parseFloat(String(responses['venue_lng'])) : undefined),
+                guest_count: inquiry.guest_count || (responses['guest_count'] as string),
                 notes: inquiry.notes || (responses['notes'] as string),
                 lead_source: inquiry.lead_source || (responses['lead_source'] as string) || 'Needs Assessment',
                 lead_source_details: inquiry.lead_source_details || JSON.stringify(responses),
@@ -278,7 +331,7 @@ export class NeedsAssessmentsService {
             contactId = linkedContact?.id;
         }
 
-        return this.prisma.needs_assessment_submissions.create({
+        const submission = await this.prisma.needs_assessment_submissions.create({
             data: {
                 brand_id: brandId,
                 template_id: template.id,
@@ -293,6 +346,402 @@ export class NeedsAssessmentsService {
                 contact: true,
             },
         });
+
+        if (inquiryId) {
+            await this.inquiryTasksService.autoCompleteByName(inquiryId, 'Inquiry Received');
+            await this.autoCreateDraftEstimate(inquiryId);
+        }
+
+        return submission;
+    }
+
+    /**
+     * Auto-create a Draft estimate from the inquiry's live schedule snapshot.
+     * Falls back to a single package-price line item only when no snapshot-derived
+     * estimate items can be built.
+     */
+    private async autoCreateDraftEstimate(inquiryId: number): Promise<void> {
+        try {
+            const existingCount = await this.prisma.estimates.count({ where: { inquiry_id: inquiryId } });
+            if (existingCount > 0) return; // already has an estimate
+
+            const inquiry = await this.prisma.inquiries.findUnique({
+                where: { id: inquiryId },
+                select: {
+                    wedding_date: true,
+                    selected_package: { select: { id: true, name: true, base_price: true, currency: true } },
+                    contact: {
+                        select: {
+                            brand: {
+                                select: {
+                                    id: true,
+                                    default_tax_rate: true,
+                                    default_payment_method: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+            if (!inquiry?.selected_package) return; // no package selected — nothing to draft
+
+            const pkg = inquiry.selected_package;
+            const brand = inquiry.contact?.brand;
+            if (!brand?.id) return;
+
+            const today = new Date();
+            const expiry = new Date(today);
+            expiry.setDate(today.getDate() + 30);
+
+            const items = await this.buildAutoEstimateItems(inquiryId, pkg.id, brand.id);
+            const fallbackBasePrice = Number(pkg.base_price ?? 0);
+            const estimateItems = items.length > 0
+                ? items
+                : fallbackBasePrice > 0
+                    ? [{
+                        description: pkg.name,
+                        quantity: 1,
+                        unit: 'Package',
+                        unit_price: fallbackBasePrice,
+                        category: 'Package',
+                    }]
+                    : [];
+
+            if (estimateItems.length === 0) return;
+
+            const estimate = await this.estimatesService.create(inquiryId, {
+                title: pkg.name,
+                issue_date: today.toISOString(),
+                expiry_date: expiry.toISOString(),
+                status: undefined, // defaults to Draft
+                is_primary: true,
+                tax_rate: Number(brand.default_tax_rate ?? 0),
+                payment_method: brand.default_payment_method ?? 'Bank Transfer',
+                items: estimateItems,
+            } as any);
+
+            const defaultTemplate = await this.paymentSchedulesService.getDefaultTemplate(brand.id);
+            if (defaultTemplate && inquiry.wedding_date) {
+                await this.paymentSchedulesService.applyToEstimate(Number(estimate.id), {
+                    template_id: defaultTemplate.id,
+                    booking_date: today.toISOString().split('T')[0],
+                    event_date: inquiry.wedding_date.toISOString().split('T')[0],
+                    total_amount: Number(estimate.total_amount ?? 0),
+                });
+            }
+        } catch (err) {
+            // Auto-create is best-effort — log but never fail the submission
+            console.error(`Auto-estimate creation failed for inquiry ${inquiryId}:`, err);
+        }
+    }
+
+    private async buildAutoEstimateItems(
+        inquiryId: number,
+        packageId: number,
+        brandId: number,
+    ): Promise<AutoEstimateItem[]> {
+        const [scheduleFilms, operators, taskPreview] = await Promise.all([
+            this.snapshotService.getFilms({ inquiryId }).catch(() => [] as any[]),
+            this.snapshotService.getOperators({ inquiryId }).catch(() => [] as any[]),
+            this.taskLibraryService.previewAutoGenerationForSystem(packageId, brandId, inquiryId).catch(() => null),
+        ]);
+
+        const items: AutoEstimateItem[] = [];
+        const filmNames = scheduleFilms.map((pf: any) => pf.film?.name || `Film #${pf.film_id}`);
+        const roundMoney = (value: number) => Math.round(value * 100) / 100;
+
+        const resolveHourlyRate = (op: any): number => {
+            const contributorRoles = op.contributor?.contributor_job_roles || [];
+            if (op.job_role_id) {
+                const match = contributorRoles.find(
+                    (role: any) => role.job_role_id === op.job_role_id && role.payment_bracket?.hourly_rate,
+                );
+                if (match?.payment_bracket?.hourly_rate) return Number(match.payment_bracket.hourly_rate);
+            }
+            const primary = contributorRoles.find((role: any) => role.is_primary && role.payment_bracket?.hourly_rate);
+            if (primary?.payment_bracket?.hourly_rate) return Number(primary.payment_bracket.hourly_rate);
+            const anyRole = contributorRoles.find((role: any) => role.payment_bracket?.hourly_rate);
+            if (anyRole?.payment_bracket?.hourly_rate) return Number(anyRole.payment_bracket.hourly_rate);
+            if (op.contributor?.default_hourly_rate) return Number(op.contributor.default_hourly_rate);
+            return 0;
+        };
+
+        const resolveDayRate = (op: any): number => {
+            const contributorRoles = op.contributor?.contributor_job_roles || [];
+            if (op.job_role_id) {
+                const match = contributorRoles.find(
+                    (role: any) => role.job_role_id === op.job_role_id && role.payment_bracket?.day_rate,
+                );
+                if (match?.payment_bracket?.day_rate) return Number(match.payment_bracket.day_rate);
+            }
+            const primary = contributorRoles.find((role: any) => role.is_primary && role.payment_bracket?.day_rate);
+            if (primary?.payment_bracket?.day_rate) return Number(primary.payment_bracket.day_rate);
+            return 0;
+        };
+
+        const usesDayRate = (op: any): boolean => {
+            const contributorRoles = op.contributor?.contributor_job_roles || [];
+            if (op.job_role_id) {
+                const match = contributorRoles.find((role: any) => role.job_role_id === op.job_role_id);
+                if (match?.payment_bracket) {
+                    return Number(match.payment_bracket.day_rate || 0) > 0
+                        && Number(match.payment_bracket.hourly_rate || 0) === 0;
+                }
+            }
+            return false;
+        };
+
+        const planningCategories = new Set(['creative', 'production']);
+        const postProductionCategories = new Set(['post-production']);
+        const taskExcludedPhases = new Set(['Lead', 'Inquiry', 'Booking']);
+
+        type CrewAccum = {
+            name: string;
+            role: string;
+            hours: number;
+            days: number;
+            hourlyRate: number;
+            dayRate: number;
+            useDayRate: boolean;
+        };
+
+        const planningCrew = new Map<string, CrewAccum>();
+        const coverageCrew = new Map<string, CrewAccum>();
+        const postProdCrew = new Map<string, CrewAccum>();
+
+        for (const op of operators) {
+            if (!op.contributor_id && !op.job_role_id) continue;
+            const key = `${op.contributor_id ?? 0}|${op.job_role_id ?? 0}`;
+            const name = op.contributor
+                ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+                : (op.job_role?.display_name || op.job_role?.name || 'TBC');
+            const role = op.job_role?.display_name || op.job_role?.name || '';
+            const hours = Number(op.hours || 0);
+            const category = op.job_role?.category?.toLowerCase() || '';
+            const bucket = planningCategories.has(category)
+                ? planningCrew
+                : postProductionCategories.has(category)
+                    ? postProdCrew
+                    : coverageCrew;
+            const existing = bucket.get(key);
+
+            if (existing) {
+                existing.hours += hours;
+                existing.days += 1;
+                continue;
+            }
+
+            bucket.set(key, {
+                name,
+                role,
+                hours,
+                days: 1,
+                hourlyRate: resolveHourlyRate(op),
+                dayRate: resolveDayRate(op),
+                useDayRate: usesDayRate(op),
+            });
+        }
+
+        if (taskPreview?.tasks) {
+            const allCrewMap = new Map<string, {
+                name: string;
+                role: string;
+                category: string;
+                hours: number;
+                cost: number;
+                rate: number;
+                ppFilmCosts: Map<string, { hours: number; cost: number }>;
+            }>();
+
+            for (const task of taskPreview.tasks) {
+                if (taskExcludedPhases.has(task.phase) || !task.assigned_to_name) continue;
+
+                const cost = Number(task.estimated_cost ?? 0);
+                const key = `${task.assigned_to_name}|${task.role_name ?? ''}`;
+                const existing = allCrewMap.get(key);
+
+                if (existing) {
+                    existing.hours += Number(task.total_hours || 0);
+                    existing.cost += cost;
+                    if (task.phase === 'Post_Production') {
+                        const filmKey = filmNames.find((filmName) => task.name?.includes(filmName)) || 'General';
+                        const filmCost = existing.ppFilmCosts.get(filmKey);
+                        if (filmCost) {
+                            filmCost.hours += Number(task.total_hours || 0);
+                            filmCost.cost += cost;
+                        } else {
+                            existing.ppFilmCosts.set(filmKey, {
+                                hours: Number(task.total_hours || 0),
+                                cost,
+                            });
+                        }
+                    }
+                    continue;
+                }
+
+                const matchingOperator = operators.find((op: any) => {
+                    const name = op.contributor
+                        ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+                        : '';
+                    return name === task.assigned_to_name
+                        && (op.job_role?.display_name === task.role_name || op.job_role?.name === task.role_name);
+                });
+                const category = matchingOperator?.job_role?.category?.toLowerCase() || '';
+                const lineCategory = planningCategories.has(category)
+                    ? 'Planning'
+                    : postProductionCategories.has(category)
+                        ? 'Post-Production'
+                        : 'Coverage';
+                const ppFilmCosts = new Map<string, { hours: number; cost: number }>();
+                if (task.phase === 'Post_Production') {
+                    const filmKey = filmNames.find((filmName) => task.name?.includes(filmName)) || 'General';
+                    ppFilmCosts.set(filmKey, {
+                        hours: Number(task.total_hours || 0),
+                        cost,
+                    });
+                }
+
+                allCrewMap.set(key, {
+                    name: task.assigned_to_name,
+                    role: task.role_name ?? '',
+                    category: lineCategory,
+                    hours: Number(task.total_hours || 0),
+                    cost,
+                    rate: Number(task.hourly_rate ?? 0),
+                    ppFilmCosts,
+                });
+            }
+
+            for (const entry of allCrewMap.values()) {
+                if (entry.category !== 'Planning' && entry.category !== 'Coverage') continue;
+                const derivedRate = entry.rate > 0
+                    ? entry.rate
+                    : entry.hours > 0
+                        ? entry.cost / entry.hours
+                        : entry.cost;
+                items.push({
+                    description: entry.role ? `${entry.name} - ${entry.role}` : entry.name,
+                    category: entry.category,
+                    quantity: roundMoney(entry.hours),
+                    unit: 'Hours',
+                    unit_price: roundMoney(derivedRate),
+                });
+            }
+
+            const postProductionEntries = Array.from(allCrewMap.values()).filter((entry) => entry.category === 'Post-Production');
+            if (postProductionEntries.length > 0) {
+                const postProductionByFilm = new Map<string, Map<string, { name: string; role: string; hours: number; cost: number; rate: number }>>();
+
+                for (const entry of postProductionEntries) {
+                    const postProductionFilmHours = Array.from(entry.ppFilmCosts.values()).reduce((sum, value) => sum + value.hours, 0);
+                    const postProductionFilmCost = Array.from(entry.ppFilmCosts.values()).reduce((sum, value) => sum + value.cost, 0);
+                    const deliveryHours = entry.hours - postProductionFilmHours;
+                    const deliveryCost = entry.cost - postProductionFilmCost;
+
+                    for (const [filmKey, filmCost] of entry.ppFilmCosts) {
+                        if (!postProductionByFilm.has(filmKey)) {
+                            postProductionByFilm.set(filmKey, new Map());
+                        }
+                        const crewKey = `${entry.name}|${entry.role}`;
+                        const existing = postProductionByFilm.get(filmKey)?.get(crewKey);
+                        if (existing) {
+                            existing.hours += filmCost.hours;
+                            existing.cost += filmCost.cost;
+                        } else {
+                            postProductionByFilm.get(filmKey)?.set(crewKey, {
+                                name: entry.name,
+                                role: entry.role,
+                                hours: filmCost.hours,
+                                cost: filmCost.cost,
+                                rate: entry.rate,
+                            });
+                        }
+                    }
+
+                    if (deliveryCost > 0.001) {
+                        if (!postProductionByFilm.has('General')) {
+                            postProductionByFilm.set('General', new Map());
+                        }
+                        const crewKey = `${entry.name}|${entry.role}`;
+                        const existing = postProductionByFilm.get('General')?.get(crewKey);
+                        if (existing) {
+                            existing.hours += deliveryHours;
+                            existing.cost += deliveryCost;
+                        } else {
+                            postProductionByFilm.get('General')?.set(crewKey, {
+                                name: entry.name,
+                                role: entry.role,
+                                hours: deliveryHours,
+                                cost: deliveryCost,
+                                rate: entry.rate,
+                            });
+                        }
+                    }
+                }
+
+                for (const [filmKey, filmMap] of postProductionByFilm) {
+                    const category = filmKey === 'General' ? 'Post-Production' : `Post-Production:${filmKey}`;
+                    for (const entry of filmMap.values()) {
+                        const derivedRate = entry.rate > 0
+                            ? entry.rate
+                            : entry.hours > 0
+                                ? entry.cost / entry.hours
+                                : entry.cost;
+                        items.push({
+                            description: entry.role ? `${entry.name} - ${entry.role}` : entry.name,
+                            category,
+                            quantity: roundMoney(entry.hours),
+                            unit: 'Hours',
+                            unit_price: roundMoney(derivedRate),
+                        });
+                    }
+                }
+            }
+        } else {
+            const pushFallback = (crewMap: Map<string, CrewAccum>, category: string) => {
+                for (const crew of crewMap.values()) {
+                    items.push({
+                        description: crew.role ? `${crew.name} - ${crew.role}` : crew.name,
+                        category,
+                        quantity: crew.useDayRate && crew.dayRate > 0 ? crew.days : roundMoney(crew.hours),
+                        unit: crew.useDayRate && crew.dayRate > 0 ? 'Days' : 'Hours',
+                        unit_price: roundMoney(crew.useDayRate && crew.dayRate > 0 ? crew.dayRate : crew.hourlyRate),
+                    });
+                }
+            };
+
+            pushFallback(planningCrew, 'Planning');
+            pushFallback(coverageCrew, 'Coverage');
+            pushFallback(postProdCrew, 'Post-Production');
+        }
+
+        const equipmentSeen = new Set<number>();
+        for (const op of operators) {
+            for (const equipmentRelation of op.equipment || []) {
+                const equipmentId = equipmentRelation.equipment_id ?? equipmentRelation.equipment?.id;
+                if (!equipmentId || equipmentSeen.has(equipmentId)) continue;
+                equipmentSeen.add(equipmentId);
+                const price = Number(equipmentRelation.equipment?.rental_price_per_day || 0);
+                const name = [equipmentRelation.equipment?.item_name, equipmentRelation.equipment?.model]
+                    .filter(Boolean)
+                    .join(' ');
+                items.push({
+                    description: name || `Equipment #${equipmentId}`,
+                    category: 'Equipment',
+                    quantity: 1,
+                    unit: 'Day',
+                    unit_price: roundMoney(price),
+                });
+            }
+        }
+
+        return items
+            .filter((item) => item.description.trim().length > 0)
+            .map((item) => ({
+                ...item,
+                quantity: roundMoney(item.quantity),
+                unit_price: roundMoney(item.unit_price),
+            }));
     }
 
     async convertSubmission(submissionId: number, brandId: number) {
@@ -304,7 +753,11 @@ export class NeedsAssessmentsService {
         const responses = submission.responses as Record<string, unknown>;
         const inferredInquiry = {
             wedding_date: (responses['wedding_date'] as string) || new Date().toISOString(),
-            venue_details: (responses['ceremony_location'] as string) || (responses['venue_details'] as string),
+            venue_details: (responses['venue_name'] as string) || (responses['ceremony_location'] as string) || (responses['venue_details'] as string),
+            venue_address: (responses['venue_address'] as string) || undefined,
+            venue_lat: responses['venue_lat'] != null ? parseFloat(String(responses['venue_lat'])) : undefined,
+            venue_lng: responses['venue_lng'] != null ? parseFloat(String(responses['venue_lng'])) : undefined,
+            guest_count: (responses['guest_count'] as string),
             notes: (responses['notes'] as string),
             lead_source: (responses['lead_source'] as string) || 'Needs Assessment',
             lead_source_details: JSON.stringify(responses),
@@ -330,6 +783,160 @@ export class NeedsAssessmentsService {
                 contact: true,
             },
         });
+    }
+
+    // ─── Review endpoints ─────────────────────────────────────────────────────
+
+    async checkDateConflicts(submissionId: number, brandId: number) {
+        const submission = await this.prisma.needs_assessment_submissions.findFirst({
+            where: { id: submissionId, brand_id: brandId },
+            include: { inquiry: { select: { id: true, wedding_date: true } } },
+        });
+
+        if (!submission?.inquiry?.wedding_date) {
+            return { wedding_date: null, booked_conflicts: [], soft_conflicts: [] };
+        }
+
+        const weddingDate = submission.inquiry.wedding_date;
+        const dayStart = new Date(weddingDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(weddingDate);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        const [conflictingInquiries, conflictingProjects] = await Promise.all([
+            this.prisma.inquiries.findMany({
+                where: {
+                    id: { not: submission.inquiry.id },
+                    wedding_date: { gte: dayStart, lte: dayEnd },
+                },
+                include: { contact: { select: { first_name: true, last_name: true } } },
+            }),
+            this.prisma.projects.findMany({
+                where: {
+                    wedding_date: { gte: dayStart, lte: dayEnd },
+                    brand_id: brandId,
+                    archived_at: null,
+                },
+                select: { id: true, project_name: true },
+            }),
+        ]);
+
+        const booked_conflicts: { type: string; id: number; name: string; status: string }[] = [
+            ...conflictingInquiries
+                .filter((i) => i.status === 'Booked')
+                .map((i) => ({
+                    type: 'inquiry',
+                    id: i.id,
+                    name: `${i.contact.first_name} ${i.contact.last_name}`.trim(),
+                    status: 'Booked',
+                })),
+            ...conflictingProjects.map((p) => ({
+                type: 'project',
+                id: p.id,
+                name: p.project_name ?? `Project #${p.id}`,
+                status: 'Confirmed',
+            })),
+        ];
+
+        const soft_conflicts = conflictingInquiries
+            .filter((i) => i.status !== 'Booked')
+            .map((i) => ({
+                type: 'inquiry',
+                id: i.id,
+                name: `${i.contact.first_name} ${i.contact.last_name}`.trim(),
+                status: String(i.status),
+            }));
+
+        return { wedding_date: weddingDate, booked_conflicts, soft_conflicts };
+    }
+
+    async checkCrewConflicts(submissionId: number, brandId: number) {
+        const submission = await this.prisma.needs_assessment_submissions.findFirst({
+            where: { id: submissionId, brand_id: brandId },
+            include: { inquiry: { select: { id: true, wedding_date: true } } },
+        });
+
+        if (!submission?.inquiry?.wedding_date) {
+            return { conflicts: [] };
+        }
+
+        const weddingDate = submission.inquiry.wedding_date;
+        const dayStart = new Date(weddingDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(weddingDate);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        // Find calendar events for event-day types on that date
+        const events = await this.prisma.calendar_events.findMany({
+            where: {
+                event_type: { in: ['WEDDING_DAY', 'PROJECT_ASSIGNMENT'] },
+                start_time: { lte: dayEnd },
+                end_time: { gte: dayStart },
+            },
+            include: {
+                contributor: {
+                    include: {
+                        contact: { select: { first_name: true, last_name: true } },
+                        contributor_job_roles: {
+                            include: { job_role: { select: { name: true, display_name: true } } },
+                        },
+                    },
+                },
+            },
+        });
+
+        // On-set role keywords — videographers/operators/photographers/drone pilots
+        const ON_SET_KEYWORDS = ['videographer', 'operator', 'cinematographer', 'photographer', 'drone'];
+
+        const seen = new Set<number>();
+        const conflicts: { contributor_id: number; name: string; role: string; event_type: string; event_title: string }[] = [];
+
+        for (const ev of events) {
+            const cid = ev.contributor_id;
+            if (seen.has(cid)) continue;
+
+            const matchingRole = ev.contributor.contributor_job_roles.find((r) =>
+                ON_SET_KEYWORDS.some((kw) => r.job_role.name.toLowerCase().includes(kw)),
+            );
+            if (!matchingRole) continue;
+
+            seen.add(cid);
+            conflicts.push({
+                contributor_id: cid,
+                name: `${ev.contributor.contact.first_name} ${ev.contributor.contact.last_name}`.trim(),
+                role: matchingRole.job_role.display_name ?? matchingRole.job_role.name,
+                event_type: ev.event_type,
+                event_title: ev.title,
+            });
+        }
+
+        return { conflicts };
+    }
+
+    async reviewSubmission(
+        submissionId: number,
+        brandId: number,
+        data: { review_notes?: string; review_checklist_state?: Record<string, unknown> },
+    ) {
+        const submission = await this.getSubmissionById(submissionId, brandId);
+
+        const updated = await this.prisma.needs_assessment_submissions.update({
+            where: { id: submissionId },
+            data: {
+                review_notes: data.review_notes,
+                reviewed_at: new Date(),
+                ...(data.review_checklist_state !== undefined
+                    ? { review_checklist_state: data.review_checklist_state as Prisma.InputJsonValue }
+                    : {}),
+            },
+            include: { template: { include: { questions: true } }, inquiry: true, contact: true },
+        });
+
+        if (submission.inquiry_id) {
+            await this.inquiryTasksService.autoCompleteByName(submission.inquiry_id, 'Review Inquiry');
+        }
+
+        return updated;
     }
 
     private createDefaultTemplate(brandId: number) {
@@ -569,5 +1176,45 @@ export class NeedsAssessmentsService {
             { ...payload, template_id: template.id },
             template.brand_id,
         );
+    }
+
+    async updateSubmissionResponses(
+        submissionId: number,
+        responses: Record<string, unknown>,
+    ) {
+        const submission = await this.prisma.needs_assessment_submissions.findUnique({
+            where: { id: submissionId },
+            select: { id: true, inquiry_id: true, responses: true },
+        });
+        if (!submission) throw new NotFoundException('Submission not found');
+
+        const oldResponses = (submission.responses as Record<string, unknown>) || {};
+        const merged = { ...oldResponses, ...responses };
+
+        const updated = await this.prisma.needs_assessment_submissions.update({
+            where: { id: submissionId },
+            data: { responses: merged as Prisma.InputJsonValue },
+            include: {
+                template: { include: { questions: { orderBy: { order_index: 'asc' } } } },
+                inquiry: { select: { id: true, portal_token: true } },
+            },
+        });
+
+        // Log the edit as an activity
+        if (submission.inquiry_id) {
+            const changedFields = Object.keys(responses).filter(
+                (k) => JSON.stringify(oldResponses[k]) !== JSON.stringify(responses[k]),
+            );
+            await this.prisma.activity_logs.create({
+                data: {
+                    inquiry_id: submission.inquiry_id,
+                    type: 'client_update',
+                    description: `Client updated questionnaire answers (${changedFields.length} field${changedFields.length === 1 ? '' : 's'})`,
+                    metadata: { changed_fields: changedFields, source: 'portal' } as Prisma.InputJsonValue,
+                },
+            });
+        }
+
+        return updated;
     }
 }

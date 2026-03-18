@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 model brands {
@@ -406,6 +407,8 @@ model inquiries {
   venue_address                String?
   venue_lat                    Float?
   venue_lng                    Float?
+  venue_source                 String?                        // 'manual' | 'client_submission' | 'slot'
+  venue_updated_at             DateTime?
   follow_up_due_date           DateTime?
   lead_source                  String?
   lead_source_details          String?
@@ -415,6 +418,7 @@ model inquiries {
   selected_package_id          Int?
   source_package_id            Int? // Which package was cloned into this inquiry's schedule
   package_contents_snapshot    Json? // Frozen copy of package contents at clone time
+  guest_count                  String?
   event_type_id                Int?
   portal_token                 String?                        @unique
   selected_package             service_packages?              @relation(fields: [selected_package_id], references: [id])
@@ -451,6 +455,9 @@ model inquiries {
   schedule_film_moments        ProjectFilmSceneMoment[]
   schedule_film_beats          ProjectFilmSceneBeat[]
   schedule_film_equipment      ProjectFilmEquipmentAssignment[]
+  package_requests             package_requests[]
+  created_at                   DateTime                       @default(now())
+  welcome_sent_at              DateTime?
 
   @@index([source_package_id])
   @@map("inquiries")
@@ -498,20 +505,23 @@ model needs_assessment_questions {
 }
 
 model needs_assessment_submissions {
-  id           Int                        @id @default(autoincrement())
-  template_id  Int
-  brand_id     Int
-  inquiry_id   Int?
-  contact_id   Int?
-  status       String                     @default("submitted")
-  responses    Json
-  submitted_at DateTime                   @default(now())
-  created_at   DateTime                   @default(now())
-  updated_at   DateTime                   @updatedAt
-  template     needs_assessment_templates @relation(fields: [template_id], references: [id], onDelete: Cascade)
-  brand        brands                     @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  inquiry      inquiries?                 @relation(fields: [inquiry_id], references: [id])
-  contact      contacts?                  @relation(fields: [contact_id], references: [id])
+  id                      Int                        @id @default(autoincrement())
+  template_id             Int
+  brand_id                Int
+  inquiry_id              Int?
+  contact_id              Int?
+  status                  String                     @default("submitted")
+  responses               Json
+  submitted_at            DateTime                   @default(now())
+  created_at              DateTime                   @default(now())
+  updated_at              DateTime                   @updatedAt
+  review_notes            String?
+  reviewed_at             DateTime?
+  review_checklist_state  Json?
+  template                needs_assessment_templates @relation(fields: [template_id], references: [id], onDelete: Cascade)
+  brand                   brands                     @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  inquiry                 inquiries?                 @relation(fields: [inquiry_id], references: [id])
+  contact                 contacts?                  @relation(fields: [contact_id], references: [id])
 
   @@index([brand_id])
   @@index([inquiry_id])
@@ -562,6 +572,7 @@ model discovery_questionnaire_submissions {
   inquiry_id   Int?
   responses    Json
   call_notes   String?
+  transcript   String?
   submitted_at DateTime                           @default(now())
   created_at   DateTime                           @default(now())
   updated_at   DateTime                           @updatedAt
@@ -579,6 +590,7 @@ model activity_logs {
   inquiry_id  Int
   type        String
   description String
+  metadata    Json?
   created_at  DateTime  @default(now())
   inquiry     inquiries @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
 
@@ -682,6 +694,8 @@ model contributors {
   is_crew                        Boolean                       @default(false)
   crew_color                     String? // hex color for UI display in crew contexts
   bio                            String? // short biography
+  default_camera_id              Int? // Default camera equipment assigned to this crew member
+  default_camera                 equipment?                    @relation("ContributorDefaultCamera", fields: [default_camera_id], references: [id], onDelete: SetNull)
   activities_assigned            activities[]
   audit_logs                     audit_log[]
   calendar_events                calendar_events[]
@@ -710,9 +724,11 @@ model contributors {
   project_assignments            project_assignments[]
   task_comments_made             task_comments[]
   task_library_benchmarks        task_library_benchmarks[]
+  task_library_defaults          task_library[]                @relation("TaskLibraryDefaultContributor")
   tasks_assigned                 tasks[]                       @relation("AssignedTasks")
   project_tasks_assigned         project_tasks[]               @relation("AssignedProjectTasks")
   inquiry_tasks_completed        inquiry_tasks[]               @relation("CompletedInquiryTasks")
+  inquiry_tasks_assigned         inquiry_tasks[]               @relation("AssignedInquiryTasks")
   timeline_sessions              TimelineEditingSession[]
   timeline_tracks                FilmTimelineTrack[]
   project_film_timeline_tracks   ProjectFilmTimelineTrack[]
@@ -751,6 +767,7 @@ model job_roles {
   skill_role_mappings   skill_role_mappings[]
   resolved_project_tasks project_tasks[]        @relation("ResolvedJobRole")
   default_task_library  task_library[]           @relation("TaskLibraryDefaultRole")
+  inquiry_tasks         inquiry_tasks[]          @relation("InquiryTaskJobRole")
 
   @@index([category])
   @@index([is_active])
@@ -1173,6 +1190,7 @@ model estimates {
   installments     Int?             @default(1)
   is_primary       Boolean          @default(false)
   version          Int              @default(1)
+  currency         String?          @default("USD") @db.VarChar(3)
   created_at       DateTime                    @default(now())
   updated_at       DateTime                    @updatedAt
   items            estimate_items[]
@@ -1220,6 +1238,7 @@ model quotes {
   is_primary         Boolean       @default(false)
   consultation_notes String?
   version            Int           @default(1)
+  currency           String?       @default("USD") @db.VarChar(3)
   schedule_template_id Int?
   created_at         DateTime      @default(now())
   updated_at         DateTime      @updatedAt
@@ -1642,10 +1661,18 @@ model task_library {
   is_active                Boolean                    @default(true)
   trigger_type             task_trigger_type          @default(always)
   due_date_offset_days     Int?                       // Days from reference date (inquiry created / event date) to set due_date
+  parent_task_id           Int?                       // Self-reference for parent/child (stage → sub-tasks)
+  is_stage                 Boolean                    @default(false) // True = pipeline stage grouping task
+  is_auto_only             Boolean                    @default(false) // True = auto-completes only, cannot be manually toggled
+  stage_color              String?                    // Hex color for kanban/pipeline display
+  default_contributor_id   Int?                       // Auto-resolved when exactly 1 contributor has the role
   created_at               DateTime                   @default(now())
   updated_at               DateTime                   @updatedAt
   brand                    brands                     @relation(fields: [brand_id], references: [id], onDelete: Cascade)
   default_job_role         job_roles?                 @relation("TaskLibraryDefaultRole", fields: [default_job_role_id], references: [id], onDelete: SetNull)
+  default_contributor      contributors?              @relation("TaskLibraryDefaultContributor", fields: [default_contributor_id], references: [id], onDelete: SetNull)
+  parent_task              task_library?              @relation("TaskLibraryParentChild", fields: [parent_task_id], references: [id], onDelete: SetNull)
+  children                 task_library[]             @relation("TaskLibraryParentChild")
   task_library_benchmarks  task_library_benchmarks[]
   task_library_skill_rates task_library_skill_rates[]
   workflow_template_tasks  workflow_template_tasks[]
@@ -1657,6 +1684,8 @@ model task_library {
   @@index([is_active])
   @@index([phase, order_index])
   @@index([default_job_role_id])
+  @@index([default_contributor_id])
+  @@index([parent_task_id])
   @@map("task_library")
 }
 
@@ -1746,32 +1775,58 @@ model project_tasks {
 // Tracks per-task completion through the Inquiry → Booking pipeline.
 
 model inquiry_tasks {
-  id              Int               @id @default(autoincrement())
-  inquiry_id      Int
-  task_library_id Int?              // Source task from library (nullable for manual additions)
-  name            String
-  description     String?
-  phase           project_phase
-  trigger_type    task_trigger_type @default(always)
-  estimated_hours Decimal?          @db.Decimal(8, 2)
-  due_date        DateTime?
-  status          tasks_status      @default(To_Do)
-  order_index     Int               @default(0)
-  completed_at    DateTime?
-  completed_by_id Int?
-  is_active       Boolean           @default(true)
-  created_at      DateTime          @default(now())
-  updated_at      DateTime          @updatedAt
+  id                      Int               @id @default(autoincrement())
+  inquiry_id              Int
+  task_library_id         Int?              // Source task from library (nullable for manual additions)
+  parent_inquiry_task_id  Int?              // Self-reference: child task → parent stage task
+  name                    String
+  description             String?
+  phase                   project_phase
+  trigger_type            task_trigger_type @default(always)
+  estimated_hours         Decimal?          @db.Decimal(8, 2)
+  due_date                DateTime?
+  status                  tasks_status      @default(To_Do)
+  order_index             Int               @default(0)
+  completed_at            DateTime?
+  completed_by_id         Int?
+  assigned_to_id          Int?              // Contributor assigned to work on this task
+  job_role_id             Int?              // Role needed for this task (from task_library.default_job_role_id)
+  is_active               Boolean           @default(true)
+  is_stage                Boolean           @default(false) // True = this is a pipeline stage row
+  stage_color             String?           // Hex color inherited from task_library
+  created_at              DateTime          @default(now())
+  updated_at              DateTime          @updatedAt
 
-  inquiry      inquiries     @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
-  task_library task_library? @relation(fields: [task_library_id], references: [id], onDelete: SetNull)
-  completed_by contributors? @relation("CompletedInquiryTasks", fields: [completed_by_id], references: [id], onDelete: SetNull)
+  inquiry             inquiries      @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  task_library        task_library?  @relation(fields: [task_library_id], references: [id], onDelete: SetNull)
+  completed_by        contributors?  @relation("CompletedInquiryTasks", fields: [completed_by_id], references: [id], onDelete: SetNull)
+  assigned_to         contributors?  @relation("AssignedInquiryTasks", fields: [assigned_to_id], references: [id], onDelete: SetNull)
+  job_role            job_roles?     @relation("InquiryTaskJobRole", fields: [job_role_id], references: [id], onDelete: SetNull)
+  parent_inquiry_task inquiry_tasks? @relation("InquiryTaskParentChild", fields: [parent_inquiry_task_id], references: [id], onDelete: Cascade)
+  children            inquiry_tasks[] @relation("InquiryTaskParentChild")
+  events              inquiry_task_events[]
 
   @@index([inquiry_id])
   @@index([task_library_id])
   @@index([inquiry_id, order_index])
   @@index([status])
+  @@index([parent_inquiry_task_id])
+  @@index([assigned_to_id])
+  @@index([job_role_id])
   @@map("inquiry_tasks")
+}
+
+model inquiry_task_events {
+  id           Int      @id @default(autoincrement())
+  task_id      Int
+  event_type   String
+  triggered_by String?
+  description  String
+  occurred_at  DateTime @default(now())
+  inquiry_task inquiry_tasks @relation(fields: [task_id], references: [id], onDelete: Cascade)
+
+  @@index([task_id])
+  @@map("inquiry_task_events")
 }
 
 // Legacy SceneMediaComponent removed
@@ -1819,6 +1874,7 @@ model equipment {
   package_day_operator_equipment PackageDayOperatorEquipment[]
   project_day_operator_equipment ProjectDayOperatorEquipment[]
   project_film_equipment_assignments ProjectFilmEquipmentAssignment[]
+  contributor_default_camera      contributors[]                @relation("ContributorDefaultCamera")
 
   @@index([brand_id])
   @@index([category])
@@ -2158,6 +2214,7 @@ enum calendar_event_type {
   PERSONAL
   DISCOVERY_CALL
   PROPOSAL_REVIEW
+  WEDDING_DAY
 }
 
 enum meeting_type {
@@ -2379,6 +2436,7 @@ model SubjectRoleTemplate {
   role_name       String // e.g., "Bride", "Groom", "Best Man"
   description     String?
   is_core         Boolean  @default(false) // Core roles are pre-selected by default
+  is_group        Boolean  @default(false) // Group roles always show a headcount input (e.g., Guests, Wedding Party)
   order_index     Int      @default(0)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
@@ -2920,6 +2978,7 @@ enum EquipmentCategory {
 enum EquipmentType {
   MIRRORLESS
   DSLR
+  CAMCORDER
   ACTION_CAM
   DRONE
   SMARTPHONE
@@ -4636,4 +4695,19 @@ model contract_template_clauses {
   @@index([template_id], map: "tmpl_clauses_template_id_idx")
   @@index([clause_id], map: "tmpl_clauses_clause_id_idx")
   @@map("contract_template_clauses")
+}
+
+model package_requests {
+  id                 Int       @id @default(autoincrement())
+  inquiry_id         Int
+  selected_package_id Int?
+  customisations     Json?
+  notes              String?   @db.Text
+  status             String    @default("pending")
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  inquiry            inquiries @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+
+  @@index([inquiry_id])
+  @@map("package_requests")
 }

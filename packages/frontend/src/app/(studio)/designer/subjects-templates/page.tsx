@@ -43,6 +43,7 @@ interface RoleTemplate {
   role_name: string;
   description?: string;
   is_core: boolean;
+  is_group: boolean;
   order_index: number;
 }
 
@@ -68,7 +69,7 @@ export default function SubjectsTemplatesPage() {
     category: "PEOPLE",
   });
   const [roles, setRoles] = useState<Partial<RoleTemplate>[]>([
-    { role_name: "", is_core: false, order_index: 0 },
+    { role_name: "", is_core: false, is_group: false, order_index: 0 },
   ]);
 
   useEffect(() => {
@@ -107,7 +108,7 @@ export default function SubjectsTemplatesPage() {
     } else {
       setEditingTemplate(null);
       setFormData({ name: "", description: "", category: "PEOPLE" });
-      setRoles([{ role_name: "", is_core: false, order_index: 0 }]);
+      setRoles([{ role_name: "", is_core: false, is_group: false, order_index: 0 }]);
     }
     setOpenDialog(true);
   };
@@ -116,11 +117,11 @@ export default function SubjectsTemplatesPage() {
     setOpenDialog(false);
     setEditingTemplate(null);
     setFormData({ name: "", description: "", category: "PEOPLE" });
-    setRoles([{ role_name: "", is_core: false, order_index: 0 }]);
+    setRoles([{ role_name: "", is_core: false, is_group: false, order_index: 0 }]);
   };
 
   const handleAddRole = () => {
-    setRoles([...roles, { role_name: "", is_core: false, order_index: roles.length }]);
+    setRoles([...roles, { role_name: "", is_core: false, is_group: false, order_index: roles.length }]);
   };
 
   const handleRemoveRole = (index: number) => {
@@ -179,6 +180,7 @@ export default function SubjectsTemplatesPage() {
                 role_name: r.role_name,
                 description: r.description,
                 is_core: r.is_core,
+                is_group: r.is_group,
                 order_index: idx,
               })),
             }),
@@ -412,19 +414,34 @@ export default function SubjectsTemplatesPage() {
                           </IconButton>
                         </Tooltip>
                       </Box>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={role.is_core || false}
-                            onChange={(e) =>
-                              handleRoleChange(idx, "is_core", e.target.checked)
-                            }
-                            size="small"
-                          />
-                        }
-                        label="Default role (auto-selected in films)"
-                        sx={{ fontSize: "0.85rem", m: 0 }}
-                      />
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={role.is_core || false}
+                              onChange={(e) =>
+                                handleRoleChange(idx, "is_core", e.target.checked)
+                              }
+                              size="small"
+                            />
+                          }
+                          label="Default role (auto-selected in films)"
+                          sx={{ fontSize: "0.85rem", m: 0 }}
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={(role as any).is_group || false}
+                              onChange={(e) =>
+                                handleRoleChange(idx, "is_group", e.target.checked)
+                              }
+                              size="small"
+                            />
+                          }
+                          label="Group role (always shows headcount, e.g. Guests, Wedding Party)"
+                          sx={{ fontSize: "0.85rem", m: 0 }}
+                        />
+                      </Box>
                     </ListItem>
                     {idx < roles.length - 1 && <Divider />}
                   </React.Fragment>

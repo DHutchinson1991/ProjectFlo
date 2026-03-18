@@ -209,6 +209,22 @@ export function EquipmentCard({
         return equipToOperator.get(equipmentId) || null;
     };
 
+    const isOperatorAssignedToSelectedActivity = (op: PackageDayOperatorRecord | null | undefined) => {
+        if (!selectedActivityId || !op) return false;
+        if (op.activity_assignments && op.activity_assignments.length > 0) {
+            return op.activity_assignments.some(a => a.package_activity_id === selectedActivityId);
+        }
+        if (op.package_activity_id) return op.package_activity_id === selectedActivityId;
+        return false;
+    };
+
+    const isEquipmentHighlighted = (item: EquipItem, op: PackageDayOperatorRecord | null | undefined) => {
+        if (!selectedActivityId) return false;
+        if (activeLevel === 'activity') return true;
+        if (!item.equipment_id) return false;
+        return isOperatorAssignedToSelectedActivity(op);
+    };
+
     // ── Operator assignment helpers ──
     const handleAssignOperator = async (operatorDayId: number, equipmentId: number) => {
         const targetOp = dayOpsForEquip.find(o => o.id === operatorDayId);
@@ -286,9 +302,11 @@ export function EquipmentCard({
         const opInitials = (opName || opLabel) ? (opName || opLabel).split(' ').filter(Boolean).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() : '';
 
         const isEquipUnmanned = isCamera && unmannedEquipment.some(eq => eq.id === item.equipment_id);
+        const isHighlighted = isEquipmentHighlighted(item, op);
 
         const isEquipAssigned = (() => {
             if (!selectedActivityId) return true;
+            if (activeLevel === 'activity') return true;
             if (!op) return true;
             if (op.activity_assignments && op.activity_assignments.length > 0) {
                 return op.activity_assignments.some(a => a.package_activity_id === selectedActivityId);
@@ -303,9 +321,15 @@ export function EquipmentCard({
                 sx={{
                     display: 'flex', alignItems: 'center', gap: 1,
                     py: 0.75, px: 1.5, mx: -1.5, borderRadius: 1.5,
+                    bgcolor: isHighlighted ? 'rgba(236, 72, 153, 0.07)' : 'transparent',
                     opacity: isEquipAssigned ? 1 : 0.3,
                     transition: 'all 0.2s ease',
-                    '&:hover': { bgcolor: hoverBg, '& .equip-del': { opacity: 1 } },
+                    '&:hover': {
+                        bgcolor: selectedActivityId
+                            ? 'rgba(236, 72, 153, 0.1)'
+                            : hoverBg,
+                        '& .equip-del': { opacity: 1 },
+                    },
                 }}
             >
                 {/* Delete button */}
@@ -455,6 +479,8 @@ export function EquipmentCard({
 
     const activeDay = packageEventDays.find(d => d.id === (scheduleActiveDayId || packageEventDays[0]?.id));
     const selectedActivity = selectedActivityId ? packageActivities.find(a => a.id === selectedActivityId) : null;
+    const highlightedCameraCount = cameraItems.filter((item) => isEquipmentHighlighted(item, getOperatorForEquipment(item.equipment_id))).length;
+    const highlightedAudioCount = audioItems.filter((item) => isEquipmentHighlighted(item, getOperatorForEquipment(item.equipment_id))).length;
 
     return (
         <Box sx={{ ...(cardSx as object), overflow: 'hidden' }}>
@@ -490,7 +516,7 @@ export function EquipmentCard({
                             {cameraItems.length > 0 && (
                                 <Chip
                                     icon={<VideocamIcon sx={{ fontSize: '11px !important' }} />}
-                                    label={`${cameraItems.length}`}
+                                    label={`${selectedActivity ? highlightedCameraCount : cameraItems.length}`}
                                     size="small"
                                     sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(100, 140, 255, 0.1)', color: '#648CFF', border: '1px solid rgba(100, 140, 255, 0.2)', '& .MuiChip-icon': { color: '#648CFF' }, '& .MuiChip-label': { px: 0.4 } }}
                                 />
@@ -498,7 +524,7 @@ export function EquipmentCard({
                             {audioItems.length > 0 && (
                                 <Chip
                                     icon={<MicIcon sx={{ fontSize: '11px !important' }} />}
-                                    label={`${audioItems.length}`}
+                                    label={`${selectedActivity ? highlightedAudioCount : audioItems.length}`}
                                     size="small"
                                     sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', '& .MuiChip-icon': { color: '#10b981' }, '& .MuiChip-label': { px: 0.4 } }}
                                 />

@@ -4,19 +4,29 @@ import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { Quote } from './entities/quote.entity';
 import { Decimal } from '@prisma/client/runtime/library';
+import { InquiryTasksService } from '../inquiry-tasks/inquiry-tasks.service';
 
 @Injectable()
 export class QuotesService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private inquiryTasksService: InquiryTasksService,
+    ) { }
 
     async create(inquiryId: number, createQuoteDto: CreateQuoteDto): Promise<Quote> {
-        // Calculate total amount from items
-        const totalAmount = createQuoteDto.items.reduce(
-            (sum, item) => sum + (item.quantity * item.unit_price),
-            0
-        );
+        // Calculate total amount from items using Decimal for precision
+        const totalAmount = createQuoteDto.items
+            .reduce((sum, item) => sum.add(new Decimal(item.quantity).mul(new Decimal(item.unit_price))), new Decimal(0))
+            .toNumber();
 
-        return await this.prisma.$transaction(async (tx) => {
+        const result = await this.prisma.$transaction(async (tx) => {
+            // Resolve brand currency from inquiry → contact → brand
+            const inquiry = await tx.inquiries.findUnique({
+                where: { id: inquiryId },
+                select: { contact: { select: { brand: { select: { currency: true } } } } },
+            });
+            const currency = inquiry?.contact?.brand?.currency || 'USD';
+
             // Handle Primary Exclusivity
             if (createQuoteDto.is_primary) {
                 await tx.quotes.updateMany({
@@ -44,6 +54,7 @@ export class QuotesService {
                     payment_method: createQuoteDto.payment_method,
                     installments: createQuoteDto.installments,
                     is_primary: createQuoteDto.is_primary || false,
+                    currency,
                 },
             });
 
@@ -72,6 +83,10 @@ export class QuotesService {
                 total_amount: totalAmount,
             } as unknown as Quote; // Cast to unknown then Quote to suppress strict checks if needed
         });
+
+        await this.inquiryTasksService.autoCompleteByName(inquiryId, 'Generate Quote');
+
+        return result;
     }
 
     async findAll(inquiryId: number) {
@@ -96,15 +111,20 @@ export class QuotesService {
         });
 
         // Convert Decimal to number for the interface
-        return quotes.map(quote => ({
-            ...quote,
-            total_amount: Number(quote.total_amount),
-            items: quote.items.map(item => ({
-                ...item,
-                quantity: Number(item.quantity),
-                unit_price: Number(item.unit_price),
-            })),
-        }));
+        return quotes.map(quote => {
+            const totalAmount = Number(quote.total_amount);
+            const taxRate = quote.tax_rate ? Number(quote.tax_rate) : 0;
+            return {
+                ...quote,
+                total_amount: totalAmount,
+                total_with_tax: Math.round((totalAmount + totalAmount * (taxRate / 100)) * 100) / 100,
+                items: quote.items.map(item => ({
+                    ...item,
+                    quantity: Number(item.quantity),
+                    unit_price: Number(item.unit_price),
+                })),
+            };
+        });
     }
 
     async findOne(inquiryId: number, id: number) {
@@ -138,6 +158,7 @@ export class QuotesService {
         return {
             ...quote,
             total_amount: Number(quote.total_amount),
+            total_with_tax: Math.round((Number(quote.total_amount) + Number(quote.total_amount) * (Number(quote.tax_rate || 0) / 100)) * 100) / 100,
             items: quote.items.map(item => ({
                 ...item,
                 quantity: Number(item.quantity),
@@ -163,10 +184,9 @@ export class QuotesService {
 
             // If items are being updated, calculate new total
             if (updateQuoteDto.items) {
-                totalAmount = updateQuoteDto.items.reduce(
-                    (sum, item) => sum + ((item.quantity || 0) * (item.unit_price || 0)),
-                    0
-                );
+                totalAmount = updateQuoteDto.items
+                    .reduce((sum, item) => sum.add(new Decimal(item.quantity || 0).mul(new Decimal(item.unit_price || 0))), new Decimal(0))
+                    .toNumber();
 
                 // Delete existing items
                 await tx.quote_items.deleteMany({
@@ -238,6 +258,7 @@ export class QuotesService {
             return {
                 ...updatedQuote,
                 total_amount: Number(updatedQuote.total_amount),
+                total_with_tax: Math.round((Number(updatedQuote.total_amount) + Number(updatedQuote.total_amount) * (Number(updatedQuote.tax_rate || 0) / 100)) * 100) / 100,
                 items: updatedQuote.items.map(item => ({
                     ...item,
                     quantity: Number(item.quantity),
@@ -286,6 +307,7 @@ export class QuotesService {
         return {
             ...updatedQuote,
             total_amount: Number(updatedQuote.total_amount),
+            total_with_tax: Math.round((Number(updatedQuote.total_amount) + Number(updatedQuote.total_amount) * (Number(updatedQuote.tax_rate || 0) / 100)) * 100) / 100,
             items: updatedQuote.items.map(item => ({
                 ...item,
                 unit_price: Number(item.unit_price),

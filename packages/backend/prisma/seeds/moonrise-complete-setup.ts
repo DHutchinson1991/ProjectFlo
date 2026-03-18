@@ -101,12 +101,12 @@ async function main(): Promise<SeedSummary> {
         const taskCount = await createMoonriseTaskLibrary(brand.id);
 
         // 6. Create Sample Projects
-        logger.sectionDivider('STEP 6: Sample Projects Setup (2 projects total)');
+        logger.sectionDivider('STEP 6: Sample Projects Setup');
         const projectsResult = await createMoonriseProjects();
         aggregate = sumSummaries(aggregate, projectsResult.summary);
 
         // 7. Create Sample Inquiries
-        logger.sectionDivider('STEP 7: Sample Inquiries Setup (5 inquiries total)');
+        logger.sectionDivider('STEP 7: Sample Inquiries Setup');
         const inquiriesResult = await createMoonriseInquiries();
         aggregate = sumSummaries(aggregate, inquiriesResult.summary);
 

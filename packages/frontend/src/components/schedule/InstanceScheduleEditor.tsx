@@ -330,6 +330,7 @@ function ScheduleEditorContent({
                 contents={equipmentContents as any}
                 allEquipment={allEquipment}
                 currency={currency}
+                taxRate={Number(currentBrand?.default_tax_rate ?? 0)}
                 cardSx={cardSx}
             />
 

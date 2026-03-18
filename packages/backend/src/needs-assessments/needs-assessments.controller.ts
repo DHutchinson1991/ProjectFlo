@@ -5,6 +5,7 @@ import {
     Headers,
     Param,
     ParseIntPipe,
+    Patch,
     Post,
     Put,
     Query,
@@ -15,6 +16,7 @@ import { NeedsAssessmentsService } from './needs-assessments.service';
 import {
     CreateNeedsAssessmentSubmissionDto,
     CreateNeedsAssessmentTemplateDto,
+    ReviewNaSubmissionDto,
     UpdateNeedsAssessmentTemplateDto,
 } from './dto/needs-assessment.dto';
 
@@ -94,6 +96,31 @@ export class NeedsAssessmentsController {
         @Headers('x-brand-context') brandId: string,
     ) {
         return this.needsAssessmentsService.convertSubmission(id, Number(brandId));
+    }
+
+    @Get('submissions/:id/conflict-check')
+    checkDateConflicts(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        return this.needsAssessmentsService.checkDateConflicts(id, Number(brandId));
+    }
+
+    @Get('submissions/:id/crew-conflict-check')
+    checkCrewConflicts(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        return this.needsAssessmentsService.checkCrewConflicts(id, Number(brandId));
+    }
+
+    @Patch('submissions/:id/review')
+    reviewSubmission(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+        @Body() body: ReviewNaSubmissionDto,
+    ) {
+        return this.needsAssessmentsService.reviewSubmission(id, Number(brandId), body);
     }
 
     @Post('templates/:id/share-token')

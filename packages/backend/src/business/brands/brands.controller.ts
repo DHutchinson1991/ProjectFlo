@@ -132,6 +132,30 @@ export class BrandsController {
         return this.brandsService.upsertMeetingSettings(brandId, body);
     }
 
+    // Welcome Page Settings (batch get/save)
+    @Get(':brandId/welcome-settings')
+    getWelcomeSettings(@Param('brandId', ParseIntPipe) brandId: number) {
+        return this.brandsService.getWelcomeSettings(brandId);
+    }
+
+    @Put(':brandId/welcome-settings')
+    upsertWelcomeSettings(
+        @Param('brandId', ParseIntPipe) brandId: number,
+        @Body() body: {
+            headline?: string;
+            subtitle?: string;
+            cta_text?: string;
+            trust_badges?: Array<{ icon: string; text: string }>;
+            social_proof_text?: string;
+            social_proof_start?: number;
+            social_links?: Array<{ platform: string; url: string }>;
+            testimonials?: Array<{ name: string; text: string; rating: number; image_url: string }>;
+            time_estimate?: string;
+        },
+    ) {
+        return this.brandsService.upsertWelcomeSettings(brandId, body);
+    }
+
     // Brand context endpoints
     @Get(':brandId/context/users/:userId')
     getBrandContext(

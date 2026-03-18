@@ -2,6 +2,7 @@ import {
     IsArray,
     IsBoolean,
     IsInt,
+    IsNumber,
     IsObject,
     IsOptional,
     IsString,
@@ -135,6 +136,10 @@ export class NeedsAssessmentSubmissionInquiryDto {
 
     @IsOptional()
     @IsString()
+    guest_count?: string;
+
+    @IsOptional()
+    @IsString()
     notes?: string;
 
     @IsOptional()
@@ -148,6 +153,18 @@ export class NeedsAssessmentSubmissionInquiryDto {
     @IsOptional()
     @IsInt()
     selected_package_id?: number;
+
+    @IsOptional()
+    @IsString()
+    venue_address?: string;
+
+    @IsOptional()
+    @IsNumber()
+    venue_lat?: number;
+
+    @IsOptional()
+    @IsNumber()
+    venue_lng?: number;
 }
 
 export class CreateNeedsAssessmentSubmissionDto {
@@ -182,4 +199,14 @@ export class CreateNeedsAssessmentSubmissionDto {
     @IsOptional()
     @IsInt()
     selected_package_id?: number;
+}
+
+export class ReviewNaSubmissionDto {
+    @IsOptional()
+    @IsString()
+    review_notes?: string;
+
+    @IsOptional()
+    @IsObject()
+    review_checklist_state?: Record<string, unknown>;
 }

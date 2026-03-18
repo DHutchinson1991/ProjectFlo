@@ -25,6 +25,7 @@ export class SubjectsService {
                     role_name: subject.role_template.role_name,
                     description: subject.role_template.description,
                     is_core: subject.role_template.is_core,
+                    is_group: subject.role_template.is_group,
                 }
                 : undefined,
             is_custom: subject.is_custom,
@@ -55,6 +56,7 @@ export class SubjectsService {
                         role_name: sceneSubject.subject.role_template.role_name,
                         description: sceneSubject.subject.role_template.description,
                         is_core: sceneSubject.subject.role_template.is_core,
+                        is_group: sceneSubject.subject.role_template.is_group,
                     }
                     : undefined,
                 is_custom: sceneSubject.subject.is_custom,
@@ -646,6 +648,7 @@ export class SubjectsService {
                         role_name: role.role_name,
                         description: role.description,
                         is_core: role.is_core ?? false,
+                        is_group: role.is_group ?? false,
                         order_index: role.order_index ?? index,
                     })),
                 },
@@ -729,6 +732,7 @@ export class SubjectsService {
                 role_name: roleDto.role_name,
                 description: roleDto.description,
                 is_core: roleDto.is_core ?? false,
+                is_group: roleDto.is_group ?? false,
                 order_index: roleDto.order_index ?? template.roles.length,
             },
         });

@@ -39,6 +39,8 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import MicIcon from '@mui/icons-material/Mic';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import EventTypeSelector, { EventTypeForWizard } from './EventTypeSelector';
 import { api } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
@@ -76,6 +78,9 @@ interface CameraAudioSlot {
   assignedContributorId: number | null;
   assignedJobRoleId: number | null;
 }
+
+const renumberSlots = (slots: CameraAudioSlot[]) =>
+  slots.map((slot, index) => ({ ...slot, slotNumber: index + 1 }));
 
 interface PackageCreationWizardProps {
   open?: boolean;
@@ -289,6 +294,14 @@ export default function PackageCreationWizard({
   // Filtered equipment by camera/audio
   const cameraEquipment = useMemo(() => equipmentItems.filter((eq: EquipmentItem) => eq.category === 'CAMERA'), [equipmentItems]);
   const audioEquipment = useMemo(() => equipmentItems.filter((eq: EquipmentItem) => eq.category === 'AUDIO'), [equipmentItems]);
+  const selectedCameraEquipmentIds = useMemo(
+    () => new Set(cameraSlots.map((slot) => slot.equipmentId).filter((id): id is number => id !== null)),
+    [cameraSlots],
+  );
+  const selectedAudioEquipmentIds = useMemo(
+    () => new Set(audioSlots.map((slot) => slot.equipmentId).filter((id): id is number => id !== null)),
+    [audioSlots],
+  );
 
   const equipmentOperatorOptions = useMemo(() => {
     return crewAssignments.flatMap((assignment) => {
@@ -322,27 +335,57 @@ export default function PackageCreationWizard({
     });
   }, [equipmentOperatorOptions, crewMembers]);
 
+  const audioOperatorOptions = useMemo(() => {
+    return equipmentOperatorOptions.filter((opt) => {
+      const crewMember = crewMembers.find((cm: CrewMember) => cm.id === opt.contributorId);
+      if (!crewMember) return false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const role = crewMember.contributor_job_roles?.find((r: any) => r.job_role.id === opt.jobRoleId);
+      const roleName = (role?.job_role?.display_name || role?.job_role?.name || '').toLowerCase();
+      return roleName.includes('sound') || roleName.includes('audio') || roleName.includes('mixer');
+    });
+  }, [equipmentOperatorOptions, crewMembers]);
+
   useEffect(() => {
-    const isValidAssignment = (slot: CameraAudioSlot) => {
+    const isValidAssignment = (slot: CameraAudioSlot, options: typeof equipmentOperatorOptions) => {
       if (!slot.assignedContributorId || !slot.assignedJobRoleId) return true;
-      return equipmentOperatorOptions.some(
+      return options.some(
         (option) =>
           option.contributorId === slot.assignedContributorId
           && option.jobRoleId === slot.assignedJobRoleId,
       );
     };
 
+    const autoAssignSingleOption = (
+      slot: CameraAudioSlot,
+      options: typeof equipmentOperatorOptions,
+    ) => {
+      if (slot.assignedContributorId && slot.assignedJobRoleId) return slot;
+      if (options.length !== 1) return slot;
+      return {
+        ...slot,
+        assignedContributorId: options[0].contributorId,
+        assignedJobRoleId: options[0].jobRoleId,
+      };
+    };
+
     setCameraSlots((prev) => prev.map((slot) => (
-      isValidAssignment(slot)
-        ? slot
-        : { ...slot, assignedContributorId: null, assignedJobRoleId: null }
+      autoAssignSingleOption(
+        isValidAssignment(slot, cameraOperatorOptions)
+          ? slot
+          : { ...slot, assignedContributorId: null, assignedJobRoleId: null },
+        cameraOperatorOptions,
+      )
     )));
     setAudioSlots((prev) => prev.map((slot) => (
-      isValidAssignment(slot)
-        ? slot
-        : { ...slot, assignedContributorId: null, assignedJobRoleId: null }
+      autoAssignSingleOption(
+        isValidAssignment(slot, audioOperatorOptions)
+          ? slot
+          : { ...slot, assignedContributorId: null, assignedJobRoleId: null },
+        audioOperatorOptions,
+      )
     )));
-  }, [equipmentOperatorOptions]);
+  }, [audioOperatorOptions, cameraOperatorOptions]);
 
   // Group crew by primary role
   const crewByRole = useMemo(() => {
@@ -377,17 +420,19 @@ export default function PackageCreationWizard({
 
   const togglePreset = (id: number) => {
     if (!selectedEventType) return;
+    const momentIdsForPreset: number[] = [];
+    selectedEventType.event_days.forEach((ed) =>
+      ed.event_day_template.activity_presets
+        .filter((p) => p.id === id)
+        .forEach((p) => p.moments?.forEach((m) => momentIdsForPreset.push(m.id))),
+    );
+
     if (selectedPresetIds.has(id)) {
-      const momentIdsToRemove: number[] = [];
-      selectedEventType.event_days.forEach((ed) =>
-        ed.event_day_template.activity_presets
-          .filter((p) => p.id === id)
-          .forEach((p) => p.moments?.forEach((m) => momentIdsToRemove.push(m.id))),
-      );
       setSelectedPresetIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
-      setSelectedMomentIds((prev) => { const n = new Set(prev); momentIdsToRemove.forEach((mid) => n.delete(mid)); return n; });
+      setSelectedMomentIds((prev) => { const n = new Set(prev); momentIdsForPreset.forEach((mid) => n.delete(mid)); return n; });
     } else {
       setSelectedPresetIds((prev) => new Set(prev).add(id));
+      setSelectedMomentIds((prev) => { const n = new Set(prev); momentIdsForPreset.forEach((mid) => n.add(mid)); return n; });
     }
   };
 
@@ -472,15 +517,32 @@ export default function PackageCreationWizard({
 
   // ── Equipment slot handlers ────────────────────────────────────────
   const addCameraSlot = () => {
+    const autoOp = cameraOperatorOptions.length === 1 ? cameraOperatorOptions[0] : null;
     setCameraSlots((prev) => [
       ...prev,
-      { slotNumber: prev.length + 1, equipmentId: null, assignedContributorId: null, assignedJobRoleId: null },
+      {
+        slotNumber: prev.length + 1,
+        equipmentId: null,
+        assignedContributorId: autoOp?.contributorId ?? null,
+        assignedJobRoleId: autoOp?.jobRoleId ?? null,
+      },
     ]);
   };
   const removeCameraSlot = (slotNumber: number) => {
     setCameraSlots((prev) => prev
       .filter((s) => s.slotNumber !== slotNumber)
       .map((s, i) => ({ ...s, slotNumber: i + 1 })));
+  };
+  const moveCameraSlot = (slotNumber: number, direction: 'up' | 'down') => {
+    setCameraSlots((prev) => {
+      const index = prev.findIndex((slot) => slot.slotNumber === slotNumber);
+      if (index === -1) return prev;
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return renumberSlots(next);
+    });
   };
   const updateCameraSlot = (slotNumber: number, equipmentId: number | null) => {
     setCameraSlots((prev) => prev.map((s) => (
@@ -491,15 +553,32 @@ export default function PackageCreationWizard({
   };
 
   const addAudioSlot = () => {
+    const autoOp = audioOperatorOptions.length === 1 ? audioOperatorOptions[0] : null;
     setAudioSlots((prev) => [
       ...prev,
-      { slotNumber: prev.length + 1, equipmentId: null, assignedContributorId: null, assignedJobRoleId: null },
+      {
+        slotNumber: prev.length + 1,
+        equipmentId: null,
+        assignedContributorId: autoOp?.contributorId ?? null,
+        assignedJobRoleId: autoOp?.jobRoleId ?? null,
+      },
     ]);
   };
   const removeAudioSlot = (slotNumber: number) => {
     setAudioSlots((prev) => prev
       .filter((s) => s.slotNumber !== slotNumber)
       .map((s, i) => ({ ...s, slotNumber: i + 1 })));
+  };
+  const moveAudioSlot = (slotNumber: number, direction: 'up' | 'down') => {
+    setAudioSlots((prev) => {
+      const index = prev.findIndex((slot) => slot.slotNumber === slotNumber);
+      if (index === -1) return prev;
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return renumberSlots(next);
+    });
   };
   const updateAudioSlot = (slotNumber: number, equipmentId: number | null) => {
     setAudioSlots((prev) => prev.map((s) => (
@@ -1362,6 +1441,24 @@ export default function PackageCreationWizard({
                         <Typography sx={{ color: '#fb923c', fontSize: '0.75rem', fontWeight: 700, minWidth: 75 }}>
                           Camera {slot.slotNumber}
                         </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
+                          <IconButton
+                            size="small"
+                            onClick={() => moveCameraSlot(slot.slotNumber, 'up')}
+                            disabled={slot.slotNumber === 1}
+                            sx={{ p: 0.25, color: '#64748b', '&:hover': { color: '#fb923c' }, '&.Mui-disabled': { color: 'rgba(100,116,139,0.35)' } }}
+                          >
+                            <ArrowUpwardIcon sx={{ fontSize: '0.85rem' }} />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => moveCameraSlot(slot.slotNumber, 'down')}
+                            disabled={slot.slotNumber === cameraSlots.length}
+                            sx={{ p: 0.25, color: '#64748b', '&:hover': { color: '#fb923c' }, '&.Mui-disabled': { color: 'rgba(100,116,139,0.35)' } }}
+                          >
+                            <ArrowDownwardIcon sx={{ fontSize: '0.85rem' }} />
+                          </IconButton>
+                        </Box>
                         <Select
                           value={slot.equipmentId || 0}
                           onChange={(e) => updateCameraSlot(slot.slotNumber, Number(e.target.value) || null)}
@@ -1389,11 +1486,18 @@ export default function PackageCreationWizard({
                           }}
                         >
                           <MenuItem value={0}><em style={{ color: '#64748b' }}>Select camera...</em></MenuItem>
-                          {cameraEquipment.map((eq: EquipmentItem) => (
-                            <MenuItem key={eq.id} value={eq.id}>
+                          {cameraEquipment.map((eq: EquipmentItem) => {
+                            const alreadyUsedInOtherSlot = selectedCameraEquipmentIds.has(eq.id) && slot.equipmentId !== eq.id;
+                            return (
+                            <MenuItem
+                              key={eq.id}
+                              value={eq.id}
+                              disabled={alreadyUsedInOtherSlot}
+                              sx={alreadyUsedInOtherSlot ? { opacity: 0.4, pointerEvents: 'none' } : undefined}
+                            >
                               {eq.item_name}{eq.brand_name ? ` (${eq.brand_name})` : ''}{eq.model ? ` ${eq.model}` : ''}
                             </MenuItem>
-                          ))}
+                          );})}
                         </Select>
                         <Select
                           value={slot.assignedContributorId && slot.assignedJobRoleId ? `${slot.assignedContributorId}:${slot.assignedJobRoleId}` : ''}
@@ -1475,6 +1579,24 @@ export default function PackageCreationWizard({
                         <Typography sx={{ color: '#22d3ee', fontSize: '0.75rem', fontWeight: 700, minWidth: 75 }}>
                           Audio {slot.slotNumber}
                         </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
+                          <IconButton
+                            size="small"
+                            onClick={() => moveAudioSlot(slot.slotNumber, 'up')}
+                            disabled={slot.slotNumber === 1}
+                            sx={{ p: 0.25, color: '#64748b', '&:hover': { color: '#22d3ee' }, '&.Mui-disabled': { color: 'rgba(100,116,139,0.35)' } }}
+                          >
+                            <ArrowUpwardIcon sx={{ fontSize: '0.85rem' }} />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => moveAudioSlot(slot.slotNumber, 'down')}
+                            disabled={slot.slotNumber === audioSlots.length}
+                            sx={{ p: 0.25, color: '#64748b', '&:hover': { color: '#22d3ee' }, '&.Mui-disabled': { color: 'rgba(100,116,139,0.35)' } }}
+                          >
+                            <ArrowDownwardIcon sx={{ fontSize: '0.85rem' }} />
+                          </IconButton>
+                        </Box>
                         <Select
                           value={slot.equipmentId || 0}
                           onChange={(e) => updateAudioSlot(slot.slotNumber, Number(e.target.value) || null)}
@@ -1502,11 +1624,18 @@ export default function PackageCreationWizard({
                           }}
                         >
                           <MenuItem value={0}><em style={{ color: '#64748b' }}>Select audio device...</em></MenuItem>
-                          {audioEquipment.map((eq: EquipmentItem) => (
-                            <MenuItem key={eq.id} value={eq.id}>
+                          {audioEquipment.map((eq: EquipmentItem) => {
+                            const alreadyUsedInOtherSlot = selectedAudioEquipmentIds.has(eq.id) && slot.equipmentId !== eq.id;
+                            return (
+                            <MenuItem
+                              key={eq.id}
+                              value={eq.id}
+                              disabled={alreadyUsedInOtherSlot}
+                              sx={alreadyUsedInOtherSlot ? { opacity: 0.4, pointerEvents: 'none' } : undefined}
+                            >
                               {eq.item_name}{eq.brand_name ? ` (${eq.brand_name})` : ''}{eq.model ? ` ${eq.model}` : ''}
                             </MenuItem>
-                          ))}
+                          );})}
                         </Select>
                         <Select
                           value={slot.assignedContributorId && slot.assignedJobRoleId ? `${slot.assignedContributorId}:${slot.assignedJobRoleId}` : ''}
@@ -1535,7 +1664,7 @@ export default function PackageCreationWizard({
                           }}
                         >
                           <MenuItem value=""><em style={{ color: '#64748b' }}>No operator yet</em></MenuItem>
-                          {equipmentOperatorOptions.map((option) => (
+                          {audioOperatorOptions.map((option) => (
                             <MenuItem key={`aud-op-${option.contributorId}-${option.jobRoleId}`} value={`${option.contributorId}:${option.jobRoleId}`}>
                               {option.label}
                             </MenuItem>

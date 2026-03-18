@@ -36,4 +36,5 @@ export class CreateDiscoveryQuestionnaireSubmissionDto {
     @IsOptional() @IsInt() inquiry_id?: number;
     responses: Record<string, unknown>;
     @IsOptional() @IsString() call_notes?: string;
+    @IsOptional() @IsString() transcript?: string;
 }

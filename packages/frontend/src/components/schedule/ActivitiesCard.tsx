@@ -600,17 +600,21 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                                         const _isAssignedToCrew = (o: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
                                             o.activity_assignments?.some((a: { package_activity_id: number }) => a.package_activity_id === act.id) ||
                                             (!o.activity_assignments?.length && o.package_activity_id === act.id);
-                                        const actCrewCamCount = dayCrew.filter(o => {
-                                            if (!_isAssignedToCrew(o)) return false;
-                                            const rn = (o.job_role?.display_name || o.job_role?.name || '').toLowerCase();
-                                            return rn.includes('videographer') || rn.includes('camera');
-                                        }).length;
-                                        const actCrewSoundCount = dayCrew.filter(o => {
-                                            if (!_isAssignedToCrew(o)) return false;
-                                            const rn = (o.job_role?.display_name || o.job_role?.name || '').toLowerCase();
-                                            return rn.includes('sound') || rn.includes('audio') || rn.includes('mixer');
-                                        }).length;
-                                        const actCrewCount = actCrewCamCount + actCrewSoundCount;
+                                        const actAssignedCrew = dayCrew.filter(_isAssignedToCrew);
+                                        const actCameraEquipCount = new Set(
+                                            actAssignedCrew.flatMap((o: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
+                                                (o.equipment || [])
+                                                    .filter((eq: any) => (eq.equipment?.category || 'CAMERA') !== 'AUDIO') // eslint-disable-line @typescript-eslint/no-explicit-any
+                                                    .map((eq: any) => eq.equipment_id), // eslint-disable-line @typescript-eslint/no-explicit-any
+                                            ),
+                                        ).size;
+                                        const actAudioEquipCount = new Set(
+                                            actAssignedCrew.flatMap((o: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
+                                                (o.equipment || [])
+                                                    .filter((eq: any) => eq.equipment?.category === 'AUDIO') // eslint-disable-line @typescript-eslint/no-explicit-any
+                                                    .map((eq: any) => eq.equipment_id), // eslint-disable-line @typescript-eslint/no-explicit-any
+                                            ),
+                                        ).size;
 
                                         return (
                                             <React.Fragment key={act.id}>
@@ -675,18 +679,18 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                                                                 )}
                                                             </Box>
                                                             {/* Subject/location/crew badges */}
-                                                            {(actSubjectCount > 0 || actLocationCount > 0 || actCrewCamCount > 0 || actCrewSoundCount > 0) && (
+                                                            {(actSubjectCount > 0 || actLocationCount > 0 || actCameraEquipCount > 0 || actAudioEquipCount > 0) && (
                                                                 <Box sx={{ display: 'flex', gap: 0.75, mt: 0.25 }}>
-                                                                    {actCrewCamCount > 0 && (
+                                                                    {actCameraEquipCount > 0 && (
                                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                                                                             <VideocamIcon sx={{ fontSize: 10, color: '#EC4899' }} />
-                                                                            <Typography sx={{ fontSize: '0.6rem', color: '#EC4899' }}>{actCrewCamCount}</Typography>
+                                                                            <Typography sx={{ fontSize: '0.6rem', color: '#EC4899' }}>{actCameraEquipCount}</Typography>
                                                                         </Box>
                                                                     )}
-                                                                    {actCrewSoundCount > 0 && (
+                                                                    {actAudioEquipCount > 0 && (
                                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                                                                             <MicIcon sx={{ fontSize: 10, color: '#EC4899' }} />
-                                                                            <Typography sx={{ fontSize: '0.6rem', color: '#EC4899' }}>{actCrewSoundCount}</Typography>
+                                                                            <Typography sx={{ fontSize: '0.6rem', color: '#EC4899' }}>{actAudioEquipCount}</Typography>
                                                                         </Box>
                                                                     )}
                                                                     {actKeySubjectCount > 0 && (

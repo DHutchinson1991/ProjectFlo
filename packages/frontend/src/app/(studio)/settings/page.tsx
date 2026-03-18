@@ -101,9 +101,11 @@ import {
     Description as ProposalsIcon,
     Gavel as ContractsIcon,
     Language as PortalIcon,
+    Share as ShareIcon,
 } from "@mui/icons-material";
 import ClientPortalSettings from "./_components/ClientPortalSettings";
 import ContractSettings from "./_components/ContractSettings";
+import SocialLinksSettings from "./_components/SocialLinksSettings";
 import { api } from "@/lib/api";
 import {
     Contributor,
@@ -3610,6 +3612,11 @@ const settingsSections: SettingsSection[] = [
         icon: <WorkflowIcon />,
         component: <WorkflowSettings />,
         placeholder: true,
+    },
+    {
+        label: "Social Links",
+        icon: <ShareIcon />,
+        component: <SocialLinksSettings />,
     },
     {
         label: "Client Portal",

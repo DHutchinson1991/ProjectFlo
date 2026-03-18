@@ -6,168 +6,207 @@ import { createSeedLogger, SeedType, SeedSummary } from '../utils/seed-logger';
 const prisma = new PrismaClient();
 const logger = createSeedLogger(SeedType.MOONRISE);
 
+// ─── Stage definitions (parent tasks) for Inquiry + Booking pipeline ─
+interface SubTaskDef {
+    name: string;
+    description: string;
+    effort_hours: number;
+    order_index: number;
+    is_auto_only: boolean;
+    due_date_offset_days: number | null;
+}
+
+interface StageDef {
+    name: string;
+    description: string;
+    phase: $Enums.project_phase;
+    stage_color: string;
+    order_index: number;
+    children: SubTaskDef[];
+}
+
+// Old stage/task names that are being retired — will be deactivated in the library
+const RETIRED_STAGE_NAMES = [
+    'Needs Assessment', 'Estimates', 'Discovery Calls',
+    'Proposals', 'Proposal Review', 'Quotes', 'Contracts',
+];
+const RETIRED_TASK_NAMES = [
+    'Initial Inquiry Response', 'Date Availability Check', 'Portfolio Presentation',
+    'Budget Alignment', 'Consultation Scheduling', 'Consultation Meeting',
+    'Quote Generation', 'Contract Preparation', 'Contract Negotiation',
+    'Booking Confirmation', 'Proposal Creation', 'Proposal Delivery',
+    'Send Needs Assessment', 'Review Needs Assessment',
+];
+
+const PIPELINE_STAGES: StageDef[] = [
+    {
+        name: 'Inquiry',
+        description: 'Initial requirements gathering and client qualification',
+        phase: $Enums.project_phase.Inquiry,
+        stage_color: '#3b82f6',
+        order_index: 1,
+        children: [
+            { name: 'Inquiry Received', description: 'Auto-marked when the inquiry is received — from a needs assessment submission or manual creation', effort_hours: 0, order_index: 1, is_auto_only: true, due_date_offset_days: 0 },
+            { name: 'Review Inquiry', description: 'Review what the client submitted — check their responses, date availability, and crew conflicts before responding', effort_hours: 0.25, order_index: 2, is_auto_only: false, due_date_offset_days: 1 },
+            { name: 'Qualify & Respond', description: 'Confirm availability, introduce yourself, share portfolio, and transition the inquiry to Contacted', effort_hours: 0.25, order_index: 3, is_auto_only: false, due_date_offset_days: 1 },
+            { name: 'Estimate Preparation', description: 'Auto-creates a draft estimate from package/activity selections when the inquiry is submitted', effort_hours: 0, order_index: 4, is_auto_only: true, due_date_offset_days: 0 },
+            { name: 'Review Estimate', description: 'Review the auto-created draft estimate, adjust line items if needed, then send to the client', effort_hours: 0.25, order_index: 5, is_auto_only: false, due_date_offset_days: 2 },
+        ],
+    },
+    {
+        name: 'Discovery',
+        description: 'Discovery call scheduling and post-call notes',
+        phase: $Enums.project_phase.Inquiry,
+        stage_color: '#f59e0b',
+        order_index: 2,
+        children: [
+            { name: 'Discovery Call Scheduling', description: 'Book the discovery call — typically scheduled at the end of the needs assessment wizard', effort_hours: 0.15, order_index: 1, is_auto_only: false, due_date_offset_days: 2 },
+            { name: 'Discovery Call', description: 'Conduct the call, then save post-call notes or transcript in the Discovery Questionnaire section', effort_hours: 0.25, order_index: 2, is_auto_only: false, due_date_offset_days: 7 },
+        ],
+    },
+    {
+        name: 'Proposal',
+        description: 'Quote, contract prep, proposal creation, and client acceptance',
+        phase: $Enums.project_phase.Booking,
+        stage_color: '#8b5cf6',
+        order_index: 3,
+        children: [
+            { name: 'Generate Quote', description: 'Review package selections from the discovery call, adjust if needed, then generate the formal quote', effort_hours: 0.75, order_index: 1, is_auto_only: false, due_date_offset_days: 2 },
+            { name: 'Prepare Contract', description: 'Auto-generate contract from template using quote values — review and customise clauses before sending', effort_hours: 0.5, order_index: 2, is_auto_only: false, due_date_offset_days: 1 },
+            { name: 'Create & Review Proposal', description: 'Generate the full proposal — verify timeline, subjects, venues, package, films, quote, and personal message', effort_hours: 1.0, order_index: 3, is_auto_only: false, due_date_offset_days: 2 },
+            { name: 'Send Proposal', description: 'Send the proposal to the client portal — client can Accept or Request Changes', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 1 },
+            { name: 'Contract Sent', description: 'Auto-sent to client when they accept the proposal — no manual action required', effort_hours: 0, order_index: 5, is_auto_only: true, due_date_offset_days: 0 },
+        ],
+    },
+    {
+        name: 'Booking',
+        description: 'Contract signing, deposit, date block, and welcome pack',
+        phase: $Enums.project_phase.Booking,
+        stage_color: '#14b8a6',
+        order_index: 4,
+        children: [
+            { name: 'Contract Signed', description: 'Auto-completes when all signers have signed in the client portal', effort_hours: 0, order_index: 1, is_auto_only: true, due_date_offset_days: 14 },
+            { name: 'Raise Deposit Invoice', description: 'Auto-generated from the estimate deposit amount when the contract is signed', effort_hours: 0, order_index: 2, is_auto_only: true, due_date_offset_days: 0 },
+            { name: 'Block Wedding Date', description: 'Wedding day calendar block auto-created when inquiry status changes to Booked', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 0 },
+            { name: 'Confirm Booking', description: 'Change inquiry status to Booked — triggers calendar block and completes this task', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 1 },
+            { name: 'Send Welcome Pack', description: 'Unlock the Welcome Pack section in the client portal — introduces what happens next', effort_hours: 0.15, order_index: 5, is_auto_only: false, due_date_offset_days: 2 },
+        ],
+    },
+];
+
 export async function createMoonriseTaskLibrary(brandId: number): Promise<number> {
     logger.sectionHeader('Task Library');
 
+    // ─── PIPELINE STAGES (parent/child Inquiry + Booking tasks) ──────
+    let stageCreated = 0;
+    let stageUpdated = 0;
+    let stageSkipped = 0;
+    let childCreated = 0;
+    let childUpdated = 0;
+    let childSkipped = 0;
+
+    for (const stage of PIPELINE_STAGES) {
+        // Upsert the parent stage task
+        let parentTask = await prisma.task_library.findFirst({
+            where: { name: stage.name, brand_id: brandId, is_stage: true },
+        });
+
+        if (!parentTask) {
+            parentTask = await prisma.task_library.create({
+                data: {
+                    name: stage.name,
+                    description: stage.description,
+                    phase: stage.phase,
+                    pricing_type: $Enums.pricing_type_options.Fixed,
+                    effort_hours: 0,
+                    order_index: stage.order_index,
+                    brand_id: brandId,
+                    is_stage: true,
+                    is_active: true,
+                    stage_color: stage.stage_color,
+                },
+            });
+            stageCreated++;
+            logger.created(`Stage: ${stage.name}`, `${stage.phase} phase`);
+        } else {
+            // Update existing stage with new values
+            parentTask = await prisma.task_library.update({
+                where: { id: parentTask.id },
+                data: {
+                    description: stage.description,
+                    phase: stage.phase,
+                    order_index: stage.order_index,
+                    stage_color: stage.stage_color,
+                    is_active: true,
+                },
+            });
+            stageUpdated++;
+            logger.skipped(`Stage updated: ${stage.name}`, `${stage.phase} phase`);
+        }
+
+        // Upsert child tasks under this parent
+        for (const child of stage.children) {
+            const existing = await prisma.task_library.findFirst({
+                where: { name: child.name, brand_id: brandId },
+            });
+
+            if (!existing) {
+                await prisma.task_library.create({
+                    data: {
+                        name: child.name,
+                        description: child.description,
+                        phase: stage.phase,
+                        pricing_type: $Enums.pricing_type_options.Fixed,
+                        effort_hours: child.effort_hours,
+                        order_index: child.order_index,
+                        due_date_offset_days: child.due_date_offset_days,
+                        brand_id: brandId,
+                        parent_task_id: parentTask.id,
+                        is_auto_only: child.is_auto_only,
+                        is_active: true,
+                    },
+                });
+                childCreated++;
+                logger.created(`Task: ${child.name}`, `→ ${stage.name}`);
+            } else {
+                // Update all fields on existing task
+                await prisma.task_library.update({
+                    where: { id: existing.id },
+                    data: {
+                        description: child.description,
+                        phase: stage.phase,
+                        effort_hours: child.effort_hours,
+                        order_index: child.order_index,
+                        due_date_offset_days: child.due_date_offset_days,
+                        parent_task_id: parentTask.id,
+                        is_auto_only: child.is_auto_only,
+                        is_active: true,
+                    },
+                });
+                childUpdated++;
+                logger.skipped(`Task updated: ${child.name}`, `→ ${stage.name}`);
+            }
+        }
+    }
+
+    // ─── Deactivate retired stages and tasks ──────────────────────────
+    const deactivatedStages = await prisma.task_library.updateMany({
+        where: { name: { in: RETIRED_STAGE_NAMES }, brand_id: brandId, is_stage: true },
+        data: { is_active: false },
+    });
+    const deactivatedTasks = await prisma.task_library.updateMany({
+        where: { name: { in: RETIRED_TASK_NAMES }, brand_id: brandId, is_stage: false },
+        data: { is_active: false },
+    });
+    if (deactivatedStages.count > 0) logger.skipped(`Deactivated ${deactivatedStages.count} retired stage(s)`, 'library cleanup');
+    if (deactivatedTasks.count > 0) logger.skipped(`Deactivated ${deactivatedTasks.count} retired task(s)`, 'library cleanup');
+
+    logger.summary('Pipeline stages', { created: stageCreated, updated: stageUpdated, skipped: stageSkipped, total: stageCreated + stageUpdated + stageSkipped });
+    logger.summary('Pipeline sub-tasks', { created: childCreated, updated: childUpdated, skipped: childSkipped, total: childCreated + childUpdated + childSkipped });
+
+    // ─── REMAINING PHASES (flat tasks — not part of the pipeline) ────
+
     const taskLibraryItems = [
-        // ── INQUIRY PHASE ────────────────────────────────────────────
-        {
-            name: "Initial Inquiry Response",
-            description: "Acknowledge inquiry, introduce yourself, and set expectations for the process",
-            phase: $Enums.project_phase.Inquiry,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.5,
-            order_index: 1,
-            brand_id: brandId,
-        },
-        {
-            name: "Date Availability Check",
-            description: "Check calendar availability for the requested date before investing further time",
-            phase: $Enums.project_phase.Inquiry,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.15,
-            order_index: 2,
-            brand_id: brandId,
-        },
-        {
-            name: "Send Needs Assessment",
-            description: "Send questionnaire to capture the client's vision, style preferences, and requirements",
-            phase: $Enums.project_phase.Inquiry,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.15,
-            order_index: 3,
-            brand_id: brandId,
-        },
-        {
-            name: "Review Needs Assessment",
-            description: "Analyse questionnaire responses, identify key requirements, red flags, and opportunities",
-            phase: $Enums.project_phase.Inquiry,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.25,
-            order_index: 4,
-            brand_id: brandId,
-        },
-        {
-            name: "Portfolio Presentation",
-            description: "Share relevant work samples that match the client's style and vision",
-            phase: $Enums.project_phase.Inquiry,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.5,
-            order_index: 5,
-            brand_id: brandId,
-        },
-        {
-            name: "Estimate Preparation",
-            description: "Prepare ballpark pricing based on needs assessment before the discovery call",
-            phase: $Enums.project_phase.Inquiry,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.5,
-            order_index: 6,
-            brand_id: brandId,
-        },
-        {
-            name: "Discovery Call Scheduling",
-            description: "Book the initial discovery call based on mutual availability",
-            phase: $Enums.project_phase.Inquiry,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.15,
-            order_index: 7,
-            brand_id: brandId,
-        },
-        {
-            name: "Discovery Call",
-            description: "First real conversation — understand their vision, answer questions, and build rapport",
-            phase: $Enums.project_phase.Inquiry,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.75,
-            order_index: 8,
-            brand_id: brandId,
-        },
-        {
-            name: "Budget Alignment",
-            description: "Confirm client expectations match their budget based on discovery findings",
-            phase: $Enums.project_phase.Inquiry,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.25,
-            order_index: 9,
-            brand_id: brandId,
-        },
-
-        // ── BOOKING PHASE ────────────────────────────────────────────
-        {
-            name: "Proposal Creation",
-            description: "Build the full creative pitch — packages, vision, deliverables, and pricing",
-            phase: $Enums.project_phase.Booking,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 1.0,
-            order_index: 1,
-            brand_id: brandId,
-        },
-        {
-            name: "Proposal Delivery",
-            description: "Send proposal to client, explain how to review it, and set follow-up date",
-            phase: $Enums.project_phase.Booking,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.15,
-            order_index: 2,
-            brand_id: brandId,
-        },
-        {
-            name: "Consultation Scheduling",
-            description: "Book the deeper consultation meeting to walk through the proposal",
-            phase: $Enums.project_phase.Booking,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.15,
-            order_index: 3,
-            brand_id: brandId,
-        },
-        {
-            name: "Consultation Meeting",
-            description: "Walk through proposal in detail, address concerns, and tailor packages to client needs",
-            phase: $Enums.project_phase.Booking,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 1.0,
-            order_index: 4,
-            brand_id: brandId,
-        },
-        {
-            name: "Quote Generation",
-            description: "Create formal detailed quote reflecting any changes agreed during consultation",
-            phase: $Enums.project_phase.Booking,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.75,
-            order_index: 5,
-            brand_id: brandId,
-        },
-        {
-            name: "Contract Preparation",
-            description: "Draft contract based on the agreed quote and terms",
-            phase: $Enums.project_phase.Booking,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.5,
-            order_index: 6,
-            brand_id: brandId,
-        },
-        {
-            name: "Contract Negotiation",
-            description: "Review terms with client, handle revisions, and reach final agreement",
-            phase: $Enums.project_phase.Booking,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.75,
-            order_index: 7,
-            brand_id: brandId,
-        },
-        {
-            name: "Booking Confirmation",
-            description: "Collect deposit, block the date, and send welcome pack to client",
-            phase: $Enums.project_phase.Booking,
-            pricing_type: $Enums.pricing_type_options.Fixed,
-            effort_hours: 0.5,
-            order_index: 8,
-            brand_id: brandId,
-        },
-
-        // CREATIVE DEVELOPMENT PHASE
         {
             name: "Creative Brief Development",
             description: "Develop comprehensive creative brief with client",
@@ -435,7 +474,9 @@ export async function createMoonriseTaskLibrary(brandId: number): Promise<number
     }
     const summary: SeedSummary = { created, updated: 0, skipped, total: created + skipped };
     logger.summary('Task library items', summary);
-    return taskLibraryItems.length;
+
+    const totalPipelineTasks = PIPELINE_STAGES.length + PIPELINE_STAGES.reduce((sum, s) => sum + s.children.length, 0);
+    return totalPipelineTasks + taskLibraryItems.length;
 }
 
 async function main() {

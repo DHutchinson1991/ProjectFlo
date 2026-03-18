@@ -1,6 +1,6 @@
 // Moonrise Films Inquiries Setup - Wedding Inquiries & Leads
 // Creates: Sample wedding inquiries for Moonrise Films
-import { PrismaClient, $Enums, type inquiries as Inquiry, type contacts as Contact, type brands as Brand } from "@prisma/client";
+import { PrismaClient, type Prisma, $Enums, type inquiries as Inquiry, type contacts as Contact, type brands as Brand } from "@prisma/client";
 import { createSeedLogger, SeedType, SeedSummary } from '../utils/seed-logger';
 
 const prisma = new PrismaClient();
@@ -27,93 +27,23 @@ export async function createMoonriseInquiries(): Promise<{ brand: Brand; contact
     logger.sectionDivider('Creating inquiry contacts');
 
     const inquiryContacts = [
-        {
-            first_name: "Jennifer",
-            last_name: "Williams",
-            email: "jennifer.williams@email.com",
-            phone_number: "+1 (555) 876-5432"
-        },
-        {
-            first_name: "Michael",
-            last_name: "Rodriguez",
-            email: "michael.rodriguez@email.com",
-            phone_number: "+1 (555) 987-6543"
-        },
-        {
-            first_name: "Amanda",
-            last_name: "Thompson",
-            email: "amanda.thompson@email.com",
-            phone_number: "+1 (555) 765-4321"
-        },
-        {
-            first_name: "Ryan",
-            last_name: "Davis",
-            email: "ryan.davis@email.com",
-            phone_number: "+1 (555) 654-3210"
-        },
-        {
-            first_name: "Jessica",
-            last_name: "Miller",
-            email: "jessica.miller@email.com",
-            phone_number: "+1 (555) 543-2109"
-        }
+        // DISABLED: Inquiry contacts cleared (not creating sample inquiries)
     ];
 
     const contacts: Contact[] = [];
-    for (const contactData of inquiryContacts) {
-        const contact = await prisma.contacts.upsert({
-            where: { email: contactData.email },
-            update: contactData,
-            create: {
-                ...contactData,
-                type: $Enums.contacts_type.Client_Lead,
-                brand_id: moonriseBrand.id
-            }
-        });
-        contacts.push(contact);
-    }
+    // Temporary commented out since no inquiry contacts needed
+    // for (const contactData of inquiryContacts) {
+    //     const contact = await prisma.contacts.upsert({...});
+    //     contacts.push(contact);
+    // }
 
-    logger.success(`Upserted ${contacts.length} inquiry contacts`);
+    logger.success(`Inquiry contacts: 0 (disabled)`);
 
     // Create wedding inquiries
     logger.sectionDivider('Creating wedding inquiries');
 
-    const inquiryData = [
-        {
-            contact_id: contacts[0].id,
-            status: $Enums.inquiries_status.New,
-            wedding_date: new Date("2025-11-15T16:00:00Z"),
-            venue_details: "The Grand Ballroom - Downtown Metro City",
-            lead_source: "Instagram"
-        },
-        {
-            contact_id: contacts[1].id,
-            status: $Enums.inquiries_status.Contacted,
-            wedding_date: new Date("2025-12-03T15:30:00Z"),
-            venue_details: "Lakeside Resort - Clearwater Lake",
-            lead_source: "Referral"
-        },
-        {
-            contact_id: contacts[2].id,
-            status: $Enums.inquiries_status.Proposal_Sent,
-            wedding_date: new Date("2025-08-21T17:00:00Z"),
-            venue_details: "Mountain View Lodge - Blue Ridge Mountains",
-            lead_source: "Website"
-        },
-        {
-            contact_id: contacts[3].id,
-            status: $Enums.inquiries_status.New,
-            wedding_date: new Date("2025-10-05T16:30:00Z"),
-            venue_details: "Historic Manor House - Countryside Estate",
-            lead_source: "Wedding Expo"
-        },
-        {
-            contact_id: contacts[4].id,
-            status: $Enums.inquiries_status.Proposal_Sent,
-            wedding_date: new Date("2025-09-28T18:00:00Z"),
-            venue_details: "Beachfront Resort - Sunset Bay",
-            lead_source: "Google Search"
-        }
+    const inquiryData: Prisma.inquiriesUncheckedCreateInput[] = [
+        // DISABLED: Sample inquiries cleared (keeping only inquiry 13)
     ];
 
     const inquiries: Inquiry[] = [];

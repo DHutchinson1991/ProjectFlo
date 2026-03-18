@@ -242,12 +242,24 @@ export class ProjectsService {
             throw new NotFoundException(`Project with ID ${id} not found`);
         }
 
-        // Soft delete by setting archived_at
-        return this.prisma.projects.update({
-            where: { id },
-            data: {
-                archived_at: new Date(),
-            },
+        return this.prisma.$transaction(async (tx) => {
+            // Remove generated task rows tied to this project before archiving it.
+            await tx.project_tasks.deleteMany({
+                where: { project_id: id },
+            });
+
+            // Legacy build-scene tasks still point at projects and should be removed too.
+            await tx.tasks.deleteMany({
+                where: { project_id: id },
+            });
+
+            // Soft delete by setting archived_at.
+            return tx.projects.update({
+                where: { id },
+                data: {
+                    archived_at: new Date(),
+                },
+            });
         });
     }
 }

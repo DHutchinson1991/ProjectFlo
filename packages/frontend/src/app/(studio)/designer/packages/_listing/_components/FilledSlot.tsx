@@ -42,6 +42,14 @@ export function FilledSlot({
     const tierColor = getTierColor(slotLabel);
     const filmItems = (pkg.contents?.items || []).filter(i => i.type === 'film');
 
+    // Use backend-provided pricing (bracket-aware, includes task costs + tax)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pkgData = pkg as any;
+    const backendTax = pkgData._tax as { rate: number; amount: number; totalWithTax: number } | null;
+    const displayCost = backendTax
+        ? backendTax.totalWithTax
+        : (stats.totalCost > 0 ? stats.totalCost : Number(pkg.base_price ?? 0));
+
     return (
         <Box sx={{
             borderRadius: 3,
@@ -109,7 +117,7 @@ export function FilledSlot({
                     <Typography sx={{
                         fontWeight: 800, color: '#f59e0b', fontSize: '1.1rem', fontFamily: 'monospace',
                     }}>
-                        {formatCurrency(stats.totalCost > 0 ? stats.totalCost : Number(pkg.base_price ?? 0), currencyCode || 'USD')}
+                        {formatCurrency(displayCost, currencyCode || 'USD')}
                     </Typography>
                 </Box>
 

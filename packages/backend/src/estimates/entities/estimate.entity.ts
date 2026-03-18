@@ -7,6 +7,8 @@ export interface Estimate {
     issue_date: Date;
     expiry_date: Date;
     total_amount: number;
+    total_with_tax?: number;
+    currency?: string;
     created_at: Date;
     updated_at: Date;
 }

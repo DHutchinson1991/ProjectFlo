@@ -22,6 +22,11 @@ export class UpdateInquiryTaskDto {
     @IsNumber()
     @Type(() => Number)
     order_index?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    assigned_to_id?: number | null;
 }
 
 export class ToggleInquiryTaskDto {

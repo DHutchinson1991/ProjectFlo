@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ClientPortalService {
@@ -223,9 +224,11 @@ export class ClientPortalService {
                         .map((q) => {
                             const key = q.field_key || `question_${q.id}`;
                             return {
+                                field_key: key,
                                 prompt: q.prompt,
                                 field_type: q.field_type,
                                 value: responses[key] ?? null,
+                                options: q.options ?? null,
                             };
                         })
                         .filter((a) => a.value !== null && a.value !== ''),
@@ -240,7 +243,7 @@ export class ClientPortalService {
                 : null,
             package: inquiry.selected_package
                 ? {
-                      status: 'available' as const,
+                      status: 'complete' as const,
                       data: {
                           id: inquiry.selected_package.id,
                           name: inquiry.selected_package.name,
@@ -265,6 +268,7 @@ export class ClientPortalService {
                           expiry_date: estimate.expiry_date,
                           notes: estimate.notes,
                           deposit_required: estimate.deposit_required,
+                          payment_method: estimate.payment_method,
                           items: estimate.items,
                           payment_milestones: estimate.payment_milestones,
                       },
@@ -314,6 +318,9 @@ export class ClientPortalService {
                           })),
                       }
                     : null,
+            welcome_pack: inquiry.welcome_sent_at
+                ? { status: 'complete' as const, data: { sent_at: inquiry.welcome_sent_at } }
+                : null,
         };
 
         return {
@@ -323,6 +330,7 @@ export class ClientPortalService {
             event_type: inquiry.event_type?.name ?? null,
             venue: inquiry.venue_details ?? null,
             venue_address: inquiry.venue_address ?? null,
+            is_contract_signed: contract?.status === 'Signed',
             contact: {
                 first_name: inquiry.contact.first_name,
                 last_name: inquiry.contact.last_name,
@@ -330,5 +338,72 @@ export class ClientPortalService {
             brand,
             sections,
         };
+    }
+
+    async getPackageOptions(token: string) {
+        const inquiry = await this.prisma.inquiries.findFirst({
+            where: { portal_token: token },
+            select: { id: true, contact: { select: { brand_id: true } } },
+        });
+
+        if (!inquiry) {
+            throw new NotFoundException('Portal not found');
+        }
+
+        const packages = await this.prisma.service_packages.findMany({
+            where: { brand_id: inquiry.contact.brand_id!, is_active: true },
+            select: {
+                id: true,
+                name: true,
+                description: true,
+                category: true,
+                base_price: true,
+                currency: true,
+                contents: true,
+            },
+            orderBy: { base_price: 'asc' },
+        });
+
+        return { packages };
+    }
+
+    async submitPackageRequest(
+        token: string,
+        data: { selected_package_id?: number; customisations?: Prisma.InputJsonValue; notes?: string },
+    ) {
+        const inquiry = await this.prisma.inquiries.findFirst({
+            where: { portal_token: token },
+            select: { id: true, contact: { select: { brand_id: true } } },
+        });
+
+        if (!inquiry) {
+            throw new NotFoundException('Portal not found');
+        }
+
+        const request = await this.prisma.package_requests.create({
+            data: {
+                inquiry_id: inquiry.id,
+                selected_package_id: data.selected_package_id ?? null,
+                customisations: data.customisations ?? Prisma.DbNull,
+                notes: data.notes ?? null,
+            },
+        });
+
+        await this.prisma.activity_logs.create({
+            data: {
+                inquiry_id: inquiry.id,
+                type: 'package_request',
+                description: data.selected_package_id
+                    ? `Client requested package #${data.selected_package_id}`
+                    : 'Client submitted custom package request',
+                metadata: {
+                    source: 'portal',
+                    selected_package_id: data.selected_package_id ?? null,
+                    has_customisations: !!data.customisations,
+                } as Prisma.InputJsonValue,
+            },
+        });
+
+        return request;
     }
 }

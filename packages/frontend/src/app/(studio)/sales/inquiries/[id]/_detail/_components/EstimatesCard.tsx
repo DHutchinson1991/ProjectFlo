@@ -16,6 +16,7 @@ import { useBrand } from '@/app/providers/BrandProvider';
 import { Estimate, EstimateItem } from '@/lib/types';
 import type { PaymentScheduleTemplate, EstimatePaymentMilestone } from '@/lib/types';
 import { getCurrencySymbol } from '@/lib/utils/formatUtils';
+import { computeTaxBreakdown } from '@/lib/utils/pricing';
 import LineItemEditor, { LineItem } from '../../components/LineItemEditor';
 import type { WorkflowCardProps } from '../_lib';
 import { WorkflowCard } from './WorkflowCard';
@@ -623,8 +624,7 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
     // Calculation helpers
     const calculateSubtotal = () => lineItems.reduce((acc, item) => acc + (item.total || 0), 0);
     const subtotal = calculateSubtotal();
-    const taxAmount = (subtotal * (taxRate / 100));
-    const totalAmount = subtotal + taxAmount;
+    const { taxAmount, total: totalAmount } = computeTaxBreakdown(subtotal, taxRate);
 
     return (
         <>

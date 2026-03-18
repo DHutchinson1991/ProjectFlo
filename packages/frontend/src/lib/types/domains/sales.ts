@@ -163,7 +163,9 @@ export interface Estimate {
     issue_date: Date;
     expiry_date: Date;
     total_amount: number;
+    total_with_tax?: number;
     tax_rate?: number;
+    currency?: string;
     deposit_required?: number;
     payment_method?: string;
     installments?: number;
@@ -199,7 +201,9 @@ export interface Quote {
     issue_date: Date;
     expiry_date: Date;
     total_amount: number;
+    total_with_tax?: number;
     tax_rate?: number;
+    currency?: string;
     deposit_required?: number;
     payment_method?: string;
     installments?: number;
@@ -231,6 +235,8 @@ export interface Inquiry {
     venue_address?: string | null;
     venue_lat?: number | null;
     venue_lng?: number | null;
+    venue_source?: string | null;
+    venue_updated_at?: Date | null;
     lead_source?: string | null;
     lead_source_details?: string | null;
     selected_package_id?: number | null;
@@ -242,6 +248,13 @@ export interface Inquiry {
     } | null;
     primary_estimate_total?: number | null;
     pipeline_stage?: string | null;
+    pipeline_stages?: Array<{
+        name: string;
+        color: string | null;
+        order_index: number;
+        total_children: number;
+        completed_children: number;
+    }>;
     source_package_id?: number | null;
     package_contents_snapshot?: {
         snapshot_taken_at: string;
@@ -263,14 +276,25 @@ export interface Inquiry {
     invoices?: Invoice[];
     estimates?: Estimate[];
     activity_logs?: unknown[];
+    welcome_sent_at?: string | null;
 }
 
 export type InquiryTaskStatus = 'To_Do' | 'Ready_to_Start' | 'In_Progress' | 'Completed' | 'Archived';
+
+export interface InquiryTaskEvent {
+    id: number;
+    task_id: number;
+    event_type: string;
+    triggered_by?: string | null;
+    description: string;
+    occurred_at: string;
+}
 
 export interface InquiryTask {
     id: number;
     inquiry_id: number;
     task_library_id: number | null;
+    parent_inquiry_task_id: number | null;
     name: string;
     description: string | null;
     phase: 'Inquiry' | 'Booking';
@@ -281,7 +305,11 @@ export interface InquiryTask {
     order_index: number;
     completed_at: string | null;
     completed_by_id: number | null;
+    assigned_to_id: number | null;
+    job_role_id: number | null;
     is_active: boolean;
+    is_stage: boolean;
+    stage_color: string | null;
     created_at: string;
     updated_at: string;
     task_library?: {
@@ -289,11 +317,24 @@ export interface InquiryTask {
         name: string;
         effort_hours: number | null;
         trigger_type: string;
+        is_stage?: boolean;
+        stage_color?: string | null;
+        parent_task_id?: number | null;
+        is_auto_only?: boolean;
     } | null;
     completed_by?: {
         id: number;
         contact: { first_name: string; last_name: string };
     } | null;
+    assigned_to?: {
+        id: number;
+        contact: { first_name: string; last_name: string; email?: string };
+    } | null;
+    job_role?: {
+        id: number;
+        name: string;
+    } | null;
+    children?: InquiryTask[];
 }
 
 export interface ClientProject {
@@ -381,6 +422,8 @@ export interface ServicePackage {
         }>>;
         items: ServicePackageItem[];
     };
+    /** Sum of group-role subject counts across event days (e.g. total guest headcount) */
+    typical_guest_count?: number | null;
 }
 
 // Proposal Section Types

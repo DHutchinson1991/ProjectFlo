@@ -10,6 +10,9 @@ import {
     TextField,
     IconButton,
     Chip,
+    Checkbox,
+    FormControlLabel,
+    CircularProgress,
 } from '@mui/material';
 import {
     Place,
@@ -18,11 +21,14 @@ import {
     AccessTime,
     NearMe,
     LocationOff,
+    ErrorOutline,
+    WarningAmber,
 } from '@mui/icons-material';
 import CelebrationIcon from '@mui/icons-material/Celebration';
 import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
 import { inquiriesService, api } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
+import { humanize } from '../_detail/_lib';
 import AddressSearch, { type AddressSelection } from './AddressSearch';
 
 // Dynamic-import the map (Leaflet needs `window`)
@@ -82,7 +88,7 @@ async function geocodeBrandAddress(address: string): Promise<{ lat: number; lng:
         const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
         brandGeoCache.set(address, coords);
         return coords;
-    } catch {
+    } catch (_e) {
         return null;
     }
 }
@@ -107,8 +113,8 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
     // Ceremony location from package schedule location slots
     const [slotsLoading, setSlotsLoading] = useState(true);
     const [ceremonySlot, setCeremonySlot] = useState<{
-        name: string; address: string; lat: number | null; lng: number | null;
-        slotIndex: number; totalSlots: number;
+        id: number; name: string; address: string; lat: number | null; lng: number | null;
+        slotIndex: number; totalSlots: number; updatedAt: Date;
     } | null>(null);
 
     useEffect(() => {
@@ -160,12 +166,14 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                 }
                 const slotIndex = slots.indexOf(ceremony) + 1;
                 setCeremonySlot({
+                    id: ceremony.id,
                     name: slotName,
                     address: fullAddress,
                     lat,
                     lng,
                     slotIndex,
                     totalSlots: slots.length,
+                    updatedAt: new Date(ceremony.updated_at),
                 });
             })
             .catch(() => { /* ignore – will fall back to venue_details */ })
@@ -214,9 +222,95 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         geocodeBrandAddress(parts.join(', ')).then(setBrandCoords);
     }, [currentBrand]);
 
-    // Display coordinates: prefer geocoded ceremony slot, then inquiry venue (only after slots loaded)
-    const displayLat = ceremonySlot?.lat ?? (slotsLoading ? null : formData.venue_lat);
-    const displayLng = ceremonySlot?.lng ?? (slotsLoading ? null : formData.venue_lng);
+    // ── Date conflict check ──
+    const [dateConflicts, setDateConflicts] = useState<{
+        wedding_date: string | null;
+        booked_conflicts: { type: string; id: number; name: string; status: string }[];
+        soft_conflicts: { type: string; id: number; name: string; status: string }[];
+    } | null>(null);
+    const [loadingConflicts, setLoadingConflicts] = useState(false);
+
+    useEffect(() => {
+        if (!submission?.id) return;
+        setLoadingConflicts(true);
+        api.needsAssessmentSubmissions.checkDateConflicts(submission.id)
+            .then(setDateConflicts)
+            .catch(() => setDateConflicts(null))
+            .finally(() => setLoadingConflicts(false));
+    }, [submission?.id]);
+
+    const hasConflicts = dateConflicts &&
+        (dateConflicts.booked_conflicts.length > 0 || dateConflicts.soft_conflicts.length > 0);
+
+    // ── Review checklist state ──
+    const existingChecklist = (submission?.review_checklist_state ?? {}) as Record<string, boolean>;
+
+    // ── Date available check (pre-checked when no conflicts) ──
+    const [dateAvailable, setDateAvailable] = useState<boolean | null>(
+        existingChecklist['date_available'] != null ? existingChecklist['date_available'] : null,
+    );
+
+    // After conflict check finishes, auto-set if user hasn't already decided
+    useEffect(() => {
+        if (loadingConflicts || !dateConflicts) return;
+        // Only auto-set when there's no saved preference
+        if (existingChecklist['date_available'] != null) return;
+        const clear = dateConflicts.booked_conflicts.length === 0 && dateConflicts.soft_conflicts.length === 0;
+        setDateAvailable(clear);
+        // Persist the auto-determined value
+        if (submission) {
+            api.needsAssessmentSubmissions.review(submission.id, {
+                review_checklist_state: { ...existingChecklist, date_available: clear },
+            }).catch(() => { /* silent – fire and forget */ });
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loadingConflicts, dateConflicts]);
+
+    const handleDateAvailableToggle = async () => {
+        if (!submission) return;
+        const next = !(dateAvailable ?? false);
+        setDateAvailable(next);
+        try {
+            await api.needsAssessmentSubmissions.review(submission.id, {
+                review_checklist_state: { ...existingChecklist, date_available: next },
+            });
+        } catch (_e) {
+            setDateAvailable(!next);
+        }
+    };
+
+    // ── Venue feasibility manual check ──
+    const [venueFeasibility, setVenueFeasibility] = useState(existingChecklist['venue_feasibility'] ?? false);
+
+    const handleVenueFeasibilityToggle = async () => {
+        if (!submission) return;
+        const next = !venueFeasibility;
+        setVenueFeasibility(next);
+        try {
+            await api.needsAssessmentSubmissions.review(submission.id, {
+                review_checklist_state: { ...existingChecklist, venue_feasibility: next },
+            });
+        } catch (_e) {
+            setVenueFeasibility(!next); // revert on failure
+        }
+    };
+
+    // ── Event type + approx date from NA ──
+    const eventType = responses.event_type;
+    const approxDate = responses.wedding_date_approx;
+
+    // Timestamp-based priority: whichever source was updated most recently wins.
+    const inquiryVenueTime = inquiry.venue_updated_at ? new Date(inquiry.venue_updated_at).getTime() : 0;
+    const slotTime = ceremonySlot?.updatedAt?.getTime() ?? 0;
+    const preferSlot = ceremonySlot && slotTime > inquiryVenueTime;
+
+    // Display coordinates: use whichever source won the timestamp comparison
+    const displayLat = preferSlot
+        ? ceremonySlot?.lat ?? null
+        : (formData.venue_lat ?? ceremonySlot?.lat ?? null);
+    const displayLng = preferSlot
+        ? ceremonySlot?.lng ?? null
+        : (formData.venue_lng ?? ceremonySlot?.lng ?? null);
     const hasVenueCoords = displayLat != null && displayLng != null;
 
     const distance = useMemo(() => {
@@ -238,7 +332,29 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
             payload.venue_address = formData.venue_address || null;
             payload.venue_lat = formData.venue_lat;
             payload.venue_lng = formData.venue_lng;
+            payload.venue_source = 'manual';
             await inquiriesService.update(inquiry.id, payload);
+
+            // Sync the ceremony location slot with the new address
+            if (ceremonySlot?.id) {
+                const shortName = formData.venue_address?.split(',')[0]?.trim() || '';
+                await api.schedule.instanceLocationSlots.update(ceremonySlot.id, {
+                    name: shortName || null,
+                    address: formData.venue_address || null,
+                });
+                // Update local ceremony slot state so view mode reflects immediately
+                const coords = formData.venue_address
+                    ? await geocodeBrandAddress(formData.venue_address)
+                    : null;
+                setCeremonySlot(prev => prev ? {
+                    ...prev,
+                    name: shortName,
+                    address: formData.venue_address || '',
+                    lat: coords?.lat ?? null,
+                    lng: coords?.lng ?? null,
+                } : null);
+            }
+
             setIsEditing(false);
             if (onRefresh) await onRefresh();
         } catch (error) {
@@ -277,20 +393,26 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         ? dateObj.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' })
         : 'Date not set';
 
-    /* ---- short venue label (prefer ceremony location slot) ---- */
+    /* ---- short venue label ---- */
+    // Use timestamp-based priority: whichever source was updated most recently wins.
+    // Inquiry venue_updated_at vs ceremony slot updated_at.
     const slotAddress = ceremonySlot?.address || '';
     const slotName = ceremonySlot?.name || '';
-    // While slots are loading, don't fall back to inquiry venue fields
+
     const venueShortName = slotsLoading
         ? ''
-        : (slotName
-            || slotAddress.split(',')[0]?.trim()
-            || formData.venue_details
-            || formData.venue_address?.split(',')[0]
-            || '');
+        : preferSlot
+            ? (slotName || slotAddress.split(',')[0]?.trim() || '')
+            : (formData.venue_details
+                || formData.venue_address?.split(',')[0]
+                || slotName
+                || slotAddress.split(',')[0]?.trim()
+                || '');
     const venueFullAddress = slotsLoading
         ? ''
-        : (slotAddress || formData.venue_address || '');
+        : preferSlot
+            ? (slotAddress || '')
+            : (formData.venue_address || slotAddress || '');
     const venueLabel = ceremonySlot
         ? `Location ${ceremonySlot.slotIndex} of ${ceremonySlot.totalSlots}`
         : 'Venue';
@@ -326,6 +448,18 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                         <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#e2e8f0', letterSpacing: '-0.01em' }}>
                             Event
                         </Typography>
+                        {eventType && (
+                            <Chip
+                                size="small"
+                                label={humanize(eventType)}
+                                sx={{
+                                    height: 20, fontSize: '0.65rem', fontWeight: 700,
+                                    bgcolor: 'rgba(236,72,153,0.12)',
+                                    color: '#ec4899',
+                                    border: '1px solid rgba(236,72,153,0.2)',
+                                }}
+                            />
+                        )}
                     </Box>
                     <IconButton
                         size="small"
@@ -371,6 +505,7 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                     </Box>
                 ) : (
                     /* ============ VIEW MODE — Two-column ============ */
+                    <>
                     <Box sx={{
                         display: 'flex',
                         flexDirection: { xs: 'column', sm: 'row' },
@@ -418,6 +553,11 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                     <Typography sx={{ fontSize: '0.72rem', color: '#64748b', mt: 0.25 }}>
                                         Event Date
                                     </Typography>
+                                    {!dateObj && approxDate && (
+                                        <Typography sx={{ fontSize: '0.72rem', color: '#f59e0b', mt: 0.25 }}>
+                                            Approx: {approxDate}
+                                        </Typography>
+                                    )}
                                 </Box>
                             </Box>
 
@@ -561,6 +701,101 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                             </Box>
                         )}
                     </Box>
+
+                    {/* ── Date conflict & review checks ── */}
+                    {submission && (
+                        <Box sx={{
+                            px: 2.5, py: 1.5,
+                            borderTop: '1px solid rgba(52, 58, 68, 0.3)',
+                        }}>
+                            {/* Date availability check */}
+                            {loadingConflicts ? (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
+                                    <CircularProgress size={14} sx={{ color: '#64748b' }} />
+                                    <Typography sx={{ fontSize: '0.72rem', color: '#64748b' }}>Checking date conflicts…</Typography>
+                                </Box>
+                            ) : dateConflicts && (
+                                <Box sx={{ mb: 1 }}>
+                                    {/* Conflict details (shown above checkbox when conflicts exist) */}
+                                    {hasConflicts && (
+                                        <Stack spacing={0.5} sx={{ mb: 1 }}>
+                                            {dateConflicts.booked_conflicts.map((c) => (
+                                                <Box key={c.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                    <ErrorOutline sx={{ fontSize: 14, color: '#ef4444' }} />
+                                                    <Typography sx={{ fontSize: '0.72rem', color: '#fca5a5' }}>
+                                                        Booked conflict: {c.name}
+                                                    </Typography>
+                                                </Box>
+                                            ))}
+                                            {dateConflicts.soft_conflicts.map((c) => (
+                                                <Box key={c.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                    <WarningAmber sx={{ fontSize: 14, color: '#f59e0b' }} />
+                                                    <Typography sx={{ fontSize: '0.72rem', color: '#fcd34d' }}>
+                                                        Soft conflict: {c.name}
+                                                    </Typography>
+                                                </Box>
+                                            ))}
+                                        </Stack>
+                                    )}
+
+                                    {/* Date available checkbox */}
+                                    <FormControlLabel
+                                        control={
+                                            <Checkbox
+                                                size="small"
+                                                checked={dateAvailable ?? false}
+                                                onChange={handleDateAvailableToggle}
+                                                sx={{
+                                                    color: hasConflicts ? '#ef4444' : '#475569',
+                                                    '&.Mui-checked': { color: '#10b981' },
+                                                    p: 0.5,
+                                                }}
+                                            />
+                                        }
+                                        label={
+                                            <Typography sx={{
+                                                fontSize: '0.72rem',
+                                                color: (dateAvailable ?? false)
+                                                    ? '#10b981'
+                                                    : hasConflicts ? '#fca5a5' : '#94a3b8',
+                                                fontWeight: hasConflicts && !(dateAvailable ?? false) ? 600 : 400,
+                                            }}>
+                                                {(dateAvailable ?? false)
+                                                    ? "I'm free on this date"
+                                                    : hasConflicts
+                                                        ? 'I can still do this date'
+                                                        : "I'm free on this date"}
+                                            </Typography>
+                                        }
+                                        sx={{ ml: -0.5 }}
+                                    />
+                                </Box>
+                            )}
+
+                            {/* Venue feasibility check */}
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        size="small"
+                                        checked={venueFeasibility}
+                                        onChange={handleVenueFeasibilityToggle}
+                                        sx={{
+                                            color: '#475569',
+                                            '&.Mui-checked': { color: '#10b981' },
+                                            p: 0.5,
+                                        }}
+                                    />
+                                }
+                                label={
+                                    <Typography sx={{ fontSize: '0.72rem', color: venueFeasibility ? '#10b981' : '#94a3b8' }}>
+                                        I can film at this venue
+                                    </Typography>
+                                }
+                                sx={{ ml: -0.5 }}
+                            />
+                        </Box>
+                    )}
+                    </>
                 )}
             </CardContent>
         </WorkflowCard>

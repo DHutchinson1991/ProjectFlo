@@ -1,11 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PricingService } from '../pricing/pricing.service';
 import { CreateServicePackageDto } from './dto/create-service-package.dto';
 import { UpdateServicePackageDto } from './dto/update-service-package.dto';
+import { CreatePackageFromBuilderDto } from './dto/create-package-from-builder.dto';
 
 @Injectable()
 export class ServicePackagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pricingService: PricingService,
+  ) {}
 
   async create(brandId: number, createDto: CreateServicePackageDto) {
     return this.prisma.service_packages.create({
@@ -17,12 +23,12 @@ export class ServicePackagesService {
     });
   }
 
-  async findAll(brandId: number) {
+  async findAll(brandId: number, userId?: number) {
     const packages = await this.prisma.service_packages.findMany({
       where: { brand_id: brandId, is_active: true },
       include: {
-        wedding_type: true, // Include wedding type info if this was created from template
-        package_category: { select: { id: true, name: true } }, // Resolve category name from relation
+        wedding_type: true,
+        package_category: { select: { id: true, name: true } },
         workflow_template: { select: { id: true, name: true, is_default: true } },
         _count: {
           select: {
@@ -31,120 +37,85 @@ export class ServicePackagesService {
           },
         },
         package_day_operators: {
-          include: {
-            contributor: {
-              select: {
-                id: true,
-                default_hourly_rate: true,
-                contributor_job_roles: {
-                  select: {
-                    is_primary: true,
-                    job_role_id: true,
-                    payment_bracket: {
-                      select: { hourly_rate: true, day_rate: true },
-                    },
-                  },
-                },
-              },
-            },
+          select: {
+            contributor_id: true,
             equipment: {
-              include: {
-                equipment: { select: { category: true, rental_price_per_day: true } },
-              },
+              select: { equipment: { select: { category: true } } },
             },
           },
         },
       },
     });
 
-    // Compute equipment counts, crew counts, and cost totals per package, then strip bulky relations
-    return packages.map(({ package_day_operators, package_category, ...pkg }) => {
+    // Fetch typical guest count for each package (from is_group role subjects)
+    const packageIds = packages.map(p => p.id);
+    const groupSubjects = packageIds.length
+      ? await this.prisma.packageEventDaySubject.findMany({
+          where: {
+            package_id: { in: packageIds },
+            role_template: { is_group: true },
+          },
+          select: { package_id: true, count: true },
+        })
+      : [];
+    // Sum group subject counts per package (take max count as typical guest count)
+    const guestCountMap = new Map<number, number>();
+    for (const s of groupSubjects) {
+      const existing = guestCountMap.get(s.package_id) ?? 0;
+      guestCountMap.set(s.package_id, existing + (s.count ?? 0));
+    }
+
+    // Compute counts from the lightweight operator data, then fetch pricing via PricingService
+    const baseMapped = packages.map(({ package_day_operators, package_category, ...pkg }) => {
+      const uniqueOperators = new Set<number>();
       let cameraCount = 0;
       let audioCount = 0;
-      const uniqueOperators = new Set<number>();
-      let totalCrewCost = 0;
-      let totalEquipmentCost = 0;
-      const equipmentSeen = new Set<number>();
-
       for (const op of package_day_operators) {
-        if (op.contributor_id) {
-          uniqueOperators.add(op.contributor_id);
-        }
-
-        // ── Crew cost (mirrors frontend getCrewHourlyRate / isCrewDayRate logic) ──
-        if (op.contributor) {
-          const roles = op.contributor.contributor_job_roles || [];
-          let rate = 0;
-          let isDayRate = false;
-
-          // Try matching bracket for the operator's assigned job_role
-          if (op.job_role_id) {
-            const match = roles.find(r => r.job_role_id === op.job_role_id);
-            if (match?.payment_bracket) {
-              const hr = Number(match.payment_bracket.hourly_rate || 0);
-              const dr = Number(match.payment_bracket.day_rate || 0);
-              if (dr > 0 && hr === 0) {
-                isDayRate = true;
-                rate = dr;
-              } else if (hr > 0) {
-                rate = hr;
-              }
-            }
-          }
-          // Fallback: primary role bracket
-          if (rate === 0) {
-            const primary = roles.find(r => r.is_primary && r.payment_bracket);
-            if (primary?.payment_bracket) {
-              const hr = Number(primary.payment_bracket.hourly_rate || 0);
-              const dr = Number(primary.payment_bracket.day_rate || 0);
-              if (dr > 0 && hr === 0) { isDayRate = true; rate = dr; }
-              else if (hr > 0) { rate = hr; }
-            }
-          }
-          // Fallback: any bracket
-          if (rate === 0) {
-            const any = roles.find(r => r.payment_bracket);
-            if (any?.payment_bracket) {
-              rate = Number(any.payment_bracket.hourly_rate || 0);
-            }
-          }
-          // Fallback: contributor default rate
-          if (rate === 0) {
-            rate = Number(op.contributor.default_hourly_rate || 0);
-          }
-
-          const hours = Number(op.hours || 0);
-          if (isDayRate) {
-            totalCrewCost += rate * (hours > 0 ? hours : 1);
-          } else {
-            totalCrewCost += rate * hours;
-          }
-
-        }
-
-        // ── Equipment counts & cost ──
+        if (op.contributor_id) uniqueOperators.add(op.contributor_id);
         for (const eq of op.equipment) {
           if (eq.equipment.category === 'CAMERA') cameraCount++;
           else if (eq.equipment.category === 'AUDIO') audioCount++;
-          // Deduplicate equipment cost (same piece may appear on multiple operators)
-          if (!equipmentSeen.has(eq.equipment_id)) {
-            equipmentSeen.add(eq.equipment_id);
-            totalEquipmentCost += Number(eq.equipment.rental_price_per_day || 0);
-          }
         }
       }
-
       return {
         ...pkg,
-        // Resolve category: prefer the related category name, fall back to the raw string field
         category: package_category?.name ?? pkg.category ?? null,
         _equipmentCounts: { cameras: cameraCount, audio: audioCount },
         _crewCount: uniqueOperators.size,
-        _totalCrewCost: totalCrewCost,
-        _totalEquipmentCost: totalEquipmentCost,
-        _totalCost: totalCrewCost + totalEquipmentCost,
+        typical_guest_count: guestCountMap.get(pkg.id) ?? null,
       };
     });
+
+    // If userId is available, fetch authoritative pricing from PricingService (bracket-aware + task costs)
+    if (userId) {
+      const pricingResults = await Promise.allSettled(
+        baseMapped.map(pkg => this.pricingService.estimatePackagePrice(pkg.id, brandId, userId)),
+      );
+      return baseMapped.map((pkg, i) => {
+        const result = pricingResults[i];
+        if (result.status === 'fulfilled') {
+          const p = result.value;
+          return {
+            ...pkg,
+            _totalCrewCost: p.summary.crewCost,
+            _totalEquipmentCost: p.summary.equipmentCost,
+            _totalCost: p.summary.subtotal,
+            _tax: p.tax,
+          };
+        }
+        // Pricing failed for this package — return 0 costs
+        return { ...pkg, _totalCrewCost: 0, _totalEquipmentCost: 0, _totalCost: 0, _tax: null };
+      });
+    }
+
+    // No userId — return without pricing (backwards-compatible)
+    return baseMapped.map(pkg => ({
+      ...pkg,
+      _totalCrewCost: 0,
+      _totalEquipmentCost: 0,
+      _totalCost: 0,
+      _tax: null,
+    }));
   }
 
   async findOne(id: number, brandId: number) {
@@ -190,6 +161,189 @@ export class ServicePackagesService {
     return this.prisma.service_packages.update({
       where: { id },
       data: { is_active: false },
+    });
+  }
+
+  // ─── Create from Builder (Needs Assessment) ───────────────────────
+
+  async createFromBuilder(brandId: number, dto: CreatePackageFromBuilderDto) {
+    // 1. Fetch brand currency
+    const brand = await this.prisma.brands.findUnique({
+      where: { id: brandId },
+      select: { currency: true },
+    });
+
+    // 2. Fetch event type with deep includes to get activity presets
+    const eventType = await this.prisma.eventType.findUnique({
+      where: { id: dto.eventTypeId },
+      include: {
+        event_days: {
+          include: {
+            event_day_template: {
+              include: {
+                activity_presets: {
+                  include: { moments: { orderBy: { order_index: 'asc' } } },
+                  orderBy: { order_index: 'asc' },
+                },
+              },
+            },
+          },
+          orderBy: { order_index: 'asc' },
+        },
+      },
+    });
+    if (!eventType) throw new NotFoundException('Event type not found');
+
+    // 3. Find the main event day template — prefer exact "Wedding Day" name,
+    //    then starts-with, then most presets, then first by order.
+    const sortedDays = eventType.event_days; // already ordered by order_index asc
+    const mainDayLink =
+      sortedDays.find((d) =>
+        d.event_day_template.name.toLowerCase() === 'wedding day'
+      ) ||
+      sortedDays.find((d) =>
+        d.event_day_template.name.toLowerCase().startsWith('wedding day')
+      ) ||
+      sortedDays.reduce((best, d) =>
+        (d.event_day_template.activity_presets?.length || 0) >
+        (best?.event_day_template.activity_presets?.length || 0)
+          ? d
+          : best
+      , sortedDays[0]);
+    if (!mainDayLink) throw new NotFoundException('Event type has no event days');
+    const mainTemplate = mainDayLink.event_day_template;
+
+    // 4. Build set of selected preset IDs
+    const selectedIds = new Set(dto.selectedActivityPresetIds);
+
+    // 5. Look up videographer job role
+    const videographerRole = await this.prisma.job_roles.findFirst({
+      where: { name: { equals: 'videographer', mode: 'insensitive' } },
+    });
+
+    // 6. Calculate total coverage hours
+    const totalMinutes = mainTemplate.activity_presets
+      .filter(p => selectedIds.has(p.id))
+      .reduce((sum, p) => sum + (p.default_duration_minutes || 60), 0);
+    const coverageHours = Math.round((totalMinutes / 60) * 2) / 2;
+
+    // 7. Create the package name
+    const pkgName = dto.clientName
+      ? `Custom Package \u2014 ${dto.clientName}`
+      : 'Custom Package';
+
+    // 8. Create everything in a transaction
+    return this.prisma.$transaction(async (tx) => {
+      // Create service_packages record
+      const servicePackage = await tx.service_packages.create({
+        data: {
+          brand_id: brandId,
+          name: pkgName,
+          description: null,
+          base_price: 0,
+          currency: brand?.currency || 'USD',
+          is_active: false,
+          category: eventType.name,
+          contents: { items: [], film_preferences: dto.filmPreferences || [] } as unknown as Prisma.InputJsonValue,
+        },
+      });
+
+      // Create PackageEventDay
+      const packageEventDay = await tx.packageEventDay.create({
+        data: {
+          package_id: servicePackage.id,
+          event_day_template_id: mainTemplate.id,
+          order_index: 0,
+        },
+      });
+
+      // Create PackageActivity + PackageActivityMoment for selected presets
+      let activityIdx = 0;
+      for (const preset of mainTemplate.activity_presets) {
+        if (!selectedIds.has(preset.id)) continue;
+
+        const activity = await tx.packageActivity.create({
+          data: {
+            package_id: servicePackage.id,
+            package_event_day_id: packageEventDay.id,
+            name: preset.name,
+            color: preset.color,
+            icon: preset.icon,
+            description: preset.description,
+            start_time: preset.default_start_time || null,
+            duration_minutes: preset.default_duration_minutes || 60,
+            order_index: activityIdx++,
+          },
+        });
+
+        // Create moments from preset
+        let momentIdx = 0;
+        for (const moment of preset.moments) {
+          await tx.packageActivityMoment.create({
+            data: {
+              package_activity_id: activity.id,
+              name: moment.name,
+              order_index: momentIdx++,
+              duration_seconds: moment.duration_seconds || 60,
+              is_required: moment.is_key_moment,
+            },
+          });
+        }
+      }
+
+      // Create PackageDayOperator slots
+      const opCount = Math.max(1, Math.min(dto.operatorCount, 10));
+      const createdOperators: Array<{ id: number }> = [];
+      for (let i = 0; i < opCount; i++) {
+        const op = await tx.packageDayOperator.create({
+          data: {
+            package_id: servicePackage.id,
+            event_day_template_id: mainTemplate.id,
+            contributor_id: null,
+            job_role_id: videographerRole?.id || null,
+            position_name: `Videographer ${i + 1}`,
+            hours: coverageHours || 8,
+            order_index: i,
+          },
+        });
+        createdOperators.push(op);
+      }
+
+      // ── Auto-assign equipment from brand's library ──
+      const totalCameras = Math.max(opCount, Math.min(dto.cameraCount ?? opCount, opCount * 10));
+      if (totalCameras > 0) {
+        // Fetch available cameras from the brand's equipment library
+        const availableCameras = await tx.equipment.findMany({
+          where: {
+            brand_id: brandId,
+            category: 'CAMERA',
+            is_active: true,
+          },
+          orderBy: [{ rental_price_per_day: 'desc' }, { id: 'asc' }],
+        });
+
+        if (availableCameras.length > 0) {
+          let cameraIdx = 0;
+          for (let c = 0; c < totalCameras; c++) {
+            // Cycle through available cameras if we need more than exist
+            const camera = availableCameras[cameraIdx % availableCameras.length];
+            // Assign to operator (round-robin): first N cameras go 1-per-operator, extras distribute
+            const operatorIndex = c % opCount;
+            const operator = createdOperators[operatorIndex];
+
+            await tx.packageDayOperatorEquipment.create({
+              data: {
+                package_day_operator_id: operator.id,
+                equipment_id: camera.id,
+                is_primary: c < opCount, // First camera per operator is primary
+              },
+            });
+            cameraIdx++;
+          }
+        }
+      }
+
+      return servicePackage;
     });
   }
 

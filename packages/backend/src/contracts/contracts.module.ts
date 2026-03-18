@@ -6,9 +6,11 @@ import { ContractClausesController } from './contract-clauses.controller';
 import { ContractTemplatesService } from './contract-templates.service';
 import { ContractTemplatesController } from './contract-templates.controller';
 import { PrismaModule } from '../prisma/prisma.module';
+import { InquiryTasksModule } from '../inquiry-tasks/inquiry-tasks.module';
+import { InvoicesModule } from '../invoices/invoices.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, InquiryTasksModule, InvoicesModule],
   controllers: [ContractsController, ContractSigningController, ContractClausesController, ContractTemplatesController],
   providers: [ContractsService, ContractClausesService, ContractTemplatesService],
   exports: [ContractsService, ContractClausesService, ContractTemplatesService],

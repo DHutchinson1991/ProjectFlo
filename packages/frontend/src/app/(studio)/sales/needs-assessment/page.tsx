@@ -1,960 +1,707 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { Box, Typography, Button, Alert, CircularProgress } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import {
-    Box,
-    Typography,
-    TextField,
-    FormControl,
-    Select,
-    MenuItem,
-    Button,
-    Stack,
-    Switch,
-    Alert,
-    CircularProgress,
-    Fade,
-    Chip,
-} from "@mui/material";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import CheckIcon from "@mui/icons-material/Check";
+    CheckCircle as CheckCircleIcon,
+    ArrowForward as ArrowForwardIcon,
+    ArrowBack as ArrowBackIcon,
+} from "@mui/icons-material";
 import { api } from "@/lib/api";
-import { NeedsAssessmentTemplate, ServicePackage, WizardStep } from "@/lib/types";
+import { NeedsAssessmentTemplate, ServicePackage } from "@/lib/types";
 import { useBrand } from "@/app/providers/BrandProvider";
 
-// ── Currency helpers ──────────────────────────────────────────────────────────
-const CURRENCY_SYMBOLS: Record<string, string> = {
-    USD: "$", GBP: "£", EUR: "€", AUD: "A$", CAD: "C$", NZD: "NZ$",
-    JPY: "¥", CHF: "CHF", SEK: "kr", NOK: "kr", DKK: "kr",
-    ZAR: "R", INR: "₹", SGD: "S$", HKD: "HK$", MXN: "MX$",
-};
-function getCurrencySymbol(currency: string | null | undefined): string {
-    if (!currency) return "$";
-    return CURRENCY_SYMBOLS[currency.toUpperCase()] ?? currency;
-}
+import {
+    C, STEP_AMBIENCE, DEFAULT_AMB, REQUIRED,
+    EVENT_CONFIGS, DEFAULT_CONFIG, BUDGET_RANGES,
+    EVENT_EMOJIS, EVENT_DESCS, EVENT_LABELS,
+} from "./constants";
+import {
+    fadeIn, shimmer, scaleIn, subtleFloat,
+    slideInRight, slideInLeft, glowPulse,
+    drift1, drift2, drift3,
+} from "./animations";
+import type { AnyRecord, ScreenId, Direction, EventTypeConfig, PriceEstimate } from "./types";
+import type { WelcomeSettings } from "@/lib/types/brand";
+import { computeScreens, getCurrencySymbol } from "./utils";
 
-// ── Preferred-contact-time options ────────────────────────────────────────────
-const CONTACT_TIME_OPTIONS = [
-    "Morning (8am–12pm)",
-    "Afternoon (12pm–5pm)",
-    "Evening (5pm–9pm)",
-    "Flexible",
-];
+import WelcomeScreen from "./_components/screens/WelcomeScreen";
+import EventTypeScreen from "./_components/screens/EventTypeScreen";
+import DateScreen from "./_components/screens/DateScreen";
+import GuestsScreen from "./_components/screens/GuestsScreen";
+import PartnerScreen from "./_components/screens/PartnerScreen";
+import BirthdayContactScreen from "./_components/screens/BirthdayContactScreen";
+import VenueScreen from "./_components/screens/VenueScreen";
+import ForkScreen from "./_components/screens/ForkScreen";
+import BudgetScreen from "./_components/screens/BudgetScreen";
+import PackagesScreen from "./_components/screens/PackagesScreen";
+import BuilderScreen from "./_components/screens/BuilderScreen";
+import SpecialScreen from "./_components/screens/SpecialScreen";
+import SourceScreen from "./_components/screens/SourceScreen";
+import CallOfferScreen from "./_components/screens/CallOfferScreen";
+import CallDetailsScreen from "./_components/screens/CallDetailsScreen";
+import ContactScreen from "./_components/screens/ContactScreen";
+import SummaryScreen from "./_components/screens/SummaryScreen";
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
-const bg0 = "#090d12";
-const bg1 = "rgba(255,255,255,0.025)";
-const border0 = "rgba(255,255,255,0.07)";
-const border1 = "rgba(255,255,255,0.12)";
-const accent = "#3b82f6";
-const accentLight = "rgba(59,130,246,0.10)";
-const accentBorder = "rgba(59,130,246,0.35)";
-const muted = "#64748b";
-const body = "#cbd5e1";
-const heading = "#f1f5f9";
-
-const fieldSx = {
-    "& .MuiOutlinedInput-root": {
-        color: body,
-        borderRadius: "10px",
-        fontSize: "0.925rem",
-        bgcolor: "rgba(255,255,255,0.02)",
-        "& fieldset": { borderColor: border0 },
-        "&:hover fieldset": { borderColor: accentBorder },
-        "&.Mui-focused fieldset": { borderColor: accent, borderWidth: "1.5px" },
-    },
-    "& .MuiInputLabel-root": { color: muted, fontSize: "0.875rem" },
-    "& .MuiInputLabel-root.Mui-focused": { color: accent },
-    "& .MuiFormHelperText-root.Mui-error": { color: "#ef4444" },
-};
-
-const DEFAULT_STEPS: WizardStep[] = [
-    { key: "contact",  label: "You",          description: "Tell us a little about yourself" },
-    { key: "event",    label: "Your Wedding",  description: "Event details" },
-    { key: "coverage", label: "Coverage",      description: "What you'd like captured" },
-    { key: "budget",   label: "Budget",        description: "Investment range" },
-    { key: "package",  label: "Package",       description: "Choose your package", type: "package_select" },
-    { key: "reach",    label: "Reach You",     description: "How did you find us?" },
-    { key: "call",     label: "Discovery Call", description: "How would you like to connect?", type: "discovery_call" },
-];
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyRecord = Record<string, any>;
+/* ================================================================== */
+/* Main Component                                                      */
+/* ================================================================== */
 
 export default function NeedsAssessmentPage() {
     const { currentBrand } = useBrand();
     const searchParams = useSearchParams();
     const linkedInquiryId = searchParams.get("inquiry") ? Number(searchParams.get("inquiry")) : null;
 
+    /* ── State ──────────────────────────────────────────── */
+    const [currentScreenId, setCurrentScreenId] = useState<ScreenId>("welcome");
+    const [direction, setDirection] = useState<Direction>("forward");
+    const [responses, setResponses] = useState<AnyRecord>({});
+
     const [template, setTemplate] = useState<NeedsAssessmentTemplate | null>(null);
     const [allPackages, setAllPackages] = useState<ServicePackage[]>([]);
     const [packageSets, setPackageSets] = useState<AnyRecord[]>([]);
-    const [steps, setSteps] = useState<WizardStep[]>(DEFAULT_STEPS);
-    const [currentStepIdx, setCurrentStepIdx] = useState(0);
-    const [responses, setResponses] = useState<AnyRecord>({});
-    const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
-    const [selectedEventType, setSelectedEventType] = useState<string | null>(null);
-    const [createInquiry, setCreateInquiry] = useState(true);
+
+    const [maxVideographers, setMaxVideographers] = useState(1);
+    const [maxCamerasPerOp, setMaxCamerasPerOp] = useState(3);
+
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [fieldErrors, setFieldErrors] = useState<AnyRecord>({});
+    const [createInquiry, setCreateInquiry] = useState(true);
+    const [validationShake, setValidationShake] = useState(false);
 
+    const [callSlots, setCallSlots] = useState<{ time: string; available: boolean }[]>([]);
+    const [callSlotsLoading, setCallSlotsLoading] = useState(false);
+    const [callSlotsDuration, setCallSlotsDuration] = useState(20);
+
+    const [priceEstimate, setPriceEstimate] = useState<PriceEstimate | null>(null);
+    const [priceLoading, setPriceLoading] = useState(false);
+    const [builderPackageId, setBuilderPackageId] = useState<number | null>(null);
+    const [welcomeSettings, setWelcomeSettings] = useState<WelcomeSettings | null>(null);
+
+    const screensRef = useRef<ScreenId[]>([]);
+    const currentRef = useRef<ScreenId>("welcome");
+    const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    /* ── Brand + currency ───────────────────────────────── */
+    const brandName = currentBrand?.display_name || currentBrand?.name || "";
+    const brandInitial = brandName.charAt(0).toUpperCase();
+    const currSym = getCurrencySymbol(currentBrand?.currency);
+
+    /* ── Configs ────────────────────────────────────────── */
+    const eventType = (responses.event_type || "").toLowerCase();
+    const eventConfig: EventTypeConfig = EVENT_CONFIGS[eventType] || DEFAULT_CONFIG;
+
+    /* ── Screens + navigation refs ──────────────────────── */
+    const screens = useMemo(() => computeScreens(responses, eventConfig), [responses, eventConfig]);
+    const screenIdx = screens.indexOf(currentScreenId);
+    const progress = screens.length > 1 ? ((screenIdx + 1) / screens.length) * 100 : 0;
+
+    useEffect(() => { screensRef.current = screens; }, [screens]);
+    useEffect(() => { currentRef.current = currentScreenId; }, [currentScreenId]);
+
+    // Reset saved package/price if user goes back to builder (they may change selections)
+    useEffect(() => {
+        if (currentScreenId === "builder" && builderPackageId) {
+            setBuilderPackageId(null);
+            setPriceEstimate(null);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentScreenId]);
+
+    /* ── Data fetch ─────────────────────────────────────── */
     useEffect(() => {
         if (!currentBrand?.id) return;
-        const load = async () => {
+        (async () => {
             try {
                 setLoading(true);
-                setError(null);
-                const [templateData, packagesData, setsData] = await Promise.all([
+                const [t, p, s, et, cr, camSetting, ws] = await Promise.all([
                     api.needsAssessmentTemplates.getActive(),
                     api.servicePackages.getAll(currentBrand.id),
                     api.packageSets.getAll(currentBrand.id),
+                    api.eventTypes.getAll().catch(() => []),
+                    api.crew.getByBrand(currentBrand.id).catch(() => []),
+                    api.brands.getSetting(currentBrand.id, "max_cameras_per_operator").catch(() => null),
+                    api.brands.getWelcomeSettings(currentBrand.id).catch(() => null),
                 ]);
-                setTemplate(templateData);
-                setAllPackages(packagesData || []);
-                setPackageSets(setsData || []);
-                if (templateData?.steps_config?.length) {
-                    const stepsFromConfig = templateData.steps_config as WizardStep[];
-                    const hasCallStep = stepsFromConfig.some((s) => s.key === 'call');
-                    setSteps(hasCallStep ? stepsFromConfig : [
-                        ...stepsFromConfig,
-                        { key: 'call', label: 'Discovery Call', description: 'How would you like to connect?', type: 'discovery_call' },
-                    ]);
-                }
+                setTemplate(t);
+                setAllPackages(p || []);
+                setPackageSets(s || []);
+                const eventTypesData = et || [];
+                (window as any).__pflo_eventTypes = eventTypesData;
+                const crewData = cr || [];
+                const videographerCount = crewData.filter((c: any) =>
+                    (c.contributor_job_roles || []).some((cjr: any) =>
+                        cjr.job_role?.name?.toLowerCase() === "videographer"
+                    )
+                ).length;
+                setMaxVideographers(Math.max(1, videographerCount));
+                if (camSetting?.value) setMaxCamerasPerOp(Math.max(1, parseInt(camSetting.value, 10) || 3));
+                if (ws) setWelcomeSettings(ws);
             } catch {
-                setError("Unable to load the questionnaire. Please try again.");
+                setError("Unable to load. Please try again.");
             } finally {
                 setLoading(false);
             }
-        };
-        load();
+        })();
     }, [currentBrand?.id]);
 
-    // Unique event-type options derived from package set categories
-    const eventTypeOptions = useMemo(() => {
-        const seen = new Set<string>();
-        const options: string[] = [];
-        for (const set of packageSets) {
-            const name: string | undefined = set.category?.name;
-            if (name && !seen.has(name)) { seen.add(name); options.push(name); }
+    /* ── Fetch discovery call slots ─────────────────────── */
+    const fetchCallSlots = useCallback(async (date: string) => {
+        if (!currentBrand?.id || !date) { setCallSlots([]); return; }
+        setCallSlotsLoading(true);
+        try {
+            const res = await api.calendar.getDiscoveryCallSlots(currentBrand.id, date);
+            setCallSlots(res.slots || []);
+            if (res.duration_minutes) setCallSlotsDuration(res.duration_minutes);
+        } catch {
+            setCallSlots([]);
+        } finally {
+            setCallSlotsLoading(false);
         }
-        return options;
+    }, [currentBrand?.id]);
+
+    /* ── Derived values ─────────────────────────────────── */
+    const eventTypeOptions = useMemo(() => {
+        const seen = new Map<string, string>();
+        for (const s of packageSets) {
+            const name: string | undefined = s.category?.name;
+            if (name && !seen.has(name.toLowerCase())) seen.set(name.toLowerCase(), name);
+        }
+        return Array.from(seen.entries()).map(([key, label]) => ({
+            key, label: EVENT_LABELS[key] || label, emoji: EVENT_EMOJIS[key] || "🎬", desc: EVENT_DESCS[key] || "",
+        }));
     }, [packageSets]);
 
-    const packages = useMemo(() => {
-        const activeSets = selectedEventType
-            ? packageSets.filter((s: AnyRecord) =>
-                (s.category?.name ?? "").toLowerCase() === selectedEventType.toLowerCase()
-              )
+    const filteredPackages = useMemo(() => {
+        const activeSets = responses.event_type
+            ? packageSets.filter((s: AnyRecord) => (s.category?.name ?? "").toLowerCase() === eventType)
             : packageSets;
-        const activeIds = new Set<number>();
-        for (const set of activeSets) {
-            for (const slot of (set.slots ?? [])) {
-                if (slot.service_package_id != null) activeIds.add(slot.service_package_id);
+        const ids = new Set<number>();
+        for (const set of activeSets)
+            for (const slot of (set.slots ?? []))
+                if (slot.service_package_id != null) ids.add(slot.service_package_id);
+        return allPackages.filter((p) => ids.has(p.id));
+    }, [allPackages, packageSets, responses.event_type, eventType]);
+
+    const slotLabels = useMemo(() => {
+        const m = new Map<number, string>();
+        for (const s of packageSets)
+            for (const slot of (s.slots || []))
+                if (slot.service_package_id && slot.slot_label) m.set(slot.service_package_id, slot.slot_label);
+        return m;
+    }, [packageSets]);
+
+    const budgetLabels = useMemo(() =>
+        BUDGET_RANGES.map(([lo, hi]) =>
+            hi === null
+                ? `${currSym}${lo.toLocaleString()}+`
+                : `${currSym}${lo.toLocaleString()} \u2013 ${currSym}${hi.toLocaleString()}`
+        ), [currSym]);
+
+    const budgetMax = useMemo(() => {
+        const label = responses.budget_range;
+        if (!label) return null;
+        const nums = String(label).match(/[\d,]+/g)?.map((s: string) => parseInt(s.replace(/,/g, ""))) || [];
+        return nums.length > 1 ? nums[1] : null;
+    }, [responses.budget_range]);
+
+    /* ── Navigation helpers ─────────────────────────────── */
+    const handleChange = useCallback((key: string, value: unknown) => {
+        setResponses((prev) => ({ ...prev, [key]: value }));
+    }, []);
+
+    const goNext = useCallback(() => {
+        const s = screensRef.current;
+        const c = currentRef.current;
+        const idx = s.indexOf(c);
+        if (idx >= 0 && idx < s.length - 1) {
+            setDirection("forward");
+            setCurrentScreenId(s[idx + 1]);
+        }
+    }, []);
+
+    const goBack = useCallback(() => {
+        const s = screensRef.current;
+        const c = currentRef.current;
+        const idx = s.indexOf(c);
+        if (idx > 0) { setDirection("back"); setCurrentScreenId(s[idx - 1]); }
+    }, []);
+
+    const goTo = useCallback((id: ScreenId) => {
+        setDirection("back");
+        setCurrentScreenId(id);
+    }, []);
+
+    const autoAdvance = useCallback(() => {
+        if (autoTimer.current) clearTimeout(autoTimer.current);
+        autoTimer.current = setTimeout(() => { goNext(); autoTimer.current = null; }, 900);
+    }, [goNext]);
+
+    const singleSelect = useCallback((key: string, value: string) => {
+        setResponses((prev) => ({ ...prev, [key]: value }));
+    }, []);
+
+    // Auto-populate guest_count when a package with group subjects is selected
+    useEffect(() => {
+        const pkgId = responses.selected_package ? Number(responses.selected_package) : null;
+        if (!pkgId || responses.guest_count) return; // already set by user — don't override
+        const pkg = allPackages.find((p) => p.id === pkgId);
+        if (!pkg?.typical_guest_count) return;
+        const count = pkg.typical_guest_count;
+        const opts = eventConfig.guestsOptions;
+        if (!opts?.length) return;
+        // Find the best-fit bucket: the first option whose upper bound >= count
+        const parseUpper = (val: string): number => {
+            const m = val.match(/(\d+)\s*[\-–]\s*(\d+)/);
+            if (m) return parseInt(m[2], 10);
+            const plus = val.match(/(\d+)\s*\+/);
+            return plus ? Infinity : parseInt(val, 10) || 0;
+        };
+        const bucket = opts.find((o: { value: string }) => parseUpper(o.value) >= count) ?? opts[opts.length - 1];
+        if (bucket) {
+            setResponses((prev) => ({ ...prev, guest_count: bucket.value }));
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [responses.selected_package, allPackages]);
+
+    const multiToggle = useCallback((key: string, value: string) => {
+        setResponses((prev) => {
+            const cur: string[] = Array.isArray(prev[key]) ? prev[key] : [];
+            return { ...prev, [key]: cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value] };
+        });
+    }, []);
+
+    const handleContinue = useCallback(() => {
+        if (REQUIRED.has(currentScreenId)) {
+            let valid = true;
+            if (currentScreenId === "event_type" && !responses.event_type) valid = false;
+            if (currentScreenId === "date" && !responses.wedding_date) valid = false;
+            if (currentScreenId === "fork" && !responses.package_path) valid = false;
+            if (currentScreenId === "contact" && (!responses.contact_first_name || !responses.contact_email)) valid = false;
+            if (!valid) {
+                setValidationShake(true);
+                setTimeout(() => setValidationShake(false), 600);
+                return;
             }
         }
-        return allPackages.filter((pkg) => activeIds.has(pkg.id));
-    }, [allPackages, packageSets, selectedEventType]);
-
-    const shouldShowQuestion = useCallback((condition: AnyRecord | null) => {
-        if (!condition?.field_key) return true;
-        const cur = responses[condition.field_key];
-        const exp = condition.value;
-        switch (condition.operator) {
-            case "not_equals": return cur !== exp;
-            case "contains":
-                return Array.isArray(cur)
-                    ? cur.includes(exp)
-                    : String(cur || "").includes(String(exp || ""));
-            case "equals":
-            default: return cur === exp;
+        if (currentScreenId === "builder" && (responses.builder_step || 1) < 3) {
+            handleChange("builder_step", (responses.builder_step || 1) + 1);
+            return;
         }
-    }, [responses]);
 
-    const questionsForStep = useCallback((stepKey: string) => {
-        if (!template) return [];
-        return (template.questions as unknown as AnyRecord[]).filter(
-            (q) => q.category === stepKey && shouldShowQuestion(q.condition_json)
-        );
-    }, [template, shouldShowQuestion]);
-
-    const currentStep = steps[currentStepIdx];
-    const currentQuestions = useMemo(
-        () => currentStep ? questionsForStep(currentStep.key) : [],
-        [currentStep, questionsForStep]
-    );
-
-    const validateCurrentStep = useCallback((): boolean => {
-        if (!currentStep || currentStep.type === "package_select" || currentStep.type === "discovery_call") return true;
-        const errors: AnyRecord = {};
-        for (const q of currentQuestions) {
-            const key = q.field_key || `question_${q.id}`;
-            const val = responses[key];
-            const empty = val === undefined || val === null || val === "" || (Array.isArray(val) && val.length === 0);
-            if (q.required && empty) errors[key] = "Required";
-            else if (q.field_type === "email" && val && !/^[^s@]+@[^s@]+.[^s@]+$/.test(String(val))) {
-                errors[key] = "Enter a valid email";
+        // When leaving builder step 3, save package + fetch price in background
+        if (currentScreenId === "builder" && currentBrand?.id && !builderPackageId) {
+            const builderActivities: number[] = responses.builder_activities || [];
+            const builderFilms: any[] = responses.builder_films || [];
+            const etCache: any[] = (window as any).__pflo_eventTypes || [];
+            const etName = (responses.event_type || "").toLowerCase();
+            const matchedET = etCache.find((e: any) => e.name?.toLowerCase() === etName);
+            if (matchedET && builderActivities.length > 0) {
+                setPriceLoading(true);
+                (async () => {
+                    try {
+                        const customPkg = await api.servicePackages.createFromBuilder(currentBrand.id, {
+                            eventTypeId: matchedET.id,
+                            selectedActivityPresetIds: builderActivities,
+                            operatorCount: responses.operator_count || 1,
+                            cameraCount: responses.camera_count || responses.operator_count || 1,
+                            filmPreferences: builderFilms,
+                            clientName: responses.contact_first_name,
+                        });
+                        if (customPkg?.id) {
+                            setBuilderPackageId(customPkg.id);
+                            try {
+                                const estimate = await api.servicePackages.estimatePrice(currentBrand.id, customPkg.id);
+                                setPriceEstimate(estimate);
+                            } catch (err) {
+                                console.error("Failed to fetch price estimate:", err);
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Failed to save builder package:", err);
+                    } finally {
+                        setPriceLoading(false);
+                    }
+                })();
             }
         }
-        setFieldErrors(errors);
-        return Object.keys(errors).length === 0;
-    }, [currentStep, currentQuestions, responses]);
 
-    const handleNext = () => {
-        if (!validateCurrentStep()) return;
-        setFieldErrors({});
-        setCurrentStepIdx((i) => Math.min(i + 1, steps.length - 1));
-    };
-    const handleBack = () => { setFieldErrors({}); setCurrentStepIdx((i) => Math.max(i - 1, 0)); };
+        goNext();
+    }, [currentScreenId, responses, goNext, handleChange, currentBrand, builderPackageId]);
 
-    const handleChange = (fieldKey: string, value: unknown) => {
-        setResponses((prev) => ({ ...prev, [fieldKey]: value }));
-        setFieldErrors((prev) => { const n = { ...prev }; delete n[fieldKey]; return n; });
-    };
-
+    /* ── Submit ─────────────────────────────────────────── */
     const handleSubmit = async () => {
         if (!template) return;
-        const allErrors: AnyRecord = {};
-        for (const step of steps) {
-            if (step.type === "package_select" || step.type === "discovery_call") continue;
-            for (const q of questionsForStep(step.key)) {
-                const key = q.field_key || `question_${q.id}`;
-                const val = responses[key];
-                const empty = val === undefined || val === null || val === "" || (Array.isArray(val) && val.length === 0);
-                if (q.required && empty) allErrors[key] = "Required";
-                else if (q.field_type === "email" && val && !/^[^s@]+@[^s@]+.[^s@]+$/.test(String(val))) {
-                    allErrors[key] = "Enter a valid email";
-                }
-            }
-        }
-        if (Object.keys(allErrors).length > 0) {
-            setFieldErrors(allErrors);
-            for (let i = 0; i < steps.length; i++) {
-                if (questionsForStep(steps[i].key).some((q: AnyRecord) => allErrors[q.field_key || `question_${q.id}`])) {
-                    setCurrentStepIdx(i);
-                    break;
-                }
-            }
+        if (!responses.contact_first_name || !responses.contact_email) {
+            goTo("contact");
             return;
         }
         try {
             setSubmitting(true);
             setError(null);
-            const payload: AnyRecord = { template_id: template.id, responses, selected_package_id: selectedPackageId };
+            const selectedPkgId = responses.selected_package ? Number(responses.selected_package) : null;
+            const payload: AnyRecord = {
+                template_id: template.id,
+                responses: { ...responses, selected_package: selectedPkgId ? String(selectedPkgId) : undefined },
+                selected_package_id: selectedPkgId,
+                contact: {
+                    first_name: responses.contact_first_name,
+                    last_name: responses.contact_last_name,
+                    email: responses.contact_email,
+                    phone_number: responses.contact_phone,
+                },
+                inquiry: {
+                    wedding_date: responses.wedding_date,
+                    venue_details: responses.venue_details,
+                    guest_count: responses.guest_count,
+                    notes: responses.special_requests,
+                    lead_source: responses.lead_source,
+                    lead_source_details: responses.lead_source_details,
+                    selected_package_id: selectedPkgId,
+                },
+            };
             if (linkedInquiryId) payload.inquiry_id = linkedInquiryId;
             else payload.create_inquiry = createInquiry;
+
+            if (responses.package_path === "build" && currentBrand?.id) {
+                if (builderPackageId) {
+                    // Package already saved when leaving builder
+                    payload.selected_package_id = builderPackageId;
+                    payload.inquiry.selected_package_id = builderPackageId;
+                    payload.responses.selected_package = String(builderPackageId);
+                } else {
+                    try {
+                        const builderActivities: number[] = responses.builder_activities || [];
+                        const builderFilms: any[] = responses.builder_films || [];
+                        const etCache: any[] = (window as any).__pflo_eventTypes || [];
+                        const etName = (responses.event_type || "").toLowerCase();
+                        const matchedET = etCache.find((e: any) => e.name?.toLowerCase() === etName);
+                        if (matchedET && builderActivities.length > 0) {
+                            const customPkg = await api.servicePackages.createFromBuilder(currentBrand.id, {
+                                eventTypeId: matchedET.id,
+                                selectedActivityPresetIds: builderActivities,
+                                operatorCount: responses.operator_count || 1,
+                                cameraCount: responses.camera_count || responses.operator_count || 1,
+                                filmPreferences: builderFilms,
+                                clientName: responses.contact_first_name,
+                            });
+                            if (customPkg?.id) {
+                                payload.selected_package_id = customPkg.id;
+                                payload.inquiry.selected_package_id = customPkg.id;
+                                payload.responses.selected_package = String(customPkg.id);
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Failed to create custom package:", err);
+                    }
+                }
+            }
+
             await api.needsAssessmentSubmissions.create(payload);
             setSubmitted(true);
             setTimeout(() => {
                 window.location.href = linkedInquiryId
-                    ? `/sales/inquiries/${linkedInquiryId}`
-                    : "/studio/sales";
+                    ? `/sales/inquiries/${linkedInquiryId}` : "/studio/sales";
             }, 2800);
         } catch {
-            setError("Failed to submit the questionnaire. Please try again.");
+            setError("Failed to submit. Please try again.");
         } finally {
             setSubmitting(false);
         }
     };
 
-    const isLastStep = currentStepIdx === steps.length - 1;
+    /* ── Context object ─────────────────────────────────── */
+    const ctx = {
+        responses, handleChange, singleSelect, multiToggle, autoAdvance,
+        handleContinue, goNext, goTo,
+        eventType, eventConfig, eventTypeOptions,
+        filteredPackages, slotLabels, budgetLabels, budgetMax,
+        currSym, currentBrand, brandName, brandInitial,
+        linkedInquiryId, template,
+        createInquiry, setCreateInquiry,
+        maxVideographers, maxCamerasPerOp,
+        priceEstimate, priceLoading,
+        welcomeSettings,
+        callSlots, callSlotsLoading, callSlotsDuration, fetchCallSlots,
+    };
 
-    const stepAnsweredCount = useCallback((stepKey: string) => {
-        return questionsForStep(stepKey).filter((q: AnyRecord) => {
-            const val = responses[q.field_key || `question_${q.id}`];
-            return val !== undefined && val !== null && val !== "" && !(Array.isArray(val) && val.length === 0);
-        }).length;
-    }, [questionsForStep, responses]);
+    const isOptional = !REQUIRED.has(currentScreenId) && currentScreenId !== "welcome" && currentScreenId !== "summary";
 
-    const stepComplete = useCallback((idx: number): boolean => {
-        const s = steps[idx];
-        if (!s || s.type === "package_select" || s.type === "discovery_call") return true;
-        return questionsForStep(s.key)
-            .filter((q: AnyRecord) => q.required)
-            .every((q: AnyRecord) => {
-                const val = responses[q.field_key || `question_${q.id}`];
-                return val !== undefined && val !== null && val !== "" && !(Array.isArray(val) && val.length === 0);
-            });
-    }, [steps, questionsForStep, responses]);
+    /* ── Screen router ──────────────────────────────────── */
+    const renderScreen = () => {
+        switch (currentScreenId) {
+            case "welcome":          return <WelcomeScreen ctx={ctx} />;
+            case "event_type":       return <EventTypeScreen ctx={ctx} />;
+            case "date":             return <DateScreen ctx={ctx} />;
+            case "guests":           return <GuestsScreen ctx={ctx} />;
+            case "partner":          return <PartnerScreen ctx={ctx} />;
+            case "birthday_contact": return <BirthdayContactScreen ctx={ctx} />;
+            case "venue":            return <VenueScreen ctx={ctx} />;
+            case "fork":             return <ForkScreen ctx={ctx} />;
+            case "budget":           return <BudgetScreen ctx={ctx} />;
+            case "packages":         return <PackagesScreen ctx={ctx} />;
+            case "builder":          return <BuilderScreen ctx={ctx} />;
+            case "special":          return <SpecialScreen ctx={ctx} />;
+            case "source":           return <SourceScreen ctx={ctx} />;
+            case "call_offer":       return <CallOfferScreen ctx={ctx} />;
+            case "call_details":     return <CallDetailsScreen ctx={ctx} />;
+            case "contact":          return <ContactScreen ctx={ctx} />;
+            case "summary":          return <SummaryScreen ctx={ctx} />;
+            default:                 return null;
+        }
+    };
 
-    if (loading) return (
-        <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: bg0 }}>
-            <Stack alignItems="center" spacing={2}>
-                <CircularProgress size={40} thickness={2.5} sx={{ color: accent }} />
-                <Typography sx={{ color: muted, fontSize: "0.8rem", letterSpacing: "0.06em" }}>Loading questionnaire…</Typography>
-            </Stack>
-        </Box>
-    );
+    /* ================================================================ */
+    /* Loading state                                                    */
+    /* ================================================================ */
 
-    if (!template) return (
-        <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: bg0, p: 3 }}>
-            <Box sx={{ maxWidth: 420, textAlign: "center" }}>
-                <Typography sx={{ color: heading, fontSize: "1.1rem", fontWeight: 600, mb: 1 }}>No questionnaire available</Typography>
-                <Typography sx={{ color: muted, fontSize: "0.875rem" }}>There's no active questionnaire at the moment. Please check back later.</Typography>
+    if (loading) {
+        return (
+            <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", bgcolor: C.bg, gap: 3 }}>
+                {[180, 120, 240].map((w, i) => (
+                    <Box key={i} sx={{
+                        width: w, height: 10, borderRadius: 5,
+                        background: "linear-gradient(90deg, #27272a 25%, #3f3f46 50%, #27272a 75%)",
+                        backgroundSize: "200% 100%",
+                        animation: `${shimmer} 1.6s ease-in-out infinite`,
+                        animationDelay: `${i * 0.15}s`,
+                    }} />
+                ))}
             </Box>
-        </Box>
-    );
+        );
+    }
 
-    if (submitted) return (
-        <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: bg0 }}>
-            <Fade in timeout={500}>
-                <Box sx={{ textAlign: "center", maxWidth: 440, p: 4 }}>
-                    <Box sx={{ width: 64, height: 64, borderRadius: "50%", bgcolor: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)", display: "flex", alignItems: "center", justifyContent: "center", mx: "auto", mb: 3 }}>
-                        <CheckCircleIcon sx={{ color: "#22c55e", fontSize: 32 }} />
-                    </Box>
-                    <Typography sx={{ color: heading, fontSize: "1.4rem", fontWeight: 700, mb: 1 }}>All done!</Typography>
-                    <Typography sx={{ color: muted, fontSize: "0.875rem", lineHeight: 1.6 }}>Your questionnaire has been submitted. We'll be in touch soon.</Typography>
-                    <CircularProgress size={18} thickness={3} sx={{ color: muted, mt: 3 }} />
+    if (!template) {
+        return (
+            <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: C.bg }}>
+                <Box sx={{ p: 5, maxWidth: 420, textAlign: "center", bgcolor: C.card, border: `1px solid ${C.border}`, borderRadius: 3, animation: `${scaleIn} 0.5s ease both` }}>
+                    <Typography variant="h6" sx={{ color: C.text, mb: 1, fontWeight: 600 }}>No questionnaire available</Typography>
+                    <Typography variant="body2" sx={{ color: C.muted }}>{"There's no active questionnaire at the moment."}</Typography>
                 </Box>
-            </Fade>
-        </Box>
-    );
+            </Box>
+        );
+    }
+
+    /* ================================================================ */
+    /* Submitted state                                                  */
+    /* ================================================================ */
+
+    if (submitted) {
+        return (
+            <Box sx={{ minHeight: "100vh", bgcolor: C.bg, color: C.text, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Box sx={{ textAlign: "center", maxWidth: 500, p: 4, animation: `${scaleIn} 0.6s ease both` }}>
+                    <Box sx={{
+                        width: 80, height: 80, borderRadius: "50%",
+                        background: `linear-gradient(135deg, ${alpha(C.success, 0.15)}, ${alpha(C.success, 0.05)})`,
+                        border: `2px solid ${alpha(C.success, 0.3)}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        mx: "auto", mb: 4, animation: `${subtleFloat} 4s ease-in-out infinite`,
+                    }}>
+                        <CheckCircleIcon sx={{ color: C.success, fontSize: 40 }} />
+                    </Box>
+                    <Typography sx={{ fontSize: "1.75rem", fontWeight: 200, letterSpacing: "-0.02em", mb: 1.5 }}>All done!</Typography>
+                    <Typography sx={{ color: C.muted, fontSize: "0.95rem", lineHeight: 1.7 }}>
+                        {"Your questionnaire has been submitted. We'll be in touch soon."}
+                    </Typography>
+                    <CircularProgress size={18} thickness={3} sx={{ color: C.muted, mt: 3 }} />
+                    <Typography sx={{ color: alpha(C.muted, 0.5), fontSize: "0.72rem", mt: 1.5 }}>Redirecting\u2026</Typography>
+                </Box>
+            </Box>
+        );
+    }
+
+    /* ================================================================ */
+    /* Main render                                                      */
+    /* ================================================================ */
 
     return (
-        <Box sx={{ minHeight: "100vh", bgcolor: bg0 }}>
-            <Box sx={{ height: "2px", background: `linear-gradient(90deg, transparent, ${accent} 50%, transparent)`, opacity: 0.5 }} />
-            <Box sx={{ maxWidth: 760, mx: "auto", px: { xs: 2, sm: 3 }, py: { xs: 3, sm: 5 } }}>
+        <Box sx={{ minHeight: "100vh", bgcolor: C.bg, color: C.text, overflowX: "hidden", WebkitFontSmoothing: "antialiased", position: "relative", display: "flex", flexDirection: "column" }}>
 
-                {/* Header */}
-                <Fade in timeout={500}>
-                    <Box sx={{ mb: 5 }}>
-                        <Typography sx={{ color: accent, fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", mb: 1 }}>
-                            Questionnaire
-                        </Typography>
-                        <Typography sx={{ color: heading, fontSize: { xs: "1.5rem", sm: "1.9rem" }, fontWeight: 700, lineHeight: 1.2, mb: 0.75 }}>
-                            {template.name}
-                        </Typography>
-                        {template.description && (
-                            <Typography sx={{ color: muted, fontSize: "0.9rem", lineHeight: 1.6, maxWidth: 520 }}>
-                                {template.description}
-                            </Typography>
-                        )}
-                    </Box>
-                </Fade>
-
-                {/* Step indicator */}
-                <Box sx={{ mb: 4 }}>
-                    <Box sx={{
-                        display: "flex", alignItems: "center", overflowX: "auto", pb: 1.5,
-                        "&::-webkit-scrollbar": { height: 4, display: "block" },
-                        "&::-webkit-scrollbar-thumb": { bgcolor: border1, borderRadius: 2 },
-                        "&::-webkit-scrollbar-track": { bgcolor: "transparent" },
-                    }}>
-                        {steps.map((step, idx) => {
-                            const isActive = idx === currentStepIdx;
-                            const isDone = !isActive && idx < currentStepIdx;
-                            const isClickable = idx < currentStepIdx;
-                            return (
-                                <React.Fragment key={step.key}>
-                                    <Box
-                                        onClick={() => isClickable ? setCurrentStepIdx(idx) : undefined}
-                                        sx={{
-                                            display: "flex", alignItems: "center", gap: 1,
-                                            px: 1.5, py: 0.75, borderRadius: "8px",
-                                            cursor: isClickable ? "pointer" : "default",
-                                            flexShrink: 0, transition: "all 0.2s",
-                                            bgcolor: isActive ? accentLight : "transparent",
-                                            border: `1px solid ${isActive ? accentBorder : "transparent"}`,
-                                            "&:hover": isClickable ? { bgcolor: "rgba(255,255,255,0.04)" } : {},
-                                        }}
-                                    >
-                                        <Box sx={{
-                                            width: 22, height: 22, borderRadius: "50%",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            bgcolor: isActive ? accent : isDone ? "rgba(34,197,94,0.15)" : border0,
-                                            border: `1.5px solid ${isActive ? accent : isDone ? "rgba(34,197,94,0.5)" : border1}`,
-                                            fontSize: "0.65rem", fontWeight: 700,
-                                            color: isActive ? "#fff" : isDone ? "#22c55e" : muted,
-                                            flexShrink: 0, transition: "all 0.2s",
-                                        }}>
-                                            {isDone ? <CheckIcon sx={{ fontSize: 11 }} /> : idx + 1}
-                                        </Box>
-                                        <Typography sx={{
-                                            fontSize: "0.78rem", fontWeight: isActive ? 600 : 400,
-                                            color: isActive ? "#93c5fd" : isDone ? body : muted,
-                                            whiteSpace: "nowrap", transition: "color 0.2s",
-                                        }}>
-                                            {step.label}
-                                        </Typography>
-                                    </Box>
-                                    {idx < steps.length - 1 && (
-                                        <Box sx={{
-                                            width: 20, height: 1, mx: 0.25, flexShrink: 0,
-                                            bgcolor: idx < currentStepIdx ? "rgba(34,197,94,0.4)" : border0,
-                                            transition: "background 0.3s",
-                                        }} />
-                                    )}
-                                </React.Fragment>
-                            );
-                        })}
-                    </Box>
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 2 }}>
-                        <Typography sx={{ color: heading, fontSize: "1rem", fontWeight: 600 }}>{currentStep?.label}</Typography>
-                        <Typography sx={{ color: muted, fontSize: "0.75rem" }}>Step {currentStepIdx + 1} of {steps.length}</Typography>
-                    </Box>
-                    {currentStep?.description && (
-                        <Typography sx={{ color: muted, fontSize: "0.8rem", mt: 0.3 }}>{currentStep.description}</Typography>
-                    )}
-                    <Box sx={{ mt: 1.5, height: 3, borderRadius: 2, bgcolor: border0, overflow: "hidden" }}>
+            {/* ── Animated bokeh background ── */}
+            {(() => {
+                const amb = STEP_AMBIENCE[currentScreenId] ?? DEFAULT_AMB;
+                const P = [
+                    { s: 220, x: "8%",  y: "5%",  c: amb.c1, o: 0.04,  b: 110, d: 26, dl: 0,    k: drift1 },
+                    { s: 160, x: "72%", y: "10%", c: amb.c2, o: 0.03,  b: 90,  d: 34, dl: -10,  k: drift2 },
+                    { s: 120, x: "38%", y: "55%", c: amb.c1, o: 0.035, b: 75,  d: 22, dl: -5,   k: drift3 },
+                    { s: 180, x: "82%", y: "50%", c: amb.c2, o: 0.025, b: 100, d: 30, dl: -14,  k: drift1 },
+                    { s: 90,  x: "18%", y: "78%", c: amb.c2, o: 0.03,  b: 55,  d: 38, dl: -20,  k: drift2 },
+                    { s: 130, x: "55%", y: "28%", c: amb.c1, o: 0.025, b: 80,  d: 20, dl: -3,   k: drift3 },
+                    { s: 70,  x: "92%", y: "32%", c: amb.c1, o: 0.02,  b: 48,  d: 32, dl: -8,   k: drift2 },
+                    { s: 100, x: "3%",  y: "42%", c: amb.c2, o: 0.025, b: 62,  d: 28, dl: -18,  k: drift1 },
+                ];
+                return (
+                    <Box sx={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden" }}>
                         <Box sx={{
-                            height: "100%",
-                            width: `${((currentStepIdx + 1) / steps.length) * 100}%`,
-                            bgcolor: accent, borderRadius: 2, transition: "width 0.4s ease",
+                            position: "absolute", inset: 0,
+                            background: [
+                                `radial-gradient(ellipse 80% 50% at 50% 0%, ${alpha(amb.c1, 0.05)} 0%, transparent 70%)`,
+                                `radial-gradient(ellipse 50% 70% at 85% 100%, ${alpha(amb.c2, 0.03)} 0%, transparent 60%)`,
+                                `radial-gradient(ellipse 40% 40% at 10% 55%, ${alpha(amb.c1, 0.02)} 0%, transparent 50%)`,
+                            ].join(", "),
+                            transition: "background 2.5s ease",
+                        }} />
+                        {P.map((p, i) => (
+                            <Box key={i} sx={{
+                                position: "absolute", left: p.x, top: p.y,
+                                width: p.s, height: p.s, borderRadius: "50%",
+                                background: `radial-gradient(circle, ${alpha(p.c, p.o)} 0%, transparent 70%)`,
+                                filter: `blur(${p.b}px)`,
+                                animation: `${p.k} ${p.d}s ease-in-out ${p.dl}s infinite, ${glowPulse} ${p.d + 8}s ease-in-out ${p.dl}s infinite`,
+                                transition: "background 2.5s ease",
+                            }} />
+                        ))}
+                        <Box sx={{
+                            position: "absolute", inset: 0, opacity: 0.02, mixBlendMode: "overlay",
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+                            backgroundSize: "128px 128px",
+                        }} />
+                        <Box sx={{
+                            position: "absolute", bottom: 0, left: 0, right: 0, height: "35%",
+                            background: `linear-gradient(to top, ${alpha(C.bg, 0.7)}, transparent)`,
                         }} />
                     </Box>
-                </Box>
+                );
+            })()}
 
+            {/* ── Progress bar ── */}
+            <Box sx={{ position: "fixed", top: 0, left: 0, right: 0, height: 3, bgcolor: alpha(C.border, 0.3), zIndex: 100 }}>
+                <Box sx={{
+                    height: "100%", width: `${progress}%`,
+                    background: `linear-gradient(90deg, ${C.gradient1}, ${C.gradient2})`,
+                    borderRadius: "0 2px 2px 0", transition: "width 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
+                }} />
+            </Box>
+
+            {/* ── Brand header ── */}
+            {currentScreenId !== "welcome" && (
+                <Box sx={{
+                    position: "sticky", top: 3, zIndex: 50,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5,
+                    py: 1.25, px: 3, backdropFilter: "blur(16px) saturate(1.8)",
+                    bgcolor: alpha(C.card, 0.5), borderBottom: `1px solid ${alpha(C.border, 0.5)}`,
+                    animation: `${fadeIn} 0.3s ease both`,
+                }}>
+                    {currentBrand?.logo_url ? (
+                        <Box component="img" src={currentBrand.logo_url} alt={brandName} sx={{ height: 24, width: "auto", objectFit: "contain" }} />
+                    ) : brandInitial ? (
+                        <Box sx={{ width: 26, height: 26, borderRadius: "50%", background: `linear-gradient(135deg, ${C.gradient1}, ${C.gradient2})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Typography sx={{ color: "#fff", fontWeight: 700, fontSize: "0.7rem" }}>{brandInitial}</Typography>
+                        </Box>
+                    ) : null}
+                    <Typography sx={{ fontWeight: 600, color: C.text, letterSpacing: 1, fontSize: "0.75rem", textTransform: "uppercase" }}>{brandName}</Typography>
+                </Box>
+            )}
+
+            {/* ── Screen content ── */}
+            <Box sx={{
+                position: "relative", zIndex: 1, maxWidth: 680, mx: "auto",
+                px: { xs: 2.5, md: 0 }, flex: 1,
+                display: "flex", flexDirection: "column", justifyContent: "center",
+                mt: { xs: -4, md: -8 },
+            }}>
                 {error && (
-                    <Alert severity="error" sx={{ mb: 3, bgcolor: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "10px", "& .MuiAlert-icon": { color: "#ef4444" } }}>
-                        {error}
-                    </Alert>
+                    <Alert severity="error" onClose={() => setError(null)} sx={{
+                        mb: 2, bgcolor: alpha("#ef4444", 0.08), color: "#fca5a5",
+                        border: `1px solid ${alpha("#ef4444", 0.2)}`, borderRadius: 3,
+                        "& .MuiAlert-icon": { color: "#ef4444" },
+                    }}>{error}</Alert>
                 )}
 
-                {/* Step content */}
-                <Fade in key={currentStepIdx} timeout={280}>
-                    <Box>
-                        {currentStep?.type === "discovery_call" ? (
-                            <DiscoveryCallStep
-                                responses={responses}
-                                onChange={handleChange}
-                            />
-                        ) : currentStep?.type === "package_select" ? (
-                            <PackageStep
-                                packages={packages}
-                                selectedPackageId={selectedPackageId}
-                                onSelect={setSelectedPackageId}
-                                currencySymbol={getCurrencySymbol(currentBrand?.currency)}
-                                selectedEventType={selectedEventType}
-                            />
-                        ) : (
-                            <Stack spacing={2}>
-                                {/* ── Event-type selector (shown on the "event" step) ── */}
-                                {currentStep?.key === "event" && eventTypeOptions.length > 0 && (
-                                    <Box sx={{ mb: 1 }}>
-                                        <Typography sx={{ color: body, fontSize: "0.82rem", fontWeight: 600, mb: 1.5, letterSpacing: "0.04em", textTransform: "uppercase", opacity: 0.7 }}>
-                                            What type of event is it?
-                                        </Typography>
-                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
-                                            {eventTypeOptions.map((opt) => {
-                                                const active = selectedEventType === opt;
-                                                return (
-                                                    <Box
-                                                        key={opt}
-                                                        onClick={() => {
-                                                            const newVal = active ? null : opt;
-                                                            setSelectedEventType(newVal);
-                                                            handleChange('event_type', newVal ?? '');
-                                                        }}
-                                                        sx={{
-                                                            px: 2.5, py: 1.25, borderRadius: "10px", cursor: "pointer",
-                                                            border: `1.5px solid ${active ? accent : border1}`,
-                                                            bgcolor: active ? accentLight : bg1,
-                                                            transition: "all 0.2s",
-                                                            display: "flex", alignItems: "center", gap: 1,
-                                                            "&:hover": { bgcolor: active ? accentLight : "rgba(255,255,255,0.05)", borderColor: active ? accent : border1 },
-                                                        }}
-                                                    >
-                                                        {active && <CheckIcon sx={{ fontSize: 14, color: accent }} />}
-                                                        <Typography sx={{ color: active ? "#93c5fd" : body, fontSize: "0.875rem", fontWeight: active ? 600 : 400 }}>
-                                                            {opt}
-                                                        </Typography>
-                                                    </Box>
-                                                );
-                                            })}
-                                        </Box>
-                                    </Box>
-                                )}
-                                {currentQuestions.length === 0 ? (
-                                    <Box sx={{ p: 4, textAlign: "center", borderRadius: "12px", bgcolor: bg1, border: `1px solid ${border0}` }}>
-                                        <Typography sx={{ color: muted, fontSize: "0.875rem" }}>No questions for this step</Typography>
-                                    </Box>
-                                ) : currentQuestions.map((q: AnyRecord, idx: number) => {
-                                    const key = q.field_key || `question_${q.id}`;
-                                    const val = responses[key] ?? "";
-                                    const err = fieldErrors[key];
-                                    const isFilled = val !== "" && val !== null && val !== undefined && !(Array.isArray(val) && val.length === 0);
-                                    const opts: string[] = (q.options as AnyRecord)?.values ?? [];
+                <Box key={currentScreenId} sx={{
+                    ...(validationShake ? {
+                        "@keyframes shake": {
+                            "0%, 100%": { transform: "translateX(0)" },
+                            "20%, 60%": { transform: "translateX(-8px)" },
+                            "40%, 80%": { transform: "translateX(8px)" },
+                        },
+                        animation: "shake 0.4s ease-in-out",
+                    } : {
+                        animation: `${direction === "forward" ? slideInRight : slideInLeft} 0.4s cubic-bezier(0.16, 1, 0.3, 1) both`,
+                    }),
+                }}>
+                    {renderScreen()}
+                </Box>
+            </Box>
 
-                                    return (
-                                        <Fade in timeout={200 + idx * 50} key={key}>
-                                            <Box sx={{
-                                                p: { xs: 2.5, sm: 3 }, borderRadius: "12px",
-                                                bgcolor: isFilled ? accentLight : bg1,
-                                                border: `1px solid ${isFilled ? accentBorder : border0}`,
-                                                transition: "all 0.25s",
-                                            }}>
-                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
-                                                    <Box sx={{
-                                                        width: 26, height: 26, borderRadius: "8px",
-                                                        display: "flex", alignItems: "center", justifyContent: "center",
-                                                        bgcolor: isFilled ? accent : border0,
-                                                        color: isFilled ? "#fff" : muted,
-                                                        fontSize: "0.68rem", fontWeight: 700,
-                                                        transition: "all 0.2s", flexShrink: 0,
-                                                    }}>
-                                                        {isFilled ? <CheckIcon sx={{ fontSize: 13 }} /> : idx + 1}
-                                                    </Box>
-                                                    <Typography sx={{ color: body, fontSize: "0.9rem", fontWeight: 500, flex: 1 }}>
-                                                        {q.prompt}
-                                                        {q.required && <Box component="span" sx={{ color: "#ef4444", ml: 0.5 }}>*</Box>}
-                                                    </Typography>
-                                                </Box>
+            {/* ── Navigation ── */}
+            {currentScreenId !== "welcome" && (
+                <Box sx={{
+                    position: "sticky", bottom: 0, zIndex: 50,
+                    backdropFilter: "blur(16px) saturate(1.8)",
+                    bgcolor: alpha(C.card, 0.8),
+                    borderTop: `1px solid ${alpha(C.border, 0.4)}`,
+                    px: 3, py: 2,
+                }}>
+                    <Box sx={{ maxWidth: 680, mx: "auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <Button
+                            onClick={() => {
+                                if (currentScreenId === "builder" && (responses.builder_step || 1) > 1) {
+                                    handleChange("builder_step", (responses.builder_step || 1) - 1);
+                                } else {
+                                    goBack();
+                                }
+                            }}
+                            disabled={screenIdx <= 1 && !(currentScreenId === "builder" && (responses.builder_step || 1) > 1)}
+                            startIcon={<ArrowBackIcon sx={{ fontSize: "0.85rem !important" }} />}
+                            sx={{
+                                color: C.muted, fontSize: "0.82rem", textTransform: "none", borderRadius: "12px",
+                                "&:hover": { bgcolor: alpha(C.text, 0.04), color: C.text },
+                                "&:disabled": { color: alpha(C.muted, 0.25) },
+                            }}>Back</Button>
 
-                                                {q.help_text && (
-                                                    <Typography sx={{ color: muted, fontSize: "0.78rem", mb: 1.5, lineHeight: 1.5 }}>
-                                                        {q.help_text}
-                                                    </Typography>
-                                                )}
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                            {isOptional && (
+                                <Typography onClick={goNext} sx={{
+                                    color: C.muted, fontSize: "0.78rem", cursor: "pointer",
+                                    "&:hover": { color: C.text }, transition: "color 0.2s",
+                                }}>Skip &rarr;</Typography>
+                            )}
 
-                                                {/* ── Preferred contact time → chip-toggle time slots ── */}
-                                                {(key === "preferred_contact_time" || key.toLowerCase().includes("contact_time")) ? (
-                                                    <Box>
-                                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                                                            {CONTACT_TIME_OPTIONS.map((opt) => {
-                                                                const selected = val === opt;
-                                                                return (
-                                                                    <Chip key={opt} label={opt} size="small"
-                                                                        onClick={() => handleChange(key, selected ? "" : opt)}
-                                                                        sx={{
-                                                                            fontSize: "0.78rem", height: 30, cursor: "pointer",
-                                                                            color: selected ? "#93c5fd" : muted,
-                                                                            bgcolor: selected ? accentLight : "rgba(255,255,255,0.04)",
-                                                                            border: `1px solid ${selected ? accentBorder : border0}`,
-                                                                            "& .MuiChip-label": { px: 1.5 },
-                                                                            "&:hover": { bgcolor: selected ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.07)" },
-                                                                            transition: "all 0.15s",
-                                                                        }}
-                                                                    />
-                                                                );
-                                                            })}
-                                                        </Box>
-                                                        {err && <Typography sx={{ color: "#ef4444", fontSize: "0.72rem", mt: 0.75 }}>{err}</Typography>}
-                                                    </Box>
-                                                ) : q.field_type === "multiselect" && opts.length > 0 ? (
-                                                    <Box>
-                                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                                                            {opts.map((opt: string) => {
-                                                                const selected = Array.isArray(val) && val.includes(opt);
-                                                                return (
-                                                                    <Chip key={opt} label={opt} size="small"
-                                                                        onClick={() => {
-                                                                            const cur: string[] = Array.isArray(val) ? val : [];
-                                                                            handleChange(key, selected ? cur.filter((x) => x !== opt) : [...cur, opt]);
-                                                                        }}
-                                                                        sx={{
-                                                                            fontSize: "0.78rem", height: 30, cursor: "pointer",
-                                                                            color: selected ? "#93c5fd" : muted,
-                                                                            bgcolor: selected ? accentLight : "rgba(255,255,255,0.04)",
-                                                                            border: `1px solid ${selected ? accentBorder : border0}`,
-                                                                            "& .MuiChip-label": { px: 1.5 },
-                                                                            "&:hover": { bgcolor: selected ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.07)" },
-                                                                            transition: "all 0.15s",
-                                                                        }}
-                                                                    />
-                                                                );
-                                                            })}
-                                                        </Box>
-                                                        {err && <Typography sx={{ color: "#ef4444", fontSize: "0.72rem", mt: 0.75 }}>{err}</Typography>}
-                                                    </Box>
-                                                ) : q.field_type === "select" && opts.length > 0 ? (
-                                                    <FormControl fullWidth>
-                                                        <Select
-                                                            value={val || ""} displayEmpty
-                                                            onChange={(e) => handleChange(key, e.target.value)}
-                                                            sx={{
-                                                                color: body, borderRadius: "10px", fontSize: "0.9rem",
-                                                                bgcolor: "rgba(255,255,255,0.02)",
-                                                                "& .MuiOutlinedInput-notchedOutline": { borderColor: border0 },
-                                                                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: accentBorder },
-                                                                "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: accent, borderWidth: "1.5px" },
-                                                                "& .MuiSvgIcon-root": { color: muted },
-                                                            }}
-                                                            MenuProps={{ PaperProps: { sx: {
-                                                                bgcolor: "#111827", border: `1px solid ${border1}`, borderRadius: "10px", mt: 0.5,
-                                                                "& .MuiMenuItem-root": { color: body, fontSize: "0.875rem", "&:hover": { bgcolor: accentLight }, "&.Mui-selected": { bgcolor: accentLight, color: "#93c5fd" } },
-                                                            }}}}
-                                                        >
-                                                            <MenuItem value="" disabled sx={{ color: muted, fontSize: "0.875rem" }}>Select an option</MenuItem>
-                                                            {opts.map((opt: string) => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
-                                                        </Select>
-                                                        {err && <Typography sx={{ color: "#ef4444", fontSize: "0.72rem", mt: 0.5 }}>{err}</Typography>}
-                                                    </FormControl>
-                                                ) : q.field_type === "textarea" ? (
-                                                    <TextField
-                                                        value={val} multiline rows={3} placeholder={q.prompt}
-                                                        onChange={(e) => handleChange(key, e.target.value)}
-                                                        required={Boolean(q.required)} error={Boolean(err)} helperText={err}
-                                                        fullWidth sx={fieldSx}
-                                                    />
-                                                ) : (
-                                                    <TextField
-                                                        value={val} placeholder={q.field_type === "date" ? undefined : q.prompt}
-                                                        onChange={(e) => handleChange(key, e.target.value)}
-                                                        type={q.field_type === "date" ? "date" : q.field_type === "email" ? "email" : "text"}
-                                                        required={Boolean(q.required)} error={Boolean(err)} helperText={err}
-                                                        fullWidth InputLabelProps={q.field_type === "date" ? { shrink: true } : undefined}
-                                                        sx={fieldSx}
-                                                    />
-                                                )}
-                                            </Box>
-                                        </Fade>
-                                    );
-                                })}
-                                {currentQuestions.length > 0 && (
-                                    <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                                        <Typography sx={{ color: muted, fontSize: "0.72rem" }}>
-                                            {stepAnsweredCount(currentStep!.key)}/{currentQuestions.length} answered
-                                        </Typography>
-                                    </Box>
-                                )}
-                            </Stack>
-                        )}
-
-                        {isLastStep && !linkedInquiryId && (
-                            <Box sx={{ mt: 2.5, p: 2.5, borderRadius: "12px", bgcolor: bg1, border: `1px solid ${border0}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <Box>
-                                    <Typography sx={{ color: heading, fontSize: "0.85rem", fontWeight: 600 }}>Create Inquiry</Typography>
-                                    <Typography sx={{ color: muted, fontSize: "0.72rem", mt: 0.2 }}>Auto-create a sales inquiry from this submission</Typography>
-                                </Box>
-                                <Switch checked={createInquiry} onChange={(e) => setCreateInquiry(e.target.checked)} size="small"
-                                    sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: accent }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { bgcolor: accent }, "& .MuiSwitch-track": { bgcolor: border1 } }} />
-                            </Box>
-                        )}
-                        {isLastStep && linkedInquiryId && (
-                            <Box sx={{ mt: 2.5, p: 2.5, borderRadius: "12px", bgcolor: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.25)" }}>
-                                <Typography sx={{ color: "#10b981", fontSize: "0.85rem", fontWeight: 600 }}>Linked to Inquiry #{linkedInquiryId}</Typography>
-                                <Typography sx={{ color: muted, fontSize: "0.72rem", mt: 0.25 }}>Submission will be tied to this inquiry</Typography>
-                            </Box>
-                        )}
-                    </Box>
-                </Fade>
-
-                {/* Navigation */}
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 4, pt: 3, borderTop: `1px solid ${border0}` }}>
-                    <Button
-                        onClick={handleBack} disabled={currentStepIdx === 0}
-                        startIcon={<ArrowBackIcon sx={{ fontSize: "0.9rem !important" }} />}
-                        sx={{ color: muted, fontSize: "0.85rem", textTransform: "none", px: 2, borderRadius: "10px", "&:hover": { bgcolor: bg1, color: body }, "&:disabled": { color: "rgba(100,116,139,0.3)" } }}
-                    >
-                        Back
-                    </Button>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                        <Box sx={{ display: "flex", gap: 0.5 }}>
-                            {steps.map((_, idx) => (
-                                <Box key={idx} sx={{ width: idx === currentStepIdx ? 16 : 6, height: 6, borderRadius: 3, bgcolor: idx === currentStepIdx ? accent : stepComplete(idx) ? "rgba(34,197,94,0.5)" : border1, transition: "all 0.25s" }} />
-                            ))}
+                            {currentScreenId === "summary" ? (
+                                <Button onClick={handleSubmit} disabled={submitting}
+                                    endIcon={!submitting && <CheckCircleIcon sx={{ fontSize: "0.9rem !important" }} />}
+                                    sx={{
+                                        background: `linear-gradient(135deg, ${C.gradient1}, ${C.gradient2})`,
+                                        color: "#fff", fontWeight: 600, fontSize: "0.88rem", px: 4, py: 1.25,
+                                        borderRadius: "14px", textTransform: "none",
+                                        boxShadow: `0 4px 20px ${alpha(C.accent, 0.3)}`,
+                                        "&:hover": { transform: "translateY(-1px)", boxShadow: `0 8px 28px ${alpha(C.accent, 0.4)}` },
+                                        "&:disabled": { bgcolor: alpha(C.text, 0.06), color: alpha(C.text, 0.2), boxShadow: "none" },
+                                        transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+                                    }}>
+                                    {submitting && <CircularProgress size={16} sx={{ color: "inherit", mr: 1 }} />}
+                                    {submitting ? "Submitting\u2026" : "Submit"}
+                                </Button>
+                            ) : (
+                                <Button onClick={handleContinue}
+                                    endIcon={<ArrowForwardIcon sx={{ fontSize: "0.85rem !important" }} />}
+                                    sx={{
+                                        background: `linear-gradient(135deg, ${C.gradient1}, ${C.gradient2})`,
+                                        color: "#fff", fontWeight: 600, fontSize: "0.88rem", px: 3.5, py: 1.25,
+                                        borderRadius: "14px", textTransform: "none",
+                                        boxShadow: `0 4px 20px ${alpha(C.accent, 0.3)}`,
+                                        "&:hover": { transform: "translateY(-1px)", boxShadow: `0 8px 28px ${alpha(C.accent, 0.4)}` },
+                                        transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+                                    }}>Continue</Button>
+                            )}
                         </Box>
-                        {isLastStep ? (
-                            <Button
-                                onClick={handleSubmit} disabled={submitting}
-                                endIcon={!submitting && <CheckCircleIcon sx={{ fontSize: "0.9rem !important" }} />}
-                                sx={{ bgcolor: accent, color: "#fff", fontWeight: 600, fontSize: "0.85rem", px: 3, py: 1.1, borderRadius: "10px", textTransform: "none", boxShadow: "0 0 20px rgba(59,130,246,0.25)", "&:hover": { bgcolor: "#2563eb" }, "&:disabled": { bgcolor: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.2)", boxShadow: "none" } }}
-                            >
-                                {submitting && <CircularProgress size={16} sx={{ color: "inherit", mr: 1 }} />}
-                                {submitting ? "Submitting…" : "Submit"}
-                            </Button>
-                        ) : (
-                            <Button
-                                onClick={handleNext}
-                                endIcon={<ArrowForwardIcon sx={{ fontSize: "0.9rem !important" }} />}
-                                sx={{ bgcolor: accent, color: "#fff", fontWeight: 600, fontSize: "0.85rem", px: 3, py: 1.1, borderRadius: "10px", textTransform: "none", boxShadow: "0 0 20px rgba(59,130,246,0.25)", "&:hover": { bgcolor: "#2563eb" } }}
-                            >
-                                Next
-                            </Button>
-                        )}
                     </Box>
                 </Box>
-            </Box>
+            )}
+
+            {/* ── Tiny footer on summary ── */}
+            {currentScreenId === "summary" && (
+                <Box sx={{ textAlign: "center", py: 3, position: "relative", zIndex: 1 }}>
+                    <Typography sx={{ color: alpha(C.muted, 0.35), fontSize: "0.65rem", letterSpacing: 0.5 }}>
+                        &copy; {new Date().getFullYear()} {brandName} &middot; Powered by ProjectFlo
+                    </Typography>
+                </Box>
+            )}
         </Box>
-    );
-}
-
-// ── Discovery call booking step ──────────────────────────────────────────────
-function DiscoveryCallStep({
-    responses,
-    onChange,
-}: {
-    responses: AnyRecord;
-    onChange: (key: string, val: unknown) => void;
-}) {
-    const CALL_METHODS = [
-        { key: "Phone Call", emoji: "📞" },
-        { key: "Video Call", emoji: "🎥" },
-    ];
-
-    return (
-        <Stack spacing={3}>
-            {/* Method selector */}
-            <Box sx={{ p: 3, borderRadius: "12px", bgcolor: bg1, border: `1px solid ${border0}` }}>
-                <Typography sx={{ color: body, fontWeight: 600, mb: 2, fontSize: "0.9rem" }}>
-                    How would you like your discovery call?
-                </Typography>
-                <Box sx={{ display: "flex", gap: 2 }}>
-                    {CALL_METHODS.map(({ key, emoji }) => {
-                        const active = responses.discovery_call_method === key;
-                        return (
-                            <Box
-                                key={key}
-                                onClick={() => onChange("discovery_call_method", active ? "" : key)}
-                                sx={{
-                                    flex: 1, p: 2.5, borderRadius: "12px", cursor: "pointer",
-                                    textAlign: "center",
-                                    border: `1.5px solid ${active ? accent : border1}`,
-                                    bgcolor: active ? accentLight : "rgba(255,255,255,0.02)",
-                                    transition: "all 0.2s",
-                                    "&:hover": { borderColor: accent, bgcolor: accentLight },
-                                }}
-                            >
-                                <Typography sx={{ fontSize: "1.8rem", mb: 0.75 }}>{emoji}</Typography>
-                                <Typography sx={{ color: active ? "#93c5fd" : body, fontSize: "0.875rem", fontWeight: active ? 600 : 400 }}>
-                                    {key}
-                                </Typography>
-                            </Box>
-                        );
-                    })}
-                </Box>
-            </Box>
-
-            {/* Preferred date */}
-            <Box sx={{ p: 3, borderRadius: "12px", bgcolor: bg1, border: `1px solid ${border0}` }}>
-                <Typography sx={{ color: body, fontWeight: 600, mb: 2, fontSize: "0.9rem" }}>
-                    Preferred date
-                </Typography>
-                <TextField
-                    type="date"
-                    value={responses.discovery_call_date || ""}
-                    onChange={(e) => onChange("discovery_call_date", e.target.value)}
-                    fullWidth
-                    sx={fieldSx}
-                    InputLabelProps={{ shrink: true }}
-                    inputProps={{ min: new Date().toISOString().split("T")[0] }}
-                />
-            </Box>
-
-            {/* Preferred time slot */}
-            <Box sx={{ p: 3, borderRadius: "12px", bgcolor: bg1, border: `1px solid ${border0}` }}>
-                <Typography sx={{ color: body, fontWeight: 600, mb: 2, fontSize: "0.9rem" }}>
-                    Preferred time slot
-                </Typography>
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {CONTACT_TIME_OPTIONS.map((opt) => {
-                        const sel = responses.discovery_call_time === opt;
-                        return (
-                            <Chip
-                                key={opt}
-                                label={opt}
-                                size="small"
-                                onClick={() => onChange("discovery_call_time", sel ? "" : opt)}
-                                sx={{
-                                    cursor: "pointer", fontSize: "0.78rem", height: 30,
-                                    color: sel ? "#93c5fd" : muted,
-                                    bgcolor: sel ? accentLight : "rgba(255,255,255,0.04)",
-                                    border: `1px solid ${sel ? accentBorder : border0}`,
-                                    "& .MuiChip-label": { px: 1.5 },
-                                    "&:hover": { bgcolor: sel ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.07)" },
-                                    transition: "all 0.15s",
-                                }}
-                            />
-                        );
-                    })}
-                </Box>
-            </Box>
-        </Stack>
-    );
-}
-
-// ── Package selection step ────────────────────────────────────────────────────
-function PackageStep({
-    packages,
-    selectedPackageId,
-    onSelect,
-    currencySymbol,
-    selectedEventType,
-}: {
-    packages: ServicePackage[];
-    selectedPackageId: number | null;
-    onSelect: (id: number | null) => void;
-    currencySymbol: string;
-    selectedEventType: string | null;
-}) {
-    return (
-        <Stack spacing={2}>
-            {/* Context note when filtered by event type */}
-            {selectedEventType && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                    <Typography sx={{ color: muted, fontSize: "0.78rem" }}>
-                        Showing packages for
-                    </Typography>
-                    <Box sx={{ px: 1.25, py: 0.3, borderRadius: "6px", bgcolor: accentLight, border: `1px solid ${accentBorder}` }}>
-                        <Typography sx={{ color: "#93c5fd", fontSize: "0.75rem", fontWeight: 600 }}>{selectedEventType}</Typography>
-                    </Box>
-                </Box>
-            )}
-
-            {/* Decide later card */}
-            <Box
-                onClick={() => onSelect(null)}
-                sx={{
-                    p: 2.5, borderRadius: "12px", cursor: "pointer",
-                    bgcolor: selectedPackageId === null ? accentLight : bg1,
-                    border: `1.5px solid ${selectedPackageId === null ? accentBorder : border0}`,
-                    display: "flex", alignItems: "center", gap: 2,
-                    transition: "all 0.2s",
-                    "&:hover": { bgcolor: selectedPackageId === null ? accentLight : "rgba(255,255,255,0.04)", borderColor: selectedPackageId === null ? accentBorder : border1 },
-                }}
-            >
-                <Box sx={{
-                    width: 22, height: 22, borderRadius: "50%",
-                    border: `2px solid ${selectedPackageId === null ? accent : border1}`,
-                    bgcolor: selectedPackageId === null ? accent : "transparent",
-                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                }}>
-                    {selectedPackageId === null && <Box sx={{ width: 8, height: 8, bgcolor: "#fff", borderRadius: "50%" }} />}
-                </Box>
-                <Box>
-                    <Typography sx={{ color: body, fontSize: "0.875rem", fontWeight: 500 }}>Decide later</Typography>
-                    <Typography sx={{ color: muted, fontSize: "0.72rem", mt: 0.2 }}>Skip for now — you can discuss packages with us directly</Typography>
-                </Box>
-            </Box>
-
-            {/* Package cards */}
-            {packages.length === 0 ? (
-                <Box sx={{ p: 3, textAlign: "center", borderRadius: "12px", bgcolor: bg1, border: `1px solid ${border0}` }}>
-                    <Typography sx={{ color: muted, fontSize: "0.875rem" }}>
-                        {selectedEventType
-                            ? `No packages available for ${selectedEventType} events`
-                            : "No packages available at the moment"}
-                    </Typography>
-                </Box>
-            ) : (
-                <Box sx={{
-                    display: "grid",
-                    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
-                    gap: 2,
-                }}>
-                    {packages.map((pkg) => {
-                        const isSelected = selectedPackageId === pkg.id;
-                        const itemCount = pkg.contents?.items?.length ?? 0;
-                        const price = pkg.base_price ?? (pkg as Record<string, unknown>).price as number | null;
-
-                        return (
-                            <Box
-                                key={pkg.id}
-                                onClick={() => onSelect(pkg.id)}
-                                sx={{
-                                    p: 3, borderRadius: "14px", cursor: "pointer",
-                                    bgcolor: isSelected ? accentLight : bg1,
-                                    border: `1.5px solid ${isSelected ? accentBorder : border0}`,
-                                    display: "flex", flexDirection: "column", gap: 1.5,
-                                    transition: "all 0.2s",
-                                    position: "relative", overflow: "hidden",
-                                    "&:hover": {
-                                        bgcolor: isSelected ? accentLight : "rgba(255,255,255,0.04)",
-                                        borderColor: isSelected ? accentBorder : border1,
-                                        transform: "translateY(-1px)",
-                                        boxShadow: isSelected ? "0 4px 24px rgba(59,130,246,0.15)" : "0 4px 16px rgba(0,0,0,0.3)",
-                                    },
-                                }}
-                            >
-                                {/* Selected indicator stripe */}
-                                {isSelected && (
-                                    <Box sx={{
-                                        position: "absolute", top: 0, left: 0, right: 0, height: 3,
-                                        background: `linear-gradient(90deg, ${accent}, #60a5fa)`,
-                                    }} />
-                                )}
-
-                                {/* Top row: name + radio */}
-                                <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
-                                    <Typography sx={{
-                                        color: isSelected ? "#93c5fd" : heading,
-                                        fontSize: "0.95rem", fontWeight: 600, lineHeight: 1.3, flex: 1,
-                                    }}>
-                                        {pkg.name}
-                                    </Typography>
-                                    <Box sx={{
-                                        width: 20, height: 20, borderRadius: "50%", flexShrink: 0, mt: 0.15,
-                                        border: `2px solid ${isSelected ? accent : border1}`,
-                                        bgcolor: isSelected ? accent : "transparent",
-                                        display: "flex", alignItems: "center", justifyContent: "center",
-                                    }}>
-                                        {isSelected && <Box sx={{ width: 7, height: 7, bgcolor: "#fff", borderRadius: "50%" }} />}
-                                    </Box>
-                                </Box>
-
-                                {/* Price */}
-                                {price != null && (
-                                    <Typography sx={{
-                                        color: isSelected ? "#93c5fd" : accent,
-                                        fontSize: "1.35rem", fontWeight: 700, lineHeight: 1,
-                                    }}>
-                                        {currencySymbol}{Number(price).toLocaleString()}
-                                    </Typography>
-                                )}
-
-                                {/* Badges row */}
-                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-                                    {pkg.category && (
-                                        <Box sx={{
-                                            px: 1, py: 0.3, borderRadius: "5px",
-                                            bgcolor: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.3)",
-                                        }}>
-                                            <Typography sx={{ color: "#c084fc", fontSize: "0.68rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                                {pkg.category}
-                                            </Typography>
-                                        </Box>
-                                    )}
-                                    {itemCount > 0 && (
-                                        <Box sx={{
-                                            px: 1, py: 0.3, borderRadius: "5px",
-                                            bgcolor: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)",
-                                        }}>
-                                            <Typography sx={{ color: "#34d399", fontSize: "0.68rem", fontWeight: 600 }}>
-                                                {itemCount} {itemCount === 1 ? "item" : "items"} included
-                                            </Typography>
-                                        </Box>
-                                    )}
-                                </Box>
-
-                                {/* Description */}
-                                {pkg.description && (
-                                    <Typography sx={{
-                                        color: muted, fontSize: "0.775rem", lineHeight: 1.55,
-                                        display: "-webkit-box", WebkitLineClamp: 3,
-                                        WebkitBoxOrient: "vertical", overflow: "hidden",
-                                    }}>
-                                        {pkg.description}
-                                    </Typography>
-                                )}
-
-                                {/* Items list (first 3) */}
-                                {itemCount > 0 && (
-                                    <Stack spacing={0.4} sx={{ mt: 0.5 }}>
-                                        {pkg.contents.items.slice(0, 3).map((item, i) => (
-                                            <Box key={i} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                                <Box sx={{ width: 4, height: 4, borderRadius: "50%", bgcolor: isSelected ? accent : border1, flexShrink: 0 }} />
-                                                <Typography sx={{ color: muted, fontSize: "0.72rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                                    {item.description}
-                                                </Typography>
-                                            </Box>
-                                        ))}
-                                        {itemCount > 3 && (
-                                            <Typography sx={{ color: muted, fontSize: "0.68rem", opacity: 0.6, pl: 1.5 }}>
-                                                + {itemCount - 3} more
-                                            </Typography>
-                                        )}
-                                    </Stack>
-                                )}
-                            </Box>
-                        );
-                    })}
-                </Box>
-            )}
-        </Stack>
     );
 }

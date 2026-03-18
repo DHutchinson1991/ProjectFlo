@@ -6,6 +6,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import VideocamIcon from '@mui/icons-material/Videocam';
 
 import { formatCurrency } from '@/lib/utils/formatUtils';
+import { computeTaxBreakdown } from '@/lib/utils/pricing';
 import type { TaskAutoGenerationPreview } from '@/lib/types/task-library';
 import type { ServicePackage } from '@/lib/types/domains/sales';
 
@@ -19,6 +20,7 @@ export interface SummaryCardProps {
     contents: Partial<ServicePackage>['contents'];
     allEquipment: EquipmentRecord[];
     currency: string;
+    taxRate?: number;
     cardSx: SxProps<Theme>;
 }
 
@@ -29,11 +31,13 @@ export function SummaryCard({
     contents,
     allEquipment,
     currency,
+    taxRate,
     cardSx,
 }: SummaryCardProps) {
     const totalCrewCost = computeCrewCost(packageDayOperators, taskPreview);
     const totalEquipCost = computeEquipmentCost(contents, packageDayOperators, allEquipment);
-    const totalCost = totalCrewCost + totalEquipCost;
+    const subtotal = totalCrewCost + totalEquipCost;
+    const tax = computeTaxBreakdown(subtotal, taxRate ?? 0);
 
     return (
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2.5 }}>
@@ -41,7 +45,7 @@ export function SummaryCard({
                 ...(cardSx as object),
                 display: 'flex', alignItems: 'center', gap: 3,
                 px: 3, py: 2,
-                minWidth: 320,
+                minWidth: 420,
                 background: 'linear-gradient(135deg, rgba(16, 18, 22, 0.9), rgba(16, 18, 22, 0.8))',
                 border: '1px solid rgba(245, 158, 11, 0.2)',
             }}>
@@ -73,7 +77,26 @@ export function SummaryCard({
                     </Typography>
                 </Box>
 
-                <Typography sx={{ color: '#334155', fontSize: '1rem', fontWeight: 300 }}>=</Typography>
+                <Typography sx={{ color: '#334155', fontSize: '1rem', fontWeight: 300 }}>
+                    {tax.taxRate > 0 ? '+' : '='}
+                </Typography>
+
+                {tax.taxRate > 0 && (
+                    <>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography sx={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                                    Tax
+                                </Typography>
+                            </Box>
+                            <Typography sx={{ fontSize: '0.85rem', color: '#e2e8f0', fontWeight: 700, fontFamily: 'monospace' }}>
+                                {formatCurrency(tax.taxAmount, currency)}
+                            </Typography>
+                        </Box>
+
+                        <Typography sx={{ color: '#334155', fontSize: '1rem', fontWeight: 300 }}>=</Typography>
+                    </>
+                )}
 
                 {/* Total cost */}
                 <Box sx={{
@@ -85,12 +108,12 @@ export function SummaryCard({
                     </Typography>
                     <Typography sx={{
                         fontSize: '1.2rem',
-                        color: totalCost > 0 ? '#f59e0b' : '#475569',
+                        color: subtotal > 0 ? '#f59e0b' : '#475569',
                         fontWeight: 800,
                         fontFamily: 'monospace',
                         fontVariantNumeric: 'tabular-nums',
                     }}>
-                        {formatCurrency(totalCost, currency)}
+                        {formatCurrency(tax.total, currency)}
                     </Typography>
                 </Box>
             </Box>

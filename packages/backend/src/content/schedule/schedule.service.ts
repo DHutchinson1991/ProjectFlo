@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { InquiryTasksService } from '../../inquiry-tasks/inquiry-tasks.service';
 import {
   CreateEventDayTemplateDto,
   UpdateEventDayTemplateDto,
@@ -40,7 +41,10 @@ import {
 
 @Injectable()
 export class ScheduleService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inquiryTasksService: InquiryTasksService,
+  ) {}
 
   // ─── Shared Schedule Presets (Brand-level) ─────────────────────────
 
@@ -2359,6 +2363,16 @@ export class ScheduleService {
         project_activity_id: dto.project_activity_id ?? null,
       },
       include: this.instanceOperatorInclude,
+    }).then(async (created) => {
+      // Auto-assign unassigned inquiry tasks when crew is created with contributor
+      if (owner.inquiry_id && dto.job_role_id && dto.contributor_id) {
+        await this.inquiryTasksService.autoAssignByRole(
+          owner.inquiry_id,
+          dto.job_role_id,
+          dto.contributor_id,
+        );
+      }
+      return created;
     });
   }
 
@@ -2380,6 +2394,18 @@ export class ScheduleService {
       },
     });
 
+    // Auto-assign inquiry tasks if crew member was set/changed on an inquiry operator
+    if (existing.inquiry_id && dto.contributor_id) {
+      const jobRoleId = dto.job_role_id !== undefined ? dto.job_role_id : existing.job_role_id;
+      if (jobRoleId) {
+        await this.inquiryTasksService.autoAssignByRole(
+          existing.inquiry_id,
+          jobRoleId,
+          dto.contributor_id,
+        );
+      }
+    }
+
     return this.prisma.projectDayOperator.findUnique({
       where: { id: operatorId },
       include: this.instanceOperatorInclude,
@@ -2399,6 +2425,15 @@ export class ScheduleService {
       where: { id: operatorId },
       data: { contributor_id: contributorId },
     });
+
+    // Auto-assign unassigned inquiry tasks that match this operator's role
+    if (existing.inquiry_id && existing.job_role_id && contributorId) {
+      await this.inquiryTasksService.autoAssignByRole(
+        existing.inquiry_id,
+        existing.job_role_id,
+        contributorId,
+      );
+    }
 
     return this.prisma.projectDayOperator.findUnique({
       where: { id: operatorId },

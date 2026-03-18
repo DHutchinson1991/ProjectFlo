@@ -3,10 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateProposalDto, UpdateProposalDto } from './dto/proposals.dto';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { InquiryTasksService } from '../inquiry-tasks/inquiry-tasks.service';
 
 @Injectable()
 export class ProposalsService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly inquiryTasksService: InquiryTasksService,
+    ) { }
 
     async findAllByInquiry(inquiryId: number, brandId: number) {
         // First verify the inquiry belongs to the brand
@@ -131,7 +135,7 @@ export class ProposalsService {
         // Create proposal with auto-generated content and share token
         const shareToken = randomUUID();
 
-        return this.prisma.proposals.create({
+        const proposal = await this.prisma.proposals.create({
             data: {
                 inquiry_id: inquiryId,
                 title,
@@ -160,6 +164,10 @@ export class ProposalsService {
                 },
             },
         });
+
+        await this.inquiryTasksService.autoCompleteByName(inquiryId, 'Create & Review Proposal');
+
+        return proposal;
     }
 
     /* ------------------------------------------------------------------ */
@@ -388,7 +396,7 @@ export class ProposalsService {
             throw new ForbiddenException('Proposal has already been sent');
         }
 
-        return this.prisma.proposals.update({
+        const updated = await this.prisma.proposals.update({
             where: { id },
             data: {
                 status: 'Sent',
@@ -414,6 +422,10 @@ export class ProposalsService {
                 },
             },
         });
+
+        await this.inquiryTasksService.autoCompleteByName(inquiryId, 'Send Proposal');
+
+        return updated;
     }
 
     async generateShareToken(id: number, inquiryId: number, brandId: number): Promise<string> {
@@ -591,6 +603,13 @@ export class ProposalsService {
 
         const proposal = await this.prisma.proposals.findUnique({
             where: { share_token: token },
+            include: {
+                inquiry: {
+                    include: {
+                        contact: { select: { first_name: true, last_name: true, email: true } },
+                    },
+                },
+            },
         });
 
         if (!proposal) {
@@ -601,7 +620,7 @@ export class ProposalsService {
             throw new ForbiddenException('This proposal cannot be responded to in its current state.');
         }
 
-        return this.prisma.proposals.update({
+        const updated = await this.prisma.proposals.update({
             where: { id: proposal.id },
             data: {
                 client_response: response,
@@ -610,5 +629,35 @@ export class ProposalsService {
                 status: response === 'Accepted' ? 'Accepted' : 'Sent',
             },
         });
+
+        if (response === 'Accepted') {
+            const inquiryId = proposal.inquiry_id;
+            const contact = proposal.inquiry?.contact;
+
+            // Find the most recent draft contract to auto-send
+            const draftContract = await this.prisma.contracts.findFirst({
+                where: { inquiry_id: inquiryId, status: 'Draft' },
+                orderBy: { id: 'desc' },
+            });
+
+            if (draftContract && contact?.email) {
+                const signerName = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || 'Client';
+
+                // Replace signers with contact as sole client signer
+                await this.prisma.contract_signers.deleteMany({ where: { contract_id: draftContract.id } });
+                await this.prisma.contract_signers.create({
+                    data: { contract_id: draftContract.id, name: signerName, email: contact.email, role: 'client' },
+                });
+
+                await this.prisma.contracts.update({
+                    where: { id: draftContract.id },
+                    data: { status: 'Sent', sent_at: new Date() },
+                });
+
+                await this.inquiryTasksService.autoCompleteByName(inquiryId, 'Contract Sent');
+            }
+        }
+
+        return updated;
     }
 }

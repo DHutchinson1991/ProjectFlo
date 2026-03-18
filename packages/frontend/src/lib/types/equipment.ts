@@ -25,6 +25,7 @@ export enum EquipmentType {
     // Camera Types
     MIRRORLESS = "MIRRORLESS",
     DSLR = "DSLR",
+    CAMCORDER = "CAMCORDER",
     ACTION_CAM = "ACTION_CAM",
     DRONE = "DRONE",
     SMARTPHONE = "SMARTPHONE",

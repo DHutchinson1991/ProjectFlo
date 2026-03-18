@@ -5,6 +5,7 @@ import { Box } from "@mui/material";
 import { usePathname } from "next/navigation";
 import StudioSidebar from "./components/StudioSidebar";
 import StudioHeader from "./components/StudioHeader";
+import GlobalTaskDrawer from "./components/GlobalTaskDrawer";
 import { ProjectProvider } from "./providers/ProjectProvider";
 import { ProtectedRoute } from "../components/auth/ProtectedRoute/ProtectedRoute";
 
@@ -15,6 +16,8 @@ interface StudioLayoutProps {
 export default function StudioLayout({ children }: StudioLayoutProps) {
     const pathname = usePathname();
     const isCalendarPage = pathname.startsWith("/calendar");
+    const isInquiryPackageReviewPage = /^\/sales\/inquiries\/[^/]+\/package(?:\/|$)/.test(pathname);
+    const hideGlobalTaskDrawer = isInquiryPackageReviewPage || ["/settings", "/manager", "/resources", "/designer/packages"].some((prefix) => pathname.startsWith(prefix));
 
     return (
         <ProtectedRoute>
@@ -44,6 +47,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                             sx={{
                                 flexGrow: 1,
                                 p: isCalendarPage ? 0 : 3, // No padding for calendar, p: 3 for other pages
+                                pb: 0,
                                 overflow: "visible",
                                 minHeight: "calc(100vh - 64px)", // Ensure minimum height for scrolling
                             }}
@@ -52,6 +56,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                         </Box>
                     </Box>
                 </Box>
+                {!hideGlobalTaskDrawer && <GlobalTaskDrawer />}
             </ProjectProvider>
         </ProtectedRoute>
     );

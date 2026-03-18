@@ -146,6 +146,7 @@ export class DiscoveryQuestionnaireService {
                 inquiry_id: payload.inquiry_id,
                 responses: payload.responses as Prisma.InputJsonValue,
                 call_notes: payload.call_notes,
+                transcript: payload.transcript,
             },
             include: { template: { include: { questions: { orderBy: { order_index: 'asc' } } } } },
         });
@@ -155,7 +156,7 @@ export class DiscoveryQuestionnaireService {
             try {
                 await this.inquiryTasksService.autoCompleteByName(
                     payload.inquiry_id,
-                    'Requirements Discovery',
+                    'Discovery Call',
                 );
             } catch {
                 // Best-effort — don't fail the submission if task auto-complete errors

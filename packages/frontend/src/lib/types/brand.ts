@@ -59,6 +59,26 @@ export interface MeetingSettings {
     google_meet_link: string;
 }
 
+export interface Testimonial {
+    name: string;
+    text: string;
+    rating: number;
+    image_url: string;
+}
+
+export interface WelcomeSettings {
+    headline: string;
+    subtitle: string;
+    cta_text: string;
+    trust_badges: Array<{ icon: string; text: string }>;
+    social_proof_text: string;
+    social_proof_count: number;
+    social_proof_start: number;
+    social_links: Array<{ platform: string; url: string }>;
+    testimonials: Testimonial[];
+    time_estimate: string;
+}
+
 export interface UserBrand {
     id: number;
     user_id: number;

@@ -38,15 +38,17 @@ interface TasksContentProps {
     snackbarSeverity: "success" | "error";
     quickAddPhase: string | null;
     quickAddData: Partial<TaskLibrary>;
-    startQuickAdd: (phase: string) => void;
+    startQuickAdd: (phase: string, parentStageId?: number) => void;
     cancelQuickAdd: () => void;
     saveQuickAdd: () => void;
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
     jobRoles: JobRole[];
     allMappings: SkillRoleMapping[];
+    contributors: { id: number; contact: { first_name?: string; last_name?: string } }[];
     expandedTaskId: number | null;
     onToggleExpand: (taskId: number) => void;
     onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
+    onUpdateContributor: (taskId: number, contributorId: number | null) => Promise<void>;
 }
 
 export function TasksContent({
@@ -82,9 +84,11 @@ export function TasksContent({
     updateQuickAddData,
     jobRoles,
     allMappings,
+    contributors,
     expandedTaskId,
     onToggleExpand,
     onUpdateRoleSkills,
+    onUpdateContributor,
 }: TasksContentProps) {
     if (loading) {
         return (
@@ -159,9 +163,11 @@ export function TasksContent({
                 updateQuickAddData={updateQuickAddData}
                 jobRoles={jobRoles}
                 allMappings={allMappings}
+                contributors={contributors}
                 expandedTaskId={expandedTaskId}
                 onToggleExpand={onToggleExpand}
                 onUpdateRoleSkills={onUpdateRoleSkills}
+                onUpdateContributor={onUpdateContributor}
             />
 
             {/* Delete Confirmation Dialog */}

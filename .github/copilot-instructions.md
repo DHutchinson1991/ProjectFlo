@@ -15,6 +15,8 @@
 - ContentBuilder component work: `packages/frontend/CONTENTBUILDER_COMPONENT_GUIDE.md` and `packages/frontend/src/app/(studio)/designer/components/ContentBuilder/**`.
 - Timeline save/moment persistence bugs: `SCENE_SAVE_DATA_FLOW.md` first, then ContentBuilder save hooks.
 - Data model/migration changes: `packages/backend/prisma/schema.prisma` + `npx prisma generate`.
+- Pricing/totals bugs (package estimate, estimates, quotes, task cost, payment brackets, milestones): `PRICING_TOTALS_REFERENCE.md` first.
+- **After any pricing/business-logic change**: update `PRICING_TOTALS_REFERENCE.md` so it stays current — this is the single source of truth for agents.
 
 ## Big picture architecture
 - Monorepo with pnpm workspaces: `packages/backend` (NestJS + Prisma + PostgreSQL) and `packages/frontend` (Next.js 14 + React Query + MUI).
@@ -68,3 +70,4 @@
   - `.github/refactor-films/00_ARCHITECTURE_OVERVIEW.md`
   - `packages/frontend/CONTENTBUILDER_COMPONENT_GUIDE.md`
   - `SCENE_SAVE_DATA_FLOW.md`
+  - `PRICING_TOTALS_REFERENCE.md` (package pricing, estimates, quotes, task costs, payment brackets, milestones)
