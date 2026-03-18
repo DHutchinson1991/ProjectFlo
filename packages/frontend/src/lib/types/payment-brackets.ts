@@ -1,0 +1,142 @@
+/**
+ * Payment Brackets Types - ProjectFlo Frontend
+ *
+ * Types for managing payment bracket tiers per job role
+ * and contributor bracket assignments.
+ */
+
+// ============================================================================
+// PAYMENT BRACKET (A pay tier belonging to a job role)
+// ============================================================================
+
+export interface PaymentBracket {
+  id: number;
+  job_role_id: number;
+  name: string;
+  display_name?: string | null;
+  level: number;
+  hourly_rate: number;
+  day_rate?: number | null;
+  overtime_rate?: number | null;
+  description?: string | null;
+  color?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  job_role?: {
+    id: number;
+    name: string;
+    display_name?: string | null;
+    category?: string | null;
+  };
+  _count?: {
+    contributor_job_roles: number;
+  };
+  /** Populated when fetching brackets by-role (includes assigned crew) */
+  contributor_job_roles?: BracketContributorAssignment[];
+}
+
+/** A contributor assigned to a specific payment bracket (returned within bracket data) */
+export interface BracketContributorAssignment {
+  id: number;
+  contributor_id: number;
+  job_role_id: number;
+  is_primary: boolean;
+  is_unmanned: boolean;
+  contributor: {
+    id: number;
+    is_crew?: boolean;
+    crew_color?: string | null;
+    contact: {
+      first_name?: string | null;
+      last_name?: string | null;
+      email: string;
+    };
+  };
+}
+
+// ============================================================================
+// GROUPED BY ROLE (returned by GET /payment-brackets/by-role)
+// ============================================================================
+
+export interface PaymentBracketsByRole {
+  [roleName: string]: {
+    job_role: {
+      id: number;
+      name: string;
+      display_name?: string | null;
+      category?: string | null;
+    };
+    brackets: PaymentBracket[];
+  };
+}
+
+// ============================================================================
+// EFFECTIVE RATE (returned by GET /payment-brackets/effective-rate/:cId/:rId)
+// ============================================================================
+
+export interface EffectiveRate {
+  contributor_id: number;
+  job_role: {
+    id: number;
+    name: string;
+    display_name?: string | null;
+  };
+  payment_bracket: PaymentBracket | null;
+  effective_hourly_rate: number | null;
+  rate_source: "payment_bracket" | "default_hourly_rate";
+}
+
+// ============================================================================
+// CONTRIBUTOR BRACKET ASSIGNMENT (from getContributorBrackets)
+// ============================================================================
+
+export interface ContributorBracketAssignment {
+  id: number;
+  contributor_id: number;
+  job_role_id: number;
+  is_primary: boolean;
+  payment_bracket_id: number | null;
+  job_role: {
+    id: number;
+    name: string;
+    display_name?: string | null;
+    category?: string | null;
+  };
+  payment_bracket: PaymentBracket | null;
+}
+
+// ============================================================================
+// DTOs
+// ============================================================================
+
+export interface CreatePaymentBracketData {
+  job_role_id: number;
+  name: string;
+  display_name?: string;
+  level: number;
+  hourly_rate: number;
+  day_rate?: number;
+  overtime_rate?: number;
+  description?: string;
+  color?: string;
+  is_active?: boolean;
+}
+
+export interface UpdatePaymentBracketData {
+  name?: string;
+  display_name?: string;
+  level?: number;
+  hourly_rate?: number;
+  day_rate?: number;
+  overtime_rate?: number;
+  description?: string;
+  color?: string;
+  is_active?: boolean;
+}
+
+export interface AssignBracketData {
+  contributor_id: number;
+  job_role_id: number;
+  payment_bracket_id: number;
+}

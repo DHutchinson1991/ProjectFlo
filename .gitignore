@@ -21,6 +21,9 @@ pnpm-debug.log*
 .env.production.local
 .env.*
 
+# Authentication tokens and secrets
+.auth/
+
 # === Build Artifacts, Cache & Output ===
 # General
 build/

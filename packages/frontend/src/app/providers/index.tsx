@@ -1,10 +1,5 @@
 "use client";
 
-import { ReactNode } from "react";
-import { ThemeProvider } from "./ThemeProvider";
-
-export function Providers({ children }: { children: ReactNode }) {
-  return <ThemeProvider>{children}</ThemeProvider>;
-}
-
-export default Providers;
+// Re-export from providers.tsx — this file exists for backwards compatibility
+// The actual provider tree is defined in ../providers.tsx (used by layout.tsx)
+export { default as Providers, default } from "../providers";

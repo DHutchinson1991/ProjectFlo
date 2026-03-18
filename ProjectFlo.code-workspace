@@ -7,6 +7,21 @@
 	"settings": {
 		"googleSheetPusher.sheetId": "1F5hdM7qxdfCpQIDWSd5i76Bno5qHg1BOnrnsZREdK5A",
 		"googleSheetPusher.sheetName": "Sheet1",
-		"continue.enableConsole": true
+		"continue.enableConsole": true,
+		"chat.tools.terminal.autoApprove": {
+			"npx prisma": true
+		},
+
+		"workbench.colorCustomizations": {
+    "titleBar.activeBackground": "#3b3d9e",
+    "titleBar.activeForeground": "#ffffff",
+    "titleBar.inactiveBackground": "#3b3d9e",
+    "titleBar.inactiveForeground": "#f0f0f0",
+    
+	"statusBar.background": "#3b3d9e",
+    "statusBar.foreground": "#ffffff",
+
+  }
+
 	}
 }

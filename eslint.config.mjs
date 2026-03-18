@@ -42,6 +42,26 @@ const reactConfig = {
     },
 };
 
+// Custom naming convention rules for ContentBuilder to enforce symmetric naming
+const contentBuilderNamingConfig = {
+    files: ['packages/frontend/src/app/(studio)/designer/components/ContentBuilder/ui/**/*.tsx'],
+    rules: {
+        '@typescript-eslint/naming-convention': [
+            'warn',
+            {
+                // Enforce PascalCase for component names
+                selector: 'variable',
+                format: ['PascalCase'],
+                filter: {
+                    match: true,
+                    regex: '^(const|let)\\s+[A-Z].*React\\.FC', // Only for React components
+                },
+                trailingUnderscore: 'forbid',
+            },
+        ],
+    },
+};
+
 // The final export combines all configs
 export default [
     {
@@ -58,6 +78,8 @@ export default [
     ...tsBaseConfig,
     // Apply the React-specific config on top for frontend files
     reactConfig,
+    // Apply ContentBuilder-specific naming conventions
+    contentBuilderNamingConfig,
     // IMPORTANT: This must be the LAST configuration. It turns off any ESLint rules that conflict with Prettier.
     eslintConfigPrettier,
 ];

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import "./globals.css";
-import Providers from "./providers"; // Changed from { Providers }
-import ThemeRegistry from "./ThemeRegistry";
-import { ErrorBoundary } from "./components/ErrorBoundary";
+import "./theme/globals.css";
+import Providers from "./providers";
+import { ErrorBoundary } from "./components";
+import DevConsole from "../components/dev-console/DevConsole";
 
 export const metadata: Metadata = {
   title: "ProjectFlo - Freelancer Management Platform",
@@ -15,13 +15,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const showDevConsole = process.env.NODE_ENV !== "production";
+
   return (
-    <html lang="en">
+    <html lang="en" data-theme="dark" style={{ colorScheme: 'dark' }} suppressHydrationWarning>
       <body>
         <ErrorBoundary>
-          <ThemeRegistry options={{ key: "mui" }}>
-            <Providers>{children}</Providers>
-          </ThemeRegistry>
+          <Providers>
+            {children}
+            {showDevConsole && <DevConsole />}
+          </Providers>
         </ErrorBoundary>
       </body>
     </html>

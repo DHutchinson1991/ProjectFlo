@@ -1,0 +1,48 @@
+/**
+ * Authentication and authorization related types
+ */
+
+export interface LoginCredentials {
+    email: string;
+    password: string;
+    rememberMe?: boolean;
+}
+
+export interface AuthResponse {
+    access_token: string;
+    refresh_token: string;
+    user: UserProfile;
+}
+
+export interface UserProfile {
+    id: number;
+    email: string;
+    first_name?: string;
+    last_name?: string;
+    roles: string[];
+    role?: {
+        id: number;
+        name: string;
+    };
+}
+
+export interface Role {
+    id: number;
+    name: string;
+    description?: string;
+}
+
+// Auth Context Types
+export interface AuthContextType {
+    user: UserProfile | null;
+    isAuthenticated: boolean;
+    login: (credentials: LoginCredentials) => Promise<void>;
+    logout: () => void;
+    isLoading: boolean;
+    token: string | null;
+    refreshAuth: () => Promise<void>;
+}
+
+export interface AuthProviderProps {
+    children: React.ReactNode;
+}
