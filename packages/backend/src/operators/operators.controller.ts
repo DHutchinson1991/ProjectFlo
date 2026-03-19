@@ -94,4 +94,14 @@ export class OperatorsController {
   ) {
     return this.operatorsService.unassignSlotFromActivity(slotId, activityId);
   }
+
+  // ─── Project Day Operators (Inquiry-level crew) ───────────────────
+
+  @Patch('project/day-operators/:slotId/assign')
+  assignProjectCrewToSlot(
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Body() dto: { contributor_id: number | null },
+  ) {
+    return this.operatorsService.assignProjectCrewToSlot(slotId, dto);
+  }
 }

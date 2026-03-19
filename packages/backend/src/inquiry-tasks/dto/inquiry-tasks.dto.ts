@@ -35,3 +35,10 @@ export class ToggleInquiryTaskDto {
     @Type(() => Number)
     completed_by_id?: number;
 }
+
+export class ToggleInquirySubtaskDto {
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    completed_by_id?: number;
+}

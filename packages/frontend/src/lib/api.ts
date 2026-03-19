@@ -30,8 +30,12 @@ import {
   // Sales domain
   Inquiry,
   InquiryTask,
+  InquiryTaskSubtask,
   InquiryTaskStatus,
   InquiryTaskEvent,
+  InquiryAvailabilityResponse,
+  InquiryCrewAvailabilityRow,
+  InquiryEquipmentAvailabilityRow,
   Client,
   ClientListItem,
   CreateInquiryData,
@@ -93,6 +97,11 @@ import {
   UpdatePaymentScheduleTemplateData,
   ApplyScheduleToEstimateData,
   ApplyScheduleToQuoteData,
+
+  // Crew Payment Templates domain
+  CrewPaymentTemplate,
+  CreateCrewPaymentTemplateData,
+  UpdateCrewPaymentTemplateData,
 
   // Quotes domain
   Quote,
@@ -1123,7 +1132,7 @@ class ApiService extends BaseApiClient {
     delete: (id: number): Promise<void> =>
       this.delete(`/task-library/${id}`),
     getGroupedByPhase: async (): Promise<TaskLibraryByPhase> => {
-      const response: { groupedByPhase: TaskLibraryByPhase } = await this.get("/task-library");
+      const response: { groupedByPhase: TaskLibraryByPhase } = await this.get("/task-library?is_active=true");
       return response.groupedByPhase;
     },
     batchUpdateOrder: (data: BatchUpdateTaskOrderDto): Promise<void> =>
@@ -1154,9 +1163,15 @@ class ApiService extends BaseApiClient {
     },
 
     // Auto-generation preview for packages
-    previewAutoGeneration: (packageId: number, brandId: number, inquiryId?: number): Promise<TaskAutoGenerationPreview> => {
+    previewAutoGeneration: (
+      packageId: number,
+      brandId: number,
+      inquiryId?: number,
+      projectId?: number,
+    ): Promise<TaskAutoGenerationPreview> => {
       let url = `/task-library/auto-generate/preview/${packageId}?brandId=${brandId}`;
       if (inquiryId) url += `&inquiryId=${inquiryId}`;
+      if (projectId) url += `&projectId=${projectId}`;
       return this.get(url);
     },
 
@@ -1377,6 +1392,29 @@ class ApiService extends BaseApiClient {
     delete: (id: number): Promise<void> => this.delete(`/api/inquiries/${id}`),
     sendWelcomePack: (id: number): Promise<{ welcome_sent_at: string }> =>
       this.post(`/api/inquiries/${id}/send-welcome-pack`),
+    getDiscoveryCall: (id: number): Promise<{
+      id: number;
+      title: string;
+      start_time: string;
+      end_time: string;
+      meeting_type: 'ONLINE' | 'PHONE_CALL' | 'IN_PERSON' | 'VIDEO_CALL' | null;
+      meeting_url: string | null;
+      location: string | null;
+    } | null> => this.get(`/api/inquiries/${id}/discovery-call`),
+    getCrewAvailability: (id: number): Promise<InquiryAvailabilityResponse<InquiryCrewAvailabilityRow>> =>
+      this.get(`/api/inquiries/${id}/crew-availability`),
+    getEquipmentAvailability: (id: number): Promise<InquiryAvailabilityResponse<InquiryEquipmentAvailabilityRow>> =>
+      this.get(`/api/inquiries/${id}/equipment-availability`),
+    sendAvailabilityRequest: (id: number, body: { contributor_id: number; project_day_operator_id?: number }): Promise<{ id: number; status: string }> =>
+      this.post(`/api/inquiries/${id}/availability-requests`, body),
+    updateAvailabilityRequest: (id: number, requestId: number, status: 'confirmed' | 'declined' | 'cancelled'): Promise<{ id: number; status: string }> =>
+      this.patch(`/api/inquiries/${id}/availability-requests/${requestId}`, { status }),
+    reserveEquipment: (id: number, assignmentId: number): Promise<{ id: number; status: string; equipment_availability_id: number }> =>
+      this.post(`/api/inquiries/${id}/equipment-reservations`, { assignment_id: assignmentId }),
+    cancelEquipmentReservation: (id: number, reservationId: number): Promise<{ id: number; status: string }> =>
+      this.delete(`/api/inquiries/${id}/equipment-reservations/${reservationId}`),
+    updateEquipmentReservation: (id: number, reservationId: number, status: 'confirmed' | 'cancelled'): Promise<{ id: number; status: string }> =>
+      this.patch(`/api/inquiries/${id}/equipment-reservations/${reservationId}`, { status }),
 
     // Schedule snapshot endpoints (cloned package data owned by inquiry)
     scheduleSnapshot: {
@@ -1407,6 +1445,8 @@ class ApiService extends BaseApiClient {
       this.patch(`/api/inquiries/${inquiryId}/tasks/${taskId}`, data),
     toggle: (inquiryId: number, taskId: number, completedById?: number): Promise<InquiryTask> =>
       this.patch(`/api/inquiries/${inquiryId}/tasks/${taskId}/toggle`, completedById ? { completed_by_id: completedById } : {}),
+    toggleSubtask: (inquiryId: number, subtaskId: number, completedById?: number): Promise<InquiryTaskSubtask> =>
+      this.patch(`/api/inquiries/${inquiryId}/subtasks/${subtaskId}/toggle`, completedById ? { completed_by_id: completedById } : {}),
     generate: (inquiryId: number): Promise<InquiryTask[]> =>
       this.post(`/api/inquiries/${inquiryId}/tasks/generate`),
     getEvents: (inquiryId: number, taskId: number): Promise<InquiryTaskEvent[]> =>
@@ -1417,10 +1457,10 @@ class ApiService extends BaseApiClient {
   activeTasks = {
     getAll: (status?: string): Promise<ActiveTask[]> =>
       this.get(`/calendar/active-tasks${status ? `?status=${status}` : ''}`),
-    assign: (taskId: number, source: 'inquiry' | 'project', assignedToId: number | null): Promise<unknown> =>
-      this.patch(`/calendar/active-tasks/${taskId}/assign`, { source, assigned_to_id: assignedToId }),
-    toggle: (taskId: number, source: 'inquiry' | 'project'): Promise<unknown> =>
-      this.patch(`/calendar/active-tasks/${taskId}/toggle`, { source }),
+    assign: (taskId: number, source: 'inquiry' | 'project', assignedToId: number | null, taskKind: 'task' | 'subtask' = 'task'): Promise<unknown> =>
+      this.patch(`/calendar/active-tasks/${taskId}/assign`, { source, assigned_to_id: assignedToId, task_kind: taskKind }),
+    toggle: (taskId: number, source: 'inquiry' | 'project', taskKind: 'task' | 'subtask' = 'task', completedById?: number): Promise<unknown> =>
+      this.patch(`/calendar/active-tasks/${taskId}/toggle`, { source, task_kind: taskKind, completed_by_id: completedById }),
   };
 
   calendar = {
@@ -1833,6 +1873,11 @@ class ApiService extends BaseApiClient {
         this.post(`/operators/packages/day-operators/${slotId}/activities/${activityId}`, {}),
       unassignActivity: (slotId: number, activityId: number): Promise<any> =>
         this.delete(`/operators/packages/day-operators/${slotId}/activities/${activityId}`),
+    },
+    // Project-level day operators (inquiry/project crew)
+    projectDay: {
+      assign: (slotId: number, contributorId: number | null): Promise<any> =>
+        this.patch(`/operators/project/day-operators/${slotId}/assign`, { contributor_id: contributorId }),
     },
   };
 
@@ -2410,6 +2455,12 @@ class ApiService extends BaseApiClient {
       this.patch(`/api/inquiries/${inquiryId}/estimates/${estimateId}`, data),
     delete: (inquiryId: number, estimateId: number): Promise<void> =>
       this.delete(`/api/inquiries/${inquiryId}/estimates/${estimateId}`),
+    send: (inquiryId: number, estimateId: number): Promise<Estimate> =>
+      this.post(`/api/inquiries/${inquiryId}/estimates/${estimateId}/send`, {}),
+    refresh: (inquiryId: number, estimateId: number): Promise<Estimate> =>
+      this.post(`/api/inquiries/${inquiryId}/estimates/${estimateId}/refresh`, {}),
+    getSnapshots: (inquiryId: number, estimateId: number): Promise<import('./types').EstimateSnapshot[]> =>
+      this.get(`/api/inquiries/${inquiryId}/estimates/${estimateId}/snapshots`),
   };
 
   // Payment Schedule Templates (brand-scoped)
@@ -2440,6 +2491,20 @@ class ApiService extends BaseApiClient {
       this.post(`/api/quotes/${quoteId}/apply-schedule`, data),
     updateQuoteMilestoneStatus: (milestoneId: number, status: string): Promise<QuotePaymentMilestone> =>
       this.patch(`/api/quotes/milestones/${milestoneId}/status`, { status }),
+  };
+
+  // Crew Payment Templates (brand-scoped)
+  crewPaymentTemplates = {
+    getAll: (brandId: number): Promise<CrewPaymentTemplate[]> =>
+      this.get(`/api/brands/${brandId}/crew-payment-templates`),
+    getById: (brandId: number, id: number): Promise<CrewPaymentTemplate> =>
+      this.get(`/api/brands/${brandId}/crew-payment-templates/${id}`),
+    create: (brandId: number, data: CreateCrewPaymentTemplateData): Promise<CrewPaymentTemplate> =>
+      this.post(`/api/brands/${brandId}/crew-payment-templates`, data),
+    update: (brandId: number, id: number, data: UpdateCrewPaymentTemplateData): Promise<CrewPaymentTemplate> =>
+      this.put(`/api/brands/${brandId}/crew-payment-templates/${id}`, data),
+    delete: (brandId: number, id: number): Promise<{ success: boolean }> =>
+      this.delete(`/api/brands/${brandId}/crew-payment-templates/${id}`),
   };
 
   // Quotes methods (brand-specific, nested under inquiries)

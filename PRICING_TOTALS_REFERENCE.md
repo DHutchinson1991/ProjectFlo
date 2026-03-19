@@ -258,7 +258,7 @@ Identical algorithm to `estimatePackagePrice()`, but uses the inquiry's **instan
 Key differences from template pricing:
 - Operators come from `project_day_operators` (polymorphic: `inquiry_id` or `project_id`) instead of `package_day_operators`
 - Equipment comes from `project_day_operator_equipment` relations
-- `previewAutoGeneration()` receives `inquiryId` for inquiry-context task counts
+- `previewAutoGeneration()` receives `inquiryId` for inquiry-context task counts and uses inquiry instance operators for preview role assignment / `per_crew_member` expansion
 - Tax is computed identically using `brands.default_tax_rate`
 
 **Frontend usage:** `PackageScopeCard.tsx` calls `api.servicePackages.estimateInquiryPrice(brandId, inquiryId)` and displays `tax.totalWithTax` with an "incl. X% tax" label.
@@ -292,7 +292,8 @@ async previewAutoGeneration(
   packageId: number,
   brandId: number,
   userId: number,
-  inquiryId?: number   // optional — passed by EstimatesCard for inquiry context
+  inquiryId?: number,  // optional — passed for inquiry-context counts and instance crew
+  projectId?: number   // optional — passed for project-context counts and instance crew
 ): Promise<{ package, contentCounts, summary, byPhase, tasks }>
 ```
 
@@ -303,11 +304,22 @@ The method counts package contents to determine task multipliers:
 ```
 filmCount            = PackageFilm records for this package
 eventDayCount        = PackageEventDay records
-crewCount            = PackageDayOperator records
+crewCount            = ProjectDayOperator records when `projectId`/`inquiryId` is provided, otherwise PackageDayOperator records
 locationCount        = PackageEventDayLocation records
 activityCount        = PackageActivity records
 activityCrewCount    = OperatorActivityAssignment records (crew × activity)
 filmSceneCount       = PackageFilmSceneSchedule records
+
+For role assignment and `per_crew_member` expansion, the preview now uses instance operators when `projectId` or `inquiryId` is supplied. It falls back to package template operators only if no instance operators exist yet.
+
+### Sync Behavior Note (Project/Inquiry Clones)
+
+When a schedule is re-synced from package for a project or inquiry clone, instance schedule rows are deleted and re-cloned. After clone:
+
+- Project sync now reassigns active `project_tasks.assigned_to_id` from current `project_day_operators` (role + bracket-aware matching).
+- Inquiry sync now reassigns active non-stage `inquiry_tasks.assigned_to_id` from current `project_day_operators` for that inquiry (role-based matching).
+
+This keeps task ownership aligned with current cloned-crew assignments after producer/crew swaps.
 ```
 
 ### Step 2 — Task Multiplier per Trigger Type

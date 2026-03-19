@@ -415,6 +415,8 @@ const CreateSceneDialog: React.FC<CreateSceneDialogProps> = ({
                 estimated_duration: sceneDuration,
                 includeGraphics,
                 includeMusic,
+                moments: isMomentsScene ? moments : [],
+                beats: !isMomentsScene ? beats : [],
             };
 
             // Store moment preferences in localStorage for persistence across reloads

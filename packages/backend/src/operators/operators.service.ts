@@ -148,6 +148,40 @@ export class OperatorsService {
   }
 
   /**
+   * Assign a contributor to a project-level crew slot (inquiry/project day operator).
+   */
+  async assignProjectCrewToSlot(
+    slotId: number,
+    dto: { contributor_id: number | null },
+  ) {
+    const existing = await this.prisma.projectDayOperator.findUnique({
+      where: { id: slotId },
+    });
+    if (!existing) throw new NotFoundException('Project crew slot not found');
+
+    if (dto.contributor_id) {
+      const contributor = await this.prisma.contributors.findUnique({
+        where: { id: dto.contributor_id },
+      });
+      if (!contributor) throw new NotFoundException('Crew member not found');
+    }
+
+    return this.prisma.projectDayOperator.update({
+      where: { id: slotId },
+      data: { contributor_id: dto.contributor_id },
+      include: {
+        job_role: { select: { id: true, name: true, display_name: true } },
+        contributor: {
+          include: {
+            contact: { select: { first_name: true, last_name: true, email: true } },
+          },
+        },
+        project_event_day: { select: { id: true, name: true, date: true } },
+      },
+    });
+  }
+
+  /**
    * Update a crew slot's details
    */
   async updateCrewSlot(

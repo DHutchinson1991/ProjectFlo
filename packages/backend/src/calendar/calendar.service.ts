@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BrandsService } from '../business/brands/brands.service';
+import { InquiryTasksService } from '../inquiry-tasks/inquiry-tasks.service';
 import { Prisma } from '@prisma/client';
 import {
     CreateCalendarEventDto,
@@ -20,6 +21,7 @@ export class CalendarService {
     constructor(
         private prisma: PrismaService,
         private brandsService: BrandsService,
+        private inquiryTasksService: InquiryTasksService,
     ) { }
 
     // Calendar Events
@@ -712,6 +714,22 @@ export class CalendarService {
                         where: { is_active: true },
                         select: { id: true, status: true },
                     },
+                    subtasks: {
+                        where: status ? { status: status as any } : { status: { not: 'Archived' as any } },
+                        orderBy: [{ order_index: 'asc' }],
+                        include: {
+                            completed_by: {
+                                include: {
+                                    contact: {
+                                        select: { first_name: true, last_name: true, email: true },
+                                    },
+                                },
+                            },
+                            job_role: {
+                                select: { id: true, name: true, display_name: true },
+                            },
+                        },
+                    },
                 },
                 orderBy: [{ phase: 'asc' }, { order_index: 'asc' }],
             }),
@@ -736,164 +754,227 @@ export class CalendarService {
             }),
         ]);
 
-        const unified = [
-            ...inquiryTasks.map(t => ({
-                id: t.id,
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const inquiryRows = inquiryTasks.flatMap((task) => {
+            const contextLabel = task.inquiry?.contact
+                ? `${task.inquiry.contact.first_name} ${task.inquiry.contact.last_name}`
+                : `Inquiry #${task.inquiry_id}`;
+            const baseAssignee = task.assigned_to?.contact
+                ? {
+                    id: task.assigned_to.id,
+                    name: `${task.assigned_to.contact.first_name} ${task.assigned_to.contact.last_name}`.trim(),
+                    email: task.assigned_to.contact.email,
+                }
+                : task.completed_by?.contact
+                ? {
+                    id: task.completed_by.id,
+                    name: `${task.completed_by.contact.first_name} ${task.completed_by.contact.last_name}`.trim(),
+                    email: task.completed_by.contact.email,
+                }
+                : null;
+
+            const taskRow = {
+                id: task.id,
                 source: 'inquiry' as const,
-                inquiry_id: t.inquiry_id,
+                task_kind: 'task' as const,
+                subtask_key: null as string | null,
+                inquiry_id: task.inquiry_id,
                 project_id: null as number | null,
-                name: t.name,
-                description: t.description,
-                phase: t.phase,
-                status: t.status,
-                due_date: t.due_date,
-                estimated_hours: t.estimated_hours ? Number(t.estimated_hours) : null,
+                name: task.name,
+                description: task.description,
+                phase: task.phase,
+                status: task.status,
+                due_date: task.due_date,
+                estimated_hours: task.estimated_hours ? Number(task.estimated_hours) : null,
                 actual_hours: null as number | null,
-                completed_at: t.completed_at,
-                context_label: t.inquiry?.contact
-                    ? `${t.inquiry.contact.first_name} ${t.inquiry.contact.last_name}`
-                    : `Inquiry #${t.inquiry_id}`,
+                completed_at: task.completed_at,
+                context_label: contextLabel,
                 project_name: null as string | null,
-                event_date: t.inquiry?.wedding_date ?? null,
-                assignee: t.assigned_to?.contact
+                event_date: task.inquiry?.wedding_date ?? null,
+                assignee: baseAssignee,
+                is_stage: task.is_stage,
+                parent_task_id: task.parent_inquiry_task_id,
+                stage_color: task.stage_color,
+                is_auto_only: task.task_library?.is_auto_only ?? false,
+                children_count: task.subtasks.length > 0 ? task.subtasks.length : task.children.length,
+                children_completed: task.subtasks.length > 0
+                    ? task.subtasks.filter((subtask) => subtask.status === 'Completed').length
+                    : task.children.filter((child) => child.status === 'Completed').length,
+                priority: task.due_date && new Date(task.due_date) < today && task.status !== 'Completed' ? 'overdue' : null,
+                subtask_parent_id: null as number | null,
+                job_role: null as { id: number; name: string; display_name: string | null } | null,
+            };
+
+            const subtaskRows = task.subtasks.map((subtask) => ({
+                id: subtask.id,
+                source: 'inquiry' as const,
+                task_kind: 'subtask' as const,
+                subtask_key: subtask.subtask_key,
+                inquiry_id: task.inquiry_id,
+                project_id: null as number | null,
+                name: subtask.name,
+                description: null,
+                phase: task.phase,
+                status: subtask.status,
+                due_date: task.due_date,
+                estimated_hours: null as number | null,
+                actual_hours: null as number | null,
+                completed_at: subtask.completed_at,
+                context_label: contextLabel,
+                project_name: null as string | null,
+                event_date: task.inquiry?.wedding_date ?? null,
+                assignee: subtask.completed_by?.contact
                     ? {
-                        id: t.assigned_to.id,
-                        name: `${t.assigned_to.contact.first_name} ${t.assigned_to.contact.last_name}`.trim(),
-                        email: t.assigned_to.contact.email,
+                        id: subtask.completed_by.id,
+                        name: `${subtask.completed_by.contact.first_name} ${subtask.completed_by.contact.last_name}`.trim(),
+                        email: subtask.completed_by.contact.email,
                     }
-                    : t.completed_by?.contact
-                    ? {
-                        id: t.completed_by.id,
-                        name: `${t.completed_by.contact.first_name} ${t.completed_by.contact.last_name}`.trim(),
-                        email: t.completed_by.contact.email,
-                    }
-                    : null,
-                is_stage: t.is_stage,
-                parent_task_id: t.parent_inquiry_task_id,
-                stage_color: t.stage_color,
-                is_auto_only: t.task_library?.is_auto_only ?? false,
-                children_count: t.children?.length ?? 0,
-                children_completed: t.children?.filter(c => c.status === 'Completed').length ?? 0,
-                priority: (() => { const today = new Date(); today.setHours(0,0,0,0); return t.due_date && new Date(t.due_date) < today && t.status !== 'Completed' ? 'overdue' : null; })(),
-            })),
-            ...projectTasks.map(t => ({
-                id: t.id,
-                source: 'project' as const,
-                inquiry_id: null as number | null,
-                project_id: t.project_id,
-                name: t.name,
-                description: t.description,
-                phase: t.phase,
-                status: t.status,
-                due_date: t.due_date,
-                estimated_hours: t.estimated_hours ? Number(t.estimated_hours) : null,
-                actual_hours: t.actual_hours ? Number(t.actual_hours) : null,
-                completed_at: null as Date | null,
-                context_label: t.project?.project_name ?? `Project #${t.project_id}`,
-                project_name: t.project?.project_name ?? null,
-                event_date: t.project?.wedding_date ?? null,
-                assignee: t.assigned_to?.contact
-                    ? {
-                        id: t.assigned_to.id,
-                        name: `${t.assigned_to.contact.first_name} ${t.assigned_to.contact.last_name}`.trim(),
-                        email: t.assigned_to.contact.email,
-                    }
-                    : null,
-                is_stage: false as boolean,
-                parent_task_id: null as number | null,
-                stage_color: null as string | null,
+                    : baseAssignee,
+                is_stage: false,
+                parent_task_id: task.parent_inquiry_task_id,
+                stage_color: task.stage_color,
+                is_auto_only: subtask.is_auto_only,
                 children_count: 0,
                 children_completed: 0,
-                priority: (() => { const today = new Date(); today.setHours(0,0,0,0); return t.due_date && new Date(t.due_date) < today && t.status !== 'Completed' ? 'overdue' : null; })(),
-            })),
-        ];
+                priority: task.due_date && new Date(task.due_date) < today && subtask.status !== 'Completed' ? 'overdue' : null,
+                subtask_parent_id: task.id,
+                job_role: subtask.job_role,
+            }));
 
-        return unified;
+            return [taskRow, ...subtaskRows];
+        });
+
+        const projectRows = projectTasks.map((task) => ({
+            id: task.id,
+            source: 'project' as const,
+            task_kind: 'task' as const,
+            subtask_key: null as string | null,
+            inquiry_id: null as number | null,
+            project_id: task.project_id,
+            name: task.name,
+            description: task.description,
+            phase: task.phase,
+            status: task.status,
+            due_date: task.due_date,
+            estimated_hours: task.estimated_hours ? Number(task.estimated_hours) : null,
+            actual_hours: task.actual_hours ? Number(task.actual_hours) : null,
+            completed_at: null as Date | null,
+            context_label: task.project?.project_name ?? `Project #${task.project_id}`,
+            project_name: task.project?.project_name ?? null,
+            event_date: task.project?.wedding_date ?? null,
+            assignee: task.assigned_to?.contact
+                ? {
+                    id: task.assigned_to.id,
+                    name: `${task.assigned_to.contact.first_name} ${task.assigned_to.contact.last_name}`.trim(),
+                    email: task.assigned_to.contact.email,
+                }
+                : null,
+            is_stage: false,
+            parent_task_id: null as number | null,
+            stage_color: null as string | null,
+            is_auto_only: false,
+            children_count: 0,
+            children_completed: 0,
+            priority: task.due_date && new Date(task.due_date) < today && task.status !== 'Completed' ? 'overdue' : null,
+            subtask_parent_id: null as number | null,
+            job_role: null as { id: number; name: string; display_name: string | null } | null,
+        }));
+
+        return [...inquiryRows, ...projectRows];
     }
 
     /**
      * Assign a contributor to an active task (inquiry or project).
      * Pass assigneeId = null to unassign.
      */
-    async assignActiveTask(taskId: number, source: 'inquiry' | 'project', assigneeId: number | null) {
+    async assignActiveTask(
+        taskId: number,
+        source: 'inquiry' | 'project',
+        assigneeId: number | null,
+        taskKind: 'task' | 'subtask' = 'task',
+    ) {
         if (source === 'inquiry') {
+            if (taskKind === 'subtask') {
+                throw new NotFoundException('Inquiry subtasks do not support direct assignee changes');
+            }
+
             return this.prisma.inquiry_tasks.update({
                 where: { id: taskId },
                 data: { assigned_to_id: assigneeId },
             });
-        } else {
-            return this.prisma.project_tasks.update({
-                where: { id: taskId },
-                data: { assigned_to_id: assigneeId },
-            });
         }
+
+        return this.prisma.project_tasks.update({
+            where: { id: taskId },
+            data: { assigned_to_id: assigneeId },
+        });
     }
 
     /**
      * Toggle a task between To_Do and Completed.
-     * For inquiry tasks with a parent stage, auto-completes the parent when all children are done.
      */
-    async toggleActiveTask(taskId: number, source: 'inquiry' | 'project') {
+    async toggleActiveTask(
+        taskId: number,
+        source: 'inquiry' | 'project',
+        taskKind: 'task' | 'subtask' = 'task',
+        completedById?: number,
+    ) {
         if (source === 'inquiry') {
-            const task = await this.prisma.inquiry_tasks.findUnique({ where: { id: taskId } });
-            if (!task) throw new NotFoundException(`Inquiry task ${taskId} not found`);
+            if (taskKind === 'subtask') {
+                const subtask = await this.prisma.inquiry_task_subtasks.findUnique({
+                    where: { id: taskId },
+                    include: { inquiry_task: { select: { inquiry_id: true } } },
+                });
+                if (!subtask) {
+                    throw new NotFoundException(`Inquiry subtask ${taskId} not found`);
+                }
 
-            const isCompleted = task.status === 'Completed';
-            const updated = await this.prisma.inquiry_tasks.update({
-                where: { id: taskId },
-                data: isCompleted
-                    ? { status: 'To_Do', completed_at: null, completed_by_id: null }
-                    : { status: 'Completed', completed_at: new Date() },
-            });
-
-            // Sync parent stage status if this task has a parent
-            if (updated.parent_inquiry_task_id) {
-                await this.syncInquiryParentStage(updated.parent_inquiry_task_id);
+                const updated = await this.inquiryTasksService.toggleSubtaskById(taskId, completedById);
+                return {
+                    id: updated.id,
+                    status: updated.status,
+                    source: 'inquiry',
+                    task_kind: 'subtask',
+                    inquiry_id: subtask.inquiry_task.inquiry_id,
+                    parent_task_id: subtask.inquiry_task_id,
+                };
             }
 
-            return { id: updated.id, status: updated.status, source: 'inquiry' };
-        } else {
-            const task = await this.prisma.project_tasks.findUnique({ where: { id: taskId } });
-            if (!task) throw new NotFoundException(`Project task ${taskId} not found`);
+            const task = await this.prisma.inquiry_tasks.findUnique({ where: { id: taskId } });
+            if (!task) {
+                throw new NotFoundException(`Inquiry task ${taskId} not found`);
+            }
 
-            const isCompleted = task.status === 'Completed';
-            return this.prisma.project_tasks.update({
-                where: { id: taskId },
-                data: isCompleted
-                    ? { status: 'To_Do' }
-                    : { status: 'Completed' },
-            });
+            const updated = await this.inquiryTasksService.toggleTaskById(taskId, completedById);
+            return {
+                id: updated.id,
+                status: updated.status,
+                source: 'inquiry',
+                task_kind: 'task',
+            };
         }
-    }
 
-    /**
-     * After toggling a child inquiry task, check if all siblings are done
-     * and auto-complete/revert the parent stage.
-     */
-    private async syncInquiryParentStage(parentId: number) {
-        const parent = await this.prisma.inquiry_tasks.findUnique({ where: { id: parentId } });
-        if (!parent || !parent.is_stage) return;
+        const task = await this.prisma.project_tasks.findUnique({ where: { id: taskId } });
+        if (!task) {
+            throw new NotFoundException(`Project task ${taskId} not found`);
+        }
 
-        const children = await this.prisma.inquiry_tasks.findMany({
-            where: { parent_inquiry_task_id: parentId, is_active: true },
-            select: { status: true },
+        const isCompleted = task.status === 'Completed';
+        const updated = await this.prisma.project_tasks.update({
+            where: { id: taskId },
+            data: isCompleted
+                ? { status: 'To_Do' }
+                : { status: 'Completed' },
         });
-        if (children.length === 0) return;
 
-        const allCompleted = children.every(c => c.status === 'Completed');
-
-        if (allCompleted && parent.status !== 'Completed') {
-            await this.prisma.inquiry_tasks.update({
-                where: { id: parentId },
-                data: { status: 'Completed', completed_at: new Date() },
-            });
-        } else if (!allCompleted && parent.status === 'Completed') {
-            const anyInProgress = children.some(c => c.status === 'In_Progress');
-            await this.prisma.inquiry_tasks.update({
-                where: { id: parentId },
-                data: { status: anyInProgress ? 'In_Progress' : 'To_Do', completed_at: null, completed_by_id: null },
-            });
-        }
+        return {
+            id: updated.id,
+            status: updated.status,
+            source: 'project',
+            task_kind: 'task',
+        };
     }
 
     async getUpcomingEvents(contributorId?: number, limit: number = 10) {

@@ -105,6 +105,22 @@ export class CreateBrandDto {
     @IsOptional()
     bank_account_number?: string;
 
+    @IsString()
+    @IsOptional()
+    crew_payment_terms?: string;
+
+    @Type(() => Number)
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    crew_response_deadline_days?: number;
+
+    @Type(() => Number)
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    inquiry_validity_days?: number;
+
     @IsBoolean()
     @IsOptional()
     is_active?: boolean;

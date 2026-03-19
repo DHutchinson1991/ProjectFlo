@@ -116,4 +116,9 @@ export class CreateEquipmentDto {
     @IsInt()
     @Type(() => Number)
     created_by_id?: number;
+
+    @IsOptional()
+    @IsInt()
+    @Type(() => Number)
+    owner_id?: number;
 }

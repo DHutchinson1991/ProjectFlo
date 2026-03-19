@@ -10,7 +10,9 @@ import { OutputData } from "@editorjs/editorjs";
 // Enums from Prisma
 export enum InquiryStatus {
     NEW = "New",
+    QUALIFIED = "Qualified",
     CONTACTED = "Contacted",
+    DISCOVERY_CALL = "Discovery_Call",
     PROPOSAL_SENT = "Proposal_Sent",
     WON = "Booked",
     LOST = "Closed_Lost",
@@ -171,6 +173,7 @@ export interface Estimate {
     installments?: number;
     is_primary?: boolean;
     version?: number;
+    is_stale?: boolean;
     notes?: string;
     terms?: string;
     schedule_template_id?: number | null;
@@ -180,6 +183,22 @@ export interface Estimate {
     updated_at: Date;
     inquiry?: Inquiry;
     project?: ClientProject | null;
+}
+
+export interface EstimateSnapshot {
+    id: number;
+    estimate_id: number;
+    version_number: number;
+    snapshotted_at: Date;
+    total_amount: number;
+    items_snapshot: Array<{
+        description: string;
+        category?: string | null;
+        quantity: number;
+        unit?: string | null;
+        unit_price: number;
+    }>;
+    label?: string | null;
 }
 
 export interface QuoteItem {
@@ -277,6 +296,13 @@ export interface Inquiry {
     estimates?: Estimate[];
     activity_logs?: unknown[];
     welcome_sent_at?: string | null;
+    lead_producer?: {
+        id: number;
+        name: string;
+        email?: string | null;
+        position_name?: string | null;
+        job_role_name?: string | null;
+    } | null;
 }
 
 export type InquiryTaskStatus = 'To_Do' | 'Ready_to_Start' | 'In_Progress' | 'Completed' | 'Archived';
@@ -288,6 +314,30 @@ export interface InquiryTaskEvent {
     triggered_by?: string | null;
     description: string;
     occurred_at: string;
+}
+
+export interface InquiryTaskSubtask {
+    id: number;
+    inquiry_task_id: number;
+    subtask_key: string;
+    name: string;
+    status: InquiryTaskStatus;
+    order_index: number;
+    is_auto_only: boolean;
+    completed_at: string | null;
+    completed_by_id: number | null;
+    job_role_id: number | null;
+    created_at: string;
+    updated_at: string;
+    completed_by?: {
+        id: number;
+        contact: { first_name: string; last_name: string; email?: string };
+    } | null;
+    job_role?: {
+        id: number;
+        name: string;
+        display_name?: string | null;
+    } | null;
 }
 
 export interface InquiryTask {
@@ -333,8 +383,121 @@ export interface InquiryTask {
     job_role?: {
         id: number;
         name: string;
+        display_name?: string | null;
     } | null;
+    subtasks?: InquiryTaskSubtask[];
     children?: InquiryTask[];
+}
+
+export interface InquiryAvailabilityAlternativeContributor {
+    id: number;
+    name: string;
+    email?: string | null;
+    is_current?: boolean;
+    conflicts?: InquiryAvailabilityConflict[];
+}
+
+export interface InquiryAvailabilityConflict {
+    type: 'project' | 'inquiry';
+    id: number | null;
+    title: string;
+    event_day_name?: string | null;
+    start_time?: string | null;
+    end_time?: string | null;
+}
+
+export interface InquiryCrewAvailabilityRow {
+    id: number;
+    position_name?: string | null;
+    job_role?: {
+        id: number;
+        name: string;
+        display_name?: string | null;
+        on_site?: boolean;
+    } | null;
+    event_day?: {
+        id: number;
+        name: string;
+        date: string;
+        start_time?: string | null;
+        end_time?: string | null;
+    } | null;
+    assigned_contributor?: {
+        id: number;
+        name: string;
+        email?: string | null;
+    } | null;
+    status: 'available' | 'conflict' | 'unassigned';
+    has_conflict: boolean;
+    conflict_reason?: string | null;
+    conflicts: InquiryAvailabilityConflict[];
+    alternatives: InquiryAvailabilityAlternativeContributor[];
+    is_on_site?: boolean;
+    availability_request_id?: number | null;
+    availability_request_status?: 'pending' | 'confirmed' | 'declined' | 'cancelled' | null;
+}
+
+export interface InquiryEquipmentAvailabilityAlternative {
+    id: number;
+    item_name: string;
+    item_code?: string | null;
+    category?: string | null;
+    type?: string | null;
+    is_current?: boolean;
+}
+
+export interface InquiryEquipmentAvailabilityRow {
+    id: number;
+    operator_id: number;
+    is_primary: boolean;
+    equipment: {
+        id: number;
+        item_name: string;
+        item_code?: string | null;
+        category?: string | null;
+        type?: string | null;
+        availability_status?: string | null;
+        rental_price_per_day?: number | null;
+        owner?: {
+            id: number;
+            name: string;
+            email?: string | null;
+            phone?: string | null;
+        } | null;
+    };
+    operator: {
+        id: number;
+        position_name?: string | null;
+        job_role?: {
+            id: number;
+            name: string;
+            display_name?: string | null;
+        } | null;
+    };
+    event_day?: {
+        id: number;
+        name: string;
+        date: string;
+        start_time?: string | null;
+        end_time?: string | null;
+    } | null;
+    status: 'available' | 'conflict';
+    has_conflict: boolean;
+    conflict_reason?: string | null;
+    conflicts: InquiryAvailabilityConflict[];
+    alternatives: InquiryEquipmentAvailabilityAlternative[];
+    equipment_reservation_id?: number | null;
+    equipment_reservation_status?: 'reserved' | 'confirmed' | 'cancelled' | null;
+}
+
+export interface InquiryAvailabilityResponse<T> {
+    inquiry_id: number;
+    rows: T[];
+    summary: {
+        total: number;
+        resolved: number;
+        conflicts: number;
+    };
 }
 
 export interface ClientProject {
@@ -867,6 +1030,70 @@ export interface ApplyScheduleToQuoteData {
     booking_date: string;
     event_date: string;
     total_amount: number;
+}
+
+// ── Crew Payment Template Types ──────────────────────────────────────────────
+
+export type CrewPaymentTriggerType =
+    | 'ON_BOOKING'
+    | 'ON_SHOOT_DAY'
+    | 'ON_COMPLETION'
+    | 'AFTER_DELIVERY'
+    | 'BEFORE_EVENT'
+    | 'AFTER_EVENT'
+    | 'ON_FIRST_EDIT'
+    | 'AFTER_ROUGH_CUT'
+    | 'NET_DAYS'
+    | 'ON_TASK_COMPLETE'
+    | 'RECURRING';
+export type CrewPaymentRoleType = 'on_site' | 'off_site';
+export type CrewPaymentTerms = 'DUE_ON_RECEIPT' | 'NET_7' | 'NET_14' | 'NET_30' | 'NET_60';
+export type CrewPaymentFrequency = 'WEEKLY' | 'FORTNIGHTLY' | 'MONTHLY';
+
+export interface CrewPaymentRule {
+    id?: number;
+    template_id?: number;
+    label: string;
+    amount_type: PaymentAmountType;
+    amount_value: number;
+    trigger_type: CrewPaymentTriggerType;
+    trigger_days?: number | null;
+    task_library_id?: number | null;
+    frequency?: CrewPaymentFrequency | null;
+    order_index?: number;
+}
+
+export interface CrewPaymentTemplate {
+    id: number;
+    brand_id: number;
+    name: string;
+    description?: string;
+    role_type: CrewPaymentRoleType;
+    payment_terms?: CrewPaymentTerms | null;
+    is_default: boolean;
+    is_active: boolean;
+    rules: CrewPaymentRule[];
+    created_at: Date;
+    updated_at: Date;
+}
+
+export interface CreateCrewPaymentTemplateData {
+    name: string;
+    description?: string;
+    role_type: CrewPaymentRoleType;
+    payment_terms?: CrewPaymentTerms;
+    is_default?: boolean;
+    rules: Omit<CrewPaymentRule, 'id' | 'template_id'>[];
+}
+
+export interface UpdateCrewPaymentTemplateData {
+    name?: string;
+    description?: string;
+    role_type?: CrewPaymentRoleType;
+    payment_terms?: CrewPaymentTerms;
+    is_default?: boolean;
+    is_active?: boolean;
+    rules?: Omit<CrewPaymentRule, 'id' | 'template_id'>[];
 }
 
 // ---------------------------------------------------------------------------

@@ -32,6 +32,7 @@ import {
     EquipmentCondition,
     EQUIPMENT_AVAILABILITY_COLORS,
     EQUIPMENT_CONDITION_COLORS,
+    Contributor,
 } from "@/lib/types";
 import { useBrand } from "@/app/providers/BrandProvider";
 import { formatCurrency, getCurrencySymbol } from "@/lib/utils/formatUtils";
@@ -39,6 +40,7 @@ import { formatCurrency, getCurrencySymbol } from "@/lib/utils/formatUtils";
 interface EquipmentTableProps {
     equipment: Equipment[];
     type: string;
+    contributors: Contributor[];
     inlineEditingEquipment: number | null;
     inlineEditData: Partial<Equipment>;
     updateInlineEditData: (field: keyof Equipment, value: unknown) => void;
@@ -57,6 +59,7 @@ interface EquipmentTableProps {
 export function EquipmentTable({
     equipment,
     type,
+    contributors,
     inlineEditingEquipment,
     inlineEditData,
     updateInlineEditData,
@@ -101,7 +104,9 @@ export function EquipmentTable({
                             <MoneyIcon fontSize="small" sx={{ verticalAlign: "middle", mr: 0.75 }} />
                             {currencySymbol} Daily Rate
                         </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 600, minWidth: 130 }}>Purchase Price</TableCell>
                         <TableCell sx={{ fontWeight: 600, minWidth: 120 }}>Location</TableCell>
+                        <TableCell sx={{ fontWeight: 600, minWidth: 140 }}>Owner</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 600, minWidth: 150 }}>Actions</TableCell>
                     </TableRow>
                 </TableHead>
@@ -253,6 +258,26 @@ export function EquipmentTable({
                                     )}
                                 </TableCell>
 
+                                {/* Purchase Price */}
+                                <TableCell align="center" onClick={(e) => isEditing && e.stopPropagation()}>
+                                    {isEditing ? (
+                                        <TextField
+                                            type="number"
+                                            value={displayData.purchase_price || 0}
+                                            onChange={(e) => updateInlineEditData('purchase_price', parseFloat(e.target.value) || 0)}
+                                            size="small"
+                                            fullWidth
+                                            variant="outlined"
+                                            InputProps={{
+                                                startAdornment: currencySymbol,
+                                            }}
+                                        />) : (
+                                        <Typography variant="body2" fontWeight={600}>
+                                            {formatCurrency(parseFloat(String(item.purchase_price || 0)), currencyCode)}
+                                        </Typography>
+                                    )}
+                                </TableCell>
+
                                 {/* Location */}
                                 <TableCell onClick={(e) => isEditing && e.stopPropagation()}>
                                     {isEditing ? (
@@ -266,6 +291,30 @@ export function EquipmentTable({
                                     ) : (
                                         <Typography variant="body2">
                                             {item.location || 'Not specified'}
+                                        </Typography>
+                                    )}
+                                </TableCell>
+
+                                {/* Owner */}
+                                <TableCell onClick={(e) => isEditing && e.stopPropagation()}>
+                                    {isEditing ? (
+                                        <FormControl fullWidth size="small">
+                                            <Select
+                                                value={displayData.owner_id ?? ''}
+                                                onChange={(e) => updateInlineEditData('owner_id', e.target.value === '' ? null : Number(e.target.value))}
+                                                displayEmpty
+                                            >
+                                                <MenuItem value=""><em>None</em></MenuItem>
+                                                {contributors.map((c) => (
+                                                    <MenuItem key={c.id} value={c.id}>{c.full_name}</MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                    ) : (
+                                        <Typography variant="body2">
+                                            {item.owner
+                                                ? `${item.owner.contact?.first_name ?? ''} ${item.owner.contact?.last_name ?? ''}`.trim() || 'Unknown'
+                                                : '—'}
                                         </Typography>
                                     )}
                                 </TableCell>
@@ -409,6 +458,22 @@ export function EquipmentTable({
                                 />
                             </TableCell>
 
+                            {/* Purchase Price */}
+                            <TableCell>
+                                <TextField
+                                    type="number"
+                                    placeholder="0.00"
+                                    value={quickAddData.purchase_price || ''}
+                                    onChange={(e) => updateQuickAddData('purchase_price', parseFloat(e.target.value) || 0)}
+                                    size="small"
+                                    fullWidth
+                                    variant="outlined"
+                                    InputProps={{
+                                        startAdornment: currencySymbol,
+                                    }}
+                                />
+                            </TableCell>
+
                             {/* Location */}
                             <TableCell>
                                 <TextField
@@ -419,6 +484,22 @@ export function EquipmentTable({
                                     fullWidth
                                     variant="outlined"
                                 />
+                            </TableCell>
+
+                            {/* Owner */}
+                            <TableCell>
+                                <FormControl fullWidth size="small">
+                                    <Select
+                                        value={quickAddData.owner_id ?? ''}
+                                        onChange={(e) => updateQuickAddData('owner_id', e.target.value === '' ? null : Number(e.target.value))}
+                                        displayEmpty
+                                    >
+                                        <MenuItem value=""><em>None</em></MenuItem>
+                                        {contributors.map((c) => (
+                                            <MenuItem key={c.id} value={c.id}>{c.full_name}</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
                             </TableCell>
 
                             {/* Actions */}

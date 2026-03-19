@@ -7,11 +7,13 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { ProjectsModule } from '../projects/projects.module';
 import { ScheduleModule } from '../content/schedule/schedule.module';
 import { InquiryTasksModule } from '../inquiry-tasks/inquiry-tasks.module';
+import { InquiryAvailabilityService } from './inquiry-availability.service';
+import { EstimatesModule } from '../estimates/estimates.module';
 
 @Module({
-    imports: [PrismaModule, ProjectsModule, ScheduleModule, InquiryTasksModule],
+    imports: [PrismaModule, ProjectsModule, ScheduleModule, InquiryTasksModule, EstimatesModule],
     controllers: [InquiriesController, PublicClientPortalController],
-    providers: [InquiriesService, ClientPortalService],
-    exports: [InquiriesService, ClientPortalService],
+    providers: [InquiriesService, ClientPortalService, InquiryAvailabilityService],
+    exports: [InquiriesService, ClientPortalService, InquiryAvailabilityService],
 })
 export class InquiriesModule { }

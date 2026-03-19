@@ -17,6 +17,7 @@ export interface PreviewTaskRow {
     hourly_rate: number | null;
     estimated_cost: number | null;
     film_name?: string | null;
+    due_date_offset_days?: number | null;
 }
 
 @Injectable()
@@ -165,6 +166,9 @@ export class TaskLibraryService {
                     },
                 },
                 task_library_skill_rates: true,
+                task_library_subtask_templates: {
+                    orderBy: { order_index: 'asc' },
+                },
                 children: {
                     include: {
                         default_job_role: {
@@ -187,6 +191,9 @@ export class TaskLibraryService {
                             },
                         },
                         task_library_skill_rates: true,
+                        task_library_subtask_templates: {
+                            orderBy: { order_index: 'asc' },
+                        },
                     },
                     orderBy: { order_index: 'asc' },
                 },
@@ -259,6 +266,9 @@ export class TaskLibraryService {
                     },
                 },
                 task_library_skill_rates: true,
+                task_library_subtask_templates: {
+                    orderBy: { order_index: 'asc' },
+                },
             },
         });
 
@@ -668,16 +678,16 @@ export class TaskLibraryService {
      * contents (films, event days, crew, locations, activities) to calculate
      * how many tasks of each type would be created.
      */
-    async previewAutoGeneration(packageId: number, brandId: number, userId: number, inquiryId?: number) {
+    async previewAutoGeneration(packageId: number, brandId: number, userId: number, inquiryId?: number, projectId?: number) {
         await this.checkBrandAccess(brandId, userId);
-        return this.previewAutoGenerationCore(packageId, brandId, inquiryId);
+        return this.previewAutoGenerationCore(packageId, brandId, inquiryId, projectId);
     }
 
-    async previewAutoGenerationForSystem(packageId: number, brandId: number, inquiryId?: number) {
-        return this.previewAutoGenerationCore(packageId, brandId, inquiryId);
+    async previewAutoGenerationForSystem(packageId: number, brandId: number, inquiryId?: number, projectId?: number) {
+        return this.previewAutoGenerationCore(packageId, brandId, inquiryId, projectId);
     }
 
-    private async previewAutoGenerationCore(packageId: number, brandId: number, inquiryId?: number) {
+    private async previewAutoGenerationCore(packageId: number, brandId: number, inquiryId?: number, projectId?: number) {
         // 0. Fetch package first so we can validate it and use its contents as the
         //    authoritative list of which films belong to this package.
         const pkg = await this.prisma.service_packages.findUnique({
@@ -722,6 +732,13 @@ export class TaskLibraryService {
         }
 
         // 1. Fetch package contents counts
+        // When a project or inquiry context is available, use instance operator count so
+        // per_crew_member triggers reflect the actual crew assigned to this instance.
+        const instanceOperatorWhere = projectId
+            ? { project_id: projectId }
+            : inquiryId
+            ? { inquiry_id: inquiryId }
+            : null;
         const [
             filmCount,
             eventDayCount,
@@ -733,7 +750,9 @@ export class TaskLibraryService {
         ] = await Promise.all([
             this.prisma.packageFilm.count({ where: packageFilmWhere }),
             this.prisma.packageEventDay.count({ where: { package_id: packageId } }),
-            this.prisma.packageDayOperator.count({ where: { package_id: packageId } }),
+            instanceOperatorWhere
+                ? this.prisma.projectDayOperator.count({ where: instanceOperatorWhere })
+                : this.prisma.packageDayOperator.count({ where: { package_id: packageId } }),
             this.prisma.packageEventDayLocation.count({ where: { package_id: packageId } }),
             this.prisma.packageActivity.count({ where: { package_id: packageId } }),
             // Count activity×crew assignments for per_activity_crew trigger
@@ -763,15 +782,39 @@ export class TaskLibraryService {
             ],
         });
 
-        // 2-role. Fetch crew operators for role→crew matching in preview
-        const operators = await this.prisma.packageDayOperator.findMany({
-            where: { package_id: packageId },
-            include: {
-                contributor: { include: { contact: { select: { first_name: true, last_name: true } } } },
-                job_role: { select: { id: true, name: true, display_name: true } },
-            },
-            orderBy: { order_index: 'asc' },
-        });
+        // 2-role. Fetch crew operators for role→crew matching in preview.
+        // When a project or inquiry context is provided, use instance operators so the preview
+        // reflects the actual crew assigned to this project/inquiry and avoids double-counting
+        // costs between the task preview (package-based) and the day-rate overlay (instance-based).
+        const operatorInclude = {
+            contributor: { include: { contact: { select: { first_name: true, last_name: true } } } },
+            job_role: { select: { id: true, name: true, display_name: true } },
+        } as const;
+        // Both PackageDayOperator and ProjectDayOperator expose the same fields accessed below
+        // (contributor_id, contributor, job_role_id, job_role, position_name, order_index).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let operators: any[];
+        if (instanceOperatorWhere) {
+            // Use instance operators; fall back to package if instance has none yet
+            const instanceOps = await this.prisma.projectDayOperator.findMany({
+                where: instanceOperatorWhere,
+                include: operatorInclude,
+                orderBy: { order_index: 'asc' },
+            });
+            operators = instanceOps.length > 0
+                ? instanceOps
+                : await this.prisma.packageDayOperator.findMany({
+                    where: { package_id: packageId },
+                    include: operatorInclude,
+                    orderBy: { order_index: 'asc' },
+                });
+        } else {
+            operators = await this.prisma.packageDayOperator.findMany({
+                where: { package_id: packageId },
+                include: operatorInclude,
+                orderBy: { order_index: 'asc' },
+            });
+        }
 
         // 2-role. Fetch contributor bracket levels for tier-aware assignment
         const opContributorIds = operators
@@ -1350,11 +1393,14 @@ export class TaskLibraryService {
 
         // 5. Compute estimated_cost per task and group by phase (hourly_rate × total_hours)
         // Drop zero-instance tasks (e.g. per_film_with_music when no films have music)
+        // Build a lookup for offset days from the original task_library records
+        const offsetDaysMap = new Map(tasks.map(t => [t.id, t.due_date_offset_days ?? null]));
+
         const tasksWithCost: PreviewTaskRow[] = generatedTasks.filter(t => t.total_instances > 0).map(t => {
             const estimated_cost = (t.hourly_rate !== null && t.hourly_rate !== undefined && t.total_hours > 0)
                 ? Math.round(t.hourly_rate * t.total_hours * 100) / 100
                 : null;
-            return { ...t, estimated_cost };
+            return { ...t, estimated_cost, due_date_offset_days: offsetDaysMap.get(t.task_library_id) ?? null };
         });
 
         // Re-group with cost

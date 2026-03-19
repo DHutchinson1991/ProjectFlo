@@ -52,4 +52,20 @@ export class EstimatesController {
   ) {
     return this.estimatesService.send(inquiryId, id);
   }
+
+  @Post(':id/refresh')
+  refresh(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.estimatesService.refreshItems(inquiryId, id);
+  }
+
+  @Get(':id/snapshots')
+  getSnapshots(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.estimatesService.getSnapshots(inquiryId, id);
+  }
 }

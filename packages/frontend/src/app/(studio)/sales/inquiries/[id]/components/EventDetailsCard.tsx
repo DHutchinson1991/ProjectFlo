@@ -10,8 +10,6 @@ import {
     TextField,
     IconButton,
     Chip,
-    Checkbox,
-    FormControlLabel,
     CircularProgress,
 } from '@mui/material';
 import {
@@ -21,8 +19,9 @@ import {
     AccessTime,
     NearMe,
     LocationOff,
-    ErrorOutline,
-    WarningAmber,
+    Groups,
+    Notes,
+    Schedule,
 } from '@mui/icons-material';
 import CelebrationIcon from '@mui/icons-material/Celebration';
 import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
@@ -222,78 +221,12 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         geocodeBrandAddress(parts.join(', ')).then(setBrandCoords);
     }, [currentBrand]);
 
-    // ── Date conflict check ──
-    const [dateConflicts, setDateConflicts] = useState<{
-        wedding_date: string | null;
-        booked_conflicts: { type: string; id: number; name: string; status: string }[];
-        soft_conflicts: { type: string; id: number; name: string; status: string }[];
-    } | null>(null);
-    const [loadingConflicts, setLoadingConflicts] = useState(false);
-
-    useEffect(() => {
-        if (!submission?.id) return;
-        setLoadingConflicts(true);
-        api.needsAssessmentSubmissions.checkDateConflicts(submission.id)
-            .then(setDateConflicts)
-            .catch(() => setDateConflicts(null))
-            .finally(() => setLoadingConflicts(false));
-    }, [submission?.id]);
-
-    const hasConflicts = dateConflicts &&
-        (dateConflicts.booked_conflicts.length > 0 || dateConflicts.soft_conflicts.length > 0);
-
-    // ── Review checklist state ──
-    const existingChecklist = (submission?.review_checklist_state ?? {}) as Record<string, boolean>;
-
-    // ── Date available check (pre-checked when no conflicts) ──
-    const [dateAvailable, setDateAvailable] = useState<boolean | null>(
-        existingChecklist['date_available'] != null ? existingChecklist['date_available'] : null,
-    );
-
-    // After conflict check finishes, auto-set if user hasn't already decided
-    useEffect(() => {
-        if (loadingConflicts || !dateConflicts) return;
-        // Only auto-set when there's no saved preference
-        if (existingChecklist['date_available'] != null) return;
-        const clear = dateConflicts.booked_conflicts.length === 0 && dateConflicts.soft_conflicts.length === 0;
-        setDateAvailable(clear);
-        // Persist the auto-determined value
-        if (submission) {
-            api.needsAssessmentSubmissions.review(submission.id, {
-                review_checklist_state: { ...existingChecklist, date_available: clear },
-            }).catch(() => { /* silent – fire and forget */ });
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [loadingConflicts, dateConflicts]);
-
-    const handleDateAvailableToggle = async () => {
-        if (!submission) return;
-        const next = !(dateAvailable ?? false);
-        setDateAvailable(next);
-        try {
-            await api.needsAssessmentSubmissions.review(submission.id, {
-                review_checklist_state: { ...existingChecklist, date_available: next },
-            });
-        } catch (_e) {
-            setDateAvailable(!next);
-        }
-    };
-
-    // ── Venue feasibility manual check ──
-    const [venueFeasibility, setVenueFeasibility] = useState(existingChecklist['venue_feasibility'] ?? false);
-
-    const handleVenueFeasibilityToggle = async () => {
-        if (!submission) return;
-        const next = !venueFeasibility;
-        setVenueFeasibility(next);
-        try {
-            await api.needsAssessmentSubmissions.review(submission.id, {
-                review_checklist_state: { ...existingChecklist, venue_feasibility: next },
-            });
-        } catch (_e) {
-            setVenueFeasibility(!next); // revert on failure
-        }
-    };
+    const partnerName = responses.partner_name;
+    const guestCount = responses.guest_count;
+    const specialRequests = responses.special_requests;
+    const birthdayPerson = responses.birthday_person_name;
+    const birthdayRelation = responses.birthday_relation;
+    const isBirthdayPerson = responses.is_birthday_person;
 
     // ── Event type + approx date from NA ──
     const eventType = responses.event_type;
@@ -546,7 +479,7 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                         <AccessTime sx={{ color: '#475569', fontSize: 20 }} />
                                     </Box>
                                 )}
-                                <Box>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
                                     <Typography sx={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.95rem', lineHeight: 1.3 }}>
                                         {displayDate}
                                     </Typography>
@@ -559,7 +492,53 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                         </Typography>
                                     )}
                                 </Box>
+                                {guestCount && (
+                                    <Box sx={{
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                        gap: 0.4, flexShrink: 0, pl: 1.5,
+                                        borderLeft: '1px solid rgba(100,116,139,0.2)',
+                                    }}>
+                                        <Groups sx={{ fontSize: 22, color: '#06b6d4' }} />
+                                        <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#e2e8f0', lineHeight: 1 }}>
+                                            {guestCount}
+                                        </Typography>
+                                        <Typography sx={{ fontSize: '0.6rem', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1 }}>
+                                            Guests
+                                        </Typography>
+                                    </Box>
+                                )}
                             </Box>
+
+                            {/* Inquiry validity period */}
+                            {(() => {
+                                const validityDays = currentBrand?.inquiry_validity_days ?? 14;
+                                const createdDate = new Date(inquiry.created_at);
+                                const expiresDate = new Date(createdDate);
+                                expiresDate.setDate(expiresDate.getDate() + validityDays);
+                                const now = new Date();
+                                const daysLeft = Math.ceil((expiresDate.getTime() - now.getTime()) / 86_400_000);
+                                const isExpired = daysLeft < 0;
+                                const isUrgent = daysLeft >= 0 && daysLeft <= 3;
+                                const color = isExpired ? '#ef4444' : isUrgent ? '#f59e0b' : '#64748b';
+                                const label = isExpired
+                                    ? 'Inquiry expired'
+                                    : daysLeft === 0 ? 'Expires today'
+                                    : `${daysLeft}d left`;
+                                return (
+                                    <Box sx={{
+                                        display: 'flex', alignItems: 'center', gap: 1,
+                                        mb: 2, px: 0.5,
+                                    }}>
+                                        <Schedule sx={{ fontSize: 14, color }} />
+                                        <Typography sx={{ fontSize: '0.7rem', color, fontWeight: 600 }}>
+                                            {label}
+                                        </Typography>
+                                        <Typography sx={{ fontSize: '0.65rem', color: '#475569' }}>
+                                            · Offer valid {validityDays} days (expires {expiresDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})
+                                        </Typography>
+                                    </Box>
+                                );
+                            })()}
 
                             {/* Venue / Ceremony location row (when no map) */}
                             {!hasVenueCoords && (
@@ -702,97 +681,48 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                         )}
                     </Box>
 
-                    {/* ── Date conflict & review checks ── */}
-                    {submission && (
-                        <Box sx={{
-                            px: 2.5, py: 1.5,
-                            borderTop: '1px solid rgba(52, 58, 68, 0.3)',
-                        }}>
-                            {/* Date availability check */}
-                            {loadingConflicts ? (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
-                                    <CircularProgress size={14} sx={{ color: '#64748b' }} />
-                                    <Typography sx={{ fontSize: '0.72rem', color: '#64748b' }}>Checking date conflicts…</Typography>
-                                </Box>
-                            ) : dateConflicts && (
-                                <Box sx={{ mb: 1 }}>
-                                    {/* Conflict details (shown above checkbox when conflicts exist) */}
-                                    {hasConflicts && (
-                                        <Stack spacing={0.5} sx={{ mb: 1 }}>
-                                            {dateConflicts.booked_conflicts.map((c) => (
-                                                <Box key={c.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                                    <ErrorOutline sx={{ fontSize: 14, color: '#ef4444' }} />
-                                                    <Typography sx={{ fontSize: '0.72rem', color: '#fca5a5' }}>
-                                                        Booked conflict: {c.name}
-                                                    </Typography>
-                                                </Box>
-                                            ))}
-                                            {dateConflicts.soft_conflicts.map((c) => (
-                                                <Box key={c.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                                    <WarningAmber sx={{ fontSize: 14, color: '#f59e0b' }} />
-                                                    <Typography sx={{ fontSize: '0.72rem', color: '#fcd34d' }}>
-                                                        Soft conflict: {c.name}
-                                                    </Typography>
-                                                </Box>
-                                            ))}
-                                        </Stack>
-                                    )}
+                    {/* ── Partner / birthday / notes summary ── */}
+                    {(partnerName || specialRequests || birthdayPerson || isBirthdayPerson === 'yes') && (
+                        <Box sx={{ px: 2.5, py: 1.75, borderTop: '1px solid rgba(52, 58, 68, 0.3)' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1.2 }}>
+                                {partnerName && (
+                                    <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.1)' }}>
+                                        <Typography sx={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.4 }}>
+                                            Partner
+                                        </Typography>
+                                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0' }}>
+                                            {partnerName}
+                                        </Typography>
+                                    </Box>
+                                )}
 
-                                    {/* Date available checkbox */}
-                                    <FormControlLabel
-                                        control={
-                                            <Checkbox
-                                                size="small"
-                                                checked={dateAvailable ?? false}
-                                                onChange={handleDateAvailableToggle}
-                                                sx={{
-                                                    color: hasConflicts ? '#ef4444' : '#475569',
-                                                    '&.Mui-checked': { color: '#10b981' },
-                                                    p: 0.5,
-                                                }}
-                                            />
-                                        }
-                                        label={
-                                            <Typography sx={{
-                                                fontSize: '0.72rem',
-                                                color: (dateAvailable ?? false)
-                                                    ? '#10b981'
-                                                    : hasConflicts ? '#fca5a5' : '#94a3b8',
-                                                fontWeight: hasConflicts && !(dateAvailable ?? false) ? 600 : 400,
-                                            }}>
-                                                {(dateAvailable ?? false)
-                                                    ? "I'm free on this date"
-                                                    : hasConflicts
-                                                        ? 'I can still do this date'
-                                                        : "I'm free on this date"}
-                                            </Typography>
-                                        }
-                                        sx={{ ml: -0.5 }}
-                                    />
+                                {(birthdayPerson || isBirthdayPerson === 'yes') && (
+                                    <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.1)' }}>
+                                        <Typography sx={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.4 }}>
+                                            Birthday Person
+                                        </Typography>
+                                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0' }}>
+                                            {birthdayPerson
+                                                ? `${birthdayPerson}${birthdayRelation ? ` (${birthdayRelation})` : ''}`
+                                                : 'Contact is the birthday person'}
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </Box>
+
+                            {specialRequests && (
+                                <Box sx={{ mt: 1.2, p: 1.2, borderRadius: 2, bgcolor: 'rgba(6,182,212,0.04)', border: '1px solid rgba(6,182,212,0.08)' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mb: 0.45 }}>
+                                        <Notes sx={{ fontSize: 14, color: '#94a3b8' }} />
+                                        <Typography sx={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            Special Requests
+                                        </Typography>
+                                    </Box>
+                                    <Typography sx={{ fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.5 }}>
+                                        {specialRequests}
+                                    </Typography>
                                 </Box>
                             )}
-
-                            {/* Venue feasibility check */}
-                            <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        size="small"
-                                        checked={venueFeasibility}
-                                        onChange={handleVenueFeasibilityToggle}
-                                        sx={{
-                                            color: '#475569',
-                                            '&.Mui-checked': { color: '#10b981' },
-                                            p: 0.5,
-                                        }}
-                                    />
-                                }
-                                label={
-                                    <Typography sx={{ fontSize: '0.72rem', color: venueFeasibility ? '#10b981' : '#94a3b8' }}>
-                                        I can film at this venue
-                                    </Typography>
-                                }
-                                sx={{ ml: -0.5 }}
-                            />
                         </Box>
                     )}
                     </>

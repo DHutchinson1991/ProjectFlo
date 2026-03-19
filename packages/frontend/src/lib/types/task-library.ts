@@ -66,6 +66,19 @@ export interface TaskLibrary extends BaseEntity {
     is_stage?: boolean;
     stage_color?: string | null;
     children?: TaskLibrary[];
+    task_library_subtask_templates?: TaskLibrarySubtaskTemplate[];
+}
+
+// Task library subtask template interface
+export interface TaskLibrarySubtaskTemplate {
+    id: number;
+    task_library_id: number;
+    subtask_key: string;
+    name: string;
+    order_index: number;
+    is_auto_only: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
 // Task library benchmark interface
@@ -228,6 +241,7 @@ export interface TaskAutoGenerationPreviewTask {
     hourly_rate?: number | null;
     estimated_cost?: number | null;
     film_name?: string | null;
+    due_date_offset_days?: number | null;
 }
 
 export interface TaskAutoGenerationPreview {
@@ -306,6 +320,8 @@ export interface ExecuteAutoGenerationDto {
 export interface ActiveTask {
     id: number;
     source: 'inquiry' | 'project';
+    task_kind?: 'task' | 'subtask';
+    subtask_key?: string | null;
     inquiry_id: number | null;
     project_id: number | null;
     name: string;
@@ -323,8 +339,10 @@ export interface ActiveTask {
     priority: string | null;
     is_stage: boolean;
     parent_task_id: number | null;
+    subtask_parent_id?: number | null;
     stage_color: string | null;
     is_auto_only?: boolean;
     children_count?: number;
     children_completed?: number;
+    job_role?: { id: number; name: string; display_name?: string | null } | null;
 }

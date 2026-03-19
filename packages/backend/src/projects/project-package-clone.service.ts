@@ -565,7 +565,9 @@ export class ProjectPackageCloneService {
 
     return this.prisma.$transaction(async (tx) => {
       await this._deleteInstanceData(tx, { project_id: projectId });
-      return this._clone(tx, { projectId, packageId: project.source_package_id! });
+      const result = await this._clone(tx, { projectId, packageId: project.source_package_id! });
+      await this._reassignProjectTasksFromCrew(tx, projectId);
+      return result;
     });
   }
 
@@ -610,7 +612,9 @@ export class ProjectPackageCloneService {
 
     return this.prisma.$transaction(async (tx) => {
       await this._deleteInstanceData(tx, { inquiry_id: inquiryId });
-      return this._clone(tx, { inquiryId, packageId });
+      const result = await this._clone(tx, { inquiryId, packageId });
+      await this._reassignInquiryTasksFromCrew(tx, inquiryId);
+      return result;
     });
   }
 
@@ -655,6 +659,213 @@ export class ProjectPackageCloneService {
     await tx.projectEventDay.deleteMany({ where });
 
     this.logger.debug(`Deleted all instance data for ${JSON.stringify(owner)}`);
+  }
+
+  private async _reassignProjectTasksFromCrew(
+    tx: Prisma.TransactionClient,
+    projectId: number,
+  ) {
+    const operators = await tx.projectDayOperator.findMany({
+      where: { project_id: projectId, contributor_id: { not: null }, job_role_id: { not: null } },
+      select: {
+        contributor_id: true,
+        job_role_id: true,
+      },
+    });
+
+    if (operators.length === 0) {
+      await tx.project_tasks.updateMany({
+        where: { project_id: projectId, is_active: true },
+        data: { assigned_to_id: null },
+      });
+      return;
+    }
+
+    const contributorRoleRows = await tx.contributor_job_roles.findMany({
+      where: {
+        contributor_id: { in: operators.map((operator) => operator.contributor_id!) },
+      },
+      include: {
+        payment_bracket: { select: { level: true } },
+      },
+    });
+
+    const validAssignments = new Set(
+      contributorRoleRows.map((row) => `${row.contributor_id}-${row.job_role_id}`),
+    );
+    const roleToCrew = new Map<number, Array<{ contributorId: number; bracketLevel: number }>>();
+
+    for (const operator of operators) {
+      const contributorId = operator.contributor_id;
+      const jobRoleId = operator.job_role_id;
+      if (!contributorId || !jobRoleId) continue;
+      if (!validAssignments.has(`${contributorId}-${jobRoleId}`)) continue;
+
+      const bracketLevel =
+        contributorRoleRows.find(
+          (row) => row.contributor_id === contributorId && row.job_role_id === jobRoleId,
+        )?.payment_bracket?.level ?? 0;
+
+      if (!roleToCrew.has(jobRoleId)) {
+        roleToCrew.set(jobRoleId, []);
+      }
+      const list = roleToCrew.get(jobRoleId)!;
+      if (!list.some((entry) => entry.contributorId === contributorId)) {
+        list.push({ contributorId, bracketLevel });
+      }
+    }
+
+    for (const [, list] of roleToCrew) {
+      list.sort((left, right) => left.bracketLevel - right.bracketLevel);
+    }
+
+    const pickCrewForBracket = (
+      roleId: number,
+      taskBracketLevel: number | null,
+    ): number | null => {
+      const list = roleToCrew.get(roleId);
+      if (!list || list.length === 0) return null;
+      if (list.length === 1) return list[0].contributorId;
+      if (taskBracketLevel === null || taskBracketLevel <= 0) {
+        return list[0].contributorId;
+      }
+
+      let best = list[0];
+      let bestDistance = Math.abs(best.bracketLevel - taskBracketLevel);
+      for (const candidate of list) {
+        const distance = Math.abs(candidate.bracketLevel - taskBracketLevel);
+        if (
+          distance < bestDistance ||
+          (distance === bestDistance && candidate.bracketLevel < best.bracketLevel)
+        ) {
+          best = candidate;
+          bestDistance = distance;
+        }
+      }
+
+      return best.contributorId;
+    };
+
+    const tasks = await tx.project_tasks.findMany({
+      where: { project_id: projectId, is_active: true },
+      select: {
+        id: true,
+        resolved_job_role_id: true,
+        task_library: {
+          select: {
+            default_job_role_id: true,
+          },
+        },
+        resolved_bracket: {
+          select: {
+            level: true,
+          },
+        },
+      },
+    });
+
+    await Promise.all(
+      tasks.map((task) => {
+        const roleId = task.task_library?.default_job_role_id ?? task.resolved_job_role_id;
+        if (!roleId) {
+          return Promise.resolve(null);
+        }
+
+        const assignedToId = pickCrewForBracket(roleId, task.resolved_bracket?.level ?? null);
+        return tx.project_tasks.update({
+          where: { id: task.id },
+          data: { assigned_to_id: assignedToId },
+        });
+      }),
+    );
+  }
+
+  private async _reassignInquiryTasksFromCrew(
+    tx: Prisma.TransactionClient,
+    inquiryId: number,
+  ) {
+    const operators = await tx.projectDayOperator.findMany({
+      where: { inquiry_id: inquiryId, contributor_id: { not: null }, job_role_id: { not: null } },
+      select: {
+        contributor_id: true,
+        job_role_id: true,
+      },
+    });
+
+    if (operators.length === 0) {
+      await tx.inquiry_tasks.updateMany({
+        where: { inquiry_id: inquiryId, is_active: true, is_stage: false },
+        data: { assigned_to_id: null },
+      });
+      return;
+    }
+
+    const contributorRoleRows = await tx.contributor_job_roles.findMany({
+      where: {
+        contributor_id: { in: operators.map((operator) => operator.contributor_id!) },
+      },
+      include: {
+        payment_bracket: { select: { level: true } },
+      },
+    });
+
+    const validAssignments = new Set(
+      contributorRoleRows.map((row) => `${row.contributor_id}-${row.job_role_id}`),
+    );
+    const roleToCrew = new Map<number, Array<{ contributorId: number; bracketLevel: number }>>();
+
+    for (const operator of operators) {
+      const contributorId = operator.contributor_id;
+      const jobRoleId = operator.job_role_id;
+      if (!contributorId || !jobRoleId) continue;
+      if (!validAssignments.has(`${contributorId}-${jobRoleId}`)) continue;
+
+      const bracketLevel =
+        contributorRoleRows.find(
+          (row) => row.contributor_id === contributorId && row.job_role_id === jobRoleId,
+        )?.payment_bracket?.level ?? 0;
+
+      if (!roleToCrew.has(jobRoleId)) {
+        roleToCrew.set(jobRoleId, []);
+      }
+      const list = roleToCrew.get(jobRoleId)!;
+      if (!list.some((entry) => entry.contributorId === contributorId)) {
+        list.push({ contributorId, bracketLevel });
+      }
+    }
+
+    for (const [, list] of roleToCrew) {
+      list.sort((left, right) => left.bracketLevel - right.bracketLevel);
+    }
+
+    const pickCrewForRole = (roleId: number): number | null => {
+      const list = roleToCrew.get(roleId);
+      if (!list || list.length === 0) return null;
+      return list[0].contributorId;
+    };
+
+    const tasks = await tx.inquiry_tasks.findMany({
+      where: { inquiry_id: inquiryId, is_active: true, is_stage: false },
+      select: {
+        id: true,
+        job_role_id: true,
+      },
+    });
+
+    await Promise.all(
+      tasks.map((task) => {
+        const roleId = task.job_role_id;
+        if (!roleId) {
+          return Promise.resolve(null);
+        }
+
+        const assignedToId = pickCrewForRole(roleId);
+        return tx.inquiry_tasks.update({
+          where: { id: task.id },
+          data: { assigned_to_id: assignedToId },
+        });
+      }),
+    );
   }
 
   /**

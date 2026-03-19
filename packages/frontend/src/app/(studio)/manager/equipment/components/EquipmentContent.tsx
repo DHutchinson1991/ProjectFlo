@@ -6,7 +6,7 @@ import {
     Alert,
     CircularProgress,
 } from "@mui/material";
-import { Equipment, EquipmentByCategory, EquipmentCategory, EQUIPMENT_CATEGORY_LABELS } from "@/lib/types";
+import { Equipment, EquipmentByCategory, EquipmentCategory, EQUIPMENT_CATEGORY_LABELS, Contributor } from "@/lib/types";
 import { EquipmentHeader } from "./EquipmentHeader";
 import { EquipmentSummaryCards } from "./EquipmentSummaryCards";
 import { CategoryCardsGrid } from "./CategoryCardsGrid";
@@ -21,6 +21,7 @@ interface EquipmentContentProps {
     setError: (error: string | null) => void;
     onCategoryToggle: (category: string) => void;
     onCategoryCardClick: (category: string) => void;
+    contributors: Contributor[];
     inlineEditingEquipment: number | null;
     inlineEditData: Partial<Equipment>;
     updateInlineEditData: (field: keyof Equipment, value: unknown) => void;
@@ -51,6 +52,7 @@ export function EquipmentContent({
     setError,
     onCategoryToggle,
     onCategoryCardClick,
+    contributors,
     inlineEditingEquipment,
     inlineEditData,
     updateInlineEditData,
@@ -134,6 +136,7 @@ export function EquipmentContent({
             <EquipmentAccordionList
                 equipmentByCategory={equipmentByCategory}
                 onCategoryToggle={onCategoryToggle}
+                contributors={contributors}
                 inlineEditingEquipment={inlineEditingEquipment}
                 inlineEditData={inlineEditData}
                 updateInlineEditData={updateInlineEditData}

@@ -23,7 +23,7 @@ import {
 } from "@mui/material";
 import { MusicType, MUSIC_TYPE_LABELS } from "@/lib/types/domains/music";
 import type { TimelineTrack } from "@/lib/types/timeline";
-import { useContentBuilder } from "../../../context/ContentBuilderContext";
+import { useContentBuilder } from "../../../../context/ContentBuilderContext";
 import { getEquipmentLabelForTrackName } from "@/lib/utils/equipmentAssignments";
 
 interface SceneRecordingSetupDialogProps {

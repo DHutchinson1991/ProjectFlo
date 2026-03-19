@@ -187,7 +187,13 @@ function ScheduleEditorContent({
         setTaskPreviewError(null);
         try {
             const inquiryId = owner.type === 'inquiry' ? owner.id : undefined;
-            const previewData = await api.taskLibrary.previewAutoGeneration(sourcePackageId, safeBrandId, inquiryId);
+            const projectId = owner.type === 'project' ? owner.id : undefined;
+            const previewData = await api.taskLibrary.previewAutoGeneration(
+                sourcePackageId,
+                safeBrandId,
+                inquiryId,
+                projectId,
+            );
             setTaskPreview(previewData);
         } catch (err) {
             setTaskPreviewError(err instanceof Error ? err.message : 'Failed to load task preview');

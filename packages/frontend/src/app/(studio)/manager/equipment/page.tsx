@@ -9,6 +9,7 @@ import {
     EquipmentAvailability,
     EquipmentCondition,
     CreateEquipmentDto,
+    Contributor,
 } from "@/lib/types";
 import { useBrand } from "@/app/providers/BrandProvider";
 import { EquipmentContent } from "./components/EquipmentContent";
@@ -18,6 +19,7 @@ export default function EquipmentPage() {
 
     // State
     const [equipmentByCategory, setEquipmentByCategory] = useState<EquipmentByCategory>({});
+    const [contributors, setContributors] = useState<Contributor[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -75,6 +77,7 @@ export default function EquipmentPage() {
     useEffect(() => {
         if (currentBrand?.id) {
             loadEquipment();
+            api.contributors.getAll().then(setContributors).catch(console.error);
         }
     }, [currentBrand?.id]);
 
@@ -234,6 +237,7 @@ export default function EquipmentPage() {
             setError={setError}
             onCategoryToggle={toggleCategoryExpansion}
             onCategoryCardClick={handleCategoryCardClick}
+            contributors={contributors}
             inlineEditingEquipment={inlineEditingEquipment}
             inlineEditData={inlineEditData}
             updateInlineEditData={updateInlineEditData}

@@ -32,6 +32,9 @@ export interface Brand {
     cancellation_tier1_days?: number;
     cancellation_tier2_days?: number;
     cancellation_tier1_percent?: number;
+    crew_payment_terms?: string;
+    crew_response_deadline_days?: number;
+    inquiry_validity_days?: number;
     is_active: boolean;
     created_at: string;
     updated_at: string;

@@ -14,7 +14,7 @@ import {
     ExpandMore as ExpandMoreIcon,
     Add as AddIcon,
 } from "@mui/icons-material";
-import { Equipment, EquipmentCategoryGroup } from "@/lib/types";
+import { Equipment, EquipmentCategoryGroup, Contributor } from "@/lib/types";
 import { EquipmentTable } from "./EquipmentTable";
 import { EmptyEquipmentType } from "./EmptyEquipmentType";
 import { getCategoryIcon, getCategoryColor, getCategoryColorWithAlpha } from "../utils/categoryConfig";
@@ -22,6 +22,7 @@ import { getCategoryIcon, getCategoryColor, getCategoryColorWithAlpha } from "..
 interface EquipmentAccordionProps {
     group: EquipmentCategoryGroup;
     onTypeToggle: (type: string) => void;
+    contributors: Contributor[];
     inlineEditingEquipment: number | null;
     inlineEditData: Partial<Equipment>;
     updateInlineEditData: (field: keyof Equipment, value: unknown) => void;
@@ -41,6 +42,7 @@ interface EquipmentAccordionProps {
 export function EquipmentAccordion({
     group,
     onTypeToggle,
+    contributors,
     inlineEditingEquipment,
     inlineEditData,
     updateInlineEditData,
@@ -344,6 +346,7 @@ export function EquipmentAccordion({
                     <EquipmentTable
                         equipment={group.equipment}
                         type={group.category}
+                        contributors={contributors}
                         inlineEditingEquipment={inlineEditingEquipment}
                         inlineEditData={inlineEditData}
                         updateInlineEditData={updateInlineEditData}

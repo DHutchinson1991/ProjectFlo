@@ -2,12 +2,13 @@
 
 import React from "react";
 import { Box } from "@mui/material";
-import { Equipment, EquipmentByCategory } from "@/lib/types";
+import { Equipment, EquipmentByCategory, Contributor } from "@/lib/types";
 import { EquipmentAccordion } from "./EquipmentAccordion";
 
 interface EquipmentAccordionListProps {
     equipmentByCategory: EquipmentByCategory;
     onCategoryToggle: (category: string) => void;
+    contributors: Contributor[];
     inlineEditingEquipment: number | null;
     inlineEditData: Partial<Equipment>;
     updateInlineEditData: (field: keyof Equipment, value: unknown) => void;
@@ -27,6 +28,7 @@ interface EquipmentAccordionListProps {
 export function EquipmentAccordionList({
     equipmentByCategory,
     onCategoryToggle,
+    contributors,
     inlineEditingEquipment,
     inlineEditData,
     updateInlineEditData,
@@ -51,6 +53,7 @@ export function EquipmentAccordionList({
                         key={group.category}
                         group={group}
                         onTypeToggle={onCategoryToggle}
+                        contributors={contributors}
                         inlineEditingEquipment={inlineEditingEquipment}
                         inlineEditData={inlineEditData}
                         updateInlineEditData={updateInlineEditData}

@@ -71,6 +71,7 @@ interface SceneRecordingSetupModalProps {
         end_time?: string | null;
         duration_minutes?: number | null;
         package_event_day_id: number;
+        event_day_template_id?: number | null;
         dayName?: string;
     }>;
     /** Subjects from the package, assigned to activities */

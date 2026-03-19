@@ -211,6 +211,53 @@ export class InquiriesService {
                         name: true,
                     },
                 },
+                schedule_day_operators: {
+                    where: {
+                        contributor_id: { not: null },
+                        OR: [
+                            { position_name: { contains: 'producer', mode: 'insensitive' } },
+                            {
+                                job_role: {
+                                    is: {
+                                        name: { contains: 'producer', mode: 'insensitive' },
+                                    },
+                                },
+                            },
+                            {
+                                job_role: {
+                                    is: {
+                                        display_name: { contains: 'producer', mode: 'insensitive' },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                    orderBy: [{ order_index: 'asc' }],
+                    take: 1,
+                    select: {
+                        id: true,
+                        position_name: true,
+                        contributor: {
+                            select: {
+                                id: true,
+                                contact: {
+                                    select: {
+                                        first_name: true,
+                                        last_name: true,
+                                        email: true,
+                                    },
+                                },
+                            },
+                        },
+                        job_role: {
+                            select: {
+                                id: true,
+                                name: true,
+                                display_name: true,
+                            },
+                        },
+                    },
+                },
                 welcome_sent_at: true,
             },
         });
@@ -218,6 +265,17 @@ export class InquiriesService {
         if (!inquiry) {
             throw new NotFoundException(`Inquiry with ID ${id} not found`);
         }
+
+        const leadProducerAssignment = inquiry.schedule_day_operators[0] ?? null;
+        const leadProducer = leadProducerAssignment?.contributor
+            ? {
+                id: leadProducerAssignment.contributor.id,
+                name: `${leadProducerAssignment.contributor.contact.first_name} ${leadProducerAssignment.contributor.contact.last_name}`.trim(),
+                email: leadProducerAssignment.contributor.contact.email,
+                position_name: leadProducerAssignment.position_name,
+                job_role_name: leadProducerAssignment.job_role?.display_name ?? leadProducerAssignment.job_role?.name ?? null,
+            }
+            : null;
 
         return {
             id: inquiry.id,
@@ -255,6 +313,7 @@ export class InquiriesService {
             quotes: inquiry.quotes,
             contracts: inquiry.contracts,
             invoices: inquiry.invoices,
+            lead_producer: leadProducer,
         };
     }
 
@@ -426,13 +485,12 @@ export class InquiriesService {
             }
         }
 
+        // Re-evaluate review auto-subtasks when inquiry data changes.
+        await this.inquiryTasksService.syncReviewInquiryAutoSubtasks(id);
+
         // Status-change hooks
         if (inquiryData.status && inquiryData.status !== existingInquiry.status) {
             const newStatus = inquiryData.status as string;
-
-            if (newStatus === 'Contacted') {
-                await this.inquiryTasksService.autoCompleteByName(id, 'Qualify & Respond');
-            }
 
             if (newStatus === 'Booked') {
                 // Create a WEDDING_DAY calendar event if a wedding date exists
@@ -795,5 +853,51 @@ export class InquiriesService {
         await this.inquiryTasksService.autoCompleteByName(id, 'Send Welcome Pack');
 
         return { welcome_sent_at: updated.welcome_sent_at! };
+    }
+
+    async getDiscoveryCall(inquiryId: number, brandId: number) {
+        // Verify the inquiry is accessible
+        const inquiry = await this.prisma.inquiries.findFirst({
+            where: { id: inquiryId, archived_at: null, contact: { brand_id: brandId } },
+            select: { id: true },
+        });
+        if (!inquiry) throw new NotFoundException(`Inquiry ${inquiryId} not found`);
+
+        // Find the most relevant discovery call — prefer upcoming, fall back to most recent
+        const now = new Date();
+        const upcoming = await this.prisma.calendar_events.findFirst({
+            where: {
+                inquiry_id: inquiryId,
+                event_type: 'DISCOVERY_CALL',
+                start_time: { gte: now },
+            },
+            orderBy: { start_time: 'asc' },
+            select: {
+                id: true,
+                title: true,
+                start_time: true,
+                end_time: true,
+                meeting_type: true,
+                meeting_url: true,
+                location: true,
+            },
+        });
+
+        if (upcoming) return upcoming;
+
+        // Fall back to most recent past call
+        return this.prisma.calendar_events.findFirst({
+            where: { inquiry_id: inquiryId, event_type: 'DISCOVERY_CALL' },
+            orderBy: { start_time: 'desc' },
+            select: {
+                id: true,
+                title: true,
+                start_time: true,
+                end_time: true,
+                meeting_type: true,
+                meeting_url: true,
+                location: true,
+            },
+        });
     }
 }

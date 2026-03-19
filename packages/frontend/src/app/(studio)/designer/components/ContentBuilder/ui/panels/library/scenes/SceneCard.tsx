@@ -5,6 +5,7 @@ import { Box, Typography, Chip, Tooltip, IconButton } from "@mui/material";
 import {
     AccessTime as TimeIcon,
     MovieFilter as MovieFilterIcon,
+    MusicNote as MusicIcon,
     DeleteOutline as DeleteOutlineIcon,
 } from "@mui/icons-material";
 import { ScenesLibrary, SceneType } from "@/lib/types/domains/scenes";

@@ -27,6 +27,7 @@ import {
   AccountTree as GroupIcon,
   ViewList as FlatListIcon,
   Bolt,
+  ExpandMore as ExpandMoreIcon,
 } from "@mui/icons-material";
 import { api } from "@/lib/api";
 import { ActiveTask, InquiryTaskEvent } from "@/lib/types";
@@ -51,12 +52,31 @@ function parseContext(pathname: string): PageCtx {
 function getNavUrl(task: ActiveTask): string | null {
   if (task.source === "inquiry" && task.inquiry_id) {
     const base = `/sales/inquiries/${task.inquiry_id}`;
+    const subtaskSectionMap: Record<string, string> = {
+      verify_submission_data: "needs-assessment-section",
+      confirm_package_selection: "needs-assessment-section",
+      check_crew_availability: "availability-section",
+      check_equipment_availability: "availability-section",
+      resolve_availability_conflicts: "availability-section",
+      send_crew_availability_requests: "availability-section",
+      reserve_equipment: "availability-section",
+      mark_inquiry_qualified: "qualify-section",
+      send_welcome_response: "qualify-section",
+    };
+
+    if (task.task_kind === "subtask" && task.subtask_key && subtaskSectionMap[task.subtask_key]) {
+      return `${base}#${subtaskSectionMap[task.subtask_key]}`;
+    }
+
     const n = (task.name + " " + (task.description ?? "")).toLowerCase();
+    if (n.includes("review needs assessment")) return `${base}?open=needs-assessment`;
     if (n.includes("needs assessment") || n.includes("assessment form")) return `${base}/needs-assessment`;
     if (n.includes("package") && (n.includes("select") || n.includes("review") || n.includes("scope") || n.includes("present"))) return `${base}/package`;
     if (n.includes("contract") || n.includes("sign agreement")) return `${base}#contracts-section`;
     if (n.includes("proposal review") || n.includes("review proposal")) return `${base}#proposal-review-section`;
     if (n.includes("proposal")) return `${base}#proposals-section`;
+    if (n.includes("availability") || n.includes("crew") || n.includes("equipment")) return `${base}#availability-section`;
+    if (n.includes("qualify")) return `${base}#qualify-section`;
     if (n.includes("quote")) return `${base}#quotes-section`;
     if (n.includes("estimate") || n.includes("budget")) return `${base}#estimates-section`;
     if (n.includes("discovery") || n.includes("questionnaire")) return `${base}#discovery-questionnaire-section`;
@@ -120,20 +140,23 @@ type DrawerTreeItem =
 
 function buildDrawerTree(tasks: ActiveTask[]): DrawerTreeItem[] {
   const childrenByParent = new Map<number, ActiveTask[]>();
-  tasks.forEach(t => {
-    if (t.parent_task_id) {
-      const arr = childrenByParent.get(t.parent_task_id) ?? [];
-      arr.push(t);
-      childrenByParent.set(t.parent_task_id, arr);
+  tasks.forEach((task) => {
+    if (task.parent_task_id && task.task_kind !== 'subtask') {
+      const arr = childrenByParent.get(task.parent_task_id) ?? [];
+      arr.push(task);
+      childrenByParent.set(task.parent_task_id, arr);
     }
   });
+
   const items: DrawerTreeItem[] = [];
-  tasks.forEach(t => {
-    if (t.parent_task_id) return;
-    if (t.is_stage) {
-      items.push({ type: "stage", stage: t, children: childrenByParent.get(t.id) ?? [] });
+  tasks.forEach((task) => {
+    if (task.parent_task_id || task.subtask_parent_id || task.task_kind === 'subtask') {
+      return;
+    }
+    if (task.is_stage) {
+      items.push({ type: "stage", stage: task, children: childrenByParent.get(task.id) ?? [] });
     } else {
-      items.push({ type: "task", task: t });
+      items.push({ type: "task", task });
     }
   });
   return items;
@@ -142,10 +165,11 @@ function buildDrawerTree(tasks: ActiveTask[]): DrawerTreeItem[] {
 // ══════════════════════════════════════════════════════════════
 // DrawerStageRow
 // ══════════════════════════════════════════════════════════════
-function DrawerStageRow({ stage, subtasks, onNavigate }: {
+function DrawerStageRow({ stage, subtasks, onNavigate, subtasksByParent }: {
   stage: ActiveTask;
   subtasks: ActiveTask[];
   onNavigate: (task: ActiveTask) => void;
+  subtasksByParent: Map<number, ActiveTask[]>;
 }) {
   const [open, setOpen] = useState(true);
   const stageColor = stage.stage_color || "#579BFC";
@@ -198,8 +222,8 @@ function DrawerStageRow({ stage, subtasks, onNavigate }: {
       </Box>
       <Collapse in={open}>
         {subtasks.map(task => (
-          <Box key={`${task.source}-${task.id}`} sx={{ pl: 1.5, borderLeft: `2px solid ${stageColor}33` }}>
-            <DrawerTaskRow task={task} onNavigate={onNavigate} />
+          <Box key={`${task.source}-${task.id}`} sx={{ borderLeft: `2px solid ${stageColor}33` }}>
+            <DrawerTaskRow task={task} subtasks={subtasksByParent.get(task.id) ?? []} onNavigate={onNavigate} />
           </Box>
         ))}
       </Collapse>
@@ -210,11 +234,12 @@ function DrawerStageRow({ stage, subtasks, onNavigate }: {
 // ══════════════════════════════════════════════════════════════
 // DrawerTaskRow
 // ══════════════════════════════════════════════════════════════
-function DrawerTaskRow({ task, onNavigate }: { task: ActiveTask; onNavigate: (task: ActiveTask) => void }) {
+function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false }: { task: ActiveTask; onNavigate: (task: ActiveTask) => void; subtasks?: ActiveTask[]; nested?: boolean }) {
   const [hovered, setHovered] = useState(false);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [events, setEvents] = useState<InquiryTaskEvent[] | null>(null);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [subtasksOpen, setSubtasksOpen] = useState(false);
   const isCompleted = task.status === "Completed";
   const isAuto = task.is_auto_only ?? false;
   const overdue = isOverdue(task);
@@ -223,7 +248,10 @@ function DrawerTaskRow({ task, onNavigate }: { task: ActiveTask; onNavigate: (ta
   const dateInfo = formatDateShort(task.due_date, isCompleted);
   const isProject = task.source === "project";
   const contextColor = isProject ? "#579BFC" : "#00C875";
-  const canShowHistory = task.source === "inquiry" && task.inquiry_id != null;
+  const canShowHistory = task.source === "inquiry" && task.inquiry_id != null && task.task_kind !== 'subtask';
+  const completedSubtasks = subtasks.filter((subtask) => subtask.status === 'Completed').length;
+  // Same 8-column grid for both nested and non-nested — prevents overflow bug
+  const GRID = "20px 28px 22px minmax(0,1fr) 72px 100px 28px 34px";
 
   const handleToggleHistory = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -248,10 +276,11 @@ function DrawerTaskRow({ task, onNavigate }: { task: ActiveTask; onNavigate: (ta
         onMouseLeave={() => setHovered(false)}
         sx={{
           display: "grid",
-          gridTemplateColumns: "36px 28px minmax(0,1fr) 72px 100px 28px 44px",
+          gridTemplateColumns: GRID,
           alignItems: "center",
-          minHeight: 40,
-          px: 1.5,
+          minHeight: nested ? 40 : 46,
+          pl: nested ? 2.5 : 1,
+          pr: 1.5,
           gap: 0.75,
           cursor: navUrl ? "pointer" : "default",
           transition: "background 0.12s",
@@ -259,47 +288,76 @@ function DrawerTaskRow({ task, onNavigate }: { task: ActiveTask; onNavigate: (ta
           opacity: isAuto ? 0.45 : isCompleted ? 0.55 : 1,
         }}
       >
-        {/* Context badge — shaped initials */}
+        {/* Col 1: Chevron (non-nested with subtasks) / L-bracket (nested) / empty */}
+        {nested ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Box sx={{ width: 10, height: 10, borderLeft: '1.5px solid rgba(255,255,255,0.15)', borderBottom: '1.5px solid rgba(255,255,255,0.15)', borderRadius: '0 0 0 2px' }} />
+          </Box>
+        ) : (
+          <Box
+            onClick={subtasks.length > 0 ? (e) => { e.stopPropagation(); setSubtasksOpen(o => !o); } : undefined}
+            sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: subtasks.length > 0 ? 'pointer' : 'default',
+              height: '100%', borderRadius: '3px', transition: 'background 0.12s',
+              '&:hover': subtasks.length > 0 ? { bgcolor: 'rgba(255,255,255,0.07)' } : {},
+            }}
+          >
+            {subtasks.length > 0 && (
+              <ExpandMoreIcon sx={{ fontSize: 15, color: '#94a3b8', transform: subtasksOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+            )}
+          </Box>
+        )}
+
+        {/* Col 2: Context badge */}
         <Tooltip title={task.context_label} arrow placement="top">
           <Box sx={{
-            width: 28, height: 28, borderRadius: isProject ? "7px" : "50%",
+            width: 26, height: 26, borderRadius: isProject ? "6px" : "50%",
             bgcolor: `${contextColor}18`,
             border: `1.5px solid ${contextColor}40`,
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}>
-            <Typography sx={{
-              fontSize: "0.5625rem", fontWeight: 800, color: contextColor,
-              lineHeight: 1, letterSpacing: "0.02em",
-            }}>
+            <Typography sx={{ fontSize: "0.5rem", fontWeight: 800, color: contextColor, lineHeight: 1, letterSpacing: "0.02em" }}>
               {getInitials(task.context_label)}
             </Typography>
           </Box>
         </Tooltip>
 
-        {/* Check icon */}
-        <Box sx={{ display: "flex", justifyContent: "center" }}>
+        {/* Col 3: Check / bolt / warning icon */}
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
           {isAuto
             ? <Bolt sx={{ fontSize: 14, color: "#FDAB3D", opacity: 0.65 }} />
             : isCompleted
             ? <CheckCircleIcon sx={{ fontSize: 14, color: "#00C875" }} />
             : overdue
             ? <WarningIcon sx={{ fontSize: 14, color: "#D83A52" }} />
-            : <UncheckedIcon sx={{ fontSize: 14, color: "rgba(255,255,255,0.18)" }} />
-          }
+            : <UncheckedIcon sx={{ fontSize: 14, color: "rgba(255,255,255,0.2)" }} />}
         </Box>
 
-        {/* Task name */}
-        <Typography noWrap sx={{
-          fontSize: "0.8rem", fontWeight: 500, lineHeight: 1,
-          color: isAuto ? "rgba(255,255,255,0.35)" : isCompleted ? "text.secondary" : "text.primary",
-          textDecoration: isCompleted ? "line-through" : "none",
-          fontStyle: isAuto ? "italic" : "normal",
-        }}>
-          {task.name}
-        </Typography>
+        {/* Col 4: Task name + description + subtask count */}
+        <Box sx={{ minWidth: 0 }}>
+          <Typography noWrap sx={{
+            fontSize: "0.8125rem", fontWeight: 500, lineHeight: 1.2,
+            color: isAuto ? "rgba(255,255,255,0.35)" : isCompleted ? "text.secondary" : "text.primary",
+            textDecoration: isCompleted ? "line-through" : "none",
+            fontStyle: isAuto ? "italic" : "normal",
+          }}>
+            {task.name}
+          </Typography>
+          {task.description && !nested && (
+            <Typography noWrap sx={{ fontSize: "0.6875rem", color: "rgba(255,255,255,0.28)", lineHeight: 1.25, mt: 0.15 }}>
+              {task.description}
+            </Typography>
+          )}
+          {!nested && subtasks.length > 0 && (
+            <Typography sx={{ fontSize: '0.6rem', color: subtasksOpen ? '#579BFC' : '#64748b', fontWeight: 600, lineHeight: 1, mt: 0.2, transition: 'color 0.15s' }}>
+              {completedSubtasks}/{subtasks.length} subtasks
+            </Typography>
+          )}
+        </Box>
 
-        {/* Status pill */}
+        {/* Col 5: Status pill */}
         <Box sx={{
           display: "inline-flex", alignItems: "center", justifyContent: "center",
           bgcolor: isAuto ? "rgba(253,171,61,0.12)" : cfg.bg,
@@ -311,33 +369,32 @@ function DrawerTaskRow({ task, onNavigate }: { task: ActiveTask; onNavigate: (ta
           {isAuto ? "Auto" : cfg.label}
         </Box>
 
-        {/* Due date */}
+        {/* Col 6: Due date */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, overflow: "hidden" }}>
           {!isCompleted && overdue
             ? <WarningIcon sx={{ fontSize: 11, color: "#D83A52", flexShrink: 0 }} />
-            : <CalendarIcon sx={{ fontSize: 11, color: "rgba(255,255,255,0.18)", flexShrink: 0 }} />
-          }
+            : <CalendarIcon sx={{ fontSize: 11, color: "rgba(255,255,255,0.18)", flexShrink: 0 }} />}
           <Typography noWrap sx={{ fontSize: "0.6875rem", color: dateInfo.color, fontWeight: overdue && !isCompleted ? 700 : 400 }}>
             {dateInfo.text}
           </Typography>
         </Box>
 
-        {/* Assignee avatar */}
+        {/* Col 7: Avatar */}
         {isAuto ? (
-          <Box sx={{ width: 22, height: 22 }} />
+          <Box sx={{ width: 26, height: 26 }} />
         ) : task.assignee ? (
           <Tooltip title={task.assignee.name} arrow placement="top">
-            <Avatar sx={{ width: 22, height: 22, fontSize: "0.5625rem", fontWeight: 800, bgcolor: avatarColor(task.assignee.name) }}>
+            <Avatar sx={{ width: 26, height: 26, fontSize: "0.5625rem", fontWeight: 800, bgcolor: avatarColor(task.assignee.name) }}>
               {getInitials(task.assignee.name)}
             </Avatar>
           </Tooltip>
         ) : (
-          <Avatar sx={{ width: 22, height: 22, bgcolor: "transparent", border: "1.5px dashed rgba(255,255,255,0.12)" }}>
-            <PersonIcon sx={{ fontSize: 11, color: "rgba(255,255,255,0.2)" }} />
+          <Avatar sx={{ width: 26, height: 26, bgcolor: "transparent", border: "1.5px dashed rgba(255,255,255,0.12)" }}>
+            <PersonIcon sx={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }} />
           </Avatar>
         )}
 
-        {/* History toggle + Nav arrow */}
+        {/* Col 8: History + nav */}
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.375 }}>
           {canShowHistory && (
             <Bolt
@@ -349,17 +406,18 @@ function DrawerTaskRow({ task, onNavigate }: { task: ActiveTask; onNavigate: (ta
               }}
             />
           )}
-          <NavArrowIcon sx={{
-            fontSize: 9, flexShrink: 0,
-            color: hovered && navUrl ? "rgba(87,155,252,0.7)" : "transparent",
-            transition: "color 0.15s",
-          }} />
+          <NavArrowIcon sx={{ fontSize: 9, flexShrink: 0, color: hovered && navUrl ? "rgba(87,155,252,0.7)" : "transparent", transition: "color 0.15s" }} />
         </Box>
       </Box>
 
-      {/* Event history */}
+      <Collapse in={subtasksOpen}>
+        {subtasks.map((subtask) => (
+          <DrawerTaskRow key={`${subtask.source}-${subtask.id}`} task={subtask} onNavigate={onNavigate} nested />
+        ))}
+      </Collapse>
+
       <Collapse in={eventsOpen}>
-        <Box sx={{ pl: 10, pr: 1.5, pb: 0.75, pt: 0.375, bgcolor: "rgba(0,0,0,0.18)" }}>
+        <Box sx={{ pl: 9.5, pr: 1.5, pb: 0.75, pt: 0.375, bgcolor: "rgba(0,0,0,0.18)" }}>
           {eventsLoading ? (
             <Typography sx={{ fontSize: "0.6rem", color: "text.disabled", py: 0.25 }}>Loading…</Typography>
           ) : !events || events.length === 0 ? (
@@ -441,21 +499,39 @@ export default function GlobalTaskDrawer() {
   }, [contextTasks, statusFilter, showAuto]);
 
   const visibleTasks = useMemo(() => {
-    let result = contextTasks;
-    if (statusFilter === "active") result = result.filter(t => t.status !== "Completed" && t.status !== "Archived");
-    else if (statusFilter !== "all") result = result.filter(t => t.status === statusFilter);
-    if (!showAuto) result = result.filter(t => !t.is_auto_only);
-    return result;
+    return contextTasks.filter(t => {
+      // Subtasks are always included — they render nested under their parent.
+      // Filtering them out breaks the subtask expand UI.
+      if (t.task_kind === 'subtask') return true;
+      if (statusFilter === "active" && (t.status === "Completed" || t.status === "Archived")) return false;
+      if (statusFilter !== "active" && statusFilter !== "all" && t.status !== statusFilter) return false;
+      if (!showAuto && t.is_auto_only) return false;
+      return true;
+    });
   }, [contextTasks, statusFilter, showAuto]);
+
+  const subtasksByParent = useMemo(() => {
+    const map = new Map<number, ActiveTask[]>();
+    visibleTasks.forEach((task) => {
+      if (!task.subtask_parent_id) {
+        return;
+      }
+      const list = map.get(task.subtask_parent_id) ?? [];
+      list.push(task);
+      map.set(task.subtask_parent_id, list);
+    });
+    return map;
+  }, [visibleTasks]);
 
   if (ctx.type === "hidden") return null;
 
-  // Stats
-  const total = contextTasks.length;
-  const active = contextTasks.filter(t => t.status !== "Completed" && t.status !== "Archived").length;
-  const done = contextTasks.filter(t => t.status === "Completed").length;
-  const overdueCount = contextTasks.filter(isOverdue).length;
-  const dueTodayCount = contextTasks.filter(t => {
+  // Stats (exclude subtasks from counts — they are rendered nested, not as top-level items)
+  const leafContext = contextTasks.filter(t => t.task_kind !== 'subtask');
+  const total = leafContext.length;
+  const active = leafContext.filter(t => t.status !== "Completed" && t.status !== "Archived").length;
+  const done = leafContext.filter(t => t.status === "Completed").length;
+  const overdueCount = leafContext.filter(isOverdue).length;
+  const dueTodayCount = leafContext.filter(t => {
     if (!t.due_date || t.status === "Completed") return false;
     const due = new Date(t.due_date);
     const now = new Date();
@@ -476,7 +552,7 @@ export default function GlobalTaskDrawer() {
     if (url) router.push(url);
   };
 
-  const PANEL_WIDTH = 800;
+  const PANEL_WIDTH = 920;
   const CLIPBOARD_WIDTH = 220;
   const CLIPBOARD_HEIGHT = 160;
 
@@ -621,7 +697,7 @@ export default function GlobalTaskDrawer() {
         <Box
           sx={{
             width: "100%",
-            height: "clamp(280px, 42vh, 500px)",
+            height: "clamp(360px, 52vh, 620px)",
             mb: 0.75,
             bgcolor: "#111318",
             border: "1px solid rgba(255,255,255,0.1)",
@@ -771,23 +847,26 @@ export default function GlobalTaskDrawer() {
                       key={`stage-${item.stage.source}-${item.stage.id}`}
                       stage={item.stage}
                       subtasks={item.children}
+                      subtasksByParent={subtasksByParent}
                       onNavigate={handleNavigate}
                     />
                   ) : (
                     <DrawerTaskRow
                       key={`${item.task.source}-${item.task.id}`}
                       task={item.task}
+                      subtasks={subtasksByParent.get(item.task.id) ?? []}
                       onNavigate={handleNavigate}
                     />
                   )
                 )
               ) : (
                 visibleTasks
-                  .filter(t => !t.is_stage)
+                  .filter(t => !t.is_stage && !t.subtask_parent_id && t.task_kind !== 'subtask')
                   .map(task => (
                     <DrawerTaskRow
                       key={`${task.source}-${task.id}`}
                       task={task}
+                      subtasks={subtasksByParent.get(task.id) ?? []}
                       onNavigate={handleNavigate}
                     />
                   ))

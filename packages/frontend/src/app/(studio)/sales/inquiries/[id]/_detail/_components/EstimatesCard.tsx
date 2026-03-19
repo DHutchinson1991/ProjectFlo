@@ -9,11 +9,11 @@ import {
 import {
     AttachMoney, Add, Edit, Save, Send as SendIcon, Delete,
     Star, StarBorder, ExpandLess, ExpandMore,
-    ContentCopy as ContentCopyIcon, Close, ReceiptLong,
+    ContentCopy as ContentCopyIcon, Close, ReceiptLong, Sync,
 } from '@mui/icons-material';
 import { estimatesService, api } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
-import { Estimate, EstimateItem } from '@/lib/types';
+import { Estimate, EstimateItem, EstimateSnapshot } from '@/lib/types';
 import type { PaymentScheduleTemplate, EstimatePaymentMilestone } from '@/lib/types';
 import { getCurrencySymbol } from '@/lib/utils/formatUtils';
 import { computeTaxBreakdown } from '@/lib/utils/pricing';
@@ -21,7 +21,11 @@ import LineItemEditor, { LineItem } from '../../components/LineItemEditor';
 import type { WorkflowCardProps } from '../_lib';
 import { WorkflowCard } from './WorkflowCard';
 
-const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, activeColor }) => {
+interface EstimatesCardProps extends WorkflowCardProps {
+    refreshKey?: number;
+}
+
+const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isActive, activeColor, refreshKey }) => {
     const { currentBrand } = useBrand();
 
     const [estimates, setEstimates] = useState<Estimate[]>([]);
@@ -65,6 +69,8 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
 
     // Accordion state
     const [expandedId, setExpandedId] = useState<number | null>(null);
+    const [snapshots, setSnapshots] = useState<Record<number, EstimateSnapshot[]>>({});
+    const [loadingSnapshots, setLoadingSnapshots] = useState<Record<number, boolean>>({});
     const autoExpandIdRef = useRef<number | null>(null);
 
     // Auto-expand effect
@@ -99,7 +105,7 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
             }
         };
         fetchEstimates();
-    }, [inquiry?.id]);
+    }, [inquiry?.id, refreshKey]);
 
     const handleCreate = async () => {
         setEditingEstimate(null);
@@ -617,8 +623,46 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
         }
     };
 
+    const handleRefreshCosts = async (estimateId: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            await api.estimates.refresh(inquiry.id, estimateId);
+            const updatedEstimates = await estimatesService.getAllByInquiry(inquiry.id);
+            setEstimates(updatedEstimates || []);
+            // Reload snapshots so the new history entry is visible
+            const updatedSnapshots = await api.estimates.getSnapshots(inquiry.id, estimateId);
+            setSnapshots(prev => ({ ...prev, [estimateId]: updatedSnapshots }));
+            if (onRefresh) await onRefresh();
+        } catch (err) {
+            console.error('Error refreshing costs:', err);
+            alert(`Failed to refresh costs: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+    };
+
+    const handleSendEstimate = async (estimateId: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            await api.estimates.send(inquiry.id, estimateId);
+            const updatedEstimates = await estimatesService.getAllByInquiry(inquiry.id);
+            setEstimates(updatedEstimates || []);
+            if (onRefresh) await onRefresh();
+        } catch (err) {
+            console.error('Error sending estimate:', err);
+            alert(`Failed to send estimate: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+    };
+
     const toggleExpand = (id: number) => {
-        setExpandedId(expandedId === id ? null : id);
+        const nextExpanded = expandedId === id ? null : id;
+        setExpandedId(nextExpanded);
+        // Load snapshots when expanding, if not already loaded
+        if (nextExpanded && !snapshots[id]) {
+            setLoadingSnapshots(prev => ({ ...prev, [id]: true }));
+            api.estimates.getSnapshots(inquiry.id, id)
+                .then(data => setSnapshots(prev => ({ ...prev, [id]: data })))
+                .catch(() => setSnapshots(prev => ({ ...prev, [id]: [] })))
+                .finally(() => setLoadingSnapshots(prev => ({ ...prev, [id]: false })));
+        }
     };
 
     // Calculation helpers
@@ -653,7 +697,9 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                         </Box>
                     ) : (
                         <Stack spacing={1.5}>
-                            {estimates.map((estimate) => (
+                            {estimates.map((estimate) => {
+                                const { taxAmount: estTaxAmount, total: estPostTax } = computeTaxBreakdown(Number(estimate.total_amount || 0), Number(estimate.tax_rate || 0));
+                                return (
                                 <Box
                                     key={estimate.id}
                                     sx={{
@@ -710,7 +756,7 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                                 }}
                                             />
                                             <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: '#f59e0b', fontFamily: 'monospace', minWidth: 70, textAlign: 'right' }}>
-                                                {currencySymbol}{Number(estimate.total_amount || 0).toLocaleString()}
+                                                {currencySymbol}{estPostTax.toLocaleString()}
                                             </Typography>
                                             <Box sx={{ display: 'flex', ml: 0.5 }}>
                                                 <Tooltip title={estimate.is_primary ? 'Primary' : 'Set as Primary'}>
@@ -723,6 +769,25 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                                         <Edit sx={{ fontSize: 15 }} />
                                                     </IconButton>
                                                 </Tooltip>
+                                                {estimate.status === 'Draft' && (
+                                                    <Tooltip title={estimate.is_stale ? "⚠ Package updated — costs may be stale. Click to sync." : "Refresh Costs"}>
+                                                        <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+                                                            <IconButton size="small" onClick={(e) => handleRefreshCosts(estimate.id, e)} sx={{ p: 0.5, color: estimate.is_stale ? '#f59e0b' : '#334155', '&:hover': { color: estimate.is_stale ? '#f97316' : '#06b6d4' } }}>
+                                                                <Sync sx={{ fontSize: 15 }} />
+                                                            </IconButton>
+                                                            {estimate.is_stale && (
+                                                                <Box sx={{ position: 'absolute', top: 2, right: 2, width: 8, height: 8, backgroundColor: '#f59e0b', borderRadius: '50%', border: '1px solid white' }} />
+                                                            )}
+                                                        </Box>
+                                                    </Tooltip>
+                                                )}
+                                                {estimate.status === 'Draft' && (
+                                                    <Tooltip title="Send Estimate">
+                                                        <IconButton size="small" onClick={(e) => handleSendEstimate(estimate.id, e)} sx={{ p: 0.5, color: '#334155', '&:hover': { color: '#10b981' } }}>
+                                                            <SendIcon sx={{ fontSize: 15 }} />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
                                                 <Tooltip title="Delete">
                                                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleDelete(estimate.id); }} sx={{ p: 0.5, color: '#334155', '&:hover': { color: '#ef4444' } }}>
                                                         <Delete sx={{ fontSize: 15 }} />
@@ -746,15 +811,21 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                             return acc;
                                         }, {});
                                         const estSubtotal = Object.values(grouped).reduce((s, v) => s + v, 0);
+                                        const barTotal = estSubtotal + estTaxAmount;
                                         return (
                                             <Box sx={{ px: 2, pt: 0.75, pb: 1.25 }}>
                                                 {/* Category bars */}
                                                 <Box sx={{ display: 'flex', gap: 0.5, mb: 1, height: 4, borderRadius: 2, overflow: 'hidden', bgcolor: 'rgba(255,255,255,0.04)' }}>
                                                     {Object.entries(grouped).map(([cat, total]) => (
                                                         <Tooltip key={cat} title={`${cat}: ${currencySymbol}${total.toFixed(2)}`} arrow placement="top">
-                                                            <Box sx={{ flex: total / estSubtotal, bgcolor: catColors[cat] || '#94a3b8', borderRadius: 1, minWidth: 4, transition: 'flex 0.3s' }} />
+                                                            <Box sx={{ flex: total / barTotal, bgcolor: catColors[cat] || '#94a3b8', borderRadius: 1, minWidth: 4, transition: 'flex 0.3s' }} />
                                                         </Tooltip>
                                                     ))}
+                                                    {estTaxAmount > 0 && (
+                                                        <Tooltip title={`Tax (${estimate.tax_rate}%): ${currencySymbol}${estTaxAmount.toFixed(2)}`} arrow placement="top">
+                                                            <Box sx={{ flex: estTaxAmount / barTotal, bgcolor: '#f59e0b', borderRadius: 1, minWidth: 4, transition: 'flex 0.3s', opacity: 0.7 }} />
+                                                        </Tooltip>
+                                                    )}
                                                 </Box>
                                                 {/* Category labels + subtotals */}
                                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, rowGap: 0.5 }}>
@@ -769,6 +840,17 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                                             </Typography>
                                                         </Box>
                                                     ))}
+                                                    {estTaxAmount > 0 && (
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#f59e0b', flexShrink: 0, opacity: 0.7 }} />
+                                                            <Typography sx={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                                Tax ({estimate.tax_rate}%)
+                                                            </Typography>
+                                                            <Typography sx={{ fontSize: '0.62rem', color: '#94a3b8', fontFamily: 'monospace', fontWeight: 700 }}>
+                                                                {currencySymbol}{estTaxAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                                            </Typography>
+                                                        </Box>
+                                                    )}
                                                 </Box>
                                             </Box>
                                         );
@@ -816,8 +898,12 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                                     <Typography sx={{ fontSize: '0.72rem', color: '#475569' }}>Deposit: <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{currencySymbol}{Number(estimate.deposit_required).toLocaleString()}</span></Typography>
                                                 )}
                                                 <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                    {Number(estimate.tax_rate) > 0 && <Typography sx={{ fontSize: '0.7rem', color: '#475569' }}>+{estimate.tax_rate}% tax</Typography>}
-                                                    <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', fontFamily: 'monospace', color: '#f59e0b' }}>{currencySymbol}{Number(estimate.total_amount).toLocaleString()}</Typography>
+                                                    {Number(estimate.tax_rate) > 0 && (
+                                                        <Typography sx={{ fontSize: '0.68rem', color: '#475569', fontFamily: 'monospace' }}>
+                                                            {currencySymbol}{Number(estimate.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} + {estimate.tax_rate}% tax
+                                                        </Typography>
+                                                    )}
+                                                    <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', fontFamily: 'monospace', color: '#f59e0b' }}>{currencySymbol}{estPostTax.toLocaleString()}</Typography>
                                                 </Box>
                                             </Box>
                                             {estimate.notes && (
@@ -826,10 +912,41 @@ const EstimatesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                                     <Typography sx={{ fontSize: '0.75rem', color: '#64748b' }}>{estimate.notes}</Typography>
                                                 </Box>
                                             )}
+                                            {/* Version history */}
+                                            {(loadingSnapshots[estimate.id] || (snapshots[estimate.id]?.length ?? 0) > 0) && (
+                                                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                                    <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', mb: 1 }}>Version History</Typography>
+                                                    {loadingSnapshots[estimate.id] ? (
+                                                        <Typography sx={{ fontSize: '0.72rem', color: '#334155' }}>Loading…</Typography>
+                                                    ) : (
+                                                        <Stack spacing={0.75}>
+                                                            {(snapshots[estimate.id] || []).map(snap => (
+                                                                <Box key={snap.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, px: 1, py: 0.75, borderRadius: 1, bgcolor: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                                                                    <Box sx={{ flex: 1 }}>
+                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.25 }}>
+                                                                            <Chip label={`v${snap.version_number}`} size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(139,92,246,0.12)', color: '#a78bfa', border: 'none' }} />
+                                                                            {snap.label && <Typography sx={{ fontSize: '0.68rem', color: '#475569' }}>{snap.label}</Typography>}
+                                                                        </Box>
+                                                                        <Typography sx={{ fontSize: '0.65rem', color: '#334155' }}>
+                                                                            {new Date(snap.snapshotted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                                            {' · '}
+                                                                            {snap.items_snapshot.length} line item{snap.items_snapshot.length !== 1 ? 's' : ''}
+                                                                        </Typography>
+                                                                    </Box>
+                                                                    <Typography sx={{ fontWeight: 700, fontSize: '0.78rem', fontFamily: 'monospace', color: '#94a3b8' }}>
+                                                                        {currencySymbol}{Number(snap.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                    </Typography>
+                                                                </Box>
+                                                            ))}
+                                                        </Stack>
+                                                    )}
+                                                </Box>
+                                            )}
                                         </Box>
                                     </Collapse>
                                 </Box>
-                            ))}
+                                );
+                            })}
                         </Stack>
                     )}
                 </CardContent>

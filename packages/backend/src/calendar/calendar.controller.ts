@@ -215,18 +215,18 @@ export class CalendarController {
     @Patch('active-tasks/:taskId/assign')
     async assignActiveTask(
         @Param('taskId', ParseIntPipe) taskId: number,
-        @Body() body: { source: 'inquiry' | 'project'; assigned_to_id: number | null },
+        @Body() body: { source: 'inquiry' | 'project'; assigned_to_id: number | null; task_kind?: 'task' | 'subtask' },
     ) {
-        return this.calendarService.assignActiveTask(taskId, body.source, body.assigned_to_id);
+        return this.calendarService.assignActiveTask(taskId, body.source, body.assigned_to_id, body.task_kind);
     }
 
     // Toggle a task between To_Do and Completed
     @Patch('active-tasks/:taskId/toggle')
     async toggleActiveTask(
         @Param('taskId', ParseIntPipe) taskId: number,
-        @Body() body: { source: 'inquiry' | 'project' },
+        @Body() body: { source: 'inquiry' | 'project'; task_kind?: 'task' | 'subtask'; completed_by_id?: number },
     ) {
-        return this.calendarService.toggleActiveTask(taskId, body.source);
+        return this.calendarService.toggleActiveTask(taskId, body.source, body.task_kind, body.completed_by_id);
     }
 
     // Discovery call availability slots

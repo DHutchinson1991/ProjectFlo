@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from "react";
 import { Box, CircularProgress } from "@mui/material";
 import SceneMomentsTrackModule from "../scenes/SceneMomentsTrack";
-import type { TimelineSceneWithMoments } from "../types/momentTypes";
+import type { TimelineSceneWithMoments } from "@/lib/types/domains/moments";
 
 const { TimelineSceneWithMomentsBlock } = SceneMomentsTrackModule;
 

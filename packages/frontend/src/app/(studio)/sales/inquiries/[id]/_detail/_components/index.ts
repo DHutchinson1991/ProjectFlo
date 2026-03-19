@@ -17,3 +17,4 @@ export { default as DiscoveryQuestionnaireCard } from './DiscoveryQuestionnaireC
 export { default as DiscoveryQuestionnaireFormDialog } from './DiscoveryQuestionnaireFormDialog';
 export { default as ReviewNotesCard } from './ReviewNotesCard';
 export { default as ClientInfoCard } from './ClientInfoCard';
+export { default as QualifyCard } from './QualifyCard';

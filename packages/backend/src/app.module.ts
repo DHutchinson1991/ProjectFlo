@@ -58,6 +58,7 @@ import { DiscoveryQuestionnaireModule } from './discovery-questionnaire/discover
 import { ScheduleModule } from './content/schedule/schedule.module';
 import { InstanceFilmsModule } from './content/instance-films/instance-films.module';
 import { PaymentSchedulesModule } from './payment-schedules/payment-schedules.module';
+import { CrewPaymentTemplatesModule } from './crew-payment-templates/crew-payment-templates.module';
 import { MontagePresetsModule } from './content/montage-presets/montage-presets.module';
 import { FilmStructureTemplatesModule } from './content/film-structure-templates/film-structure-templates.module';
 import { SceneAudioSourcesModule } from './content/scene-audio-sources/scene-audio-sources.module';
@@ -114,6 +115,7 @@ import { PricingModule } from './business/pricing/pricing.module';
     ScheduleModule,
     InstanceFilmsModule,
     PaymentSchedulesModule,
+    CrewPaymentTemplatesModule,
     MontagePresetsModule,
     FilmStructureTemplatesModule,
     SceneAudioSourcesModule,

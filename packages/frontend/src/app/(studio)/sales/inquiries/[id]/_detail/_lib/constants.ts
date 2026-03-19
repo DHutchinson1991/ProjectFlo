@@ -25,7 +25,7 @@ export const WORKFLOW_PHASES: WorkflowPhase[] = [
         icon: Assignment,
         color: '#3b82f6',
         description: 'Intake, qualify and estimate',
-        tasks: ['Inquiry Received', 'Review Inquiry', 'Qualify & Respond', 'Estimate Preparation', 'Review Estimate'],
+        tasks: ['Review Inquiry', 'Qualify & Respond', 'Estimate Preparation', 'Review Estimate'],
         sectionId: 'inquiry-section',
     },
     {
@@ -103,7 +103,6 @@ type IconMap = Record<string, { icon: React.ComponentType<any>; sectionId: strin
 
 const TASK_META: IconMap = {
     // Inquiry stage
-    'Inquiry Received':          { icon: CheckCircle,    sectionId: 'inquiry-section' },
     'Review Inquiry':            { icon: Assignment,     sectionId: 'inquiry-section' },
     'Qualify & Respond':         { icon: Email,          sectionId: 'inquiry-section' },
     'Estimate Preparation':      { icon: RequestQuote,   sectionId: 'inquiry-section' },
@@ -207,11 +206,6 @@ export interface AutoCompleteRule {
 
 /** Tasks whose completion is driven by backend data — not manually toggleable. */
 export const TASK_AUTO_COMPLETE: Record<string, AutoCompleteRule> = {
-    'Inquiry Received': {
-        check: (_inq) => true, // Always done once the inquiry is visible in the pipeline
-        doneLabel: 'Inquiry received',
-        pendingLabel: 'Awaiting inquiry submission',
-    },
     'Estimate Preparation': {
         check: (inq) => (inq.estimates?.length ?? 0) > 0,
         doneLabel: 'Estimate drafted',

@@ -109,9 +109,10 @@ export class EquipmentService {
             include: {
                 brand: true,
                 created_by: {
-                    include: {
-                        contact: true
-                    }
+                    include: { contact: true }
+                },
+                owner: {
+                    include: { contact: true }
                 },
                 _count: {
                     select: {
@@ -133,9 +134,10 @@ export class EquipmentService {
             include: {
                 brand: true,
                 created_by: {
-                    include: {
-                        contact: true
-                    }
+                    include: { contact: true }
+                },
+                owner: {
+                    include: { contact: true }
                 },
                 rental_bookings: {
                     include: {
@@ -202,9 +204,10 @@ export class EquipmentService {
             include: {
                 brand: true,
                 created_by: {
-                    include: {
-                        contact: true
-                    }
+                    include: { contact: true }
+                },
+                owner: {
+                    include: { contact: true }
                 }
             }
         });

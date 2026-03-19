@@ -12,7 +12,7 @@ export const eventTypeConfig: Record<EventType, { label: string; color: string; 
     'planning': { label: 'Planning', color: '#1abc9c', icon: '📋' },
     'personal': { label: 'Personal', color: '#95a5a6', icon: '👤' },
     'discovery_call': { label: 'Discovery Call', color: '#3498db', icon: '🔍' },
-    'consultation': { label: 'Consultation', color: '#8e44ad', icon: '💬' },
+    'proposal_review': { label: 'Proposal Review', color: '#8e44ad', icon: '💬' },
     'other': { label: 'Other', color: '#7f8c8d', icon: '📝' }
 };
 

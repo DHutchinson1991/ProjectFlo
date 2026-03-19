@@ -25,18 +25,29 @@ interface StageDef {
     children: SubTaskDef[];
 }
 
-// Old stage/task names that are being retired — will be deactivated in the library
-const RETIRED_STAGE_NAMES = [
-    'Needs Assessment', 'Estimates', 'Discovery Calls',
-    'Proposals', 'Proposal Review', 'Quotes', 'Contracts',
-];
-const RETIRED_TASK_NAMES = [
-    'Initial Inquiry Response', 'Date Availability Check', 'Portfolio Presentation',
-    'Budget Alignment', 'Consultation Scheduling', 'Consultation Meeting',
-    'Quote Generation', 'Contract Preparation', 'Contract Negotiation',
-    'Booking Confirmation', 'Proposal Creation', 'Proposal Delivery',
-    'Send Needs Assessment', 'Review Needs Assessment',
-];
+// ─── Subtask templates for pipeline tasks (source of truth) ──────────
+interface SubtaskTemplateDef {
+    subtask_key: string;
+    name: string;
+    order_index: number;
+    is_auto_only: boolean;
+}
+
+const TASK_SUBTASK_TEMPLATES: Record<string, SubtaskTemplateDef[]> = {
+    'Review Inquiry': [
+        { subtask_key: 'verify_submission_data', name: 'Verify Submission Data', order_index: 1, is_auto_only: true },
+        { subtask_key: 'confirm_package_selection', name: 'Confirm Package Selection', order_index: 2, is_auto_only: true },
+        { subtask_key: 'check_crew_availability', name: 'Check Crew Availability', order_index: 3, is_auto_only: true },
+        { subtask_key: 'check_equipment_availability', name: 'Check Equipment Availability', order_index: 4, is_auto_only: true },
+        { subtask_key: 'resolve_availability_conflicts', name: 'Resolve Availability Conflicts', order_index: 5, is_auto_only: true },
+        { subtask_key: 'send_crew_availability_requests', name: 'Send Availability Requests', order_index: 6, is_auto_only: true },
+        { subtask_key: 'reserve_equipment', name: 'Reserve Equipment', order_index: 7, is_auto_only: true },
+    ],
+    'Qualify & Respond': [
+        { subtask_key: 'mark_inquiry_qualified', name: 'Qualify Inquiry', order_index: 1, is_auto_only: false },
+        { subtask_key: 'send_welcome_response', name: 'Send Welcome Response', order_index: 2, is_auto_only: false },
+    ],
+};
 
 const PIPELINE_STAGES: StageDef[] = [
     {
@@ -46,11 +57,10 @@ const PIPELINE_STAGES: StageDef[] = [
         stage_color: '#3b82f6',
         order_index: 1,
         children: [
-            { name: 'Inquiry Received', description: 'Auto-marked when the inquiry is received — from a needs assessment submission or manual creation', effort_hours: 0, order_index: 1, is_auto_only: true, due_date_offset_days: 0 },
-            { name: 'Review Inquiry', description: 'Review what the client submitted — check their responses, date availability, and crew conflicts before responding', effort_hours: 0.25, order_index: 2, is_auto_only: false, due_date_offset_days: 1 },
-            { name: 'Qualify & Respond', description: 'Confirm availability, introduce yourself, share portfolio, and transition the inquiry to Contacted', effort_hours: 0.25, order_index: 3, is_auto_only: false, due_date_offset_days: 1 },
-            { name: 'Estimate Preparation', description: 'Auto-creates a draft estimate from package/activity selections when the inquiry is submitted', effort_hours: 0, order_index: 4, is_auto_only: true, due_date_offset_days: 0 },
-            { name: 'Review Estimate', description: 'Review the auto-created draft estimate, adjust line items if needed, then send to the client', effort_hours: 0.25, order_index: 5, is_auto_only: false, due_date_offset_days: 2 },
+            { name: 'Review Inquiry', description: 'Review what the client submitted — check their responses, date availability, and crew conflicts before responding', effort_hours: 0.25, order_index: 1, is_auto_only: false, due_date_offset_days: 1 },
+            { name: 'Qualify & Respond', description: 'Confirm availability, introduce yourself, share portfolio, and transition the inquiry to Contacted', effort_hours: 0.25, order_index: 2, is_auto_only: false, due_date_offset_days: 1 },
+            { name: 'Estimate Preparation', description: 'Auto-creates a draft estimate from package/activity selections when the inquiry is submitted', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 0 },
+            { name: 'Review Estimate', description: 'Review the auto-created draft estimate, adjust line items if needed, then send to the client', effort_hours: 0.25, order_index: 4, is_auto_only: false, due_date_offset_days: 2 },
         ],
     },
     {
@@ -189,20 +199,53 @@ export async function createMoonriseTaskLibrary(brandId: number): Promise<number
         }
     }
 
-    // ─── Deactivate retired stages and tasks ──────────────────────────
-    const deactivatedStages = await prisma.task_library.updateMany({
-        where: { name: { in: RETIRED_STAGE_NAMES }, brand_id: brandId, is_stage: true },
-        data: { is_active: false },
-    });
-    const deactivatedTasks = await prisma.task_library.updateMany({
-        where: { name: { in: RETIRED_TASK_NAMES }, brand_id: brandId, is_stage: false },
-        data: { is_active: false },
-    });
-    if (deactivatedStages.count > 0) logger.skipped(`Deactivated ${deactivatedStages.count} retired stage(s)`, 'library cleanup');
-    if (deactivatedTasks.count > 0) logger.skipped(`Deactivated ${deactivatedTasks.count} retired task(s)`, 'library cleanup');
-
     logger.summary('Pipeline stages', { created: stageCreated, updated: stageUpdated, skipped: stageSkipped, total: stageCreated + stageUpdated + stageSkipped });
     logger.summary('Pipeline sub-tasks', { created: childCreated, updated: childUpdated, skipped: childSkipped, total: childCreated + childUpdated + childSkipped });
+
+    // ─── SUBTASK TEMPLATES (source of truth for subtask definitions) ─
+    let subtaskCreated = 0;
+    let subtaskUpdated = 0;
+
+    for (const [taskName, templates] of Object.entries(TASK_SUBTASK_TEMPLATES)) {
+        const task = await prisma.task_library.findFirst({
+            where: { name: taskName, brand_id: brandId, is_active: true },
+        });
+        if (!task) {
+            logger.skipped(`Subtask templates skipped: ${taskName}`, 'task not found');
+            continue;
+        }
+
+        for (const template of templates) {
+            const existing = await prisma.task_library_subtask_templates.findFirst({
+                where: { task_library_id: task.id, subtask_key: template.subtask_key },
+            });
+
+            if (!existing) {
+                await prisma.task_library_subtask_templates.create({
+                    data: {
+                        task_library_id: task.id,
+                        subtask_key: template.subtask_key,
+                        name: template.name,
+                        order_index: template.order_index,
+                        is_auto_only: template.is_auto_only,
+                    },
+                });
+                subtaskCreated++;
+                logger.created(`Subtask: ${template.name}`, `→ ${taskName}`);
+            } else {
+                await prisma.task_library_subtask_templates.update({
+                    where: { id: existing.id },
+                    data: {
+                        name: template.name,
+                        order_index: template.order_index,
+                        is_auto_only: template.is_auto_only,
+                    },
+                });
+                subtaskUpdated++;
+            }
+        }
+    }
+    logger.summary('Subtask templates', { created: subtaskCreated, updated: subtaskUpdated, skipped: 0, total: subtaskCreated + subtaskUpdated });
 
     // ─── REMAINING PHASES (flat tasks — not part of the pipeline) ────
 

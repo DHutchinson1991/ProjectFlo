@@ -421,7 +421,9 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
                         </Box>
                     ) : (
                         <Stack spacing={1.5}>
-                            {quotes.map((quote) => (
+                            {quotes.map((quote) => {
+                                const { taxAmount: qTaxAmount, total: qPostTax } = computeTaxBreakdown(Number(quote.total_amount || 0), Number(quote.tax_rate || 0));
+                                return (
                                 <Box
                                     key={quote.id}
                                     sx={{
@@ -475,7 +477,7 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
                                                 }}
                                             />
                                             <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: '#f59e0b', fontFamily: 'monospace', minWidth: 70, textAlign: 'right' }}>
-                                                {currencySymbol}{Number(quote.total_amount || 0).toLocaleString()}
+                                                {currencySymbol}{qPostTax.toLocaleString()}
                                             </Typography>
                                             <Box sx={{ display: 'flex', ml: 0.5 }}>
                                                 <Tooltip title={quote.is_primary ? 'Primary' : 'Set as Primary'}>
@@ -510,14 +512,20 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
                                             return acc;
                                         }, {});
                                         const qSubtotal = Object.values(grouped).reduce((s, v) => s + v, 0);
+                                        const qBarTotal = qSubtotal + qTaxAmount;
                                         return (
                                             <Box sx={{ px: 2, pt: 0.75, pb: 1.25 }}>
                                                 <Box sx={{ display: 'flex', gap: 0.5, mb: 1, height: 4, borderRadius: 2, overflow: 'hidden', bgcolor: 'rgba(255,255,255,0.04)' }}>
                                                     {Object.entries(grouped).map(([cat, total]) => (
                                                         <Tooltip key={cat} title={`${cat}: ${currencySymbol}${total.toFixed(2)}`} arrow placement="top">
-                                                            <Box sx={{ flex: total / qSubtotal, bgcolor: catColors[cat] || '#94a3b8', borderRadius: 1, minWidth: 4, transition: 'flex 0.3s' }} />
+                                                            <Box sx={{ flex: total / qBarTotal, bgcolor: catColors[cat] || '#94a3b8', borderRadius: 1, minWidth: 4, transition: 'flex 0.3s' }} />
                                                         </Tooltip>
                                                     ))}
+                                                    {qTaxAmount > 0 && (
+                                                        <Tooltip title={`Tax (${quote.tax_rate}%): ${currencySymbol}${qTaxAmount.toFixed(2)}`} arrow placement="top">
+                                                            <Box sx={{ flex: qTaxAmount / qBarTotal, bgcolor: '#f59e0b', borderRadius: 1, minWidth: 4, transition: 'flex 0.3s', opacity: 0.7 }} />
+                                                        </Tooltip>
+                                                    )}
                                                 </Box>
                                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, rowGap: 0.5 }}>
                                                     {Object.entries(grouped).map(([cat, total]) => (
@@ -531,6 +539,17 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
                                                             </Typography>
                                                         </Box>
                                                     ))}
+                                                    {qTaxAmount > 0 && (
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#f59e0b', flexShrink: 0, opacity: 0.7 }} />
+                                                            <Typography sx={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                                Tax ({quote.tax_rate}%)
+                                                            </Typography>
+                                                            <Typography sx={{ fontSize: '0.62rem', color: '#94a3b8', fontFamily: 'monospace', fontWeight: 700 }}>
+                                                                {currencySymbol}{qTaxAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                                            </Typography>
+                                                        </Box>
+                                                    )}
                                                 </Box>
                                             </Box>
                                         );
@@ -577,8 +596,12 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
                                                     <Typography sx={{ fontSize: '0.72rem', color: '#475569' }}>Deposit: <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{currencySymbol}{Number(quote.deposit_required).toLocaleString()}</span></Typography>
                                                 )}
                                                 <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                    {Number(quote.tax_rate) > 0 && <Typography sx={{ fontSize: '0.7rem', color: '#475569' }}>+{quote.tax_rate}% tax</Typography>}
-                                                    <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', fontFamily: 'monospace', color: '#f59e0b' }}>{currencySymbol}{Number(quote.total_amount).toLocaleString()}</Typography>
+                                                    {Number(quote.tax_rate) > 0 && (
+                                                        <Typography sx={{ fontSize: '0.68rem', color: '#475569', fontFamily: 'monospace' }}>
+                                                            {currencySymbol}{Number(quote.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} + {quote.tax_rate}% tax
+                                                        </Typography>
+                                                    )}
+                                                    <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', fontFamily: 'monospace', color: '#f59e0b' }}>{currencySymbol}{qPostTax.toLocaleString()}</Typography>
                                                 </Box>
                                             </Box>
                                             {(quote.consultation_notes || quote.notes) && (
@@ -600,7 +623,8 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
                                         </Box>
                                     </Collapse>
                                 </Box>
-                            ))}
+                                );
+                            })}
                         </Stack>
                     )}
                 </CardContent>

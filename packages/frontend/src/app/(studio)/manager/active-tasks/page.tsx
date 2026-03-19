@@ -60,7 +60,7 @@ import type { Contributor } from "@/lib/types";
 type GroupMode = "project" | "status" | "person" | "date" | "phase";
 
 // ── Grid column definition ─────────────────────────────────────
-const GRID_COLS = "minmax(130px, 1.2fr) minmax(0, 2.5fr) 96px 160px 130px 80px";
+const GRID_COLS = "24px minmax(130px, 1.2fr) minmax(0, 2.5fr) 96px 160px 130px 80px";
 
 // ── Phase configuration ───────────────────────────────────────
 const PHASE_COLORS: Record<string, string> = {
@@ -157,9 +157,26 @@ function avatarColor(name: string) {
 function getNavigationUrl(task: ActiveTask): string | null {
   if (task.source === 'inquiry' && task.inquiry_id) {
     const base = `/sales/inquiries/${task.inquiry_id}`;
+    const subtaskSectionMap: Record<string, string> = {
+      verify_submission_data: 'needs-assessment-section',
+      confirm_package_selection: 'needs-assessment-section',
+      check_crew_availability: 'availability-section',
+      check_equipment_availability: 'availability-section',
+      resolve_availability_conflicts: 'availability-section',
+      send_crew_availability_requests: 'availability-section',
+      reserve_equipment: 'availability-section',
+      mark_inquiry_qualified: 'qualify-section',
+      send_welcome_response: 'qualify-section',
+    };
+
+    if (task.task_kind === 'subtask' && task.subtask_key && subtaskSectionMap[task.subtask_key]) {
+      return `${base}#${subtaskSectionMap[task.subtask_key]}`;
+    }
+
     const n = (task.name + ' ' + (task.description ?? '')).toLowerCase();
 
     // Sub-page destinations
+    if (n.includes('review needs assessment')) return `${base}?open=needs-assessment`;
     if (n.includes('needs assessment') || n.includes('assessment form')) return `${base}/needs-assessment`;
     if (n.includes('package') && (n.includes('select') || n.includes('review') || n.includes('scope') || n.includes('present'))) return `${base}/package`;
 
@@ -167,6 +184,8 @@ function getNavigationUrl(task: ActiveTask): string | null {
     if (n.includes('contract') || n.includes('sign agreement')) return `${base}#contracts-section`;
     if (n.includes('proposal') && !n.includes('review')) return `${base}#proposals-section`;
     if (n.includes('proposal review') || n.includes('review proposal')) return `${base}#proposal-review-section`;
+    if (n.includes('availability') || n.includes('crew') || n.includes('equipment')) return `${base}#availability-section`;
+    if (n.includes('qualify')) return `${base}#qualify-section`;
     if (n.includes('quote')) return `${base}#quotes-section`;
     if (n.includes('estimate') || n.includes('budget')) return `${base}#estimates-section`;
     if (n.includes('discovery') || n.includes('questionnaire')) return `${base}#discovery-questionnaire-section`;
@@ -190,20 +209,20 @@ type TreeItem =
 
 function buildTaskTree(tasks: ActiveTask[]): TreeItem[] {
   const childrenByParent = new Map<number, ActiveTask[]>();
-  tasks.forEach(t => {
-    if (t.parent_task_id) {
-      const arr = childrenByParent.get(t.parent_task_id) ?? [];
-      arr.push(t);
-      childrenByParent.set(t.parent_task_id, arr);
+  tasks.forEach((task) => {
+    if (task.parent_task_id && task.task_kind !== 'subtask') {
+      const arr = childrenByParent.get(task.parent_task_id) ?? [];
+      arr.push(task);
+      childrenByParent.set(task.parent_task_id, arr);
     }
   });
   const items: TreeItem[] = [];
-  tasks.forEach(t => {
-    if (t.parent_task_id) return; // rendered under parent stage
-    if (t.is_stage) {
-      items.push({ type: "stage", stage: t, children: childrenByParent.get(t.id) ?? [] });
+  tasks.forEach((task) => {
+    if (task.parent_task_id || task.subtask_parent_id || task.task_kind === 'subtask') return;
+    if (task.is_stage) {
+      items.push({ type: "stage", stage: task, children: childrenByParent.get(task.id) ?? [] });
     } else {
-      items.push({ type: "task", task: t });
+      items.push({ type: "task", task });
     }
   });
   return items;
@@ -232,7 +251,7 @@ function StatusPill({ status }: { status: string }) {
 function AssigneeCell({ task, contributors, onAssign, onNavigate }: {
   task: ActiveTask;
   contributors: Contributor[];
-  onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null) => void;
+  onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null, taskKind?: 'task' | 'subtask') => void;
   onNavigate: (task: ActiveTask) => void;
 }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
@@ -251,7 +270,7 @@ function AssigneeCell({ task, contributors, onAssign, onNavigate }: {
   };
 
   const handleSelect = (contributorId: number | null) => {
-    onAssign(task.id, task.source, contributorId);
+    onAssign(task.id, task.source, contributorId, task.task_kind);
     setAnchorEl(null);
   };
 
@@ -380,22 +399,27 @@ function AssigneeCell({ task, contributors, onAssign, onNavigate }: {
 // ══════════════════════════════════════════════════════════════
 // TaskRow
 // ══════════════════════════════════════════════════════════════
-function TaskRow({ task, groupColor, contributors, onAssign, onNavigate, onToggle, isChild }: {
+function TaskRow({ task, groupColor, contributors, onAssign, onNavigate, onToggle, isChild, subtasks = [], nested = false }: {
   task: ActiveTask;
   groupColor: string;
   contributors: Contributor[];
-  onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null) => void;
+  onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null, taskKind?: 'task' | 'subtask') => void;
   onNavigate: (task: ActiveTask) => void;
   onToggle: (task: ActiveTask) => void;
   isChild?: boolean;
+  subtasks?: ActiveTask[];
+  nested?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [subtasksOpen, setSubtasksOpen] = useState(false);
   const isCompleted = task.status === "Completed";
   const isAuto = task.is_auto_only ?? false;
   const dueInfo = formatDueDate(task.due_date, isCompleted);
   const navUrl = getNavigationUrl(task);
+  const completedSubtasks = subtasks.filter((subtask) => subtask.status === 'Completed').length;
 
   return (
+    <>
     <Box
       onClick={navUrl ? () => onNavigate(task) : undefined}
       onMouseEnter={() => setHovered(true)}
@@ -413,8 +437,27 @@ function TaskRow({ task, groupColor, contributors, onAssign, onNavigate, onToggl
         opacity: isAuto ? 0.45 : isCompleted ? 0.5 : 1,
       }}
     >
+      {/* Subtask expand chevron */}
+      <Box
+        onClick={subtasks.length > 0 ? (e) => { e.stopPropagation(); setSubtasksOpen(o => !o); } : undefined}
+        sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: subtasks.length > 0 ? 'pointer' : 'default',
+          height: '100%',
+          borderRadius: '3px',
+          transition: 'background 0.12s',
+          '&:hover': subtasks.length > 0 ? { bgcolor: 'rgba(255,255,255,0.06)' } : {},
+        }}
+      >
+        {subtasks.length > 0 && (
+          subtasksOpen
+            ? <ExpandMoreIcon sx={{ fontSize: 14, color: '#94a3b8', transform: 'rotate(0deg)', transition: 'transform 0.2s' }} />
+            : <ExpandMoreIcon sx={{ fontSize: 14, color: '#94a3b8', transform: 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+        )}
+      </Box>
+
       {/* Project / Inquiry — shaped badge + full name */}
-      <Box sx={{ px: 1.5, overflow: "hidden", display: "flex", alignItems: "center", gap: 1, borderLeft: isChild ? `2px solid ${groupColor}55` : `3px solid ${groupColor}`, height: "100%", pl: isChild ? 2.5 : 1.5 }}>
+      <Box sx={{ px: 1.5, overflow: "hidden", display: "flex", alignItems: "center", gap: 1, borderLeft: isChild ? `2px solid ${groupColor}55` : `3px solid ${groupColor}`, height: "100%", pl: nested ? 4 : isChild ? 2.5 : 1.5 }}>
         <Box
           onClick={(e) => { e.stopPropagation(); onNavigate(task); }}
           sx={{
@@ -466,15 +509,23 @@ function TaskRow({ task, groupColor, contributors, onAssign, onNavigate, onToggl
               }
             </Box>
         }
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography noWrap sx={{
-            fontSize: "0.8125rem", fontWeight: 500, lineHeight: 1.3,
-            textDecoration: isCompleted ? "line-through" : "none",
-            color: isAuto ? "rgba(255,255,255,0.35)" : isCompleted ? "text.secondary" : "text.primary",
-            fontStyle: isAuto ? "italic" : "normal",
-          }}>
-            {task.name}
-          </Typography>
+        <Box sx={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, overflow: 'hidden' }}>
+            <Typography noWrap sx={{
+              fontSize: "0.8125rem", fontWeight: 500, lineHeight: 1.3,
+              textDecoration: isCompleted ? "line-through" : "none",
+              color: isAuto ? "rgba(255,255,255,0.35)" : isCompleted ? "text.secondary" : "text.primary",
+              fontStyle: isAuto ? "italic" : "normal",
+              minWidth: 0,
+            }}>
+              {task.name}
+            </Typography>
+            {!nested && subtasks.length > 0 && (
+              <Typography sx={{ fontSize: '0.65rem', color: '#475569', fontWeight: 600, lineHeight: 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {completedSubtasks}/{subtasks.length} subtasks
+              </Typography>
+            )}
+          </Box>
           {task.description && (
             <Typography noWrap sx={{ fontSize: "0.6875rem", color: "rgba(255,255,255,0.3)", lineHeight: 1.25, mt: 0.125 }}>
               {task.description}
@@ -535,20 +586,38 @@ function TaskRow({ task, groupColor, contributors, onAssign, onNavigate, onToggl
       </Box>
 
     </Box>
+
+    <Collapse in={subtasksOpen}>
+      {subtasks.map((subtask) => (
+        <TaskRow
+          key={`${subtask.source}-${subtask.id}`}
+          task={subtask}
+          groupColor={groupColor}
+          contributors={contributors}
+          onAssign={onAssign}
+          onNavigate={onNavigate}
+          onToggle={onToggle}
+          isChild
+          nested
+        />
+      ))}
+    </Collapse>
+    </>
   );
 }
 
 // ══════════════════════════════════════════════════════════════
 // StageRow — collapsible stage header with sub-tasks nested below
 // ══════════════════════════════════════════════════════════════
-function StageRow({ stage, children, groupColor, contributors, onAssign, onNavigate, onToggle }: {
+function StageRow({ stage, children, groupColor, contributors, onAssign, onNavigate, onToggle, subtasksByParent }: {
   stage: ActiveTask;
   children: ActiveTask[];
   groupColor: string;
   contributors: Contributor[];
-  onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null) => void;
+  onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null, taskKind?: 'task' | 'subtask') => void;
   onNavigate: (task: ActiveTask) => void;
   onToggle: (task: ActiveTask) => void;
+  subtasksByParent: Map<number, ActiveTask[]>;
 }) {
   const [open, setOpen] = useState(true);
   const stageColor = stage.stage_color || groupColor;
@@ -663,6 +732,7 @@ function StageRow({ stage, children, groupColor, contributors, onAssign, onNavig
             onNavigate={onNavigate}
             onToggle={onToggle}
             isChild
+            subtasks={subtasksByParent.get(task.id) ?? []}
           />
         ))}
       </Collapse>
@@ -681,6 +751,8 @@ function ColumnHeaders() {
       bgcolor: "rgba(255,255,255,0.022)",
       borderBottom: "1px solid rgba(255,255,255,0.07)",
     }}>
+      {/* chevron col spacer */}
+      <Box />
       {headers.map((h, i) => (
         <Typography key={h} sx={{
           fontSize: "0.625rem", fontWeight: 800, color: "rgba(255,255,255,0.3)",
@@ -703,12 +775,22 @@ function TaskGroup({
   title: string; color: string; tasks: ActiveTask[];
   defaultExpanded: boolean; icon?: React.ReactNode; badge?: string;
   contributors: Contributor[];
-  onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null) => void;
+  onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null, taskKind?: 'task' | 'subtask') => void;
   onNavigate: (task: ActiveTask) => void;
   onToggle: (task: ActiveTask) => void;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
-  const leafTasks = tasks.filter(t => !t.is_stage);
+  const subtasksByParent = useMemo(() => {
+    const map = new Map<number, ActiveTask[]>();
+    tasks.forEach((task) => {
+      if (!task.subtask_parent_id) return;
+      const list = map.get(task.subtask_parent_id) ?? [];
+      list.push(task);
+      map.set(task.subtask_parent_id, list);
+    });
+    return map;
+  }, [tasks]);
+  const leafTasks = tasks.filter(t => !t.is_stage && t.task_kind !== 'subtask');
   const totalHours = leafTasks.reduce((s, t) => s + (t.estimated_hours || 0), 0);
   const completedCount = leafTasks.filter(t => t.status === "Completed").length;
   const progress = leafTasks.length > 0 ? (completedCount / leafTasks.length) * 100 : 0;
@@ -795,6 +877,7 @@ function TaskGroup({
               onAssign={onAssign}
               onNavigate={onNavigate}
               onToggle={onToggle}
+              subtasksByParent={subtasksByParent}
             />
           ) : (
             <TaskRow
@@ -805,6 +888,7 @@ function TaskGroup({
               onAssign={onAssign}
               onNavigate={onNavigate}
               onToggle={onToggle}
+              subtasks={subtasksByParent.get(item.task.id) ?? []}
             />
           )
         )}
@@ -1056,7 +1140,10 @@ export default function ActiveTasksPage() {
   }, [loadTasks]);
 
   // ── Assign handler (optimistic update) ──
-  const handleAssign = useCallback(async (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null) => {
+  const handleAssign = useCallback(async (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null, taskKind: 'task' | 'subtask' = 'task') => {
+    if (taskKind === 'subtask') {
+      return;
+    }
     const contributor = assigneeId ? contributors.find(c => c.id === assigneeId) : null;
     const newAssignee = contributor
       ? { id: contributor.id, name: contributor.full_name, email: contributor.email }
@@ -1065,7 +1152,7 @@ export default function ActiveTasksPage() {
       t.id === taskId && t.source === source ? { ...t, assignee: newAssignee } : t
     ));
     try {
-      await api.activeTasks.assign(taskId, source, assigneeId);
+      await api.activeTasks.assign(taskId, source, assigneeId, taskKind);
     } catch {
       loadTasks();
     }
@@ -1081,16 +1168,23 @@ export default function ActiveTasksPage() {
   const handleToggle = useCallback(async (task: ActiveTask) => {
     if (task.is_auto_only || task.is_stage) return;
     const newStatus = task.status === "Completed" ? "To_Do" : "Completed";
-    // Optimistic: update the toggled task status
     setTasks(prev => {
       let updated = prev.map(t =>
         t.id === task.id && t.source === task.source
           ? { ...t, status: newStatus, completed_at: newStatus === "Completed" ? new Date().toISOString() : null }
           : t
       );
-      // Also sync the parent stage if this task has one
-      if (task.parent_task_id) {
-        const siblings = updated.filter(t => t.parent_task_id === task.parent_task_id && !t.is_stage);
+
+      if (task.task_kind === 'subtask' && task.subtask_parent_id) {
+        const siblings = updated.filter(t => t.subtask_parent_id === task.subtask_parent_id);
+        const allDone = siblings.every(t => t.status === 'Completed');
+        updated = updated.map(t =>
+          t.id === task.subtask_parent_id && t.source === task.source
+            ? { ...t, status: allDone ? 'Completed' : 'To_Do', completed_at: allDone ? new Date().toISOString() : null }
+            : t
+        );
+      } else if (task.parent_task_id) {
+        const siblings = updated.filter(t => t.parent_task_id === task.parent_task_id && !t.is_stage && t.task_kind !== 'subtask');
         const allDone = siblings.every(t => t.status === "Completed");
         updated = updated.map(t =>
           t.id === task.parent_task_id && t.source === task.source
@@ -1101,15 +1195,19 @@ export default function ActiveTasksPage() {
       return updated;
     });
     try {
-      await api.activeTasks.toggle(task.id, task.source);
+      await api.activeTasks.toggle(task.id, task.source, task.task_kind ?? 'task');
     } catch {
-      loadTasks(); // Revert on error
+      loadTasks();
     }
   }, [loadTasks]);
 
   // ── Filtering ──
   const filteredTasks = useMemo(() => {
     return tasks.filter(t => {
+      // Subtasks are always included — they render nested under their parent, not as top-level rows.
+      // Filtering them here would break the subtask expand UI (completed subtasks would vanish).
+      if (t.task_kind === 'subtask') return true;
+
       if (!showAuto && t.is_auto_only) return false;
       if (statusFilter === "active" && (t.status === "Completed" || t.status === "Archived")) return false;
       if (statusFilter !== "active" && statusFilter !== "all" && t.status !== statusFilter) return false;
@@ -1326,7 +1424,7 @@ export default function ActiveTasksPage() {
         />
 
         <Typography sx={{ fontSize: "0.6875rem", color: "text.disabled", fontWeight: 600, whiteSpace: "nowrap", px: 0.5 }}>
-          {filteredTasks.length} / {tasks.length}
+          {filteredTasks.filter(t => t.task_kind !== 'subtask').length} / {tasks.filter(t => t.task_kind !== 'subtask').length}
         </Typography>
       </Paper>
 

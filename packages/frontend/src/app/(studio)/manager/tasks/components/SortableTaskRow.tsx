@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
     Box,
@@ -26,6 +26,7 @@ import {
     ExpandMore as ExpandMoreIcon,
     ExpandLess as ExpandLessIcon,
     CalendarMonth as CalendarMonthIcon,
+    ChevronRight as ChevronRightIcon,
 } from "@mui/icons-material";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -99,6 +100,8 @@ export function SortableTaskRow({
     };
 
     const isEditing = inlineEditingTask === task.id;
+    const [subtasksOpen, setSubtasksOpen] = useState(false);
+    const subtasks = task.task_library_subtask_templates ?? [];
 
     // Get phase colors
     const phaseColors = {
@@ -196,6 +199,51 @@ export function SortableTaskRow({
                 </IconButton>
             </TableCell>
 
+            {/* Subtask Chevron */}
+            <TableCell sx={{ width: 32, p: 0, textAlign: 'center' }}>
+                {subtasks.length > 0 ? (
+                    <Box
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setSubtasksOpen(!subtasksOpen);
+                        }}
+                        sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 0.25,
+                            cursor: 'pointer',
+                            borderRadius: 1,
+                            px: 0.5,
+                            py: 0.25,
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                                backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                            },
+                        }}
+                    >
+                        <ChevronRightIcon
+                            sx={{
+                                fontSize: 16,
+                                color: subtasksOpen ? 'rgb(167, 139, 250)' : 'rgba(255, 255, 255, 0.4)',
+                                transition: 'transform 0.2s ease, color 0.2s ease',
+                                transform: subtasksOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                            }}
+                        />
+                        <Typography
+                            variant="caption"
+                            sx={{
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                color: subtasksOpen ? 'rgb(167, 139, 250)' : 'rgba(255, 255, 255, 0.35)',
+                                lineHeight: 1,
+                            }}
+                        >
+                            {subtasks.length}
+                        </Typography>
+                    </Box>
+                ) : null}
+            </TableCell>
+
             {/* Task Name */}
             <TableCell>
                 {isEditing ? (
@@ -207,7 +255,7 @@ export function SortableTaskRow({
                         variant="outlined"
                         placeholder="Task name"
                         sx={{
-                            maxWidth: '300px', // Constrain the width like quick add
+                            maxWidth: '300px',
                             ml: isChild ? 3 : 0,
                             '& .MuiOutlinedInput-root': {
                                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
@@ -784,6 +832,72 @@ export function SortableTaskRow({
             </TableCell>
         </TableRow>
 
+        {/* Expandable subtask rows */}
+        {subtasksOpen && subtasks.map((st) => (
+            <TableRow
+                key={`subtask-${st.id}`}
+                sx={{
+                    background: 'rgba(139, 92, 246, 0.03)',
+                    '& td': {
+                        borderBottom: '1px solid rgba(139, 92, 246, 0.06)',
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        py: 0.6,
+                        px: 2,
+                        verticalAlign: 'middle',
+                    },
+                }}
+            >
+                {/* Drag — empty */}
+                <TableCell sx={{ p: 0, width: 40 }} />
+                {/* Chevron — empty */}
+                <TableCell sx={{ p: 0, width: 32 }} />
+                {/* Subtask Name */}
+                <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', pl: isChild ? 5 : 3 }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.55)' }}>
+                            {st.name}
+                        </Typography>
+                    </Box>
+                </TableCell>
+                {/* Role */}
+                <TableCell />
+                {/* Tier */}
+                <TableCell />
+                {/* Rate */}
+                <TableCell />
+                {/* Contributor */}
+                <TableCell />
+                {/* Description */}
+                <TableCell />
+                {/* Hours */}
+                <TableCell />
+                {/* Due Days */}
+                <TableCell />
+                {/* Trigger */}
+                <TableCell align="center">
+                    <Chip
+                        label={st.is_auto_only ? 'Auto' : 'Always'}
+                        size="small"
+                        sx={{
+                            background: st.is_auto_only
+                                ? 'rgba(79, 172, 254, 0.15)'
+                                : 'rgba(255, 255, 255, 0.1)',
+                            color: st.is_auto_only ? '#4facfe' : 'rgba(255, 255, 255, 0.7)',
+                            fontWeight: 500,
+                            fontSize: '0.7rem',
+                            border: st.is_auto_only
+                                ? '1px solid rgba(79, 172, 254, 0.3)'
+                                : '1px solid rgba(255, 255, 255, 0.2)',
+                        }}
+                    />
+                </TableCell>
+                {/* Status */}
+                <TableCell />
+                {/* Actions */}
+                <TableCell />
+            </TableRow>
+        ))}
+
         {/* Expandable role & skills panel */}
         <TableRow
             sx={{
@@ -791,7 +905,7 @@ export function SortableTaskRow({
                 ...(isExpanded ? {} : { display: 'none' }),
             }}
         >
-            <TableCell colSpan={11} sx={{ p: 0 }}>
+            <TableCell colSpan={13} sx={{ p: 0 }}>
                 <TaskRoleSkillsPanel
                     task={task}
                     open={isExpanded}

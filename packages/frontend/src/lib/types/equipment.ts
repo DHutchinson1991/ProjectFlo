@@ -142,6 +142,7 @@ export interface Equipment extends BaseEntity {
     brand_id?: number;
     is_active: boolean;
     created_by_id?: number;
+    owner_id?: number | null;
     // Backend field names (as returned by API)
     rental_bookings?: EquipmentRental[];
     maintenance_logs?: EquipmentMaintenance[];
@@ -180,6 +181,16 @@ export interface Equipment extends BaseEntity {
             phone?: string;
         };
     };
+    owner?: {
+        id: number;
+        contact?: {
+            id: number;
+            first_name: string;
+            last_name: string;
+            email?: string;
+            phone?: string;
+        };
+    } | null;
     is_unmanned?: boolean;
 }
 

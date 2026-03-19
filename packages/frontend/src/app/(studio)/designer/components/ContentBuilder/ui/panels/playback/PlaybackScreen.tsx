@@ -229,7 +229,7 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
                 if (pkg) return pkg.name;
                 // Fallback to old moment subjects (Subject.id via MomentSubject)
                 const ms = momentSubjects.find((item) => item.subject_id === id);
-                return ms?.subject?.role?.role_name || ms?.subject?.name;
+                return ms?.subject?.name;
             })
             .filter(Boolean);
         return names.length ? names.join(", ") : "";

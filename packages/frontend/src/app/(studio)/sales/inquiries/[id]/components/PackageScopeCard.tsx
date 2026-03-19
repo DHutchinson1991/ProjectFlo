@@ -80,38 +80,6 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     const naOperatorCount = responses.operator_count as number | undefined;
     const naCameraCount = responses.camera_count as number | undefined;
 
-    // Crew conflicts
-    const [crewConflicts, setCrewConflicts] = useState<{
-        conflicts: { contributor_id: number; name: string; role: string; event_type: string; event_title: string }[];
-    } | null>(null);
-    const [loadingCrewConflicts, setLoadingCrewConflicts] = useState(false);
-
-    useEffect(() => {
-        if (!submission?.id) return;
-        setLoadingCrewConflicts(true);
-        api.needsAssessmentSubmissions.checkCrewConflicts(submission.id)
-            .then(setCrewConflicts)
-            .catch(() => setCrewConflicts(null))
-            .finally(() => setLoadingCrewConflicts(false));
-    }, [submission?.id]);
-
-    // Manual review checks
-    const existingChecklist = (submission?.review_checklist_state ?? {}) as Record<string, boolean>;
-    const [coverageVerified, setCoverageVerified] = useState(existingChecklist['coverage_scope'] ?? false);
-    const [budgetAligned, setBudgetAligned] = useState(existingChecklist['budget_alignment'] ?? false);
-
-    const handleCheckToggle = async (key: string, current: boolean, setter: (v: boolean) => void) => {
-        if (!submission) return;
-        const next = !current;
-        setter(next);
-        try {
-            await api.needsAssessmentSubmissions.review(submission.id, {
-                review_checklist_state: { ...existingChecklist, [key]: next },
-            });
-        } catch {
-            setter(current); // revert
-        }
-    };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [availablePackages, setAvailablePackages] = useState<any[]>([]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -448,71 +416,6 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                     </Box>
                 )}
 
-                {/* ── Crew conflicts + review checks ── */}
-                {submission && (
-                    <Box sx={{
-                        px: 2.5, py: 1.5,
-                        borderTop: '1px solid rgba(52, 58, 68, 0.3)',
-                    }}>
-                        {/* Crew conflicts */}
-                        {loadingCrewConflicts ? (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                <CircularProgress size={14} sx={{ color: '#64748b' }} />
-                                <Typography sx={{ fontSize: '0.72rem', color: '#64748b' }}>Checking crew availability…</Typography>
-                            </Box>
-                        ) : crewConflicts && (
-                            <Box sx={{ mb: 1 }}>
-                                {crewConflicts.conflicts.length === 0 ? (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                        <CheckCircle sx={{ fontSize: 16, color: '#10b981' }} />
-                                        <Typography sx={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>
-                                            Crew is available
-                                        </Typography>
-                                    </Box>
-                                ) : (
-                                    <Stack spacing={0.5}>
-                                        {crewConflicts.conflicts.map((c) => (
-                                            <Box key={c.contributor_id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                                <ErrorOutline sx={{ fontSize: 14, color: '#f59e0b' }} />
-                                                <Typography sx={{ fontSize: '0.72rem', color: '#fcd34d' }}>
-                                                    {c.name} ({c.role}) — busy: {c.event_title}
-                                                </Typography>
-                                            </Box>
-                                        ))}
-                                    </Stack>
-                                )}
-                            </Box>
-                        )}
-
-                        {/* Manual checks */}
-                        <Stack spacing={0}>
-                            <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        size="small"
-                                        checked={coverageVerified}
-                                        onChange={() => handleCheckToggle('coverage_scope', coverageVerified, setCoverageVerified)}
-                                        sx={{ color: '#475569', '&.Mui-checked': { color: '#10b981' }, p: 0.5 }}
-                                    />
-                                }
-                                label={<Typography sx={{ fontSize: '0.72rem', color: coverageVerified ? '#10b981' : '#94a3b8' }}>Package covers what they need</Typography>}
-                                sx={{ ml: -0.5 }}
-                            />
-                            <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        size="small"
-                                        checked={budgetAligned}
-                                        onChange={() => handleCheckToggle('budget_alignment', budgetAligned, setBudgetAligned)}
-                                        sx={{ color: '#475569', '&.Mui-checked': { color: '#10b981' }, p: 0.5 }}
-                                    />
-                                }
-                                label={<Typography sx={{ fontSize: '0.72rem', color: budgetAligned ? '#10b981' : '#94a3b8' }}>Their budget works</Typography>}
-                                sx={{ ml: -0.5 }}
-                            />
-                        </Stack>
-                    </Box>
-                )}
             </CardContent>
         </WorkflowCard>
     );

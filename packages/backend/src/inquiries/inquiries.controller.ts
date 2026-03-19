@@ -3,6 +3,7 @@ import {
     Get,
     Post,
     Put,
+    Patch,
     Delete,
     Body,
     Param,
@@ -18,6 +19,7 @@ import { ProjectPackageCloneService } from '../projects/project-package-clone.se
 import { ScheduleService } from '../content/schedule/schedule.service';
 import { CreateInquiryDto, UpdateInquiryDto } from './dto/inquiries.dto';
 import { ClientPortalService } from './client-portal.service';
+import { InquiryAvailabilityService } from './inquiry-availability.service';
 
 @Controller('api/inquiries')
 @UseGuards(AuthGuard('jwt'))
@@ -28,6 +30,7 @@ export class InquiriesController {
         private readonly cloneService: ProjectPackageCloneService,
         private readonly scheduleService: ScheduleService,
         private readonly clientPortalService: ClientPortalService,
+        private readonly inquiryAvailabilityService: InquiryAvailabilityService,
     ) { }
 
     @Post(':id/portal-token')
@@ -57,6 +60,107 @@ export class InquiriesController {
     ) {
         const brandIdNum = parseInt(brandId);
         return this.inquiriesService.findOne(id, brandIdNum || 0);
+    }
+
+    @Get(':id/discovery-call')
+    async getDiscoveryCall(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId, 10);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        return this.inquiriesService.getDiscoveryCall(id, brandIdNum);
+    }
+
+    @Get(':id/crew-availability')
+    async getCrewAvailability(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId, 10);
+        if (!brandIdNum) {
+            throw new NotFoundException('Brand ID is required');
+        }
+        return this.inquiryAvailabilityService.getCrewAvailability(id, brandIdNum);
+    }
+
+    @Get(':id/equipment-availability')
+    async getEquipmentAvailability(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId, 10);
+        if (!brandIdNum) {
+            throw new NotFoundException('Brand ID is required');
+        }
+        return this.inquiryAvailabilityService.getEquipmentAvailability(id, brandIdNum);
+    }
+
+    @Post(':id/availability-requests')
+    async sendAvailabilityRequest(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+        @Body() body: { contributor_id: number; project_day_operator_id?: number },
+    ) {
+        const brandIdNum = parseInt(brandId, 10);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        return this.inquiryAvailabilityService.sendAvailabilityRequest(
+            id,
+            body.contributor_id,
+            body.project_day_operator_id,
+            brandIdNum,
+        );
+    }
+
+    @Patch(':id/availability-requests/:requestId')
+    async updateAvailabilityRequest(
+        @Param('id', ParseIntPipe) id: number,
+        @Param('requestId', ParseIntPipe) requestId: number,
+        @Headers('x-brand-context') brandId: string,
+        @Body() body: { status: 'confirmed' | 'declined' | 'cancelled' },
+    ) {
+        const brandIdNum = parseInt(brandId, 10);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        return this.inquiryAvailabilityService.updateAvailabilityRequestStatus(
+            id,
+            requestId,
+            body.status,
+            brandIdNum,
+        );
+    }
+
+    @Post(':id/equipment-reservations')
+    async reserveEquipment(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+        @Body() body: { assignment_id: number },
+    ) {
+        const brandIdNum = parseInt(brandId, 10);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        return this.inquiryAvailabilityService.reserveEquipment(id, body.assignment_id, brandIdNum);
+    }
+
+    @Delete(':id/equipment-reservations/:reservationId')
+    async cancelEquipmentReservation(
+        @Param('id', ParseIntPipe) id: number,
+        @Param('reservationId', ParseIntPipe) reservationId: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId, 10);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        return this.inquiryAvailabilityService.cancelEquipmentReservation(id, reservationId, brandIdNum);
+    }
+
+    @Patch(':id/equipment-reservations/:reservationId')
+    async updateEquipmentReservation(
+        @Param('id', ParseIntPipe) id: number,
+        @Param('reservationId', ParseIntPipe) reservationId: number,
+        @Headers('x-brand-context') brandId: string,
+        @Body() body: { status: 'confirmed' | 'cancelled' },
+    ) {
+        const brandIdNum = parseInt(brandId, 10);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        return this.inquiryAvailabilityService.updateEquipmentReservationStatus(id, reservationId, body.status, brandIdNum);
     }
 
     @Post()

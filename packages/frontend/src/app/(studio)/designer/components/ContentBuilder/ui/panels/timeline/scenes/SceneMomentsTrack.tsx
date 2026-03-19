@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { Box, Typography, Paper, Tooltip, Chip } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import { TimelineSceneMoment, TimelineSceneWithMoments, TimelineLayer } from '../types/momentTypes';
+import type {
+  TimelineSceneMoment,
+  TimelineSceneWithMoments,
+  TimelineLayerUnion as TimelineLayer,
+} from '@/lib/types/domains/moments';
 import { getSceneColorByType, getDefaultTrackColor } from '../../../../utils/colorUtils';
 
 const VIDEO_SCENE_COLOR = getSceneColorByType('VIDEO');
@@ -295,7 +299,7 @@ export const TimelineSceneLayer: React.FC<TimelineSceneLayerProps> = ({
 };
 
 interface TimelineSceneWithMomentsBlockProps {
-  scene: TimelineSceneWithMoments;
+  scene: TimelineSceneWithMoments & { isExpanded?: boolean };
   sceneStartTime: number;
   pixelsPerSecond: number;
   isHovered?: boolean;

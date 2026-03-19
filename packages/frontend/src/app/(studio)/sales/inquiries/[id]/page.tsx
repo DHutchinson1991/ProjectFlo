@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useBrand } from '@/app/providers/BrandProvider';
 import {
     Box,
@@ -40,6 +40,7 @@ import {
     ClientUpdatesCard,
     DiscoveryQuestionnaireCard,
     ReviewNotesCard,
+    QualifyCard,
     buildPipelineTasks,
     buildPipelineTasksFromInquiry,
     type PipelineTask,
@@ -49,8 +50,9 @@ import {
 
 // Existing per-inquiry sub-components (unchanged)
 import EventDetailsCard from './components/EventDetailsCard';
+import AvailabilityCard from './components/AvailabilityCard';
 import PackageScopeCard from './components/PackageScopeCard';
-import ClientInfoCard from './_detail/_components/ClientInfoCard';
+import NeedsAssessmentDialog from './_detail/_components/NeedsAssessmentDialog';
 import InquirySchedulePreview from './components/InquirySchedulePreview';
 
 
@@ -59,6 +61,8 @@ import InquirySchedulePreview from './components/InquirySchedulePreview';
 /* ================================================================== */
 export default function InquiryDetailPage() {
     const params = useParams();
+    const router = useRouter();
+    const searchParams = useSearchParams();
     const inquiryId = parseInt(params.id as string);
     const { currentBrand } = useBrand();
 
@@ -72,8 +76,11 @@ export default function InquiryDetailPage() {
     const [activeTab, setActiveTab] = useState<'overview' | 'package-details'>('overview');
 
     const [pipelineTasks, setPipelineTasks] = useState<PipelineTask[]>([]);
+    const [inquiryTasksData, setInquiryTasksData] = useState<InquiryTask[]>([]);
     const [hasRealTasks, setHasRealTasks] = useState(false);
     const [contributors, setContributors] = useState<Contributor[]>([]);
+    const [needsAssessmentDialogOpen, setNeedsAssessmentDialogOpen] = useState(false);
+    const [estimateRefreshKey, setEstimateRefreshKey] = useState(0);
 
     /* ---- data loading ---- */
     useEffect(() => {
@@ -86,6 +93,10 @@ export default function InquiryDetailPage() {
             loadContributors();
         }
     }, [inquiryId, currentBrand?.id]);
+
+    useEffect(() => {
+        setNeedsAssessmentDialogOpen(searchParams.get('open') === 'needs-assessment');
+    }, [searchParams]);
 
     const loadInquiry = async () => {
         try {
@@ -121,6 +132,7 @@ export default function InquiryDetailPage() {
         try {
             const inquiryTasks: InquiryTask[] = await api.inquiryTasks.getAll(inquiryId);
             if (inquiryTasks.length > 0) {
+                setInquiryTasksData(inquiryTasks);
                 setPipelineTasks(buildPipelineTasksFromInquiry(inquiryTasks));
                 setHasRealTasks(true);
                 return;
@@ -133,6 +145,7 @@ export default function InquiryDetailPage() {
         try {
             const generated: InquiryTask[] = await api.inquiryTasks.generate(inquiryId);
             if (generated.length > 0) {
+                setInquiryTasksData(generated);
                 setPipelineTasks(buildPipelineTasksFromInquiry(generated));
                 setHasRealTasks(true);
                 return;
@@ -146,9 +159,11 @@ export default function InquiryDetailPage() {
             const grouped = await api.taskLibrary.getGroupedByPhase();
             const inquiryPhaseTasks = grouped['Inquiry'] ?? [];
             const bookingPhaseTasks = grouped['Booking'] ?? [];
+            setInquiryTasksData([]);
             setPipelineTasks(buildPipelineTasks([...inquiryPhaseTasks, ...bookingPhaseTasks]));
         } catch (err) {
             console.error('Error loading fallback pipeline tasks:', err);
+            setInquiryTasksData([]);
             setPipelineTasks([]);
         }
 
@@ -158,6 +173,14 @@ export default function InquiryDetailPage() {
     const handleRefresh = async () => {
         await Promise.all([loadInquiry(), loadPipelineTasks()]);
         setSnackbar({ open: true, message: 'Data refreshed successfully', severity: 'success' });
+    };
+
+    const handleCloseNeedsAssessmentDialog = () => {
+        setNeedsAssessmentDialogOpen(false);
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete('open');
+        const query = params.toString();
+        router.replace(query ? `/sales/inquiries/${inquiryId}?${query}` : `/sales/inquiries/${inquiryId}`);
     };
 
     /* ---- loading / error guards ---- */
@@ -278,13 +301,16 @@ export default function InquiryDetailPage() {
                                     alignItems: 'start',
                                 }}
                             >
-                                <ClientInfoCard
-                                    inquiry={inquiry}
-                                    onRefresh={handleRefresh}
-                                    isActive={currentPhase === 'needs-assessment'}
-                                    activeColor={phaseColor('needs-assessment')}
-                                    submission={needsAssessmentSubmission}
-                                />
+                                <div id="availability-section">
+                                    <AvailabilityCard
+                                        inquiry={inquiry}
+                                        inquiryTasks={inquiryTasksData}
+                                        isActive={currentPhase === 'needs-assessment'}
+                                        activeColor={phaseColor('needs-assessment')}
+                                        onTasksChanged={() => { loadPipelineTasks(); setEstimateRefreshKey(k => k + 1); }}
+                                        WorkflowCard={WorkflowCard}
+                                    />
+                                </div>
 
                                 <PackageScopeCard
                                     inquiry={inquiry}
@@ -298,8 +324,15 @@ export default function InquiryDetailPage() {
                             </Box>
 
                             <div id="estimates-section">
-                                <EstimatesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'estimates'} activeColor={phaseColor('estimates')} />
+                                <EstimatesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'estimates'} activeColor={phaseColor('estimates')} refreshKey={estimateRefreshKey} />
                             </div>
+
+                            <QualifyCard
+                                inquiry={inquiry}
+                                inquiryTasks={inquiryTasksData}
+                                submission={needsAssessmentSubmission}
+                                onRefresh={handleRefresh}
+                            />
                         </Stack>
                     </Grid>
 
@@ -355,6 +388,13 @@ export default function InquiryDetailPage() {
                     <InquirySchedulePreview inquiryId={inquiry.id} sourcePackageId={inquiry.selected_package_id} />
                 </Box>
             )}
+
+            <NeedsAssessmentDialog
+                open={needsAssessmentDialogOpen}
+                onClose={handleCloseNeedsAssessmentDialog}
+                submission={needsAssessmentSubmission}
+                inquiryId={inquiry.id}
+            />
 
             {/* --- SNACKBAR --- */}
             <Snackbar

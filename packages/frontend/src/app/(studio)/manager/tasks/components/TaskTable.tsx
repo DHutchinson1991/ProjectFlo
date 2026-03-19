@@ -607,6 +607,7 @@ export function TaskTable({
                 <TableHead>
                     <TableRow>
                         <TableCell sx={{ width: 40 }}></TableCell>
+                        <TableCell sx={{ width: 32 }}></TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Task Name</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>
                             <PersonIcon fontSize="small" sx={{ verticalAlign: "middle", mr: 0.5 }} />
@@ -655,7 +656,7 @@ export function TaskTable({
                                         <TableCell sx={{ width: 40, padding: 1 }}>
                                             <FolderOpenIcon sx={{ fontSize: 18, color: stageColor, opacity: 0.8 }} />
                                         </TableCell>
-                                        <TableCell colSpan={10}>
+                                        <TableCell colSpan={12}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                                 <Typography variant="subtitle2" sx={{ fontWeight: 700, color: stageColor, letterSpacing: 0.3 }}>
                                                     {item.stage.name}

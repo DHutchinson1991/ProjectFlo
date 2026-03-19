@@ -41,7 +41,16 @@ interface BeatEditorProps {
   onSave: (beat: BeatEditorBeat) => void;
   onDelete?: (beatId?: number) => void;
   /** The activity linked to this beat's parent scene */
-  activity?: { id: number; name: string; start_time?: string | null; end_time?: string | null; duration_minutes?: number | null; package_event_day_id?: number | null; dayName?: string | null } | null;
+  activity?: {
+    id: number;
+    name: string;
+    start_time?: string | null;
+    end_time?: string | null;
+    duration_minutes?: number | null;
+    package_event_day_id?: number | null;
+    event_day_template_id?: number | null;
+    dayName?: string | null;
+  } | null;
   /** All package subjects (will be filtered to activity-inherited) */
   activitySubjects?: any[];
   /** All package operators (will be filtered to activity-inherited) */

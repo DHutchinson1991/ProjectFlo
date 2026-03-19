@@ -47,6 +47,7 @@ import {
     CalendarToday as CalendarIcon,
     LocationOn as LocationIcon,
     Inventory as InventoryIcon,
+    Person as PersonIcon,
 } from "@mui/icons-material";
 import { api } from "@/lib/api";
 import { useBrand } from "@/app/providers/BrandProvider";
@@ -60,6 +61,7 @@ import {
     EquipmentCondition,
     EQUIPMENT_AVAILABILITY_COLORS,
     EQUIPMENT_CONDITION_COLORS,
+    Contributor,
 } from "@/lib/types";
 
 interface TabPanelProps {
@@ -99,6 +101,7 @@ export default function EquipmentDetailsPage() {
     const [equipment, setEquipment] = useState<Equipment | null>(null);
     const [rentals, setRentals] = useState<EquipmentRental[]>([]);
     const [maintenance, setMaintenance] = useState<EquipmentMaintenance[]>([]);
+    const [contributors, setContributors] = useState<Contributor[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -107,6 +110,11 @@ export default function EquipmentDetailsPage() {
     const [snackbarMessage, setSnackbarMessage] = useState("");
     const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">("success");
     const [tabValue, setTabValue] = useState(0);
+
+    // Load contributors for owner selector
+    useEffect(() => {
+        api.contributors.list().then(setContributors).catch(() => {});
+    }, []);
 
     // Load equipment data
     const loadEquipment = async () => {
@@ -808,6 +816,46 @@ export default function EquipmentDetailsPage() {
                                                     }
                                                 }}
                                             />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6}>
+                                            {/* Owner field */}
+                                            <FormControl fullWidth>
+                                                <InputLabel sx={{
+                                                    color: '#9ca3af',
+                                                    '&.Mui-focused': { color: '#d1d5db' }
+                                                }}>
+                                                    Owner
+                                                </InputLabel>
+                                                <Select
+                                                    value={isEditing ? (editData.owner_id ?? '') : (equipment.owner_id ?? '')}
+                                                    onChange={(e) => updateEditData('owner_id', e.target.value === '' ? null : Number(e.target.value))}
+                                                    disabled={!isEditing}
+                                                    label="Owner"
+                                                    startAdornment={<PersonIcon sx={{ mr: 1, color: '#9ca3af', fontSize: 18 }} />}
+                                                    sx={{
+                                                        borderRadius: 2,
+                                                        backgroundColor: 'rgba(30, 41, 59, 0.5)',
+                                                        color: '#f3f4f6',
+                                                        '& .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: 'rgba(75, 85, 99, 0.6)',
+                                                        },
+                                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: '#6b7280',
+                                                        },
+                                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: '#9ca3af',
+                                                        },
+                                                        '& .MuiSelect-select': { color: '#f3f4f6' }
+                                                    }}
+                                                >
+                                                    <MenuItem value=""><em style={{ color: '#6b7280' }}>No owner</em></MenuItem>
+                                                    {contributors.map((c) => (
+                                                        <MenuItem key={c.id} value={c.id}>
+                                                            {c.full_name || `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim()}
+                                                        </MenuItem>
+                                                    ))}
+                                                </Select>
+                                            </FormControl>
                                         </Grid>
                                         <Grid item xs={12} sm={6}>
                                             <TextField

@@ -299,7 +299,7 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
         console.info("[MOMENT] Recording setup response", {
             momentId,
             responseBodyPresent: hasResponseBody,
-            camera_assignments: normalizedSetup?.camera_assignments?.map((a) => a.track_id),
+            camera_assignments: normalizedSetup?.camera_assignments?.map((assignment: any) => assignment.track_id),
             audio_track_ids: normalizedSetup?.audio_track_ids,
             graphics_enabled: normalizedSetup?.graphics_enabled,
             graphics_title: normalizedSetup?.graphics_title,
@@ -504,6 +504,7 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
                 sceneRecordingSetup={(scene as TimelineScene & { recording_setup?: unknown }).recording_setup || null}
                 onUpsertRecordingSetup={handleMomentRecordingSetupSave}
                 onSave={handleSaveMoment}
+                onClose={handleClosePopover}
             />
 
             <Dialog
@@ -604,7 +605,9 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
                                 } else if (isAudioTrack) {
                                     // Check if THIS track is in the audio list
                                     // If setup is empty, we assume implicit assignment for all audio tracks
-                                    const isEnabled = isSetupEmpty || (setup?.audio_track_ids || []).includes(trackId);
+                                    const isEnabled =
+                                        isSetupEmpty ||
+                                        (typeof trackId === "number" && (setup?.audio_track_ids || []).includes(trackId));
                                     
                                     content = (
                                         <Box>

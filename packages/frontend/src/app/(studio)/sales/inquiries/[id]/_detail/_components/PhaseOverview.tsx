@@ -691,6 +691,7 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                                     )}
                                 </Box>
                             )}
+
                         </Box>
 
                         {/* Percentage */}

@@ -246,6 +246,16 @@ export class NeedsAssessmentsService {
             if (resolvedPkgId && !existingInquiry?.selected_package_id)
                 inquiryUpdate.selected_package_id = resolvedPkgId;
 
+            // Sync event_type_id from responses.event_type when the inquiry doesn't have one set
+            if (!existingInquiry?.event_type_id && responses['event_type']) {
+                const matchedEventType = await this.prisma.eventType.findFirst({
+                    where: { name: { equals: String(responses['event_type']), mode: 'insensitive' } },
+                });
+                if (matchedEventType) {
+                    inquiryUpdate.event_type_id = matchedEventType.id;
+                }
+            }
+
             if (Object.keys(inquiryUpdate).length > 0) {
                 await this.prisma.inquiries.update({
                     where: { id: payload.inquiry_id },
@@ -348,7 +358,6 @@ export class NeedsAssessmentsService {
         });
 
         if (inquiryId) {
-            await this.inquiryTasksService.autoCompleteByName(inquiryId, 'Inquiry Received');
             await this.autoCreateDraftEstimate(inquiryId);
         }
 

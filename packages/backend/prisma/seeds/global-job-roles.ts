@@ -18,6 +18,7 @@ async function seedGlobalJobRoles(): Promise<SeedSummary> {
             display_name: 'Videographer',
             description: 'Operates cameras and captures video footage according to the creative vision',
             category: 'technical',
+            on_site: true,
             is_active: true
         },
         {
@@ -25,6 +26,7 @@ async function seedGlobalJobRoles(): Promise<SeedSummary> {
             display_name: 'Editor',
             description: 'Assembles and edits video footage, adds effects, transitions, and ensures smooth storytelling',
             category: 'post-production',
+            on_site: false,
             is_active: true
         },
         {
@@ -32,6 +34,7 @@ async function seedGlobalJobRoles(): Promise<SeedSummary> {
             display_name: 'Producer',
             description: 'Oversees the entire production process, manages budgets, schedules, and coordinates between different departments',
             category: 'production',
+            on_site: false,
             is_active: true
         },
         {
@@ -39,6 +42,7 @@ async function seedGlobalJobRoles(): Promise<SeedSummary> {
             display_name: 'Director',
             description: 'Creative leader responsible for the overall vision and artistic direction of the project',
             category: 'creative',
+            on_site: false,
             is_active: true
         },
         {
@@ -46,6 +50,7 @@ async function seedGlobalJobRoles(): Promise<SeedSummary> {
             display_name: 'Sound Engineer',
             description: 'Records and manages audio during production, operates sound equipment',
             category: 'technical',
+            on_site: true,
             is_active: true
         }
     ];
@@ -64,6 +69,7 @@ async function seedGlobalJobRoles(): Promise<SeedSummary> {
                     display_name: roleData.display_name,
                     description: roleData.description,
                     category: roleData.category,
+                    on_site: roleData.on_site,
                     is_active: roleData.is_active,
                     updated_at: new Date()
                 }

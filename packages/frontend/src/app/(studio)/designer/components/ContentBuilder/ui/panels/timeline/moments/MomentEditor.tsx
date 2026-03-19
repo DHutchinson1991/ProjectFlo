@@ -67,7 +67,16 @@ interface MomentEditorProps {
     trackKey?: string;
     onRemoveTrack?: (momentId?: number, trackKey?: string) => void;
     /** The activity linked to this moment's parent scene */
-    activity?: { id: number; name: string; start_time?: string | null; end_time?: string | null; duration_minutes?: number | null; package_event_day_id?: number | null; dayName?: string | null } | null;
+    activity?: {
+        id: number;
+        name: string;
+        start_time?: string | null;
+        end_time?: string | null;
+        duration_minutes?: number | null;
+        package_event_day_id?: number | null;
+        event_day_template_id?: number | null;
+        dayName?: string | null;
+    } | null;
     /** All package subjects (will be filtered to activity-inherited) */
     activitySubjects?: any[];
     /** All package operators (will be filtered to activity-inherited) */
@@ -273,14 +282,17 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
             return;
         }
 
-        const cameraIds = fallbackSetup?.camera_assignments?.map((a: any) => a.track_id) || videoTracks.map(track => track.id);
-        const audioIds = fallbackSetup?.audio_track_ids || audioTracks.map(track => track.id);
+        const cameraIds: number[] = fallbackSetup?.camera_assignments?.map((a: any) => a.track_id) || videoTracks.map((track) => track.id);
+        const audioIds: number[] = fallbackSetup?.audio_track_ids || audioTracks.map((track) => track.id);
         const graphicsDefault = fallbackSetup ? !!fallbackSetup?.graphics_enabled : false;
         const graphicsTitleDefault = typeof (fallbackSetup as any)?.graphics_title === "string"
             ? (fallbackSetup as any).graphics_title
             : "";
-        const assignmentLookup = new Map(
-            (fallbackSetup?.camera_assignments || []).map((assignment: any) => [assignment.track_id, assignment.subject_ids || []])
+        const assignmentLookup = new Map<number, number[]>(
+            (fallbackSetup?.camera_assignments || []).map((assignment: any) => [
+                assignment.track_id,
+                (assignment.subject_ids || []) as number[],
+            ])
         );
         const shotLookup = new Map(
             (fallbackSetup?.camera_assignments || []).map((assignment: any) => [assignment.track_id, assignment.shot_type || ""])
@@ -291,7 +303,7 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
                 const def = trackDefaults[track.id];
                 if (!def) return;
                 if (!assignmentLookup.has(track.id) && def.subject_ids?.length) {
-                    assignmentLookup.set(track.id, def.subject_ids);
+                    assignmentLookup.set(track.id, def.subject_ids as number[]);
                 }
                 if (!shotLookup.has(track.id) && def.shot_type) {
                     shotLookup.set(track.id, def.shot_type);
@@ -613,13 +625,6 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
                             readOnly={readOnly}
                             onNameChange={setEditName}
                             onDurationChange={setEditDuration}
-                            onErrorClear={(field) => {
-                                if (errors[field]) {
-                                    const newErrors = { ...errors };
-                                    delete newErrors[field];
-                                    setErrors(newErrors);
-                                }
-                            }}
                         />
 
                         {/* Recording Setup */}
