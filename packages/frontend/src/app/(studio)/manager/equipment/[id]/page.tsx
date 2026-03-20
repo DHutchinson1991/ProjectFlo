@@ -113,7 +113,7 @@ export default function EquipmentDetailsPage() {
 
     // Load contributors for owner selector
     useEffect(() => {
-        api.contributors.list().then(setContributors).catch(() => {});
+        api.contributors.getAll().then(setContributors).catch(() => {});
     }, []);
 
     // Load equipment data

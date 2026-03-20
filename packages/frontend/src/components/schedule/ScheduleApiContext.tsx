@@ -171,7 +171,7 @@ export function createPackageScheduleApi(packageId: number, brandId: number): Sc
 
     moments: {
       getByActivity: (activityId) =>
-        api.schedule.packageActivityMoments.getByActivity(activityId),
+        api.schedule.packageActivityMoments.getAll(activityId),
       create: (activityId, data) =>
         api.schedule.packageActivityMoments.create(activityId, data),
       update: (momentId, data) =>

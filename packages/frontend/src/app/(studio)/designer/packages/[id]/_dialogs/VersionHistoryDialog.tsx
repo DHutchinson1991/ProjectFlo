@@ -108,7 +108,7 @@ export function VersionHistoryDialog({
                                                         size="small"
                                                         sx={{ height: 20, fontSize: '0.62rem', bgcolor: 'rgba(255,255,255,0.04)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.08)' }}
                                                     />
-                                                    {snapshot.base_price && (
+                                                    {!!snapshot.base_price && (
                                                         <Chip
                                                             label={`$${Number(snapshot.base_price).toFixed(2)}`}
                                                             size="small"

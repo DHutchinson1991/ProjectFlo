@@ -826,6 +826,10 @@ export interface UpdateInquiryData {
     lead_source?: string;
     lead_source_details?: string;
     preferred_payment_schedule_template_id?: number | null;
+    selected_package_id?: number | null;
+    event_type?: string | null;
+    budget_range?: string | null;
+    message?: string | null;
 }
 
 // Client CRUD DTOs
@@ -893,7 +897,7 @@ export interface UpdateInvoiceData {
 }
 
 export interface CreateEstimateData {
-    estimate_number: string;
+    estimate_number?: string;
     title?: string;
     issue_date: string;
     expiry_date: string;

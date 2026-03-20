@@ -673,7 +673,7 @@ export default function CrewPage() {
       name: "",
       display_name: "",
       description: "",
-      category: "",
+      categories: [],
     });
     setBracketForms([]);
     setBracketForm(emptyBracketForm);
@@ -688,7 +688,7 @@ export default function CrewPage() {
       name: "",
       display_name: "",
       description: "",
-      category: "",
+      categories: [],
     });
     setBracketForms([]);
     setBracketForm(emptyBracketForm);

@@ -291,7 +291,6 @@ export default function PackageLibraryPage() {
                 onSelect={handleSelectPackage}
                 slotId={pickerSlotId}
                 filterCategory={pickerSetCategory}
-                lockedCategory={pickerSetCategory}
             />
 
             <CreatePackageSetDialog

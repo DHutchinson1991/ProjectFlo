@@ -59,7 +59,7 @@ export const getSceneDisplayType = (scene: ScenesLibrary): string => {
         "OTHER": "Other"
     };
 
-    return displayNames[scene.type] || scene.type;
+    return (scene.type && displayNames[scene.type]) || scene.type || 'Unknown';
 };
 
 /**

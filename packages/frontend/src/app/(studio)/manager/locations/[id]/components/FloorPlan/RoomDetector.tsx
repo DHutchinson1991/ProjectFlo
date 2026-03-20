@@ -1,4 +1,4 @@
-import { Wall, Room } from '../modals/FloorPlan/types/WallTypes';
+import { Wall, Room } from './types/WallTypes';
 
 export class RoomDetector {
     private walls: Wall[];

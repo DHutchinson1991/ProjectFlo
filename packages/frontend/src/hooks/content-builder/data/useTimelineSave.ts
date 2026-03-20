@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { createScenesApi } from "@/lib/api/scenes.api";
 import { apiClient, api } from "@/lib/api";
+import type { ApiClient } from "@/lib/api/api-client.types";
 import type { TimelineScene } from "@/lib/types/timeline";
 import type { FilmContentApi } from "@/components/films/FilmApiContext";
 
@@ -23,7 +24,7 @@ export const useTimelineSave = (
     filmApi?: FilmContentApi | null,
 ) => {
     // Build an internal API surface that honours the adapter when present
-    const scenesApi = filmApi ? null : createScenesApi(apiClient);
+    const scenesApi = filmApi ? null : createScenesApi(apiClient as unknown as ApiClient);
 
     // Helper: delegate to adapter or fallback
     const scenesCreate = filmApi
@@ -104,7 +105,7 @@ export const useTimelineSave = (
                         
                         const result = await scenesCreate(sceneData);
                         const newDatabaseId = (result as any).id;
-                        console.log(`✅ [SAVE] Scene saved successfully:`, { clientId: scene.id, databaseId: newDatabaseId, name: result.name });
+                        console.log(`✅ [SAVE] Scene saved successfully:`, { clientId: scene.id, databaseId: newDatabaseId, name: (result as any).name });
                         
                         // Track the mapping from client ID to database ID
                         if (scene.id) {

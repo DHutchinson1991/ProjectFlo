@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Wall } from '../modals/FloorPlan/types/WallTypes';
+import { Wall } from './types/WallTypes';
 
 interface WallToolProps {
     svgDrawing: any;

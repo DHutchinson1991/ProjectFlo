@@ -10,7 +10,7 @@ import {
     ArrowBack as ArrowBackIcon,
 } from "@mui/icons-material";
 import { api } from "@/lib/api";
-import { NeedsAssessmentTemplate, ServicePackage } from "@/lib/types";
+import { NeedsAssessmentTemplate, ServicePackage, NeedsAssessmentSubmissionPayload } from "@/lib/types";
 import { useBrand } from "@/app/providers/BrandProvider";
 
 import {
@@ -347,7 +347,7 @@ export default function NeedsAssessmentPage() {
             setSubmitting(true);
             setError(null);
             const selectedPkgId = responses.selected_package ? Number(responses.selected_package) : null;
-            const payload: AnyRecord = {
+            const payload: NeedsAssessmentSubmissionPayload = {
                 template_id: template.id,
                 responses: { ...responses, selected_package: selectedPkgId ? String(selectedPkgId) : undefined },
                 selected_package_id: selectedPkgId,
@@ -380,7 +380,7 @@ export default function NeedsAssessmentPage() {
                 if (builderPackageId) {
                     // Package already saved when leaving builder
                     payload.selected_package_id = builderPackageId;
-                    payload.inquiry.selected_package_id = builderPackageId;
+                    if (payload.inquiry) payload.inquiry.selected_package_id = builderPackageId;
                     payload.responses.selected_package = String(builderPackageId);
                 } else {
                     try {
@@ -400,7 +400,7 @@ export default function NeedsAssessmentPage() {
                             });
                             if (customPkg?.id) {
                                 payload.selected_package_id = customPkg.id;
-                                payload.inquiry.selected_package_id = customPkg.id;
+                                if (payload.inquiry) payload.inquiry.selected_package_id = customPkg.id;
                                 payload.responses.selected_package = String(customPkg.id);
                             }
                         }

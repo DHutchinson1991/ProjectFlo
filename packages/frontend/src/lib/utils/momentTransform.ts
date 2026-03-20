@@ -13,15 +13,13 @@ export const transformMomentToTimelineScene = (
 ): TimelineScene => {
     return {
         id: moment.id,
-        timeline_id: 0, // Will be set by parent
+        name: moment.name || '',
         track_id: trackId,
-        scene_id: moment.id,
         start_time: startTime,
         duration: moment.estimated_duration || 60,
         order_index: moment.order_index || 0,
-        notes: "",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        scene_type: "moments_container",
+        color: "#4A90D2",
     };
 };
 
@@ -30,11 +28,11 @@ export const transformMomentToTimelineScene = (
  */
 export const transformTimelineSceneToMoment = (scene: TimelineScene): any => {
     return {
-        id: scene.scene_id,
+        id: scene.id,
         start_time: scene.start_time,
         duration: scene.duration,
         order_index: scene.order_index,
-        notes: scene.notes
+        notes: scene.description
     };
 };
 

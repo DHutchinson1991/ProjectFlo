@@ -286,7 +286,7 @@ const MusicTable: React.FC<MusicTableProps> = ({
 }) => {
     const sensors = useSensors(
         useSensor(PointerSensor, {
-            distance: 8,
+            activationConstraint: { distance: 8 },
         }),
         useSensor(KeyboardSensor, {
             coordinateGetter: (event, { currentCoordinates }) => {
@@ -300,7 +300,7 @@ const MusicTable: React.FC<MusicTableProps> = ({
                         event.preventDefault();
                         return { ...currentCoordinates };
                     default:
-                        return null;
+                        return undefined;
                 }
             },
         })

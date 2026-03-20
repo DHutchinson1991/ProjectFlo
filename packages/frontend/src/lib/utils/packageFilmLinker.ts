@@ -1,4 +1,5 @@
 import { api, apiClient } from "@/lib/api";
+import { ApiClient } from "@/lib/api/api-client.types";
 import { request } from "@/hooks/utils/api";
 import { createScenesApi } from "@/lib/api/scenes.api";
 
@@ -92,11 +93,11 @@ const mapCameraAssignments = (
             if (!newTrackId) return null;
             return {
                 track_id: newTrackId,
-                subject_ids: [],
+                subject_ids: [] as number[],
                 shot_type: assignment.shot_type ?? null,
             };
         })
-        .filter((assignment): assignment is { track_id: number; subject_ids: number[]; shot_type?: string | null } =>
+        .filter((assignment): assignment is { track_id: number; subject_ids: number[]; shot_type: string | null } =>
             assignment !== null
         );
 
@@ -190,7 +191,7 @@ export const createLinkedFilmFromTemplate = async ({
     equipmentTemplateId?: number | null;
     equipmentCounts?: { cameras?: number; audio?: number } | null;
 }) => {
-    const scenesApi = createScenesApi(apiClient);
+    const scenesApi = createScenesApi(apiClient as unknown as ApiClient);
 
     const applySubjectTemplateToFilm = async (filmId: number, templateId?: number | null) => {
         if (!templateId) return;
@@ -276,12 +277,13 @@ export const createLinkedFilmFromTemplate = async ({
             });
 
             if (moment.recording_setup) {
+                const rs = moment.recording_setup as any;
                 await scenesApi.moments.upsertRecordingSetup(createdMoment.id, {
-                    camera_track_ids: mapTrackIds(trackIdMap, moment.recording_setup.camera_track_ids),
-                    audio_track_ids: mapTrackIds(trackIdMap, moment.recording_setup.audio_track_ids),
-                    graphics_enabled: moment.recording_setup.graphics_enabled ?? false,
-                    graphics_title: moment.recording_setup.graphics_title ?? null,
-                    camera_assignments: mapCameraAssignments(trackIdMap, moment.recording_setup.camera_assignments),
+                    camera_track_ids: mapTrackIds(trackIdMap, rs.camera_track_ids),
+                    audio_track_ids: mapTrackIds(trackIdMap, rs.audio_track_ids),
+                    graphics_enabled: rs.graphics_enabled ?? false,
+                    graphics_title: rs.graphics_title ?? null,
+                    camera_assignments: mapCameraAssignments(trackIdMap, rs.camera_assignments),
                 });
             }
         }

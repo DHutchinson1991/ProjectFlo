@@ -303,7 +303,6 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
                 onClose={closeRecordingSetup}
                 onSave={handleRecordingSetupSaveWithSchedule}
                 onClear={handleClearRecordingSetup}
-                onSceneLocationChange={handleSceneLocationChange}
                 activities={packageActivities}
                 activitySubjects={packageSubjects}
                 activityOperators={packageOperators}

@@ -105,6 +105,7 @@ export const createTimelineScenesFromLibraryScene = (
         const baseMediaComponents = allComponents.map(component => ({
             id: component.id,
             media_type: (component as any).media_type,
+            track_id: targetTracks[0]?.id ?? 0,
             start_time: 0,
             duration: totalDuration || libraryScene.estimated_duration || 30,
             is_primary: (component as any).is_primary || false,
@@ -162,6 +163,7 @@ export const createTimelineScenesFromLibraryScene = (
         const baseMediaComponents = allComponents.map(component => ({
             id: component.id,
             media_type: (component as any).media_type,
+            track_id: targetTracks[0]?.id ?? 0,
             start_time: 0,
             duration: totalDuration || libraryScene.estimated_duration || 30,
             is_primary: (component as any).is_primary || false,
@@ -257,9 +259,11 @@ export const createTimelineScenesFromLibraryScene = (
         const newTrack: TimelineTrack = {
             id: newTrackId,
             name: `V${i + 1}`,
-            track_type: 'VIDEO',
+            track_type: 'video',
             order_index: allUpdatedTracks.length,
             color: 'rgba(123, 97, 255, 0.8)',
+            height: 60,
+            visible: true,
         };
         allNewTracks.push(newTrack);
         allUpdatedTracks.push(newTrack);
@@ -286,9 +290,11 @@ export const createTimelineScenesFromLibraryScene = (
         const newTrack: TimelineTrack = {
             id: newTrackId,
             name: `A${i + 1}`,
-            track_type: 'AUDIO',
+            track_type: 'audio',
             order_index: allUpdatedTracks.length,
             color: 'rgba(255, 107, 157, 0.8)',
+            height: 60,
+            visible: true,
         };
         allNewTracks.push(newTrack);
         allUpdatedTracks.push(newTrack);
@@ -315,9 +321,11 @@ export const createTimelineScenesFromLibraryScene = (
         const newTrack: TimelineTrack = {
             id: newTrackId,
             name: `G${i + 1}`,
-            track_type: 'GRAPHICS',
+            track_type: 'graphics',
             order_index: allUpdatedTracks.length,
             color: 'rgba(0, 229, 255, 0.8)',
+            height: 60,
+            visible: true,
         };
         allNewTracks.push(newTrack);
         allUpdatedTracks.push(newTrack);
@@ -344,9 +352,11 @@ export const createTimelineScenesFromLibraryScene = (
         const newTrack: TimelineTrack = {
             id: newTrackId,
             name: `M${i + 1}`,
-            track_type: 'MUSIC',
+            track_type: 'music',
             order_index: allUpdatedTracks.length,
             color: 'rgba(255, 193, 7, 0.8)',
+            height: 60,
+            visible: true,
         };
         allNewTracks.push(newTrack);
         allUpdatedTracks.push(newTrack);
@@ -368,17 +378,17 @@ export const createTimelineScenesFromLibraryScene = (
 
     // Create scenes on EXISTING tracks for MEDIA COMPONENTS (non-coverage)
     // Stack media components on existing tracks without creating new tracks
-    const existingVideoTracks = allUpdatedTracks.filter(t => t.track_type === 'VIDEO');
-    const existingAudioTracks = allUpdatedTracks.filter(t => t.track_type === 'AUDIO');
-    const existingGraphicsTracks = allUpdatedTracks.filter(t => t.track_type === 'GRAPHICS');
-    const existingMusicTracks = allUpdatedTracks.filter(t => t.track_type === 'MUSIC');
+    const existingVideoTracks = allUpdatedTracks.filter(t => t.track_type === 'video');
+    const existingAudioTracks = allUpdatedTracks.filter(t => t.track_type === 'audio');
+    const existingGraphicsTracks = allUpdatedTracks.filter(t => t.track_type === 'graphics');
+    const existingMusicTracks = allUpdatedTracks.filter(t => t.track_type === 'music');
 
     // Stack media components on tracks, spreading across available tracks by type
     let mediaIndex = 0;
     for (const media of mediaComponents) {
         const mediaType = (media as any).media_type?.toUpperCase();
         let trackList: TimelineTrack[] = [];
-        let sceneType = 'video';
+        let sceneType: TimelineScene['scene_type'] = 'video';
         let color = 'rgba(123, 97, 255, 0.8)';
 
         if (mediaType === 'VIDEO') {
@@ -410,7 +420,7 @@ export const createTimelineScenesFromLibraryScene = (
                 scene_type: sceneType,
                 color,
                 description: libraryScene.description || '',
-                database_type: mediaType || 'VIDEO',
+                database_type: (mediaType || 'VIDEO') as TimelineScene['database_type'],
                 original_scene_id: libraryScene.id,
                 recording_setup_template: (libraryScene as any).recording_setup ?? null,
             });

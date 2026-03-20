@@ -3,6 +3,7 @@
 import React from "react";
 import { createScenesApi } from "@/lib/api/scenes.api";
 import { apiClient } from "@/lib/api";
+import type { ApiClient } from "@/lib/api/api-client.types";
 import { request } from "@/hooks/utils/api";
 import { MusicType } from "@/lib/types/domains/music";
 import type { TimelineScene, TimelineTrack } from "@/lib/types/timeline";
@@ -18,7 +19,7 @@ export const useSceneRecordingSetup = ({
     tracks,
     onUpdateScene,
 }: UseSceneRecordingSetupProps) => {
-    const scenesApi = React.useMemo(() => createScenesApi(apiClient), []);
+    const scenesApi = React.useMemo(() => createScenesApi(apiClient as unknown as ApiClient), []);
 
     const [recordingSetupOpen, setRecordingSetupOpen] = React.useState(false);
     const [recordingSetupSceneName, setRecordingSetupSceneName] = React.useState<string | null>(null);

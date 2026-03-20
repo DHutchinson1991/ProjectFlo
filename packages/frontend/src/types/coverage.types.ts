@@ -67,7 +67,6 @@ export interface Coverage {
     job_role_id?: number;
     resource_requirements?: { category: string; quantity: number }[];
     subject?: string; // e.g., "Bride", "Groom", "Both", "All Guests", "Officiant"
-    operator?: string; // DEPRECATED: Use job_role relationship
     notes?: string;
     
     // Relations

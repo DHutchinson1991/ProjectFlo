@@ -40,7 +40,7 @@ interface MomentRecord {
 
 interface ActivityRecord {
     id: number;
-    package_id: number;
+    package_id?: number;
     package_event_day_id: number;
     name: string;
     description?: string | null;
@@ -49,8 +49,9 @@ interface ActivityRecord {
     start_time?: string | null;
     end_time?: string | null;
     duration_minutes?: number | null;
-    order_index: number;
+    order_index?: number;
     moments?: MomentRecord[];
+    package_event_day?: { event_day?: { name?: string } };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     scene_schedules?: any[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -269,7 +270,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
             .sort((a, b) => {
                 const aMin = parseTimeToMinutes(a.start_time);
                 const bMin = parseTimeToMinutes(b.start_time);
-                if (aMin === null && bMin === null) return a.order_index - b.order_index;
+                if (aMin === null && bMin === null) return (a.order_index ?? 0) - (b.order_index ?? 0);
                 if (aMin === null) return 1;  // no time → end
                 if (bMin === null) return -1; // no time → end
                 return aMin - bMin;
@@ -330,7 +331,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
         }
         setDialogInitial({
             name: act.name,
-            color: act.color || ACTIVITY_COLORS[act.order_index % ACTIVITY_COLORS.length],
+            color: act.color || ACTIVITY_COLORS[(act.order_index ?? 0) % ACTIVITY_COLORS.length],
             start_time: act.start_time ?? undefined,
             end_time: endTime,
             description: act.description ?? undefined,
@@ -557,7 +558,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                                 </TableHead>
                                 <TableBody>
                                     {dayActivities.map((act) => {
-                                        const c = act.color || ACTIVITY_COLORS[act.order_index % ACTIVITY_COLORS.length];
+                                        const c = act.color || ACTIVITY_COLORS[(act.order_index ?? 0) % ACTIVITY_COLORS.length];
                                         const dur = getActivityDuration(act);
                                         // Compute end time: use explicit end_time, or derive from start_time + duration
                                         const computedEndTime = act.end_time

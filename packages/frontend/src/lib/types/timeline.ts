@@ -96,7 +96,7 @@ export interface TimelineScene {
     start_time: number;
     duration: number;
     track_id: number;
-    scene_type: "video" | "audio" | "graphics" | "music";
+    scene_type: "video" | "audio" | "graphics" | "music" | "moments_container";
     color: string;
     description?: string;
     thumbnail?: string;
@@ -109,7 +109,7 @@ export interface TimelineScene {
     group_offset?: number;
     order_index?: number;
     moments?: any[];
-    beats?: SceneBeat[];
+    beats?: Partial<SceneBeat>[];
     coverage_items?: any[];
     music?: any;
     scene_music?: any;
@@ -122,6 +122,8 @@ export interface TimelineScene {
     shot_count?: number | null;
     duration_seconds?: number | null;
     scene_template_type?: "MOMENTS" | "MONTAGE";
+    location_assignment?: any;
+    target_tracks?: number[];
     montage_style?: string | null;
     montage_bpm?: number | null;
 }

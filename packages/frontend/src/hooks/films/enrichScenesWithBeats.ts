@@ -98,7 +98,7 @@ export async function enrichScenesWithBeats(filmScenes: any[]): Promise<Timeline
             scene_type: sceneType,
             color: getSceneColorByType(colorType),
             description: scene.description,
-            database_type: databaseType as const,
+            database_type: databaseType as TimelineScene['database_type'],
             original_scene_id: scene.id,
             order_index: scene.order_index,
             moments: useMomentsView ? momentsList : [],

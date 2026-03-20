@@ -47,7 +47,7 @@ export const isSceneCompatibleWithTrack = (
         "CREDITS": ["MAIN"]
     };
 
-    const allowedTracks = typeRestrictions[scene.type] || ["MAIN", "MOMENTS", "COVERAGE"];
+    const allowedTracks = (scene.type && typeRestrictions[scene.type]) || ["MAIN", "MOMENTS", "COVERAGE"];
     return allowedTracks.includes(track.track_type);
 };
 

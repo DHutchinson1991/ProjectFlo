@@ -65,7 +65,7 @@ const SalesBudgetCard: React.FC<SalesBudgetCardProps> = ({
 
     const handleSave = async () => {
         try {
-            await inquiriesService.update(inquiry.id, { notes: inquiry.notes });
+            await inquiriesService.update(inquiry.id, { notes: inquiry.notes ?? undefined });
             setIsEditing(false);
             if (onRefresh) await onRefresh();
         } catch (error) {

@@ -176,7 +176,7 @@ export default function TasksPage() {
                     if (taskIndex !== -1) {
                         newState[phase] = [
                             ...tasks.slice(0, taskIndex),
-                            { ...tasks[taskIndex], ...updatedTaskData },
+                            { ...tasks[taskIndex], ...updatedTaskData } as TaskLibrary,
                             ...tasks.slice(taskIndex + 1)
                         ];
                         break;
@@ -537,7 +537,10 @@ export default function TasksPage() {
         taskId: number,
         data: { default_job_role_id?: number | null; skills_needed?: string[] }
     ) => {
-        const updatedTask = await api.taskLibrary.update(taskId, data);
+        const updatedTask = await api.taskLibrary.update(taskId, {
+            ...data,
+            default_job_role_id: data.default_job_role_id ?? undefined,
+        });
 
         // Refresh mappings so Tier/Rate columns resolve correctly
         loadAllMappings();

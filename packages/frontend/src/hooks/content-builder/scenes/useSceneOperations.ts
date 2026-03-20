@@ -118,7 +118,7 @@ export const useSceneOperations = ({
         });
 
         if (filmId && reorderPayload.length > 0) {
-            api.scenes.reorder(filmId, reorderPayload).catch((error) => {
+            api.films.localScenes.reorder(filmId, reorderPayload).catch((error) => {
                 console.warn("⚠️ [SCENE-OPS] Failed to sync scene order:", error);
             });
         }

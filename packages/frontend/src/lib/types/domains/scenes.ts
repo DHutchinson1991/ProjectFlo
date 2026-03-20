@@ -231,12 +231,12 @@ export interface TimelineSceneBuilder {
   start_time: number;
   duration: number;
   track_id: number;
-  scene_type: 'video' | 'audio' | 'graphics' | 'music';
+  scene_type: 'video' | 'audio' | 'graphics' | 'music' | 'moments_container';
   color: string;
   description?: string;
   thumbnail?: string;
   locked?: boolean;
-  database_type?: 'GRAPHICS' | 'VIDEO' | 'AUDIO' | 'MUSIC';
+  database_type?: 'GRAPHICS' | 'VIDEO' | 'AUDIO' | 'MUSIC' | 'MOMENTS_CONTAINER';
   media_components?: TimelineMediaComponent[];
   original_scene_id?: number;
   group_id?: string;

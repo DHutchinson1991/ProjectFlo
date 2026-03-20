@@ -18,15 +18,15 @@ export interface PreviewDialogProps {
     open: boolean;
     onClose: () => void;
     formData: {
-        name?: string;
-        description?: string;
-        category?: string;
-        base_price?: number | string;
+        name?: string | null;
+        description?: string | null;
+        category?: string | null;
+        base_price?: number | string | null;
         contents?: {
             items?: ServicePackageItem[];
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             [key: string]: any;
-        };
+        } | null;
     };
     packageEventDays: EventDayTemplate[];
 }

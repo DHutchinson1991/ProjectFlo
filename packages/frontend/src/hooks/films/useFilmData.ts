@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { api, apiClient } from "@/lib/api";
 import { createScenesApi } from "@/lib/api/scenes.api";
+import type { ApiClient } from "@/lib/api/api-client.types";
 import type { Film } from "@/lib/types/domains/film";
 import type { TimelineScene, TimelineTrack } from "@/lib/types/timeline";
 import { transformFilmMomentsTimeline } from "@/lib/utils/momentTransform";
@@ -23,7 +24,7 @@ interface FilmWithMomentsTimeline {
  */
 export const useFilmData = (filmId: number) => {
     const shouldLog = isLogEnabled("film");
-    const scenesApi = createScenesApi(apiClient);
+    const scenesApi = createScenesApi(apiClient as unknown as ApiClient);
     const [film, setFilm] = useState<Film | null>(null);
     const [scenes, setScenes] = useState<TimelineScene[]>([]);
     const [tracks, setTracks] = useState<any[]>([]);
@@ -75,15 +76,15 @@ export const useFilmData = (filmId: number) => {
                 if (Array.isArray(apiScenes)) {
                     const apiById = new Map(apiScenes.map((scene: any) => [scene.id, scene]));
                     localScenes = localScenes.map((scene: any) => {
-                        const apiScene = apiById.get(scene.id);
+                        const apiScene: any = apiById.get(scene.id);
                         if (!apiScene) return scene;
                         // Merge moments: prefer API moments but preserve moment_music from film data when API lacks it
                         let mergedMoments: any[];
                         if (Array.isArray(apiScene.moments) && apiScene.moments.length > 0) {
-                            const filmMomentsById = new Map(
+                            const filmMomentsById = new Map<number, any>(
                                 (Array.isArray(scene.moments) ? scene.moments : []).map((m: any) => [m.id, m])
                             );
-                            mergedMoments = apiScene.moments.map((apiMoment: any) => {
+                            mergedMoments = apiScene.moments.map((apiMoment: Record<string, any>) => {
                                 const filmMoment = filmMomentsById.get(apiMoment.id);
                                 return {
                                     ...apiMoment,

@@ -184,3 +184,61 @@ export interface CreateLocationSpaceRequest {
 }
 
 export type UpdateLocationSpaceRequest = Partial<CreateLocationSpaceRequest>;
+
+// ==================== FLOOR PLAN REQUESTS ====================
+
+export interface CreateFloorPlanRequest {
+    space_id: number;
+    project_id?: number;
+    name: string;
+    fabric_data: Record<string, unknown>;
+    layers_data?: Record<string, unknown>;
+    is_default?: boolean;
+}
+
+export type UpdateFloorPlanRequest = Partial<CreateFloorPlanRequest>;
+
+export interface UpdateVenueFloorPlanRequest {
+    venue_floor_plan_data: Record<string, unknown> | null;
+}
+
+// ==================== FLOOR PLAN OBJECTS ====================
+
+export interface FloorPlanObject {
+    id: number;
+    name: string;
+    category: string;
+    object_type: string;
+    fabric_template: Record<string, unknown>;
+    thumbnail_url?: string;
+    brand_id?: number;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CreateFloorPlanObjectRequest {
+    name: string;
+    category: string;
+    object_type: string;
+    fabric_template: Record<string, unknown>;
+    thumbnail_url?: string;
+    brand_id?: number;
+    is_active?: boolean;
+}
+
+export type UpdateFloorPlanObjectRequest = Partial<CreateFloorPlanObjectRequest>;
+
+// ==================== CATEGORIES ====================
+
+export interface LocationCategory {
+    id: number;
+    name: string;
+    description?: string;
+}
+
+export interface ObjectCategory {
+    id: number;
+    name: string;
+    description?: string;
+}

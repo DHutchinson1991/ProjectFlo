@@ -356,7 +356,7 @@ function AssigneeCell({ task, contributors, onAssign, onNavigate }: {
             size="small" placeholder="Search people…"
             value={search} onChange={e => setSearch(e.target.value)}
             autoFocus fullWidth
-            slotProps={{ input: { sx: { fontSize: "0.8125rem", bgcolor: "rgba(255,255,255,0.04)", borderRadius: 1 } } }}
+            InputProps={{ sx: { fontSize: "0.8125rem", bgcolor: "rgba(255,255,255,0.04)", borderRadius: 1 } }}
           />
         </Box>
         <List dense sx={{ py: 0.5, maxHeight: 260, overflowY: "auto" }}>

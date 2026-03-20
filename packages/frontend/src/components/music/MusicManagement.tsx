@@ -255,7 +255,7 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
     const sceneMomentIds = new Set((sceneMoments || []).map(m => m.id));
     const displayItems = libraryItems.map(item => ({
         ...item,
-        isAttached: item.moment_id && sceneMomentIds.has(item.moment_id)
+        isAttached: !!item.moment_id && sceneMomentIds.has(item.moment_id)
     }));
 
     return (

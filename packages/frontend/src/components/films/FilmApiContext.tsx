@@ -5,6 +5,7 @@ import { api, apiClient } from '@/lib/api';
 import { createScenesApi } from '@/lib/api/scenes.api';
 import type { ApiClient } from '@/lib/api/api-client.types';
 import type { CreateSceneMomentDto, UpdateSceneMomentDto } from '@/lib/types/domains/moments';
+import type { CreateFilmSceneDto } from '@/lib/types/domains/scenes';
 
 // ─── Film Content API Adapter Interface ────────────────────────────────
 // Normalized interface for film content CRUD operations (scenes, moments,
@@ -149,6 +150,7 @@ export function createLibraryFilmApi(filmId: number): FilmContentApi {
         ...data,
         film_id: filmId,
         order_index: data.order_index ?? 0,
+        mode: data.mode as CreateFilmSceneDto['mode'],
       }),
       update: (id, data) => scenesApi.scenes.update(id, data),
       delete: (id) => scenesApi.scenes.delete(id),

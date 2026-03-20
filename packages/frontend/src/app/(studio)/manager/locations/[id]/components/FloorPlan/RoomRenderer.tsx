@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Room } from '../modals/FloorPlan/types/WallTypes';
+import { Room } from './types/WallTypes';
 
 interface RoomRendererProps {
     svgDrawing: any;

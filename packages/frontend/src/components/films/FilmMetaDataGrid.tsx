@@ -27,7 +27,7 @@ export const FilmMetaDataGrid: React.FC<FilmMetaDataGridProps> = ({
     subjectCount,
     locationCount,
 }) => {
-    const metaItems = [
+    const metaItems: Array<{ label: string; value: string | number; icon: React.ReactElement; isPlaceholder?: boolean }> = [
         {
             label: "Scenes",
             value: sceneCount,

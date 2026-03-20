@@ -17,6 +17,7 @@ import {
   useTimelineStorage,
 } from '@/hooks/content-builder';
 import { TimelineScene, TimelineTrack, DragState, PlaybackState, ViewState } from '@/lib/types/timeline';
+import { SceneGroup } from '@/lib/types/domains/scenes';
 import type { FilmEquipmentAssignmentsBySlot } from '@/types/film-equipment.types';
 import { api } from '@/lib/api';
 import { useOptionalFilmApi, type FilmContentApi } from '@/components/films/FilmApiContext';
@@ -121,8 +122,8 @@ interface ContentBuilderContextType {
   handleSave: () => void;
   
   // Scene Grouping
-  sceneGroups: Map<string, unknown>;
-  getGroupForScene: (scene: TimelineScene) => unknown;
+  sceneGroups: Map<string, SceneGroup>;
+  getGroupForScene: (scene: TimelineScene) => SceneGroup | null;
   isSceneInCollapsedGroup: (scene: TimelineScene) => boolean;
   
   // Viewport

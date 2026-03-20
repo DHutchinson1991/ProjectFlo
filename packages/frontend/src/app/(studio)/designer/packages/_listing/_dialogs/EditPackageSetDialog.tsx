@@ -235,10 +235,10 @@ export default function EditPackageSetDialog({
         setError('');
         try {
             // 1. Patch metadata (only changed fields)
-            const payload: { name?: string; emoji?: string; category_id?: number | null } = {};
+            const payload: { name?: string; emoji?: string; category_id?: number } = {};
             if (name.trim() !== set.name) payload.name = name.trim();
             if (emoji !== (set.emoji || '📦')) payload.emoji = emoji;
-            if (categoryId !== set.category_id) payload.category_id = categoryId;
+            if (categoryId !== set.category_id && categoryId != null) payload.category_id = categoryId;
             if (Object.keys(payload).length > 0) {
                 await api.packageSets.update(brandId, set.id, payload);
             }

@@ -198,26 +198,6 @@ class MomentsApiService {
         return response.json();
     }
 
-    async assignCoverageToMoment(momentId: number, coverageId: number): Promise<void> {
-        const response = await fetch(`${API_BASE_URL}/moments/${momentId}/coverage/${coverageId}`, {
-            method: 'POST',
-        });
-
-        if (!response.ok) {
-            throw new Error(`Failed to assign coverage to moment: ${response.status}`);
-        }
-    }
-
-    async removeCoverageFromMoment(momentId: number, coverageId: number): Promise<void> {
-        const response = await fetch(`${API_BASE_URL}/moments/${momentId}/coverage/${coverageId}`, {
-            method: 'DELETE',
-        });
-
-        if (!response.ok) {
-            throw new Error(`Failed to remove coverage from moment: ${response.status}`);
-        }
-    }
-
     // ==================== MOMENT MUSIC ====================
 
     async getSceneMomentMusic(momentId: number): Promise<SceneMomentMusic | null> {

@@ -89,7 +89,7 @@ const ProposalsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                     </Box>
                 ) : (
                     <List>
-                        {proposals.map((proposal: { id: number; title: string; status: string; version: number }) => (
+                        {proposals.map((proposal: { id: number; title: string; status: string; version: number; share_token?: string }) => (
                             <ListItem key={proposal.id} divider secondaryAction={
                                 <Box sx={{ display: 'flex', gap: 0.5 }}>
                                     <IconButton

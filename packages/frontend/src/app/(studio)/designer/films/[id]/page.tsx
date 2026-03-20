@@ -15,6 +15,7 @@ import { useBrand } from "@/app/providers/BrandProvider";
 import type { FilmEquipmentAssignmentsBySlot } from "@/types/film-equipment.types";
 import { api, apiClient } from "@/lib/api";
 import { createScenesApi } from "@/lib/api/scenes.api";
+import type { ApiClient } from "@/lib/api/api-client.types";
 import { buildAssignmentsBySlot, buildEquipmentSlotKey, buildEquipmentSlotNote } from "@/lib/utils/equipmentAssignments";
 import { transformBackendTrack } from "@/lib/utils/trackUtils";
 
@@ -341,7 +342,7 @@ export default function FilmDetailPage({ params }: { params: { id: string } }) {
 
                 // ── Sync recording setups so all scenes show on all synced tracks ──
                 try {
-                    const scenesApiInstance = createScenesApi(apiClient);
+                    const scenesApiInstance = createScenesApi(apiClient as unknown as ApiClient);
                     const videoTrackIds = rawTracks.filter((t: any) => t.type === 'VIDEO').map((t: any) => t.id);
                     const audioTrackIds = rawTracks.filter((t: any) => t.type === 'AUDIO').map((t: any) => t.id);
 

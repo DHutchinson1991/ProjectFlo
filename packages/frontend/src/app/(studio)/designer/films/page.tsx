@@ -134,7 +134,7 @@ export default function FilmsPage() {
         return (
             <Box sx={{ p: 3 }}>
                 <Alert severity="error">
-                    {error instanceof Error ? error.message : "Failed to load films"}
+                    {error || "Failed to load films"}
                 </Alert>
             </Box>
         );

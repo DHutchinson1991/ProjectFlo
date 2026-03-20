@@ -135,7 +135,7 @@ export default function PackageEditPage({ params }: { params: { id: string } }) 
             <Box sx={{ mb: 2.5 }}>
                 <PackageScheduleCard
                     packageId={packageId}
-                    brandId={safeBrandId}
+                    brandId={safeBrandId ?? 0}
                     packageEventDays={packageEventDays}
                     setPackageEventDays={setPackageEventDays}
                     packageDayOperators={packageDayOperators}

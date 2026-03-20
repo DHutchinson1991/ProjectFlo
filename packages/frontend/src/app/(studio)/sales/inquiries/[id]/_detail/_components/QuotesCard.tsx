@@ -295,12 +295,13 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
             // Auto-apply default payment schedule template to new quotes
             if (isNew && savedId && defaultTemplate && inquiry.event_date) {
                 try {
+                    const eventDateStr = inquiry.event_date instanceof Date
+                        ? inquiry.event_date.toISOString().split('T')[0]
+                        : String(inquiry.event_date).split('T')[0];
                     const ms = await api.paymentSchedules.applyToQuote(savedId, {
                         template_id: defaultTemplate.id,
                         booking_date: new Date().toISOString().split('T')[0],
-                        event_date: typeof inquiry.event_date === 'string'
-                            ? inquiry.event_date.split('T')[0]
-                            : new Date(inquiry.event_date as unknown as string).toISOString().split('T')[0],
+                        event_date: eventDateStr,
                         total_amount: totalAmount,
                     });
                     setMilestones(ms || []);

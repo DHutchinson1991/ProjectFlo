@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { createScenesApi } from "@/lib/api/scenes.api";
 import { apiClient } from "@/lib/api";
+import type { ApiClient } from "@/lib/api/api-client.types";
 import type { FilmContentApi } from "@/components/films/FilmApiContext";
 
 /**
@@ -25,7 +26,7 @@ export const useSceneDelete = (
             const deleteScene = filmApi
                 ? (id: number) => filmApi.scenes.delete(id)
                 : (() => {
-                    const scenesApi = createScenesApi(apiClient);
+                    const scenesApi = createScenesApi(apiClient as unknown as ApiClient);
                     return (id: number) => scenesApi.scenes.delete(id);
                 })();
 

@@ -13,7 +13,14 @@ export const eventTypeConfig: Record<EventType, { label: string; color: string; 
     'personal': { label: 'Personal', color: '#95a5a6', icon: '👤' },
     'discovery_call': { label: 'Discovery Call', color: '#3498db', icon: '🔍' },
     'proposal_review': { label: 'Proposal Review', color: '#8e44ad', icon: '💬' },
-    'other': { label: 'Other', color: '#7f8c8d', icon: '📝' }
+    'other': { label: 'Other', color: '#7f8c8d', icon: '📝' },
+    'PROJECT_ASSIGNMENT': { label: 'Project Assignment', color: '#4A90E2', icon: '📋' },
+    'ABSENCE': { label: 'Absence', color: '#95a5a6', icon: '🚫' },
+    'HOLIDAY': { label: 'Holiday', color: '#2ecc71', icon: '🎉' },
+    'EXTERNAL_SYNC': { label: 'External Sync', color: '#7f8c8d', icon: '🔄' },
+    'PERSONAL': { label: 'Personal', color: '#95a5a6', icon: '👤' },
+    'DISCOVERY_CALL': { label: 'Discovery Call', color: '#3498db', icon: '🔍' },
+    'PROPOSAL_REVIEW': { label: 'Proposal Review', color: '#8e44ad', icon: '💬' },
 };
 
 // Task type configuration

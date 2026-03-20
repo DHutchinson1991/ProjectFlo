@@ -67,6 +67,9 @@ export interface NeedsAssessmentSubmissionPayload {
     responses: Record<string, unknown>;
     status?: string;
     create_inquiry?: boolean;
+    selected_package_id?: number | null;
+    preferred_payment_schedule_template_id?: number;
+    inquiry_id?: number;
     contact?: {
         first_name?: string;
         last_name?: string;
@@ -80,6 +83,7 @@ export interface NeedsAssessmentSubmissionPayload {
         notes?: string;
         lead_source?: string;
         lead_source_details?: string;
-        selected_package_id?: number;
+        selected_package_id?: number | null;
+        preferred_payment_schedule_template_id?: number;
     };
 }

@@ -140,7 +140,7 @@ const DiscoveryQuestionnaireCard: React.FC<WorkflowCardProps> = ({
         const questions = submission?.template?.questions;
         if (!questions || !Array.isArray(questions)) return 22;
         return questions.filter(
-            (q: { field_key?: string }) => q.field_key && !META_KEYS.has(q.field_key),
+            (q) => q.field_key && !META_KEYS.has(q.field_key),
         ).length;
     }, [submission]);
 

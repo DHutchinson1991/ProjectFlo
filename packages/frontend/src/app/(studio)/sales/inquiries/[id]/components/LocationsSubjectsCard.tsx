@@ -160,7 +160,6 @@ const LocationsSubjectsCard: React.FC<LocationsSubjectsCardProps> = ({ inquiry, 
                                     )}
                                     <Typography
                                         sx={{
-                                            fontSize: '0.78rem',
                                             color: subject.real_name ? 'text.secondary' : 'rgba(255,255,255,0.15)',
                                             fontStyle: subject.real_name ? 'normal' : 'italic',
                                             fontSize: subject.real_name ? '0.78rem' : '0.72rem',

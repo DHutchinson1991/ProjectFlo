@@ -130,7 +130,7 @@ const MeetingScheduler: React.FC<MeetingSchedulerProps> = ({
         switch (eventType) {
             case 'discovery_call':
                 return 'primary';
-            case 'consultation':
+            case 'proposal_review':
                 return 'success';
             default:
                 return 'secondary';
@@ -171,7 +171,7 @@ const MeetingScheduler: React.FC<MeetingSchedulerProps> = ({
             newErrors.end_time = 'End time must be after start time';
         }
 
-        if (formData.event_type === 'discovery_call' || formData.event_type === 'consultation') {
+        if (formData.event_type === 'discovery_call' || formData.event_type === 'proposal_review') {
             if (!formData.meeting_type) {
                 newErrors.meeting_type = 'Meeting type is required';
             }

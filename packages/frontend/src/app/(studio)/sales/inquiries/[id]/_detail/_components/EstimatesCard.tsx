@@ -536,12 +536,13 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
             // Apply payment schedule template whenever one is selected (new or existing estimate)
             if (savedId && dialTemplateId && inquiry.event_date) {
                 try {
+                    const eventDateStr = inquiry.event_date instanceof Date
+                        ? inquiry.event_date.toISOString().split('T')[0]
+                        : String(inquiry.event_date).split('T')[0];
                     const ms = await api.paymentSchedules.applyToEstimate(savedId, {
                         template_id: dialTemplateId,
                         booking_date: new Date().toISOString().split('T')[0],
-                        event_date: typeof inquiry.event_date === 'string'
-                            ? inquiry.event_date.split('T')[0]
-                            : new Date(inquiry.event_date as unknown as string).toISOString().split('T')[0],
+                        event_date: eventDateStr,
                         total_amount: totalAmount,
                     });
                     setMilestones(ms || []);

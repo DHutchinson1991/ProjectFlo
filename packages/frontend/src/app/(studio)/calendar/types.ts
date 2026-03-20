@@ -52,7 +52,14 @@ export type EventType =
     | 'personal'
     | 'discovery_call'
     | 'proposal_review'
-    | 'other';
+    | 'other'
+    | 'PROJECT_ASSIGNMENT'
+    | 'ABSENCE'
+    | 'HOLIDAY'
+    | 'EXTERNAL_SYNC'
+    | 'PERSONAL'
+    | 'DISCOVERY_CALL'
+    | 'PROPOSAL_REVIEW';
 
 export type MeetingType =
     | 'ONLINE'

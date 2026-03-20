@@ -85,16 +85,14 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
             expiry_date: new Date(e.expiry_date),
             created_at: new Date(e.created_at),
             updated_at: new Date(e.updated_at),
-            items: e.items ?? [],
+            items: (e.items ?? []).map((item) => ({
+                ...item,
+                service_date: item.service_date ? new Date(item.service_date) : (item.service_date as null | undefined),
+            })),
         })),
-        proposals: apiResponse.proposals?.map((p) => ({
-            ...p,
-            sent_at: p.sent_at ? new Date(p.sent_at) : null,
-            created_at: new Date(p.created_at),
-            updated_at: new Date(p.updated_at),
-        })),
-        quotes: apiResponse.quotes,
-        contracts: apiResponse.contracts,
+        proposals: apiResponse.proposals?.map(mapProposalResponse),
+        quotes: apiResponse.quotes as Inquiry['quotes'],
+        contracts: apiResponse.contracts as Inquiry['contracts'],
         welcome_sent_at: apiResponse.welcome_sent_at ?? null,
     };
 }

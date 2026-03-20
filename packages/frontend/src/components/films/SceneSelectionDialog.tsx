@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { api } from "@/lib/api";
-import { ScenesLibrary } from "@/lib/types";
+import { ScenesLibrary } from "@/lib/types/domains/scenes";
 import { DurationMode, SceneType, CreateSceneFromTemplateDto, CreateBlankSceneDto } from "@/types/film-scenes.types";
 import {
   Dialog,
@@ -200,7 +200,7 @@ export function SceneSelectionDialog({
                     <CardContent sx={{ py: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {getSceneTypeIcon(template.type)}
+                          {getSceneTypeIcon(template.type ?? '')}
                           <Box>
                             <Typography variant="subtitle2" fontWeight={600}>
                               {template.name}

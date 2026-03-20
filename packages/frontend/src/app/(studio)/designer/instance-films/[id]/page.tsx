@@ -11,6 +11,7 @@ import { useFilmEquipment } from "@/hooks/films";
 import { useTimelineStorage, useTimelineSave } from "@/hooks/content-builder/data";
 import { useFilmSubjects } from "@/hooks/subjects/useFilmSubjects";
 import { SubjectCategory } from "@/lib/types/domains/subjects";
+import { FilmType } from "@/lib/types/domains/film";
 import type { Film } from "@/lib/types/domains/film";
 import { useBrand } from "@/app/providers/BrandProvider";
 import type { FilmEquipmentAssignmentsBySlot } from "@/types/film-equipment.types";
@@ -262,6 +263,7 @@ export default function InstanceFilmEditorPage({ params }: { params: { id: strin
                         id: projectFilmId,
                         name: `Instance Film #${projectFilmId}`,
                         brand_id: currentBrand.id,
+                        film_type: FilmType.FEATURE,
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString(),
                         scenes: enrichedScenes as any,

@@ -2517,7 +2517,7 @@ function UsersSettings() {
                         </TableHead>
                         <TableBody>
                             {displayedUsers.map((c) => {
-                                const isSelf = user?.contributor_id === c.id;
+                                const isSelf = user?.id === c.id;
                                 return (
                                     <TableRow key={c.id} hover sx={{ opacity: c.archived_at ? 0.55 : 1 }}>
                                         <TableCell>
@@ -3064,7 +3064,7 @@ function PaymentScheduleSettings() {
             if (editing) {
                 await api.paymentSchedules.update(brandId, editing.id, payload);
             } else {
-                await api.paymentSchedules.create(brandId, { ...payload, brand_id: brandId });
+                await api.paymentSchedules.create(brandId, payload);
             }
             setSnack(editing ? 'Template updated' : 'Template created');
             setDialogOpen(false);

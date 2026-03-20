@@ -14,7 +14,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import CircularProgress from "@mui/material/CircularProgress";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import { keyframes } from "@mui/system";
+import { keyframes } from "@mui/material/styles";
 import { authService } from "../../lib/api";
 import {
     UserProfile,

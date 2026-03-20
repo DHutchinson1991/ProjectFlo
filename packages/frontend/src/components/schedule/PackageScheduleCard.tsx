@@ -348,7 +348,7 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
         for (const a of timed) {
             const s = parseTimeToMinutes(a.start_time);
             if (s === null) continue;
-            const e = a.end_time ? parseTimeToMinutes(a.end_time) : (s + (a.duration_minutes || 60));
+            const e = a.end_time ? (parseTimeToMinutes(a.end_time) ?? (s + (a.duration_minutes || 60))) : (s + (a.duration_minutes || 60));
             if (s < lo) { lo = s; firstAct = a; }
             if (e > hi) { hi = e; lastAct = a; }
         }

@@ -115,7 +115,23 @@ export interface PackageActivityRecord {
     icon?: string | null;
     start_time?: string | null;
     end_time?: string | null;
-    package_event_day_id?: number;
+    package_event_day_id: number;
+    package_id?: number;
+    order_index?: number;
+    description?: string | null;
+    duration_minutes?: number | null;
+    moments?: Array<{
+        id: number;
+        name: string;
+        package_activity_id: number;
+        order_index: number;
+        duration_seconds: number;
+        is_required: boolean;
+        notes?: string | null;
+    }>;
+    package_event_day?: { event_day?: { name?: string } };
+    scene_schedules?: any[];
+    operators?: any[];
 }
 
 /** Package subject record used in `packageSubjects` state. */

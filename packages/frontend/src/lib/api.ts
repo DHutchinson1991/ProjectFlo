@@ -449,8 +449,6 @@ class BaseApiClient {
               const url = response.url;
               const originalRequest = new Request(url, {
                 method: response.headers.get('x-original-method') || 'GET',
-            FilmLocationAssignment,
-            FilmSceneLocationAssignment,
                 headers: this.getAuthHeaders(),
                 body: response.headers.get('x-original-body') || undefined,
               });
@@ -857,16 +855,6 @@ class ApiService extends BaseApiClient {
   };
 
   // Coverage methods (library)
-  coverage = {
-    getAll: (): Promise<Coverage[]> => this.get("/coverage"),
-    getById: (id: number): Promise<Coverage> => this.get(`/coverage/${id}`),
-    create: (data: CreateCoverageDto): Promise<Coverage> =>
-      this.post("/coverage", data),
-    update: (id: number, data: UpdateCoverageDto): Promise<Coverage> =>
-      this.patch(`/coverage/${id}`, data),
-    delete: (id: number): Promise<void> => this.delete(`/coverage/${id}`),
-  };
-
   // Films methods (brand-specific)
   films = {
     getAll: (): Promise<Film[]> => {

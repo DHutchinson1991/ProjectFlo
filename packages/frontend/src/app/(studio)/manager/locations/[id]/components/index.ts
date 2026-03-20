@@ -6,8 +6,5 @@ export * from './layout';
 // Card Components  
 export * from './cards';
 
-// Modal Components
-export * from './modals';
-
 // Floor Plan Components (well organized modular structure)
 export * from './FloorPlan/components';
