@@ -66,3 +66,5 @@ Desktop.ini
 # === Docker / Database Data ===
 # Ignore any local database data volumes if bind-mounted
 # postgres_data/ 
+.vercel
+.env*.local

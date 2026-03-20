@@ -1,0 +1,6 @@
+# Vercel deploy ignore - only exclude root-level non-essential directories
+/test/
+/.github/
+docker-compose.yml
+jest.config.js
+eslint.config.mjs
