@@ -865,7 +865,7 @@ export default function DiscoveryQuestionnaireFormDialog({
                                             )}
                                         </Box>
 
-                                        {currentSection.questions.map((q) => (
+                                        {currentSection.questions.map((q, qIndex) => (
                                             <Box key={q.id}>
                                                 {q.script_hint && (() => {
                                                     const paras = resolveScriptHint(q.script_hint).split('\n\n');
@@ -897,78 +897,78 @@ export default function DiscoveryQuestionnaireFormDialog({
                                                     activities={activities}
                                                     paymentSchedule={paymentSchedule}
                                                 />
+
+                                                {/* ── Transcript consent — after intro script in Call Opening ── */}
+                                                {currentSection.name === 'Call Opening' && qIndex === 0 && (
+                                                    <Paper
+                                                        sx={{
+                                                            p: 2,
+                                                            mt: 2,
+                                                            bgcolor: recordingConsent === true
+                                                                ? 'rgba(16,185,129,0.06)'
+                                                                : recordingConsent === false
+                                                                  ? 'rgba(239,68,68,0.06)'
+                                                                  : 'rgba(245,158,11,0.06)',
+                                                            border: `1px solid ${
+                                                                recordingConsent === true
+                                                                    ? 'rgba(16,185,129,0.2)'
+                                                                    : recordingConsent === false
+                                                                      ? 'rgba(239,68,68,0.2)'
+                                                                      : 'rgba(245,158,11,0.25)'
+                                                            }`,
+                                                            borderRadius: 2,
+                                                        }}
+                                                    >
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75 }}>
+                                                            <FiberManualRecord sx={{ fontSize: 10, color: recordingConsent === true ? '#10b981' : recordingConsent === false ? '#ef4444' : '#f59e0b' }} />
+                                                            <Typography sx={{ color: '#cbd5e1', fontSize: '0.82rem', fontWeight: 700 }}>
+                                                                Transcript Consent
+                                                            </Typography>
+                                                        </Box>
+                                                        <Typography sx={{ color: '#94a3b8', fontSize: '0.78rem', mb: 1.5, lineHeight: 1.6 }}>
+                                                            Did they agree to Google Call Notes running during the call?
+                                                        </Typography>
+                                                        <ToggleButtonGroup
+                                                            exclusive
+                                                            size="small"
+                                                            value={recordingConsent === true ? 'yes' : recordingConsent === false ? 'no' : null}
+                                                            onChange={(_, val) => {
+                                                                if (val === 'yes') {
+                                                                    setRecordingConsent(true);
+                                                                    handleChange('recording_consent', 'yes');
+                                                                } else if (val === 'no') {
+                                                                    setRecordingConsent(false);
+                                                                    handleChange('recording_consent', 'no');
+                                                                    setTranscript('');
+                                                                }
+                                                            }}
+                                                            sx={{ gap: 0.75 }}
+                                                        >
+                                                            <ToggleButton
+                                                                value="yes"
+                                                                sx={{
+                                                                    px: 2, py: 0.5, fontSize: '0.78rem', textTransform: 'none',
+                                                                    border: '1px solid rgba(100,116,139,0.2)', color: '#64748b', borderRadius: '14px !important',
+                                                                    '&.Mui-selected': { bgcolor: 'rgba(16,185,129,0.15)', color: '#10b981', borderColor: 'rgba(16,185,129,0.4)', '&:hover': { bgcolor: 'rgba(16,185,129,0.25)' } },
+                                                                }}
+                                                            >
+                                                                Yes &mdash; consented
+                                                            </ToggleButton>
+                                                            <ToggleButton
+                                                                value="no"
+                                                                sx={{
+                                                                    px: 2, py: 0.5, fontSize: '0.78rem', textTransform: 'none',
+                                                                    border: '1px solid rgba(100,116,139,0.2)', color: '#64748b', borderRadius: '14px !important',
+                                                                    '&.Mui-selected': { bgcolor: 'rgba(239,68,68,0.12)', color: '#ef4444', borderColor: 'rgba(239,68,68,0.35)', '&:hover': { bgcolor: 'rgba(239,68,68,0.2)' } },
+                                                                }}
+                                                            >
+                                                                No &mdash; declined
+                                                            </ToggleButton>
+                                                        </ToggleButtonGroup>
+                                                    </Paper>
+                                                )}
                                             </Box>
                                         ))}
-
-                                        {/* ── Recording consent — shown inside Call Opening ── */}
-                                        {currentSection.name === 'Call Opening' && (
-                                            <Paper
-                                                sx={{
-                                                    p: 2,
-                                                    mt: 1,
-                                                    bgcolor: recordingConsent === true
-                                                        ? 'rgba(16,185,129,0.06)'
-                                                        : recordingConsent === false
-                                                          ? 'rgba(239,68,68,0.06)'
-                                                          : 'rgba(245,158,11,0.06)',
-                                                    border: `1px solid ${
-                                                        recordingConsent === true
-                                                            ? 'rgba(16,185,129,0.2)'
-                                                            : recordingConsent === false
-                                                              ? 'rgba(239,68,68,0.2)'
-                                                              : 'rgba(245,158,11,0.25)'
-                                                    }`,
-                                                    borderRadius: 2,
-                                                }}
-                                            >
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75 }}>
-                                                    <FiberManualRecord sx={{ fontSize: 10, color: recordingConsent === true ? '#10b981' : recordingConsent === false ? '#ef4444' : '#f59e0b' }} />
-                                                    <Typography sx={{ color: '#cbd5e1', fontSize: '0.82rem', fontWeight: 700 }}>
-                                                        Call Recording Consent
-                                                    </Typography>
-                                                </Box>
-                                                <Typography sx={{ color: '#94a3b8', fontSize: '0.78rem', mb: 1.5, lineHeight: 1.6 }}>
-                                                    &quot;This call may be recorded using Google Call Notes to help us capture everything accurately and tailor your proposal. Is that okay with you?&quot;
-                                                </Typography>
-                                                <ToggleButtonGroup
-                                                    exclusive
-                                                    size="small"
-                                                    value={recordingConsent === true ? 'yes' : recordingConsent === false ? 'no' : null}
-                                                    onChange={(_, val) => {
-                                                        if (val === 'yes') {
-                                                            setRecordingConsent(true);
-                                                            handleChange('recording_consent', 'yes');
-                                                        } else if (val === 'no') {
-                                                            setRecordingConsent(false);
-                                                            handleChange('recording_consent', 'no');
-                                                            setTranscript('');
-                                                        }
-                                                    }}
-                                                    sx={{ gap: 0.75 }}
-                                                >
-                                                    <ToggleButton
-                                                        value="yes"
-                                                        sx={{
-                                                            px: 2, py: 0.5, fontSize: '0.78rem', textTransform: 'none',
-                                                            border: '1px solid rgba(100,116,139,0.2)', color: '#64748b', borderRadius: '14px !important',
-                                                            '&.Mui-selected': { bgcolor: 'rgba(16,185,129,0.15)', color: '#10b981', borderColor: 'rgba(16,185,129,0.4)', '&:hover': { bgcolor: 'rgba(16,185,129,0.25)' } },
-                                                        }}
-                                                    >
-                                                        Yes — consented
-                                                    </ToggleButton>
-                                                    <ToggleButton
-                                                        value="no"
-                                                        sx={{
-                                                            px: 2, py: 0.5, fontSize: '0.78rem', textTransform: 'none',
-                                                            border: '1px solid rgba(100,116,139,0.2)', color: '#64748b', borderRadius: '14px !important',
-                                                            '&.Mui-selected': { bgcolor: 'rgba(239,68,68,0.12)', color: '#ef4444', borderColor: 'rgba(239,68,68,0.35)', '&:hover': { bgcolor: 'rgba(239,68,68,0.2)' } },
-                                                        }}
-                                                    >
-                                                        No — declined
-                                                    </ToggleButton>
-                                                </ToggleButtonGroup>
-                                            </Paper>
-                                        )}
                                     </Stack>
                                 )}
 

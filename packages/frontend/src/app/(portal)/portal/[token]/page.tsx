@@ -91,7 +91,7 @@ interface PackageData {
     films: { id: number; name: string }[];
 }
 
-type SectionStatus = "complete" | "available" | "locked";
+type SectionStatus = "complete" | "available" | "locked" | "review_pending" | "accepted" | "changes_requested";
 interface Section<T> { status: SectionStatus; data: T }
 
 interface PortalData {

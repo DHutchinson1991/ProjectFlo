@@ -30,8 +30,8 @@ const QUESTIONS = [
         script_hint:
             '"Hey {{customer_name}}! So great to finally connect — thanks so much for making time today."\n\n' +
             '"I\'m {{producer_name}} from {{brand_name}} — I\'ll be your lead producer if we end up working together, so you\'ll have one point of contact from this call right through to your wedding day."\n\n' +
-            '"I\'ve set aside about {{call_duration}} minutes for us. By the end of the call I want to know enough about your day to put together a really personalised proposal \u2014 something that actually reflects what matters to you, not a cookie-cutter package."\n\n' +
-            '"So the more you share, the better the proposal will be \u2014 don\'t hold back! And please ask me anything too \u2014 this should feel like a proper two-way conversation."',
+            '"I\'ve set aside about {{call_duration}} minutes for us. My goal is to really get to know you, your day, and what matters most \u2014 so I can put together a proposal that genuinely fits rather than just sending you something generic."\n\n' +
+            '"One quick thing before we dive in \u2014 I use a tool called Google Call Notes that can transcribe our conversation as we go. It just means I can focus on listening to you rather than scribbling notes, and nothing gets missed when I\'m writing up your proposal. Completely optional though \u2014 are you happy for me to have that running?"',
         field_type: 'textarea',
         field_key: 'opening_notes',
         required: false,
