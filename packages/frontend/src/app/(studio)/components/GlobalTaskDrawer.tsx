@@ -53,7 +53,8 @@ function getNavUrl(task: ActiveTask): string | null {
   if (task.source === "inquiry" && task.inquiry_id) {
     const base = `/sales/inquiries/${task.inquiry_id}`;
     const subtaskSectionMap: Record<string, string> = {
-      verify_submission_data: "needs-assessment-section",
+      verify_contact_details: "needs-assessment-section",
+      verify_event_date: "needs-assessment-section",
       confirm_package_selection: "needs-assessment-section",
       check_crew_availability: "availability-section",
       check_equipment_availability: "availability-section",
@@ -285,7 +286,7 @@ function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false }: { ta
           cursor: navUrl ? "pointer" : "default",
           transition: "background 0.12s",
           bgcolor: hovered && navUrl ? "rgba(87,155,252,0.04)" : "transparent",
-          opacity: isAuto ? 0.45 : isCompleted ? 0.55 : 1,
+          opacity: isAuto ? (isCompleted ? 0.55 : 0.45) : isCompleted ? 0.55 : 1,
         }}
       >
         {/* Col 1: Chevron (non-nested with subtasks) / L-bracket (nested) / empty */}
@@ -327,7 +328,7 @@ function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false }: { ta
         {/* Col 3: Check / bolt / warning icon */}
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
           {isAuto
-            ? <Bolt sx={{ fontSize: 14, color: "#FDAB3D", opacity: 0.65 }} />
+            ? <Bolt sx={{ fontSize: 14, color: isCompleted ? "#00C875" : "#FDAB3D", opacity: isCompleted ? 0.85 : 0.65 }} />
             : isCompleted
             ? <CheckCircleIcon sx={{ fontSize: 14, color: "#00C875" }} />
             : overdue
@@ -360,11 +361,11 @@ function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false }: { ta
         {/* Col 5: Status pill */}
         <Box sx={{
           display: "inline-flex", alignItems: "center", justifyContent: "center",
-          bgcolor: isAuto ? "rgba(253,171,61,0.12)" : cfg.bg,
-          color: isAuto ? "#FDAB3D" : cfg.color,
+          bgcolor: isAuto ? (isCompleted ? "rgba(0,200,117,0.12)" : "rgba(253,171,61,0.12)") : cfg.bg,
+          color: isAuto ? (isCompleted ? "#00C875" : "#FDAB3D") : cfg.color,
           fontWeight: 700, fontSize: "0.6rem",
           height: 20, px: 0.875, borderRadius: "5px", whiteSpace: "nowrap",
-          border: isAuto ? "1px solid rgba(253,171,61,0.25)" : "none",
+          border: isAuto ? (isCompleted ? "1px solid rgba(0,200,117,0.25)" : "1px solid rgba(253,171,61,0.25)") : "none",
         }}>
           {isAuto ? "Auto" : cfg.label}
         </Box>

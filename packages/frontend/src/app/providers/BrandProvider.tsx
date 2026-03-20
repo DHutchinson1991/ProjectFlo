@@ -35,11 +35,19 @@ interface BrandProviderProps {
 
 const BRAND_STORAGE_KEY = "projectflo_current_brand";
 
+function getStoredBrandId(): number | null {
+    if (typeof window === "undefined") return null;
+    const raw = localStorage.getItem(BRAND_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function BrandProvider({ children }: BrandProviderProps) {
     const { user, isAuthenticated } = useAuth();
     const queryClient = useQueryClient();
 
-    // ── Synchronous init from localStorage so there is never a null flash ──
+    // Keep state null until brands load, while API header resolution can still use stored ID fallback.
     const [currentBrand, setCurrentBrand] = useState<Brand | null>(null);
     const brandRef = useRef<Brand | null>(null); // always mirrors currentBrand, readable synchronously
 
@@ -63,7 +71,7 @@ export function BrandProvider({ children }: BrandProviderProps) {
     // This never needs to be recreated — the ref is always up-to-date.
     useEffect(() => {
         setBrandContextProvider({
-            getCurrentBrandId: () => brandRef.current?.id || null,
+            getCurrentBrandId: () => brandRef.current?.id || getStoredBrandId() || null,
         });
     }, []); // intentionally run once
 
@@ -199,7 +207,7 @@ export function BrandProvider({ children }: BrandProviderProps) {
             brandResolved.current = false;
             brandRef.current = null;
             setCurrentBrand(null);
-            localStorage.removeItem(BRAND_STORAGE_KEY);
+            // Keep last selected brand so next login/session restores user preference.
         }
     }, [isAuthenticated]);
 

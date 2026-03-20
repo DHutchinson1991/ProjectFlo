@@ -20,6 +20,7 @@ export interface BackendCalendarEvent {
     location?: string;
     meeting_url?: string;
     outcome_notes?: string;
+    is_confirmed?: boolean;
     contributor?: {
         id: number;
         contact: {
@@ -135,8 +136,6 @@ class CalendarApiService {
         if (brandId) {
             headers['X-Brand-Context'] = brandId;
         }
-
-        console.log('📅 Calendar API Request:', url, 'with headers:', Object.keys(headers));
 
         const response = await fetch(url, {
             ...options,

@@ -1203,18 +1203,27 @@ export class TaskLibraryService {
                     const hours = detail.durationMinutes
                         ? detail.durationMinutes / 60
                         : (task.effort_hours ? Number(task.effort_hours) : 0);
-                    // Use the operator's actual rate for their specific role, not the task template's default role rate
+
+                    // When viewing in an inquiry/project context, resolve the actual assigned crew
+                    // from the instance operators (ProjectDayOperator) rather than the package template.
+                    // This ensures that reassigning a crew member in the availability card is
+                    // immediately reflected in the task preview names and costs.
+                    const instanceCrew = detail.jobRoleId ? pickPreviewCrew(detail.jobRoleId, null) : null;
+                    const displayName = instanceCrew?.name ?? detail.crewName;
+
+                    // Rate: prefer instance crew's bracket rate, fall back to role fallback
                     let crewHourlyRate = assignment.hourly_rate;
-                    if (detail.contributorId && detail.jobRoleId) {
-                        const bracketLevel = contributorBracketMap.get(`${detail.contributorId}-${detail.jobRoleId}`);
-                        const exactRate = bracketLevel !== undefined
+                    if (detail.jobRoleId) {
+                        const bracketLevel = instanceCrew?.bracketLevel ?? null;
+                        const exactRate = bracketLevel !== null
                             ? bracketRateMap.get(`${detail.jobRoleId}-${bracketLevel}`)
                             : undefined;
                         crewHourlyRate = exactRate ?? roleFallbackRate.get(detail.jobRoleId) ?? assignment.hourly_rate;
                     }
+
                     return {
                         task_library_id: task.id,
-                        name: `${detail.activityName} — ${detail.crewName} (${detail.positionName})`,
+                        name: `${detail.activityName} — ${displayName} (${detail.positionName})`,
                         phase: task.phase,
                         trigger_type: task.trigger_type,
                         effort_hours_each: Math.round(hours * 100) / 100,
@@ -1222,7 +1231,7 @@ export class TaskLibraryService {
                         total_instances: 1,
                         total_hours: Math.round(hours * 100) / 100,
                         ...assignment,
-                        assigned_to_name: detail.crewName as string | null,
+                        assigned_to_name: displayName as string | null,
                         role_name: detail.roleName ?? assignment.role_name,
                         hourly_rate: crewHourlyRate,
                     };

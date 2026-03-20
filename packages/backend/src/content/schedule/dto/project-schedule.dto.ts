@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, IsBoolean, IsDateString, IsEnum, IsNumber, Min, Max, IsDecimal } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsBoolean, IsDateString, IsEnum, IsNumber, IsArray, Min, Max, IsDecimal } from 'class-validator';
 
 // ─── Owner Type ────────────────────────────────────────────────────────
 // Used throughout instance CRUD to filter/create by owner (project OR inquiry)
@@ -207,6 +207,10 @@ export class CreateInstanceEventDaySubjectDto {
   count?: number;
 
   @IsOptional()
+  @IsArray()
+  member_names?: string[] | null;
+
+  @IsOptional()
   @IsInt()
   order_index?: number;
 }
@@ -243,6 +247,10 @@ export class UpdateInstanceEventDaySubjectDto {
   @IsOptional()
   @IsInt()
   count?: number | null;
+
+  @IsOptional()
+  @IsArray()
+  member_names?: string[] | null;
 
   @IsOptional()
   @IsInt()

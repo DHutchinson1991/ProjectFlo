@@ -170,6 +170,9 @@ async function main() {
                 libraryToInquiryTask.set(lt.id, rec.id);
             }
 
+            // Sync auto-subtask completion states after re-creating tasks
+            await syncAutoSubtasks(inquiryId);
+
             const preserved = completionSnapshot.size;
             console.log(
                 `  [OK] Inquiry ${inquiryId} — ${libraryTasks.length} library tasks → ${globalOrder} inquiry tasks` +
@@ -195,3 +198,49 @@ main()
         process.exit(1);
     })
     .finally(() => prisma.$disconnect());
+
+/**
+ * Re-evaluates and auto-completes verify_submission_data and confirm_package_selection
+ * for the given inquiry, mirroring InquiryTasksService.syncReviewInquiryAutoSubtasks.
+ */
+async function syncAutoSubtasks(inquiryId) {
+    const inquiry = await prisma.inquiries.findUnique({
+        where: { id: inquiryId },
+        select: {
+            id: true,
+            wedding_date: true,
+            event_type_id: true,
+            selected_package_id: true,
+            contact: { select: { email: true, phone_number: true } },
+        },
+    });
+    if (!inquiry) return;
+
+    const hasSubmissionData = Boolean(
+        inquiry.contact?.email &&
+        inquiry.contact?.phone_number &&
+        inquiry.wedding_date &&
+        inquiry.event_type_id,
+    );
+
+    await setAutoSubtaskStatus(inquiryId, 'verify_submission_data', hasSubmissionData);
+    await setAutoSubtaskStatus(inquiryId, 'confirm_package_selection', Boolean(inquiry.selected_package_id));
+}
+
+async function setAutoSubtaskStatus(inquiryId, subtaskKey, isComplete) {
+    const subtasks = await prisma.inquiry_task_subtasks.findMany({
+        where: { subtask_key: subtaskKey, inquiry_task: { inquiry_id: inquiryId, is_active: true } },
+        select: { id: true, status: true },
+    });
+    for (const subtask of subtasks) {
+        const next = isComplete ? 'Completed' : 'To_Do';
+        if (subtask.status !== next) {
+            await prisma.inquiry_task_subtasks.update({
+                where: { id: subtask.id },
+                data: isComplete
+                    ? { status: 'Completed', completed_at: new Date() }
+                    : { status: 'To_Do', completed_at: null, completed_by_id: null },
+            });
+        }
+    }
+}

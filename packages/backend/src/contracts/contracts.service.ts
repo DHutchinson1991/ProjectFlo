@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateContractDto, ContractStatus, SendContractDto, ComposeContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
@@ -20,7 +20,9 @@ export class ContractsService {
   constructor(
     private prisma: PrismaService,
     private templateService: ContractTemplatesService,
+    @Inject(forwardRef(() => InquiryTasksService))
     private inquiryTasksService: InquiryTasksService,
+    @Inject(forwardRef(() => InvoicesService))
     private invoicesService: InvoicesService,
   ) { }
 

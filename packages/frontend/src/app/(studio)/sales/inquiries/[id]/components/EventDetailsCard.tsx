@@ -21,7 +21,6 @@ import {
     LocationOff,
     Groups,
     Notes,
-    Schedule,
 } from '@mui/icons-material';
 import CelebrationIcon from '@mui/icons-material/Celebration';
 import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
@@ -74,7 +73,8 @@ function formatDistance(km: number): string {
 const brandGeoCache = new Map<string, { lat: number; lng: number } | null>();
 
 async function geocodeBrandAddress(address: string): Promise<{ lat: number; lng: number } | null> {
-    if (brandGeoCache.has(address)) return brandGeoCache.get(address) ?? null;
+    const cached = brandGeoCache.get(address);
+    if (cached !== undefined) return cached;
     try {
         const params = new URLSearchParams({ q: address, format: 'json', limit: '1' });
         const res = await fetch(
@@ -83,7 +83,7 @@ async function geocodeBrandAddress(address: string): Promise<{ lat: number; lng:
         );
         if (!res.ok) return null;
         const data = await res.json();
-        if (data.length === 0) { brandGeoCache.set(address, null); return null; }
+        if (data.length === 0) return null; // Don't cache empty results — address text may change
         const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
         brandGeoCache.set(address, coords);
         return coords;
@@ -114,6 +114,7 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
     const [ceremonySlot, setCeremonySlot] = useState<{
         id: number; name: string; address: string; lat: number | null; lng: number | null;
         slotIndex: number; totalSlots: number; updatedAt: Date;
+        addressFields?: { address_line1?: string; address_line2?: string; city?: string; county?: string; country?: string; postcode?: string };
     } | null>(null);
 
     useEffect(() => {
@@ -140,6 +141,7 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
 
                 // Build a structured address from location library if available
                 let fullAddress = slotAddr;
+                let addressFields: { address_line1?: string; address_line2?: string; city?: string; county?: string; country?: string; postcode?: string } | undefined;
                 if (loc) {
                     const parts = [
                         loc.address_line1,
@@ -151,6 +153,14 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                     if (parts.length > 0) {
                         fullAddress = parts.join(', ');
                     }
+                    addressFields = {
+                        address_line1: loc.address_line1 || undefined,
+                        address_line2: loc.address_line2 || undefined,
+                        city: loc.city || undefined,
+                        county: loc.state || undefined,
+                        country: loc.country || undefined,
+                        postcode: loc.postal_code || undefined,
+                    };
                 }
 
                 if (!slotName && !fullAddress) return;
@@ -173,6 +183,7 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                     slotIndex,
                     totalSlots: slots.length,
                     updatedAt: new Date(ceremony.updated_at),
+                    addressFields,
                 });
             })
             .catch(() => { /* ignore – will fall back to venue_details */ })
@@ -188,6 +199,25 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         venue_lat: inquiry.venue_lat ?? null as number | null,
         venue_lng: inquiry.venue_lng ?? null as number | null,
     });
+
+    // Geocoded coords stored separately so sync effect can't wipe them
+    const [geocodedVenueCoords, setGeocodedVenueCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+    // Auto-geocode venue text when DB coords are missing (e.g. portal wizard submissions)
+    useEffect(() => {
+        if (inquiry.venue_lat != null && inquiry.venue_lng != null) return;
+        const addrText = inquiry.venue_address
+            || inquiry.venue_details
+            || responses.ceremony_location
+            || responses.venue_details;
+        if (!addrText) return;
+        let cancelled = false;
+        geocodeBrandAddress(addrText).then((coords) => {
+            if (cancelled || !coords) return;
+            setGeocodedVenueCoords(coords);
+        });
+        return () => { cancelled = true; };
+    }, [inquiry.venue_lat, inquiry.venue_lng, inquiry.venue_address, inquiry.venue_details, responses.ceremony_location, responses.venue_details]);
 
     // Brand geo
     const [brandCoords, setBrandCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -238,12 +268,13 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
     const preferSlot = ceremonySlot && slotTime > inquiryVenueTime;
 
     // Display coordinates: use whichever source won the timestamp comparison
+    // Fallback chain: preferred source → DB coords → ceremony slot → geocoded coords
     const displayLat = preferSlot
-        ? ceremonySlot?.lat ?? null
-        : (formData.venue_lat ?? ceremonySlot?.lat ?? null);
+        ? (ceremonySlot?.lat ?? formData.venue_lat ?? geocodedVenueCoords?.lat ?? null)
+        : (formData.venue_lat ?? ceremonySlot?.lat ?? geocodedVenueCoords?.lat ?? null);
     const displayLng = preferSlot
-        ? ceremonySlot?.lng ?? null
-        : (formData.venue_lng ?? ceremonySlot?.lng ?? null);
+        ? (ceremonySlot?.lng ?? formData.venue_lng ?? geocodedVenueCoords?.lng ?? null)
+        : (formData.venue_lng ?? ceremonySlot?.lng ?? geocodedVenueCoords?.lng ?? null);
     const hasVenueCoords = displayLat != null && displayLng != null;
 
     const distance = useMemo(() => {
@@ -350,20 +381,27 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         ? `Location ${ceremonySlot.slotIndex} of ${ceremonySlot.totalSlots}`
         : 'Venue';
 
-    /* ---- parse address into structured parts ---- */
-    const addressParts = venueFullAddress
-        .split(',')
-        .map((p: string) => p.trim())
-        .filter(Boolean);
-    // Try to identify: street, city, county, postcode (heuristic)
-    const formattedAddress = (() => {
-        if (addressParts.length === 0) return null;
-        // Skip the first part if it matches venueShortName
-        const parts = addressParts[0] === venueShortName
-            ? addressParts.slice(1)
-            : addressParts;
-        if (parts.length === 0) return null;
-        return parts;
+    /* ---- structured address fields for labelled display ---- */
+    const structuredAddress: { label: string; value: string }[] = (() => {
+        const fields = ceremonySlot?.addressFields;
+        if (fields) {
+            return [
+                fields.address_line1 && { label: 'Street', value: fields.address_line1 },
+                fields.address_line2 && { label: 'Street 2', value: fields.address_line2 },
+                fields.city && { label: 'City', value: fields.city },
+                fields.county && { label: 'County', value: fields.county },
+                fields.country && { label: 'Country', value: fields.country },
+                fields.postcode && { label: 'Postcode', value: fields.postcode },
+            ].filter(Boolean) as { label: string; value: string }[];
+        }
+        // Fallback: parse comma-separated address into unlabelled parts
+        const parts = venueFullAddress
+            .split(',')
+            .map((p: string) => p.trim())
+            .filter(Boolean);
+        const filtered = parts[0] === venueShortName ? parts.slice(1) : parts;
+        if (filtered.length === 0) return [];
+        return filtered.map((p) => ({ label: '', value: p }));
     })();
 
     return (
@@ -509,79 +547,46 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                 )}
                             </Box>
 
-                            {/* Inquiry validity period */}
-                            {(() => {
-                                const validityDays = currentBrand?.inquiry_validity_days ?? 14;
-                                const createdDate = new Date(inquiry.created_at);
-                                const expiresDate = new Date(createdDate);
-                                expiresDate.setDate(expiresDate.getDate() + validityDays);
-                                const now = new Date();
-                                const daysLeft = Math.ceil((expiresDate.getTime() - now.getTime()) / 86_400_000);
-                                const isExpired = daysLeft < 0;
-                                const isUrgent = daysLeft >= 0 && daysLeft <= 3;
-                                const color = isExpired ? '#ef4444' : isUrgent ? '#f59e0b' : '#64748b';
-                                const label = isExpired
-                                    ? 'Inquiry expired'
-                                    : daysLeft === 0 ? 'Expires today'
-                                    : `${daysLeft}d left`;
-                                return (
-                                    <Box sx={{
-                                        display: 'flex', alignItems: 'center', gap: 1,
-                                        mb: 2, px: 0.5,
-                                    }}>
-                                        <Schedule sx={{ fontSize: 14, color }} />
-                                        <Typography sx={{ fontSize: '0.7rem', color, fontWeight: 600 }}>
-                                            {label}
-                                        </Typography>
-                                        <Typography sx={{ fontSize: '0.65rem', color: '#475569' }}>
-                                            · Offer valid {validityDays} days (expires {expiresDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})
-                                        </Typography>
-                                    </Box>
-                                );
-                            })()}
-
                             {/* Venue / Ceremony location row (when no map) */}
                             {!hasVenueCoords && (
                                 <Box sx={{
                                     display: 'flex', alignItems: 'flex-start', gap: 1.5,
-                                    p: 1.5, borderRadius: 2,
-                                    bgcolor: venueShortName ? 'rgba(168, 85, 247, 0.06)' : 'rgba(168, 85, 247, 0.04)',
-                                    border: '1px solid rgba(168, 85, 247, 0.08)',
+                                    borderLeft: '2px solid rgba(100,116,139,0.2)',
+                                    pl: 1.5,
                                 }}>
-                                    <Box sx={{
-                                        width: 32, height: 32, borderRadius: 1.5,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        bgcolor: venueShortName ? 'rgba(168, 85, 247, 0.1)' : 'rgba(100, 116, 139, 0.1)', flexShrink: 0,
-                                        mt: 0.25,
-                                    }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 0.15, flexShrink: 0 }}>
                                         {venueShortName
-                                            ? <Place sx={{ fontSize: 16, color: '#a855f7' }} />
-                                            : <LocationOff sx={{ fontSize: 16, color: '#64748b' }} />}
+                                            ? <Place sx={{ fontSize: 14, color: '#64748b' }} />
+                                            : <LocationOff sx={{ fontSize: 14, color: '#475569' }} />}
                                     </Box>
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                                        <Typography sx={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                                        <Typography sx={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
                                             {venueLabel}
                                         </Typography>
                                         {venueShortName ? (
                                             <>
-                                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0', lineHeight: 1.3 }}>
+                                                <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: '#f1f5f9', lineHeight: 1.3 }}>
                                                     {venueShortName}
                                                 </Typography>
-                                                {formattedAddress && formattedAddress.length > 0 && (
-                                                    <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.25 }}>
-                                                        {formattedAddress.map((part: string, i: number) => (
-                                                            <Typography key={i} component="span" sx={{
-                                                                fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4,
-                                                                '&:not(:last-of-type)::after': { content: '" · "', color: '#475569' },
-                                                            }}>
-                                                                {part}
-                                                            </Typography>
+                                                {structuredAddress.length > 0 && (
+                                                    <Stack spacing={0.2} sx={{ mt: 0.5 }}>
+                                                        {structuredAddress.map((field, i) => (
+                                                            <Box key={i} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
+                                                                {field.label && (
+                                                                    <Typography sx={{ fontSize: '0.62rem', color: '#475569', fontWeight: 600, minWidth: 52, flexShrink: 0 }}>
+                                                                        {field.label}
+                                                                    </Typography>
+                                                                )}
+                                                                <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                                                                    {field.value}
+                                                                </Typography>
+                                                            </Box>
                                                         ))}
                                                     </Stack>
                                                 )}
                                             </>
                                         ) : (
-                                            <Typography sx={{ fontSize: '0.82rem', color: '#475569', fontWeight: 500, fontStyle: 'italic' }}>
+                                            <Typography sx={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, fontStyle: 'italic' }}>
                                                 Location unknown
                                             </Typography>
                                         )}
@@ -592,62 +597,56 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                             {/* Venue name + address when map is shown */}
                             {hasVenueCoords && (
                                 <Box sx={{
-                                    mt: 0.5,
-                                    p: 1.5, borderRadius: 2,
-                                    bgcolor: 'rgba(168, 85, 247, 0.06)',
-                                    border: '1px solid rgba(168, 85, 247, 0.08)',
+                                    display: 'flex', alignItems: 'flex-start', gap: 1.5,
+                                    borderLeft: '2px solid rgba(100,116,139,0.2)',
+                                    pl: 1.5,
                                 }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                                        <Box sx={{
-                                            width: 32, height: 32, borderRadius: 1.5,
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            bgcolor: 'rgba(168, 85, 247, 0.1)', flexShrink: 0,
-                                            mt: 0.25,
-                                        }}>
-                                            <Place sx={{ fontSize: 16, color: '#a855f7' }} />
-                                        </Box>
-                                        <Box sx={{ minWidth: 0, flex: 1 }}>
-                                            <Typography sx={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
-                                                {venueLabel}
-                                            </Typography>
-                                            {venueShortName && (
-                                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0', lineHeight: 1.3 }}>
-                                                    {venueShortName}
-                                                </Typography>
-                                            )}
-                                            {formattedAddress && formattedAddress.length > 0 && (
-                                                <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.25 }}>
-                                                    {formattedAddress.map((part: string, i: number) => (
-                                                        <Typography key={i} component="span" sx={{
-                                                            fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4,
-                                                            '&:not(:last-of-type)::after': { content: '" · "', color: '#475569' },
-                                                        }}>
-                                                            {part}
-                                                        </Typography>
-                                                    ))}
-                                                </Stack>
-                                            )}
-                                        </Box>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 0.15, flexShrink: 0 }}>
+                                        <Place sx={{ fontSize: 14, color: '#64748b' }} />
                                     </Box>
-
-                                    {distance && (
-                                        <Chip
-                                            icon={<NearMe sx={{ fontSize: 12 }} />}
-                                            label={distance}
-                                            size="small"
-                                            sx={{
-                                                mt: 1.5,
-                                                ml: 5.5,
-                                                height: 24,
-                                                bgcolor: 'rgba(59, 130, 246, 0.08)',
-                                                border: '1px solid rgba(59, 130, 246, 0.15)',
-                                                color: '#60a5fa',
-                                                fontSize: '0.7rem',
-                                                fontWeight: 600,
-                                                '& .MuiChip-icon': { color: '#60a5fa' },
-                                            }}
-                                        />
-                                    )}
+                                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                                        <Typography sx={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                                            {venueLabel}
+                                        </Typography>
+                                        {venueShortName && (
+                                            <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: '#f1f5f9', lineHeight: 1.3 }}>
+                                                {venueShortName}
+                                            </Typography>
+                                        )}
+                                        {structuredAddress.length > 0 && (
+                                            <Stack spacing={0.2} sx={{ mt: 0.5 }}>
+                                                {structuredAddress.map((field, i) => (
+                                                    <Box key={i} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
+                                                        {field.label && (
+                                                            <Typography sx={{ fontSize: '0.62rem', color: '#475569', fontWeight: 600, minWidth: 52, flexShrink: 0 }}>
+                                                                {field.label}
+                                                            </Typography>
+                                                        )}
+                                                        <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                                                            {field.value}
+                                                        </Typography>
+                                                    </Box>
+                                                ))}
+                                            </Stack>
+                                        )}
+                                        {distance && (
+                                            <Chip
+                                                icon={<NearMe sx={{ fontSize: 12 }} />}
+                                                label={distance}
+                                                size="small"
+                                                sx={{
+                                                    mt: 1,
+                                                    height: 22,
+                                                    bgcolor: 'rgba(59, 130, 246, 0.08)',
+                                                    border: '1px solid rgba(59, 130, 246, 0.15)',
+                                                    color: '#60a5fa',
+                                                    fontSize: '0.68rem',
+                                                    fontWeight: 600,
+                                                    '& .MuiChip-icon': { color: '#60a5fa' },
+                                                }}
+                                            />
+                                        )}
+                                    </Box>
                                 </Box>
                             )}
                         </Box>

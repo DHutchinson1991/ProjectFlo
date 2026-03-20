@@ -9,7 +9,6 @@ import {
     EventAvailable,
     Send,
     RequestQuote,
-    Schedule,
     Handshake,
     Verified,
 } from '@mui/icons-material';
@@ -34,7 +33,7 @@ export const WORKFLOW_PHASES: WorkflowPhase[] = [
         icon: Phone,
         color: '#f59e0b',
         description: 'Discovery call with the client',
-        tasks: ['Discovery Call Scheduling', 'Discovery Call'],
+        tasks: ['Discovery Call'],
         sectionId: 'discovery-section',
     },
     {
@@ -108,7 +107,6 @@ const TASK_META: IconMap = {
     'Estimate Preparation':      { icon: RequestQuote,   sectionId: 'inquiry-section' },
     'Review Estimate':           { icon: RequestQuote,   sectionId: 'inquiry-section' },
     // Discovery stage
-    'Discovery Call Scheduling': { icon: Schedule,       sectionId: 'discovery-section' },
     'Discovery Call':            { icon: Phone,          sectionId: 'discovery-section' },
     // Proposal stage
     'Generate Quote':            { icon: RequestQuote,   sectionId: 'proposal-section' },

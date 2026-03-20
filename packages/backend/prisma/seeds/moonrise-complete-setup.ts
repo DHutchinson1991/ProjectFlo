@@ -33,6 +33,10 @@ async function main(): Promise<SeedSummary> {
             include: { contributor: true }
         });
         if (adminContact?.contributor) {
+            // Ensure admin contact is associated with this brand for contributor queries
+            if (!adminContact.brand_id) {
+                await prisma.contacts.update({ where: { id: adminContact.id }, data: { brand_id: brand.id } });
+            }
             await prisma.user_brands.upsert({
                 where: {
                     user_id_brand_id: {

@@ -30,6 +30,7 @@ import {
 } from "@mui/icons-material";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
+import AddressAutocomplete, { type AddressResult } from "@/components/AddressAutocomplete";
 
 /* ------------------------------------------------------------------ */
 /* Keyframe animations (matching proposal page)                        */
@@ -188,6 +189,14 @@ const CONTACT_TIME_OPTIONS = [
     "Evening (5pm–9pm)",
     "Flexible",
 ];
+
+/** Field keys that should render an address autocomplete with geocoding */
+const LOCATION_FIELD_KEYS = new Set([
+    "ceremony_location",
+    "bridal_prep_location",
+    "groom_prep_location",
+    "reception_location",
+]);
 
 /* ------------------------------------------------------------------ */
 /* Default steps                                                       */
@@ -1268,6 +1277,41 @@ function QuestionCard({
                     onChange={(e) => onChange(key, e.target.value)}
                     required={Boolean(q.required)} error={Boolean(err)} helperText={err}
                     fullWidth sx={fieldSx}
+                />
+            ) : q.field_type === "address" || LOCATION_FIELD_KEYS.has(key) ? (
+                <AddressAutocomplete
+                    value={(val as string) || ""}
+                    placeholder={q.prompt || "Search for address…"}
+                    colors={colors}
+                    error={err}
+                    onSelect={(result: AddressResult | null) => {
+                        if (result) {
+                            onChange(key, result.display_name);
+                            onChange(`${key}_lat`, result.lat);
+                            onChange(`${key}_lng`, result.lng);
+                            onChange(`${key}_address`, result.display_name);
+                            onChange(`${key}_postcode`, result.postcode || "");
+                            onChange(`${key}_city`, result.city || "");
+                            // Map ceremony location to primary venue fields for backend
+                            if (key === "ceremony_location") {
+                                onChange("venue_lat", result.lat);
+                                onChange("venue_lng", result.lng);
+                                onChange("venue_address", result.display_name);
+                            }
+                        } else {
+                            onChange(key, "");
+                            onChange(`${key}_lat`, null);
+                            onChange(`${key}_lng`, null);
+                            onChange(`${key}_address`, null);
+                            onChange(`${key}_postcode`, "");
+                            onChange(`${key}_city`, "");
+                            if (key === "ceremony_location") {
+                                onChange("venue_lat", null);
+                                onChange("venue_lng", null);
+                                onChange("venue_address", null);
+                            }
+                        }
+                    }}
                 />
             ) : (
                 <TextField

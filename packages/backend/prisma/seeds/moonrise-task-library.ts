@@ -35,17 +35,20 @@ interface SubtaskTemplateDef {
 
 const TASK_SUBTASK_TEMPLATES: Record<string, SubtaskTemplateDef[]> = {
     'Review Inquiry': [
-        { subtask_key: 'verify_submission_data', name: 'Verify Submission Data', order_index: 1, is_auto_only: true },
-        { subtask_key: 'confirm_package_selection', name: 'Confirm Package Selection', order_index: 2, is_auto_only: true },
-        { subtask_key: 'check_crew_availability', name: 'Check Crew Availability', order_index: 3, is_auto_only: true },
-        { subtask_key: 'check_equipment_availability', name: 'Check Equipment Availability', order_index: 4, is_auto_only: true },
-        { subtask_key: 'resolve_availability_conflicts', name: 'Resolve Availability Conflicts', order_index: 5, is_auto_only: true },
-        { subtask_key: 'send_crew_availability_requests', name: 'Send Availability Requests', order_index: 6, is_auto_only: true },
-        { subtask_key: 'reserve_equipment', name: 'Reserve Equipment', order_index: 7, is_auto_only: true },
+        { subtask_key: 'verify_contact_details', name: 'Verify Contact Details', order_index: 1, is_auto_only: true },
+        { subtask_key: 'verify_event_date', name: 'Verify Event Date', order_index: 2, is_auto_only: true },
+        { subtask_key: 'confirm_package_selection', name: 'Confirm Package Selection', order_index: 3, is_auto_only: true },
+        { subtask_key: 'check_crew_availability', name: 'Check Crew Availability', order_index: 4, is_auto_only: true },
+        { subtask_key: 'check_equipment_availability', name: 'Check Equipment Availability', order_index: 5, is_auto_only: true },
+        { subtask_key: 'resolve_availability_conflicts', name: 'Resolve Availability Conflicts', order_index: 6, is_auto_only: true },
+        { subtask_key: 'send_crew_availability_requests', name: 'Send Availability Requests', order_index: 7, is_auto_only: true },
+        { subtask_key: 'reserve_equipment', name: 'Reserve Equipment', order_index: 8, is_auto_only: true },
     ],
     'Qualify & Respond': [
-        { subtask_key: 'mark_inquiry_qualified', name: 'Qualify Inquiry', order_index: 1, is_auto_only: false },
-        { subtask_key: 'send_welcome_response', name: 'Send Welcome Response', order_index: 2, is_auto_only: false },
+        { subtask_key: 'review_estimate', name: 'Review Estimate', order_index: 1, is_auto_only: true },
+        { subtask_key: 'schedule_discovery_call', name: 'Schedule Discovery Call', order_index: 2, is_auto_only: false },
+        { subtask_key: 'mark_inquiry_qualified', name: 'Qualify Inquiry', order_index: 3, is_auto_only: false },
+        { subtask_key: 'send_welcome_response', name: 'Send Welcome Response', order_index: 4, is_auto_only: false },
     ],
 };
 
@@ -59,19 +62,16 @@ const PIPELINE_STAGES: StageDef[] = [
         children: [
             { name: 'Review Inquiry', description: 'Review what the client submitted — check their responses, date availability, and crew conflicts before responding', effort_hours: 0.25, order_index: 1, is_auto_only: false, due_date_offset_days: 1 },
             { name: 'Qualify & Respond', description: 'Confirm availability, introduce yourself, share portfolio, and transition the inquiry to Contacted', effort_hours: 0.25, order_index: 2, is_auto_only: false, due_date_offset_days: 1 },
-            { name: 'Estimate Preparation', description: 'Auto-creates a draft estimate from package/activity selections when the inquiry is submitted', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 0 },
-            { name: 'Review Estimate', description: 'Review the auto-created draft estimate, adjust line items if needed, then send to the client', effort_hours: 0.25, order_index: 4, is_auto_only: false, due_date_offset_days: 2 },
         ],
     },
     {
         name: 'Discovery',
-        description: 'Discovery call scheduling and post-call notes',
+        description: 'Discovery call and post-call notes',
         phase: $Enums.project_phase.Inquiry,
         stage_color: '#f59e0b',
         order_index: 2,
         children: [
-            { name: 'Discovery Call Scheduling', description: 'Book the discovery call — typically scheduled at the end of the needs assessment wizard', effort_hours: 0.15, order_index: 1, is_auto_only: false, due_date_offset_days: 2 },
-            { name: 'Discovery Call', description: 'Conduct the call, then save post-call notes or transcript in the Discovery Questionnaire section', effort_hours: 0.25, order_index: 2, is_auto_only: false, due_date_offset_days: 7 },
+            { name: 'Discovery Call', description: 'Conduct the call, then save post-call notes or transcript in the Discovery Questionnaire section', effort_hours: 0.25, order_index: 1, is_auto_only: false, due_date_offset_days: 7 },
         ],
     },
     {

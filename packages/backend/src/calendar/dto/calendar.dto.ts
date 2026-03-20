@@ -78,6 +78,10 @@ export class CreateCalendarEventDto {
     @IsOptional()
     @IsString()
     outcome_notes?: string; // Post-meeting notes
+
+    @IsOptional()
+    @IsBoolean()
+    is_confirmed?: boolean;
 }
 
 export class UpdateCalendarEventDto {
@@ -124,6 +128,10 @@ export class UpdateCalendarEventDto {
     @IsOptional()
     @IsString()
     outcome_notes?: string; // Post-meeting notes
+
+    @IsOptional()
+    @IsBoolean()
+    is_confirmed?: boolean;
 }
 
 export class CreateEventAttendeeDto {

@@ -13,6 +13,7 @@ export class SubjectTypeTemplateResponseDto {
         description?: string;
         is_core: boolean;
         is_group: boolean;
+        never_group: boolean;
         order_index: number;
     }>;
 }

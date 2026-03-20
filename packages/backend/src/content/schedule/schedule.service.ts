@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InquiryTasksService } from '../../inquiry-tasks/inquiry-tasks.service';
 import {
@@ -2128,9 +2129,19 @@ export class ScheduleService {
     const record = await this.prisma.projectEventDaySubject.findUnique({ where: { id: subjectId } });
     if (!record) throw new NotFoundException('Event day subject not found');
 
+    // Build Prisma-compatible data: convert member_names null → Prisma.DbNull
+    // so it satisfies the Json? column's NullableJsonNullValueInput type.
+    const { member_names, ...rest } = dto;
+    const data: Prisma.ProjectEventDaySubjectUncheckedUpdateInput = {
+      ...rest,
+      ...(member_names !== undefined && {
+        member_names: member_names === null ? Prisma.DbNull : member_names,
+      }),
+    };
+
     return this.prisma.projectEventDaySubject.update({
       where: { id: subjectId },
-      data: dto,
+      data,
       include: this.instanceSubjectInclude,
     });
   }
@@ -2425,6 +2436,11 @@ export class ScheduleService {
       where: { id: operatorId },
       data: { contributor_id: contributorId },
     });
+
+    // Crew assignment affects estimate costs — mark review_estimate subtask incomplete (stale)
+    if (existing.inquiry_id) {
+      await this.inquiryTasksService.setAutoSubtaskStatus(existing.inquiry_id, 'review_estimate', false);
+    }
 
     // Auto-assign unassigned inquiry tasks that match this operator's role
     if (existing.inquiry_id && existing.job_role_id && contributorId) {

@@ -38,4 +38,15 @@ export class PublicClientPortalController {
         }
         return this.clientPortalService.submitPackageRequest(token, body);
     }
+
+    @Post(':token/proposal-respond')
+    async respondToProposal(
+        @Param('token') token: string,
+        @Body() body: { response: string; message?: string },
+    ) {
+        if (!token || token.length < 10) {
+            throw new NotFoundException('Invalid portal token');
+        }
+        return this.clientPortalService.respondToProposalByPortalToken(token, body.response, body.message);
+    }
 }

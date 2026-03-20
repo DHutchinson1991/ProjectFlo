@@ -38,6 +38,7 @@ import ForkScreen from "./_components/screens/ForkScreen";
 import BudgetScreen from "./_components/screens/BudgetScreen";
 import PackagesScreen from "./_components/screens/PackagesScreen";
 import BuilderScreen from "./_components/screens/BuilderScreen";
+import PaymentTermsScreen from "./_components/screens/PaymentTermsScreen";
 import SpecialScreen from "./_components/screens/SpecialScreen";
 import SourceScreen from "./_components/screens/SourceScreen";
 import CallOfferScreen from "./_components/screens/CallOfferScreen";
@@ -141,8 +142,10 @@ export default function NeedsAssessmentPage() {
                 setMaxVideographers(Math.max(1, videographerCount));
                 if (camSetting?.value) setMaxCamerasPerOp(Math.max(1, parseInt(camSetting.value, 10) || 3));
                 if (ws) setWelcomeSettings(ws);
-            } catch {
-                setError("Unable to load. Please try again.");
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : "Unable to load. Please try again.";
+                console.error("❌ Needs Assessment Load Error:", errorMessage, err);
+                setError(errorMessage);
             } finally {
                 setLoading(false);
             }
@@ -362,7 +365,13 @@ export default function NeedsAssessmentPage() {
                     lead_source: responses.lead_source,
                     lead_source_details: responses.lead_source_details,
                     selected_package_id: selectedPkgId,
+                    preferred_payment_schedule_template_id: responses.payment_schedule_template_id
+                        ? Number(responses.payment_schedule_template_id)
+                        : undefined,
                 },
+                preferred_payment_schedule_template_id: responses.payment_schedule_template_id
+                    ? Number(responses.payment_schedule_template_id)
+                    : undefined,
             };
             if (linkedInquiryId) payload.inquiry_id = linkedInquiryId;
             else payload.create_inquiry = createInquiry;
@@ -445,6 +454,7 @@ export default function NeedsAssessmentPage() {
             case "budget":           return <BudgetScreen ctx={ctx} />;
             case "packages":         return <PackagesScreen ctx={ctx} />;
             case "builder":          return <BuilderScreen ctx={ctx} />;
+            case "payment_terms":    return <PaymentTermsScreen ctx={ctx} />;
             case "special":          return <SpecialScreen ctx={ctx} />;
             case "source":           return <SourceScreen ctx={ctx} />;
             case "call_offer":       return <CallOfferScreen ctx={ctx} />;
@@ -459,6 +469,23 @@ export default function NeedsAssessmentPage() {
     /* Loading state                                                    */
     /* ================================================================ */
 
+    if (!currentBrand) {
+        return (
+            <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", bgcolor: C.bg, gap: 3 }}>
+                {[180, 120, 240].map((w, i) => (
+                    <Box key={i} sx={{
+                        width: w, height: 10, borderRadius: 5,
+                        background: "linear-gradient(90deg, #27272a 25%, #3f3f46 50%, #27272a 75%)",
+                        backgroundSize: "200% 100%",
+                        animation: `${shimmer} 1.6s ease-in-out infinite`,
+                        animationDelay: `${i * 0.15}s`,
+                    }} />
+                ))}
+                <Typography sx={{ color: C.muted, fontSize: "0.85rem" }}>Loading brand context...</Typography>
+            </Box>
+        );
+    }
+
     if (loading) {
         return (
             <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", bgcolor: C.bg, gap: 3 }}>
@@ -471,6 +498,18 @@ export default function NeedsAssessmentPage() {
                         animationDelay: `${i * 0.15}s`,
                     }} />
                 ))}
+            </Box>
+        );
+    }
+
+    if (error) {
+        return (
+            <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: C.bg, p: 3 }}>
+                <Box sx={{ p: 5, maxWidth: 500, textAlign: "center", bgcolor: C.card, border: `1px solid ${C.border}`, borderRadius: 3, animation: `${scaleIn} 0.5s ease both` }}>
+                    <Typography variant="h6" sx={{ color: C.text, mb: 1, fontWeight: 600 }}>Unable to load questionnaire</Typography>
+                    <Typography variant="body2" sx={{ color: C.muted, mb: 3 }}>{error}</Typography>
+                    <Button variant="outlined" onClick={() => window.location.reload()}>Refresh Page</Button>
+                </Box>
             </Box>
         );
     }

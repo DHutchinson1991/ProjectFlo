@@ -71,6 +71,9 @@ interface MeetingSchedulerProps {
     accentColor?: string;
     scheduleLabel?: string;
     emptyMessage?: string;
+    clientPreferredDate?: string;   // YYYY-MM-DD or broad range
+    clientPreferredTime?: string;   // HH:MM or broad range like "Morning (8am–12pm)"
+    clientPreferredMethod?: string; // "Phone Call" | "Video Call"
 }
 
 const MeetingScheduler: React.FC<MeetingSchedulerProps> = ({
@@ -87,6 +90,9 @@ const MeetingScheduler: React.FC<MeetingSchedulerProps> = ({
     accentColor = '#3b82f6',
     scheduleLabel = 'Schedule',
     emptyMessage = 'No meetings scheduled yet',
+    clientPreferredDate,
+    clientPreferredTime,
+    clientPreferredMethod,
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingMeeting, setEditingMeeting] = useState<MeetingEvent | null>(null);
@@ -203,27 +209,62 @@ const MeetingScheduler: React.FC<MeetingSchedulerProps> = ({
         }
     };
 
+    // Parse client preferred time into HH:MM — handles exact slots ("09:00") and broad ranges
+    const parsePreferredTime = (time?: string): string | null => {
+        if (!time) return null;
+        // Exact HH:MM format from studio wizard
+        if (/^\d{1,2}:\d{2}$/.test(time)) return time.padStart(5, '0');
+        // Broad ranges from portal wizard
+        const lower = time.toLowerCase();
+        if (lower.includes('morning')) return '08:00';
+        if (lower.includes('afternoon')) return '12:00';
+        if (lower.includes('evening')) return '17:00';
+        return null; // "Flexible" or unknown
+    };
+
+    // Map client method string to MeetingType enum
+    const mapMethodToMeetingType = (method?: string): MeetingType | undefined => {
+        if (!method) return undefined;
+        const lower = method.toLowerCase();
+        if (lower.includes('video')) return 'VIDEO_CALL';
+        if (lower.includes('phone')) return 'PHONE_CALL';
+        if (lower.includes('person')) return 'IN_PERSON';
+        return undefined;
+    };
+
     // Handle opening modal for new meeting
     const handleOpenModal = () => {
         setEditingMeeting(null);
-        const now = new Date();
 
-        // Format current time for datetime-local input (local time, not UTC)
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
+        let startTime: string;
+        const prefTime = parsePreferredTime(clientPreferredTime);
 
-        const startTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+        if (clientPreferredDate && prefTime) {
+            // Use client's exact preferred date + time
+            startTime = `${clientPreferredDate}T${prefTime}`;
+        } else if (clientPreferredDate) {
+            // Have date but no specific time — default to 9am on that date
+            startTime = `${clientPreferredDate}T09:00`;
+        } else {
+            // No client preference — fall back to now
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            startTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
         const endTime = calculateEndTime(startTime, defaultDurationMinutes);
+        const meetingType = mapMethodToMeetingType(clientPreferredMethod) || 'VIDEO_CALL';
 
         setFormData({
             title: defaultTitle,
             start_time: startTime,
             end_time: endTime,
-            event_type: eventType, // Use the fixed event type
-            meeting_type: 'VIDEO_CALL',
+            event_type: eventType,
+            meeting_type: meetingType,
             meeting_url: defaultMeetingUrl,
             location: '',
             description: defaultDescription,

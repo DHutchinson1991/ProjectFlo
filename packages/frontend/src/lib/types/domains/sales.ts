@@ -265,7 +265,14 @@ export interface Inquiry {
         base_price: number;
         currency: string;
     } | null;
+    preferred_payment_schedule_template_id?: number | null;
+    preferred_payment_schedule_template?: {
+        id: number;
+        name: string;
+        is_default: boolean;
+    } | null;
     primary_estimate_total?: number | null;
+    primary_quote_total?: number | null;
     pipeline_stage?: string | null;
     pipeline_stages?: Array<{
         name: string;
@@ -394,6 +401,7 @@ export interface InquiryAvailabilityAlternativeContributor {
     name: string;
     email?: string | null;
     is_current?: boolean;
+    has_role?: boolean;
     conflicts?: InquiryAvailabilityConflict[];
 }
 
@@ -444,6 +452,7 @@ export interface InquiryEquipmentAvailabilityAlternative {
     category?: string | null;
     type?: string | null;
     is_current?: boolean;
+    conflicts?: InquiryAvailabilityConflict[];
 }
 
 export interface InquiryEquipmentAvailabilityRow {
@@ -816,6 +825,7 @@ export interface UpdateInquiryData {
     venue_lng?: number | null;
     lead_source?: string;
     lead_source_details?: string;
+    preferred_payment_schedule_template_id?: number | null;
 }
 
 // Client CRUD DTOs

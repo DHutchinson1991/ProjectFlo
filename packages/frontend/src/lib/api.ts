@@ -1415,6 +1415,8 @@ class ApiService extends BaseApiClient {
       this.delete(`/api/inquiries/${id}/equipment-reservations/${reservationId}`),
     updateEquipmentReservation: (id: number, reservationId: number, status: 'confirmed' | 'cancelled'): Promise<{ id: number; status: string }> =>
       this.patch(`/api/inquiries/${id}/equipment-reservations/${reservationId}`, { status }),
+    swapEquipment: (id: number, assignmentId: number, newEquipmentId: number): Promise<{ id: number; old_equipment_id: number; new_equipment_id: number }> =>
+      this.patch(`/api/inquiries/${id}/equipment-assignments/${assignmentId}/swap`, { new_equipment_id: newEquipmentId }),
 
     // Schedule snapshot endpoints (cloned package data owned by inquiry)
     scheduleSnapshot: {
@@ -1557,6 +1559,15 @@ class ApiService extends BaseApiClient {
       if (!res.ok) throw new Error('Failed to submit package request');
       return res.json();
     },
+    respondToProposal: async (token: string, response: string, message?: string): Promise<any> => {
+      const res = await fetch(`${this.baseURL}/api/client-portal/${encodeURIComponent(token)}/proposal-respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response, message }),
+      });
+      if (!res.ok) throw new Error('Failed to submit proposal response');
+      return res.json();
+    },
   };
 
   // Discovery Questionnaire methods (brand-specific)
@@ -1578,6 +1589,8 @@ class ApiService extends BaseApiClient {
       this.get(`/api/discovery-questionnaire/submissions/${id}`),
     create: (data: CreateDiscoverySubmissionPayload): Promise<DiscoveryQuestionnaireSubmission> =>
       this.post("/api/discovery-questionnaire/submissions", data),
+    update: (id: number, data: Partial<CreateDiscoverySubmissionPayload>): Promise<DiscoveryQuestionnaireSubmission> =>
+      this.patch(`/api/discovery-questionnaire/submissions/${id}`, data),
   };
 
   // Clients methods (brand-specific, full CRUD)
@@ -2459,6 +2472,8 @@ class ApiService extends BaseApiClient {
       this.post(`/api/inquiries/${inquiryId}/estimates/${estimateId}/send`, {}),
     refresh: (inquiryId: number, estimateId: number): Promise<Estimate> =>
       this.post(`/api/inquiries/${inquiryId}/estimates/${estimateId}/refresh`, {}),
+    revise: (inquiryId: number, estimateId: number): Promise<Estimate> =>
+      this.post(`/api/inquiries/${inquiryId}/estimates/${estimateId}/revise`, {}),
     getSnapshots: (inquiryId: number, estimateId: number): Promise<import('./types').EstimateSnapshot[]> =>
       this.get(`/api/inquiries/${inquiryId}/estimates/${estimateId}/snapshots`),
   };

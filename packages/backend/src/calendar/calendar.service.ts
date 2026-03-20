@@ -38,6 +38,7 @@ export class CalendarService {
             location: createEventDto.location,
             meeting_url: createEventDto.meeting_url,
             outcome_notes: createEventDto.outcome_notes,
+            is_confirmed: createEventDto.is_confirmed ?? false,
         };
 
         if (createEventDto.project_id) {
@@ -78,20 +79,17 @@ export class CalendarService {
             },
         });
 
-        // Auto-complete discovery call tasks when a discovery call is created for an inquiry
+        // Auto-complete the 'Schedule Discovery Call' subtask on Q&R when a discovery call event is booked
         if (createEventDto.inquiry_id && createEventDto.event_type === 'DISCOVERY_CALL') {
-            await this.prisma.inquiry_tasks.updateMany({
-                where: {
-                    inquiry_id: createEventDto.inquiry_id,
-                    name: { in: ['Discovery Call Scheduling'] },
-                    is_active: true,
-                    status: { not: 'Completed' },
-                },
-                data: {
-                    status: 'Completed',
-                    completed_at: new Date(),
-                },
-            });
+            try {
+                await this.inquiryTasksService.setAutoSubtaskStatus(
+                    createEventDto.inquiry_id,
+                    'schedule_discovery_call',
+                    true,
+                );
+            } catch {
+                // Best-effort
+            }
         }
 
         return event;
@@ -292,6 +290,7 @@ export class CalendarService {
         if (updateEventDto.location !== undefined) updateData.location = updateEventDto.location;
         if (updateEventDto.meeting_url !== undefined) updateData.meeting_url = updateEventDto.meeting_url;
         if (updateEventDto.outcome_notes !== undefined) updateData.outcome_notes = updateEventDto.outcome_notes;
+        if (updateEventDto.is_confirmed !== undefined) updateData.is_confirmed = updateEventDto.is_confirmed;
 
         return this.prisma.calendar_events.update({
             where: { id },

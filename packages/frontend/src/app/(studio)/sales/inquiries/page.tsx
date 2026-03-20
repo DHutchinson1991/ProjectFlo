@@ -240,9 +240,9 @@ export default function InquiriesPage() {
                     return aDate - bDate;
                 }
                 case 'value_high':
-                    return (b.primary_estimate_total ?? 0) - (a.primary_estimate_total ?? 0);
+                    return (b.primary_quote_total ?? b.primary_estimate_total ?? 0) - (a.primary_quote_total ?? a.primary_estimate_total ?? 0);
                 case 'value_low':
-                    return (a.primary_estimate_total ?? 0) - (b.primary_estimate_total ?? 0);
+                    return (a.primary_quote_total ?? a.primary_estimate_total ?? 0) - (b.primary_quote_total ?? b.primary_estimate_total ?? 0);
                 default:
                     return 0;
             }
@@ -283,29 +283,30 @@ export default function InquiriesPage() {
         return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(price);
     };
 
-    const formatCurrencyWithCode = (price: number | null | undefined, currencyCode?: string | null) => {
+    const formatCurrencyWithCode = (price: number | null | undefined, _currencyCode?: string | null) => {
         if (price == null) return null;
-        const currency = currencyCode || currentBrand?.currency || 'GBP';
+        const currency = currentBrand?.currency || 'GBP';
         return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(price);
     };
 
-    const getInquiryPackagePrice = (inquiry: Inquiry) => {
-        // Use package's base_price directly
+    const getInquiryPrice = (inquiry: Inquiry) => {
+        const currency = currentBrand?.currency || 'GBP';
+        // Prefer quote total (already includes tax from backend)
+        if (inquiry.primary_quote_total != null) {
+            return { amount: inquiry.primary_quote_total, currency };
+        }
+        // Fall back to estimate total (already includes tax from backend)
+        if (inquiry.primary_estimate_total != null) {
+            return { amount: inquiry.primary_estimate_total, currency };
+        }
+        // Fall back to package base_price
         if (inquiry.selected_package?.base_price != null) {
-            return {
-                amount: inquiry.selected_package.base_price,
-                currency: inquiry.selected_package.currency,
-            };
+            return { amount: inquiry.selected_package.base_price, currency };
         }
-
-        // Fallback to package snapshot
+        // Fall back to package snapshot
         if (inquiry.package_contents_snapshot?.base_price != null) {
-            return {
-                amount: inquiry.package_contents_snapshot.base_price,
-                currency: inquiry.package_contents_snapshot.currency,
-            };
+            return { amount: inquiry.package_contents_snapshot.base_price, currency };
         }
-
         return null;
     };
 
@@ -476,7 +477,7 @@ export default function InquiriesPage() {
                                 <TableBody>
                                     {filteredInquiries.map((inquiry) => {
                                         const stageConfig = getStageConfig(inquiry.pipeline_stage, pipelineStages);
-                                        const packagePrice = getInquiryPackagePrice(inquiry);
+                                        const packagePrice = getInquiryPrice(inquiry);
                                         return (
                                             <TableRow
                                                 key={inquiry.id}
@@ -655,11 +656,11 @@ export default function InquiriesPage() {
                                                         </Typography>
                                                     </Box>
                                                 )}
-                                                {inquiry.primary_estimate_total != null && (
+                                                {(inquiry.primary_quote_total != null || inquiry.primary_estimate_total != null) && (
                                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                                         <AttachMoney sx={{ fontSize: 11, color: '#10b981' }} />
                                                         <Typography sx={{ fontSize: '0.65rem', color: '#34d399', fontWeight: 700 }}>
-                                                            {formatCurrency(inquiry.primary_estimate_total)}
+                                                            {formatCurrency(inquiry.primary_quote_total ?? inquiry.primary_estimate_total)}
                                                         </Typography>
                                                     </Box>
                                                 )}

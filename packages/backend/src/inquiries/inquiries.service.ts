@@ -3,8 +3,39 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInquiryDto, UpdateInquiryDto } from './dto/inquiries.dto';
 import { $Enums, Prisma } from '@prisma/client';
-import { ProjectPackageCloneService } from '../projects/project-package-clone.service';
+import { ProjectPackageCloneService, parseGuestCountMidpoint } from '../projects/project-package-clone.service';
 import { InquiryTasksService } from '../inquiry-tasks/inquiry-tasks.service';
+
+/** User-entered schedule data stashed before a package swap */
+interface ScheduleUserDataStash {
+    subjects: Array<{
+        roleName: string;
+        realName: string | null;
+        notes: string | null;
+        count: number | null;
+    }>;
+    locations: Array<{
+        activityName: string | null;
+        locationNumber: number;
+        name: string | null;
+        address: string | null;
+        locationId: number | null;
+        notes: string | null;
+    }>;
+    crew: Array<{
+        positionName: string;
+        eventDayOrder: number;
+        contributorId: number | null;
+        notes: string | null;
+    }>;
+}
+
+/** Result of restoring stashed data after swap */
+interface SwapRestoreResult {
+    subjects: { restored: number; unmatched: string[] };
+    locations: { restored: number; unmatched: string[] };
+    crew: { restored: number; unmatched: string[] };
+}
 
 @Injectable()
 export class InquiriesService {
@@ -42,7 +73,12 @@ export class InquiriesService {
                     },
                 },
                 estimates: {
-                    select: { id: true, total_amount: true, is_primary: true, status: true, created_at: true },
+                    select: { id: true, total_amount: true, tax_rate: true, is_primary: true, status: true, created_at: true },
+                    orderBy: [{ is_primary: 'desc' }, { id: 'desc' }],
+                    take: 3,
+                },
+                quotes: {
+                    select: { id: true, total_amount: true, tax_rate: true, is_primary: true, status: true },
                     orderBy: [{ is_primary: 'desc' }, { id: 'desc' }],
                     take: 3,
                 },
@@ -92,8 +128,8 @@ export class InquiriesService {
             venue_lng: inquiry.venue_lng,
             lead_source: inquiry.lead_source,
             lead_source_details: inquiry.lead_source_details,
-            created_at: new Date(), // Default to now since schema might not have this field
-            updated_at: new Date(), // Default to now since schema might not have this field
+            created_at: inquiry.created_at,
+            updated_at: inquiry.updated_at,
             contact: {
                 id: inquiry.contact_id,
                 first_name: inquiry.contact.first_name,
@@ -112,7 +148,18 @@ export class InquiriesService {
                   }
                 : null,
             primary_estimate_total: inquiry.estimates.length > 0
-                ? Number(inquiry.estimates[0].total_amount)
+                ? (() => {
+                      const amt = Number(inquiry.estimates[0].total_amount);
+                      const rate = Number(inquiry.estimates[0].tax_rate ?? 0);
+                      return Math.round((amt * (1 + rate / 100)) * 100) / 100;
+                  })()
+                : null,
+            primary_quote_total: inquiry.quotes.length > 0
+                ? (() => {
+                      const amt = Number(inquiry.quotes[0].total_amount);
+                      const rate = Number(inquiry.quotes[0].tax_rate ?? 0);
+                      return Math.round((amt * (1 + rate / 100)) * 100) / 100;
+                  })()
                 : null,
             pipeline_stage: (() => {
                 // Dynamic: derive from task hierarchy if stages exist
@@ -172,6 +219,7 @@ export class InquiriesService {
                 source_package_id: true,
                 contact_id: true,
                 package_contents_snapshot: true,
+                preferred_payment_schedule_template_id: true,
                 contact: {
                     select: {
                         id: true,
@@ -230,6 +278,22 @@ export class InquiriesService {
                                     },
                                 },
                             },
+                            {
+                                contributor: {
+                                    is: {
+                                        contributor_job_roles: {
+                                            some: {
+                                                job_role: {
+                                                    OR: [
+                                                        { name: { contains: 'producer', mode: 'insensitive' } },
+                                                        { display_name: { contains: 'producer', mode: 'insensitive' } },
+                                                    ],
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
                         ],
                     },
                     orderBy: [{ order_index: 'asc' }],
@@ -258,7 +322,47 @@ export class InquiriesService {
                         },
                     },
                 },
+                inquiry_tasks: {
+                    where: {
+                        is_stage: false,
+                        assigned_to_id: { not: null },
+                        job_role: {
+                            is: {
+                                OR: [
+                                    { name: { contains: 'producer', mode: 'insensitive' } },
+                                    { display_name: { contains: 'producer', mode: 'insensitive' } },
+                                ],
+                            },
+                        },
+                    },
+                    take: 1,
+                    orderBy: [{ order_index: 'asc' }],
+                    select: {
+                        id: true,
+                        assigned_to: {
+                            select: {
+                                id: true,
+                                contact: {
+                                    select: {
+                                        first_name: true,
+                                        last_name: true,
+                                        email: true,
+                                    },
+                                },
+                            },
+                        },
+                        job_role: {
+                            select: {
+                                id: true,
+                                name: true,
+                                display_name: true,
+                            },
+                        },
+                    },
+                },
                 welcome_sent_at: true,
+                created_at: true,
+                updated_at: true,
             },
         });
 
@@ -267,6 +371,7 @@ export class InquiriesService {
         }
 
         const leadProducerAssignment = inquiry.schedule_day_operators[0] ?? null;
+        const fallbackTask = inquiry.inquiry_tasks[0] ?? null;
         const leadProducer = leadProducerAssignment?.contributor
             ? {
                 id: leadProducerAssignment.contributor.id,
@@ -274,6 +379,14 @@ export class InquiriesService {
                 email: leadProducerAssignment.contributor.contact.email,
                 position_name: leadProducerAssignment.position_name,
                 job_role_name: leadProducerAssignment.job_role?.display_name ?? leadProducerAssignment.job_role?.name ?? null,
+            }
+            : fallbackTask?.assigned_to
+            ? {
+                id: fallbackTask.assigned_to.id,
+                name: `${fallbackTask.assigned_to.contact.first_name} ${fallbackTask.assigned_to.contact.last_name}`.trim(),
+                email: fallbackTask.assigned_to.contact.email,
+                position_name: null,
+                job_role_name: fallbackTask.job_role?.display_name ?? fallbackTask.job_role?.name ?? null,
             }
             : null;
 
@@ -293,8 +406,9 @@ export class InquiriesService {
             selected_package_id: inquiry.selected_package_id,
             source_package_id: inquiry.source_package_id ?? null,
             package_contents_snapshot: inquiry.package_contents_snapshot ?? null,
-            created_at: new Date(), // Default since this field might not exist in the table yet
-            updated_at: new Date(), // Default since this field might not exist in the table yet
+            preferred_payment_schedule_template_id: inquiry.preferred_payment_schedule_template_id ?? null,
+            created_at: inquiry.created_at,
+            updated_at: inquiry.updated_at,
             contact: {
                 id: inquiry.contact.id,
                 first_name: inquiry.contact.first_name,
@@ -354,6 +468,8 @@ export class InquiriesService {
                 lead_source: inquiryData.lead_source,
                 lead_source_details: inquiryData.lead_source_details,
                 selected_package_id: inquiryData.selected_package_id ?? null,
+                preferred_payment_schedule_template_id: inquiryData.preferred_payment_schedule_template_id ?? null,
+                event_type_id: inquiryData.event_type_id ?? null,
                 portal_token: randomUUID(),
             },
             include: {
@@ -459,6 +575,9 @@ export class InquiriesService {
                 ...(inquiryData.lead_source !== undefined && { lead_source: inquiryData.lead_source }),
                 ...(inquiryData.lead_source_details !== undefined && { lead_source_details: inquiryData.lead_source_details }),
                 ...(inquiryData.selected_package_id !== undefined && { selected_package_id: inquiryData.selected_package_id }),
+                ...(inquiryData.preferred_payment_schedule_template_id !== undefined && {
+                    preferred_payment_schedule_template_id: inquiryData.preferred_payment_schedule_template_id,
+                }),
             },
             include: {
                 contact: {
@@ -540,6 +659,7 @@ export class InquiriesService {
             lead_source: updatedInquiry.lead_source,
             lead_source_details: updatedInquiry.lead_source_details,
             selected_package_id: updatedInquiry.selected_package_id,
+            preferred_payment_schedule_template_id: updatedInquiry.preferred_payment_schedule_template_id,
             first_name: updatedInquiry.contact.first_name,
             last_name: updatedInquiry.contact.last_name,
             email: updatedInquiry.contact.email,
@@ -676,67 +796,296 @@ export class InquiriesService {
 
     // ─── Schedule Snapshot Helpers ──────────────────────────────────
 
+    /** Shape of user-entered data stashed before a package swap */
+    private _emptyStash(): ScheduleUserDataStash {
+        return { subjects: [], locations: [], crew: [] };
+    }
+
+    /**
+     * Extract user-entered data from the current inquiry schedule
+     * so it can be restored after re-cloning a different package.
+     */
+    private async _stashUserData(
+        inquiryId: number,
+        tx: Prisma.TransactionClient,
+    ): Promise<ScheduleUserDataStash> {
+        const [subjects, locations, crew] = await Promise.all([
+            tx.projectEventDaySubject.findMany({
+                where: {
+                    inquiry_id: inquiryId,
+                    OR: [{ real_name: { not: null } }, { notes: { not: null } }],
+                },
+                select: { name: true, real_name: true, notes: true, count: true },
+            }),
+            tx.projectLocationSlot.findMany({
+                where: {
+                    inquiry_id: inquiryId,
+                    OR: [{ name: { not: null } }, { address: { not: null } }, { notes: { not: null } }],
+                },
+                select: {
+                    location_number: true,
+                    name: true,
+                    address: true,
+                    location_id: true,
+                    notes: true,
+                    project_activity: { select: { name: true } },
+                },
+            }),
+            tx.projectDayOperator.findMany({
+                where: { inquiry_id: inquiryId, contributor_id: { not: null } },
+                select: {
+                    position_name: true,
+                    contributor_id: true,
+                    notes: true,
+                    project_event_day: { select: { order_index: true } },
+                },
+            }),
+        ]);
+
+        return {
+            subjects: subjects.map(s => ({
+                roleName: s.name,
+                realName: s.real_name,
+                notes: s.notes,
+                count: s.count,
+            })),
+            locations: locations.map(l => ({
+                activityName: l.project_activity?.name ?? null,
+                locationNumber: l.location_number,
+                name: l.name,
+                address: l.address,
+                locationId: l.location_id,
+                notes: l.notes,
+            })),
+            crew: crew.map(c => ({
+                positionName: c.position_name,
+                eventDayOrder: c.project_event_day?.order_index ?? 0,
+                contributorId: c.contributor_id,
+                notes: c.notes,
+            })),
+        };
+    }
+
+    /**
+     * Best-effort restore of stashed user data onto freshly-cloned schedule rows.
+     * Returns counts of matched vs unmatched items.
+     */
+    private async _restoreUserData(
+        inquiryId: number,
+        stash: ScheduleUserDataStash,
+        tx: Prisma.TransactionClient,
+    ): Promise<SwapRestoreResult> {
+        const result: SwapRestoreResult = {
+            subjects: { restored: 0, unmatched: [] },
+            locations: { restored: 0, unmatched: [] },
+            crew: { restored: 0, unmatched: [] },
+        };
+
+        // ── Restore subject real_names (match by role name) ──
+        for (const stashed of stash.subjects) {
+            if (!stashed.realName && !stashed.notes) continue;
+            const match = await tx.projectEventDaySubject.findFirst({
+                where: {
+                    inquiry_id: inquiryId,
+                    name: { equals: stashed.roleName, mode: 'insensitive' },
+                },
+            });
+            if (match) {
+                await tx.projectEventDaySubject.update({
+                    where: { id: match.id },
+                    data: {
+                        ...(stashed.realName && { real_name: stashed.realName }),
+                        ...(stashed.notes && { notes: stashed.notes }),
+                    },
+                });
+                result.subjects.restored++;
+            } else {
+                result.subjects.unmatched.push(stashed.roleName);
+            }
+        }
+
+        // ── Restore location data (match by activity name + slot number) ──
+        for (const stashed of stash.locations) {
+            if (!stashed.name && !stashed.address && !stashed.notes) continue;
+            const match = await tx.projectLocationSlot.findFirst({
+                where: {
+                    inquiry_id: inquiryId,
+                    location_number: stashed.locationNumber,
+                    ...(stashed.activityName
+                        ? { project_activity: { name: { equals: stashed.activityName, mode: 'insensitive' } } }
+                        : {}),
+                },
+            });
+            if (match) {
+                await tx.projectLocationSlot.update({
+                    where: { id: match.id },
+                    data: {
+                        ...(stashed.name && { name: stashed.name }),
+                        ...(stashed.address && { address: stashed.address }),
+                        ...(stashed.locationId && { location_id: stashed.locationId }),
+                        ...(stashed.notes && { notes: stashed.notes }),
+                    },
+                });
+                result.locations.restored++;
+            } else {
+                result.locations.unmatched.push(stashed.name || `Slot ${stashed.locationNumber}`);
+            }
+        }
+
+        // ── Restore crew assignments (match by position name + day order) ──
+        for (const stashed of stash.crew) {
+            if (!stashed.contributorId) continue;
+            const match = await tx.projectDayOperator.findFirst({
+                where: {
+                    inquiry_id: inquiryId,
+                    position_name: { equals: stashed.positionName, mode: 'insensitive' },
+                    project_event_day: { order_index: stashed.eventDayOrder },
+                },
+            });
+            if (match) {
+                await tx.projectDayOperator.update({
+                    where: { id: match.id },
+                    data: {
+                        contributor_id: stashed.contributorId,
+                        ...(stashed.notes && { notes: stashed.notes }),
+                    },
+                });
+                result.crew.restored++;
+            } else {
+                result.crew.unmatched.push(stashed.positionName);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Clone a package into the inquiry schedule, updating metadata + snapshot.
+     */
+    private async _clonePackageToInquiry(
+        inquiryId: number,
+        newPackageId: number,
+        tx: Prisma.TransactionClient,
+    ) {
+        // Fetch inquiry guest_count to prefill Guests subject during clone
+        const inquiry = await tx.inquiries.findUnique({
+            where: { id: inquiryId },
+            select: { guest_count: true },
+        });
+        const guestCount = parseGuestCountMidpoint(inquiry?.guest_count) ?? undefined;
+
+        const pkg = await tx.service_packages.findUnique({
+            where: { id: newPackageId },
+            select: { id: true, name: true, base_price: true, currency: true, contents: true },
+        });
+
+        const packageContentsSnapshot = pkg
+            ? {
+                snapshot_taken_at: new Date().toISOString(),
+                package_id: pkg.id,
+                package_name: pkg.name,
+                base_price: pkg.base_price ? Number(pkg.base_price) : 0,
+                currency: pkg.currency ?? 'USD',
+                contents: pkg.contents,
+            }
+            : null;
+
+        await tx.inquiries.update({
+            where: { id: inquiryId },
+            data: {
+                source_package_id: newPackageId,
+                package_contents_snapshot: packageContentsSnapshot ?? Prisma.JsonNull,
+            },
+        });
+
+        await this.packageCloneService.clonePackageToInquiry(
+            inquiryId, newPackageId, tx,
+            guestCount ? { guestCount } : undefined,
+        );
+    }
+
     /**
      * Handle package selection change on an inquiry.
-     * Deletes any existing schedule snapshot, then clones from the new package.
+     * If swapping from an existing package, stashes user-entered data (subject names,
+     * location addresses, crew assignments) and restores them after re-cloning.
+     * Estimates, quotes, contracts, and proposals are never affected.
      */
     async handlePackageSelection(
         inquiryId: number,
         newPackageId: number | null,
         brandId: number,
     ) {
-        await this.prisma.$transaction(async (prisma) => {
-            // 1. Delete any existing inquiry schedule data
-            await this.deleteInquiryScheduleSnapshot(inquiryId, prisma);
+        const inquiry = await this.prisma.inquiries.findUnique({
+            where: { id: inquiryId },
+            select: { source_package_id: true },
+        });
 
-            // 2. If a new package is selected, clone it
-            if (newPackageId) {
-                // Capture snapshot of package contents
-                const pkg = await prisma.service_packages.findUnique({
-                    where: { id: newPackageId },
-                    select: { id: true, name: true, base_price: true, currency: true, contents: true },
-                });
+        const hadPreviousPackage = !!inquiry?.source_package_id;
 
-                const packageContentsSnapshot = pkg
-                    ? {
-                        snapshot_taken_at: new Date().toISOString(),
-                        package_id: pkg.id,
-                        package_name: pkg.name,
-                        base_price: pkg.base_price ? Number(pkg.base_price) : 0,
-                        currency: pkg.currency ?? 'USD',
-                        contents: pkg.contents,
-                    }
-                    : null;
-
-                // Update inquiry metadata
-                await prisma.inquiries.update({
-                    where: { id: inquiryId },
-                    data: {
-                        source_package_id: newPackageId,
-                        package_contents_snapshot: packageContentsSnapshot ?? Prisma.JsonNull,
-                    },
-                });
-
-                // Clone package entities into inquiry-owned rows
-                await this.packageCloneService.clonePackageToInquiry(
-                    inquiryId,
-                    newPackageId,
-                    prisma,
-                );
-
-                this.logger.log(`Cloned package ${newPackageId} → inquiry ${inquiryId}`);
-            } else {
-                // Package deselected — clear metadata
-                await prisma.inquiries.update({
+        if (newPackageId && hadPreviousPackage) {
+            // ── SWAP: stash user data → delete → clone → restore ──
+            const swapResult = await this.prisma.$transaction(async (tx) => {
+                const stash = await this._stashUserData(inquiryId, tx);
+                await this.deleteInquiryScheduleSnapshot(inquiryId, tx);
+                await this._clonePackageToInquiry(inquiryId, newPackageId, tx);
+                const restoreResult = await this._restoreUserData(inquiryId, stash, tx);
+                return restoreResult;
+            });
+            this.logger.log(
+                `Swapped package → ${newPackageId} for inquiry ${inquiryId}. ` +
+                `Restored: ${swapResult.subjects.restored} subjects, ${swapResult.locations.restored} locations, ${swapResult.crew.restored} crew`,
+            );
+            // Update primary estimate title to match the new package name
+            await this._syncPrimaryEstimateTitle(inquiryId, newPackageId);
+        } else if (newPackageId) {
+            // ── FIRST ASSIGNMENT: clean clone ──
+            await this.prisma.$transaction(async (tx) => {
+                await this.deleteInquiryScheduleSnapshot(inquiryId, tx);
+                await this._clonePackageToInquiry(inquiryId, newPackageId, tx);
+            });
+            this.logger.log(`Cloned package ${newPackageId} → inquiry ${inquiryId}`);
+            // Update primary estimate title to match the new package name
+            await this._syncPrimaryEstimateTitle(inquiryId, newPackageId);
+        } else {
+            // ── DESELECT: clear schedule + metadata ──
+            await this.prisma.$transaction(async (tx) => {
+                await this.deleteInquiryScheduleSnapshot(inquiryId, tx);
+                await tx.inquiries.update({
                     where: { id: inquiryId },
                     data: {
                         source_package_id: null,
                         package_contents_snapshot: Prisma.JsonNull,
                     },
                 });
-                this.logger.log(`Cleared schedule snapshot for inquiry ${inquiryId}`);
-            }
+            });
+            this.logger.log(`Cleared schedule snapshot for inquiry ${inquiryId}`);
+        }
+    }
+
+    /**
+     * When a package is assigned or swapped, update the primary estimate's title
+     * to match the new package name (preserving version history).
+     */
+    private async _syncPrimaryEstimateTitle(inquiryId: number, packageId: number) {
+        const pkg = await this.prisma.service_packages.findUnique({
+            where: { id: packageId },
+            select: { name: true },
         });
+        if (!pkg?.name) return;
+
+        const primaryEstimate = await this.prisma.estimates.findFirst({
+            where: { inquiry_id: inquiryId, is_primary: true },
+            select: { id: true, title: true },
+        });
+        if (!primaryEstimate || primaryEstimate.title === pkg.name) return;
+
+        await this.prisma.estimates.update({
+            where: { id: primaryEstimate.id },
+            data: { title: pkg.name },
+        });
+        this.logger.log(
+            `Updated primary estimate ${primaryEstimate.id} title "${primaryEstimate.title}" → "${pkg.name}"`,
+        );
     }
 
     /**
@@ -880,6 +1229,7 @@ export class InquiriesService {
                 meeting_type: true,
                 meeting_url: true,
                 location: true,
+                is_confirmed: true,
             },
         });
 
@@ -897,6 +1247,7 @@ export class InquiriesService {
                 meeting_type: true,
                 meeting_url: true,
                 location: true,
+                is_confirmed: true,
             },
         });
     }

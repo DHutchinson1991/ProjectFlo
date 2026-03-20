@@ -53,13 +53,25 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
         }
     }, [currentBrand?.currency]);
 
-    // Load default payment schedule template for the brand
+    // Load payment schedule template — prefer inquiry's chosen template, fall back to brand default
     useEffect(() => {
         if (!currentBrand?.id) return;
-        api.paymentSchedules.getDefault(currentBrand.id)
-            .then(setDefaultTemplate)
-            .catch(() => { /* no default template set */ });
-    }, [currentBrand?.id]);
+        const prefId = inquiry.preferred_payment_schedule_template_id;
+        if (prefId) {
+            api.paymentSchedules.getById(currentBrand.id, prefId)
+                .then(setDefaultTemplate)
+                .catch(() => {
+                    // Preferred template not found, fall back to brand default
+                    api.paymentSchedules.getDefault(currentBrand.id)
+                        .then(setDefaultTemplate)
+                        .catch(() => { /* no template */ });
+                });
+        } else {
+            api.paymentSchedules.getDefault(currentBrand.id)
+                .then(setDefaultTemplate)
+                .catch(() => { /* no default template set */ });
+        }
+    }, [currentBrand?.id, inquiry.preferred_payment_schedule_template_id]);
 
     const loadMilestones = async (quoteId: number) => {
         try {

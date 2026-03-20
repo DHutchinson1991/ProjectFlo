@@ -170,14 +170,14 @@ export function SubjectsCard({
     }, [activeDayActivities, daySubjects, hasOwner, setPackageSubjects, subjectApi]);
 
     // ─── Helpers ─────────────────────────────────────────────────────
-    const addSubjectFromTemplate = async (role: { id: number; role_name: string; is_group?: boolean }) => {
+    const addSubjectFromTemplate = async (role: { id: number; role_name: string; is_group?: boolean; never_group?: boolean }) => {
         if (!activeEventDayId || !hasOwner) return;
         try {
             const created = await subjectApi.create(activeEventDayId, {
                 name: role.role_name,
                 category: 'PEOPLE',
                 role_template_id: role.id,
-                ...(role.is_group ? { count: 2 } : {}),
+                ...(role.is_group ? { count: 4 } : {}),
             });
             let nextSubject = created;
             if (created?.id && activeDayActivities.length > 0) {
@@ -240,18 +240,31 @@ export function SubjectsCard({
                     {daySubjects.map((subj: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                         const subjAssigned = isSubjectAssigned(subj);
                         const isFixedGroup = !!(subj as any).role_template?.is_group;
+                        const isNeverGroup = !!(subj as any).role_template?.never_group;
                         const isGroup = isFixedGroup || (subj.count !== null && subj.count !== undefined);
-                        const currentCount: number = subj.count ?? (isFixedGroup ? 2 : 1);
+                        const currentCount: number = subj.count ?? (isFixedGroup ? 4 : 1);
                         const isEditingThis = editingCountId === subj.id;
+                        const isGuestsRole = subj.name.toLowerCase() === 'guests';
+                        const isNamedGroup = isGroup && !isGuestsRole;
+
+                        const resizeMemberNames = (newCount: number): string[] | undefined => {
+                            if (!isInstanceMode || !isNamedGroup) return undefined;
+                            const names: string[] = Array.isArray((subj as any).member_names) ? [...(subj as any).member_names] : [];
+                            while (names.length < newCount) names.push('');
+                            return names.slice(0, newCount);
+                        };
 
                         const applyCount = async (rawVal: string) => {
                             setEditingCountId(null);
                             const n = parseInt(rawVal, 10);
                             const next = isNaN(n) ? currentCount : Math.max(1, n);
                             if (next === currentCount) return;
+                            const memberNames = resizeMemberNames(next);
                             try {
-                                const updated = await subjectApi.update(subj.id, { count: next });
-                                setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, count: updated?.count ?? next } : s)); // eslint-disable-line @typescript-eslint/no-explicit-any
+                                const payload: any = { count: next };
+                                if (memberNames) payload.member_names = memberNames;
+                                const updated = await subjectApi.update(subj.id, payload);
+                                setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, count: updated?.count ?? next, ...(memberNames ? { member_names: memberNames } : {}) } : s)); // eslint-disable-line @typescript-eslint/no-explicit-any
                             } catch (err) { console.warn('Failed to update count:', err); }
                         };
 
@@ -259,9 +272,12 @@ export function SubjectsCard({
                             e.stopPropagation();
                             const next = Math.max(1, currentCount + delta);
                             if (next === currentCount) return;
+                            const memberNames = resizeMemberNames(next);
                             try {
-                                const updated = await subjectApi.update(subj.id, { count: next });
-                                setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, count: updated?.count ?? next } : s)); // eslint-disable-line @typescript-eslint/no-explicit-any
+                                const payload: any = { count: next };
+                                if (memberNames) payload.member_names = memberNames;
+                                const updated = await subjectApi.update(subj.id, payload);
+                                setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, count: updated?.count ?? next, ...(memberNames ? { member_names: memberNames } : {}) } : s)); // eslint-disable-line @typescript-eslint/no-explicit-any
                             } catch (err) { console.warn('Failed to update count:', err); }
                         };
 
@@ -275,8 +291,8 @@ export function SubjectsCard({
                         };
 
                         return (
+                        <React.Fragment key={subj.id}>
                         <Box
-                            key={subj.id}
                             onClick={() => {
                                 if (!selectedActivityId) return;
                                 toggleSubjectActivity(subj);
@@ -373,8 +389,8 @@ export function SubjectsCard({
                                 )}
                             </Box>
 
-                            {/* Group toggle icon — hidden for fixed-group roles */}
-                            {!isFixedGroup && (
+                            {/* Group toggle icon — hidden for fixed-group and never-group roles */}
+                            {!isFixedGroup && !isNeverGroup && (
                             <Tooltip title={isGroup ? 'Remove group' : 'Make group'} arrow placement="top">
                                 <IconButton
                                     size="small"
@@ -463,6 +479,55 @@ export function SubjectsCard({
                                 </IconButton>
                             </Box>
                         </Box>
+
+                        {/* Member name slots — instance mode, named groups only (not Guests) */}
+                        {isInstanceMode && isNamedGroup && currentCount > 0 && (
+                            <Box sx={{ pl: 3.5, pb: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                                {Array.from({ length: currentCount }, (_, idx) => {
+                                    const names: string[] = Array.isArray((subj as any).member_names) ? (subj as any).member_names : [];
+                                    const val = names[idx] ?? '';
+                                    return (
+                                        <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            <Typography sx={{ fontSize: '0.55rem', color: '#475569', minWidth: 12, textAlign: 'right' }}>{idx + 1}.</Typography>
+                                            <Box
+                                                component="input"
+                                                type="text"
+                                                placeholder={`${subj.name.replace(/s$/, '')} ${idx + 1}`}
+                                                value={val}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    const updated = [...names];
+                                                    // Extend array if needed
+                                                    while (updated.length < currentCount) updated.push('');
+                                                    updated[idx] = e.target.value;
+                                                    // Optimistic local update
+                                                    setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, member_names: updated } : s));
+                                                }}
+                                                onBlur={async () => {
+                                                    const updated = [...names];
+                                                    while (updated.length < currentCount) updated.push('');
+                                                    try {
+                                                        await subjectApi.update(subj.id, { member_names: updated.slice(0, currentCount) } as any);
+                                                    } catch { /* ignore */ }
+                                                }}
+                                                onKeyDown={(e: React.KeyboardEvent) => {
+                                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                                    e.stopPropagation();
+                                                }}
+                                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                                sx={{
+                                                    flex: 1, border: 'none', borderBottom: '1px solid rgba(167,139,250,0.15)',
+                                                    bgcolor: 'transparent', color: '#94a3b8', fontSize: '0.62rem', py: '2px', px: '3px',
+                                                    outline: 'none', fontFamily: 'inherit',
+                                                    '&::placeholder': { color: 'rgba(255,255,255,0.12)', fontStyle: 'italic' },
+                                                    '&:focus': { borderBottomColor: 'rgba(167,139,250,0.5)' },
+                                                }}
+                                            />
+                                        </Box>
+                                    );
+                                })}
+                            </Box>
+                        )}
+                        </React.Fragment>
                         );
                     })}
 
@@ -478,7 +543,7 @@ export function SubjectsCard({
                                 {suggestedRoles.map(role => (
                                     <Chip
                                         key={role.id}
-                                        label={role.role_name}
+                                        label={`${role.role_name}${role.is_group ? ' (Group)' : ''}`}
                                         size="small"
                                         onClick={() => addSubjectFromTemplate(role)}
                                         icon={<AddIcon sx={{ fontSize: '10px !important' }} />}

@@ -56,63 +56,92 @@ async function seedWeddingSubjects() {
               role_name: 'Bride',
               description: 'The bride',
               is_core: true,
+              never_group: true,
               order_index: 0
             },
             {
               role_name: 'Groom',
               description: 'The groom',
               is_core: true,
+              never_group: true,
               order_index: 1
             },
             {
               role_name: 'Best Man',
               description: 'Best man in the wedding',
               is_core: true,
+              never_group: true,
               order_index: 2
             },
             {
               role_name: 'Maid of Honor',
               description: 'Maid of honor in the wedding',
               is_core: true,
+              never_group: true,
               order_index: 3
             },
             {
               role_name: 'Father of Bride',
               description: 'Father of the bride',
               is_core: false,
+              never_group: true,
               order_index: 4
             },
             {
               role_name: 'Mother of Bride',
               description: 'Mother of the bride',
               is_core: false,
+              never_group: true,
               order_index: 5
             },
             {
               role_name: 'Father of Groom',
               description: 'Father of the groom',
               is_core: false,
+              never_group: true,
               order_index: 6
             },
             {
               role_name: 'Mother of Groom',
               description: 'Mother of the groom',
               is_core: false,
+              never_group: true,
               order_index: 7
             },
             {
-              role_name: 'Wedding Party',
-              description: 'General wedding party member',
+              role_name: 'Bridesmaids',
+              description: 'Bridesmaids group',
               is_core: false,
               is_group: true,
               order_index: 8
             },
             {
-              role_name: 'Guest',
-              description: 'Wedding guest',
+              role_name: 'Groomsmen',
+              description: 'Groomsmen group',
               is_core: false,
               is_group: true,
               order_index: 9
+            },
+            {
+              role_name: 'Flower Girl',
+              description: 'Flower girl',
+              is_core: false,
+              never_group: true,
+              order_index: 10
+            },
+            {
+              role_name: 'Ring Bearer',
+              description: 'Ring bearer',
+              is_core: false,
+              never_group: true,
+              order_index: 11
+            },
+            {
+              role_name: 'Guests',
+              description: 'Wedding guests',
+              is_core: false,
+              is_group: true,
+              order_index: 12
             }
           ]
         }

@@ -24,6 +24,8 @@ import {
     EventAvailable,
     SwapHoriz,
     WarningAmber,
+    Videocam,
+    WorkOutline,
 } from '@mui/icons-material';
 import {
     Inquiry,
@@ -624,12 +626,14 @@ function ReserveBadge({
     reservationState,
     onReserve,
     onUpdateStatus,
+    onDirectConfirm,
     reserving,
     owner,
 }: {
     reservationState?: ReservationState;
     onReserve: () => void;
     onUpdateStatus: (status: 'confirmed' | 'cancelled') => void;
+    onDirectConfirm?: () => void;
     reserving?: boolean;
     owner?: { name: string; email?: string | null; phone?: string | null } | null;
 }) {
@@ -644,21 +648,46 @@ function ReserveBadge({
 
     if (!isActive) {
         return (
-            <Tooltip title="Reserve equipment" arrow placement="top">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                <Tooltip title="Send reservation request" arrow placement="top">
+                    <IconButton
+                        size="small"
+                        onClick={onReserve}
+                        sx={{
+                            p: 0.5,
+                            color: '#64748b',
+                            border: '1px solid rgba(148,163,184,0.2)',
+                            bgcolor: 'rgba(148,163,184,0.05)',
+                            '&:hover': { color: '#34d399', bgcolor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.3)' },
+                        }}
+                    >
+                        <EventAvailable sx={{ fontSize: 14 }} />
+                    </IconButton>
+                </Tooltip>
                 <IconButton
                     size="small"
-                    onClick={onReserve}
-                    sx={{
-                        p: 0.5,
-                        color: '#64748b',
-                        border: '1px solid rgba(148,163,184,0.2)',
-                        bgcolor: 'rgba(148,163,184,0.05)',
-                        '&:hover': { color: '#34d399', bgcolor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.3)' },
-                    }}
+                    onClick={(e) => setAnchorEl(e.currentTarget)}
+                    sx={{ p: 0.25, color: '#475569', '&:hover': { color: '#94a3b8' } }}
                 >
-                    <EventAvailable sx={{ fontSize: 14 }} />
+                    <MoreVert sx={{ fontSize: 14 }} />
                 </IconButton>
-            </Tooltip>
+                <Menu
+                    anchorEl={anchorEl}
+                    open={Boolean(anchorEl)}
+                    onClose={() => setAnchorEl(null)}
+                    PaperProps={{ sx: { bgcolor: '#1e293b', border: '1px solid rgba(52,58,68,0.5)', minWidth: 160 } }}
+                >
+                    {onDirectConfirm && (
+                        <MenuItem
+                            dense
+                            sx={{ fontSize: '0.8rem', color: '#10b981' }}
+                            onClick={() => { onDirectConfirm(); setAnchorEl(null); }}
+                        >
+                            Mark as Confirmed
+                        </MenuItem>
+                    )}
+                </Menu>
+            </Box>
         );
     }
 
@@ -702,6 +731,15 @@ function ReserveBadge({
                         onClick={() => { onUpdateStatus('confirmed'); setAnchorEl(null); }}
                     >
                         Mark as Confirmed
+                    </MenuItem>
+                )}
+                {status !== 'reserved' && (
+                    <MenuItem
+                        dense
+                        sx={{ fontSize: '0.8rem', color: '#94a3b8' }}
+                        onClick={() => { onReserve(); setAnchorEl(null); }}
+                    >
+                        Resend Request
                     </MenuItem>
                 )}
                 {owner?.email && (
@@ -758,7 +796,10 @@ function CrewRow({
     const [showAlternatives, setShowAlternatives] = useState(false);
     const rawName = row.position_name || row.job_role?.display_name || row.job_role?.name || 'Crew Slot';
     const roleName = rawName.replace(/\s*\(.*\)$/, '');
-    const hasAlternatives = row.alternatives.filter((a) => !a.is_current).length > 0;
+    const nonCurrentAlts = row.alternatives
+        .filter((a) => !a.is_current)
+        .sort((a, b) => (b.has_role ? 1 : 0) - (a.has_role ? 1 : 0));
+    const hasAlternatives = nonCurrentAlts.length > 0;
     const isConflict = row.has_conflict;
     const accentColor = isConflict ? '#f59e0b' : '#10b981';
 
@@ -771,19 +812,22 @@ function CrewRow({
                 </Box>
             ) : (
                 <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                    {row.alternatives.filter((a) => !a.is_current).map((alt) => {
+                    {nonCurrentAlts.map((alt) => {
                         const hasConflict = (alt.conflicts?.length ?? 0) > 0;
+                        const tooltip = hasConflict
+                            ? `Conflict: ${alt.conflicts![0].title}`
+                            : !alt.has_role ? 'No matching role' : '';
                         return (
-                            <Tooltip key={alt.id} title={hasConflict ? `Conflict: ${alt.conflicts![0].title}` : ''} arrow placement="top">
+                            <Tooltip key={alt.id} title={tooltip} arrow placement="top">
                                 <Chip
                                     size="small"
                                     label={alt.name}
                                     onClick={onSwap ? () => onSwap(row.id, alt.id) : undefined}
                                     sx={{
                                         height: 22, fontSize: '0.7rem',
-                                        color: hasConflict ? '#fcd34d' : '#cbd5e1',
+                                        color: hasConflict ? '#fcd34d' : !alt.has_role ? '#94a3b8' : '#cbd5e1',
                                         bgcolor: hasConflict ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)',
-                                        border: `1px solid ${hasConflict ? 'rgba(245,158,11,0.25)' : 'rgba(59,130,246,0.16)'}`,
+                                        border: `1px solid ${hasConflict ? 'rgba(245,158,11,0.25)' : !alt.has_role ? 'rgba(100,116,139,0.2)' : 'rgba(59,130,246,0.16)'}`,
                                         cursor: onSwap ? 'pointer' : 'default',
                                         ...(onSwap ? { '&:hover': { bgcolor: hasConflict ? 'rgba(245,158,11,0.18)' : 'rgba(59,130,246,0.18)', borderColor: hasConflict ? 'rgba(245,158,11,0.45)' : 'rgba(59,130,246,0.35)' } } : {}),
                                     }}
@@ -861,18 +905,62 @@ function CrewRow({
 function EquipmentRow({
     row,
     reservationState,
+    onSwap,
+    swapping,
 }: {
     row: InquiryEquipmentAvailabilityRow;
     reservationState?: ReservationState;
+    onSwap?: (assignmentId: number, newEquipmentId: number) => void;
+    swapping?: boolean;
 }) {
+    const [showAlternatives, setShowAlternatives] = useState(false);
     const status = reservationState?.status;
     const isActive = status === 'reserved' || status === 'confirmed';
     const isConflict = row.has_conflict;
+    const nonCurrentAlts = row.alternatives.filter((a) => !a.is_current);
+    const hasAlternatives = nonCurrentAlts.length > 0;
 
     const dotColor = status === 'confirmed' ? '#10b981' : isActive ? '#f59e0b' : '#334155';
     const dotBorder = status === 'confirmed' ? '#10b981' : isActive ? '#f59e0b' : '#475569';
     const dotLabel = status === 'confirmed' ? 'Confirmed' : status === 'reserved' ? 'Reserved' : 'Not reserved';
     const accentColor = isConflict ? '#f59e0b' : isActive ? '#10b981' : '#334155';
+
+    const alternativesBlock = hasAlternatives && showAlternatives ? (
+        <Box sx={{ mt: 0.8, pl: 0.5 }}>
+            {swapping ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.5 }}>
+                    <CircularProgress size={12} sx={{ color: '#60a5fa' }} />
+                    <Typography sx={{ fontSize: '0.7rem', color: '#64748b' }}>Swapping…</Typography>
+                </Box>
+            ) : (
+                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                    {nonCurrentAlts.map((alt) => {
+                        const hasConflict = (alt.conflicts?.length ?? 0) > 0;
+                        const tooltip = hasConflict
+                            ? `Conflict: ${alt.conflicts![0].title}`
+                            : '';
+                        return (
+                            <Tooltip key={alt.id} title={tooltip} arrow placement="top">
+                                <Chip
+                                    size="small"
+                                    label={alt.item_name}
+                                    onClick={onSwap ? () => onSwap(row.id, alt.id) : undefined}
+                                    sx={{
+                                        height: 22, fontSize: '0.7rem',
+                                        color: hasConflict ? '#fcd34d' : '#cbd5e1',
+                                        bgcolor: hasConflict ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)',
+                                        border: `1px solid ${hasConflict ? 'rgba(245,158,11,0.25)' : 'rgba(59,130,246,0.16)'}`,
+                                        cursor: onSwap ? 'pointer' : 'default',
+                                        ...(onSwap ? { '&:hover': { bgcolor: hasConflict ? 'rgba(245,158,11,0.18)' : 'rgba(59,130,246,0.18)', borderColor: hasConflict ? 'rgba(245,158,11,0.45)' : 'rgba(59,130,246,0.35)' } } : {}),
+                                    }}
+                                />
+                            </Tooltip>
+                        );
+                    })}
+                </Box>
+            )}
+        </Box>
+    ) : null;
 
     return (
         <Box sx={{
@@ -891,7 +979,22 @@ function EquipmentRow({
                         {formatEventDay(row.event_day?.date, row.event_day?.start_time, row.event_day?.end_time) || 'No day set'}
                     </Typography>
                 </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                    {hasAlternatives && (
+                        <Tooltip title={showAlternatives ? 'Hide options' : 'Swap'} arrow placement="top">
+                            <IconButton
+                                size="small"
+                                onClick={() => setShowAlternatives(!showAlternatives)}
+                                sx={{
+                                    p: 0.4,
+                                    color: showAlternatives ? '#60a5fa' : '#475569',
+                                    '&:hover': { color: '#60a5fa', bgcolor: 'rgba(59,130,246,0.1)' },
+                                }}
+                            >
+                                <SwapHoriz sx={{ fontSize: 15 }} />
+                            </IconButton>
+                        </Tooltip>
+                    )}
                     {isConflict && (
                         <Tooltip title="Scheduling conflict" arrow placement="top">
                             <WarningAmber sx={{ fontSize: 13, color: '#f59e0b' }} />
@@ -911,24 +1014,7 @@ function EquipmentRow({
                     {row.conflict_reason}
                 </Typography>
             )}
-            {isConflict && row.alternatives.length > 0 && (
-                <Box sx={{ mt: 0.8, pl: 0.5 }}>
-                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                        {row.alternatives.filter((a) => !a.is_current).map((alt) => (
-                            <Chip
-                                key={alt.id}
-                                size="small"
-                                label={alt.item_name}
-                                sx={{
-                                    height: 22, fontSize: '0.7rem', color: '#cbd5e1',
-                                    bgcolor: 'rgba(59,130,246,0.08)',
-                                    border: '1px solid rgba(59,130,246,0.16)',
-                                }}
-                            />
-                        ))}
-                    </Box>
-                </Box>
-            )}
+            {alternativesBlock}
         </Box>
     );
 }
@@ -1124,6 +1210,7 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
     }, [inquiry.id]);
 
     const [swappingSlots, setSwappingSlots] = useState<Set<number>>(new Set());
+    const [swappingEquipment, setSwappingEquipment] = useState<Set<number>>(new Set());
 
     const handleSwapCrew = useCallback(async (slotId: number, newContributorId: number) => {
         setSwappingSlots((prev) => new Set(prev).add(slotId));
@@ -1137,6 +1224,19 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
             if (isMounted.current) setSwappingSlots((prev) => { const s = new Set(prev); s.delete(slotId); return s; });
         }
     }, [refreshAvailability, onTasksChanged]);
+
+    const handleSwapEquipment = useCallback(async (assignmentId: number, newEquipmentId: number) => {
+        setSwappingEquipment((prev) => new Set(prev).add(assignmentId));
+        try {
+            await api.inquiries.swapEquipment(inquiry.id, assignmentId, newEquipmentId);
+            await refreshAvailability();
+            onTasksChanged?.();
+        } catch (err) {
+            console.error('Failed to swap equipment', err);
+        } finally {
+            if (isMounted.current) setSwappingEquipment((prev) => { const s = new Set(prev); s.delete(assignmentId); return s; });
+        }
+    }, [inquiry.id, refreshAvailability, onTasksChanged]);
 
     const handleCancelOwnerReservations = useCallback(async (ownerRows: InquiryEquipmentAvailabilityRow[]) => {
         for (const row of ownerRows) {
@@ -1156,17 +1256,59 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
         }
     }, [handleUpdateEquipmentStatus, reservations]);
 
-    // Group on-site crew rows by event day, collect non-on-site into project roles
-    const onSiteByDay = new Map<string, InquiryCrewAvailabilityRow[]>();
-    const projectRolesRows: InquiryCrewAvailabilityRow[] = [];
+    const handleDirectConfirmEquipment = useCallback(async (ownerRows: InquiryEquipmentAvailabilityRow[]) => {
+        // Reserve all equipment for this owner then immediately confirm each
+        for (const row of ownerRows) {
+            setReserving((prev) => new Set(prev).add(row.id));
+        }
+        try {
+            for (const row of ownerRows) {
+                const result = await api.inquiries.reserveEquipment(inquiry.id, row.id);
+                await api.inquiries.updateEquipmentReservation(inquiry.id, result.id, 'confirmed');
+                if (isMounted.current) {
+                    setReservations((prev) => new Map(prev).set(row.id, { id: result.id, status: 'confirmed' }));
+                }
+            }
+            onTasksChanged?.();
+        } catch (err) {
+            console.error('Failed to directly confirm equipment', err);
+        } finally {
+            if (isMounted.current) {
+                setReserving((prev) => {
+                    const s = new Set(prev);
+                    for (const row of ownerRows) s.delete(row.id);
+                    return s;
+                });
+            }
+        }
+    }, [inquiry.id, onTasksChanged]);
+
+    // Group ALL crew rows by contributor (merged view — one card per person)
+    type MergedCrewGroup = {
+        cid: number;
+        name: string;
+        onSiteRows: InquiryCrewAvailabilityRow[]; // keyed by day
+        projectRows: InquiryCrewAvailabilityRow[];
+    };
+    const mergedCrewGroups: MergedCrewGroup[] = [];
+    const unassignedRows: InquiryCrewAvailabilityRow[] = [];
+    const seenCrewMerged = new Map<number, number>(); // cid → index
 
     for (const row of (crew?.rows ?? [])) {
+        const cid = row.assigned_contributor?.id;
+        if (cid == null) {
+            unassignedRows.push(row);
+            continue;
+        }
+        if (!seenCrewMerged.has(cid)) {
+            seenCrewMerged.set(cid, mergedCrewGroups.length);
+            mergedCrewGroups.push({ cid, name: row.assigned_contributor!.name, onSiteRows: [], projectRows: [] });
+        }
+        const group = mergedCrewGroups[seenCrewMerged.get(cid)!];
         if (row.is_on_site && row.event_day?.date) {
-            const key = row.event_day.date.slice(0, 10);
-            if (!onSiteByDay.has(key)) onSiteByDay.set(key, []);
-            onSiteByDay.get(key)!.push(row);
+            group.onSiteRows.push(row);
         } else {
-            projectRolesRows.push(row);
+            group.projectRows.push(row);
         }
     }
 
@@ -1356,134 +1498,87 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
                             equipmentReady={equipmentReadyCount}
                         />
 
-                        {/* ─── On-site crew grouped by event day ─── */}
-                        {onSiteByDay.size > 0 && (
-                            <>
-                                <Typography sx={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.9 }}>
-                                    On-site Crew
-                                </Typography>
-                                {Array.from(onSiteByDay.entries()).map(([dateKey, dayRows]) => {
-                                    const firstDayRow = dayRows[0];
-                                    const crewGroups: { cid: number; name: string; cRows: InquiryCrewAvailabilityRow[] }[] = [];
-                                    const unassignedRows: InquiryCrewAvailabilityRow[] = [];
-                                    const seenCrew = new Map<number, number>();
-                                    for (const r of dayRows) {
-                                        const cid = r.assigned_contributor?.id;
-                                        if (cid != null) {
-                                            if (!seenCrew.has(cid)) {
-                                                seenCrew.set(cid, crewGroups.length);
-                                                crewGroups.push({ cid, name: r.assigned_contributor!.name, cRows: [r] });
-                                            } else {
-                                                crewGroups[seenCrew.get(cid)!].cRows.push(r);
-                                            }
-                                        } else {
-                                            unassignedRows.push(r);
-                                        }
+                        {/* ─── Crew (merged: on-site + project roles per person) ─── */}
+                        {mergedCrewGroups.length > 0 && (
+                            <Stack spacing={0.8}>
+                                {mergedCrewGroups.map(({ cid, name, onSiteRows, projectRows }) => {
+                                    const allRows = [...onSiteRows, ...projectRows];
+                                    const totalRoles = allRows.length;
+                                    const reqState = requests.get(cid);
+
+                                    // Sub-group on-site rows by event day
+                                    const onSiteByDay = new Map<string, InquiryCrewAvailabilityRow[]>();
+                                    for (const r of onSiteRows) {
+                                        const key = r.event_day!.date.slice(0, 10);
+                                        if (!onSiteByDay.has(key)) onSiteByDay.set(key, []);
+                                        onSiteByDay.get(key)!.push(r);
                                     }
+
                                     return (
-                                        <Box key={dateKey} sx={{ mb: 1.5 }}>
-                                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#475569', mb: 0.7, pl: 0.25 }}>
-                                                {formatDayHeader(firstDayRow.event_day!.date, firstDayRow.event_day!.start_time, firstDayRow.event_day!.end_time)}
-                                            </Typography>
-                                            <Stack spacing={0.8}>
-                                                {crewGroups.map(({ cid, name, cRows }) => {
-                                                    const reqState = requests.get(cid);
-                                                    return (
-                                                        <Box key={cid} sx={{ p: 1.1, borderRadius: 2, bgcolor: 'rgba(15,23,42,0.26)', border: '1px solid rgba(52,58,68,0.35)' }}>
-                                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.8 }}>
-                                                                <Box sx={{ minWidth: 0 }}>
-                                                                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8' }}>
-                                                                        {name}
-                                                                    </Typography>
-                                                                    <Typography sx={{ fontSize: '0.67rem', color: '#475569' }}>
-                                                                        {cRows.length} role{cRows.length !== 1 ? 's' : ''}
-                                                                    </Typography>
-                                                                </Box>
-                                                                <RequestBadge
-                                                                    requestState={reqState}
-                                                                    onSend={() => openCrewRequestDialog(cRows[0])}
-                                                                    onUpdateStatus={(status) => {
-                                                                        if (reqState) handleUpdateStatus(cid, reqState.id, status);
-                                                                    }}
-                                                                    onDirectConfirm={() => handleDirectConfirmCrew(cid, cRows[0])}
-                                                                    sending={sending.has(cid)}
-                                                                />
+                                        <Box key={cid} sx={{ p: 1.1, borderRadius: 2, bgcolor: 'rgba(15,23,42,0.26)', border: '1px solid rgba(52,58,68,0.35)' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.8 }}>
+                                                <Box sx={{ minWidth: 0 }}>
+                                                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8' }}>
+                                                        {name}
+                                                    </Typography>
+                                                    <Typography sx={{ fontSize: '0.67rem', color: '#475569' }}>
+                                                        {totalRoles} role{totalRoles !== 1 ? 's' : ''}
+                                                    </Typography>
+                                                </Box>
+                                                <RequestBadge
+                                                    requestState={reqState}
+                                                    onSend={() => openCrewRequestDialog(allRows[0])}
+                                                    onUpdateStatus={(status) => {
+                                                        if (reqState) handleUpdateStatus(cid, reqState.id, status);
+                                                    }}
+                                                    onDirectConfirm={() => handleDirectConfirmCrew(cid, allRows[0])}
+                                                    sending={sending.has(cid)}
+                                                />
+                                            </Box>
+
+                                            {/* On-site roles */}
+                                            {onSiteRows.length > 0 && (
+                                                <Box sx={{ mb: projectRows.length > 0 ? 0.8 : 0 }}>
+                                                    {Array.from(onSiteByDay.entries()).map(([dateKey, dayRows]) => (
+                                                        <Box key={dateKey} sx={{ mb: 0.5 }}>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.4, pl: 0.25 }}>
+                                                                <Tooltip title="On-site" arrow placement="top">
+                                                                    <Videocam sx={{ fontSize: 13, color: '#60a5fa' }} />
+                                                                </Tooltip>
+                                                                <Typography sx={{ fontSize: '0.67rem', fontWeight: 600, color: '#60a5fa' }}>
+                                                                    {formatDayHeader(dayRows[0].event_day!.date, dayRows[0].event_day!.start_time, dayRows[0].event_day!.end_time)}
+                                                                </Typography>
                                                             </Box>
-                                                            <Stack spacing={0.8}>
-                                                                {cRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} />)}
+                                                            <Stack spacing={0.5}>
+                                                                {dayRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} />)}
                                                             </Stack>
                                                         </Box>
-                                                    );
-                                                })}
-                                                {unassignedRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} />)}
-                                            </Stack>
+                                                    ))}
+                                                </Box>
+                                            )}
+
+                                            {/* Project roles */}
+                                            {projectRows.length > 0 && (
+                                                <Box>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.4, pl: 0.25 }}>
+                                                        <Tooltip title="Project role" arrow placement="top">
+                                                            <WorkOutline sx={{ fontSize: 13, color: '#a78bfa' }} />
+                                                        </Tooltip>
+                                                        <Typography sx={{ fontSize: '0.67rem', fontWeight: 600, color: '#a78bfa' }}>
+                                                            Project Roles
+                                                        </Typography>
+                                                    </Box>
+                                                    <Stack spacing={0.5}>
+                                                        {projectRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} />)}
+                                                    </Stack>
+                                                </Box>
+                                            )}
                                         </Box>
                                     );
                                 })}
-                            </>
+                                {unassignedRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} />)}
+                            </Stack>
                         )}
-
-                        {/* ─── Project roles (non-on-site) ─── */}
-                        {projectRolesRows.length > 0 && (() => {
-                            const crewGroups: { cid: number; name: string; cRows: InquiryCrewAvailabilityRow[] }[] = [];
-                            const unassignedRows: InquiryCrewAvailabilityRow[] = [];
-                            const seenCrew = new Map<number, number>();
-                            for (const r of projectRolesRows) {
-                                const cid = r.assigned_contributor?.id;
-                                if (cid != null) {
-                                    if (!seenCrew.has(cid)) {
-                                        seenCrew.set(cid, crewGroups.length);
-                                        crewGroups.push({ cid, name: r.assigned_contributor!.name, cRows: [r] });
-                                    } else {
-                                        crewGroups[seenCrew.get(cid)!].cRows.push(r);
-                                    }
-                                } else {
-                                    unassignedRows.push(r);
-                                }
-                            }
-                            return (
-                                <Box sx={{ mt: onSiteByDay.size > 0 ? 1 : 0 }}>
-                                    <Typography sx={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.9 }}>
-                                        Project Roles
-                                    </Typography>
-                                    <Typography sx={{ fontSize: '0.7rem', color: '#475569', mb: 0.7, pl: 0.25 }}>
-                                        Pre-production · Post-production · Delivery
-                                    </Typography>
-                                    <Stack spacing={0.8}>
-                                        {crewGroups.map(({ cid, name, cRows }) => {
-                                            const reqState = requests.get(cid);
-                                            return (
-                                                <Box key={cid} sx={{ p: 1.1, borderRadius: 2, bgcolor: 'rgba(15,23,42,0.26)', border: '1px solid rgba(52,58,68,0.35)' }}>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.8 }}>
-                                                        <Box sx={{ minWidth: 0 }}>
-                                                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8' }}>
-                                                                {name}
-                                                            </Typography>
-                                                            <Typography sx={{ fontSize: '0.67rem', color: '#475569' }}>
-                                                                {cRows.length} role{cRows.length !== 1 ? 's' : ''}
-                                                            </Typography>
-                                                        </Box>
-                                                        <RequestBadge
-                                                            requestState={reqState}
-                                                            onSend={() => openCrewRequestDialog(cRows[0])}
-                                                            onUpdateStatus={(status) => {
-                                                                if (reqState) handleUpdateStatus(cid, reqState.id, status);
-                                                            }}
-                                                            onDirectConfirm={() => handleDirectConfirmCrew(cid, cRows[0])}
-                                                            sending={sending.has(cid)}
-                                                        />
-                                                    </Box>
-                                                    <Stack spacing={0.8}>
-                                                        {cRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} />)}
-                                                    </Stack>
-                                                </Box>
-                                            );
-                                        })}
-                                        {unassignedRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} />)}
-                                    </Stack>
-                                </Box>
-                            );
-                        })()}
 
                         {(crew?.rows ?? []).length === 0 && (
                             <Alert severity="info">No crew roles are assigned yet.</Alert>
@@ -1540,6 +1635,7 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
                                                         if (status === 'confirmed') void handleConfirmOwnerReservations(ownerRows);
                                                         else void handleCancelOwnerReservations(ownerRows);
                                                     }}
+                                                    onDirectConfirm={() => handleDirectConfirmEquipment(ownerRows)}
                                                     reserving={ownerReserving}
                                                     owner={owner}
                                                 />
@@ -1550,6 +1646,8 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
                                                         key={row.id}
                                                         row={row}
                                                         reservationState={reservations.get(row.id)}
+                                                        onSwap={handleSwapEquipment}
+                                                        swapping={swappingEquipment.has(row.id)}
                                                     />
                                                 ))}
                                             </Stack>

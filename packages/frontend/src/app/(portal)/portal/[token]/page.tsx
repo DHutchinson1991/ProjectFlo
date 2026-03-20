@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
     Box,
     Typography,
@@ -14,7 +14,7 @@ import {
     Button,
     CircularProgress,
 } from "@mui/material";
-import { alpha, keyframes } from "@mui/material/styles";
+import { alpha } from "@mui/material/styles";
 import {
     CheckCircle as CheckCircleIcon,
     Lock as LockIcon,
@@ -43,67 +43,20 @@ import {
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { computeTaxBreakdown } from "@/lib/utils/pricing";
-
-/* ------------------------------------------------------------------ */
-/* Keyframe animations                                                 */
-/* ------------------------------------------------------------------ */
-
-const fadeInUp = keyframes`
-    from { opacity: 0; transform: translateY(28px); }
-    to   { opacity: 1; transform: translateY(0); }
-`;
-
-const fadeIn = keyframes`
-    from { opacity: 0; }
-    to   { opacity: 1; }
-`;
-
-const scaleIn = keyframes`
-    from { opacity: 0; transform: scale(0.92); }
-    to   { opacity: 1; transform: scale(1); }
-`;
-
-const shimmer = keyframes`
-    0%   { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-`;
-
-const float = keyframes`
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    50%      { transform: translateY(-14px) rotate(1deg); }
-`;
-
-const gradientShift = keyframes`
-    0%   { background-position: 0% 50%; }
-    50%  { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-`;
-
-const subtleFloat = keyframes`
-    0%, 100% { transform: translateY(0) scale(1); }
-    50%      { transform: translateY(-8px) scale(1.02); }
-`;
+import {
+    fadeInUp, fadeIn, scaleIn, shimmer, float, gradientShift, subtleFloat,
+    useReveal, revealSx,
+} from "@/lib/portal/animations";
+import { getPortalDashboardColors, getThemeColors } from "@/lib/portal/themes";
+import type { PortalDashboardColors } from "@/lib/portal/themes";
+import { formatDate, formatCurrency, formatAnswerValue } from "@/lib/portal/formatting";
+import type { PortalBrand, PortalProposalSectionData } from "@/lib/types/domains/portal";
+import ProposalRenderer from "@/app/(portal)/_components/ProposalRenderer";
+import ProposalAcceptanceBar from "@/app/(portal)/_components/ProposalAcceptanceBar";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
-
-interface PortalBrand {
-    id: number;
-    name: string;
-    display_name: string | null;
-    description: string | null;
-    website: string | null;
-    email: string | null;
-    phone: string | null;
-    address_line1: string | null;
-    city: string | null;
-    state: string | null;
-    country: string | null;
-    postal_code: string | null;
-    logo_url: string | null;
-    currency: string | null;
-}
 
 interface AnswerItem { field_key: string; prompt: string; field_type: string; value: unknown; options?: unknown }
 interface ReviewStep { key: string; label: string; description: string | null; answers: AnswerItem[] }
@@ -155,82 +108,11 @@ interface PortalData {
         questionnaire: Section<InquiryReview> | null;
         package: Section<PackageData> | null;
         estimate: Section<EstimateData> | null;
-        proposal: Section<{ proposal_status: string; share_token: string | null; client_response: string | null }> | null;
+        proposal: Section<PortalProposalSectionData> | null;
         contract: Section<ContractData> | null;
         invoices: Section<InvoiceData[]> | null;
         welcome_pack: Section<{ sent_at: string }> | null;
     };
-}
-
-/* ------------------------------------------------------------------ */
-/* Theme                                                               */
-/* ------------------------------------------------------------------ */
-
-function getColors() {
-    return {
-        bg: "#09090b",
-        card: "#18181b",
-        text: "#fafafa",
-        muted: "#a1a1aa",
-        accent: "#7c4dff",
-        border: "#27272a",
-        accentSoft: "#1e1b4b",
-        gradient1: "#7c4dff",
-        gradient2: "#a855f7",
-        green: "#22c55e",
-    };
-}
-
-type Colors = ReturnType<typeof getColors>;
-
-/* ------------------------------------------------------------------ */
-/* Scroll-reveal                                                       */
-/* ------------------------------------------------------------------ */
-
-function useReveal() {
-    const ref = useRef<HTMLDivElement>(null);
-    const [visible, setVisible] = useState(false);
-    useEffect(() => {
-        const el = ref.current;
-        if (!el) return;
-        const obs = new IntersectionObserver(
-            ([e]) => { if (e.isIntersecting) setVisible(true); },
-            { threshold: 0.1, rootMargin: "0px 0px -30px 0px" },
-        );
-        obs.observe(el);
-        return () => obs.disconnect();
-    }, []);
-    return { ref, visible };
-}
-
-function revealSx(visible: boolean, delay = 0) {
-    return {
-        opacity: visible ? 1 : 0,
-        animation: visible ? `${fadeInUp} 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}s both` : "none",
-    };
-}
-
-/* ------------------------------------------------------------------ */
-/* Currency helper                                                     */
-/* ------------------------------------------------------------------ */
-
-function fmtCurrency(value: string | number | null | undefined, currency = "USD"): string {
-    if (value === null || value === undefined) return "—";
-    const n = typeof value === "string" ? parseFloat(value) : value;
-    if (isNaN(n)) return "—";
-    return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
-}
-
-function formatDate(d: string | null, opts?: Intl.DateTimeFormatOptions): string {
-    if (!d) return "—";
-    return new Date(d).toLocaleDateString("en-US", opts ?? { month: "short", day: "numeric", year: "numeric" });
-}
-
-function formatAnswerValue(value: unknown): string {
-    if (value === null || value === undefined) return "—";
-    if (Array.isArray(value)) return value.join(", ");
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    return String(value);
 }
 
 /* ================================================================== */
@@ -260,7 +142,7 @@ function ExpandableCard({
     children?: React.ReactNode;
     action?: React.ReactNode;
     defaultOpen?: boolean;
-    colors: Colors;
+    colors: PortalDashboardColors;
 }) {
     const [open, setOpen] = useState(defaultOpen);
     const r = useReveal();
@@ -412,7 +294,7 @@ function ActionLink({ href, label, color }: { href: string; label: string; color
 export default function ClientPortalPage() {
     const params = useParams();
     const token = params.token as string;
-    const colors = getColors();
+    const colors = getPortalDashboardColors();
 
     const [data, setData] = useState<PortalData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -422,6 +304,11 @@ export default function ClientPortalPage() {
     const [editingQuestionnaire, setEditingQuestionnaire] = useState(false);
     const [editResponses, setEditResponses] = useState<Record<string, unknown>>({});
     const [savingQuestionnaire, setSavingQuestionnaire] = useState(false);
+
+    // Proposal response
+    const [proposalResponding, setProposalResponding] = useState(false);
+    const [proposalResponseSuccess, setProposalResponseSuccess] = useState(false);
+    const proposalRef = React.useRef<HTMLDivElement>(null);
 
     // Package browsing
     const [browsingPackages, setBrowsingPackages] = useState(false);
@@ -453,6 +340,43 @@ export default function ClientPortalPage() {
 
     useEffect(() => {
         if (token) fetchPortal();
+    }, [token, fetchPortal]);
+
+    // Auto-scroll to proposal when it's pending review
+    useEffect(() => {
+        if (!data) return;
+        const proposal = data.sections?.proposal;
+        if (proposal?.status === 'review_pending' && proposalRef.current) {
+            setTimeout(() => {
+                proposalRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 600);
+        }
+    }, [data]);
+
+    const handleProposalAccept = useCallback(async () => {
+        setProposalResponding(true);
+        try {
+            await api.clientPortal.respondToProposal(token, 'Accepted');
+            setProposalResponseSuccess(true);
+            await fetchPortal();
+        } catch {
+            // stay on form
+        } finally {
+            setProposalResponding(false);
+        }
+    }, [token, fetchPortal]);
+
+    const handleProposalRequestChanges = useCallback(async (message: string) => {
+        setProposalResponding(true);
+        try {
+            await api.clientPortal.respondToProposal(token, 'ChangesRequested', message);
+            setProposalResponseSuccess(true);
+            await fetchPortal();
+        } catch {
+            // stay on form
+        } finally {
+            setProposalResponding(false);
+        }
     }, [token, fetchPortal]);
 
     /* ── Questionnaire edit handlers ─────────────────────── */
@@ -566,7 +490,7 @@ export default function ClientPortalPage() {
         { key: "inquiry", label: "Inquiry Submitted", color: colors.green, icon: <FormIcon sx={{ fontSize: 18 }} />, done: !!sections.questionnaire },
         { key: "estimate", label: "Estimate Sent", color: "#06b6d4", icon: <EstimateIcon sx={{ fontSize: 18 }} />, done: !!sections.estimate?.data },
         { key: "proposal_sent", label: "Proposal Sent", color: "#a855f7", icon: <ProposalIcon sx={{ fontSize: 18 }} />, done: !!(sections.proposal?.data?.proposal_status) },
-        { key: "proposal", label: "Proposal Accepted", color: "#8b5cf6", icon: <CheckCircleIcon sx={{ fontSize: 18 }} />, done: sections.proposal?.data?.client_response === "Accepted" },
+        { key: "proposal", label: "Proposal Accepted", color: "#8b5cf6", icon: <CheckCircleIcon sx={{ fontSize: 18 }} />, done: sections.proposal?.status === "accepted" },
         { key: "contract", label: "Contract Signed", color: "#6366f1", icon: <ContractIcon sx={{ fontSize: 18 }} />, done: sections.contract?.data?.contract_status === "Signed" },
         { key: "booked", label: "Booking Confirmed", color: "#ec4899", icon: <PackageIcon sx={{ fontSize: 18 }} />, done: data.status === "Booked" },
         { key: "welcome_pack", label: "Welcome Pack", color: "#10b981", icon: <WelcomePackIcon sx={{ fontSize: 18 }} />, done: !!sections.welcome_pack },
@@ -894,7 +818,7 @@ export default function ClientPortalPage() {
                             iconColor: "#f59e0b",
                             title: hasPackage ? (sections.package?.data.name ?? "Your Package") : "Your Package",
                             subtitle: hasPackage
-                                ? `Starting at ${fmtCurrency(sections.package!.data.base_price, sections.package!.data.currency || currency)}`
+                                ? `Starting at ${formatCurrency(sections.package!.data.base_price, sections.package!.data.currency || currency)}`
                                 : showBrowser ? "Browse available packages" : "Select a package to get started",
                             statusChip: hasPackage ? { label: "Selected", color: "#f59e0b" } as const : undefined,
                             locked: false,
@@ -1001,7 +925,7 @@ export default function ClientPortalPage() {
                                                             {pkg.name}
                                                         </Typography>
                                                         <Typography sx={{ color: "#f59e0b", fontWeight: 700, fontSize: "1.1rem", mb: 1 }}>
-                                                            {fmtCurrency(pkg.base_price, pkg.currency)}
+                                                            {formatCurrency(pkg.base_price, pkg.currency)}
                                                         </Typography>
                                                         {pkg.description && (
                                                             <Typography sx={{ color: colors.muted, fontSize: "0.78rem", lineHeight: 1.5 }}>
@@ -1087,7 +1011,7 @@ export default function ClientPortalPage() {
                         iconColor="#06b6d4"
                         title={sections.estimate?.data.title ?? "Your Estimate"}
                         subtitle={sections.estimate
-                            ? `${sections.estimate.data.estimate_number} — ${fmtCurrency(sections.estimate.data.total_amount, currency)}`
+                            ? `${sections.estimate.data.estimate_number} — ${formatCurrency(sections.estimate.data.total_amount, currency)}`
                             : undefined}
                         statusChip={sections.estimate
                             ? { label: sections.estimate.data.status, color: "#06b6d4" }
@@ -1156,7 +1080,7 @@ export default function ClientPortalPage() {
                                                                     {group.category}
                                                                 </Typography>
                                                                 <Typography sx={{ color: catColor, fontSize: "0.72rem", fontWeight: 700 }}>
-                                                                    {fmtCurrency(group.subtotal, currency)}
+                                                                    {formatCurrency(group.subtotal, currency)}
                                                                 </Typography>
                                                             </Box>
 
@@ -1176,7 +1100,7 @@ export default function ClientPortalPage() {
                                                                         </Typography>
                                                                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexShrink: 0, ml: 2 }}>
                                                                             <Typography sx={{ color: colors.muted, fontSize: "0.72rem" }}>
-                                                                                {fmtCurrency(price, currency)}
+                                                                                {formatCurrency(price, currency)}
                                                                             </Typography>
                                                                             {(qty !== 1 || unitLabel) && (
                                                                                 <Typography sx={{ color: alpha(colors.muted, 0.5), fontSize: "0.68rem" }}>
@@ -1184,7 +1108,7 @@ export default function ClientPortalPage() {
                                                                                 </Typography>
                                                                             )}
                                                                             <Typography sx={{ color: colors.text, fontSize: "0.78rem", fontWeight: 600, minWidth: 65, textAlign: "right" }}>
-                                                                                {fmtCurrency(qty * price, currency)}
+                                                                                {formatCurrency(qty * price, currency)}
                                                                             </Typography>
                                                                         </Box>
                                                                     </Box>
@@ -1221,11 +1145,11 @@ export default function ClientPortalPage() {
                                                     Total Amount
                                                 </Typography>
                                                 <Typography sx={{ color: "#06b6d4", fontSize: "1.5rem", fontWeight: 700, lineHeight: 1.2 }}>
-                                                    {fmtCurrency(grandTotal, currency)}
+                                                    {formatCurrency(grandTotal, currency)}
                                                 </Typography>
                                                 {taxRate > 0 && (
                                                     <Typography sx={{ color: colors.muted, fontSize: "0.65rem", mt: 0.25 }}>
-                                                        {fmtCurrency(itemsSubtotal, currency)} + {taxRate}% tax
+                                                        {formatCurrency(itemsSubtotal, currency)} + {taxRate}% tax
                                                     </Typography>
                                                 )}
                                             </Box>
@@ -1236,7 +1160,7 @@ export default function ClientPortalPage() {
                                             <Stack spacing={1} sx={{ mb: 1.5 }}>
                                                 <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                                                     <Typography sx={{ color: colors.muted, fontSize: "0.72rem" }}>Subtotal</Typography>
-                                                    <Typography sx={{ color: colors.text, fontSize: "0.72rem", fontWeight: 600 }}>{fmtCurrency(itemsSubtotal, currency)}</Typography>
+                                                    <Typography sx={{ color: colors.text, fontSize: "0.72rem", fontWeight: 600 }}>{formatCurrency(itemsSubtotal, currency)}</Typography>
                                                 </Box>
                                                 {taxRate > 0 && (
                                                     <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1247,7 +1171,7 @@ export default function ClientPortalPage() {
                                                 {est.deposit_required && Number(est.deposit_required) > 0 && (
                                                     <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                                                         <Typography sx={{ color: colors.muted, fontSize: "0.72rem" }}>Deposit</Typography>
-                                                        <Typography sx={{ color: colors.text, fontSize: "0.72rem", fontWeight: 600 }}>{fmtCurrency(est.deposit_required, currency)}</Typography>
+                                                        <Typography sx={{ color: colors.text, fontSize: "0.72rem", fontWeight: 600 }}>{formatCurrency(est.deposit_required, currency)}</Typography>
                                                     </Box>
                                                 )}
                                             </Stack>
@@ -1283,7 +1207,7 @@ export default function ClientPortalPage() {
                                                                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.25 }}>
                                                                     <Typography sx={{ color: colors.text, fontSize: "0.72rem", fontWeight: 600 }}>{ms.label}</Typography>
                                                                     <Typography sx={{ color: "#06b6d4", fontSize: "0.78rem", fontWeight: 700 }}>
-                                                                        {fmtCurrency(ms.amount, currency)}
+                                                                        {formatCurrency(ms.amount, currency)}
                                                                     </Typography>
                                                                 </Box>
                                                                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1320,27 +1244,58 @@ export default function ClientPortalPage() {
                     </ExpandableCard>
 
                     {/* PROPOSAL */}
-                    <ExpandableCard
-                        icon={<ProposalIcon sx={{ fontSize: 20 }} />}
-                        iconColor="#a855f7"
-                        title="Your Proposal"
-                        subtitle={sections.proposal
-                            ? sections.proposal.data.proposal_status === "Accepted"
-                                ? "You accepted this proposal"
-                                : "Ready for your review"
-                            : undefined}
-                        statusChip={sections.proposal
-                            ? sections.proposal.data.proposal_status === "Accepted"
-                                ? { label: "Accepted", color: colors.green }
-                                : { label: "Review", color: "#a855f7" }
-                            : undefined}
-                        locked={!sections.proposal}
-                        lockedMessage="Your personalized proposal will appear here once it's ready"
-                        action={sections.proposal?.data.share_token
-                            ? <ActionLink href={`/proposals/${sections.proposal.data.share_token}`} label="View Proposal" color="#a855f7" />
-                            : undefined}
-                        colors={colors}
-                    />
+                    <Box ref={proposalRef}>
+                    {sections.proposal ? (() => {
+                        const pd = sections.proposal.data;
+                        const alreadyResponded = !!pd.client_response;
+                        const proposalTheme = (pd.content as any)?.theme;
+                        const proposalColors = getThemeColors(proposalTheme);
+                        return (
+                            <Box sx={{
+                                border: `1px solid`,
+                                borderColor: sections.proposal.status === 'accepted' ? alpha(colors.green, 0.35) : alpha('#a855f7', 0.3),
+                                borderRadius: '20px',
+                                overflow: 'hidden',
+                            }}>
+                                <ProposalRenderer
+                                    content={pd.content}
+                                    brand={brand}
+                                    estimate={sections.estimate?.data as any}
+                                    pkg={sections.package?.data as any ?? null}
+                                    eventDays={pd.event_days ?? []}
+                                    films={pd.films ?? []}
+                                    clientName={firstName || 'You'}
+                                    weddingDate={data.event_date}
+                                    venueDetails={data.venue}
+                                    venueAddress={data.venue_address}
+                                    colors={proposalColors}
+                                    ctaSlot={
+                                        <ProposalAcceptanceBar
+                                            colors={proposalColors}
+                                            isDark={!proposalTheme || proposalTheme === 'cinematic-dark'}
+                                            alreadyResponded={alreadyResponded}
+                                            clientResponse={pd.client_response?.toLowerCase() ?? null}
+                                            clientResponseMessage={pd.client_response_message}
+                                            responding={proposalResponding}
+                                            responseSuccess={proposalResponseSuccess}
+                                            onAccept={handleProposalAccept}
+                                            onRequestChanges={handleProposalRequestChanges}
+                                        />
+                                    }
+                                />
+                            </Box>
+                        );
+                    })() : (
+                        <ExpandableCard
+                            icon={<ProposalIcon sx={{ fontSize: 20 }} />}
+                            iconColor="#a855f7"
+                            title="Your Proposal"
+                            locked
+                            lockedMessage="Your personalized proposal will appear here once it's ready"
+                            colors={colors}
+                        />
+                    )}
+                    </Box>
 
                     {/* CONTRACT */}
                     <ExpandableCard
@@ -1432,7 +1387,7 @@ export default function ClientPortalPage() {
                                             </Box>
                                             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                                                 <Typography sx={{ color: colors.text, fontSize: "0.85rem", fontWeight: 600 }}>
-                                                    {fmtCurrency(inv.total_amount, currency)}
+                                                    {formatCurrency(inv.total_amount, currency)}
                                                 </Typography>
                                                 <Chip
                                                     label={inv.status}

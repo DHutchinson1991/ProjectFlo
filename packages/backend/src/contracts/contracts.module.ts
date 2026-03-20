@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ContractsService } from './contracts.service';
 import { ContractsController, ContractSigningController } from './contracts.controller';
 import { ContractClausesService } from './contract-clauses.service';
@@ -10,7 +10,7 @@ import { InquiryTasksModule } from '../inquiry-tasks/inquiry-tasks.module';
 import { InvoicesModule } from '../invoices/invoices.module';
 
 @Module({
-  imports: [PrismaModule, InquiryTasksModule, InvoicesModule],
+  imports: [PrismaModule, forwardRef(() => InquiryTasksModule), forwardRef(() => InvoicesModule)],
   controllers: [ContractsController, ContractSigningController, ContractClausesController, ContractTemplatesController],
   providers: [ContractsService, ContractClausesService, ContractTemplatesService],
   exports: [ContractsService, ContractClausesService, ContractTemplatesService],

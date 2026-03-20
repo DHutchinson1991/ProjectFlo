@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProposalsService } from '../proposals/proposals.service';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ClientPortalService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly proposalsService: ProposalsService,
+    ) {}
 
     /**
      * Generate (or return existing) portal token for an inquiry
@@ -61,6 +65,16 @@ export class ClientPortalService {
                     where: { status: { in: ['Sent', 'Accepted', 'ChangesRequested'] } },
                     orderBy: { id: 'desc' },
                     take: 1,
+                    select: {
+                        id: true,
+                        status: true,
+                        title: true,
+                        content: true,
+                        share_token: true,
+                        client_response: true,
+                        client_response_at: true,
+                        client_response_message: true,
+                    },
                 },
                 contracts: {
                     where: { status: { in: ['Sent', 'Signed'] } },
@@ -148,6 +162,66 @@ export class ClientPortalService {
                     },
                 },
                 event_type: { select: { id: true, name: true } },
+                schedule_event_days: {
+                    orderBy: { date: 'asc' },
+                    include: {
+                        activities: {
+                            orderBy: { order_index: 'asc' },
+                            include: {
+                                moments: {
+                                    orderBy: { order_index: 'asc' },
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                        order_index: true,
+                                        duration_seconds: true,
+                                        is_required: true,
+                                    },
+                                },
+                            },
+                        },
+                        subjects: {
+                            orderBy: { order_index: 'asc' },
+                            select: {
+                                id: true,
+                                name: true,
+                                real_name: true,
+                                count: true,
+                                category: true,
+                                order_index: true,
+                            },
+                        },
+                        location_slots: {
+                            orderBy: { order_index: 'asc' },
+                            include: {
+                                location: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                        address_line1: true,
+                                        city: true,
+                                        state: true,
+                                        country: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                schedule_films: {
+                    orderBy: { order_index: 'asc' },
+                    include: {
+                        film: {
+                            select: {
+                                id: true,
+                                name: true,
+                                film_type: true,
+                                target_duration_min: true,
+                                target_duration_max: true,
+                            },
+                        },
+                    },
+                },
             },
         });
 
@@ -276,14 +350,25 @@ export class ClientPortalService {
                 : null,
             proposal: proposal
                 ? {
-                      status:
-                          proposal.status === 'Accepted'
-                              ? ('complete' as const)
-                              : ('available' as const),
+                      status: (() => {
+                          if (proposal.status === 'Accepted') return 'accepted' as const;
+                          if (
+                              proposal.client_response === 'ChangesRequested' ||
+                              proposal.status === 'ChangesRequested'
+                          )
+                              return 'changes_requested' as const;
+                          return 'review_pending' as const;
+                      })(),
                       data: {
                           proposal_status: proposal.status,
                           share_token: proposal.share_token,
+                          title: proposal.title ?? null,
+                          content: proposal.content ?? null,
                           client_response: proposal.client_response ?? null,
+                          client_response_at: proposal.client_response_at ?? null,
+                          client_response_message: proposal.client_response_message ?? null,
+                          event_days: inquiry.schedule_event_days,
+                          films: inquiry.schedule_films,
                       },
                   }
                 : null,
@@ -405,5 +490,30 @@ export class ClientPortalService {
         });
 
         return request;
+    }
+
+    async respondToProposalByPortalToken(token: string, response: string, message?: string) {
+        const inquiry = await this.prisma.inquiries.findUnique({
+            where: { portal_token: token },
+            select: {
+                proposals: {
+                    where: { status: { in: ['Sent', 'ChangesRequested'] } },
+                    orderBy: { id: 'desc' },
+                    take: 1,
+                    select: { share_token: true },
+                },
+            },
+        });
+
+        if (!inquiry) {
+            throw new NotFoundException('Portal not found');
+        }
+
+        const proposal = inquiry.proposals[0];
+        if (!proposal?.share_token) {
+            throw new NotFoundException('No active proposal found for this portal');
+        }
+
+        return this.proposalsService.respondToProposal(proposal.share_token, response, message);
     }
 }

@@ -11,6 +11,11 @@ import {
     Checkbox,
     FormControlLabel,
     CircularProgress,
+    FormControl,
+    Select,
+    MenuItem,
+    ListSubheader,
+    Button,
 } from '@mui/material';
 import {
     Videocam,
@@ -18,7 +23,7 @@ import {
     CheckCircle,
     ErrorOutline,
     Build,
-    AttachMoney,
+    SwapHoriz,
 } from '@mui/icons-material';
 import MovieIcon from '@mui/icons-material/Movie';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
@@ -27,7 +32,7 @@ import EventIcon from '@mui/icons-material/Event';
 import PlaceIcon from '@mui/icons-material/Place';
 import PeopleIcon from '@mui/icons-material/People';
 import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
-import { api } from '@/lib/api';
+import { api, inquiriesService } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
 import { getPackageStats, getCategoryColor, getTierColor } from '@/app/(studio)/designer/packages/_listing/_lib/helpers';
 import { formatCurrency } from '@/lib/utils/formatUtils';
@@ -61,6 +66,7 @@ interface PackageScopeCardProps {
 
 const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     inquiry,
+    onRefresh,
     isActive,
     activeColor,
     submission,
@@ -93,6 +99,10 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     } | null>(null);
     const [pricingLoaded, setPricingLoaded] = useState(false);
 
+    // Inline package assignment / swap
+    const [assignPackageId, setAssignPackageId] = useState<number | ''>('');
+    const [assigning, setAssigning] = useState(false);
+    const [showSwapSelector, setShowSwapSelector] = useState(false);
     // Fetch both service packages and package sets
     useEffect(() => {
         if (inquiry.brand_id) {
@@ -195,46 +205,232 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
         }))
         : packageFilmItems;
 
+    // ── Effective price helper (tax-inclusive, matching package listing page) ──
+    const getEffectivePrice = (pkg: { base_price?: number | null }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const d = pkg as any;
+        const tax = d._tax as { totalWithTax: number } | null | undefined;
+        if (tax?.totalWithTax) return tax.totalWithTax;
+        const s = getPackageStats(d);
+        return s.totalCost > 0 ? s.totalCost : Number(pkg.base_price ?? 0);
+    };
+
+    // ── Active packages grouped by set (for selector dropdown) ──
+    const { activePackageIds, groupedBySet } = useMemo(() => {
+        const ids = new Set<number>();
+        for (const set of packageSets) {
+            for (const slot of (set.slots ?? [])) {
+                if (slot.service_package_id != null) ids.add(slot.service_package_id);
+            }
+        }
+        const active = availablePackages.filter((pkg) => ids.has(pkg.id));
+        const groupMap = new Map<string, typeof active>();
+        for (const pkg of active) {
+            const info = packageSetInfoMap.get(pkg.id);
+            const key = info ? `${info.setEmoji} ${info.setName}` : '📦 Other';
+            if (!groupMap.has(key)) groupMap.set(key, []);
+            groupMap.get(key)!.push(pkg);
+        }
+        const groups: { setName: string; setEmoji: string; packages: typeof active }[] = [];
+        for (const [label, pkgs] of groupMap) {
+            const emoji = label.split(' ')[0];
+            const name = label.slice(emoji.length + 1);
+            groups.push({ setName: name, setEmoji: emoji, packages: pkgs });
+        }
+        return { activePackageIds: ids, groupedBySet: groups };
+    }, [availablePackages, packageSets, packageSetInfoMap]);
+
+    // ── Budget-aware suggestion ──
+    const suggestedPackage = useMemo(() => {
+        if (!budgetRange || !availablePackages.length) return null;
+        const matches = budgetRange.match(/[\d,]+/g);
+        if (!matches || matches.length < 2) return null;
+        const min = parseInt(matches[0].replace(/,/g, ''));
+        const max = parseInt(matches[1].replace(/,/g, ''));
+        if (isNaN(min) || isNaN(max)) return null;
+        const inRange = availablePackages
+            .filter((p) => activePackageIds.has(p.id))
+            .filter((p) => {
+                const price = getEffectivePrice(p);
+                return price >= min && price <= max;
+            })
+            .sort((a, b) => getEffectivePrice(a) - getEffectivePrice(b));
+        return inRange[0] ?? null;
+    }, [budgetRange, availablePackages, activePackageIds]);
+
+    // ── Assign / Swap handler ──
+    const handleAssignPackage = async () => {
+        if (!assignPackageId || assigning) return;
+        try {
+            setAssigning(true);
+            await inquiriesService.update(inquiry.id, {
+                selected_package_id: Number(assignPackageId),
+            });
+            setAssignPackageId('');
+            setShowSwapSelector(false);
+            if (onRefresh) await onRefresh();
+        } catch (err) {
+            console.error('Failed to assign package:', err);
+        } finally {
+            setAssigning(false);
+        }
+    };
+
     return (
         <WorkflowCard isActive={isActive} activeColor={activeColor}>
             <CardContent sx={{ p: '0 !important' }}>
-                {/* Header */}
-                <Box sx={{ px: 2.5, pt: 2, pb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Videocam /> Package
+                {/* Header — matches Availability card style */}
+                <Box sx={{
+                    px: 2.5, pt: 2, pb: 1.5,
+                    display: 'flex', alignItems: 'center', gap: 1.25,
+                    borderBottom: '1px solid rgba(52,58,68,0.3)',
+                    background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08), transparent)',
+                }}>
+                    <Videocam sx={{ color: '#f59e0b', fontSize: 20 }} />
+                    <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: '#f1f5f9' }}>
+                        Package
                     </Typography>
                 </Box>
 
-                {/* NA context strip: budget range + package path */}
-                {(budgetRange || packagePath) && (
+                {/* ── Status strip: picked / budget / swap ── */}
+                {(budgetRange || packagePath || selectedPkg) && (
                     <Box sx={{
-                        px: 2.5, py: 1, display: 'flex', gap: 1, flexWrap: 'wrap',
+                        px: 2.5, py: 0.8,
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         borderBottom: '1px solid rgba(52, 58, 68, 0.2)',
-                        bgcolor: 'rgba(245,158,11,0.03)',
                     }}>
-                        {packagePath && (
-                            <Chip
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            {packagePath && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    {packagePath === 'build'
+                                        ? <Build sx={{ fontSize: 13, color: '#f59e0b' }} />
+                                        : <CheckCircle sx={{ fontSize: 13, color: '#10b981' }} />}
+                                    <Typography sx={{
+                                        fontSize: '0.72rem', fontWeight: 600,
+                                        color: packagePath === 'build' ? '#f59e0b' : '#10b981',
+                                    }}>
+                                        {packagePath === 'build' ? 'Custom Build' : 'Picked'}
+                                    </Typography>
+                                </Box>
+                            )}
+                            {budgetRange && (
+                                <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b' }}>
+                                    Budget: {budgetRange}
+                                </Typography>
+                            )}
+                        </Box>
+                        {selectedPkg && (
+                            <Button
                                 size="small"
-                                icon={packagePath === 'build' ? <Build sx={{ fontSize: 12 }} /> : undefined}
-                                label={packagePath === 'build' ? 'Custom Build' : 'Picked a Package'}
+                                startIcon={<SwapHoriz sx={{ fontSize: 13 }} />}
+                                onClick={() => { setShowSwapSelector(!showSwapSelector); setAssignPackageId(''); }}
                                 sx={{
-                                    height: 20, fontSize: '0.62rem', fontWeight: 600,
-                                    bgcolor: 'rgba(139,92,246,0.1)', color: '#a78bfa',
-                                    border: '1px solid rgba(139,92,246,0.2)',
+                                    color: showSwapSelector ? '#f59e0b' : '#526077',
+                                    textTransform: 'none', fontSize: '0.68rem',
+                                    fontWeight: 600, px: 1, py: 0.25, borderRadius: 1,
+                                    minWidth: 'auto',
+                                    bgcolor: showSwapSelector ? 'rgba(245,158,11,0.08)' : 'transparent',
+                                    border: showSwapSelector
+                                        ? '1px solid rgba(245,158,11,0.2)'
+                                        : '1px solid transparent',
+                                    '&:hover': {
+                                        color: '#f59e0b',
+                                        bgcolor: 'rgba(245,158,11,0.06)',
+                                    },
                                 }}
-                            />
+                            >
+                                Swap
+                            </Button>
                         )}
-                        {budgetRange && (
-                            <Chip
-                                size="small"
-                                icon={<AttachMoney sx={{ fontSize: 12 }} />}
-                                label={budgetRange}
-                                sx={{
-                                    height: 20, fontSize: '0.62rem', fontWeight: 600,
-                                    bgcolor: 'rgba(245,158,11,0.1)', color: '#f59e0b',
-                                    border: '1px solid rgba(245,158,11,0.2)',
+                    </Box>
+                )}
+
+                {/* Swap selector panel (expands below status bar) */}
+                {showSwapSelector && selectedPkg && (
+                    <Box sx={{
+                        px: 2, py: 1.5,
+                        bgcolor: 'rgba(245,158,11,0.03)',
+                        borderBottom: '1px solid rgba(245,158,11,0.12)',
+                    }}>
+                        <Typography sx={{ fontSize: '0.6rem', color: '#64748b', mb: 1, lineHeight: 1.4 }}>
+                            Subject names, locations, and crew assignments will be preserved where roles match.
+                        </Typography>
+                        <FormControl fullWidth size="small">
+                            <Select
+                                value={assignPackageId}
+                                displayEmpty
+                                onChange={(e) => setAssignPackageId(e.target.value as number | '')}
+                                renderValue={(val) => {
+                                    if (!val) return <Typography sx={{ color: '#475569', fontSize: '0.75rem' }}>Select new package…</Typography>;
+                                    const pkg = availablePackages.find(p => p.id === Number(val));
+                                    return <Typography sx={{ fontSize: '0.75rem', color: '#e2e8f0' }}>{pkg?.name ?? 'Unknown'}</Typography>;
                                 }}
-                            />
+                                sx={{
+                                    color: '#e2e8f0',
+                                    bgcolor: 'rgba(255,255,255,0.03)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    borderRadius: 1.5,
+                                    '& .MuiSelect-icon': { color: '#64748b' },
+                                }}
+                                MenuProps={{
+                                    PaperProps: {
+                                        sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, maxHeight: 300 },
+                                    },
+                                }}
+                            >
+                                {groupedBySet.flatMap((group) => [
+                                    <ListSubheader
+                                        key={`swap-${group.setName}`}
+                                        sx={{ bgcolor: '#1a1d24', color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', lineHeight: '24px', textTransform: 'uppercase' }}
+                                    >
+                                        {group.setEmoji} {group.setName}
+                                    </ListSubheader>,
+                                    ...group.packages
+                                        .filter((pkg) => pkg.id !== inquiry.selected_package_id)
+                                        .map((pkg) => {
+                                            const info = packageSetInfoMap.get(pkg.id);
+                                            return (
+                                                <MenuItem key={pkg.id} value={pkg.id}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                                                        <Typography variant="body2">{pkg.name}</Typography>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            {info?.tierLabel && (
+                                                                <Chip label={info.tierLabel} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.6rem', borderRadius: 0.5 }} />
+                                                            )}
+                                                            <Typography sx={{ fontSize: '0.7rem', color: '#64748b', fontFamily: 'monospace' }}>
+                                                                {formatCurrency(getEffectivePrice(pkg), currencyCode)}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </MenuItem>
+                                            );
+                                        }),
+                                ])}
+                            </Select>
+                        </FormControl>
+                        {assignPackageId && (
+                            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                                <Button
+                                    size="small"
+                                    onClick={() => { setShowSwapSelector(false); setAssignPackageId(''); }}
+                                    sx={{ color: '#64748b', textTransform: 'none', fontSize: '0.7rem', flex: 1, borderRadius: 1 }}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    size="small"
+                                    variant="contained"
+                                    onClick={handleAssignPackage}
+                                    disabled={assigning}
+                                    startIcon={assigning ? <CircularProgress size={12} color="inherit" /> : <SwapHoriz sx={{ fontSize: 14 }} />}
+                                    sx={{
+                                        bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' },
+                                        textTransform: 'none', fontSize: '0.7rem', fontWeight: 600, flex: 1, borderRadius: 1,
+                                    }}
+                                >
+                                    Confirm Swap
+                                </Button>
+                            </Box>
                         )}
                     </Box>
                 )}
@@ -268,16 +464,116 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                     </Box>
                 )}
 
-                {/* No-package warning */}
+                {/* No-package: inline assignment selector */}
                 {noPackageSelected && (
-                    <Box sx={{ px: 2.5, pb: 2 }}>
+                    <Box sx={{ px: 2.5, py: 2 }}>
                         <Alert
                             severity="warning"
                             icon={<WarningAmber />}
-                            sx={{ borderRadius: 1 }}
+                            sx={{ borderRadius: 1, mb: 2 }}
                         >
-                            No package selected — open the package review to choose one.
+                            No package selected
                         </Alert>
+
+                        {/* Package selector dropdown */}
+                        <FormControl fullWidth size="small" sx={{ mb: 1.5 }}>
+                            <Select
+                                value={assignPackageId}
+                                displayEmpty
+                                onChange={(e) => setAssignPackageId(e.target.value as number | '')}
+                                renderValue={(val) => {
+                                    if (!val) return <Typography sx={{ color: '#475569', fontSize: '0.8rem' }}>Select a package…</Typography>;
+                                    const pkg = availablePackages.find(p => p.id === Number(val));
+                                    return <Typography sx={{ fontSize: '0.8rem', color: '#e2e8f0' }}>{pkg?.name ?? 'Unknown'}</Typography>;
+                                }}
+                                sx={{
+                                    color: '#e2e8f0',
+                                    bgcolor: 'rgba(255,255,255,0.03)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    borderRadius: 1.5,
+                                    '& .MuiSelect-icon': { color: '#64748b' },
+                                }}
+                                MenuProps={{
+                                    PaperProps: {
+                                        sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, maxHeight: 300 },
+                                    },
+                                }}
+                            >
+                                {groupedBySet.length > 0 ? (
+                                    groupedBySet.flatMap((group) => [
+                                        <ListSubheader
+                                            key={`header-${group.setName}`}
+                                            sx={{ bgcolor: '#1a1d24', color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem', lineHeight: '24px', letterSpacing: '0.05em', textTransform: 'uppercase' }}
+                                        >
+                                            {group.setEmoji} {group.setName}
+                                        </ListSubheader>,
+                                        ...group.packages.map((pkg) => {
+                                            const info = packageSetInfoMap.get(pkg.id);
+                                            return (
+                                                <MenuItem key={pkg.id} value={pkg.id}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                                                        <Typography variant="body2">{pkg.name}</Typography>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            {info?.tierLabel && (
+                                                                <Chip label={info.tierLabel} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.6rem', borderRadius: 0.5 }} />
+                                                            )}
+                                                            <Typography sx={{ fontSize: '0.7rem', color: '#64748b', fontFamily: 'monospace', ml: 0.5 }}>
+                                                                {formatCurrency(getEffectivePrice(pkg), currencyCode)}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </MenuItem>
+                                            );
+                                        }),
+                                    ])
+                                ) : (
+                                    <MenuItem disabled>
+                                        <Typography variant="body2" color="text.secondary">No active packages</Typography>
+                                    </MenuItem>
+                                )}
+                            </Select>
+                        </FormControl>
+
+                        {/* Budget-based suggestion */}
+                        {suggestedPackage && !assignPackageId && (
+                            <Box
+                                onClick={() => setAssignPackageId(suggestedPackage.id)}
+                                sx={{
+                                    px: 1.5, py: 1, mb: 1.5, borderRadius: 1.5, cursor: 'pointer',
+                                    bgcolor: 'rgba(100,140,255,0.06)', border: '1px solid rgba(100,140,255,0.15)',
+                                    '&:hover': { bgcolor: 'rgba(100,140,255,0.1)' },
+                                    display: 'flex', alignItems: 'center', gap: 1,
+                                }}
+                            >
+                                <Typography sx={{ fontSize: '0.68rem', color: '#818cf8' }}>💡</Typography>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography sx={{ fontSize: '0.68rem', color: '#818cf8', fontWeight: 600 }}>
+                                        Suggested: {suggestedPackage.name}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: '0.6rem', color: '#64748b' }}>
+                                        {formatCurrency(getEffectivePrice(suggestedPackage), currencyCode)} — fits {budgetRange} budget
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        )}
+
+                        {/* Assign button */}
+                        {assignPackageId && (
+                            <Button
+                                variant="contained"
+                                size="small"
+                                fullWidth
+                                onClick={handleAssignPackage}
+                                disabled={assigning}
+                                startIcon={assigning ? <CircularProgress size={14} color="inherit" /> : undefined}
+                                sx={{
+                                    bgcolor: '#648CFF', '&:hover': { bgcolor: '#5A7BF0' },
+                                    borderRadius: 1.5, textTransform: 'none', fontWeight: 600, fontSize: '0.8rem',
+                                }}
+                            >
+                                Assign Package
+                            </Button>
+                        )}
                     </Box>
                 )}
 
@@ -413,6 +709,8 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                                 </Typography>
                             )}
                         </Box>
+
+
                     </Box>
                 )}
 

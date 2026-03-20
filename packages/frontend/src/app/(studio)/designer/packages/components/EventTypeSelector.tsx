@@ -39,6 +39,8 @@ interface SubjectRole {
   id: number;
   role_name: string;
   is_core: boolean;
+  is_group: boolean;
+  never_group: boolean;
 }
 
 interface SubjectTypeTemplate {

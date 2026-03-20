@@ -22,7 +22,7 @@ export interface SubjectTypeTemplate {
     name: string;
     description?: string | null;
     category: string;
-    roles: Array<{ id: number; role_name: string; is_core: boolean; is_group: boolean }>;
+    roles: Array<{ id: number; role_name: string; is_core: boolean; is_group: boolean; never_group: boolean }>;
 }
 
 // Crew member from crew API (for assignment dropdowns)
@@ -127,7 +127,9 @@ export interface PackageEventDaySubjectRecord {
     event_day_template_id?: number;
     package_activity_id?: number | null;
     activity_assignments?: Array<{ id: number; package_activity_id: number; package_activity?: { id: number; name: string } }>;
-    role_template?: { id: number; role_name: string; is_group: boolean; is_core: boolean } | null;
+    role_template?: { id: number; role_name: string; is_group: boolean; is_core: boolean; never_group: boolean } | null;
+    real_name?: string | null;
+    member_names?: string[] | null;
 }
 
 /** Package location-slot record used in `packageLocationSlots` state. */

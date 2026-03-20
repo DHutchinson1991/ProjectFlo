@@ -442,6 +442,7 @@ export class EventTypesService {
               name: role.role_name,
               category: 'PEOPLE',
               order_index: subjectIdx++,
+              count: role.is_group ? 4 : undefined,
             },
           });
         }

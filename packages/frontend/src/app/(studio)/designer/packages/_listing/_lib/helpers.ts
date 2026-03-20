@@ -82,5 +82,6 @@ export function getPackageStats(pkg: ServicePackage) {
     const cameraCount = eqCounts.cameras || 0;
     const audioCount = eqCounts.audio || 0;
     const totalCost = typeof data?._totalCost === 'number' ? data._totalCost : 0;
-    return { dayCount, locationCount, crewCount, cameraCount, audioCount, totalCost };
+    const typicalGuestCount = typeof data?.typical_guest_count === 'number' ? data.typical_guest_count : null;
+    return { dayCount, locationCount, crewCount, cameraCount, audioCount, totalCost, typicalGuestCount };
 }

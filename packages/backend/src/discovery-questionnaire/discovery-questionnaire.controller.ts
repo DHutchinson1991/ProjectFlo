@@ -5,6 +5,7 @@ import {
     Headers,
     Param,
     ParseIntPipe,
+    Patch,
     Post,
     Put,
     Query,
@@ -14,6 +15,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { DiscoveryQuestionnaireService } from './discovery-questionnaire.service';
 import {
     CreateDiscoveryQuestionnaireSubmissionDto,
+    UpdateDiscoveryQuestionnaireSubmissionDto,
     CreateDiscoveryQuestionnaireTemplateDto,
     UpdateDiscoveryQuestionnaireTemplateDto,
 } from './dto/discovery-questionnaire.dto';
@@ -95,5 +97,14 @@ export class DiscoveryQuestionnaireController {
         @Headers('x-brand-context') brandId: string,
     ) {
         return this.service.createSubmission(payload, Number(brandId));
+    }
+
+    @Patch('submissions/:id')
+    updateSubmission(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() payload: UpdateDiscoveryQuestionnaireSubmissionDto,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        return this.service.updateSubmission(id, payload, Number(brandId));
     }
 }

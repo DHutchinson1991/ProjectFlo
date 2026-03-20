@@ -465,11 +465,14 @@ model inquiries {
   schedule_film_beats          ProjectFilmSceneBeat[]
   schedule_film_equipment      ProjectFilmEquipmentAssignment[]
   package_requests             package_requests[]
+  preferred_payment_schedule_template_id Int?
+  preferred_payment_schedule   payment_schedule_templates?    @relation("InquiryPreferredPaymentSchedule", fields: [preferred_payment_schedule_template_id], references: [id], onDelete: SetNull)
   created_at                   DateTime                       @default(now())
   updated_at                   DateTime                       @default(now()) @updatedAt
   welcome_sent_at              DateTime?
 
   @@index([source_package_id])
+  @@index([preferred_payment_schedule_template_id])
   @@map("inquiries")
 }
 
@@ -567,6 +570,7 @@ model discovery_questionnaire_questions {
   field_key   String?
   required    Boolean                                @default(false)
   options     Json?
+  visibility  String                                 @default("both")
   created_at  DateTime                               @default(now())
   updated_at  DateTime                               @updatedAt
   template    discovery_questionnaire_templates      @relation(fields: [template_id], references: [id], onDelete: Cascade)
@@ -583,7 +587,9 @@ model discovery_questionnaire_submissions {
   responses    Json
   call_notes   String?
   transcript   String?
-  submitted_at DateTime                           @default(now())
+  sentiment              Json?
+  call_duration_seconds  Int?
+  submitted_at           DateTime                           @default(now())
   created_at   DateTime                           @default(now())
   updated_at   DateTime                           @updatedAt
   template     discovery_questionnaire_templates  @relation(fields: [template_id], references: [id], onDelete: Cascade)
@@ -1017,6 +1023,7 @@ model calendar_events {
   meeting_type    meeting_type?
   meeting_url     String?
   outcome_notes   String?
+  is_confirmed    Boolean             @default(false)
   contributor     contributors        @relation(fields: [contributor_id], references: [id], onDelete: Cascade)
   inquiry         inquiries?          @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   project         projects?           @relation(fields: [project_id], references: [id], onDelete: Cascade)
@@ -2547,7 +2554,8 @@ model SubjectRoleTemplate {
   role_name       String // e.g., "Bride", "Groom", "Best Man"
   description     String?
   is_core         Boolean  @default(false) // Core roles are pre-selected by default
-  is_group        Boolean  @default(false) // Group roles always show a headcount input (e.g., Guests, Wedding Party)
+  is_group        Boolean  @default(false) // Group roles always show a headcount input (e.g., Guests, Bridesmaids)
+  never_group     Boolean  @default(false) // Never allow group toggle (e.g., Bride, Groom, Maid of Honor)
   order_index     Int      @default(0)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
@@ -4344,6 +4352,7 @@ model ProjectEventDaySubject {
   name                        String // Role display name ("Bride", "Groom", etc.)
   real_name                   String? // Actual person name ("Sarah Johnson")
   count                       Int?    // Optional headcount for groups
+  member_names                Json?   // Named slots for group members, e.g. ["Sarah", "Emily", "", ""] — length matches count
   category                    SubjectCategory @default(PEOPLE)
   notes                       String?
   order_index                 Int             @default(0)
@@ -4675,6 +4684,7 @@ model payment_schedule_templates {
   estimates estimates[]
   quotes    quotes[]
   contract_templates contract_templates[] @relation("contract_payment_schedule")
+  inquiries  inquiries[]                  @relation("InquiryPreferredPaymentSchedule")
 
   @@unique([brand_id, name])
   @@index([brand_id])

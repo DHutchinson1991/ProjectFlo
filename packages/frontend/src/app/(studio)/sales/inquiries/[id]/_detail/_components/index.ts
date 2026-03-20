@@ -10,11 +10,11 @@ export { ContractsCard } from './ContractsCard';
 export { CallsCard } from './CallsCard';
 export { ProposalReviewCard } from './ProposalReviewCard';
 export { ClientApprovalCard } from './ClientApprovalCard';
-export { ActivityLogCard } from './ActivityLogCard';
-export { ClientUpdatesCard } from './ClientUpdatesCard';
+
 export { default as NeedsAssessmentDialog } from './NeedsAssessmentDialog';
 export { default as DiscoveryQuestionnaireCard } from './DiscoveryQuestionnaireCard';
 export { default as DiscoveryQuestionnaireFormDialog } from './DiscoveryQuestionnaireFormDialog';
-export { default as ReviewNotesCard } from './ReviewNotesCard';
+
 export { default as ClientInfoCard } from './ClientInfoCard';
 export { default as QualifyCard } from './QualifyCard';
+export { default as PaymentTermsCard } from './PaymentTermsCard';

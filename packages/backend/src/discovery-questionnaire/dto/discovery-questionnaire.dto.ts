@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsBoolean, IsInt, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateDiscoveryQuestionnaireQuestionDto {
@@ -10,6 +10,7 @@ export class CreateDiscoveryQuestionnaireQuestionDto {
     @IsOptional() @IsString() field_key?: string;
     @IsOptional() @IsBoolean() required?: boolean;
     @IsOptional() options?: Record<string, unknown>;
+    @IsOptional() @IsString() visibility?: string;
 }
 
 export class CreateDiscoveryQuestionnaireTemplateDto {
@@ -34,7 +35,17 @@ export class UpdateDiscoveryQuestionnaireTemplateDto {
 export class CreateDiscoveryQuestionnaireSubmissionDto {
     @IsInt() template_id: number;
     @IsOptional() @IsInt() inquiry_id?: number;
-    responses: Record<string, unknown>;
+    @IsObject() responses: Record<string, unknown>;
     @IsOptional() @IsString() call_notes?: string;
     @IsOptional() @IsString() transcript?: string;
+    @IsOptional() @IsObject() sentiment?: Record<string, unknown>;
+    @IsOptional() @IsInt() call_duration_seconds?: number;
+}
+
+export class UpdateDiscoveryQuestionnaireSubmissionDto {
+    @IsOptional() @IsObject() responses?: Record<string, unknown>;
+    @IsOptional() @IsString() call_notes?: string;
+    @IsOptional() @IsString() transcript?: string;
+    @IsOptional() @IsObject() sentiment?: Record<string, unknown>;
+    @IsOptional() @IsInt() call_duration_seconds?: number;
 }

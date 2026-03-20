@@ -378,10 +378,7 @@ export class InquiryAvailabilityService {
             where: {
                 job_role_id: jobRoleId,
                 contributor: {
-                    contact: {
-                        archived_at: null,
-                        brand_id: brandId,
-                    },
+                    contact: { archived_at: null, brand_id: brandId },
                 },
             },
             include: {
@@ -492,7 +489,7 @@ export class InquiryAvailabilityService {
             };
         }));
 
-        return available.filter((candidate) => candidate.conflicts.length === 0);
+        return available;
     }
 
     async sendAvailabilityRequest(
@@ -710,6 +707,76 @@ export class InquiryAvailabilityService {
         return { id: reservation.id, status: reservation.status, equipment_availability_id: availabilityRecord.id };
     }
 
+    async swapEquipment(inquiryId: number, assignmentId: number, newEquipmentId: number, brandId: number) {
+        await this.verifyInquiryOwnership(inquiryId, brandId);
+
+        // Validate the assignment belongs to this inquiry
+        const assignment = await this.prisma.projectDayOperatorEquipment.findFirst({
+            where: {
+                id: assignmentId,
+                project_day_operator: { inquiry_id: inquiryId },
+            },
+            include: {
+                project_day_operator: {
+                    include: {
+                        project_event_day: { select: { date: true, start_time: true, end_time: true, name: true } },
+                    },
+                },
+            },
+        });
+
+        if (!assignment) {
+            throw new NotFoundException(`Equipment assignment ${assignmentId} not found for inquiry ${inquiryId}`);
+        }
+
+        // Validate the new equipment exists and belongs to this brand
+        const newEquipment = await this.prisma.equipment.findFirst({
+            where: { id: newEquipmentId, brand_id: brandId },
+        });
+
+        if (!newEquipment) {
+            throw new NotFoundException(`Equipment ${newEquipmentId} not found`);
+        }
+
+        const oldEquipmentId = assignment.equipment_id;
+
+        // Cancel any existing reservation for the old equipment on this assignment
+        const existingReservation = await this.prisma.inquiry_equipment_reservations.findFirst({
+            where: {
+                inquiry_id: inquiryId,
+                project_day_operator_equipment_id: assignmentId,
+                status: { in: ['reserved', 'confirmed'] },
+            },
+        });
+
+        if (existingReservation) {
+            if (existingReservation.equipment_availability_id) {
+                await this.prisma.equipment_availability.update({
+                    where: { id: existingReservation.equipment_availability_id },
+                    data: { status: 'AVAILABLE' },
+                });
+            }
+            await this.prisma.inquiry_equipment_reservations.update({
+                where: { id: existingReservation.id },
+                data: { status: 'cancelled', cancelled_at: new Date() },
+            });
+        }
+
+        // Update the equipment assignment to point to the new equipment
+        await this.prisma.projectDayOperatorEquipment.update({
+            where: { id: assignmentId },
+            data: { equipment_id: newEquipmentId },
+        });
+
+        await this.syncEquipmentReservationSubtask(inquiryId);
+
+        return {
+            id: assignmentId,
+            old_equipment_id: oldEquipmentId,
+            new_equipment_id: newEquipmentId,
+        };
+    }
+
     async cancelEquipmentReservation(inquiryId: number, reservationId: number, brandId: number) {
         await this.verifyInquiryOwnership(inquiryId, brandId);
 
@@ -799,7 +866,7 @@ export class InquiryAvailabilityService {
         }
 
         const reservations = await this.prisma.inquiry_equipment_reservations.findMany({
-            where: { inquiry_id: inquiryId, status: 'reserved' },
+            where: { inquiry_id: inquiryId, status: { in: ['reserved', 'confirmed'] } },
             select: { project_day_operator_equipment_id: true },
         });
 

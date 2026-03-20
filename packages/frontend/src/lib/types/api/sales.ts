@@ -34,6 +34,7 @@ export interface InquiryApiResponse {
         base_price: string; // Decimal serialised as string by Prisma
         currency: string;
     } | null;
+    preferred_payment_schedule_template_id?: number | null;
     primary_estimate_total?: number | null;
     pipeline_stage?: string | null;
     package_contents_snapshot?: {

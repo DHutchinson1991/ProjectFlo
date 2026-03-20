@@ -218,10 +218,16 @@ export class NeedsAssessmentsService {
             }
             if (!existingInquiry?.venue_address && responses['venue_address'])
                 inquiryUpdate.venue_address = responses['venue_address'] as string;
+            else if (!existingInquiry?.venue_address && responses['ceremony_location_address'])
+                inquiryUpdate.venue_address = responses['ceremony_location_address'] as string;
             if (existingInquiry?.venue_lat == null && responses['venue_lat'] != null)
                 inquiryUpdate.venue_lat = parseFloat(String(responses['venue_lat']));
+            else if (existingInquiry?.venue_lat == null && responses['ceremony_location_lat'] != null)
+                inquiryUpdate.venue_lat = parseFloat(String(responses['ceremony_location_lat']));
             if (existingInquiry?.venue_lng == null && responses['venue_lng'] != null)
                 inquiryUpdate.venue_lng = parseFloat(String(responses['venue_lng']));
+            else if (existingInquiry?.venue_lng == null && responses['ceremony_location_lng'] != null)
+                inquiryUpdate.venue_lng = parseFloat(String(responses['ceremony_location_lng']));
 
             // If venue is being set from client submission, track the source
             if (inquiryUpdate.venue_details || inquiryUpdate.venue_lat) {
@@ -246,11 +252,26 @@ export class NeedsAssessmentsService {
             if (resolvedPkgId && !existingInquiry?.selected_package_id)
                 inquiryUpdate.selected_package_id = resolvedPkgId;
 
+            // Store preferred payment schedule template from wizard selection
+            const resolvedScheduleId = payload.preferred_payment_schedule_template_id
+                ?? (responses['payment_schedule_template_id'] != null
+                    ? Number(responses['payment_schedule_template_id'])
+                    : null);
+            if (resolvedScheduleId)
+                inquiryUpdate.preferred_payment_schedule_template_id = resolvedScheduleId;
+
             // Sync event_type_id from responses.event_type when the inquiry doesn't have one set
             if (!existingInquiry?.event_type_id && responses['event_type']) {
-                const matchedEventType = await this.prisma.eventType.findFirst({
-                    where: { name: { equals: String(responses['event_type']), mode: 'insensitive' } },
+                const rawEventType = String(responses['event_type']).trim();
+                // Try exact (case-insensitive) first, then singular form (strip trailing "s")
+                let matchedEventType = await this.prisma.eventType.findFirst({
+                    where: { name: { equals: rawEventType, mode: 'insensitive' } },
                 });
+                if (!matchedEventType && rawEventType.toLowerCase().endsWith('s')) {
+                    matchedEventType = await this.prisma.eventType.findFirst({
+                        where: { name: { equals: rawEventType.slice(0, -1), mode: 'insensitive' } },
+                    });
+                }
                 if (matchedEventType) {
                     inquiryUpdate.event_type_id = matchedEventType.id;
                 }
@@ -261,6 +282,9 @@ export class NeedsAssessmentsService {
                     where: { id: payload.inquiry_id },
                     data: inquiryUpdate as Prisma.inquiriesUpdateInput,
                 });
+
+                // Re-evaluate auto-subtasks now that inquiry fields may have changed
+                await this.inquiryTasksService.syncReviewInquiryAutoSubtasks(payload.inquiry_id);
 
                 if (resolvedPkgId && !existingInquiry?.selected_package_id) {
                     try {
@@ -309,20 +333,49 @@ export class NeedsAssessmentsService {
             const inferredInquiry = {
                 wedding_date: inquiry.wedding_date || (responses['wedding_date'] as string) || new Date().toISOString(),
                 venue_details: inquiry.venue_details || (responses['venue_name'] as string) || (responses['ceremony_location'] as string) || (responses['venue_details'] as string),
-                venue_address: inquiry.venue_address || (responses['venue_address'] as string) || undefined,
-                venue_lat: inquiry.venue_lat ?? (responses['venue_lat'] != null ? parseFloat(String(responses['venue_lat'])) : undefined),
-                venue_lng: inquiry.venue_lng ?? (responses['venue_lng'] != null ? parseFloat(String(responses['venue_lng'])) : undefined),
+                venue_address: inquiry.venue_address || (responses['venue_address'] as string) || (responses['ceremony_location_address'] as string) || undefined,
+                venue_lat: inquiry.venue_lat
+                    ?? (responses['venue_lat'] != null ? parseFloat(String(responses['venue_lat'])) : undefined)
+                    ?? (responses['ceremony_location_lat'] != null ? parseFloat(String(responses['ceremony_location_lat'])) : undefined),
+                venue_lng: inquiry.venue_lng
+                    ?? (responses['venue_lng'] != null ? parseFloat(String(responses['venue_lng'])) : undefined)
+                    ?? (responses['ceremony_location_lng'] != null ? parseFloat(String(responses['ceremony_location_lng'])) : undefined),
                 guest_count: inquiry.guest_count || (responses['guest_count'] as string),
                 notes: inquiry.notes || (responses['notes'] as string),
                 lead_source: inquiry.lead_source || (responses['lead_source'] as string) || 'Needs Assessment',
                 lead_source_details: inquiry.lead_source_details || JSON.stringify(responses),
                 selected_package_id: payload.selected_package_id || inquiry.selected_package_id,
+                ...(((payload.preferred_payment_schedule_template_id || responses['payment_schedule_template_id']) ? {
+                    preferred_payment_schedule_template_id:
+                        payload.preferred_payment_schedule_template_id
+                        ?? (responses['payment_schedule_template_id'] != null
+                            ? Number(responses['payment_schedule_template_id'])
+                            : undefined),
+                } : {}) as Record<string, unknown>),
                 status: $Enums.inquiries_status.New,
                 first_name: contact.first_name || (responses['contact_first_name'] as string) || 'Unknown',
                 last_name: contact.last_name || (responses['contact_last_name'] as string) || 'Lead',
                 email: contact.email || (responses['contact_email'] as string) || `needs_assessment_${Date.now()}@temp.com`,
                 phone_number: contact.phone_number || (responses['contact_phone'] as string) || '',
             };
+
+            // Resolve event_type_id from the wizard responses.event_type string
+            if (responses['event_type']) {
+                const rawEventType = String(responses['event_type']).trim();
+                let matchedET = await this.prisma.eventType.findFirst({
+                    where: { name: { equals: rawEventType, mode: 'insensitive' } },
+                    select: { id: true },
+                });
+                if (!matchedET && rawEventType.toLowerCase().endsWith('s')) {
+                    matchedET = await this.prisma.eventType.findFirst({
+                        where: { name: { equals: rawEventType.slice(0, -1), mode: 'insensitive' } },
+                        select: { id: true },
+                    });
+                }
+                if (matchedET) {
+                    (inferredInquiry as Record<string, unknown>)['event_type_id'] = matchedET.id;
+                }
+            }
 
             const createdInquiry = await this.inquiriesService.create(inferredInquiry, brandId);
             inquiryId = createdInquiry.id;
@@ -378,6 +431,7 @@ export class NeedsAssessmentsService {
                 where: { id: inquiryId },
                 select: {
                     wedding_date: true,
+                    preferred_payment_schedule_template_id: true,
                     selected_package: { select: { id: true, name: true, base_price: true, currency: true } },
                     contact: {
                         select: {
@@ -429,10 +483,19 @@ export class NeedsAssessmentsService {
                 items: estimateItems,
             } as any);
 
-            const defaultTemplate = await this.paymentSchedulesService.getDefaultTemplate(brand.id);
-            if (defaultTemplate && inquiry.wedding_date) {
+            // Use the inquiry's preferred template first, fall back to brand default
+            let scheduleTemplate = inquiry.preferred_payment_schedule_template_id
+                ? await this.prisma.payment_schedule_templates.findUnique({
+                    where: { id: inquiry.preferred_payment_schedule_template_id },
+                    include: { rules: { orderBy: { order_index: 'asc' } } },
+                })
+                : null;
+            if (!scheduleTemplate) {
+                scheduleTemplate = await this.paymentSchedulesService.getDefaultTemplate(brand.id);
+            }
+            if (scheduleTemplate && inquiry.wedding_date) {
                 await this.paymentSchedulesService.applyToEstimate(Number(estimate.id), {
-                    template_id: defaultTemplate.id,
+                    template_id: scheduleTemplate.id,
                     booking_date: today.toISOString().split('T')[0],
                     event_date: inquiry.wedding_date.toISOString().split('T')[0],
                     total_amount: Number(estimate.total_amount ?? 0),
@@ -763,9 +826,11 @@ export class NeedsAssessmentsService {
         const inferredInquiry = {
             wedding_date: (responses['wedding_date'] as string) || new Date().toISOString(),
             venue_details: (responses['venue_name'] as string) || (responses['ceremony_location'] as string) || (responses['venue_details'] as string),
-            venue_address: (responses['venue_address'] as string) || undefined,
-            venue_lat: responses['venue_lat'] != null ? parseFloat(String(responses['venue_lat'])) : undefined,
-            venue_lng: responses['venue_lng'] != null ? parseFloat(String(responses['venue_lng'])) : undefined,
+            venue_address: (responses['venue_address'] as string) || (responses['ceremony_location_address'] as string) || undefined,
+            venue_lat: (responses['venue_lat'] != null ? parseFloat(String(responses['venue_lat'])) : undefined)
+                ?? (responses['ceremony_location_lat'] != null ? parseFloat(String(responses['ceremony_location_lat'])) : undefined),
+            venue_lng: (responses['venue_lng'] != null ? parseFloat(String(responses['venue_lng'])) : undefined)
+                ?? (responses['ceremony_location_lng'] != null ? parseFloat(String(responses['ceremony_location_lng'])) : undefined),
             guest_count: (responses['guest_count'] as string),
             notes: (responses['notes'] as string),
             lead_source: (responses['lead_source'] as string) || 'Needs Assessment',
@@ -1024,12 +1089,18 @@ export class NeedsAssessmentsService {
         for (const slot of slots) {
             const activityNameLower = slot.project_activity?.name?.toLowerCase() ?? '';
             let locationName: string | null = null;
+            let locationAddress: string | null = null;
 
             for (const [keyword, responseKey] of Object.entries(ACTIVITY_TO_RESPONSE_KEY)) {
                 if (activityNameLower.includes(keyword)) {
                     const val = responses[responseKey];
                     if (val && typeof val === 'string' && val.trim()) {
                         locationName = val.trim();
+                        // Pick up companion address key if the wizard captured it
+                        const addrVal = responses[`${responseKey}_address`];
+                        if (addrVal && typeof addrVal === 'string' && addrVal.trim()) {
+                            locationAddress = addrVal.trim();
+                        }
                         break;
                     }
                 }
@@ -1040,14 +1111,21 @@ export class NeedsAssessmentsService {
                 const fallback = responses['ceremony_location'] ?? responses['venue_details'];
                 if (fallback && typeof fallback === 'string' && fallback.trim()) {
                     locationName = fallback.trim();
+                    const fallbackAddr = responses['ceremony_location_address'] ?? responses['venue_address'];
+                    if (fallbackAddr && typeof fallbackAddr === 'string' && fallbackAddr.trim()) {
+                        locationAddress = fallbackAddr.trim();
+                    }
                 } else {
                     // Last resort: read venue_details from the inquiry itself
                     const inquiry = await this.prisma.inquiries.findUnique({
                         where: { id: inquiryId },
-                        select: { venue_details: true },
+                        select: { venue_details: true, venue_address: true },
                     });
                     if (inquiry?.venue_details?.trim()) {
                         locationName = inquiry.venue_details.trim();
+                    }
+                    if (inquiry?.venue_address?.trim()) {
+                        locationAddress = inquiry.venue_address.trim();
                     }
                 }
             }
@@ -1055,7 +1133,10 @@ export class NeedsAssessmentsService {
             if (locationName) {
                 await this.prisma.projectLocationSlot.update({
                     where: { id: slot.id },
-                    data: { name: locationName },
+                    data: {
+                        name: locationName,
+                        ...(locationAddress ? { address: locationAddress } : {}),
+                    },
                 });
             }
         }

@@ -61,6 +61,14 @@ export class EstimatesController {
     return this.estimatesService.refreshItems(inquiryId, id);
   }
 
+  @Post(':id/revise')
+  revise(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.estimatesService.revise(inquiryId, id);
+  }
+
   @Get(':id/snapshots')
   getSnapshots(
     @Param('inquiryId', ParseIntPipe) inquiryId: number,

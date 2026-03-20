@@ -1241,6 +1241,7 @@ export default function PackageCreationWizard({
                             <Box sx={checkboxSx(sel, '#f472b6')}>{sel && <CheckCircleIcon sx={{ fontSize: '0.7rem' }} />}</Box>
                             <Typography sx={{ color: sel ? '#e2e8f0' : '#94a3b8', fontSize: '0.82rem', fontWeight: sel ? 600 : 400, flex: 1 }}>{role.role_name}</Typography>
                             {role.is_core && <Chip label="Core" size="small" sx={{ height: 18, fontSize: '0.6rem', bgcolor: 'rgba(244,114,182,0.12)', color: '#f472b6', border: 'none' }} />}
+                            {role.is_group && <Chip label="Group" size="small" sx={{ height: 18, fontSize: '0.6rem', bgcolor: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: 'none' }} />}
                           </Box>
                         );
                       })}
@@ -1831,6 +1832,7 @@ export default function PackageCreationWizard({
                                   <Box component="span" sx={{ width: 3, height: 3, borderRadius: '50%', bgcolor: role.is_core ? '#f472b6' : '#475569', display: 'inline-block' }} />
                                   {role.role_name}
                                   {role.is_core && <Box component="span" sx={{ color: '#f472b6', fontSize: '0.55rem' }}>Core</Box>}
+                                  {role.is_group && <Box component="span" sx={{ color: '#a78bfa', fontSize: '0.55rem' }}>Group</Box>}
                                 </Typography>
                               ))}
                             </Stack>

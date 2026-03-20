@@ -129,6 +129,18 @@ export class InquiriesController {
         );
     }
 
+    @Patch(':id/equipment-assignments/:assignmentId/swap')
+    async swapEquipment(
+        @Param('id', ParseIntPipe) id: number,
+        @Param('assignmentId', ParseIntPipe) assignmentId: number,
+        @Headers('x-brand-context') brandId: string,
+        @Body() body: { new_equipment_id: number },
+    ) {
+        const brandIdNum = parseInt(brandId, 10);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        return this.inquiryAvailabilityService.swapEquipment(id, assignmentId, body.new_equipment_id, brandIdNum);
+    }
+
     @Post(':id/equipment-reservations')
     async reserveEquipment(
         @Param('id', ParseIntPipe) id: number,

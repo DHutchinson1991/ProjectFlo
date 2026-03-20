@@ -158,7 +158,8 @@ function getNavigationUrl(task: ActiveTask): string | null {
   if (task.source === 'inquiry' && task.inquiry_id) {
     const base = `/sales/inquiries/${task.inquiry_id}`;
     const subtaskSectionMap: Record<string, string> = {
-      verify_submission_data: 'needs-assessment-section',
+      verify_contact_details: 'needs-assessment-section',
+      verify_event_date: 'needs-assessment-section',
       confirm_package_selection: 'needs-assessment-section',
       check_crew_availability: 'availability-section',
       check_equipment_availability: 'availability-section',
@@ -434,7 +435,7 @@ function TaskRow({ task, groupColor, contributors, onAssign, onNavigate, onToggl
         cursor: navUrl ? "pointer" : "default",
         "&:hover": { bgcolor: navUrl ? "rgba(87,155,252,0.035)" : "rgba(255,255,255,0.028)" },
         "&:last-child": { borderBottom: "none" },
-        opacity: isAuto ? 0.45 : isCompleted ? 0.5 : 1,
+        opacity: isAuto ? (isCompleted ? 0.5 : 0.45) : isCompleted ? 0.5 : 1,
       }}
     >
       {/* Subtask expand chevron */}
@@ -498,7 +499,7 @@ function TaskRow({ task, groupColor, contributors, onAssign, onNavigate, onToggl
         height: "100%",
       }}>
         {isAuto
-          ? <BoltIcon sx={{ fontSize: 16, color: "#FDAB3D", opacity: 0.65, flexShrink: 0 }} />
+          ? <BoltIcon sx={{ fontSize: 16, color: isCompleted ? "#00C875" : "#FDAB3D", opacity: isCompleted ? 0.85 : 0.65, flexShrink: 0 }} />
           : <Box
               onClick={(e) => { e.stopPropagation(); onToggle(task); }}
               sx={{ flexShrink: 0, cursor: "pointer", display: "flex", "&:hover": { opacity: 0.7 } }}
@@ -546,9 +547,11 @@ function TaskRow({ task, groupColor, contributors, onAssign, onNavigate, onToggl
         {isAuto ? (
           <Box sx={{
             display: "inline-flex", alignItems: "center", justifyContent: "center",
-            bgcolor: "rgba(253,171,61,0.12)", color: "#FDAB3D", fontWeight: 700, fontSize: "0.6rem",
+            bgcolor: isCompleted ? "rgba(0,200,117,0.12)" : "rgba(253,171,61,0.12)",
+            color: isCompleted ? "#00C875" : "#FDAB3D",
+            fontWeight: 700, fontSize: "0.6rem",
             height: 20, px: 0.875, borderRadius: "5px", whiteSpace: "nowrap",
-            border: "1px solid rgba(253,171,61,0.25)",
+            border: isCompleted ? "1px solid rgba(0,200,117,0.25)" : "1px solid rgba(253,171,61,0.25)",
           }}>Auto</Box>
         ) : <StatusPill status={task.status} />}
       </Box>

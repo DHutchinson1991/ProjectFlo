@@ -10,8 +10,7 @@ import {
     HourglassEmpty, Close, PersonAdd, Delete,
 } from '@mui/icons-material';
 import { contractsService } from '@/lib/api';
-import { api } from '@/lib/api';
-import type { Contract, ContractTemplate, ContractSigner } from '@/lib/types';
+import type { Contract, ContractSigner } from '@/lib/types';
 import type { WorkflowCardProps } from '../_lib';
 import { WorkflowCard } from './WorkflowCard';
 
@@ -27,13 +26,7 @@ const statusConfig: Record<string, { color: 'default' | 'info' | 'success' | 'wa
 
 const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, activeColor }) => {
     const [contracts, setContracts] = useState<Contract[]>([]);
-    const [templates, setTemplates] = useState<ContractTemplate[]>([]);
     const [loading, setLoading] = useState(false);
-
-    // Compose dialog state
-    const [composeOpen, setComposeOpen] = useState(false);
-    const [composeTitle, setComposeTitle] = useState('');
-    const [composing, setComposing] = useState(false);
 
     // Send dialog state
     const [sendOpen, setSendOpen] = useState(false);
@@ -62,49 +55,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
         }
     }, [inquiry?.id]);
 
-    const loadTemplates = useCallback(async () => {
-        try {
-            const data = await api.contractTemplates.getAll();
-            setTemplates(data || []);
-        } catch (err) {
-            console.error('Error fetching templates:', err);
-        }
-    }, []);
-
-    useEffect(() => { loadContracts(); loadTemplates(); }, [loadContracts, loadTemplates]);
-
-    const psaTemplate = templates.find((t) => /professional\s+services\s+agreement|\bpsa\b/i.test(t.name));
-
-    /* ── Compose from template ──────────────────────────────────────── */
-
-    const handleOpenCompose = () => {
-        if (!psaTemplate) {
-            setSnack({ open: true, message: 'PSA template not found. Create "Professional Services Agreement" first.', severity: 'error' });
-            return;
-        }
-        setComposeTitle('');
-        setComposeOpen(true);
-    };
-
-    const handleCompose = async () => {
-        if (!psaTemplate) return;
-        try {
-            setComposing(true);
-            const composed = await contractsService.compose(inquiry.id, {
-                template_id: psaTemplate.id,
-                title: composeTitle || undefined,
-            });
-            setComposeOpen(false);
-            await loadContracts();
-            if (onRefresh) onRefresh();
-            setSnack({ open: true, message: `Contract "${composed.title}" created from template`, severity: 'success' });
-        } catch (err) {
-            console.error('Error composing contract:', err);
-            setSnack({ open: true, message: 'Failed to compose contract from template', severity: 'error' });
-        } finally {
-            setComposing(false);
-        }
-    };
+    useEffect(() => { loadContracts(); }, [loadContracts]);
 
     /* ── Send contract ──────────────────────────────────────────────── */
 
@@ -205,16 +156,6 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                         <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: '#f1f5f9' }}>Contracts</Typography>
                         {contracts.length > 0 && <Chip label={contracts.length} size="small" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }} />}
                     </Box>
-                    <Stack direction="row" spacing={0.5}>
-                        <Button
-                            size="small"
-                            startIcon={<ContentCopy />}
-                            onClick={handleOpenCompose}
-                            disabled={loading || !psaTemplate}
-                            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, fontSize: '0.72rem' }}>
-                            Create PSA
-                        </Button>
-                    </Stack>
                 </Box>
 
                 {/* Contract list */}
@@ -225,7 +166,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                         </Box>
                         <Typography sx={{ color: '#94a3b8', fontSize: '0.85rem', fontWeight: 500 }}>No contracts yet</Typography>
                         <Typography sx={{ color: '#475569', fontSize: '0.72rem', mt: 0.5 }}>
-                            {psaTemplate ? 'Create a Professional Services Agreement from your template' : 'Set up a Professional Services Agreement template in Settings'}
+                            A Professional Services Agreement will be created automatically when the inquiry is qualified
                         </Typography>
                     </Box>
                 ) : (
@@ -304,36 +245,6 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                     </List>
                 )}
             </CardContent>
-
-            {/* ── Compose from Template Dialog ────────────────────────────── */}
-            <Dialog open={composeOpen} onClose={() => setComposeOpen(false)} maxWidth="sm" fullWidth
-                PaperProps={{ sx: { bgcolor: '#1e293b', borderRadius: 3, border: '1px solid rgba(148,163,184,0.12)' } }}>
-                <DialogTitle sx={{ color: '#f1f5f9', fontWeight: 700, pb: 0 }}>Create Professional Services Agreement</DialogTitle>
-                <DialogContent sx={{ pt: 2 }}>
-                    <Stack spacing={2.5} sx={{ mt: 1 }}>
-                        {psaTemplate ? (
-                            <Alert severity="info" sx={{ borderRadius: 2 }}>
-                                Using template: <strong>{psaTemplate.name}</strong>
-                            </Alert>
-                        ) : (
-                            <Alert severity="error" sx={{ borderRadius: 2 }}>
-                                PSA template not found. Create a "Professional Services Agreement" template in Settings first.
-                            </Alert>
-                        )}
-                        <TextField size="small" label="Contract Title (optional)" value={composeTitle}
-                            onChange={(e) => setComposeTitle(e.target.value)} placeholder="Leave blank to use PSA template name"
-                            InputProps={{ sx: { color: '#e2e8f0' } }} InputLabelProps={{ sx: { color: '#94a3b8' } }} />
-                    </Stack>
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={() => setComposeOpen(false)} sx={{ color: '#94a3b8' }}>Cancel</Button>
-                    <Button variant="contained" disabled={!psaTemplate || composing} onClick={handleCompose}
-                        startIcon={composing ? <CircularProgress size={16} /> : <ContentCopy />}
-                        sx={{ borderRadius: 2, textTransform: 'none' }}>
-                        {composing ? 'Creating...' : 'Create Contract'}
-                    </Button>
-                </DialogActions>
-            </Dialog>
 
             {/* ── Preview & Signing Dialog ─────────────────────────────── */}
             <Dialog

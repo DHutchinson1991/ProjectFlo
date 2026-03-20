@@ -4,12 +4,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     Box, Typography, Card, CardContent, Button, Stack, TextField, Dialog,
     IconButton, FormControl, InputLabel, Select, MenuItem,
-    Chip, Collapse, InputAdornment, Tooltip,
+    Chip, Collapse, InputAdornment, Tooltip, Popover, CircularProgress,
 } from '@mui/material';
 import {
     AttachMoney, Add, Edit, Save, Send as SendIcon, Delete,
     Star, StarBorder, ExpandLess, ExpandMore,
-    ContentCopy as ContentCopyIcon, Close, ReceiptLong, Sync,
+    ContentCopy as ContentCopyIcon, Close, ReceiptLong, Sync, EditNote,
 } from '@mui/icons-material';
 import { estimatesService, api } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
@@ -35,6 +35,8 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
 
     // Payment schedule state
     const [defaultTemplate, setDefaultTemplate] = useState<PaymentScheduleTemplate | null>(null);
+    const [allTemplates, setAllTemplates] = useState<PaymentScheduleTemplate[]>([]);
+    const [dialTemplateId, setDialTemplateId] = useState<number | null>(null);
     const [milestones, setMilestones] = useState<EstimatePaymentMilestone[]>([]);
 
     // Financial State
@@ -50,13 +52,19 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
         }
     }, [currentBrand?.currency]);
 
-    // Load default payment schedule template for the brand
+    // Load payment schedule templates — prefer inquiry's chosen template, fall back to brand default
     useEffect(() => {
         if (!currentBrand?.id) return;
-        api.paymentSchedules.getDefault(currentBrand.id)
-            .then(setDefaultTemplate)
-            .catch(() => { /* no default template set */ });
-    }, [currentBrand?.id]);
+        api.paymentSchedules.getAll(currentBrand.id)
+            .then((templates) => {
+                setAllTemplates(templates);
+                const prefId = inquiry.preferred_payment_schedule_template_id;
+                const preferred = prefId ? templates.find((t) => t.id === prefId) : null;
+                const def = preferred ?? templates.find((t) => t.is_default) ?? templates[0] ?? null;
+                setDefaultTemplate(def);
+            })
+            .catch(() => { /* no templates */ });
+    }, [currentBrand?.id, inquiry.preferred_payment_schedule_template_id]);
 
     const loadMilestones = async (estimateId: number) => {
         try {
@@ -71,6 +79,8 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
     const [expandedId, setExpandedId] = useState<number | null>(null);
     const [snapshots, setSnapshots] = useState<Record<number, EstimateSnapshot[]>>({});
     const [loadingSnapshots, setLoadingSnapshots] = useState<Record<number, boolean>>({});
+    const [versionAnchor, setVersionAnchor] = useState<HTMLElement | null>(null);
+    const [versionEstimateId, setVersionEstimateId] = useState<number | null>(null);
     const autoExpandIdRef = useRef<number | null>(null);
 
     // Auto-expand effect
@@ -159,7 +169,7 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
 
         // Brand currency takes priority; fall back to snapshot currency, then USD
         setCurrencySymbol(getCurrencySymbol(currentBrand?.currency || snapshot?.currency || 'USD'));
-        pkgTitle = snapshot?.package_name || '';
+        pkgTitle = snapshot?.package_name || inquiry.selected_package?.name || '';
 
         // 1. Fetch live schedule data (films, operators, task preview) in parallel
         //    Films come from the actual schedule — NOT the stale package snapshot —
@@ -423,6 +433,11 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
         setPaymentMethod(currentBrand?.default_payment_method || 'Bank Transfer');
         setInstallments(1);
         setMilestones([]);
+        setDialTemplateId(
+            inquiry.preferred_payment_schedule_template_id
+            ?? defaultTemplate?.id
+            ?? null
+        );
         setEditingEstimate(pkgTitle ? { title: pkgTitle } : null);
         setDialogOpen(true);
     };
@@ -464,6 +479,12 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
         setPaymentMethod(estimate.payment_method || 'Bank Transfer');
         setInstallments(estimate.installments || 1);
         setMilestones([]);
+        setDialTemplateId(
+            estimate.schedule_template_id
+            ?? inquiry.preferred_payment_schedule_template_id
+            ?? defaultTemplate?.id
+            ?? null
+        );
         setDialogOpen(true);
         // Load existing milestones for this estimate
         loadMilestones(estimate.id);
@@ -512,11 +533,11 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
                 savedId = created?.id;
             }
 
-            // Auto-apply default payment schedule template to new estimates
-            if (isNew && savedId && defaultTemplate && inquiry.event_date) {
+            // Apply payment schedule template whenever one is selected (new or existing estimate)
+            if (savedId && dialTemplateId && inquiry.event_date) {
                 try {
                     const ms = await api.paymentSchedules.applyToEstimate(savedId, {
-                        template_id: defaultTemplate.id,
+                        template_id: dialTemplateId,
                         booking_date: new Date().toISOString().split('T')[0],
                         event_date: typeof inquiry.event_date === 'string'
                             ? inquiry.event_date.split('T')[0]
@@ -639,6 +660,21 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
         }
     };
 
+    const handleRevise = async (estimateId: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            await api.estimates.revise(inquiry.id, estimateId);
+            const updatedEstimates = await estimatesService.getAllByInquiry(inquiry.id);
+            setEstimates(updatedEstimates || []);
+            const updatedSnapshots = await api.estimates.getSnapshots(inquiry.id, estimateId);
+            setSnapshots(prev => ({ ...prev, [estimateId]: updatedSnapshots }));
+            if (onRefresh) await onRefresh();
+        } catch (err) {
+            console.error('Error revising estimate:', err);
+            alert(`Failed to revise estimate: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+    };
+
     const handleSendEstimate = async (estimateId: number, e: React.MouseEvent) => {
         e.stopPropagation();
         try {
@@ -664,6 +700,18 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
                 .finally(() => setLoadingSnapshots(prev => ({ ...prev, [id]: false })));
         }
     };
+
+    // Also load snapshots when auto-expand sets expandedId (bypasses toggleExpand)
+    useEffect(() => {
+        if (expandedId && !snapshots[expandedId]) {
+            setLoadingSnapshots(prev => ({ ...prev, [expandedId]: true }));
+            api.estimates.getSnapshots(inquiry.id, expandedId)
+                .then(data => setSnapshots(prev => ({ ...prev, [expandedId]: data })))
+                .catch(() => setSnapshots(prev => ({ ...prev, [expandedId]: [] })))
+                .finally(() => setLoadingSnapshots(prev => ({ ...prev, [expandedId]: false })));
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [expandedId]);
 
     // Calculation helpers
     const calculateSubtotal = () => lineItems.reduce((acc, item) => acc + (item.total || 0), 0);
@@ -736,7 +784,23 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
                                                         {estimate.estimate_number}
                                                     </Typography>
                                                     {(estimate.version ?? 1) > 1 && (
-                                                        <Chip label={`v${estimate.version}`} size="small" sx={{ height: 16, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(139,92,246,0.12)', color: '#a78bfa', border: 'none' }} />
+                                                        <Chip
+                                                            label={`v${estimate.version}`}
+                                                            size="small"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setVersionEstimateId(estimate.id);
+                                                                setVersionAnchor(e.currentTarget);
+                                                                if (!snapshots[estimate.id]) {
+                                                                    setLoadingSnapshots(prev => ({ ...prev, [estimate.id]: true }));
+                                                                    api.estimates.getSnapshots(inquiry.id, estimate.id)
+                                                                        .then(data => setSnapshots(prev => ({ ...prev, [estimate.id]: data })))
+                                                                        .catch(() => setSnapshots(prev => ({ ...prev, [estimate.id]: [] })))
+                                                                        .finally(() => setLoadingSnapshots(prev => ({ ...prev, [estimate.id]: false })));
+                                                                }
+                                                            }}
+                                                            sx={{ height: 16, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(139,92,246,0.12)', color: '#a78bfa', border: 'none', cursor: 'pointer', '&:hover': { bgcolor: 'rgba(139,92,246,0.22)' } }}
+                                                        />
                                                     )}
                                                     <Typography sx={{ fontSize: '0.62rem', color: '#334155' }}>
                                                         {new Date(estimate.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -778,6 +842,16 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
                                                             {estimate.is_stale && (
                                                                 <Box sx={{ position: 'absolute', top: 2, right: 2, width: 8, height: 8, backgroundColor: '#f59e0b', borderRadius: '50%', border: '1px solid white' }} />
                                                             )}
+                                                        </Box>
+                                                    </Tooltip>
+                                                )}
+                                                {estimate.status === 'Sent' && estimate.is_stale && (
+                                                    <Tooltip title="⚠ Crew or package changed since this estimate was sent. Click to revise.">
+                                                        <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+                                                            <IconButton size="small" onClick={(e) => handleRevise(estimate.id, e)} sx={{ p: 0.5, color: '#f59e0b', '&:hover': { color: '#f97316' } }}>
+                                                                <EditNote sx={{ fontSize: 15 }} />
+                                                            </IconButton>
+                                                            <Box sx={{ position: 'absolute', top: 2, right: 2, width: 8, height: 8, backgroundColor: '#f59e0b', borderRadius: '50%', border: '1px solid white' }} />
                                                         </Box>
                                                     </Tooltip>
                                                 )}
@@ -912,36 +986,6 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
                                                     <Typography sx={{ fontSize: '0.75rem', color: '#64748b' }}>{estimate.notes}</Typography>
                                                 </Box>
                                             )}
-                                            {/* Version history */}
-                                            {(loadingSnapshots[estimate.id] || (snapshots[estimate.id]?.length ?? 0) > 0) && (
-                                                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                                                    <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', mb: 1 }}>Version History</Typography>
-                                                    {loadingSnapshots[estimate.id] ? (
-                                                        <Typography sx={{ fontSize: '0.72rem', color: '#334155' }}>Loading…</Typography>
-                                                    ) : (
-                                                        <Stack spacing={0.75}>
-                                                            {(snapshots[estimate.id] || []).map(snap => (
-                                                                <Box key={snap.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, px: 1, py: 0.75, borderRadius: 1, bgcolor: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)' }}>
-                                                                    <Box sx={{ flex: 1 }}>
-                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.25 }}>
-                                                                            <Chip label={`v${snap.version_number}`} size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(139,92,246,0.12)', color: '#a78bfa', border: 'none' }} />
-                                                                            {snap.label && <Typography sx={{ fontSize: '0.68rem', color: '#475569' }}>{snap.label}</Typography>}
-                                                                        </Box>
-                                                                        <Typography sx={{ fontSize: '0.65rem', color: '#334155' }}>
-                                                                            {new Date(snap.snapshotted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                                                            {' · '}
-                                                                            {snap.items_snapshot.length} line item{snap.items_snapshot.length !== 1 ? 's' : ''}
-                                                                        </Typography>
-                                                                    </Box>
-                                                                    <Typography sx={{ fontWeight: 700, fontSize: '0.78rem', fontFamily: 'monospace', color: '#94a3b8' }}>
-                                                                        {currencySymbol}{Number(snap.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                                    </Typography>
-                                                                </Box>
-                                                            ))}
-                                                        </Stack>
-                                                    )}
-                                                </Box>
-                                            )}
                                         </Box>
                                     </Collapse>
                                 </Box>
@@ -951,6 +995,67 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
                     )}
                 </CardContent>
             </WorkflowCard>
+
+            {/* Version History Popover */}
+            <Popover
+                open={Boolean(versionAnchor)}
+                anchorEl={versionAnchor}
+                onClose={() => { setVersionAnchor(null); setVersionEstimateId(null); }}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                PaperProps={{ sx: { bgcolor: '#111827', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 2, p: 1.5, minWidth: 260, maxWidth: 340, maxHeight: 320 } }}
+            >
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', mb: 1 }}>
+                    Version History
+                </Typography>
+                {versionEstimateId && loadingSnapshots[versionEstimateId] ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                        <CircularProgress size={18} sx={{ color: '#a78bfa' }} />
+                    </Box>
+                ) : versionEstimateId && (snapshots[versionEstimateId]?.length ?? 0) > 0 ? (
+                    <Stack spacing={0.5}>
+                        {/* Current version */}
+                        {(() => {
+                            const est = estimates.find(e => e.id === versionEstimateId);
+                            if (!est) return null;
+                            const currentTax = computeTaxBreakdown(Number(est.total_amount || 0), Number(est.tax_rate || 0));
+                            return (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.5, borderRadius: 1, bgcolor: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)' }}>
+                                    <Chip label={`v${est.version}`} size="small" sx={{ height: 16, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(139,92,246,0.2)', color: '#a78bfa', border: 'none' }} />
+                                    <Box sx={{ flex: 1 }}>
+                                        <Typography sx={{ fontSize: '0.68rem', color: '#e2e8f0', fontWeight: 600 }}>Current</Typography>
+                                    </Box>
+                                    <Typography sx={{ fontWeight: 700, fontSize: '0.72rem', fontFamily: 'monospace', color: '#a78bfa' }}>
+                                        {currencySymbol}{currentTax.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </Typography>
+                                </Box>
+                            );
+                        })()}
+                        {/* Previous versions */}
+                        {(snapshots[versionEstimateId] || []).map(snap => (
+                            <Box key={snap.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.5, borderRadius: 1, bgcolor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' } }}>
+                                <Chip label={`v${snap.version_number}`} size="small" sx={{ height: 16, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(139,92,246,0.08)', color: '#7c3aed', border: 'none' }} />
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography sx={{ fontSize: '0.62rem', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {snap.label || 'Snapshot'}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: '0.55rem', color: '#334155' }}>
+                                        {new Date(snap.snapshotted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        {' · '}{snap.items_snapshot.length} item{snap.items_snapshot.length !== 1 ? 's' : ''}
+                                    </Typography>
+                                </Box>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.72rem', fontFamily: 'monospace', color: '#64748b' }}>
+                                    {currencySymbol}{Number(snap.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </Typography>
+                            </Box>
+                        ))}
+                    </Stack>
+                ) : (
+                    <Typography sx={{ fontSize: '0.72rem', color: '#334155', py: 1 }}>
+                        No previous versions saved
+                    </Typography>
+                )}
+            </Popover>
 
             {/* Estimate Builder Dialog */}
             <Dialog
@@ -996,7 +1101,23 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
                                     <Chip label={editingEstimate.estimate_number} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(148,163,184,0.08)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.15)' }} />
                                 )}
                                 {editingEstimate?.id && (editingEstimate?.version ?? 1) > 1 && (
-                                    <Chip label={`v${editingEstimate.version}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: 'rgba(139,92,246,0.12)', color: '#a78bfa', border: 'none' }} />
+                                    <Chip
+                                        label={`v${editingEstimate.version}`}
+                                        size="small"
+                                        onClick={(e) => {
+                                            const estId = editingEstimate.id!;
+                                            setVersionEstimateId(estId);
+                                            setVersionAnchor(e.currentTarget);
+                                            if (!snapshots[estId]) {
+                                                setLoadingSnapshots(prev => ({ ...prev, [estId]: true }));
+                                                api.estimates.getSnapshots(inquiry.id, estId)
+                                                    .then(data => setSnapshots(prev => ({ ...prev, [estId]: data })))
+                                                    .catch(() => setSnapshots(prev => ({ ...prev, [estId]: [] })))
+                                                    .finally(() => setLoadingSnapshots(prev => ({ ...prev, [estId]: false })));
+                                            }
+                                        }}
+                                        sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: 'rgba(139,92,246,0.12)', color: '#a78bfa', border: 'none', cursor: 'pointer', '&:hover': { bgcolor: 'rgba(139,92,246,0.22)' } }}
+                                    />
                                 )}
                                 {editingEstimate?.created_at && (
                                     <Typography sx={{ fontSize: '0.65rem', color: '#334155' }}>
@@ -1016,6 +1137,55 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
                                     border: 'none',
                                 }}
                             />
+                        )}
+                        {editingEstimate?.id && editingEstimate?.status === 'Draft' && (
+                            <Tooltip title={editingEstimate.is_stale ? "⚠ Package updated — costs may be stale. Click to sync." : "Refresh costs from current package"}>
+                                <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={async (e) => {
+                                            e.stopPropagation();
+                                            try {
+                                                const refreshed = await api.estimates.refresh(inquiry.id, editingEstimate.id!);
+                                                // Update the editing estimate state with refreshed data
+                                                setEditingEstimate(prev => ({
+                                                    ...prev,
+                                                    version: refreshed.version,
+                                                    title: refreshed.title || prev?.title,
+                                                    total_amount: refreshed.total_amount,
+                                                    is_stale: false,
+                                                }));
+                                                // Update line items in the editor
+                                                const items = (refreshed.items || []).map((item: any) => ({
+                                                    ...item,
+                                                    tempId: `item-${item.id || Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                                    category: item.category || '',
+                                                    unit: item.unit || 'Qty',
+                                                    quantity: Number(item.quantity),
+                                                    unit_price: Number(item.unit_price),
+                                                    total: Number(item.quantity) * Number(item.unit_price),
+                                                }));
+                                                setLineItems(items.length > 0 ? items : [{ tempId: `item-${Date.now()}`, description: '', quantity: 1, unit: 'Qty', unit_price: 0, total: 0 }]);
+                                                // Refresh the estimates list + snapshots
+                                                const updatedEstimates = await estimatesService.getAllByInquiry(inquiry.id);
+                                                setEstimates(updatedEstimates || []);
+                                                const updatedSnapshots = await api.estimates.getSnapshots(inquiry.id, editingEstimate.id!);
+                                                setSnapshots(prev => ({ ...prev, [editingEstimate.id!]: updatedSnapshots }));
+                                                if (onRefresh) await onRefresh();
+                                            } catch (err) {
+                                                console.error('Error refreshing costs:', err);
+                                                alert(`Failed to refresh costs: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                                            }
+                                        }}
+                                        sx={{ p: 0.5, color: editingEstimate.is_stale ? '#f59e0b' : '#475569', '&:hover': { color: editingEstimate.is_stale ? '#f97316' : '#06b6d4' } }}
+                                    >
+                                        <Sync sx={{ fontSize: 17 }} />
+                                    </IconButton>
+                                    {editingEstimate.is_stale && (
+                                        <Box sx={{ position: 'absolute', top: 2, right: 2, width: 8, height: 8, backgroundColor: '#f59e0b', borderRadius: '50%', border: '1px solid white' }} />
+                                    )}
+                                </Box>
+                            </Tooltip>
                         )}
                     </Box>
                     <IconButton onClick={() => setDialogOpen(false)} size="small" sx={{ color: '#475569', '&:hover': { color: '#94a3b8', bgcolor: 'rgba(255,255,255,0.05)' } }}>
@@ -1162,88 +1332,124 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
 
                         {/* Payment Schedule */}
                         <Box sx={{ p: 3, flex: 1 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Payment Schedule</Typography>
-                                {defaultTemplate && (
-                                    <Chip label={defaultTemplate.name} size="small" sx={{ height: 18, fontSize: '0.6rem', bgcolor: 'rgba(16,185,129,0.08)', color: '#10b981', border: 'none' }} />
-                                )}
-                            </Box>
-                            {milestones.length > 0 ? (
-                                /* Saved milestones (existing estimate) */
-                                <Stack spacing={0.75}>
-                                    {milestones.map((m, i) => {
-                                        const pct = totalAmount > 0 ? Math.round((Number(m.amount) / totalAmount) * 100) : 0;
-                                        return (
-                                            <Box key={i} sx={{ py: 0.75, px: 1.25, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(148,163,184,0.06)' }}>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                                                    <Typography sx={{ fontSize: '0.78rem', color: '#cbd5e1', fontWeight: 600 }}>{m.label}</Typography>
-                                                    <Chip label={m.status} size="small" sx={{
-                                                        height: 16, fontSize: '0.55rem',
-                                                        bgcolor: m.status === 'PAID' ? 'rgba(16,185,129,0.15)' : m.status === 'OVERDUE' ? 'rgba(239,68,68,0.15)' : 'rgba(148,163,184,0.08)',
-                                                        color: m.status === 'PAID' ? '#10b981' : m.status === 'OVERDUE' ? '#ef4444' : '#64748b',
-                                                        border: 'none',
-                                                    }} />
-                                                </Box>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                                                    <Typography sx={{ fontSize: '0.68rem', color: '#475569' }}>
-                                                        {m.due_date ? new Date(m.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'}
+                            <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.8px', mb: 1.5 }}>Payment Schedule</Typography>
+                            {(() => {
+                                const tpl = allTemplates.find((t) => t.id === dialTemplateId);
+                                return tpl ? (
+                                    <Typography sx={{ fontSize: '0.78rem', color: '#94a3b8', mb: 1.5 }}>
+                                        {tpl.name}{tpl.is_default ? ' (default)' : ''}
+                                    </Typography>
+                                ) : (
+                                    <Typography sx={{ fontSize: '0.75rem', color: '#334155', fontStyle: 'italic', mb: 1.5 }}>
+                                        No schedule set — change in Payment Terms.
+                                    </Typography>
+                                );
+                            })()}
+                            {(() => {
+                                const previewTemplate = allTemplates.find((t) => t.id === dialTemplateId) ?? null;
+
+                                // ── Build a unified rows array from whichever source is active ──
+                                type PayRow = { label: string; amount: number; pct: number; trigger: string; status?: string; color: string };
+                                const MILESTONE_COLORS = ['#a78bfa', '#60a5fa', '#34d399', '#f59e0b', '#f87171', '#818cf8', '#2dd4bf'];
+
+                                let rows: PayRow[] = [];
+
+                                if (milestones.length > 0) {
+                                    rows = milestones.map((m, i) => {
+                                        const amt = Number(m.amount);
+                                        const pct = totalAmount > 0 ? (amt / totalAmount) * 100 : 0;
+                                        const statusColor = m.status === 'PAID' ? '#10b981' : m.status === 'OVERDUE' ? '#ef4444' : MILESTONE_COLORS[i % MILESTONE_COLORS.length];
+                                        return {
+                                            label: m.label,
+                                            amount: amt,
+                                            pct,
+                                            trigger: m.due_date
+                                                ? new Date(m.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                : 'TBD',
+                                            status: m.status,
+                                            color: statusColor,
+                                        };
+                                    });
+                                } else if (previewTemplate?.rules?.length) {
+                                    const sorted = previewTemplate.rules.slice().sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+                                    rows = sorted.map((rule, i) => {
+                                        const amt = rule.amount_type === 'PERCENT'
+                                            ? (Number(rule.amount_value) / 100) * totalAmount
+                                            : Number(rule.amount_value);
+                                        const pct = rule.amount_type === 'PERCENT'
+                                            ? Number(rule.amount_value)
+                                            : (totalAmount > 0 ? (amt / totalAmount) * 100 : 0);
+                                        const trigger =
+                                            rule.trigger_type === 'AFTER_BOOKING' ? `${rule.trigger_days ?? 0}d after booking` :
+                                            rule.trigger_type === 'BEFORE_EVENT'  ? `${rule.trigger_days ?? 0}d before event`  :
+                                            rule.trigger_type === 'AFTER_EVENT'   ? `${rule.trigger_days ?? 0}d after event`   :
+                                            'On date';
+                                        return { label: rule.label, amount: amt, pct, trigger, color: MILESTONE_COLORS[i % MILESTONE_COLORS.length] };
+                                    });
+                                }
+
+                                if (rows.length === 0) {
+                                    return (
+                                        <Typography sx={{ fontSize: '0.75rem', color: '#334155', fontStyle: 'italic' }}>
+                                            {dialTemplateId ? 'No rules defined for this template.' : 'No schedule selected.'}
+                                        </Typography>
+                                    );
+                                }
+
+                                const barTotal = rows.reduce((s, r) => s + r.amount, 0) || 1;
+
+                                return (
+                                    <>
+                                        {/* ── Segmented split bar ── */}
+                                        <Box sx={{ display: 'flex', gap: 0.5, mb: 1, height: 4, borderRadius: 2, overflow: 'hidden', bgcolor: 'rgba(255,255,255,0.04)' }}>
+                                            {rows.map((r, i) => (
+                                                <Tooltip key={i} title={`${r.label}: ${currencySymbol}${r.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${Math.round(r.pct)}%)`} arrow placement="top">
+                                                    <Box sx={{ flex: r.amount / barTotal, bgcolor: r.color, borderRadius: 1, minWidth: 4, transition: 'flex 0.3s' }} />
+                                                </Tooltip>
+                                            ))}
+                                        </Box>
+
+                                        {/* ── Compact label chips ── */}
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, rowGap: 0.5, mb: 1.5 }}>
+                                            {rows.map((r, i) => (
+                                                <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: r.color, flexShrink: 0 }} />
+                                                    <Typography sx={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                        {r.label}
                                                     </Typography>
-                                                    <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, fontFamily: 'monospace', color: '#f59e0b' }}>
-                                                        {currencySymbol}{Number(m.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                        <Typography component="span" sx={{ fontSize: '0.62rem', color: '#475569', ml: 0.5 }}>({pct}%)</Typography>
+                                                    <Typography sx={{ fontSize: '0.62rem', color: '#94a3b8', fontFamily: 'monospace', fontWeight: 700 }}>
+                                                        {currencySymbol}{r.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                                    </Typography>
+                                                    <Typography sx={{ fontSize: '0.58rem', color: '#475569' }}>({Math.round(r.pct)}%)</Typography>
+                                                </Box>
+                                            ))}
+                                        </Box>
+
+                                        {/* ── Individual milestone rows ── */}
+                                        <Stack spacing={0.5}>
+                                            {rows.map((r, i) => (
+                                                <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, px: 0.75, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.02)', borderLeft: `3px solid ${r.color}` }}>
+                                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                        <Typography sx={{ fontSize: '0.73rem', color: '#cbd5e1', fontWeight: 600, lineHeight: 1.2 }}>{r.label}</Typography>
+                                                        <Typography sx={{ fontSize: '0.6rem', color: '#475569', mt: 0.1 }}>{r.trigger}</Typography>
+                                                    </Box>
+                                                    {r.status && (
+                                                        <Chip label={r.status} size="small" sx={{
+                                                            height: 15, fontSize: '0.52rem',
+                                                            bgcolor: r.status === 'PAID' ? 'rgba(16,185,129,0.15)' : r.status === 'OVERDUE' ? 'rgba(239,68,68,0.15)' : 'rgba(148,163,184,0.08)',
+                                                            color: r.status === 'PAID' ? '#10b981' : r.status === 'OVERDUE' ? '#ef4444' : '#64748b',
+                                                            border: 'none',
+                                                        }} />
+                                                    )}
+                                                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', color: r.color, minWidth: 56, textAlign: 'right' }}>
+                                                        {currencySymbol}{r.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </Typography>
                                                 </Box>
-                                                {/* Progress bar */}
-                                                <Box sx={{ mt: 0.75, height: 3, borderRadius: 2, bgcolor: 'rgba(148,163,184,0.08)', overflow: 'hidden' }}>
-                                                    <Box sx={{ height: '100%', width: `${pct}%`, borderRadius: 2, bgcolor: m.status === 'PAID' ? '#10b981' : '#f59e0b', transition: 'width 0.3s' }} />
-                                                </Box>
-                                            </Box>
-                                        );
-                                    })}
-                                </Stack>
-                            ) : defaultTemplate?.rules?.length ? (
-                                /* Preview from template rules (new estimate, before save) */
-                                <Stack spacing={0.75}>
-                                    {defaultTemplate.rules
-                                        .slice()
-                                        .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-                                        .map((rule, i) => {
-                                            const amount = rule.amount_type === 'PERCENT'
-                                                ? (Number(rule.amount_value) / 100) * totalAmount
-                                                : Number(rule.amount_value);
-                                            const pct = rule.amount_type === 'PERCENT'
-                                                ? Math.round(Number(rule.amount_value))
-                                                : (totalAmount > 0 ? Math.round((amount / totalAmount) * 100) : 0);
-                                            const triggerLabel =
-                                                rule.trigger_type === 'AFTER_BOOKING' ? `${rule.trigger_days ?? 0}d after booking` :
-                                                rule.trigger_type === 'BEFORE_EVENT' ? `${rule.trigger_days ?? 0}d before event` :
-                                                rule.trigger_type === 'AFTER_EVENT' ? `${rule.trigger_days ?? 0}d after event` :
-                                                'On date';
-                                            return (
-                                                <Box key={i} sx={{ py: 0.75, px: 1.25, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(148,163,184,0.06)' }}>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                                                        <Typography sx={{ fontSize: '0.78rem', color: '#cbd5e1', fontWeight: 600 }}>{rule.label}</Typography>
-                                                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, fontFamily: 'monospace', color: '#f59e0b' }}>
-                                                            {currencySymbol}{amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                        </Typography>
-                                                    </Box>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        <Typography sx={{ fontSize: '0.62rem', color: '#475569' }}>{triggerLabel}</Typography>
-                                                        <Typography sx={{ fontSize: '0.62rem', color: '#475569' }}>{pct}%</Typography>
-                                                    </Box>
-                                                    {/* Progress bar */}
-                                                    <Box sx={{ mt: 0.5, height: 3, borderRadius: 2, bgcolor: 'rgba(148,163,184,0.08)', overflow: 'hidden' }}>
-                                                        <Box sx={{ height: '100%', width: `${pct}%`, borderRadius: 2, bgcolor: '#f59e0b40' }} />
-                                                    </Box>
-                                                </Box>
-                                            );
-                                        })}
-                                </Stack>
-                            ) : (
-                                <Typography sx={{ fontSize: '0.75rem', color: '#334155', fontStyle: 'italic' }}>
-                                    No schedule configured — add one in Settings
-                                </Typography>
-                            )}
+                                            ))}
+                                        </Stack>
+                                    </>
+                                );
+                            })()}
                         </Box>
                     </Box>
                 </Box>

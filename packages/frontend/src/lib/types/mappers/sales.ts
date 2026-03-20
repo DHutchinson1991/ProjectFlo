@@ -28,9 +28,6 @@ import { OutputData } from "@editorjs/editorjs";
 
 // Inquiry mappers
 export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
-    console.log('🔍 Mapper Debug - mapInquiryResponse called with:', apiResponse);
-    console.log('🔍 Mapper Debug - apiResponse.contact:', apiResponse.contact);
-
     return {
         id: apiResponse.id,
         source: (apiResponse.source as InquirySource) || InquirySource.OTHER,
@@ -76,6 +73,7 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
                   currency: apiResponse.selected_package.currency,
               }
             : null,
+        preferred_payment_schedule_template_id: apiResponse.preferred_payment_schedule_template_id ?? null,
         primary_estimate_total: apiResponse.primary_estimate_total ?? null,
         pipeline_stage: apiResponse.pipeline_stage ?? null,
         package_contents_snapshot: apiResponse.package_contents_snapshot ?? null,

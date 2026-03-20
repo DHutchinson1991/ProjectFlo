@@ -9,6 +9,7 @@ export interface DiscoveryQuestion {
     field_key?: string | null;
     required: boolean;
     options?: { values?: string[] } | Record<string, unknown> | null;
+    visibility?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -32,6 +33,8 @@ export interface DiscoveryQuestionnaireSubmission {
     responses: Record<string, unknown>;
     call_notes?: string | null;
     transcript?: string | null;
+    sentiment?: Record<string, unknown> | null;
+    call_duration_seconds?: number | null;
     submitted_at: string;
     created_at: string;
     updated_at: string;
@@ -44,4 +47,6 @@ export interface CreateDiscoverySubmissionPayload {
     responses: Record<string, unknown>;
     call_notes?: string;
     transcript?: string;
+    sentiment?: Record<string, unknown>;
+    call_duration_seconds?: number;
 }

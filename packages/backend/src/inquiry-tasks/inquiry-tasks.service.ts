@@ -1,15 +1,20 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateInquiryTaskDto } from './dto/inquiry-tasks.dto';
 import {
     getInquiryTaskSubtasksForName,
     type InquiryTaskSubtaskKey,
 } from './inquiry-task-subtasks.constants';
+import { ContractsService } from '../contracts/contracts.service';
 
 @Injectable()
 export class InquiryTasksService {
     private readonly logger = new Logger(InquiryTasksService.name);
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private prisma: PrismaService,
+        @Inject(forwardRef(() => ContractsService))
+        private contractsService: ContractsService,
+    ) {}
 
     async findAllForInquiry(inquiryId: number, brandId: number) {
         await this.verifyInquiryOwnership(inquiryId, brandId);
@@ -166,14 +171,9 @@ export class InquiryTasksService {
             return;
         }
 
-        const hasSubmissionData = Boolean(
-            inquiry.contact?.email &&
-            inquiry.contact?.phone_number &&
-            inquiry.wedding_date &&
-            inquiry.event_type_id,
-        );
-
-        await this.setAutoSubtaskStatus(inquiryId, 'verify_submission_data', hasSubmissionData);
+        await this.setAutoSubtaskStatus(inquiryId, 'verify_contact_details', Boolean(inquiry.contact?.email && inquiry.contact?.phone_number));
+        await this.setAutoSubtaskStatus(inquiryId, 'verify_event_date', Boolean(inquiry.wedding_date));
+        await this.setAutoSubtaskStatus(inquiryId, 'verify_event_type', Boolean(inquiry.event_type_id));
         await this.setAutoSubtaskStatus(inquiryId, 'confirm_package_selection', Boolean(inquiry.selected_package_id));
     }
 
@@ -548,8 +548,9 @@ export class InquiryTasksService {
         }
 
         const allCompleted = subtasks.every((subtask) => subtask.status === 'Completed');
+        const anyCompleted = subtasks.some((subtask) => subtask.status === 'Completed');
         const anyInProgress = subtasks.some((subtask) => subtask.status === 'In_Progress');
-        const nextStatus = allCompleted ? 'Completed' : anyInProgress ? 'In_Progress' : 'To_Do';
+        const nextStatus = allCompleted ? 'Completed' : (anyInProgress || anyCompleted) ? 'In_Progress' : 'To_Do';
 
         if (task.status !== nextStatus) {
             await this.prisma.inquiry_tasks.update({
@@ -582,8 +583,9 @@ export class InquiryTasksService {
         }
 
         const allCompleted = children.every((child) => child.status === 'Completed');
+        const anyCompleted = children.some((child) => child.status === 'Completed');
         const anyInProgress = children.some((child) => child.status === 'In_Progress');
-        const nextStatus = allCompleted ? 'Completed' : anyInProgress ? 'In_Progress' : 'To_Do';
+        const nextStatus = allCompleted ? 'Completed' : (anyInProgress || anyCompleted) ? 'In_Progress' : 'To_Do';
 
         if (parent.status === nextStatus) {
             return;
@@ -631,10 +633,41 @@ export class InquiryTasksService {
 
     private async handleSubtaskCompletionSideEffects(inquiryId: number, subtaskKey: InquiryTaskSubtaskKey) {
         if (subtaskKey === 'mark_inquiry_qualified') {
-            await this.prisma.inquiries.update({
+            const inquiry = await this.prisma.inquiries.update({
                 where: { id: inquiryId },
                 data: { status: 'Qualified' },
+                include: {
+                    contact: { select: { first_name: true, last_name: true, brand_id: true } },
+                    event_type: { select: { name: true } },
+                },
             });
+
+            // Auto-create PSA contract on qualification
+            try {
+                const brandId = inquiry.contact?.brand_id;
+                if (brandId) {
+                    const templates = await this.prisma.contract_templates.findMany({
+                        where: { brand_id: brandId },
+                    });
+                    const psaTemplate = templates.find((t) =>
+                        /professional\s+services\s+agreement|\bpsa\b/i.test(t.name),
+                    );
+                    if (psaTemplate) {
+                        const contactName = [inquiry.contact?.first_name, inquiry.contact?.last_name]
+                            .filter(Boolean)
+                            .join(' ')
+                            .trim() || 'Client';
+                        const eventType = inquiry.event_type?.name || 'Event';
+                        const title = `${contactName} ${eventType} Professional Services Agreement`;
+                        await this.contractsService.composeFromTemplate(inquiryId, brandId, {
+                            template_id: psaTemplate.id,
+                            title,
+                        });
+                    }
+                }
+            } catch (err) {
+                this.logger.warn(`Failed to auto-create PSA contract for inquiry ${inquiryId}: ${err}`);
+            }
             return;
         }
 

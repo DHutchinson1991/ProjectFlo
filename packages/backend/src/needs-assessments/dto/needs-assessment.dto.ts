@@ -199,6 +199,10 @@ export class CreateNeedsAssessmentSubmissionDto {
     @IsOptional()
     @IsInt()
     selected_package_id?: number;
+
+    @IsOptional()
+    @IsInt()
+    preferred_payment_schedule_template_id?: number;
 }
 
 export class ReviewNaSubmissionDto {

@@ -30,6 +30,14 @@ export interface NominatimResult {
         postcode?: string;
         country?: string;
         county?: string;
+        amenity?: string;
+        building?: string;
+        leisure?: string;
+        tourism?: string;
+        historic?: string;
+        shop?: string;
+        office?: string;
+        [key: string]: string | undefined;
     };
 }
 
@@ -40,6 +48,7 @@ export interface AddressSelection {
 }
 
 interface AddressParts {
+    name: string;
     street: string;
     city: string;
     county: string;
@@ -64,35 +73,50 @@ const COUNTRIES = new Set([
 ]);
 
 function extractParts(addr: NominatimResult['address']): AddressParts {
-    if (!addr) return { street: '', city: '', county: '', postcode: '', country: '' };
+    if (!addr) return { name: '', street: '', city: '', county: '', postcode: '', country: '' };
+    const name = addr.amenity || addr.building || addr.leisure || addr.tourism || addr.historic || addr.shop || addr.office || '';
     const street = [addr.house_number, addr.road].filter(Boolean).join(' ');
     const city = addr.city || addr.town || addr.village || '';
-    const county = addr.state || addr.county || '';
-    return { street, city, county, postcode: addr.postcode || '', country: addr.country || '' };
+    const county = addr.county || '';
+    const country = addr.country || '';
+    return { name, street, city, county, postcode: addr.postcode || '', country };
 }
 
 /** Best-effort parse of a comma-separated address string from the DB */
 function parseAddressString(raw: string): AddressParts {
     const segs = raw.split(',').map((s) => s.trim()).filter(Boolean);
-    const parts: AddressParts = { street: '', city: '', county: '', postcode: '', country: '' };
+    const parts: AddressParts = { name: '', street: '', city: '', county: '', postcode: '', country: '' };
     if (segs.length === 0) return parts;
 
-    // Pull out postcode & country first
+    // Pull out postcode & ALL country-like segments first
     const remaining: string[] = [];
     for (const seg of segs) {
         if (!parts.postcode && UK_POSTCODE.test(seg)) {
             parts.postcode = seg;
-        } else if (!parts.country && COUNTRIES.has(seg.toLowerCase())) {
+        } else if (COUNTRIES.has(seg.toLowerCase())) {
+            // Keep the most specific country (last one wins, e.g. "United Kingdom" over "England")
             parts.country = seg;
         } else {
             remaining.push(seg);
         }
     }
 
-    // Assign remaining segments by position
-    if (remaining.length >= 1) parts.street = remaining[0];
-    if (remaining.length >= 2) parts.city = remaining[1];
-    if (remaining.length >= 3) parts.county = remaining.slice(2).join(', ');
+    // Nominatim display_name: first segment is often a venue name, then road, city, county...
+    if (remaining.length >= 4) {
+        parts.name = remaining[0];
+        parts.street = remaining[1];
+        parts.city = remaining[2];
+        parts.county = remaining.slice(3).join(', ');
+    } else if (remaining.length === 3) {
+        parts.street = remaining[0];
+        parts.city = remaining[1];
+        parts.county = remaining[2];
+    } else if (remaining.length === 2) {
+        parts.street = remaining[0];
+        parts.city = remaining[1];
+    } else if (remaining.length === 1) {
+        parts.street = remaining[0];
+    }
 
     return parts;
 }
@@ -215,7 +239,7 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
 
     // ── Selected / DB-loaded view ──
     if (!searching) {
-        const hasStructured = parts && (parts.street || parts.city || parts.postcode);
+        const hasStructured = parts && (parts.name || parts.street || parts.city || parts.postcode);
         return (
             <Box
                 sx={{
@@ -231,6 +255,7 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
                     if (!p) return null;
                     return (
                         <Box>
+                            <AddressRow label="Name" value={p.name} />
                             <AddressRow label="Street" value={p.street} />
                             <AddressRow label="City" value={p.city} />
                             <AddressRow label="County" value={p.county} />

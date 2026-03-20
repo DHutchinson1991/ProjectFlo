@@ -53,6 +53,14 @@ export class CreateInquiryDto {
     @IsOptional()
     @IsInt()
     selected_package_id?: number;
+
+    @IsOptional()
+    @IsInt()
+    preferred_payment_schedule_template_id?: number | null;
+
+    @IsOptional()
+    @IsInt()
+    event_type_id?: number;
 }
 
 export class UpdateInquiryDto {
@@ -117,4 +125,8 @@ export class UpdateInquiryDto {
     @IsOptional()
     @IsInt()
     selected_package_id?: number | null;
+
+    @IsOptional()
+    @IsInt()
+    preferred_payment_schedule_template_id?: number | null;
 }

@@ -12,6 +12,41 @@ export interface CloneTarget {
   packageId: number;
 }
 
+/** Options that influence how subjects are cloned. */
+export interface CloneOptions {
+  /** Override guest count for group subjects with role_name "Guests". */
+  guestCount?: number;
+}
+
+/**
+ * Parse a guest-count range string (e.g. "50 – 150") into its midpoint.
+ * Returns null if the string is empty / unparseable.
+ */
+export function parseGuestCountMidpoint(range: string | null | undefined): number | null {
+  if (!range) return null;
+  const trimmed = range.trim();
+
+  // "Under 50" → 50
+  const underMatch = trimmed.match(/^under\s+(\d+)/i);
+  if (underMatch) return parseInt(underMatch[1], 10);
+
+  // "300+" → 300
+  const plusMatch = trimmed.match(/^(\d+)\+$/i);
+  if (plusMatch) return parseInt(plusMatch[1], 10);
+
+  // "50 – 150" or "50-150" or "50 - 150" → midpoint
+  const rangeMatch = trimmed.match(/(\d+)\s*[–\-]\s*(\d+)/);
+  if (rangeMatch) {
+    const lo = parseInt(rangeMatch[1], 10);
+    const hi = parseInt(rangeMatch[2], 10);
+    return Math.round((lo + hi) / 2);
+  }
+
+  // Plain number
+  const plainNum = parseInt(trimmed, 10);
+  return isNaN(plainNum) ? null : plainNum;
+}
+
 /**
  * ProjectPackageCloneService
  *
@@ -64,8 +99,9 @@ export class ProjectPackageCloneService {
     inquiryId: number,
     packageId: number,
     tx?: Prisma.TransactionClient,
+    options?: CloneOptions,
   ) {
-    return this.clonePackageToOwner({ inquiryId, packageId }, tx);
+    return this.clonePackageToOwner({ inquiryId, packageId }, tx, options);
   }
 
   /**
@@ -75,6 +111,7 @@ export class ProjectPackageCloneService {
   async clonePackageToOwner(
     target: CloneTarget,
     tx?: Prisma.TransactionClient,
+    options?: CloneOptions,
   ) {
     if (!target.projectId && !target.inquiryId) {
       throw new Error('CloneTarget must specify either projectId or inquiryId');
@@ -83,7 +120,7 @@ export class ProjectPackageCloneService {
       throw new Error('CloneTarget cannot specify both projectId and inquiryId');
     }
     const prisma = tx ?? this.prisma;
-    return this._clone(prisma, target);
+    return this._clone(prisma, target, options);
   }
 
   // ──────────────────────────────────────────────────────────────────
@@ -100,6 +137,7 @@ export class ProjectPackageCloneService {
   private async _clone(
     prisma: Prisma.TransactionClient | PrismaService,
     target: CloneTarget,
+    options?: CloneOptions,
   ) {
     const ownerLabel = target.projectId
       ? `project ${target.projectId}`
@@ -210,6 +248,7 @@ export class ProjectPackageCloneService {
     const packageSubjects = await prisma.packageEventDaySubject.findMany({
       where: { package_id: packageId },
       orderBy: [{ event_day_template_id: 'asc' }, { order_index: 'asc' }],
+      include: { role_template: { select: { is_group: true, role_name: true } } },
     });
 
     // Map: PackageEventDaySubject.id → ProjectEventDaySubject.id
@@ -223,6 +262,21 @@ export class ProjectPackageCloneService {
         ? activityMap.get(ps.package_activity_id) ?? null
         : null;
 
+      // Determine count: override Guests with guestCount from inquiry if provided
+      let subjectCount = ps.count ?? null;
+      const isGuestsRole = ps.role_template?.role_name?.toLowerCase() === 'guests'
+        || ps.name.toLowerCase() === 'guests';
+      if (isGuestsRole && options?.guestCount) {
+        subjectCount = options.guestCount;
+      }
+
+      // Initialize member_names for named groups (Bridesmaids, Groomsmen, etc.)
+      // Guests are anonymous — no member_names
+      const isNamedGroup = ps.role_template?.is_group && !isGuestsRole && subjectCount;
+      const memberNames = isNamedGroup
+        ? Array<string>(subjectCount as number).fill('')
+        : undefined;
+
       const projectSubject = await prisma.projectEventDaySubject.create({
         data: {
           ...ownerFields,
@@ -232,7 +286,8 @@ export class ProjectPackageCloneService {
           role_template_id: ps.role_template_id,
           name: ps.name,
           real_name: null, // User fills this in later
-          count: ps.count ?? null, // Preserve group headcount (e.g. Bridesmaids: 4)
+          count: subjectCount,
+          member_names: memberNames ?? undefined,
           category: ps.category,
           notes: ps.notes,
           order_index: ps.order_index,

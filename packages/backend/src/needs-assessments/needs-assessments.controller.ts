@@ -10,6 +10,7 @@ import {
     Put,
     Query,
     UseGuards,
+    Logger,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { NeedsAssessmentsService } from './needs-assessments.service';
@@ -23,6 +24,8 @@ import {
 @Controller('api/needs-assessments')
 @UseGuards(AuthGuard('jwt'))
 export class NeedsAssessmentsController {
+    private readonly logger = new Logger(NeedsAssessmentsController.name);
+
     constructor(private readonly needsAssessmentsService: NeedsAssessmentsService) {}
 
     @Get('templates')
@@ -34,6 +37,7 @@ export class NeedsAssessmentsController {
     @Get('templates/active')
     getActiveTemplate(@Headers('x-brand-context') brandId: string) {
         const brandIdNum = Number(brandId);
+        this.logger.log(`Fetching active template for brandId: ${brandIdNum || 'none'}`);
         return this.needsAssessmentsService.getActiveTemplate(Number.isNaN(brandIdNum) ? undefined : brandIdNum);
     }
 

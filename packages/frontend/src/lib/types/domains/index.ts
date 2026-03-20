@@ -49,3 +49,6 @@ export { AudioSourceType, AudioTrackType } from './audio-sources';
 
 // Discovery Questionnaire
 export type { DiscoveryQuestion, DiscoveryQuestionnaireTemplate, DiscoveryQuestionnaireSubmission, CreateDiscoverySubmissionPayload } from './discovery-questionnaire';
+
+// Portal & Proposal
+export type { PortalBrand, ProposalSection, ProposalContent, PortalEstimateItem, PortalEstimate, PublicMoment, PublicActivity, PublicSubject, PublicLocationSlot, PublicEventDay, PublicFilm } from './portal';

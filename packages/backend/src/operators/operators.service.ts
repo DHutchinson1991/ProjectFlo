@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { InquiryTasksService } from '../inquiry-tasks/inquiry-tasks.service';
 
 @Injectable()
 export class OperatorsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inquiryTasksService: InquiryTasksService,
+  ) {}
 
   // ─── Package Crew Slots ───────────────────────────────────────────
 
@@ -166,7 +170,7 @@ export class OperatorsService {
       if (!contributor) throw new NotFoundException('Crew member not found');
     }
 
-    return this.prisma.projectDayOperator.update({
+    const updated = await this.prisma.projectDayOperator.update({
       where: { id: slotId },
       data: { contributor_id: dto.contributor_id },
       include: {
@@ -179,6 +183,99 @@ export class OperatorsService {
         project_event_day: { select: { id: true, name: true, date: true } },
       },
     });
+
+    // Crew assignment affects estimate costs — mark review_estimate subtask incomplete (stale)
+    if (existing.inquiry_id) {
+      await this.inquiryTasksService.setAutoSubtaskStatus(existing.inquiry_id, 'review_estimate', false);
+    }
+
+    // Cascade contributor change to auto-generated tasks so they reflect the new assignment.
+    // Only cascade when the contributor actually changed and the slot has a role to match on.
+    const oldContributorId = existing.contributor_id;
+    const newContributorId = dto.contributor_id ?? null;
+    if (oldContributorId !== null && oldContributorId !== newContributorId && existing.job_role_id !== null) {
+      // Fetch contributor names once — used for both inquiry_tasks and project_tasks name replacement
+      const oldContributor = await this.prisma.contributors.findUnique({
+        where: { id: oldContributorId },
+        select: { contact: { select: { first_name: true, last_name: true } } },
+      });
+      const oldName = oldContributor?.contact
+        ? `${oldContributor.contact.first_name} ${oldContributor.contact.last_name}`.trim()
+        : null;
+
+      const newContributor = newContributorId
+        ? await this.prisma.contributors.findUnique({
+            where: { id: newContributorId },
+            select: { contact: { select: { first_name: true, last_name: true } } },
+          })
+        : null;
+      const newName = newContributor?.contact
+        ? `${newContributor.contact.first_name} ${newContributor.contact.last_name}`.trim()
+        : null;
+
+      // Cascade to inquiry_tasks (pre-booking) — update assignee and replace baked-in name
+      if (existing.inquiry_id) {
+        const inquiryTasksToUpdate = await this.prisma.inquiry_tasks.findMany({
+          where: {
+            inquiry_id: existing.inquiry_id,
+            assigned_to_id: oldContributorId,
+            job_role_id: existing.job_role_id,
+          },
+          select: { id: true, name: true },
+        });
+
+        await Promise.all(
+          inquiryTasksToUpdate.map((t) => {
+            const updatedName = oldName && newName
+              ? t.name.replace(oldName, newName)
+              : oldName
+              ? t.name.replace(oldName, '')
+              : t.name;
+            return this.prisma.inquiry_tasks.update({
+              where: { id: t.id },
+              data: { assigned_to_id: newContributorId, name: updatedName },
+            });
+          }),
+        );
+      }
+      // Cascade to project_tasks (post-booking)
+      if (existing.project_id) {
+
+        const tasksToUpdate = await this.prisma.project_tasks.findMany({
+          where: {
+            project_id: existing.project_id,
+            assigned_to_id: oldContributorId,
+            resolved_job_role_id: existing.job_role_id,
+          },
+          select: { id: true, name: true, trigger_context: true },
+        });
+
+        await Promise.all(
+          tasksToUpdate.map((t) => {
+            const updatedName = oldName && newName
+              ? t.name.replace(oldName, newName)
+              : oldName
+              ? t.name.replace(oldName, '')
+              : t.name;
+            const updatedContext = oldName && t.trigger_context
+              ? (newName
+                  ? t.trigger_context.replace(oldName, newName)
+                  : t.trigger_context.replace(oldName, ''))
+              : t.trigger_context;
+            return this.prisma.project_tasks.update({
+              where: { id: t.id },
+              data: {
+                assigned_to_id: newContributorId,
+                name: updatedName,
+                trigger_context: updatedContext,
+              },
+            });
+          }),
+        );
+      }
+    }
+
+    return updated;
   }
 
   /**

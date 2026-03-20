@@ -354,15 +354,6 @@ export class EstimatesService {
       };
     });
 
-    // Auto-complete 'Review Estimate' pipeline task when estimate becomes Sent
-    if (becomingSent) {
-      try {
-        await this.inquiryTasksService.autoCompleteByName(inquiryId, 'Review Estimate', undefined, true);
-      } catch (err) {
-        this.logger.error(`Failed to auto-complete 'Review Estimate' for inquiry ${inquiryId}: ${err}`);
-      }
-    }
-
     return result;
   }
 
@@ -404,13 +395,6 @@ export class EstimatesService {
       },
     });
 
-    // Auto-complete the 'Review Estimate' pipeline task when an estimate is sent
-    try {
-      await this.inquiryTasksService.autoCompleteByName(inquiryId, 'Review Estimate', undefined, true);
-    } catch (err) {
-      this.logger.error(`Failed to auto-complete 'Review Estimate' for inquiry ${inquiryId}: ${err}`);
-    }
-
     // Convert Decimal to number for the interface
     return {
       ...updatedEstimate,
@@ -441,6 +425,7 @@ export class EstimatesService {
       where: { id: inquiryId },
       select: {
         selected_package_id: true,
+        selected_package: { select: { name: true } },
         contact: { select: { brand: { select: { id: true } } } },
       },
     });
@@ -477,7 +462,88 @@ export class EstimatesService {
 
     const updated = await this.prisma.estimates.update({
       where: { id },
-      data: { total_amount: total, version: { increment: 1 } },
+      data: {
+        total_amount: total,
+        version: { increment: 1 },
+        ...(inquiry.selected_package?.name ? { title: inquiry.selected_package.name } : {}),
+      },
+      include: { items: true },
+    });
+
+    // Estimate is now in sync — mark the review_estimate subtask complete
+    await this.inquiryTasksService.setAutoSubtaskStatus(inquiryId, 'review_estimate', true);
+
+    return {
+      ...updated,
+      total_amount: Number(updated.total_amount),
+      items: updated.items.map(item => ({
+        ...item,
+        unit_price: Number(item.unit_price),
+        quantity: Number(item.quantity),
+      })),
+    };
+  }
+
+  /**
+   * Revise a Sent estimate: snapshot current state, rebuild items from live
+   * schedule data, reset status to Draft, and bump version.
+   */
+  async revise(inquiryId: number, id: number) {
+    const estimate = await this.findOne(inquiryId, id);
+    if (estimate.status !== 'Sent') {
+      throw new BadRequestException('Only Sent estimates can be revised');
+    }
+
+    // Snapshot current Sent state before revising
+    await this.snapshotEstimate(id, estimate.version ?? 1, 'Before revision');
+
+    const inquiry = await this.prisma.inquiries.findUnique({
+      where: { id: inquiryId },
+      select: {
+        selected_package_id: true,
+        selected_package: { select: { name: true } },
+        contact: { select: { brand: { select: { id: true } } } },
+      },
+    });
+    if (!inquiry?.selected_package_id || !inquiry.contact?.brand?.id) {
+      throw new BadRequestException('Inquiry has no package or brand associated');
+    }
+
+    const newItems = await this.buildAutoEstimateItems(
+      inquiryId,
+      inquiry.selected_package_id,
+      inquiry.contact.brand.id,
+    );
+
+    const total = newItems.reduce(
+      (sum, item) => sum + Math.round(item.quantity * item.unit_price * 100) / 100,
+      0,
+    );
+
+    await this.prisma.$transaction([
+      this.prisma.estimate_items.deleteMany({ where: { estimate_id: id } }),
+      ...(newItems.length > 0
+        ? [this.prisma.estimate_items.createMany({
+            data: newItems.map(item => ({
+              estimate_id: id,
+              description: item.description,
+              category: item.category ?? null,
+              quantity: item.quantity,
+              unit: item.unit,
+              unit_price: item.unit_price,
+            })),
+          })]
+        : []),
+    ]);
+
+    const updated = await this.prisma.estimates.update({
+      where: { id },
+      data: {
+        total_amount: total,
+        version: { increment: 1 },
+        status: 'Draft',
+        ...(inquiry.selected_package?.name ? { title: inquiry.selected_package.name } : {}),
+      },
       include: { items: true },
     });
 

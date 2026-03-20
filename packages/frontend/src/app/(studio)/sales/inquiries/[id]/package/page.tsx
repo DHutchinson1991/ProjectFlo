@@ -18,14 +18,23 @@ import {
     Snackbar,
     Breadcrumbs,
     Link,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from '@mui/material';
 import {
     ArrowBack,
     Videocam,
     Save,
+    SwapHoriz,
+    CheckCircle,
+    WarningAmber,
 } from '@mui/icons-material';
 import { Inquiry } from '@/lib/types';
 import { inquiriesService, api } from '@/lib/api';
+import { getPackageStats } from '@/app/(studio)/designer/packages/_listing/_lib/helpers';
+import { formatCurrency } from '@/lib/utils/formatUtils';
 import InquirySchedulePreview from '../components/InquirySchedulePreview';
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -63,6 +72,7 @@ export default function PackageReviewPage() {
         message: '',
         severity: 'success',
     });
+    const [swapDialogOpen, setSwapDialogOpen] = useState(false);
 
     // ─── Load inquiry ─────────────────────────────────────────────────
 
@@ -162,15 +172,26 @@ export default function PackageReviewPage() {
 
     // ─── Save handler ────────────────────────────────────────────────
 
-    const handleSave = async () => {
+    const isSwap = !!inquiry?.source_package_id && !!selectedPackageId && selectedPackageId !== inquiry.selected_package_id;
+
+    const handleSaveClick = () => {
+        if (isSwap) {
+            setSwapDialogOpen(true);
+        } else {
+            executeSave();
+        }
+    };
+
+    const executeSave = async () => {
         if (!inquiry) return;
+        setSwapDialogOpen(false);
         try {
             setSaving(true);
             await inquiriesService.update(inquiry.id, {
                 selected_package_id: selectedPackageId ? Number(selectedPackageId) : null,
             });
             await loadData();
-            setSnackbar({ open: true, message: 'Package updated successfully', severity: 'success' });
+            setSnackbar({ open: true, message: isSwap ? 'Package swapped — user data preserved where roles matched' : 'Package updated successfully', severity: 'success' });
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
             setSnackbar({ open: true, message: `Failed to save: ${msg}`, severity: 'error' });
@@ -237,12 +258,18 @@ export default function PackageReviewPage() {
                                 />
                             )}
                         </Box>
-                        {selectedPkg && (
-                            <Typography sx={{ fontSize: '0.85rem', color: '#64748b', mt: 0.25 }}>
-                                {selectedPkg.name}
-                                {selectedPkg.base_price != null && ` · £${Number(selectedPkg.base_price).toLocaleString()}`}
-                            </Typography>
-                        )}
+                        {selectedPkg && (() => {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const tax = (selectedPkg as any)._tax as { totalWithTax: number } | null | undefined;
+                            const s = getPackageStats(selectedPkg);
+                            const price = tax?.totalWithTax ?? (s.totalCost > 0 ? s.totalCost : Number(selectedPkg.base_price ?? 0));
+                            return (
+                                <Typography sx={{ fontSize: '0.85rem', color: '#64748b', mt: 0.25 }}>
+                                    {selectedPkg.name}
+                                    {price > 0 && ` · ${formatCurrency(price, selectedPkg.currency || 'GBP')}`}
+                                </Typography>
+                            );
+                        })()}
                     </Box>
 
                     {/* Inline package selector */}
@@ -292,18 +319,29 @@ export default function PackageReviewPage() {
                                     </ListSubheader>,
                                     ...group.packages.map((pkg) => {
                                         const info = packageSetInfoMap.get(pkg.id);
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                        const tax = (pkg as any)._tax as { totalWithTax: number } | null | undefined;
+                                        const pkgStats = getPackageStats(pkg);
+                                        const pkgPrice = tax?.totalWithTax ?? (pkgStats.totalCost > 0 ? pkgStats.totalCost : Number(pkg.base_price ?? 0));
                                         return (
                                             <MenuItem key={pkg.id} value={pkg.id}>
                                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                                                     <Typography variant="body2">{pkg.name}</Typography>
-                                                    {info?.tierLabel && (
-                                                        <Chip
-                                                            label={info.tierLabel}
-                                                            size="small"
-                                                            variant="outlined"
-                                                            sx={{ ml: 1, height: 20, fontSize: '0.7rem', borderRadius: 0.5 }}
-                                                        />
-                                                    )}
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                        {info?.tierLabel && (
+                                                            <Chip
+                                                                label={info.tierLabel}
+                                                                size="small"
+                                                                variant="outlined"
+                                                                sx={{ height: 20, fontSize: '0.7rem', borderRadius: 0.5 }}
+                                                            />
+                                                        )}
+                                                        {pkgPrice > 0 && (
+                                                            <Typography sx={{ fontSize: '0.7rem', color: '#64748b', fontFamily: 'monospace', ml: 0.5 }}>
+                                                                {formatCurrency(pkgPrice, pkg.currency || 'GBP')}
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
                                                 </Box>
                                             </MenuItem>
                                         );
@@ -319,17 +357,17 @@ export default function PackageReviewPage() {
                         </Select>
                     </FormControl>
 
-                    {/* Save button */}
+                    {/* Save / Swap button */}
                     {hasUnsavedChanges && (
                         <Button
                             variant="contained"
                             size="large"
-                            startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save />}
-                            onClick={handleSave}
+                            startIcon={saving ? <CircularProgress size={20} color="inherit" /> : isSwap ? <SwapHoriz /> : <Save />}
+                            onClick={handleSaveClick}
                             disabled={saving}
                             sx={{
-                                bgcolor: '#648CFF',
-                                '&:hover': { bgcolor: '#5A7BF0' },
+                                bgcolor: isSwap ? '#f59e0b' : '#648CFF',
+                                '&:hover': { bgcolor: isSwap ? '#d97706' : '#5A7BF0' },
                                 borderRadius: 2,
                                 px: 3,
                                 fontWeight: 700,
@@ -337,7 +375,7 @@ export default function PackageReviewPage() {
                                 fontSize: '0.9rem',
                             }}
                         >
-                            Save
+                            {isSwap ? 'Swap Package' : 'Save'}
                         </Button>
                     )}
                 </Box>
@@ -404,6 +442,53 @@ export default function PackageReviewPage() {
                     </Stack>
                 </Box>
             )}
+
+            {/* Swap Confirmation Dialog */}
+            <Dialog
+                open={swapDialogOpen}
+                onClose={() => setSwapDialogOpen(false)}
+                PaperProps={{ sx: { bgcolor: '#1a1d23', borderRadius: 3, border: '1px solid rgba(100,140,255,0.15)', maxWidth: 440 } }}
+            >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 0.5 }}>
+                    <SwapHoriz sx={{ color: '#f59e0b' }} />
+                    Swap Package?
+                </DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" sx={{ color: '#94a3b8', mb: 2 }}>
+                        This will replace the current schedule with the new package&apos;s template.
+                    </Typography>
+                    <Box sx={{ mb: 1.5 }}>
+                        <Typography variant="caption" sx={{ color: '#22c55e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                            <CheckCircle sx={{ fontSize: 14 }} /> Preserved
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#cbd5e1', fontSize: '0.8rem', pl: 2.5 }}>
+                            Subject names, location details, crew assignments (matched by role), estimates, quotes, contracts, and calendar events.
+                        </Typography>
+                    </Box>
+                    <Box>
+                        <Typography variant="caption" sx={{ color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                            <WarningAmber sx={{ fontSize: 14 }} /> May change
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#cbd5e1', fontSize: '0.8rem', pl: 2.5 }}>
+                            Event days, activities, films, and operator slots will be recreated from the new package. Data is restored by matching role/position names — unmatched items will be lost.
+                        </Typography>
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={() => setSwapDialogOpen(false)} sx={{ color: '#64748b', textTransform: 'none' }}>
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={executeSave}
+                        disabled={saving}
+                        startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SwapHoriz />}
+                        sx={{ bgcolor: '#f59e0b', '&:hover': { bgcolor: '#d97706' }, textTransform: 'none', fontWeight: 700 }}
+                    >
+                        Confirm Swap
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             {/* Snackbar */}
             <Snackbar

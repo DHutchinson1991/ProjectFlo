@@ -30,16 +30,14 @@ import {
     CommandCenterHeader,
     PhaseOverview,
     EstimatesCard,
+    PaymentTermsCard,
     ProposalsCard,
     QuotesCard,
     ContractsCard,
     CallsCard,
     ProposalReviewCard,
     ClientApprovalCard,
-    ActivityLogCard,
-    ClientUpdatesCard,
     DiscoveryQuestionnaireCard,
-    ReviewNotesCard,
     QualifyCard,
     buildPipelineTasks,
     buildPipelineTasksFromInquiry,
@@ -98,9 +96,9 @@ export default function InquiryDetailPage() {
         setNeedsAssessmentDialogOpen(searchParams.get('open') === 'needs-assessment');
     }, [searchParams]);
 
-    const loadInquiry = async () => {
+    const loadInquiry = async (showLoading = true) => {
         try {
-            setLoading(true);
+            if (showLoading) setLoading(true);
             const data = await inquiriesService.getById(inquiryId);
             setInquiry(data);
 
@@ -114,7 +112,7 @@ export default function InquiryDetailPage() {
             console.error('Error loading inquiry:', err);
             setError('Failed to load inquiry details');
         } finally {
-            setLoading(false);
+            if (showLoading) setLoading(false);
         }
     };
 
@@ -171,8 +169,8 @@ export default function InquiryDetailPage() {
     };
 
     const handleRefresh = async () => {
-        await Promise.all([loadInquiry(), loadPipelineTasks()]);
-        setSnackbar({ open: true, message: 'Data refreshed successfully', severity: 'success' });
+        await Promise.all([loadInquiry(false), loadPipelineTasks()]);
+        setEstimateRefreshKey((k) => k + 1);
     };
 
     const handleCloseNeedsAssessmentDialog = () => {
@@ -236,7 +234,6 @@ export default function InquiryDetailPage() {
                 conversionData={conversionData}
                 daysInPipeline={daysInPipeline}
                 dealValue={dealValue}
-                taxRate={taxRate}
                 onRefresh={handleRefresh}
                 onSnackbar={(msg) => setSnackbar({ open: true, message: msg, severity: 'success' })}
             />
@@ -312,27 +309,26 @@ export default function InquiryDetailPage() {
                                     />
                                 </div>
 
-                                <PackageScopeCard
-                                    inquiry={inquiry}
-                                    onRefresh={handleRefresh}
-                                    isActive={currentPhase === 'needs-assessment'}
-                                    activeColor={phaseColor('needs-assessment')}
-                                    submission={needsAssessmentSubmission}
-                                    WorkflowCard={WorkflowCard}
-                                    onPackageDetailsClick={() => setActiveTab('package-details')}
-                                />
+                                <Stack spacing={2}>
+                                    <PackageScopeCard
+                                        inquiry={inquiry}
+                                        onRefresh={handleRefresh}
+                                        isActive={currentPhase === 'needs-assessment'}
+                                        activeColor={phaseColor('needs-assessment')}
+                                        submission={needsAssessmentSubmission}
+                                        WorkflowCard={WorkflowCard}
+                                        onPackageDetailsClick={() => setActiveTab('package-details')}
+                                    />
+
+                                    <div id="payment-terms-section">
+                                        <PaymentTermsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'estimates'} activeColor={phaseColor('estimates')} />
+                                    </div>
+                                </Stack>
                             </Box>
 
                             <div id="estimates-section">
                                 <EstimatesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'estimates'} activeColor={phaseColor('estimates')} refreshKey={estimateRefreshKey} />
                             </div>
-
-                            <QualifyCard
-                                inquiry={inquiry}
-                                inquiryTasks={inquiryTasksData}
-                                submission={needsAssessmentSubmission}
-                                onRefresh={handleRefresh}
-                            />
                         </Stack>
                     </Grid>
 
@@ -342,6 +338,12 @@ export default function InquiryDetailPage() {
                             <div id="calls-section">
                                 <CallsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor={phaseColor('calls')} submission={needsAssessmentSubmission} />
                             </div>
+                            <QualifyCard
+                                inquiry={inquiry}
+                                inquiryTasks={inquiryTasksData}
+                                submission={needsAssessmentSubmission}
+                                onRefresh={handleRefresh}
+                            />
                             <div id="discovery-questionnaire-section">
                                 <DiscoveryQuestionnaireCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor="#3b82f6" />
                             </div>
@@ -366,17 +368,7 @@ export default function InquiryDetailPage() {
                             <div id="approval-section">
                                 <ClientApprovalCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'approval'} activeColor={phaseColor('approval')} />
                             </div>
-                            <ReviewNotesCard
-                                inquiry={inquiry}
-                                onRefresh={handleRefresh}
-                                submission={needsAssessmentSubmission}
-                            />
-                            <div id="activity-section">
-                                <ActivityLogCard inquiry={inquiry} onRefresh={handleRefresh} />
-                            </div>
-                            <div id="client-updates-section">
-                                <ClientUpdatesCard inquiry={inquiry} onRefresh={handleRefresh} />
-                            </div>
+
                         </Stack>
                     </Grid>
                 </Grid>

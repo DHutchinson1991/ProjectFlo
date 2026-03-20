@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
@@ -18,6 +18,7 @@ import { useAuth } from "../providers/AuthProvider";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,12 +26,22 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  const getSafeReturnPath = (): string | null => {
+    const raw = searchParams.get("returnTo");
+    if (!raw) return null;
+    // Only allow internal absolute paths and avoid redirecting back to login.
+    if (!raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/login")) {
+      return null;
+    }
+    return raw;
+  };
+
   // Redirect if the user is already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      router.push("/");
+      router.replace(getSafeReturnPath() || "/");
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, searchParams]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -39,6 +50,7 @@ export default function LoginPage() {
 
     try {
       await login({ email, password });
+      router.replace(getSafeReturnPath() || "/");
     } catch (err) {
       console.error("Login error:", err);
       setError(

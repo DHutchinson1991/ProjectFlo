@@ -43,6 +43,10 @@ class PublicSubmissionDto {
     @ValidateNested()
     @Type(() => NeedsAssessmentSubmissionInquiryDto)
     inquiry?: NeedsAssessmentSubmissionInquiryDto;
+
+    @IsOptional()
+    @IsInt()
+    preferred_payment_schedule_template_id?: number;
 }
 
 class UpdateSubmissionResponsesDto {
