@@ -12,7 +12,7 @@ services:
     region: oregon
     branch: master
     rootDir: packages/backend
-    buildCommand: corepack enable && corepack prepare pnpm@8 --activate && cd ../.. && pnpm install --frozen-lockfile && cd packages/backend && npx prisma generate && npx nest build && npx prisma migrate deploy
+    buildCommand: corepack enable && corepack prepare pnpm@8 --activate && cd ../.. && pnpm install --frozen-lockfile && cd packages/backend && pnpm run build && pnpm exec prisma migrate deploy
     startCommand: node dist/main
     envVars:
       - key: NODE_ENV
