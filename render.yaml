@@ -13,7 +13,7 @@ services:
     branch: master
     rootDir: packages/backend
     buildCommand: corepack enable && corepack prepare pnpm@8 --activate && cd ../.. && NODE_ENV=development pnpm install --frozen-lockfile && cd packages/backend && NODE_ENV=production pnpm run build && NODE_ENV=production pnpm exec prisma migrate deploy
-    startCommand: node dist/main
+    startCommand: node dist/src/main
     envVars:
       - key: NODE_ENV
         value: production
