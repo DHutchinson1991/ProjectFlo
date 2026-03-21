@@ -28,7 +28,7 @@ pnpm-debug.log*
 # General
 build/
 .cache/
-coverage/
+/coverage/
 # TypeScript
 *.tsbuildinfo
 # NestJS
