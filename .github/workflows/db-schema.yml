@@ -1,0 +1,44 @@
+name: Update DB Schema Map
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'packages/backend/prisma/schema.prisma'
+
+jobs:
+  generate-dbml:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Generate DBML schema
+        run: |
+          cd packages/backend
+          npx prisma generate
+        env:
+          DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
+          SHADOW_DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder_shadow'
+
+      - name: Commit updated schema map
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add packages/backend/docs/schema.dbml
+          git diff --staged --quiet || git commit -m "chore: update DB schema map [skip ci]"
+          git push

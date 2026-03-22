@@ -1,0 +1,4956 @@
+//// ------------------------------------------------------
+//// THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+//// ------------------------------------------------------
+
+Project "ProjectFlo" {
+  database_type: 'PostgreSQL'
+  Note: ''
+}
+
+Table brands {
+  id Int [pk, increment]
+  name String [unique, not null]
+  display_name String
+  description String
+  business_type String
+  website String
+  email String
+  phone String
+  address_line1 String
+  address_line2 String
+  city String
+  state String
+  country String [not null, default: 'United States']
+  postal_code String
+  timezone String [not null, default: 'America/New_York']
+  currency String [not null, default: 'USD']
+  logo_url String
+  default_tax_rate Decimal [default: 0]
+  tax_number String
+  default_payment_method String [default: 'Bank Transfer']
+  payment_terms_days Int [default: 30]
+  bank_name String
+  bank_account_name String
+  bank_sort_code String
+  bank_account_number String
+  crew_payment_terms String [default: '50% on booking confirmation, 50% within 7 days of delivery']
+  crew_response_deadline_days Int [default: 5]
+  inquiry_validity_days Int [default: 14]
+  late_fee_percent Decimal [default: 2]
+  cancellation_tier1_days Int [default: 90]
+  cancellation_tier2_days Int [default: 30]
+  cancellation_tier1_percent Decimal [default: 50]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand_settings brand_settings [not null]
+  contacts contacts [not null]
+  equipment equipment [not null]
+  filmLibrary film_library [not null]
+  floor_plan_objects floor_plan_objects [not null]
+  locations locations_library [not null]
+  projects projects [not null]
+  roles roles [not null]
+  task_library task_library [not null]
+  user_brands user_brands [not null]
+  service_packages service_packages [not null]
+  service_package_categories service_package_categories [not null]
+  films films [not null]
+  montage_presets montage_presets [not null]
+  film_structure_templates film_structure_templates [not null]
+  needs_assessment_templates needs_assessment_templates [not null]
+  needs_assessment_submissions needs_assessment_submissions [not null]
+  discovery_questionnaire_templates discovery_questionnaire_templates [not null]
+  discovery_questionnaire_submissions discovery_questionnaire_submissions [not null]
+  subject_type_templates subject_type_templates [not null]
+  equipment_templates equipment_templates [not null]
+  event_day_templates event_day_templates [not null]
+  schedule_presets schedule_presets [not null]
+  wedding_types wedding_types [not null]
+  event_types event_types [not null]
+  workflow_templates workflow_templates [not null]
+  package_sets package_sets [not null]
+  skill_role_mappings skill_role_mappings [not null]
+  payment_schedule_templates payment_schedule_templates [not null]
+  crew_payment_templates crew_payment_templates [not null]
+  contract_clause_categories contract_clause_categories [not null]
+  contract_clauses contract_clauses [not null]
+  contract_templates contract_templates [not null]
+}
+
+Table brand_settings {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  key String [not null]
+  value String [not null]
+  data_type String [not null, default: 'string']
+  category String
+  description String
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+
+  indexes {
+    (brand_id, key) [unique]
+  }
+}
+
+Table user_brands {
+  id Int [pk, increment]
+  user_id Int [not null]
+  brand_id Int [not null]
+  role String [not null, default: 'Member']
+  is_active Boolean [not null, default: true]
+  joined_at DateTime [default: `now()`, not null]
+  brand brands [not null]
+  user contributors [not null]
+
+  indexes {
+    (user_id, brand_id) [unique]
+  }
+}
+
+Table contacts {
+  id Int [pk, increment]
+  first_name String
+  last_name String
+  email String [unique, not null]
+  phone_number String
+  company_name String
+  type contacts_type [not null]
+  brand_id Int
+  archived_at DateTime
+  activities activities [not null]
+  client clients
+  communications_log communications_log [not null]
+  brand brands
+  contributor contributors
+  event_attendees event_attendees [not null]
+  inquiries inquiries [not null]
+  needs_assessment_submissions needs_assessment_submissions [not null]
+}
+
+Table coverage {
+  id Int [pk, increment]
+  name String [unique, not null]
+  description String
+  workflow_template_id Int
+  recording_equipment Json
+  aperture String
+  audio_equipment AudioEquipment
+  camera_movement CameraMovement
+  is_active Boolean [not null, default: true]
+  lens_focal_length String
+  notes String
+  shot_type ShotType
+  subject String
+  coverage_type CoverageType
+  audio_pattern String
+  frequency_response String
+  equipment_assignments Json
+  operator_id Int
+  job_role_id Int
+  is_template Boolean [not null, default: false]
+  video_style_type VideoStyleType
+  resource_requirements Json
+  build_coverage_assignments build_coverage_assignments [not null]
+  build_scenes build_scenes [not null]
+  operator contributors
+  job_role job_roles
+  workflow_template workflow_templates
+  project_assets project_assets [not null]
+  task_generation_rules task_generation_rules [not null]
+}
+
+Table film_categories {
+  id Int [pk, increment]
+  name String [unique, not null]
+  code String [unique, not null]
+  description String
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+}
+
+Table film_library {
+  id Int [pk, increment]
+  name String [unique, not null]
+  description String
+  workflow_template_id Int
+  brand_id Int
+  created_at DateTime [default: `now()`, not null]
+  default_music_type MusicType
+  delivery_timeline Int
+  includes_music Boolean [not null, default: true]
+  is_active Boolean [not null, default: true]
+  type FilmType [not null, default: 'FEATURE']
+  updated_at DateTime [not null]
+  version String [not null, default: '1.0']
+  build_films build_films [not null]
+  change_logs film_change_logs [not null]
+  equipment film_equipment [not null]
+  timeline_tracks film_timeline_tracks [not null]
+  brand brands
+  workflow_template workflow_templates
+  music_tracks film_music_tracks [not null]
+  versions film_versions [not null]
+  timeline_sessions timeline_editing_sessions [not null]
+}
+
+Table editing_styles {
+  id Int [pk, increment]
+  name String [unique, not null]
+  description String
+  workflow_template_id Int
+  build_scenes build_scenes [not null]
+  editing_style_requirements editing_style_requirements [not null]
+  workflow_template workflow_templates
+}
+
+Table film_music_tracks {
+  id Int [pk, increment]
+  film_id Int [not null]
+  music_type MusicType [not null]
+  track_name String
+  artist String
+  duration Int
+  order_index Int [not null, default: 0]
+  film film_library [not null]
+}
+
+Table film_equipment {
+  id Int [pk, increment]
+  film_id Int [not null]
+  equipment_type String [not null]
+  quantity Int [not null]
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film film_library [not null]
+
+  indexes {
+    (film_id, equipment_type) [unique]
+  }
+}
+
+Table film_timeline_tracks {
+  id Int [pk, increment]
+  film_id Int [not null]
+  track_type MediaType [not null]
+  track_label String
+  order_index Int [not null]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film film_library [not null]
+
+  indexes {
+    (film_id, order_index) [unique]
+  }
+}
+
+Table pricing_modifiers {
+  id Int [pk, increment]
+  name String [not null]
+  type PricingModifierType [not null]
+  multiplier Decimal [not null]
+  is_active Boolean [not null, default: true]
+  conditions Json
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+}
+
+Table film_versions {
+  id Int [pk, increment]
+  film_id Int [not null]
+  version_number String [not null]
+  change_summary String [not null]
+  changed_by_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  scenes_snapshot Json [not null]
+  pricing_snapshot Json [not null]
+  changed_by contributors [not null]
+  film film_library [not null]
+}
+
+Table film_change_logs {
+  id Int [pk, increment]
+  film_id Int [not null]
+  change_type String [not null]
+  old_value Json
+  new_value Json
+  changed_by_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  changed_by contributors [not null]
+  film film_library [not null]
+}
+
+Table operator_types {
+  id Int [pk, increment]
+  name String [unique, not null]
+  default_hourly_rate Decimal
+  default_fixed_price Decimal
+  pricing_type pricing_type_options [not null, default: 'Hourly']
+  build_coverage_assignments build_coverage_assignments [not null]
+}
+
+Table billable_items {
+  id Int [pk, increment]
+  name String [unique, not null]
+  description String
+  category String
+  price Decimal [not null]
+  pricing_type billable_item_pricing_type [not null, default: 'Fixed']
+  is_active Boolean [not null, default: true]
+  build_billable_items build_billable_items [not null]
+  editing_style_requirements editing_style_requirements [not null]
+}
+
+Table task_templates {
+  id Int [pk, increment]
+  name String [unique, not null]
+  phase String
+  effort_hours Decimal
+  effort_calculation_rules Json
+  pricing_type pricing_type_options [not null, default: 'Hourly']
+  fixed_price Decimal
+  average_duration_hours Decimal
+  contributor_skill_rates contributor_skill_rates [not null]
+  contributor_task_benchmarks contributor_task_benchmarks [not null]
+  entity_default_tasks entity_default_tasks [not null]
+  task_generation_rules task_generation_rules [not null]
+  tasks tasks [not null]
+}
+
+Table roles {
+  id Int [pk, increment]
+  name String [unique, not null]
+  description String
+  brand_id Int
+  contributors contributors [not null]
+  project_assignments project_assignments [not null]
+  role_permissions role_permissions [not null]
+  brand brands
+}
+
+Table permissions {
+  id Int [pk, increment]
+  action_name String [unique, not null]
+  description String
+  role_permissions role_permissions [not null]
+}
+
+Table role_permissions {
+  role_id Int [not null]
+  permission_id Int [not null]
+  permission permissions [not null]
+  role roles [not null]
+
+  indexes {
+    (role_id, permission_id) [pk]
+  }
+}
+
+Table inquiries {
+  id Int [pk, increment]
+  contact_id Int [not null]
+  wedding_date DateTime
+  status inquiries_status [not null, default: 'New']
+  notes String
+  venue_details String
+  venue_address String
+  venue_lat Float
+  venue_lng Float
+  venue_source String
+  venue_updated_at DateTime
+  follow_up_due_date DateTime
+  lead_source String
+  lead_source_details String
+  campaign_id String
+  archived_at DateTime
+  workflow_status Json
+  selected_package_id Int
+  source_package_id Int
+  package_contents_snapshot Json
+  guest_count String
+  event_type_id Int
+  portal_token String [unique]
+  selected_package service_packages
+  source_package_for_inquiry service_packages
+  event_type event_types
+  activities activities [not null]
+  activity_logs activity_logs [not null]
+  build builds
+  calendar_events calendar_events [not null]
+  client clients
+  contracts contracts [not null]
+  documents documents [not null]
+  estimates estimates [not null]
+  contact contacts [not null]
+  invoices invoices [not null]
+  proposals proposals [not null]
+  quotes quotes [not null]
+  needs_assessment_submissions needs_assessment_submissions [not null]
+  discovery_questionnaire_submissions discovery_questionnaire_submissions [not null]
+  inquiry_tasks inquiry_tasks [not null]
+  availability_requests inquiry_availability_requests [not null]
+  equipment_reservations inquiry_equipment_reservations [not null]
+  equipment_availability_blocks equipment_availability [not null]
+  schedule_event_days project_event_days [not null]
+  schedule_activities project_activities [not null]
+  schedule_films project_films [not null]
+  schedule_day_operators project_day_operators [not null]
+  schedule_subjects project_event_day_subjects [not null]
+  schedule_location_slots project_location_slots [not null]
+  schedule_activity_moments project_activity_moments [not null]
+  schedule_film_tracks project_film_timeline_tracks [not null]
+  schedule_film_subjects project_film_subjects [not null]
+  schedule_film_locations project_film_locations [not null]
+  schedule_film_scenes project_film_scenes [not null]
+  schedule_film_moments project_film_scene_moments [not null]
+  schedule_film_beats project_film_scene_beats [not null]
+  schedule_film_equipment project_film_equipment_assignments [not null]
+  package_requests package_requests [not null]
+  preferred_payment_schedule_template_id Int
+  preferred_payment_schedule payment_schedule_templates
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [default: `now()`, not null]
+  welcome_sent_at DateTime
+}
+
+Table needs_assessment_templates {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  is_active Boolean [not null, default: true]
+  status String [not null, default: 'draft']
+  version String [not null, default: '1.0']
+  published_at DateTime
+  steps_config Json
+  share_token String [unique]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  questions needs_assessment_questions [not null]
+  submissions needs_assessment_submissions [not null]
+}
+
+Table needs_assessment_questions {
+  id Int [pk, increment]
+  template_id Int [not null]
+  order_index Int [not null]
+  prompt String [not null]
+  field_type String [not null]
+  field_key String
+  required Boolean [not null, default: false]
+  options Json
+  condition_json Json
+  help_text String
+  category String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  template needs_assessment_templates [not null]
+}
+
+Table needs_assessment_submissions {
+  id Int [pk, increment]
+  template_id Int [not null]
+  brand_id Int [not null]
+  inquiry_id Int
+  contact_id Int
+  status String [not null, default: 'submitted']
+  responses Json [not null]
+  submitted_at DateTime [default: `now()`, not null]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  review_notes String
+  reviewed_at DateTime
+  review_checklist_state Json
+  template needs_assessment_templates [not null]
+  brand brands [not null]
+  inquiry inquiries
+  contact contacts
+}
+
+Table discovery_questionnaire_templates {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  questions discovery_questionnaire_questions [not null]
+  submissions discovery_questionnaire_submissions [not null]
+}
+
+Table discovery_questionnaire_questions {
+  id Int [pk, increment]
+  template_id Int [not null]
+  order_index Int [not null]
+  section String
+  prompt String [not null]
+  script_hint String
+  field_type String [not null]
+  field_key String
+  required Boolean [not null, default: false]
+  options Json
+  visibility String [not null, default: 'both']
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  template discovery_questionnaire_templates [not null]
+}
+
+Table discovery_questionnaire_submissions {
+  id Int [pk, increment]
+  template_id Int [not null]
+  brand_id Int [not null]
+  inquiry_id Int
+  responses Json [not null]
+  call_notes String
+  transcript String
+  sentiment Json
+  call_duration_seconds Int
+  submitted_at DateTime [default: `now()`, not null]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  template discovery_questionnaire_templates [not null]
+  brand brands [not null]
+  inquiry inquiries
+}
+
+Table activity_logs {
+  id Int [pk, increment]
+  inquiry_id Int [not null]
+  type String [not null]
+  description String [not null]
+  metadata Json
+  created_at DateTime [default: `now()`, not null]
+  inquiry inquiries [not null]
+}
+
+Table clients {
+  id Int [pk, increment]
+  contact_id Int [unique, not null]
+  inquiry_id Int [unique]
+  archived_at DateTime
+  builds builds [not null]
+  client_user client_users
+  contact contacts [not null]
+  inquiry inquiries
+  equipment_availability equipment_availability [not null]
+  equipment_rentals equipment_rentals [not null]
+  projects projects [not null]
+}
+
+Table client_users {
+  id Int [pk, increment]
+  client_id Int [unique, not null]
+  email String [unique, not null]
+  password_hash String [not null]
+  last_login_date DateTime
+  client clients [not null]
+}
+
+Table projects {
+  id Int [pk, increment]
+  client_id Int [not null]
+  workflow_template_id Int
+  brand_id Int
+  source_package_id Int
+  project_name String
+  wedding_date DateTime [not null]
+  booking_date DateTime
+  edit_start_date DateTime
+  phase String
+  package_contents_snapshot Json
+  archived_at DateTime
+  activities activities [not null]
+  build builds
+  calendar_events calendar_events [not null]
+  client_feedback_surveys client_feedback_surveys [not null]
+  communications_log communications_log [not null]
+  contracts contracts [not null]
+  documents documents [not null]
+  equipment_availability equipment_availability [not null]
+  equipment_rentals equipment_rentals [not null]
+  estimates estimates [not null]
+  floor_plans floor_plans [not null]
+  generated_task_logs generated_task_log [not null]
+  invoices invoices [not null]
+  project_assets project_assets [not null]
+  project_assignments project_assignments [not null]
+  project_expenses project_expenses [not null]
+  brand brands
+  client clients [not null]
+  source_package service_packages
+  workflow_template workflow_templates
+  proposals proposals [not null]
+  quotes quotes [not null]
+  tasks tasks [not null]
+  project_tasks project_tasks [not null]
+  project_event_days project_event_days [not null]
+  project_films project_films [not null]
+  project_activities project_activities [not null]
+  project_day_operators project_day_operators [not null]
+  project_subjects project_event_day_subjects [not null]
+  project_location_slots project_location_slots [not null]
+  project_activity_moments project_activity_moments [not null]
+  project_film_tracks project_film_timeline_tracks [not null]
+  project_film_subjects project_film_subjects [not null]
+  project_film_locations project_film_locations [not null]
+  project_film_scenes project_film_scenes [not null]
+  project_film_moments project_film_scene_moments [not null]
+  project_film_beats project_film_scene_beats [not null]
+  project_film_equipment project_film_equipment_assignments [not null]
+
+  indexes {
+    (client_id, wedding_date) [unique]
+  }
+}
+
+Table contributors {
+  id Int [pk, increment]
+  contact_id Int [unique, not null]
+  role_id Int
+  contributor_type contributors_type
+  password_hash String [not null]
+  archived_at DateTime
+  default_hourly_rate Decimal [not null, default: 0]
+  is_crew Boolean [not null, default: false]
+  crew_color String
+  bio String
+  default_camera_id Int
+  default_camera equipment
+  activities_assigned activities [not null]
+  audit_logs audit_log [not null]
+  calendar_events calendar_events [not null]
+  calendar_settings calendar_settings
+  calendar_sync_token calendar_sync_tokens
+  job_roles_assigned contributor_job_roles [not null]
+  contributor_job_roles contributor_job_roles [not null]
+  contributor_skill_rates contributor_skill_rates [not null]
+  contributor_task_benchmarks contributor_task_benchmarks [not null]
+  contact contacts [not null]
+  role roles
+  coverage_assignments coverage [not null]
+  equipment_created equipment [not null]
+  equipment_owned equipment [not null]
+  equipment_booked equipment_availability [not null]
+  equipment_availability_created equipment_availability [not null]
+  equipment_maintenance equipment_maintenance [not null]
+  equipment_rented equipment_rentals [not null]
+  event_attendees event_attendees [not null]
+  film_changes_made film_change_logs [not null]
+  film_versions_created film_versions [not null]
+  floor_plans_created floor_plans [not null]
+  venue_floor_plans_updated locations_library [not null]
+  notifications_received notifications [not null]
+  package_crew_assignments package_day_operators [not null]
+  project_crew_assignments project_day_operators [not null]
+  project_assignments project_assignments [not null]
+  task_comments_made task_comments [not null]
+  task_library_benchmarks task_library_benchmarks [not null]
+  task_library_defaults task_library [not null]
+  tasks_assigned tasks [not null]
+  project_tasks_assigned project_tasks [not null]
+  inquiry_tasks_completed inquiry_tasks [not null]
+  inquiry_task_subtasks_completed inquiry_task_subtasks [not null]
+  inquiry_tasks_assigned inquiry_tasks [not null]
+  availability_requests_sent inquiry_availability_requests [not null]
+  timeline_sessions timeline_editing_sessions [not null]
+  timeline_tracks film_timeline_tracks_v2 [not null]
+  project_film_timeline_tracks project_film_timeline_tracks [not null]
+  user_brands user_brands [not null]
+}
+
+Table contributor_skill_rates {
+  id Int [pk, increment]
+  contributor_id Int [not null]
+  task_template_id Int [not null]
+  rate Decimal [not null]
+  contributor contributors [not null]
+  task_template task_templates [not null]
+
+  indexes {
+    (contributor_id, task_template_id) [unique]
+  }
+}
+
+Table job_roles {
+  id Int [pk, increment]
+  name String [unique, not null]
+  description String
+  display_name String
+  category String
+  on_site Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  contributor_job_roles contributor_job_roles [not null]
+  coverage_roles coverage [not null]
+  package_crew_slots package_day_operators [not null]
+  project_day_operators project_day_operators [not null]
+  payment_brackets payment_brackets [not null]
+  skill_role_mappings skill_role_mappings [not null]
+  resolved_project_tasks project_tasks [not null]
+  default_task_library task_library [not null]
+  inquiry_tasks inquiry_tasks [not null]
+  inquiry_task_subtasks inquiry_task_subtasks [not null]
+}
+
+Table payment_brackets {
+  id Int [pk, increment]
+  job_role_id Int [not null]
+  name String [not null]
+  display_name String
+  level Int [not null, default: 1]
+  hourly_rate Decimal [not null]
+  day_rate Decimal
+  overtime_rate Decimal
+  description String
+  color String
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  job_role job_roles [not null]
+  contributor_job_roles contributor_job_roles [not null]
+  resolved_project_tasks project_tasks [not null]
+  skill_role_mappings skill_role_mappings [not null]
+
+  indexes {
+    (job_role_id, name) [unique]
+    (job_role_id, level) [unique]
+  }
+}
+
+Table contributor_job_roles {
+  id Int [pk, increment]
+  contributor_id Int [not null]
+  job_role_id Int [not null]
+  payment_bracket_id Int
+  is_primary Boolean [not null, default: false]
+  is_unmanned Boolean [not null, default: false]
+  assigned_at DateTime [default: `now()`, not null]
+  assigned_by Int
+  assigned_by_user contributors
+  contributor contributors [not null]
+  job_role job_roles [not null]
+  payment_bracket payment_brackets
+
+  indexes {
+    (contributor_id, job_role_id) [unique]
+  }
+}
+
+Table project_assignments {
+  id Int [pk, increment]
+  project_id Int [not null]
+  contributor_id Int [not null]
+  role_id Int [not null]
+  contributor contributors [not null]
+  project projects [not null]
+  role roles [not null]
+
+  indexes {
+    (project_id, contributor_id) [unique]
+  }
+}
+
+Table editing_style_requirements {
+  id Int [pk, increment]
+  editing_style_id Int [not null]
+  billable_item_id Int [not null]
+  quantity Int [not null, default: 1]
+  billable_item billable_items [not null]
+  editing_style editing_styles [not null]
+
+  indexes {
+    (editing_style_id, billable_item_id) [unique]
+  }
+}
+
+Table builds {
+  id Int [pk, increment]
+  client_id Int
+  inquiry_id Int [unique]
+  project_id Int [unique]
+  status builds_status [not null]
+  configuration_locked_at DateTime
+  approved_price Decimal [not null, default: 0]
+  live_price Decimal [not null, default: 0]
+  total_paid Decimal [not null, default: 0]
+  archived_at DateTime
+  build_billable_items build_billable_items [not null]
+  build_change_orders build_change_orders [not null]
+  build_coverage_assignments build_coverage_assignments [not null]
+  build_films build_films [not null]
+  build_snapshots build_snapshots [not null]
+  client clients
+  inquiry inquiries
+  project projects
+}
+
+Table build_coverage_assignments {
+  id Int [pk, increment]
+  build_id Int [not null]
+  coverage_id Int [not null]
+  operator_type_id Int [not null]
+  quantity Int [not null, default: 1]
+  rate_at_time_of_add Decimal [not null]
+  build builds [not null]
+  coverage coverage [not null]
+  operator_type operator_types [not null]
+}
+
+Table build_films {
+  id Int [pk, increment]
+  build_id Int [not null]
+  film_id Int [not null]
+  build builds [not null]
+  film film_library [not null]
+  build_scenes build_scenes [not null]
+}
+
+Table build_scenes {
+  id Int [pk, increment]
+  build_film_id Int [not null]
+  coverage_id Int [not null]
+  editing_style_id Int [not null]
+  target_minutes Decimal
+  is_included Boolean [default: true]
+  calculated_price Decimal
+  build_film build_films [not null]
+  coverage coverage [not null]
+  editing_style editing_styles [not null]
+  tasks tasks [not null]
+}
+
+Table build_billable_items {
+  id Int [pk, increment]
+  build_id Int [not null]
+  billable_item_id Int [not null]
+  quantity Int [not null, default: 1]
+  price_at_time_of_add Decimal [not null]
+  notes String
+  billable_item billable_items [not null]
+  build builds [not null]
+}
+
+Table build_change_orders {
+  id Int [pk, increment]
+  build_id Int [not null]
+  version_number Int [not null]
+  price_delta Decimal [not null]
+  new_total_approved_price Decimal [not null]
+  description String [not null]
+  status change_order_status [not null]
+  discount_type discount_type_enum
+  discount_percentage Decimal
+  discount_amount Decimal
+  discount_reason String
+  created_at DateTime [default: `now()`]
+  build builds [not null]
+  build_snapshots build_snapshots [not null]
+}
+
+Table build_snapshots {
+  id Int [pk, increment]
+  build_id Int [not null]
+  change_order_id Int [not null]
+  snapshot_data Json [not null]
+  created_at DateTime [default: `now()`]
+  build builds [not null]
+  change_order build_change_orders [not null]
+}
+
+Table tasks {
+  id Int [pk, increment]
+  project_id Int [not null]
+  build_scene_id Int [not null]
+  task_template_id Int [not null]
+  planned_duration_hours Decimal
+  actual_duration_hours Decimal
+  status tasks_status [not null, default: 'To_Do']
+  due_date DateTime
+  assigned_to_contributor_id Int
+  is_client_visible Boolean [default: false]
+  rate_at_time_of_assignment Decimal [not null, default: 0]
+  generated_task_logs generated_task_log [not null]
+  task_comments task_comments [not null]
+  task_dependencies_blocking task_dependencies [not null]
+  task_dependencies_dependent task_dependencies [not null]
+  assigned_to_contributor contributors
+  build_scene build_scenes [not null]
+  project projects [not null]
+  task_template task_templates [not null]
+}
+
+Table calendar_events {
+  id Int [pk, increment]
+  contributor_id Int [not null]
+  project_id Int
+  title String [not null]
+  start_time DateTime [not null]
+  end_time DateTime [not null]
+  is_all_day Boolean [not null, default: false]
+  event_type calendar_event_type [not null]
+  description String
+  location String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  inquiry_id Int
+  meeting_type meeting_type
+  meeting_url String
+  outcome_notes String
+  is_confirmed Boolean [not null, default: false]
+  contributor contributors [not null]
+  inquiry inquiries
+  project projects
+  event_attendees event_attendees [not null]
+  event_reminders event_reminders [not null]
+  event_tags event_tags [not null]
+}
+
+Table tags {
+  id Int [pk, increment]
+  name String [unique, not null]
+  color String [not null]
+  description String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  event_tags event_tags [not null]
+}
+
+Table event_tags {
+  id Int [pk, increment]
+  event_id Int [not null]
+  tag_id Int [not null]
+  event calendar_events [not null]
+  tag tags [not null]
+
+  indexes {
+    (event_id, tag_id) [unique]
+  }
+}
+
+Table event_attendees {
+  id Int [pk, increment]
+  event_id Int [not null]
+  contributor_id Int
+  contact_id Int
+  email String
+  name String
+  status event_attendee_status [not null, default: 'PENDING']
+  created_at DateTime [default: `now()`, not null]
+  contact contacts
+  contributor contributors
+  event calendar_events [not null]
+
+  indexes {
+    (event_id, contributor_id) [unique]
+    (event_id, contact_id) [unique]
+    (event_id, email) [unique]
+  }
+}
+
+Table event_reminders {
+  id Int [pk, increment]
+  event_id Int [not null]
+  reminder_time DateTime [not null]
+  method event_reminder_method [not null, default: 'EMAIL']
+  is_sent Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  event calendar_events [not null]
+}
+
+Table calendar_settings {
+  id Int [pk, increment]
+  contributor_id Int [unique, not null]
+  default_view String [not null, default: 'WEEK']
+  working_hours_start String [not null, default: '09:00']
+  working_hours_end String [not null, default: '17:00']
+  timezone String [not null, default: 'America/New_York']
+  show_weekends Boolean [not null, default: true]
+  first_day_of_week Int [not null, default: 0]
+  default_event_duration Int [not null, default: 60]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  contributor contributors [not null]
+}
+
+Table project_assets {
+  id Int [pk, increment]
+  project_id Int [not null]
+  coverage_id Int
+  file_name String
+  storage_path String
+  asset_type project_asset_type
+  coverage coverage
+  project projects [not null]
+}
+
+Table contributor_task_benchmarks {
+  id Int [pk, increment]
+  contributor_id Int [not null]
+  task_template_id Int [not null]
+  contributor_default_hours Decimal
+  contributor_average_hours Decimal
+  contributor_best_hours Decimal
+  completed_count Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  contributor contributors [not null]
+  task_template task_templates [not null]
+
+  indexes {
+    (task_template_id, contributor_id) [unique]
+  }
+}
+
+Table invoices {
+  id Int [pk, increment]
+  project_id Int
+  quote_id Int
+  proposal_id Int
+  invoice_number String [unique, not null]
+  issue_date DateTime [not null]
+  due_date DateTime [not null]
+  amount_paid Decimal [default: 0]
+  status String [not null, default: 'Draft']
+  amount Decimal [not null]
+  inquiry_id Int [not null]
+  items invoice_items [not null]
+  inquiry inquiries [not null]
+  project projects
+  quote quotes
+  proposal proposals
+  payments payments [not null]
+}
+
+Table invoice_items {
+  id Int [pk, increment]
+  invoice_id Int [not null]
+  description String [not null]
+  quantity Decimal [not null, default: 1]
+  unit_price Decimal [not null]
+  invoice invoices [not null]
+}
+
+Table payments {
+  id Int [pk, increment]
+  invoice_id Int [not null]
+  payment_date DateTime [default: `now()`]
+  amount Decimal [not null]
+  payment_method String
+  transaction_id String
+  invoice invoices [not null]
+}
+
+Table project_expenses {
+  id Int [pk, increment]
+  project_id Int [not null]
+  expense_date DateTime
+  description String
+  category String
+  amount Decimal [not null]
+  receipt_url String
+  project projects [not null]
+}
+
+Table estimates {
+  id Int [pk, increment]
+  inquiry_id Int [not null]
+  project_id Int
+  estimate_number String [unique, not null]
+  title String
+  status String [not null, default: 'Draft']
+  issue_date DateTime [not null]
+  expiry_date DateTime [not null]
+  total_amount Decimal [not null]
+  tax_rate Decimal [default: 0]
+  deposit_required Decimal
+  notes String
+  terms String
+  payment_method String [default: 'Bank Transfer']
+  installments Int [default: 1]
+  is_primary Boolean [not null, default: false]
+  version Int [not null, default: 1]
+  currency String [default: 'USD']
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  items estimate_items [not null]
+  payment_milestones estimate_payment_milestones [not null]
+  snapshots estimate_snapshots [not null]
+  inquiry inquiries [not null]
+  project projects
+  schedule_template payment_schedule_templates
+  schedule_template_id Int
+}
+
+Table estimate_items {
+  id Int [pk, increment]
+  estimate_id Int [not null]
+  category String
+  description String [not null]
+  service_date DateTime
+  start_time String
+  end_time String
+  quantity Decimal [not null, default: 1]
+  unit String
+  unit_price Decimal [not null]
+  estimate estimates [not null]
+}
+
+Table estimate_snapshots {
+  id Int [pk, increment]
+  estimate_id Int [not null]
+  version_number Int [not null]
+  snapshotted_at DateTime [default: `now()`, not null]
+  total_amount Decimal [not null]
+  items_snapshot Json [not null, note: 'JSON array of { description, category, quantity, unit, unit_price }']
+  label String
+  estimate estimates [not null]
+}
+
+Table quotes {
+  id Int [pk, increment]
+  inquiry_id Int [not null]
+  project_id Int
+  quote_number String [unique, not null]
+  title String
+  status String [not null, default: 'Draft']
+  issue_date DateTime [not null]
+  expiry_date DateTime [not null]
+  total_amount Decimal [not null]
+  tax_rate Decimal [default: 0]
+  deposit_required Decimal
+  notes String
+  terms String
+  payment_method String [default: 'Bank Transfer']
+  installments Int [default: 1]
+  is_primary Boolean [not null, default: false]
+  consultation_notes String
+  version Int [not null, default: 1]
+  currency String [default: 'USD']
+  schedule_template_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  items quote_items [not null]
+  payment_milestones quote_payment_milestones [not null]
+  invoices invoices [not null]
+  inquiry inquiries [not null]
+  project projects
+  schedule_template payment_schedule_templates
+}
+
+Table quote_items {
+  id Int [pk, increment]
+  quote_id Int [not null]
+  category String
+  description String [not null]
+  service_date DateTime
+  start_time String
+  end_time String
+  quantity Decimal [not null, default: 1]
+  unit String
+  unit_price Decimal [not null]
+  quote quotes [not null]
+}
+
+Table quote_payment_milestones {
+  id Int [pk, increment]
+  quote_id Int [not null]
+  label String [not null]
+  amount Decimal [not null]
+  due_date DateTime [not null]
+  status String [not null, default: 'PENDING']
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  quote quotes [not null]
+}
+
+Table audit_log {
+  id Int [pk, increment]
+  contributor_id Int
+  action String [not null]
+  timestamp DateTime [default: `now()`, not null]
+  details Json
+  contributor contributors
+}
+
+Table notifications {
+  id Int [pk, increment]
+  recipient_contributor_id Int [not null]
+  message String [not null]
+  is_read Boolean [not null, default: false]
+  created_at DateTime [default: `now()`]
+  link_url String
+  recipient_contributor contributors [not null]
+}
+
+Table task_dependencies {
+  id Int [pk, increment]
+  blocking_task_id Int [not null]
+  dependent_task_id Int [not null]
+  blocking_task tasks [not null]
+  dependent_task tasks [not null]
+}
+
+Table activities {
+  id Int [pk, increment]
+  assigned_to_contributor_id Int [not null]
+  contact_id Int
+  inquiry_id Int
+  project_id Int
+  due_date DateTime
+  activity_type activity_type [not null]
+  title String [not null]
+  notes String
+  status activity_status [not null, default: 'Pending']
+  assigned_to_contributor contributors [not null]
+  contact contacts
+  inquiry inquiries
+  project projects
+}
+
+Table communications_log {
+  id Int [pk, increment]
+  project_id Int
+  contact_id Int [not null]
+  communication_date DateTime [default: `now()`, not null]
+  type String
+  notes String
+  contact contacts [not null]
+  project projects
+}
+
+Table documents {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  file_name String
+  file_path String
+  document_type String
+  status document_status [not null, default: 'Active']
+  upload_date DateTime [default: `now()`]
+  inquiry inquiries
+  project projects
+}
+
+Table proposals {
+  id Int [pk, increment]
+  project_id Int
+  title String [not null, default: 'New Proposal']
+  status String [not null, default: 'Draft']
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  content Json
+  inquiry_id Int [not null]
+  invoices invoices [not null]
+  sent_at DateTime
+  version Int [not null, default: 1]
+  share_token String [unique]
+  client_response String
+  client_response_at DateTime
+  client_response_message String
+  inquiry inquiries [not null]
+  project projects
+}
+
+Table contracts {
+  id Int [pk, increment]
+  project_id Int
+  title String [not null, default: 'New Contract']
+  status String [not null, default: 'Draft']
+  signed_date DateTime
+  content Json
+  inquiry_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  sent_at DateTime
+  updated_at DateTime [not null]
+  signing_token String [unique]
+  rendered_html String
+  template_id Int
+  inquiry inquiries [not null]
+  project projects
+  signers contract_signers [not null]
+}
+
+Table contract_signers {
+  id Int [pk, increment]
+  contract_id Int [not null]
+  name String [not null]
+  email String [not null]
+  role String [not null, default: 'client']
+  token String [unique, not null]
+  status String [not null, default: 'pending']
+  signed_at DateTime
+  signature_text String
+  signer_ip String
+  viewed_at DateTime
+  created_at DateTime [default: `now()`, not null]
+  contract contracts [not null]
+}
+
+Table client_feedback_surveys {
+  id Int [pk, increment]
+  project_id Int [not null]
+  sent_date DateTime
+  response_date DateTime
+  satisfaction_rating Int
+  nps_score Int
+  feedback_text String
+  project projects [not null]
+}
+
+Table task_comments {
+  id Int [pk, increment]
+  task_id Int [not null]
+  contributor_id Int
+  comment_text String [not null]
+  created_at DateTime [default: `now()`]
+  visibility task_comment_visibility
+  contributor contributors
+  task tasks [not null]
+}
+
+Table calendar_sync_tokens {
+  id Int [pk, increment]
+  contributor_id Int [unique, not null]
+  provider calendar_sync_provider [not null]
+  refresh_token String [not null]
+  contributor contributors [not null]
+}
+
+Table timeline_layers {
+  id Int [pk, increment]
+  name String [unique, not null]
+  order_index Int [not null]
+  color_hex String [not null]
+  description String
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+}
+
+Table timeline_editing_sessions {
+  id Int [pk, increment]
+  film_id Int [not null]
+  user_id Int [not null]
+  session_start DateTime [default: `now()`, not null]
+  session_end DateTime
+  last_activity DateTime [default: `now()`, not null]
+  is_active Boolean [not null, default: true]
+  film film_library [not null]
+  user contributors [not null]
+
+  indexes {
+    (film_id, user_id, session_start) [unique]
+  }
+}
+
+Table workflow_templates {
+  id Int [pk, increment]
+  brand_id Int
+  name String [not null]
+  description String
+  is_default Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands
+  coverage coverage [not null]
+  editing_styles editing_styles [not null]
+  filmLibrary film_library [not null]
+  projects projects [not null]
+  stages workflow_stages [not null]
+  service_packages service_packages [not null]
+  workflow_template_tasks workflow_template_tasks [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table workflow_stages {
+  id Int [pk, increment]
+  workflow_template_id Int [not null]
+  name String [not null]
+  description String
+  order_index Int [not null]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  task_generation_rules task_generation_rules [not null]
+  workflow_template workflow_templates [not null]
+
+  indexes {
+    (workflow_template_id, order_index) [unique]
+  }
+}
+
+Table task_generation_rules {
+  id Int [pk, increment]
+  workflow_stage_id Int [not null]
+  task_template_id Int [not null]
+  scene_type MediaType
+  coverage_id Int
+  is_required Boolean [not null, default: true]
+  auto_assign_to_role String
+  conditions Json
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  coverage coverage
+  task_template task_templates [not null]
+  workflow_stage workflow_stages [not null]
+}
+
+Table workflow_template_tasks {
+  id Int [pk, increment]
+  workflow_template_id Int [not null]
+  task_library_id Int [not null]
+  phase project_phase [not null]
+  override_hours Decimal
+  override_assignee_role String
+  order_index Int [not null, default: 0]
+  is_required Boolean [not null, default: true]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  workflow_template workflow_templates [not null]
+  task_library task_library [not null]
+
+  indexes {
+    (workflow_template_id, task_library_id) [unique]
+  }
+}
+
+Table generated_task_log {
+  id Int [pk, increment]
+  project_id Int [not null]
+  task_generation_rule_id Int [not null]
+  task_id Int [not null]
+  generated_at DateTime [default: `now()`, not null]
+  project projects [not null]
+  task tasks [not null]
+}
+
+Table entity_default_tasks {
+  id Int [pk, increment]
+  entity_type String [not null]
+  entity_id Int [not null]
+  task_template_id Int
+  task_name String [not null]
+  estimated_hours Decimal [not null, default: 0]
+  order_index Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  task_template task_templates
+
+  indexes {
+    (entity_type, entity_id, order_index) [unique]
+  }
+}
+
+Table skill_role_mappings {
+  id Int [pk, increment]
+  skill_name String [not null]
+  job_role_id Int [not null]
+  payment_bracket_id Int
+  brand_id Int
+  priority Int [not null, default: 1]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  job_role job_roles [not null]
+  payment_bracket payment_brackets
+  brand brands
+
+  indexes {
+    (skill_name, job_role_id, payment_bracket_id, brand_id) [unique]
+  }
+}
+
+Table task_library {
+  id Int [pk, increment]
+  name String [not null]
+  description String
+  phase project_phase [not null]
+  effort_hours Decimal
+  recorded_hours Decimal
+  skills_needed String[] [not null]
+  pricing_type pricing_type_options [not null, default: 'Hourly']
+  fixed_price Decimal
+  hourly_rate Decimal
+  complexity_score Int [default: 1]
+  default_job_role_id Int
+  notes String
+  order_index Int [not null, default: 0]
+  brand_id Int [not null]
+  is_active Boolean [not null, default: true]
+  trigger_type task_trigger_type [not null, default: 'always']
+  due_date_offset_days Int
+  parent_task_id Int
+  is_stage Boolean [not null, default: false]
+  is_auto_only Boolean [not null, default: false]
+  stage_color String
+  default_contributor_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  default_job_role job_roles
+  default_contributor contributors
+  parent_task task_library
+  children task_library [not null]
+  task_library_benchmarks task_library_benchmarks [not null]
+  task_library_skill_rates task_library_skill_rates [not null]
+  task_library_subtask_templates task_library_subtask_templates [not null]
+  workflow_template_tasks workflow_template_tasks [not null]
+  project_tasks project_tasks [not null]
+  inquiry_tasks inquiry_tasks [not null]
+  crew_payment_rules crew_payment_rules [not null]
+}
+
+Table task_library_benchmarks {
+  id Int [pk, increment]
+  task_library_id Int [not null]
+  contributor_id Int [not null]
+  contributor_default_hours Decimal
+  contributor_average_hours Decimal
+  contributor_best_hours Decimal
+  completed_count Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  contributor contributors [not null]
+  task_library task_library [not null]
+
+  indexes {
+    (task_library_id, contributor_id) [unique]
+  }
+}
+
+Table task_library_skill_rates {
+  id Int [pk, increment]
+  task_library_id Int [not null]
+  skill_name String [not null]
+  skill_level String [not null]
+  hourly_rate Decimal [not null]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  task_library task_library [not null]
+
+  indexes {
+    (task_library_id, skill_name, skill_level) [unique]
+  }
+}
+
+Table task_library_subtask_templates {
+  id Int [pk, increment]
+  task_library_id Int [not null]
+  subtask_key String [not null]
+  name String [not null]
+  order_index Int [not null, default: 0]
+  is_auto_only Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  task_library task_library [not null]
+
+  indexes {
+    (task_library_id, subtask_key) [unique]
+  }
+}
+
+Table project_tasks {
+  id Int [pk, increment]
+  project_id Int [not null]
+  task_library_id Int
+  package_id Int
+  name String [not null]
+  description String
+  phase project_phase [not null]
+  trigger_type task_trigger_type [not null, default: 'always']
+  trigger_context String
+  estimated_hours Decimal
+  actual_hours Decimal
+  status tasks_status [not null, default: 'To_Do']
+  due_date DateTime
+  assigned_to_id Int
+  pricing_type pricing_type_options [not null, default: 'Hourly']
+  fixed_price Decimal
+  hourly_rate Decimal
+  order_index Int [not null, default: 0]
+  is_active Boolean [not null, default: true]
+  resolved_job_role_id Int
+  resolved_bracket_id Int
+  resolved_rate Decimal
+  resolved_skill String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects [not null]
+  task_library task_library
+  package service_packages
+  assigned_to contributors
+  resolved_job_role job_roles
+  resolved_bracket payment_brackets
+}
+
+Table inquiry_tasks {
+  id Int [pk, increment]
+  inquiry_id Int [not null]
+  task_library_id Int
+  parent_inquiry_task_id Int
+  name String [not null]
+  description String
+  phase project_phase [not null]
+  trigger_type task_trigger_type [not null, default: 'always']
+  estimated_hours Decimal
+  due_date DateTime
+  status tasks_status [not null, default: 'To_Do']
+  order_index Int [not null, default: 0]
+  completed_at DateTime
+  completed_by_id Int
+  assigned_to_id Int
+  job_role_id Int
+  is_active Boolean [not null, default: true]
+  is_stage Boolean [not null, default: false]
+  stage_color String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  inquiry inquiries [not null]
+  task_library task_library
+  completed_by contributors
+  assigned_to contributors
+  job_role job_roles
+  parent_inquiry_task inquiry_tasks
+  children inquiry_tasks [not null]
+  subtasks inquiry_task_subtasks [not null]
+  events inquiry_task_events [not null]
+}
+
+Table inquiry_task_subtasks {
+  id Int [pk, increment]
+  inquiry_task_id Int [not null]
+  subtask_key String [not null]
+  name String [not null]
+  status tasks_status [not null, default: 'To_Do']
+  order_index Int [not null, default: 0]
+  is_auto_only Boolean [not null, default: false]
+  completed_at DateTime
+  completed_by_id Int
+  job_role_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  inquiry_task inquiry_tasks [not null]
+  completed_by contributors
+  job_role job_roles
+
+  indexes {
+    (inquiry_task_id, subtask_key) [unique]
+  }
+}
+
+Table inquiry_task_events {
+  id Int [pk, increment]
+  task_id Int [not null]
+  event_type String [not null]
+  triggered_by String
+  description String [not null]
+  occurred_at DateTime [default: `now()`, not null]
+  inquiry_task inquiry_tasks [not null]
+}
+
+Table inquiry_availability_requests {
+  id Int [pk, increment]
+  inquiry_id Int [not null]
+  contributor_id Int [not null]
+  project_day_operator_id Int
+  status inquiry_availability_request_status [not null, default: 'pending']
+  sent_at DateTime [default: `now()`, not null]
+  responded_at DateTime
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  inquiry inquiries [not null]
+  contributor contributors [not null]
+
+  indexes {
+    (inquiry_id, contributor_id) [unique]
+  }
+}
+
+Table equipment {
+  id Int [pk, increment]
+  item_name String [not null]
+  item_code String
+  category EquipmentCategory [not null]
+  type EquipmentType [not null]
+  brand_name String
+  model String
+  description String
+  quantity Int [not null, default: 1]
+  condition EquipmentCondition [not null, default: 'GOOD']
+  availability_status EquipmentAvailability [not null, default: 'AVAILABLE']
+  is_unmanned Boolean [not null, default: false]
+  vendor String
+  rental_price_per_day Decimal
+  purchase_price Decimal
+  purchase_date DateTime
+  weight_kg Decimal
+  power_usage_watts Int
+  dimensions String
+  specifications Json
+  attachment_type String
+  compatibility String
+  serial_number String
+  warranty_expiry DateTime
+  last_maintenance DateTime
+  next_maintenance_due DateTime
+  location String
+  brand_id Int
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  created_by_id Int
+  owner_id Int
+  brand brands
+  created_by contributors
+  owner contributors
+  availability_slots equipment_availability [not null]
+  maintenance_logs equipment_maintenance [not null]
+  rental_bookings equipment_rentals [not null]
+  film_assignments film_equipment_assignments [not null]
+  equipment_template_items equipment_template_items [not null]
+  package_day_operator_equipment package_day_operator_equipment [not null]
+  project_day_operator_equipment project_day_operator_equipment [not null]
+  project_film_equipment_assignments project_film_equipment_assignments [not null]
+  inquiry_equipment_reservations inquiry_equipment_reservations [not null]
+  contributor_default_camera contributors [not null]
+}
+
+Table equipment_rentals {
+  id Int [pk, increment]
+  equipment_id Int [not null]
+  project_id Int
+  rented_by_id Int
+  client_id Int
+  rental_start_date DateTime [not null]
+  rental_end_date DateTime [not null]
+  actual_return_date DateTime
+  rental_rate Decimal [not null]
+  total_cost Decimal [not null]
+  deposit_amount Decimal
+  status equipment_rental_status [not null, default: 'BOOKED']
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  client clients
+  equipment equipment [not null]
+  project projects
+  rented_by contributors
+}
+
+Table equipment_maintenance {
+  id Int [pk, increment]
+  equipment_id Int [not null]
+  maintenance_type equipment_maintenance_type [not null]
+  description String [not null]
+  cost Decimal
+  performed_by String
+  performed_date DateTime [not null]
+  next_due_date DateTime
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  created_by_id Int
+  created_by contributors
+  equipment equipment [not null]
+}
+
+Table equipment_availability {
+  id Int [pk, increment]
+  equipment_id Int [not null]
+  start_date DateTime [not null]
+  end_date DateTime [not null]
+  all_day Boolean [not null, default: true]
+  status equipment_availability_status [not null, default: 'AVAILABLE']
+  title String
+  description String
+  project_id Int
+  booked_by_id Int
+  client_id Int
+  booking_notes String
+  internal_notes String
+  recurring_rule String
+  recurring_until DateTime
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  created_by_id Int
+  booked_by contributors
+  client clients
+  created_by contributors
+  equipment equipment [not null]
+  project projects
+  inquiry_id Int
+  inquiry inquiries
+}
+
+Table locations_library {
+  id Int [pk, increment]
+  name String [not null]
+  address_line1 String
+  address_line2 String
+  city String
+  state String
+  country String [not null, default: 'United States']
+  postal_code String
+  contact_name String
+  contact_phone String
+  contact_email String
+  capacity Int
+  notes String
+  brand_id Int
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  venue_floor_plan_data Json
+  venue_floor_plan_updated_at DateTime
+  venue_floor_plan_updated_by Int
+  venue_floor_plan_version Int [not null, default: 1]
+  spaces location_spaces [not null]
+  film_locations film_locations [not null]
+  film_scene_locations film_scene_locations [not null]
+  package_event_day_locations package_event_day_locations [not null]
+  project_location_slots project_location_slots [not null]
+  project_film_locations project_film_locations [not null]
+  project_film_scene_locations project_film_scene_locations [not null]
+  brand brands
+  venue_floor_plan_updater contributors
+}
+
+Table location_spaces {
+  id Int [pk, increment]
+  location_id Int [not null]
+  name String [not null]
+  space_type String [not null]
+  capacity Int
+  dimensions_length Decimal
+  dimensions_width Decimal
+  dimensions_height Decimal
+  metadata Json
+  notes String
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  floor_plans floor_plans [not null]
+  location locations_library [not null]
+}
+
+Table floor_plans {
+  id Int [pk, increment]
+  space_id Int [not null]
+  project_id Int
+  name String [not null]
+  version Int [not null, default: 1]
+  fabric_data Json [not null]
+  layers_data Json
+  is_default Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  created_by_id Int
+  created_by contributors
+  project projects
+  space location_spaces [not null]
+
+  indexes {
+    (space_id, project_id, version) [unique]
+  }
+}
+
+Table floor_plan_objects {
+  id Int [pk, increment]
+  name String [not null]
+  category String [not null]
+  object_type String [not null]
+  fabric_template Json [not null]
+  thumbnail_url String
+  brand_id Int
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands
+}
+
+Table films {
+  id Int [pk, increment]
+  name String [not null]
+  brand_id Int [not null]
+  film_type FilmType [not null, default: 'FEATURE']
+  montage_preset_id Int
+  target_duration_min Int
+  target_duration_max Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  montage_preset montage_presets
+  tracks film_timeline_tracks_v2 [not null]
+  subjects film_subjects [not null]
+  locations film_locations [not null]
+  scenes film_scenes [not null]
+  equipment_assignments film_equipment_assignments [not null]
+  scene_schedules film_scene_schedules [not null]
+  package_films package_films [not null]
+  project_films project_films [not null]
+}
+
+Table film_equipment_assignments {
+  id Int [pk, increment]
+  film_id Int [not null]
+  equipment_id Int [not null]
+  quantity Int [not null, default: 1]
+  notes String
+  assigned_at DateTime [default: `now()`, not null]
+  film films [not null]
+  equipment equipment [not null]
+  project_instances project_film_equipment_assignments [not null]
+
+  indexes {
+    (film_id, equipment_id) [unique]
+  }
+}
+
+Table equipment_templates {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  camera_count Int [not null, default: 1]
+  audio_count Int [not null, default: 1]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  items equipment_template_items [not null]
+}
+
+Table equipment_template_items {
+  id Int [pk, increment]
+  template_id Int [not null]
+  equipment_id Int [not null]
+  slot_type EquipmentTemplateSlotType [not null]
+  slot_index Int [not null]
+  track_name String
+  operator String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  template equipment_templates [not null]
+  equipment equipment [not null]
+
+  indexes {
+    (template_id, slot_type, slot_index) [unique]
+  }
+}
+
+Table film_timeline_tracks_v2 {
+  id Int [pk, increment]
+  film_id Int [not null]
+  name String [not null]
+  type TrackType [not null]
+  order_index Int [not null]
+  is_active Boolean [not null, default: true]
+  is_unmanned Boolean [not null, default: false]
+  contributor_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film films [not null]
+  contributor contributors
+  camera_assignments camera_subject_assignments [not null]
+  scene_camera_assignments scene_camera_assignments [not null]
+  project_instances project_film_timeline_tracks [not null]
+
+  indexes {
+    (film_id, name) [unique]
+  }
+}
+
+Table subject_templates {
+  id Int [pk, increment]
+  name String [unique, not null]
+  category SubjectCategory [not null]
+  is_system Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  suggested_scenes scene_template_suggested_subjects [not null]
+}
+
+Table subject_type_templates {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  category SubjectCategory [not null]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  roles subject_role_templates [not null]
+  event_type_subject_types event_type_subject_types [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table subject_role_templates {
+  id Int [pk, increment]
+  subject_type_id Int [not null]
+  role_name String [not null]
+  description String
+  is_core Boolean [not null, default: false]
+  is_group Boolean [not null, default: false]
+  never_group Boolean [not null, default: false]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  subject_type subject_type_templates [not null]
+  film_subjects film_subjects [not null]
+  package_event_day_subjects package_event_day_subjects [not null]
+  project_event_day_subjects project_event_day_subjects [not null]
+  project_film_subjects project_film_subjects [not null]
+
+  indexes {
+    (subject_type_id, role_name) [unique]
+  }
+}
+
+Table film_subjects {
+  id Int [pk, increment]
+  film_id Int [not null]
+  name String [not null]
+  category SubjectCategory [not null]
+  role_template_id Int
+  is_custom Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film films [not null]
+  role_template subject_role_templates
+  scene_subjects film_scene_subjects [not null]
+  moment_subjects film_scene_moment_subjects [not null]
+  project_instances project_film_subjects [not null]
+
+  indexes {
+    (film_id, name) [unique]
+  }
+}
+
+Table film_locations {
+  id Int [pk, increment]
+  film_id Int [not null]
+  location_id Int [not null]
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film films [not null]
+  location locations_library [not null]
+  project_instances project_film_locations [not null]
+
+  indexes {
+    (film_id, location_id) [unique]
+  }
+}
+
+Table scene_templates {
+  id Int [pk, increment]
+  name String [unique, not null]
+  type SceneType
+  recording_setup Json
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  moments scene_moment_templates [not null]
+  suggested_subjects scene_template_suggested_subjects [not null]
+  film_scenes film_scenes [not null]
+  project_film_scenes project_film_scenes [not null]
+}
+
+Table scene_template_suggested_subjects {
+  id Int [pk, increment]
+  scene_template_id Int [not null]
+  subject_template_id Int [not null]
+  is_required Boolean [not null, default: false]
+  scene_template scene_templates [not null]
+  subject_template subject_templates [not null]
+
+  indexes {
+    (scene_template_id, subject_template_id) [unique]
+  }
+}
+
+Table scene_moment_templates {
+  id Int [pk, increment]
+  scene_template_id Int [not null]
+  name String [not null]
+  order_index Int [not null]
+  estimated_duration Int [default: 60]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  scene_template scene_templates [not null]
+
+  indexes {
+    (scene_template_id, order_index) [unique]
+  }
+}
+
+Table film_scenes {
+  id Int [pk, increment]
+  film_id Int [not null]
+  scene_template_id Int
+  name String [not null]
+  mode SceneType [not null, default: 'MOMENTS']
+  montage_style MontageStyle
+  montage_bpm Int
+  shot_count Int
+  duration_seconds Int
+  order_index Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film films [not null]
+  template scene_templates
+  moments film_scene_moments [not null]
+  beats film_scene_beats [not null]
+  recording_setup scene_recording_setups
+  scene_music scene_music
+  subjects film_scene_subjects [not null]
+  location_assignment film_scene_locations
+  schedule film_scene_schedules
+  package_schedules package_film_scene_schedules [not null]
+  project_schedules project_film_scene_schedules [not null]
+  project_instances project_film_scenes [not null]
+  audio_sources scene_audio_sources [not null]
+  beat_source_refs film_scene_beats [not null]
+  audio_source_refs scene_audio_sources [not null]
+}
+
+Table film_scene_locations {
+  id Int [pk, increment]
+  scene_id Int [unique, not null]
+  location_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  scene film_scenes [not null]
+  location locations_library [not null]
+}
+
+Table scene_recording_setups {
+  id Int [pk, increment]
+  scene_id Int [unique, not null]
+  audio_track_ids Int[] [not null]
+  graphics_enabled Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  scene film_scenes [not null]
+  camera_assignments scene_camera_assignments [not null]
+}
+
+Table film_scene_subjects {
+  id Int [pk, increment]
+  scene_id Int [not null]
+  subject_id Int [not null]
+  priority SubjectPriority [not null, default: 'BACKGROUND']
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  scene film_scenes [not null]
+  subject film_subjects [not null]
+
+  indexes {
+    (scene_id, subject_id) [unique]
+  }
+}
+
+Table film_scene_moment_subjects {
+  id Int [pk, increment]
+  moment_id Int [not null]
+  subject_id Int [not null]
+  priority SubjectPriority [not null, default: 'BACKGROUND']
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  moment film_scene_moments [not null]
+  subject film_subjects [not null]
+
+  indexes {
+    (moment_id, subject_id) [unique]
+  }
+}
+
+Table scene_camera_assignments {
+  id Int [pk, increment]
+  recording_setup_id Int [not null]
+  track_id Int [not null]
+  subject_ids Int[] [not null]
+  recording_setup scene_recording_setups [not null]
+  track film_timeline_tracks_v2 [not null]
+
+  indexes {
+    (recording_setup_id, track_id) [unique]
+  }
+}
+
+Table film_scene_moments {
+  id Int [pk, increment]
+  film_scene_id Int [not null]
+  name String [not null]
+  order_index Int [not null]
+  duration Int [not null, default: 60]
+  source_activity_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film_scene film_scenes [not null]
+  recording_setup moment_recording_setups
+  moment_music moment_music
+  subjects film_scene_moment_subjects [not null]
+  project_instances project_film_scene_moments [not null]
+
+  indexes {
+    (film_scene_id, order_index) [unique]
+  }
+}
+
+Table film_scene_beats {
+  id Int [pk, increment]
+  film_scene_id Int [not null]
+  name String [not null]
+  order_index Int [not null]
+  shot_count Int
+  duration_seconds Int [not null, default: 10]
+  source_activity_id Int
+  source_moment_id Int
+  source_scene_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film_scene film_scenes [not null]
+  source_activity package_activities
+  source_moment package_activity_moments
+  source_scene film_scenes
+  recording_setup beat_recording_setups
+  project_instances project_film_scene_beats [not null]
+
+  indexes {
+    (film_scene_id, order_index) [unique]
+  }
+}
+
+Table beat_recording_setups {
+  id Int [pk, increment]
+  beat_id Int [unique, not null]
+  camera_track_ids Int[] [not null]
+  audio_track_ids Int[] [not null]
+  graphics_enabled Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  beat film_scene_beats [not null]
+}
+
+Table moment_recording_setups {
+  id Int [pk, increment]
+  moment_id Int [unique, not null]
+  audio_track_ids Int[] [not null]
+  graphics_enabled Boolean [not null, default: false]
+  graphics_title String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  moment film_scene_moments [not null]
+  camera_assignments camera_subject_assignments [not null]
+}
+
+Table camera_subject_assignments {
+  id Int [pk, increment]
+  recording_setup_id Int [not null]
+  track_id Int [not null]
+  subject_ids Int[] [not null]
+  shot_type ShotType
+  recording_setup moment_recording_setups [not null]
+  track film_timeline_tracks_v2 [not null]
+
+  indexes {
+    (recording_setup_id, track_id) [unique]
+  }
+}
+
+Table scene_music {
+  id Int [pk, increment]
+  film_scene_id Int [unique, not null]
+  music_name String [not null]
+  artist String
+  duration Int
+  music_type MusicType [not null, default: 'MODERN']
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film_scene film_scenes [not null]
+}
+
+Table moment_music {
+  id Int [pk, increment]
+  moment_id Int [unique, not null]
+  music_name String [not null]
+  artist String
+  duration Int
+  music_type MusicType [not null, default: 'MODERN']
+  overrides_scene_music Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  moment film_scene_moments [not null]
+}
+
+Table montage_presets {
+  id Int [pk, increment]
+  brand_id Int
+  name String [not null]
+  min_duration_seconds Int [not null]
+  max_duration_seconds Int [not null]
+  is_system_seeded Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands
+  films films [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table film_structure_templates {
+  id Int [pk, increment]
+  brand_id Int
+  name String [not null]
+  description String
+  film_type FilmType [not null, default: 'MONTAGE']
+  is_system_seeded Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands
+  scenes film_structure_template_scenes [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table film_structure_template_scenes {
+  id Int [pk, increment]
+  film_structure_template_id Int [not null]
+  name String [not null]
+  mode SceneType [not null, default: 'MONTAGE']
+  suggested_duration_seconds Int
+  order_index Int [not null]
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  template film_structure_templates [not null]
+
+  indexes {
+    (film_structure_template_id, order_index) [unique]
+  }
+}
+
+Table scene_audio_sources {
+  id Int [pk, increment]
+  scene_id Int [not null]
+  source_type AudioSourceType [not null]
+  source_activity_id Int
+  source_moment_id Int
+  source_scene_id Int
+  track_type AudioTrackType [not null, default: 'SPEECH']
+  start_offset_seconds Int
+  duration_seconds Int
+  order_index Int [not null, default: 0]
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  scene film_scenes [not null]
+  source_activity package_activities
+  source_moment package_activity_moments
+  source_scene film_scenes
+}
+
+Table service_packages {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  wedding_type_id Int
+  name String [not null]
+  description String
+  category String
+  category_id Int
+  base_price Decimal [not null, default: 0]
+  currency String [not null, default: 'USD']
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  contents Json
+  brand brands [not null]
+  package_category service_package_categories
+  wedding_type wedding_types
+  inquiries inquiries [not null]
+  inquiry_source_refs inquiries [not null]
+  projects_from_package projects [not null]
+  workflow_template_id Int
+  package_films package_films [not null]
+  package_event_days package_event_days [not null]
+  package_day_operators package_day_operators [not null]
+  package_activities package_activities [not null]
+  package_event_day_subjects package_event_day_subjects [not null]
+  package_event_day_locations package_event_day_locations [not null]
+  package_location_slots package_location_slots [not null]
+  package_versions package_versions [not null]
+  package_task_overrides package_task_overrides [not null]
+  package_set_slots package_set_slots [not null]
+  project_tasks project_tasks [not null]
+  workflow_template workflow_templates
+}
+
+Table service_package_categories {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  order_index Int [not null, default: 0]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  packages service_packages [not null]
+  package_sets package_sets [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table schedule_presets {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  schedule_data Json [not null]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table event_types {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  icon String
+  color String
+  default_duration_hours Int
+  default_start_time String
+  typical_guest_count Int
+  is_system Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  event_days event_type_event_days [not null]
+  subject_types event_type_subject_types [not null]
+  inquiries inquiries [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table event_type_event_days {
+  id Int [pk, increment]
+  event_type_id Int [not null]
+  event_day_template_id Int [not null]
+  order_index Int [not null, default: 0]
+  is_default Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  event_type event_types [not null]
+  event_day_template event_day_templates [not null]
+
+  indexes {
+    (event_type_id, event_day_template_id) [unique]
+  }
+}
+
+Table event_type_subject_types {
+  id Int [pk, increment]
+  event_type_id Int [not null]
+  subject_type_template_id Int [not null]
+  order_index Int [not null, default: 0]
+  is_default Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  event_type event_types [not null]
+  subject_type_template subject_type_templates [not null]
+
+  indexes {
+    (event_type_id, subject_type_template_id) [unique]
+  }
+}
+
+Table event_day_templates {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  order_index Int [not null, default: 0]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  activity_presets event_day_activity_presets [not null]
+  event_type_event_days event_type_event_days [not null]
+  film_scene_schedules film_scene_schedules [not null]
+  package_scene_schedules package_film_scene_schedules [not null]
+  project_event_days project_event_days [not null]
+  package_event_days package_event_days [not null]
+  package_day_operators package_day_operators [not null]
+  package_event_day_subjects package_event_day_subjects [not null]
+  package_event_day_locations package_event_day_locations [not null]
+  package_location_slots package_location_slots [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table event_day_activity_presets {
+  id Int [pk, increment]
+  event_day_template_id Int [not null]
+  name String [not null]
+  description String
+  color String
+  icon String
+  default_start_time String
+  default_duration_minutes Int
+  order_index Int [not null, default: 0]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  event_day_template event_day_templates [not null]
+  moments event_day_activity_preset_moments [not null]
+
+  indexes {
+    (event_day_template_id, name) [unique]
+  }
+}
+
+Table event_day_activity_preset_moments {
+  id Int [pk, increment]
+  event_day_activity_preset_id Int [not null]
+  name String [not null]
+  description String
+  duration_seconds Int [not null, default: 60]
+  order_index Int [not null, default: 0]
+  is_key_moment Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  activity_preset event_day_activity_presets [not null]
+
+  indexes {
+    (event_day_activity_preset_id, order_index) [unique]
+  }
+}
+
+Table wedding_types {
+  id Int [pk, increment]
+  brand_id Int
+  name String [not null]
+  description String
+  total_duration_hours Int [not null]
+  event_start_time String [not null]
+  typical_guest_count Int
+  is_system_seeded Boolean [not null, default: true]
+  is_active Boolean [not null, default: true]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands
+  activities wedding_type_activities [not null]
+  locations wedding_type_locations [not null]
+  subjects wedding_type_subjects [not null]
+  service_packages_created service_packages [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table wedding_type_activities {
+  id Int [pk, increment]
+  wedding_type_id Int [not null]
+  name String [not null]
+  icon String
+  color String
+  duration_minutes Int [not null]
+  start_time_offset_minutes Int [not null]
+  order_index Int [not null, default: 0]
+  description String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  wedding_type wedding_types [not null]
+  moments wedding_type_activity_moments [not null]
+  activity_locations wedding_type_activity_locations [not null]
+  activity_subjects wedding_type_activity_subjects [not null]
+
+  indexes {
+    (wedding_type_id, order_index) [unique]
+  }
+}
+
+Table wedding_type_activity_moments {
+  id Int [pk, increment]
+  wedding_type_activity_id Int [not null]
+  name String [not null]
+  duration_seconds Int [not null, default: 60]
+  order_index Int [not null, default: 0]
+  is_key_moment Boolean [not null, default: false]
+  description String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  wedding_type_activity wedding_type_activities [not null]
+
+  indexes {
+    (wedding_type_activity_id, order_index) [unique]
+  }
+}
+
+Table wedding_type_locations {
+  id Int [pk, increment]
+  wedding_type_id Int [not null]
+  name String [not null]
+  location_type String
+  order_index Int [not null, default: 0]
+  is_primary Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  wedding_type wedding_types [not null]
+  activity_locations wedding_type_activity_locations [not null]
+
+  indexes {
+    (wedding_type_id, order_index) [unique]
+  }
+}
+
+Table wedding_type_subjects {
+  id Int [pk, increment]
+  wedding_type_id Int [not null]
+  name String [not null]
+  subject_type String
+  typical_count Int
+  order_index Int [not null, default: 0]
+  is_primary Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  wedding_type wedding_types [not null]
+  activity_subjects wedding_type_activity_subjects [not null]
+
+  indexes {
+    (wedding_type_id, order_index) [unique]
+  }
+}
+
+Table wedding_type_activity_locations {
+  id Int [pk, increment]
+  wedding_type_activity_id Int [not null]
+  wedding_type_location_id Int [not null]
+  location_sequence_index Int [not null, default: 0]
+  duration_minutes_at_location Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  wedding_type_activity wedding_type_activities [not null]
+  wedding_type_location wedding_type_locations [not null]
+
+  indexes {
+    (wedding_type_activity_id, wedding_type_location_id) [unique]
+  }
+}
+
+Table wedding_type_activity_subjects {
+  id Int [pk, increment]
+  wedding_type_activity_id Int [not null]
+  wedding_type_subject_id Int [not null]
+  presence_percentage Int
+  is_primary_focus Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  wedding_type_activity wedding_type_activities [not null]
+  wedding_type_subject wedding_type_subjects [not null]
+
+  indexes {
+    (wedding_type_activity_id, wedding_type_subject_id) [unique]
+  }
+}
+
+Table film_scene_schedules {
+  id Int [pk, increment]
+  film_id Int [not null]
+  scene_id Int [unique, not null]
+  event_day_template_id Int
+  scheduled_start_time String
+  scheduled_duration_minutes Int
+  moment_schedules Json
+  beat_schedules Json
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film films [not null]
+  scene film_scenes [not null]
+  event_day event_day_templates
+}
+
+Table package_event_days {
+  id Int [pk, increment]
+  package_id Int [not null]
+  event_day_template_id Int [not null]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  package service_packages [not null]
+  event_day event_day_templates [not null]
+  activities package_activities [not null]
+
+  indexes {
+    (package_id, event_day_template_id) [unique]
+  }
+}
+
+Table package_activities {
+  id Int [pk, increment]
+  package_id Int [not null]
+  package_event_day_id Int [not null]
+  name String [not null]
+  description String
+  color String
+  icon String
+  start_time String
+  end_time String
+  duration_minutes Int
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package service_packages [not null]
+  package_event_day package_event_days [not null]
+  scene_schedules package_film_scene_schedules [not null]
+  operators package_day_operators [not null]
+  subjects package_event_day_subjects [not null]
+  locations package_event_day_locations [not null]
+  project_activities project_activities [not null]
+  operator_assignments operator_activity_assignments [not null]
+  subject_assignments subject_activity_assignments [not null]
+  location_assignments location_activity_assignments [not null]
+  moments package_activity_moments [not null]
+  beat_sources film_scene_beats [not null]
+  audio_sources scene_audio_sources [not null]
+}
+
+Table package_activity_moments {
+  id Int [pk, increment]
+  package_activity_id Int [not null]
+  name String [not null]
+  order_index Int [not null, default: 0]
+  duration_seconds Int [not null, default: 60]
+  is_required Boolean [not null, default: true]
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package_activity package_activities [not null]
+  beat_sources film_scene_beats [not null]
+  audio_sources scene_audio_sources [not null]
+
+  indexes {
+    (package_activity_id, order_index) [unique]
+  }
+}
+
+Table package_day_operators {
+  id Int [pk, increment]
+  package_id Int [not null]
+  event_day_template_id Int [not null]
+  contributor_id Int
+  package_activity_id Int
+  position_name String [not null]
+  position_color String
+  job_role_id Int
+  hours Decimal [not null, default: 8]
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package service_packages [not null]
+  event_day event_day_templates [not null]
+  contributor contributors
+  package_activity package_activities
+  job_role job_roles
+  equipment package_day_operator_equipment [not null]
+  activity_assignments operator_activity_assignments [not null]
+
+  indexes {
+    (package_id, event_day_template_id, position_name) [unique]
+  }
+}
+
+Table package_day_operator_equipment {
+  id Int [pk, increment]
+  package_day_operator_id Int [not null]
+  equipment_id Int [not null]
+  is_primary Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  package_day_operator package_day_operators [not null]
+  equipment equipment [not null]
+
+  indexes {
+    (package_day_operator_id, equipment_id) [unique]
+  }
+}
+
+Table package_event_day_subjects {
+  id Int [pk, increment]
+  package_id Int [not null]
+  event_day_template_id Int [not null]
+  package_activity_id Int
+  role_template_id Int
+  name String [not null]
+  count Int
+  category SubjectCategory [not null, default: 'PEOPLE']
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package service_packages [not null]
+  event_day event_day_templates [not null]
+  package_activity package_activities
+  role_template subject_role_templates
+  activity_assignments subject_activity_assignments [not null]
+
+  indexes {
+    (package_id, event_day_template_id, name) [unique]
+  }
+}
+
+Table package_event_day_locations {
+  id Int [pk, increment]
+  package_id Int [not null]
+  event_day_template_id Int [not null]
+  package_activity_id Int
+  location_id Int [not null]
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package service_packages [not null]
+  event_day event_day_templates [not null]
+  package_activity package_activities
+  location locations_library [not null]
+
+  indexes {
+    (package_id, event_day_template_id, location_id) [unique]
+  }
+}
+
+Table package_films {
+  id Int [pk, increment]
+  package_id Int [not null]
+  film_id Int [not null]
+  order_index Int [not null, default: 0]
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package service_packages [not null]
+  film films [not null]
+  scene_schedules package_film_scene_schedules [not null]
+  project_films project_films [not null]
+
+  indexes {
+    (package_id, film_id) [unique]
+  }
+}
+
+Table package_film_scene_schedules {
+  id Int [pk, increment]
+  package_film_id Int [not null]
+  scene_id Int [not null]
+  event_day_template_id Int
+  package_activity_id Int
+  scheduled_start_time String
+  scheduled_duration_minutes Int
+  moment_schedules Json
+  beat_schedules Json
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package_film package_films [not null]
+  scene film_scenes [not null]
+  event_day event_day_templates
+  package_activity package_activities
+
+  indexes {
+    (package_film_id, scene_id) [unique]
+  }
+}
+
+Table project_event_days {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  event_day_template_id Int
+  name String [not null]
+  date DateTime [not null]
+  start_time String
+  end_time String
+  order_index Int [not null, default: 0]
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  event_day_template event_day_templates
+  scene_schedules project_film_scene_schedules [not null]
+  activities project_activities [not null]
+  day_operators project_day_operators [not null]
+  subjects project_event_day_subjects [not null]
+  location_slots project_location_slots [not null]
+}
+
+Table project_activities {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_event_day_id Int [not null]
+  package_activity_id Int
+  name String [not null]
+  description String
+  color String
+  icon String
+  start_time String
+  end_time String
+  duration_minutes Int
+  order_index Int [not null, default: 0]
+  notes String
+  is_locked Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_event_day project_event_days [not null]
+  package_activity package_activities
+  scene_schedules project_film_scene_schedules [not null]
+  moments project_activity_moments [not null]
+  operators project_day_operators [not null]
+  subjects project_event_day_subjects [not null]
+  location_slots project_location_slots [not null]
+  operator_assignments project_operator_activity_assignments [not null]
+  subject_assignments project_subject_activity_assignments [not null]
+  location_assignments project_location_activity_assignments [not null]
+}
+
+Table project_films {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  film_id Int [not null]
+  package_film_id Int
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  film films [not null]
+  package_film package_films
+  scene_schedules project_film_scene_schedules [not null]
+  instance_tracks project_film_timeline_tracks [not null]
+  instance_subjects project_film_subjects [not null]
+  instance_locations project_film_locations [not null]
+  instance_scenes project_film_scenes [not null]
+  instance_equipment_assignments project_film_equipment_assignments [not null]
+
+  indexes {
+    (project_id, film_id) [unique]
+    (inquiry_id, film_id) [unique]
+  }
+}
+
+Table project_film_scene_schedules {
+  id Int [pk, increment]
+  project_film_id Int [not null]
+  scene_id Int [not null]
+  project_event_day_id Int
+  project_activity_id Int
+  scheduled_start_time String
+  scheduled_duration_minutes Int
+  moment_schedules Json
+  beat_schedules Json
+  notes String
+  order_index Int [not null, default: 0]
+  is_locked Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project_film project_films [not null]
+  scene film_scenes [not null]
+  project_event_day project_event_days
+  project_activity project_activities
+
+  indexes {
+    (project_film_id, scene_id) [unique]
+  }
+}
+
+Table project_film_timeline_tracks {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_film_id Int [not null]
+  source_track_id Int
+  name String [not null]
+  type TrackType [not null]
+  order_index Int [not null]
+  is_active Boolean [not null, default: true]
+  is_unmanned Boolean [not null, default: false]
+  contributor_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_film project_films [not null]
+  source_track film_timeline_tracks_v2
+  contributor contributors
+  camera_assignments project_camera_subject_assignments [not null]
+  scene_camera_assignments project_scene_camera_assignments [not null]
+}
+
+Table project_film_subjects {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_film_id Int [not null]
+  source_subject_id Int
+  name String [not null]
+  category SubjectCategory [not null]
+  role_template_id Int
+  is_custom Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_film project_films [not null]
+  source_subject film_subjects
+  role_template subject_role_templates
+  scene_subjects project_film_scene_subjects [not null]
+  moment_subjects project_film_scene_moment_subjects [not null]
+}
+
+Table project_film_locations {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_film_id Int [not null]
+  source_location_id Int
+  location_id Int [not null]
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_film project_films [not null]
+  source_location film_locations
+  location locations_library [not null]
+}
+
+Table project_film_scenes {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_film_id Int [not null]
+  source_scene_id Int
+  scene_template_id Int
+  name String [not null]
+  mode SceneType [not null, default: 'MOMENTS']
+  shot_count Int
+  duration_seconds Int
+  order_index Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_film project_films [not null]
+  source_scene film_scenes
+  template scene_templates
+  moments project_film_scene_moments [not null]
+  beats project_film_scene_beats [not null]
+  subjects project_film_scene_subjects [not null]
+  location_assignment project_film_scene_locations
+  recording_setup project_scene_recording_setups
+  scene_camera_assignments project_scene_camera_assignments [not null]
+}
+
+Table project_film_scene_moments {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_scene_id Int [not null]
+  source_moment_id Int
+  name String [not null]
+  order_index Int [not null]
+  duration Int [not null, default: 60]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_scene project_film_scenes [not null]
+  source_moment film_scene_moments
+  recording_setup project_moment_recording_setups
+  subjects project_film_scene_moment_subjects [not null]
+}
+
+Table project_film_scene_beats {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_scene_id Int [not null]
+  source_beat_id Int
+  name String [not null]
+  order_index Int [not null]
+  shot_count Int
+  duration_seconds Int [not null, default: 10]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_scene project_film_scenes [not null]
+  source_beat film_scene_beats
+  recording_setup project_beat_recording_setups
+}
+
+Table project_film_scene_subjects {
+  id Int [pk, increment]
+  project_scene_id Int [not null]
+  project_film_subject_id Int [not null]
+  source_scene_subject_id Int
+  priority SubjectPriority [not null, default: 'BACKGROUND']
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project_scene project_film_scenes [not null]
+  project_subject project_film_subjects [not null]
+
+  indexes {
+    (project_scene_id, project_film_subject_id) [unique]
+  }
+}
+
+Table project_film_scene_moment_subjects {
+  id Int [pk, increment]
+  project_moment_id Int [not null]
+  project_film_subject_id Int [not null]
+  priority SubjectPriority [not null, default: 'BACKGROUND']
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project_moment project_film_scene_moments [not null]
+  project_subject project_film_subjects [not null]
+
+  indexes {
+    (project_moment_id, project_film_subject_id) [unique]
+  }
+}
+
+Table project_film_scene_locations {
+  id Int [pk, increment]
+  project_scene_id Int [unique, not null]
+  location_id Int [not null]
+  source_scene_location_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project_scene project_film_scenes [not null]
+  location locations_library [not null]
+}
+
+Table project_film_equipment_assignments {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_film_id Int [not null]
+  source_assignment_id Int
+  equipment_id Int [not null]
+  quantity Int [not null, default: 1]
+  notes String
+  assigned_at DateTime [default: `now()`, not null]
+  project projects
+  inquiry inquiries
+  project_film project_films [not null]
+  source film_equipment_assignments
+  equipment equipment [not null]
+
+  indexes {
+    (project_film_id, equipment_id) [unique]
+  }
+}
+
+Table project_scene_recording_setups {
+  id Int [pk, increment]
+  project_scene_id Int [unique, not null]
+  audio_track_ids Int[] [not null]
+  graphics_enabled Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project_scene project_film_scenes [not null]
+  camera_assignments project_scene_camera_assignments [not null]
+}
+
+Table project_scene_camera_assignments {
+  id Int [pk, increment]
+  recording_setup_id Int [not null]
+  track_id Int [not null]
+  subject_ids Int[] [not null]
+  recording_setup project_scene_recording_setups [not null]
+  track project_film_timeline_tracks [not null]
+  project_scene project_film_scenes
+  project_scene_id Int
+
+  indexes {
+    (recording_setup_id, track_id) [unique]
+  }
+}
+
+Table project_moment_recording_setups {
+  id Int [pk, increment]
+  project_moment_id Int [unique, not null]
+  audio_track_ids Int[] [not null]
+  graphics_enabled Boolean [not null, default: false]
+  graphics_title String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project_moment project_film_scene_moments [not null]
+  camera_assignments project_camera_subject_assignments [not null]
+}
+
+Table project_camera_subject_assignments {
+  id Int [pk, increment]
+  recording_setup_id Int [not null]
+  track_id Int [not null]
+  subject_ids Int[] [not null]
+  shot_type ShotType
+  recording_setup project_moment_recording_setups [not null]
+  track project_film_timeline_tracks [not null]
+
+  indexes {
+    (recording_setup_id, track_id) [unique]
+  }
+}
+
+Table project_beat_recording_setups {
+  id Int [pk, increment]
+  project_beat_id Int [unique, not null]
+  camera_track_ids Int[] [not null]
+  audio_track_ids Int[] [not null]
+  graphics_enabled Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project_beat project_film_scene_beats [not null]
+}
+
+Table project_activity_moments {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_activity_id Int [not null]
+  source_package_moment_id Int
+  name String [not null]
+  order_index Int [not null, default: 0]
+  duration_seconds Int [not null, default: 60]
+  is_required Boolean [not null, default: true]
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_activity project_activities [not null]
+}
+
+Table project_event_day_subjects {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_event_day_id Int [not null]
+  project_activity_id Int
+  source_package_subject_id Int
+  role_template_id Int
+  name String [not null]
+  real_name String
+  count Int
+  member_names Json
+  category SubjectCategory [not null, default: 'PEOPLE']
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_event_day project_event_days [not null]
+  project_activity project_activities
+  role_template subject_role_templates
+  activity_assignments project_subject_activity_assignments [not null]
+}
+
+Table project_location_slots {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_event_day_id Int [not null]
+  project_activity_id Int
+  source_package_location_slot_id Int
+  location_number Int [not null]
+  name String
+  address String
+  location_id Int
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_event_day project_event_days [not null]
+  project_activity project_activities
+  location locations_library
+  activity_assignments project_location_activity_assignments [not null]
+}
+
+Table project_day_operators {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_event_day_id Int [not null]
+  project_activity_id Int
+  source_package_operator_id Int
+  contributor_id Int
+  position_name String [not null]
+  position_color String
+  job_role_id Int
+  hours Decimal [not null, default: 8]
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_event_day project_event_days [not null]
+  project_activity project_activities
+  contributor contributors
+  job_role job_roles
+  equipment project_day_operator_equipment [not null]
+  activity_assignments project_operator_activity_assignments [not null]
+}
+
+Table project_day_operator_equipment {
+  id Int [pk, increment]
+  project_day_operator_id Int [not null]
+  equipment_id Int [not null]
+  is_primary Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  project_day_operator project_day_operators [not null]
+  equipment equipment [not null]
+
+  indexes {
+    (project_day_operator_id, equipment_id) [unique]
+  }
+}
+
+Table project_operator_activity_assignments {
+  id Int [pk, increment]
+  project_day_operator_id Int [not null]
+  project_activity_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  project_day_operator project_day_operators [not null]
+  project_activity project_activities [not null]
+
+  indexes {
+    (project_day_operator_id, project_activity_id) [unique]
+  }
+}
+
+Table project_subject_activity_assignments {
+  id Int [pk, increment]
+  project_event_day_subject_id Int [not null]
+  project_activity_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  project_event_day_subject project_event_day_subjects [not null]
+  project_activity project_activities [not null]
+
+  indexes {
+    (project_event_day_subject_id, project_activity_id) [unique]
+  }
+}
+
+Table project_location_activity_assignments {
+  id Int [pk, increment]
+  project_location_slot_id Int [not null]
+  project_activity_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  project_location_slot project_location_slots [not null]
+  project_activity project_activities [not null]
+
+  indexes {
+    (project_location_slot_id, project_activity_id) [unique]
+  }
+}
+
+Table operator_activity_assignments {
+  id Int [pk, increment]
+  package_day_operator_id Int [not null]
+  package_activity_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  package_day_operator package_day_operators [not null]
+  package_activity package_activities [not null]
+
+  indexes {
+    (package_day_operator_id, package_activity_id) [unique]
+  }
+}
+
+Table subject_activity_assignments {
+  id Int [pk, increment]
+  package_event_day_subject_id Int [not null]
+  package_activity_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  package_event_day_subject package_event_day_subjects [not null]
+  package_activity package_activities [not null]
+
+  indexes {
+    (package_event_day_subject_id, package_activity_id) [unique]
+  }
+}
+
+Table package_location_slots {
+  id Int [pk, increment]
+  package_id Int [not null]
+  event_day_template_id Int [not null]
+  location_number Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package service_packages [not null]
+  event_day event_day_templates [not null]
+  activity_assignments location_activity_assignments [not null]
+
+  indexes {
+    (package_id, event_day_template_id, location_number) [unique]
+  }
+}
+
+Table location_activity_assignments {
+  id Int [pk, increment]
+  package_location_slot_id Int [not null]
+  package_activity_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  package_location_slot package_location_slots [not null]
+  package_activity package_activities [not null]
+
+  indexes {
+    (package_location_slot_id, package_activity_id) [unique]
+  }
+}
+
+Table package_versions {
+  id Int [pk, increment]
+  package_id Int [not null]
+  version_number Int [not null]
+  snapshot Json [not null]
+  change_summary String
+  created_at DateTime [default: `now()`, not null]
+  package service_packages [not null]
+
+  indexes {
+    (package_id, version_number) [unique]
+  }
+}
+
+Table package_task_overrides {
+  id Int [pk, increment]
+  package_id Int [not null]
+  task_generation_rule_id Int
+  task_library_id Int
+  action String [not null, default: 'include']
+  override_name String
+  override_hours Decimal
+  override_assignee_role String
+  phase project_phase
+  order_index Int [not null, default: 0]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package service_packages [not null]
+}
+
+Table package_sets {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  emoji String [default: '📦']
+  category_id Int
+  order_index Int [not null, default: 0]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  category service_package_categories
+  slots package_set_slots [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table package_set_slots {
+  id Int [pk, increment]
+  package_set_id Int [not null]
+  service_package_id Int
+  slot_label String [not null, default: 'Package']
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package_set package_sets [not null]
+  service_package service_packages
+}
+
+Table payment_schedule_templates {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  is_default Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  rules payment_schedule_rules [not null]
+  estimates estimates [not null]
+  quotes quotes [not null]
+  contract_templates contract_templates [not null]
+  inquiries inquiries [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table payment_schedule_rules {
+  id Int [pk, increment]
+  template_id Int [not null]
+  label String [not null]
+  amount_type String [not null, default: 'PERCENT']
+  amount_value Decimal [not null]
+  trigger_type String [not null]
+  trigger_days Int
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  template payment_schedule_templates [not null]
+}
+
+Table crew_payment_templates {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  role_type String [not null]
+  payment_terms String [default: 'DUE_ON_RECEIPT']
+  is_default Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  rules crew_payment_rules [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table crew_payment_rules {
+  id Int [pk, increment]
+  template_id Int [not null]
+  label String [not null]
+  amount_type String [not null, default: 'PERCENT']
+  amount_value Decimal [not null]
+  trigger_type String [not null]
+  trigger_days Int
+  task_library_id Int
+  frequency String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  template crew_payment_templates [not null]
+  task_library task_library
+}
+
+Table estimate_payment_milestones {
+  id Int [pk, increment]
+  estimate_id Int [not null]
+  label String [not null]
+  amount Decimal [not null]
+  due_date DateTime [not null]
+  status String [not null, default: 'PENDING']
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  estimate estimates [not null]
+}
+
+Table contract_clause_categories {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  order_index Int [not null, default: 0]
+  is_default Boolean [not null, default: false]
+  country_code String
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  clauses contract_clauses [not null]
+}
+
+Table contract_clauses {
+  id Int [pk, increment]
+  category_id Int [not null]
+  brand_id Int [not null]
+  title String [not null]
+  body String [not null]
+  clause_type String [not null, default: 'STANDARD']
+  country_code String
+  is_default Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  category contract_clause_categories [not null]
+  brand brands [not null]
+  template_clauses contract_template_clauses [not null]
+}
+
+Table contract_templates {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  description String
+  payment_schedule_template_id Int
+  is_default Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  payment_schedule payment_schedule_templates
+  template_clauses contract_template_clauses [not null]
+}
+
+Table contract_template_clauses {
+  id Int [pk, increment]
+  template_id Int [not null]
+  clause_id Int [not null]
+  order_index Int [not null, default: 0]
+  override_body String
+  created_at DateTime [default: `now()`, not null]
+  template contract_templates [not null]
+  clause contract_clauses [not null]
+
+  indexes {
+    (template_id, clause_id) [unique]
+  }
+}
+
+Table package_requests {
+  id Int [pk, increment]
+  inquiry_id Int [not null]
+  selected_package_id Int
+  customisations Json
+  notes String
+  status String [not null, default: 'pending']
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  inquiry inquiries [not null]
+}
+
+Table inquiry_equipment_reservations {
+  id Int [pk, increment]
+  inquiry_id Int [not null]
+  equipment_id Int [not null]
+  project_day_operator_equipment_id Int [not null]
+  equipment_availability_id Int
+  status inquiry_equipment_reservation_status [not null, default: 'reserved']
+  reserved_at DateTime [default: `now()`, not null]
+  cancelled_at DateTime
+  created_at DateTime [default: `now()`, not null]
+  inquiry inquiries [not null]
+  equipment equipment [not null]
+
+  indexes {
+    (inquiry_id, project_day_operator_equipment_id) [unique]
+  }
+}
+
+Enum SubjectPriority {
+  PRIMARY
+  SECONDARY
+  BACKGROUND
+}
+
+Enum CoverageType {
+  VIDEO
+  AUDIO
+}
+
+Enum ShotType {
+  ESTABLISHING_SHOT
+  WIDE_SHOT
+  MEDIUM_SHOT
+  TWO_SHOT
+  CLOSE_UP
+  EXTREME_CLOSE_UP
+  DETAIL_SHOT
+  REACTION_SHOT
+  OVER_SHOULDER
+  CUTAWAY
+  INSERT_SHOT
+  MASTER_SHOT
+}
+
+Enum CameraMovement {
+  STATIC
+  PAN
+  TRACKING
+  GIMBAL_STABILIZED
+  HANDHELD
+  TILT
+  ZOOM
+  DOLLY
+  CRANE
+  DRONE
+  STEADICAM
+}
+
+Enum AudioEquipment {
+  LAPEL_MIC
+  WIRELESS_MIC
+  AMBIENT_MIC
+  RECORDER
+  BOOM_MIC
+  MIXING_BOARD
+  HANDHELD_MIC
+  SHOTGUN_MIC
+}
+
+Enum VideoStyleType {
+  FULL
+  MONTAGE
+  CINEMATIC
+}
+
+Enum contacts_type {
+  Client_Lead
+  Client
+  Contributor
+  Vendor
+}
+
+Enum pricing_type_options {
+  Hourly
+  Fixed
+}
+
+Enum project_phase {
+  Lead
+  Inquiry
+  Booking
+  Creative_Development
+  Pre_Production
+  Production
+  Post_Production
+  Delivery
+}
+
+Enum task_trigger_type {
+  always
+  per_project
+  per_film
+  per_film_with_music
+  per_film_with_graphics
+  per_event_day
+  per_crew_member
+  per_location
+  per_activity
+  per_activity_crew
+  per_film_scene
+}
+
+Enum billable_item_pricing_type {
+  Fixed
+  Unit
+}
+
+Enum inquiries_status {
+  New
+  Qualified
+  Contacted
+  Discovery_Call
+  Proposal_Sent
+  Booked
+  Closed_Lost
+}
+
+Enum contributors_type {
+  Internal
+  External
+  Freelance
+}
+
+Enum builds_status {
+  Inquiry
+  Proposal_Sent
+  Booked
+  Completed
+  Archived
+}
+
+Enum change_order_status {
+  Pending_Approval
+  Approved
+  Rejected
+}
+
+Enum discount_type_enum {
+  Percentage
+  Fixed
+}
+
+Enum tasks_status {
+  To_Do
+  Ready_to_Start
+  In_Progress
+  Completed
+  Archived
+}
+
+Enum calendar_event_type {
+  PROJECT_ASSIGNMENT
+  ABSENCE
+  HOLIDAY
+  EXTERNAL_SYNC
+  PERSONAL
+  DISCOVERY_CALL
+  PROPOSAL_REVIEW
+  WEDDING_DAY
+}
+
+Enum meeting_type {
+  ONLINE
+  PHONE_CALL
+  IN_PERSON
+  VIDEO_CALL
+}
+
+Enum event_attendee_status {
+  PENDING
+  ACCEPTED
+  DECLINED
+  TENTATIVE
+}
+
+Enum event_reminder_method {
+  EMAIL
+  SMS
+  PUSH_NOTIFICATION
+  POPUP
+}
+
+Enum project_asset_type {
+  Raw_Footage
+  Audio_File
+  Project_File
+  Export
+}
+
+Enum activity_type {
+  Call
+  Email
+  Meeting
+  To_Do
+}
+
+Enum activity_status {
+  Pending
+  Completed
+}
+
+Enum document_status {
+  Active
+  Archived
+}
+
+Enum task_comment_visibility {
+  Internal
+  Client_Visible
+}
+
+Enum calendar_sync_provider {
+  Google
+}
+
+Enum calendar_sync_status {
+  Active
+  Error
+  Disabled
+}
+
+Enum EquipmentTemplateSlotType {
+  CAMERA
+  AUDIO
+}
+
+Enum FilmType {
+  ACTIVITY
+  FEATURE
+  MONTAGE
+  RAW_FOOTAGE
+}
+
+Enum AudioSourceType {
+  MOMENT
+  BEAT
+  SCENE
+  ACTIVITY
+}
+
+Enum AudioTrackType {
+  SPEECH
+  AMBIENT
+  MUSIC
+}
+
+Enum TrackType {
+  VIDEO
+  AUDIO
+  GRAPHICS
+  MUSIC
+}
+
+Enum SubjectCategory {
+  PEOPLE
+  OBJECTS
+  LOCATIONS
+}
+
+Enum SceneType {
+  MOMENTS
+  MONTAGE
+}
+
+Enum MontageStyle {
+  RHYTHMIC
+  IMPRESSIONISTIC
+  SEQUENTIAL
+  PARALLEL
+  HIGHLIGHTS
+  NARRATIVE_ARC
+}
+
+Enum MediaType {
+  VIDEO
+  AUDIO
+  MUSIC
+  GRAPHICS
+}
+
+Enum MusicType {
+  NONE
+  SCENE_MATCHED
+  ORCHESTRAL
+  PIANO
+  MODERN
+  VINTAGE
+  CLASSICAL
+  JAZZ
+  ACOUSTIC
+  ELECTRONIC
+  CUSTOM
+}
+
+Enum ProcessingLevel {
+  MINIMAL
+  STANDARD
+  PREMIUM
+}
+
+Enum DeliveryFormat {
+  MP4_H264
+  PRORES_422
+  ORIGINAL_CODEC
+}
+
+Enum PricingModifierType {
+  PEAK_SEASON
+  RUSH_JOB
+  DAY_OF_WEEK
+  LOCATION
+  VOLUME_DISCOUNT
+  TIMELINE_COMPLEXITY
+  COVERAGE_COMPLEXITY
+  SCENE_DEPENDENCY
+  FILM_OVERRIDE
+}
+
+Enum EquipmentCategory {
+  CAMERA
+  LENS
+  AUDIO
+  LIGHTING
+  GRIP
+  POWER
+  STORAGE
+  STREAMING
+  ACCESSORIES
+  DECORATIVE
+  BACKGROUNDS
+  CABLES
+  OTHER
+}
+
+Enum EquipmentType {
+  MIRRORLESS
+  DSLR
+  CAMCORDER
+  ACTION_CAM
+  DRONE
+  SMARTPHONE
+  EF_MOUNT
+  EF_S_MOUNT
+  SONY_E_MOUNT
+  NIKON_AF_S
+  CANON_RF
+  RECORDER
+  LAVALIER
+  CONDENSER
+  HEADPHONES
+  PA_SPEAKER
+  MIXER
+  INTERFACE
+  CABLES_AUDIO
+  DECKS
+  LED
+  STAGE_LIGHTING
+  T_BARS
+  DIFFUSION
+  STANDS
+  TRIPOD
+  MONOPOD
+  GIMBAL
+  SLIDER
+  MOUNT
+  BATTERY
+  CHARGER
+  GENERATOR
+  MEMORY_CARD
+  STREAMING_DEVICE
+  AUTOCUE
+  SYNC_DEVICE
+  GREEN_SCREEN
+  SMOKE_MACHINE
+  OTHER_EQUIPMENT
+}
+
+Enum EquipmentCondition {
+  NEW
+  EXCELLENT
+  GOOD
+  FAIR
+  NEEDS_REPAIR
+  OUT_OF_SERVICE
+}
+
+Enum EquipmentAvailability {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+  RESERVED
+  UNAVAILABLE
+}
+
+Enum equipment_rental_status {
+  BOOKED
+  ACTIVE
+  RETURNED
+  OVERDUE
+  CANCELLED
+}
+
+Enum equipment_maintenance_type {
+  ROUTINE
+  REPAIR
+  UPGRADE
+  CALIBRATION
+  CLEANING
+  INSPECTION
+}
+
+Enum equipment_availability_status {
+  AVAILABLE
+  BOOKED
+  IN_USE
+  UNAVAILABLE
+  TENTATIVE
+}
+
+Enum inquiry_availability_request_status {
+  pending
+  confirmed
+  declined
+  cancelled
+}
+
+Enum inquiry_equipment_reservation_status {
+  reserved
+  confirmed
+  cancelled
+}
+
+Ref: brand_settings.brand_id > brands.id [delete: Cascade]
+
+Ref: user_brands.brand_id > brands.id [delete: Cascade]
+
+Ref: user_brands.user_id > contributors.id [delete: Cascade]
+
+Ref: contacts.brand_id > brands.id
+
+Ref: coverage.operator_id > contributors.id
+
+Ref: coverage.job_role_id > job_roles.id
+
+Ref: coverage.workflow_template_id > workflow_templates.id
+
+Ref: film_library.brand_id > brands.id
+
+Ref: film_library.workflow_template_id > workflow_templates.id
+
+Ref: editing_styles.workflow_template_id > workflow_templates.id
+
+Ref: film_music_tracks.film_id > film_library.id [delete: Cascade]
+
+Ref: film_equipment.film_id > film_library.id [delete: Cascade]
+
+Ref: film_timeline_tracks.film_id > film_library.id [delete: Cascade]
+
+Ref: film_versions.changed_by_id > contributors.id
+
+Ref: film_versions.film_id > film_library.id [delete: Cascade]
+
+Ref: film_change_logs.changed_by_id > contributors.id
+
+Ref: film_change_logs.film_id > film_library.id [delete: Cascade]
+
+Ref: roles.brand_id > brands.id
+
+Ref: role_permissions.permission_id > permissions.id [delete: Cascade]
+
+Ref: role_permissions.role_id > roles.id [delete: Cascade]
+
+Ref: inquiries.selected_package_id > service_packages.id
+
+Ref: inquiries.source_package_id > service_packages.id
+
+Ref: inquiries.event_type_id > event_types.id
+
+Ref: inquiries.contact_id > contacts.id
+
+Ref: inquiries.preferred_payment_schedule_template_id > payment_schedule_templates.id [delete: Set Null]
+
+Ref: needs_assessment_templates.brand_id > brands.id [delete: Cascade]
+
+Ref: needs_assessment_questions.template_id > needs_assessment_templates.id [delete: Cascade]
+
+Ref: needs_assessment_submissions.template_id > needs_assessment_templates.id [delete: Cascade]
+
+Ref: needs_assessment_submissions.brand_id > brands.id [delete: Cascade]
+
+Ref: needs_assessment_submissions.inquiry_id > inquiries.id
+
+Ref: needs_assessment_submissions.contact_id > contacts.id
+
+Ref: discovery_questionnaire_templates.brand_id > brands.id [delete: Cascade]
+
+Ref: discovery_questionnaire_questions.template_id > discovery_questionnaire_templates.id [delete: Cascade]
+
+Ref: discovery_questionnaire_submissions.template_id > discovery_questionnaire_templates.id [delete: Cascade]
+
+Ref: discovery_questionnaire_submissions.brand_id > brands.id [delete: Cascade]
+
+Ref: discovery_questionnaire_submissions.inquiry_id > inquiries.id
+
+Ref: activity_logs.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: clients.contact_id - contacts.id [delete: Cascade]
+
+Ref: clients.inquiry_id - inquiries.id
+
+Ref: client_users.client_id - clients.id [delete: Cascade]
+
+Ref: projects.brand_id > brands.id
+
+Ref: projects.client_id > clients.id
+
+Ref: projects.source_package_id > service_packages.id [delete: Set Null]
+
+Ref: projects.workflow_template_id > workflow_templates.id
+
+Ref: contributors.default_camera_id - equipment.id [delete: Set Null]
+
+Ref: contributors.contact_id - contacts.id [delete: Cascade]
+
+Ref: contributors.role_id > roles.id [delete: Restrict]
+
+Ref: contributor_skill_rates.contributor_id > contributors.id [delete: Cascade]
+
+Ref: contributor_skill_rates.task_template_id > task_templates.id [delete: Cascade]
+
+Ref: payment_brackets.job_role_id > job_roles.id [delete: Cascade]
+
+Ref: contributor_job_roles.assigned_by > contributors.id
+
+Ref: contributor_job_roles.contributor_id > contributors.id
+
+Ref: contributor_job_roles.job_role_id > job_roles.id [delete: Cascade]
+
+Ref: contributor_job_roles.payment_bracket_id > payment_brackets.id [delete: Set Null]
+
+Ref: project_assignments.contributor_id > contributors.id [delete: Cascade]
+
+Ref: project_assignments.project_id > projects.id [delete: Cascade]
+
+Ref: project_assignments.role_id > roles.id
+
+Ref: editing_style_requirements.billable_item_id > billable_items.id [delete: Cascade]
+
+Ref: editing_style_requirements.editing_style_id > editing_styles.id [delete: Cascade]
+
+Ref: builds.client_id > clients.id
+
+Ref: builds.inquiry_id - inquiries.id [delete: Cascade]
+
+Ref: builds.project_id - projects.id [delete: Cascade]
+
+Ref: build_coverage_assignments.build_id > builds.id [delete: Cascade]
+
+Ref: build_coverage_assignments.coverage_id > coverage.id
+
+Ref: build_coverage_assignments.operator_type_id > operator_types.id
+
+Ref: build_films.build_id > builds.id [delete: Cascade]
+
+Ref: build_films.film_id > film_library.id
+
+Ref: build_scenes.build_film_id > build_films.id [delete: Cascade]
+
+Ref: build_scenes.coverage_id > coverage.id
+
+Ref: build_scenes.editing_style_id > editing_styles.id
+
+Ref: build_billable_items.billable_item_id > billable_items.id
+
+Ref: build_billable_items.build_id > builds.id [delete: Cascade]
+
+Ref: build_change_orders.build_id > builds.id [delete: Cascade]
+
+Ref: build_snapshots.build_id > builds.id [delete: Cascade]
+
+Ref: build_snapshots.change_order_id > build_change_orders.id [delete: Cascade]
+
+Ref: tasks.assigned_to_contributor_id > contributors.id
+
+Ref: tasks.build_scene_id > build_scenes.id [delete: Cascade]
+
+Ref: tasks.project_id > projects.id [delete: Cascade]
+
+Ref: tasks.task_template_id > task_templates.id
+
+Ref: calendar_events.contributor_id > contributors.id [delete: Cascade]
+
+Ref: calendar_events.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: calendar_events.project_id > projects.id [delete: Cascade]
+
+Ref: event_tags.event_id > calendar_events.id [delete: Cascade]
+
+Ref: event_tags.tag_id > tags.id [delete: Cascade]
+
+Ref: event_attendees.contact_id > contacts.id [delete: Cascade]
+
+Ref: event_attendees.contributor_id > contributors.id [delete: Cascade]
+
+Ref: event_attendees.event_id > calendar_events.id [delete: Cascade]
+
+Ref: event_reminders.event_id > calendar_events.id [delete: Cascade]
+
+Ref: calendar_settings.contributor_id - contributors.id [delete: Cascade]
+
+Ref: project_assets.coverage_id > coverage.id
+
+Ref: project_assets.project_id > projects.id [delete: Cascade]
+
+Ref: contributor_task_benchmarks.contributor_id > contributors.id [delete: Cascade]
+
+Ref: contributor_task_benchmarks.task_template_id > task_templates.id [delete: Cascade]
+
+Ref: invoices.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: invoices.project_id > projects.id
+
+Ref: invoices.quote_id > quotes.id
+
+Ref: invoices.proposal_id > proposals.id
+
+Ref: invoice_items.invoice_id > invoices.id [delete: Cascade]
+
+Ref: payments.invoice_id > invoices.id
+
+Ref: project_expenses.project_id > projects.id [delete: Cascade]
+
+Ref: estimates.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: estimates.project_id > projects.id
+
+Ref: estimates.schedule_template_id > payment_schedule_templates.id
+
+Ref: estimate_items.estimate_id > estimates.id [delete: Cascade]
+
+Ref: estimate_snapshots.estimate_id > estimates.id [delete: Cascade]
+
+Ref: quotes.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: quotes.project_id > projects.id
+
+Ref: quotes.schedule_template_id > payment_schedule_templates.id
+
+Ref: quote_items.quote_id > quotes.id [delete: Cascade]
+
+Ref: quote_payment_milestones.quote_id > quotes.id [delete: Cascade]
+
+Ref: audit_log.contributor_id > contributors.id
+
+Ref: notifications.recipient_contributor_id > contributors.id [delete: Cascade]
+
+Ref: task_dependencies.blocking_task_id > tasks.id [delete: Cascade]
+
+Ref: task_dependencies.dependent_task_id > tasks.id [delete: Cascade]
+
+Ref: activities.assigned_to_contributor_id > contributors.id [delete: Cascade]
+
+Ref: activities.contact_id > contacts.id [delete: Cascade]
+
+Ref: activities.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: activities.project_id > projects.id [delete: Cascade]
+
+Ref: communications_log.contact_id > contacts.id [delete: Cascade]
+
+Ref: communications_log.project_id > projects.id [delete: Cascade]
+
+Ref: documents.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: documents.project_id > projects.id [delete: Cascade]
+
+Ref: proposals.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: proposals.project_id > projects.id
+
+Ref: contracts.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: contracts.project_id > projects.id
+
+Ref: contract_signers.contract_id > contracts.id [delete: Cascade]
+
+Ref: client_feedback_surveys.project_id > projects.id [delete: Cascade]
+
+Ref: task_comments.contributor_id > contributors.id
+
+Ref: task_comments.task_id > tasks.id [delete: Cascade]
+
+Ref: calendar_sync_tokens.contributor_id - contributors.id [delete: Cascade]
+
+Ref: timeline_editing_sessions.film_id > film_library.id [delete: Cascade]
+
+Ref: timeline_editing_sessions.user_id > contributors.id [delete: Cascade]
+
+Ref: workflow_templates.brand_id > brands.id [delete: Cascade]
+
+Ref: workflow_stages.workflow_template_id > workflow_templates.id [delete: Cascade]
+
+Ref: task_generation_rules.coverage_id > coverage.id
+
+Ref: task_generation_rules.task_template_id > task_templates.id [delete: Cascade]
+
+Ref: task_generation_rules.workflow_stage_id > workflow_stages.id [delete: Cascade]
+
+Ref: workflow_template_tasks.workflow_template_id > workflow_templates.id [delete: Cascade]
+
+Ref: workflow_template_tasks.task_library_id > task_library.id [delete: Cascade]
+
+Ref: generated_task_log.project_id > projects.id [delete: Cascade]
+
+Ref: generated_task_log.task_id > tasks.id [delete: Cascade]
+
+Ref: entity_default_tasks.task_template_id > task_templates.id
+
+Ref: skill_role_mappings.job_role_id > job_roles.id [delete: Cascade]
+
+Ref: skill_role_mappings.payment_bracket_id > payment_brackets.id [delete: Cascade]
+
+Ref: skill_role_mappings.brand_id > brands.id [delete: Cascade]
+
+Ref: task_library.brand_id > brands.id [delete: Cascade]
+
+Ref: task_library.default_job_role_id > job_roles.id [delete: Set Null]
+
+Ref: task_library.default_contributor_id > contributors.id [delete: Set Null]
+
+Ref: task_library.parent_task_id - task_library.id [delete: Set Null]
+
+Ref: task_library_benchmarks.contributor_id > contributors.id [delete: Cascade]
+
+Ref: task_library_benchmarks.task_library_id > task_library.id [delete: Cascade]
+
+Ref: task_library_skill_rates.task_library_id > task_library.id [delete: Cascade]
+
+Ref: task_library_subtask_templates.task_library_id > task_library.id [delete: Cascade]
+
+Ref: project_tasks.project_id > projects.id [delete: Cascade]
+
+Ref: project_tasks.task_library_id > task_library.id [delete: Set Null]
+
+Ref: project_tasks.package_id > service_packages.id [delete: Set Null]
+
+Ref: project_tasks.assigned_to_id > contributors.id [delete: Set Null]
+
+Ref: project_tasks.resolved_job_role_id > job_roles.id [delete: Set Null]
+
+Ref: project_tasks.resolved_bracket_id > payment_brackets.id [delete: Set Null]
+
+Ref: inquiry_tasks.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: inquiry_tasks.task_library_id > task_library.id [delete: Set Null]
+
+Ref: inquiry_tasks.completed_by_id > contributors.id [delete: Set Null]
+
+Ref: inquiry_tasks.assigned_to_id > contributors.id [delete: Set Null]
+
+Ref: inquiry_tasks.job_role_id > job_roles.id [delete: Set Null]
+
+Ref: inquiry_tasks.parent_inquiry_task_id - inquiry_tasks.id [delete: Cascade]
+
+Ref: inquiry_task_subtasks.inquiry_task_id > inquiry_tasks.id [delete: Cascade]
+
+Ref: inquiry_task_subtasks.completed_by_id > contributors.id [delete: Set Null]
+
+Ref: inquiry_task_subtasks.job_role_id > job_roles.id [delete: Set Null]
+
+Ref: inquiry_task_events.task_id > inquiry_tasks.id [delete: Cascade]
+
+Ref: inquiry_availability_requests.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: inquiry_availability_requests.contributor_id > contributors.id [delete: Cascade]
+
+Ref: equipment.brand_id > brands.id
+
+Ref: equipment.created_by_id - contributors.id
+
+Ref: equipment.owner_id - contributors.id
+
+Ref: equipment_rentals.client_id > clients.id
+
+Ref: equipment_rentals.equipment_id > equipment.id
+
+Ref: equipment_rentals.project_id > projects.id
+
+Ref: equipment_rentals.rented_by_id > contributors.id
+
+Ref: equipment_maintenance.created_by_id > contributors.id
+
+Ref: equipment_maintenance.equipment_id > equipment.id
+
+Ref: equipment_availability.booked_by_id > contributors.id
+
+Ref: equipment_availability.client_id > clients.id
+
+Ref: equipment_availability.created_by_id > contributors.id
+
+Ref: equipment_availability.equipment_id > equipment.id [delete: Cascade]
+
+Ref: equipment_availability.project_id > projects.id
+
+Ref: equipment_availability.inquiry_id > inquiries.id [delete: Set Null]
+
+Ref: locations_library.brand_id > brands.id
+
+Ref: locations_library.venue_floor_plan_updated_by > contributors.id
+
+Ref: location_spaces.location_id > locations_library.id [delete: Cascade]
+
+Ref: floor_plans.created_by_id > contributors.id
+
+Ref: floor_plans.project_id > projects.id [delete: Cascade]
+
+Ref: floor_plans.space_id > location_spaces.id [delete: Cascade]
+
+Ref: floor_plan_objects.brand_id > brands.id
+
+Ref: films.brand_id > brands.id [delete: Cascade]
+
+Ref: films.montage_preset_id > montage_presets.id [delete: Set Null]
+
+Ref: film_equipment_assignments.film_id > films.id [delete: Cascade]
+
+Ref: film_equipment_assignments.equipment_id > equipment.id [delete: Cascade]
+
+Ref: equipment_templates.brand_id > brands.id [delete: Cascade]
+
+Ref: equipment_template_items.template_id > equipment_templates.id [delete: Cascade]
+
+Ref: equipment_template_items.equipment_id > equipment.id [delete: Cascade]
+
+Ref: film_timeline_tracks_v2.film_id > films.id [delete: Cascade]
+
+Ref: film_timeline_tracks_v2.contributor_id > contributors.id [delete: Set Null]
+
+Ref: subject_type_templates.brand_id > brands.id [delete: Cascade]
+
+Ref: subject_role_templates.subject_type_id > subject_type_templates.id [delete: Cascade]
+
+Ref: film_subjects.film_id > films.id [delete: Cascade]
+
+Ref: film_subjects.role_template_id > subject_role_templates.id [delete: Set Null]
+
+Ref: film_locations.film_id > films.id [delete: Cascade]
+
+Ref: film_locations.location_id > locations_library.id [delete: Cascade]
+
+Ref: scene_template_suggested_subjects.scene_template_id > scene_templates.id [delete: Cascade]
+
+Ref: scene_template_suggested_subjects.subject_template_id > subject_templates.id [delete: Cascade]
+
+Ref: scene_moment_templates.scene_template_id > scene_templates.id [delete: Cascade]
+
+Ref: film_scenes.film_id > films.id [delete: Cascade]
+
+Ref: film_scenes.scene_template_id > scene_templates.id
+
+Ref: film_scene_locations.scene_id - film_scenes.id [delete: Cascade]
+
+Ref: film_scene_locations.location_id > locations_library.id [delete: Cascade]
+
+Ref: scene_recording_setups.scene_id - film_scenes.id [delete: Cascade]
+
+Ref: film_scene_subjects.scene_id > film_scenes.id [delete: Cascade]
+
+Ref: film_scene_subjects.subject_id > film_subjects.id [delete: Cascade]
+
+Ref: film_scene_moment_subjects.moment_id > film_scene_moments.id [delete: Cascade]
+
+Ref: film_scene_moment_subjects.subject_id > film_subjects.id [delete: Cascade]
+
+Ref: scene_camera_assignments.recording_setup_id > scene_recording_setups.id [delete: Cascade]
+
+Ref: scene_camera_assignments.track_id > film_timeline_tracks_v2.id [delete: Cascade]
+
+Ref: film_scene_moments.film_scene_id > film_scenes.id [delete: Cascade]
+
+Ref: film_scene_beats.film_scene_id > film_scenes.id [delete: Cascade]
+
+Ref: film_scene_beats.source_activity_id > package_activities.id [delete: Set Null]
+
+Ref: film_scene_beats.source_moment_id > package_activity_moments.id [delete: Set Null]
+
+Ref: film_scene_beats.source_scene_id > film_scenes.id [delete: Cascade]
+
+Ref: beat_recording_setups.beat_id - film_scene_beats.id [delete: Cascade]
+
+Ref: moment_recording_setups.moment_id - film_scene_moments.id [delete: Cascade]
+
+Ref: camera_subject_assignments.recording_setup_id > moment_recording_setups.id [delete: Cascade]
+
+Ref: camera_subject_assignments.track_id > film_timeline_tracks_v2.id [delete: Cascade]
+
+Ref: scene_music.film_scene_id - film_scenes.id [delete: Cascade]
+
+Ref: moment_music.moment_id - film_scene_moments.id [delete: Cascade]
+
+Ref: montage_presets.brand_id > brands.id [delete: Cascade]
+
+Ref: film_structure_templates.brand_id > brands.id [delete: Cascade]
+
+Ref: film_structure_template_scenes.film_structure_template_id > film_structure_templates.id [delete: Cascade]
+
+Ref: scene_audio_sources.scene_id > film_scenes.id [delete: Cascade]
+
+Ref: scene_audio_sources.source_activity_id > package_activities.id [delete: Set Null]
+
+Ref: scene_audio_sources.source_moment_id > package_activity_moments.id [delete: Set Null]
+
+Ref: scene_audio_sources.source_scene_id > film_scenes.id [delete: Cascade]
+
+Ref: service_packages.brand_id > brands.id [delete: Cascade]
+
+Ref: service_packages.category_id > service_package_categories.id
+
+Ref: service_packages.wedding_type_id > wedding_types.id [delete: Set Null]
+
+Ref: service_packages.workflow_template_id > workflow_templates.id [delete: Set Null]
+
+Ref: service_package_categories.brand_id > brands.id [delete: Cascade]
+
+Ref: schedule_presets.brand_id > brands.id [delete: Cascade]
+
+Ref: event_types.brand_id > brands.id [delete: Cascade]
+
+Ref: event_type_event_days.event_type_id > event_types.id [delete: Cascade]
+
+Ref: event_type_event_days.event_day_template_id > event_day_templates.id [delete: Cascade]
+
+Ref: event_type_subject_types.event_type_id > event_types.id [delete: Cascade]
+
+Ref: event_type_subject_types.subject_type_template_id > subject_type_templates.id [delete: Cascade]
+
+Ref: event_day_templates.brand_id > brands.id [delete: Cascade]
+
+Ref: event_day_activity_presets.event_day_template_id > event_day_templates.id [delete: Cascade]
+
+Ref: event_day_activity_preset_moments.event_day_activity_preset_id > event_day_activity_presets.id [delete: Cascade]
+
+Ref: wedding_types.brand_id > brands.id [delete: Cascade]
+
+Ref: wedding_type_activities.wedding_type_id > wedding_types.id [delete: Cascade]
+
+Ref: wedding_type_activity_moments.wedding_type_activity_id > wedding_type_activities.id [delete: Cascade]
+
+Ref: wedding_type_locations.wedding_type_id > wedding_types.id [delete: Cascade]
+
+Ref: wedding_type_subjects.wedding_type_id > wedding_types.id [delete: Cascade]
+
+Ref: wedding_type_activity_locations.wedding_type_activity_id > wedding_type_activities.id [delete: Cascade]
+
+Ref: wedding_type_activity_locations.wedding_type_location_id > wedding_type_locations.id [delete: Cascade]
+
+Ref: wedding_type_activity_subjects.wedding_type_activity_id > wedding_type_activities.id [delete: Cascade]
+
+Ref: wedding_type_activity_subjects.wedding_type_subject_id > wedding_type_subjects.id [delete: Cascade]
+
+Ref: film_scene_schedules.film_id > films.id [delete: Cascade]
+
+Ref: film_scene_schedules.scene_id - film_scenes.id [delete: Cascade]
+
+Ref: film_scene_schedules.event_day_template_id > event_day_templates.id [delete: Set Null]
+
+Ref: package_event_days.package_id > service_packages.id [delete: Cascade]
+
+Ref: package_event_days.event_day_template_id > event_day_templates.id [delete: Cascade]
+
+Ref: package_activities.package_id > service_packages.id [delete: Cascade]
+
+Ref: package_activities.package_event_day_id > package_event_days.id [delete: Cascade]
+
+Ref: package_activity_moments.package_activity_id > package_activities.id [delete: Cascade]
+
+Ref: package_day_operators.package_id > service_packages.id [delete: Cascade]
+
+Ref: package_day_operators.event_day_template_id > event_day_templates.id [delete: Cascade]
+
+Ref: package_day_operators.contributor_id > contributors.id [delete: Set Null]
+
+Ref: package_day_operators.package_activity_id > package_activities.id [delete: Set Null]
+
+Ref: package_day_operators.job_role_id > job_roles.id [delete: Set Null]
+
+Ref: package_day_operator_equipment.package_day_operator_id > package_day_operators.id [delete: Cascade]
+
+Ref: package_day_operator_equipment.equipment_id > equipment.id [delete: Cascade]
+
+Ref: package_event_day_subjects.package_id > service_packages.id [delete: Cascade]
+
+Ref: package_event_day_subjects.event_day_template_id > event_day_templates.id [delete: Cascade]
+
+Ref: package_event_day_subjects.package_activity_id > package_activities.id [delete: Set Null]
+
+Ref: package_event_day_subjects.role_template_id > subject_role_templates.id [delete: Set Null]
+
+Ref: package_event_day_locations.package_id > service_packages.id [delete: Cascade]
+
+Ref: package_event_day_locations.event_day_template_id > event_day_templates.id [delete: Cascade]
+
+Ref: package_event_day_locations.package_activity_id > package_activities.id [delete: Set Null]
+
+Ref: package_event_day_locations.location_id > locations_library.id [delete: Cascade]
+
+Ref: package_films.package_id > service_packages.id [delete: Cascade]
+
+Ref: package_films.film_id > films.id [delete: Cascade]
+
+Ref: package_film_scene_schedules.package_film_id > package_films.id [delete: Cascade]
+
+Ref: package_film_scene_schedules.scene_id > film_scenes.id [delete: Cascade]
+
+Ref: package_film_scene_schedules.event_day_template_id > event_day_templates.id [delete: Set Null]
+
+Ref: package_film_scene_schedules.package_activity_id > package_activities.id [delete: Set Null]
+
+Ref: project_event_days.project_id > projects.id [delete: Cascade]
+
+Ref: project_event_days.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_event_days.event_day_template_id > event_day_templates.id [delete: Set Null]
+
+Ref: project_activities.project_id > projects.id [delete: Cascade]
+
+Ref: project_activities.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_activities.project_event_day_id > project_event_days.id [delete: Cascade]
+
+Ref: project_activities.package_activity_id > package_activities.id [delete: Set Null]
+
+Ref: project_films.project_id > projects.id [delete: Cascade]
+
+Ref: project_films.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_films.film_id > films.id [delete: Cascade]
+
+Ref: project_films.package_film_id > package_films.id [delete: Set Null]
+
+Ref: project_film_scene_schedules.project_film_id > project_films.id [delete: Cascade]
+
+Ref: project_film_scene_schedules.scene_id > film_scenes.id [delete: Cascade]
+
+Ref: project_film_scene_schedules.project_event_day_id > project_event_days.id [delete: Set Null]
+
+Ref: project_film_scene_schedules.project_activity_id > project_activities.id [delete: Set Null]
+
+Ref: project_film_timeline_tracks.project_id > projects.id [delete: Cascade]
+
+Ref: project_film_timeline_tracks.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_film_timeline_tracks.project_film_id > project_films.id [delete: Cascade]
+
+Ref: project_film_timeline_tracks.source_track_id > film_timeline_tracks_v2.id [delete: Set Null]
+
+Ref: project_film_timeline_tracks.contributor_id > contributors.id [delete: Set Null]
+
+Ref: project_film_subjects.project_id > projects.id [delete: Cascade]
+
+Ref: project_film_subjects.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_film_subjects.project_film_id > project_films.id [delete: Cascade]
+
+Ref: project_film_subjects.source_subject_id > film_subjects.id [delete: Set Null]
+
+Ref: project_film_subjects.role_template_id > subject_role_templates.id [delete: Set Null]
+
+Ref: project_film_locations.project_id > projects.id [delete: Cascade]
+
+Ref: project_film_locations.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_film_locations.project_film_id > project_films.id [delete: Cascade]
+
+Ref: project_film_locations.source_location_id > film_locations.id [delete: Set Null]
+
+Ref: project_film_locations.location_id > locations_library.id [delete: Cascade]
+
+Ref: project_film_scenes.project_id > projects.id [delete: Cascade]
+
+Ref: project_film_scenes.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_film_scenes.project_film_id > project_films.id [delete: Cascade]
+
+Ref: project_film_scenes.source_scene_id > film_scenes.id [delete: Set Null]
+
+Ref: project_film_scenes.scene_template_id > scene_templates.id
+
+Ref: project_film_scene_moments.project_id > projects.id [delete: Cascade]
+
+Ref: project_film_scene_moments.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_film_scene_moments.project_scene_id > project_film_scenes.id [delete: Cascade]
+
+Ref: project_film_scene_moments.source_moment_id > film_scene_moments.id [delete: Set Null]
+
+Ref: project_film_scene_beats.project_id > projects.id [delete: Cascade]
+
+Ref: project_film_scene_beats.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_film_scene_beats.project_scene_id > project_film_scenes.id [delete: Cascade]
+
+Ref: project_film_scene_beats.source_beat_id > film_scene_beats.id [delete: Set Null]
+
+Ref: project_film_scene_subjects.project_scene_id > project_film_scenes.id [delete: Cascade]
+
+Ref: project_film_scene_subjects.project_film_subject_id > project_film_subjects.id [delete: Cascade]
+
+Ref: project_film_scene_moment_subjects.project_moment_id > project_film_scene_moments.id [delete: Cascade]
+
+Ref: project_film_scene_moment_subjects.project_film_subject_id > project_film_subjects.id [delete: Cascade]
+
+Ref: project_film_scene_locations.project_scene_id - project_film_scenes.id [delete: Cascade]
+
+Ref: project_film_scene_locations.location_id > locations_library.id [delete: Cascade]
+
+Ref: project_film_equipment_assignments.project_id > projects.id [delete: Cascade]
+
+Ref: project_film_equipment_assignments.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_film_equipment_assignments.project_film_id > project_films.id [delete: Cascade]
+
+Ref: project_film_equipment_assignments.source_assignment_id > film_equipment_assignments.id [delete: Set Null]
+
+Ref: project_film_equipment_assignments.equipment_id > equipment.id [delete: Cascade]
+
+Ref: project_scene_recording_setups.project_scene_id - project_film_scenes.id [delete: Cascade]
+
+Ref: project_scene_camera_assignments.recording_setup_id > project_scene_recording_setups.id [delete: Cascade]
+
+Ref: project_scene_camera_assignments.track_id > project_film_timeline_tracks.id [delete: Cascade]
+
+Ref: project_scene_camera_assignments.project_scene_id > project_film_scenes.id [delete: Cascade]
+
+Ref: project_moment_recording_setups.project_moment_id - project_film_scene_moments.id [delete: Cascade]
+
+Ref: project_camera_subject_assignments.recording_setup_id > project_moment_recording_setups.id [delete: Cascade]
+
+Ref: project_camera_subject_assignments.track_id > project_film_timeline_tracks.id [delete: Cascade]
+
+Ref: project_beat_recording_setups.project_beat_id - project_film_scene_beats.id [delete: Cascade]
+
+Ref: project_activity_moments.project_id > projects.id [delete: Cascade]
+
+Ref: project_activity_moments.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_activity_moments.project_activity_id > project_activities.id [delete: Cascade]
+
+Ref: project_event_day_subjects.project_id > projects.id [delete: Cascade]
+
+Ref: project_event_day_subjects.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_event_day_subjects.project_event_day_id > project_event_days.id [delete: Cascade]
+
+Ref: project_event_day_subjects.project_activity_id > project_activities.id [delete: Set Null]
+
+Ref: project_event_day_subjects.role_template_id > subject_role_templates.id [delete: Set Null]
+
+Ref: project_location_slots.project_id > projects.id [delete: Cascade]
+
+Ref: project_location_slots.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_location_slots.project_event_day_id > project_event_days.id [delete: Cascade]
+
+Ref: project_location_slots.project_activity_id > project_activities.id [delete: Set Null]
+
+Ref: project_location_slots.location_id > locations_library.id [delete: Set Null]
+
+Ref: project_day_operators.project_id > projects.id [delete: Cascade]
+
+Ref: project_day_operators.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_day_operators.project_event_day_id > project_event_days.id [delete: Cascade]
+
+Ref: project_day_operators.project_activity_id > project_activities.id [delete: Set Null]
+
+Ref: project_day_operators.contributor_id > contributors.id [delete: Set Null]
+
+Ref: project_day_operators.job_role_id > job_roles.id [delete: Set Null]
+
+Ref: project_day_operator_equipment.project_day_operator_id > project_day_operators.id [delete: Cascade]
+
+Ref: project_day_operator_equipment.equipment_id > equipment.id [delete: Cascade]
+
+Ref: project_operator_activity_assignments.project_day_operator_id > project_day_operators.id [delete: Cascade]
+
+Ref: project_operator_activity_assignments.project_activity_id > project_activities.id [delete: Cascade]
+
+Ref: project_subject_activity_assignments.project_event_day_subject_id > project_event_day_subjects.id [delete: Cascade]
+
+Ref: project_subject_activity_assignments.project_activity_id > project_activities.id [delete: Cascade]
+
+Ref: project_location_activity_assignments.project_location_slot_id > project_location_slots.id [delete: Cascade]
+
+Ref: project_location_activity_assignments.project_activity_id > project_activities.id [delete: Cascade]
+
+Ref: operator_activity_assignments.package_day_operator_id > package_day_operators.id [delete: Cascade]
+
+Ref: operator_activity_assignments.package_activity_id > package_activities.id [delete: Cascade]
+
+Ref: subject_activity_assignments.package_event_day_subject_id > package_event_day_subjects.id [delete: Cascade]
+
+Ref: subject_activity_assignments.package_activity_id > package_activities.id [delete: Cascade]
+
+Ref: package_location_slots.package_id > service_packages.id [delete: Cascade]
+
+Ref: package_location_slots.event_day_template_id > event_day_templates.id [delete: Cascade]
+
+Ref: location_activity_assignments.package_location_slot_id > package_location_slots.id [delete: Cascade]
+
+Ref: location_activity_assignments.package_activity_id > package_activities.id [delete: Cascade]
+
+Ref: package_versions.package_id > service_packages.id [delete: Cascade]
+
+Ref: package_task_overrides.package_id > service_packages.id [delete: Cascade]
+
+Ref: package_sets.brand_id > brands.id [delete: Cascade]
+
+Ref: package_sets.category_id > service_package_categories.id [delete: Set Null]
+
+Ref: package_set_slots.package_set_id > package_sets.id [delete: Cascade]
+
+Ref: package_set_slots.service_package_id > service_packages.id [delete: Set Null]
+
+Ref: payment_schedule_templates.brand_id > brands.id [delete: Cascade]
+
+Ref: payment_schedule_rules.template_id > payment_schedule_templates.id [delete: Cascade]
+
+Ref: crew_payment_templates.brand_id > brands.id [delete: Cascade]
+
+Ref: crew_payment_rules.template_id > crew_payment_templates.id [delete: Cascade]
+
+Ref: crew_payment_rules.task_library_id > task_library.id [delete: Set Null]
+
+Ref: estimate_payment_milestones.estimate_id > estimates.id [delete: Cascade]
+
+Ref: contract_clause_categories.brand_id > brands.id [delete: Cascade]
+
+Ref: contract_clauses.category_id > contract_clause_categories.id [delete: Cascade]
+
+Ref: contract_clauses.brand_id > brands.id [delete: Cascade]
+
+Ref: contract_templates.brand_id > brands.id [delete: Cascade]
+
+Ref: contract_templates.payment_schedule_template_id > payment_schedule_templates.id [delete: Set Null]
+
+Ref: contract_template_clauses.template_id > contract_templates.id [delete: Cascade]
+
+Ref: contract_template_clauses.clause_id > contract_clauses.id [delete: Cascade]
+
+Ref: package_requests.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: inquiry_equipment_reservations.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: inquiry_equipment_reservations.equipment_id > equipment.id [delete: Cascade]
