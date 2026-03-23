@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEmail, IsUrl, IsBoolean, IsNumber, IsInt, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsUrl, IsBoolean, IsNumber, IsInt, IsArray, Min, Max } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
 export class CreateBrandDto {
@@ -124,4 +124,9 @@ export class CreateBrandDto {
     @IsBoolean()
     @IsOptional()
     is_active?: boolean;
+
+    @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    service_types?: string[];
 }

@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsInt, IsBoolean } from 'class-validator';
 
-export class CreateEventDayTemplateDto {
+export class CreateEventDayDto {
   @IsString()
   name: string;
 
@@ -13,7 +13,7 @@ export class CreateEventDayTemplateDto {
   order_index?: number;
 }
 
-export class UpdateEventDayTemplateDto {
+export class UpdateEventDayDto {
   @IsOptional()
   @IsString()
   name?: string;

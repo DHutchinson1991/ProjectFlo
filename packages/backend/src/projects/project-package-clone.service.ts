@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { geocodeAddress } from '../common/geocoding.util';
 import { ProjectFilmCloneService } from './project-film-clone.service';
 
 /**
@@ -150,7 +151,7 @@ export class ProjectPackageCloneService {
     // ── 0. Verify package exists ──────────────────────────────────
     const pkg = await prisma.service_packages.findUnique({
       where: { id: packageId },
-      select: { id: true, contents: true },
+      select: { id: true, contents: true, brand_id: true },
     });
     if (!pkg) throw new NotFoundException(`Package ${packageId} not found`);
 
@@ -163,7 +164,7 @@ export class ProjectPackageCloneService {
 
     // Map: PackageEventDay.id → ProjectEventDay.id
     const eventDayMap = new Map<number, number>();
-    // Also: EventDayTemplate.id → ProjectEventDay.id (for operators/subjects that reference template IDs)
+    // Also: EventDay.id → ProjectEventDay.id (for operators/subjects that reference template IDs)
     const templateToProjectDayMap = new Map<number, number>();
 
     for (const ped of packageEventDays) {
@@ -245,7 +246,7 @@ export class ProjectPackageCloneService {
     this.logger.debug(`  Activity moments cloned: ${momentsCopied}`);
 
     // ── 4. Clone PackageEventDaySubject → ProjectEventDaySubject ──
-    const packageSubjects = await prisma.packageEventDaySubject.findMany({
+    const packageSubjects = await prisma.packageDaySubject.findMany({
       where: { package_id: packageId },
       orderBy: [{ event_day_template_id: 'asc' }, { order_index: 'asc' }],
       include: { role_template: { select: { is_group: true, role_name: true } } },
@@ -257,10 +258,6 @@ export class ProjectPackageCloneService {
     for (const ps of packageSubjects) {
       const projDayId = templateToProjectDayMap.get(ps.event_day_template_id);
       if (!projDayId) continue;
-
-      const projActivityId = ps.package_activity_id
-        ? activityMap.get(ps.package_activity_id) ?? null
-        : null;
 
       // Determine count: override Guests with guestCount from inquiry if provided
       let subjectCount = ps.count ?? null;
@@ -277,11 +274,10 @@ export class ProjectPackageCloneService {
         ? Array<string>(subjectCount as number).fill('')
         : undefined;
 
-      const projectSubject = await prisma.projectEventDaySubject.create({
+      const projectSubject = await prisma.projectDaySubject.create({
         data: {
           ...ownerFields,
           project_event_day_id: projDayId,
-          project_activity_id: projActivityId,
           source_package_subject_id: ps.id,
           role_template_id: ps.role_template_id,
           name: ps.name,
@@ -315,7 +311,6 @@ export class ProjectPackageCloneService {
         data: {
           ...ownerFields,
           project_event_day_id: projDayId,
-          project_activity_id: null, // Set via assignments below
           source_package_location_slot_id: pls.id,
           location_number: pls.location_number,
           name: null, // User fills this in later
@@ -438,9 +433,9 @@ export class ProjectPackageCloneService {
           const source = pkgSchedule || filmSchedule;
 
           if (source) {
-            const eventDayTemplateId = source.event_day_template_id;
-            const projectEventDayId = eventDayTemplateId
-              ? templateToProjectDayMap.get(eventDayTemplateId) ?? null
+            const eventDayId = source.event_day_template_id;
+            const projectEventDayId = eventDayId
+              ? templateToProjectDayMap.get(eventDayId) ?? null
               : null;
 
             // Resolve project activity from the package_activity_id on the schedule
@@ -515,21 +510,21 @@ export class ProjectPackageCloneService {
     this.logger.debug(`  Operator assignments cloned: ${opAssignmentsCopied}`);
 
     // ── 11. Clone SubjectActivityAssignment → ProjectSubjectActivityAssignment
-    const subAssignments = await prisma.subjectActivityAssignment.findMany({
+    const subAssignments = await prisma.packageDaySubjectActivity.findMany({
       where: {
-        package_event_day_subject: { package_id: packageId },
+        package_day_subject: { package_id: packageId },
       },
     });
 
     let subAssignmentsCopied = 0;
     for (const sa of subAssignments) {
-      const projSubjectId = subjectMap.get(sa.package_event_day_subject_id);
+      const projSubjectId = subjectMap.get(sa.package_day_subject_id);
       const projActivityId = activityMap.get(sa.package_activity_id);
       if (!projSubjectId || !projActivityId) continue;
 
-      await prisma.projectSubjectActivityAssignment.create({
+      await prisma.projectDaySubjectActivity.create({
         data: {
-          project_event_day_subject_id: projSubjectId,
+          project_day_subject_id: projSubjectId,
           project_activity_id: projActivityId,
         },
       });
@@ -589,7 +584,7 @@ export class ProjectPackageCloneService {
     // ── Post-clone: prefill locations & subjects from NA responses ─
     if (target.inquiryId) {
       try {
-        await this._prefillFromNeedsAssessment(prisma, target.inquiryId);
+        await this._prefillFromNeedsAssessment(prisma, target.inquiryId, pkg.brand_id);
       } catch (err) {
         this.logger.warn(
           `Post-clone NA prefill for inquiry ${target.inquiryId} failed (non-fatal): ${err}`,
@@ -687,8 +682,8 @@ export class ProjectPackageCloneService {
     await tx.projectLocationActivityAssignment.deleteMany({
       where: { project_location_slot: where },
     });
-    await tx.projectSubjectActivityAssignment.deleteMany({
-      where: { project_event_day_subject: where },
+    await tx.projectDaySubjectActivity.deleteMany({
+      where: { project_day_subject: where },
     });
     await tx.projectOperatorActivityAssignment.deleteMany({
       where: { project_day_operator: where },
@@ -706,7 +701,7 @@ export class ProjectPackageCloneService {
 
     // Entity tables
     await tx.projectActivityMoment.deleteMany({ where });
-    await tx.projectEventDaySubject.deleteMany({ where });
+    await tx.projectDaySubject.deleteMany({ where });
     await tx.projectLocationSlot.deleteMany({ where });
     await tx.projectDayOperator.deleteMany({ where });
     await tx.projectFilm.deleteMany({ where });
@@ -926,11 +921,12 @@ export class ProjectPackageCloneService {
   /**
    * After cloning, check if the inquiry already has a submitted NA.
    * If so, prefill newly-created location slot names and subject real_names
-   * from the NA responses (+ inquiry venue_details as fallback).
+   * from the NA responses.
    */
   private async _prefillFromNeedsAssessment(
     prisma: Prisma.TransactionClient | PrismaService,
     inquiryId: number,
+    brandId: number | null,
   ) {
     const submission = await prisma.needs_assessment_submissions.findFirst({
       where: { inquiry_id: inquiryId, status: 'submitted' },
@@ -940,11 +936,9 @@ export class ProjectPackageCloneService {
 
     const responses = (submission?.responses ?? {}) as Record<string, unknown>;
 
-    // Also grab the inquiry's own venue_details as a fallback source
     const inquiry = await prisma.inquiries.findUnique({
       where: { id: inquiryId },
       select: {
-        venue_details: true,
         contact: { select: { first_name: true, last_name: true } },
       },
     });
@@ -960,16 +954,22 @@ export class ProjectPackageCloneService {
 
     const emptySlots = await prisma.projectLocationSlot.findMany({
       where: { inquiry_id: inquiryId, name: null },
-      include: { project_activity: { select: { name: true } } },
+      include: {
+        activity_assignments: {
+          include: { project_activity: { select: { name: true } } },
+        },
+      },
     });
 
     let locationsFilled = 0;
     for (const slot of emptySlots) {
-      const activityLower = slot.project_activity?.name?.toLowerCase() ?? '';
+      const assignedNames = slot.activity_assignments
+        .map((a) => a.project_activity?.name?.toLowerCase() ?? '')
+        .filter(Boolean);
       let locationName: string | null = null;
 
       for (const [keyword, responseKey] of Object.entries(ACTIVITY_LOCATION_MAP)) {
-        if (activityLower.includes(keyword)) {
+        if (assignedNames.some((name) => name.includes(keyword))) {
           const val = responses[responseKey];
           if (val && typeof val === 'string' && val.trim()) {
             locationName = val.trim();
@@ -978,22 +978,50 @@ export class ProjectPackageCloneService {
         }
       }
 
-      // Fallback: use NA venue_details, then inquiry venue_details
+      // Fallback: use NA venue_details or ceremony_location
       if (!locationName) {
         const fallback =
           responses['ceremony_location'] ??
-          responses['venue_details'] ??
-          inquiry?.venue_details;
+          responses['venue_details'];
         if (fallback && typeof fallback === 'string' && fallback.trim()) {
           locationName = fallback.trim();
         }
       }
 
       if (locationName) {
-        await prisma.projectLocationSlot.update({
-          where: { id: slot.id },
-          data: { name: locationName },
-        });
+        // Look up an existing LocationsLibrary entry (case-insensitive) or create one
+        if (brandId !== null) {
+          const existingLib = await prisma.locationsLibrary.findFirst({
+            where: {
+              name: { equals: locationName, mode: 'insensitive' },
+              brand_id: brandId,
+              is_active: true,
+            },
+            select: { id: true },
+          });
+          let libEntry = existingLib;
+          if (!libEntry) {
+            // Attempt to geocode before creating so the library entry has coords from day one
+            const coords = await geocodeAddress(locationName);
+            libEntry = await prisma.locationsLibrary.create({
+              data: {
+                name: locationName,
+                brand_id: brandId,
+                ...(coords ? { lat: coords.lat, lng: coords.lng, precision: 'EXACT' } : {}),
+              },
+              select: { id: true },
+            });
+          }
+          await prisma.projectLocationSlot.update({
+            where: { id: slot.id },
+            data: { location_id: libEntry.id, name: locationName },
+          });
+        } else {
+          await prisma.projectLocationSlot.update({
+            where: { id: slot.id },
+            data: { name: locationName },
+          });
+        }
         locationsFilled++;
       }
     }
@@ -1010,7 +1038,7 @@ export class ProjectPackageCloneService {
     const contactRole = ((responses['contact_role'] as string | undefined) ?? '').toLowerCase().trim();
     const partnerName = ((responses['partner_name'] as string | undefined) ?? '').trim();
 
-    const emptySubjects = await prisma.projectEventDaySubject.findMany({
+    const emptySubjects = await prisma.projectDaySubject.findMany({
       where: { inquiry_id: inquiryId, real_name: null },
       orderBy: { order_index: 'asc' },
     });
@@ -1032,7 +1060,7 @@ export class ProjectPackageCloneService {
         }
 
         if (realName) {
-          await prisma.projectEventDaySubject.update({
+          await prisma.projectDaySubject.update({
             where: { id: subject.id },
             data: { real_name: realName },
           });

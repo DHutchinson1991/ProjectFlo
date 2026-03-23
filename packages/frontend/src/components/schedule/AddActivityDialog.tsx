@@ -81,7 +81,7 @@ interface AddEditActivityDialogProps {
     initial?: Partial<ActivityValues>;
     activityId?: number;
     existingNames?: string[];
-    eventDayTemplateId?: number | null;
+    eventDayId?: number | null;
     eventDaySubjects?: SubjectRecord[];
     eventDayLocationSlots?: LocationSlotRecord[];
     eventDayCrew?: CrewRecord[];
@@ -110,7 +110,7 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
     initial,
     activityId,
     existingNames = [],
-    eventDayTemplateId,
+    eventDayId,
     eventDaySubjects = [],
     eventDayLocationSlots = [],
     eventDayCrew = [],
@@ -124,12 +124,12 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
     const [resolvedPresets, setResolvedPresets] = useState<PresetEntry[]>(ACTIVITY_PRESETS);
 
     const loadPresets = useCallback(async () => {
-        if (!eventDayTemplateId) {
+        if (!eventDayId) {
             setResolvedPresets(ACTIVITY_PRESETS);
             return;
         }
         try {
-            const apiPresets = await api.schedule.activityPresets.getAll(eventDayTemplateId);
+            const apiPresets = await api.schedule.activityPresets.getAll(eventDayId);
             if (apiPresets && apiPresets.length > 0) {
                 setResolvedPresets(apiPresets.map((p: { name: string; color?: string }) => ({
                     name: p.name,
@@ -141,7 +141,7 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
         } catch {
             setResolvedPresets(ACTIVITY_PRESETS);
         }
-    }, [eventDayTemplateId]);
+    }, [eventDayId]);
 
     useEffect(() => { loadPresets(); }, [loadPresets]);
 

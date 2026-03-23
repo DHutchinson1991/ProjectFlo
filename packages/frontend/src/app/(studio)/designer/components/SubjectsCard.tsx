@@ -35,7 +35,7 @@ interface Role {
   is_core: boolean;
 }
 
-interface SubjectTypeTemplate {
+interface SubjectType {
   id: number;
   name: string;
   description?: string;
@@ -67,12 +67,12 @@ export const SubjectsCard: React.FC<SubjectsCardProps> = ({
   onSubjectsChange,
 }) => {
   const [subjects, setSubjects] = useState<FilmSubject[]>(initialSubjects);
-  const [templates, setTemplates] = useState<SubjectTypeTemplate[]>([]);
+  const [templates, setTemplates] = useState<SubjectType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openTemplateDialog, setOpenTemplateDialog] = useState(false);
   const [openAddSubjectDialog, setOpenAddSubjectDialog] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<SubjectTypeTemplate | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<SubjectType | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<Set<number>>(new Set());
   const [subjectNames, setSubjectNames] = useState<{ [roleId: number]: string }>({});
 
@@ -88,7 +88,7 @@ export const SubjectsCard: React.FC<SubjectsCardProps> = ({
 
   const loadTemplates = async () => {
     try {
-      const response = await fetch(`http://localhost:3002/subjects/type-templates/brand/${brandId}`);
+      const response = await fetch(`http://localhost:3002/subjects/roles/brand/${brandId}`);
       if (!response.ok) throw new Error('Failed to load templates');
       const data = await response.json();
       setTemplates(data);
@@ -108,7 +108,7 @@ export const SubjectsCard: React.FC<SubjectsCardProps> = ({
     }
   };
 
-  const handleTemplateSelect = (template: SubjectTypeTemplate) => {
+  const handleTemplateSelect = (template: SubjectType) => {
     setSelectedTemplate(template);
     // Auto-select core roles
     const coreRoleIds = new Set(

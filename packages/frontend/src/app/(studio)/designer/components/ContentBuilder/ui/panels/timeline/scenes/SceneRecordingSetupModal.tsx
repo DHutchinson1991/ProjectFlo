@@ -144,14 +144,14 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
         if (!selectedActivity) return [];
         // Use event_day_template_id (the template ID) to match with subject/operator records.
         // package_event_day_id is the join-table ID which differs from the template ID.
-        const eventDayTemplateId = selectedActivity.event_day_template_id ?? selectedActivity.package_event_day_id;
+        const eventDayId = selectedActivity.event_day_template_id ?? selectedActivity.package_event_day_id;
         return activitySubjects.filter((s: any) => {
             // Explicitly assigned to this activity (direct or M2M)
             if (s.package_activity_id === selectedActivity.id) return true;
             if (s.activity_assignments?.some((a: any) => a.package_activity_id === selectedActivity.id)) return true;
             // Day-level subject: same event day, no activity assignment at all
             const hasNoAssignment = !s.package_activity_id && (!s.activity_assignments || s.activity_assignments.length === 0);
-            if (hasNoAssignment && s.event_day_template_id === eventDayTemplateId) return true;
+            if (hasNoAssignment && s.event_day_template_id === eventDayId) return true;
             return false;
         });
     }, [activitySubjects, selectedActivity]);
@@ -162,14 +162,14 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
     const inheritedCrew = React.useMemo(() => {
         if (!selectedActivity) return [];
         // Use event_day_template_id (the template ID) to match with operator records.
-        const eventDayTemplateId = selectedActivity.event_day_template_id ?? selectedActivity.package_event_day_id;
+        const eventDayId = selectedActivity.event_day_template_id ?? selectedActivity.package_event_day_id;
         const matched = activityOperators.filter((o: any) => {
             // Explicitly assigned to this activity (direct or M2M)
             if (o.package_activity_id === selectedActivity.id) return true;
             if (o.activity_assignments?.some((a: any) => a.package_activity_id === selectedActivity.id)) return true;
             // Day-level operator: same event day, no activity assignment at all
             const hasNoAssignment = !o.package_activity_id && (!o.activity_assignments || o.activity_assignments.length === 0);
-            if (hasNoAssignment && o.event_day_template_id === eventDayTemplateId) return true;
+            if (hasNoAssignment && o.event_day_template_id === eventDayId) return true;
             return false;
         });
         // Deduplicate by contributor_id (same person on multiple days)

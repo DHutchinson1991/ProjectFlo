@@ -11,7 +11,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import HistoryIcon from '@mui/icons-material/History';
 
-import type { SubjectTypeTemplate } from '../_lib/types';
+import type { SubjectType } from '../_lib/types';
 
 // ─── Props ───────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ export interface PackageHeaderProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setFormData: React.Dispatch<React.SetStateAction<any>>;
     categories: Array<{ id: number; name: string }>;
-    subjectTemplates: SubjectTypeTemplate[];
+    subjectTemplates: SubjectType[];
     isSaving: boolean;
     onBack: () => void;
     onSave: () => void;
@@ -85,8 +85,7 @@ export function PackageHeader({
                                     setFormData((prev: typeof formData) => {
                                         const updated = { ...prev, category: newCategory };
                                         const matchedSubject = subjectTemplates.find(t =>
-                                            t.category?.toLowerCase() === newCategory.toLowerCase()
-                                            || t.name?.toLowerCase().includes(newCategory.toLowerCase().split(' ')[0])
+                                            t.role_name?.toLowerCase().includes(newCategory.toLowerCase().split(' ')[0])
                                         );
                                         if (matchedSubject) {
                                             updated.contents = {

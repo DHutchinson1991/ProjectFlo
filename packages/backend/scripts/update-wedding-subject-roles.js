@@ -18,9 +18,8 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🎬 === Update Wedding Subject Roles ===\n');
 
-  const allRoles = await prisma.subjectRoleTemplate.findMany({
-    orderBy: [{ subject_type_id: 'asc' }, { order_index: 'asc' }],
-    include: { subject_type: { select: { name: true } } },
+  const allRoles = await prisma.subjectRole.findMany({
+    orderBy: [{ order_index: 'asc' }],
   });
 
   console.log(`Found ${allRoles.length} role templates\n`);
@@ -30,11 +29,11 @@ async function main() {
 
   for (const role of allRoles) {
     if (groupRoleNames.includes(role.role_name) && !role.is_group) {
-      await prisma.subjectRoleTemplate.update({
+      await prisma.subjectRole.update({
         where: { id: role.id },
         data: { is_group: true },
       });
-      console.log(`  ✅ Set is_group on "${role.role_name}" (${role.subject_type.name})`);
+      console.log(`  ✅ Set is_group on "${role.role_name}"`);
     }
   }
 
@@ -50,18 +49,18 @@ async function main() {
 
   for (const role of allRoles) {
     if (neverGroupRoleNames.includes(role.role_name) && !role.never_group) {
-      await prisma.subjectRoleTemplate.update({
+      await prisma.subjectRole.update({
         where: { id: role.id },
         data: { never_group: true },
       });
-      console.log(`  ✅ Set never_group on "${role.role_name}" (${role.subject_type.name})`);
+      console.log(`  ✅ Set never_group on "${role.role_name}"`);
     }
   }
 
   // ── 3. Rename "Guest" → "Guests" ───────────────────────────────
   const guestRole = allRoles.find(r => r.role_name === 'Guest');
   if (guestRole) {
-    await prisma.subjectRoleTemplate.update({
+    await prisma.subjectRole.update({
       where: { id: guestRole.id },
       data: { role_name: 'Guests', description: 'Wedding guests' },
     });
@@ -69,19 +68,19 @@ async function main() {
   }
 
   // Also rename in existing subject records
-  const guestPkgUpdated = await prisma.packageEventDaySubject.updateMany({
+  const guestPkgUpdated = await prisma.packageDaySubject.updateMany({
     where: { name: 'Guest' },
     data: { name: 'Guests' },
   });
   if (guestPkgUpdated.count > 0) {
-    console.log(`  ✅ Renamed ${guestPkgUpdated.count} PackageEventDaySubject "Guest" → "Guests"`);
+    console.log(`  ✅ Renamed ${guestPkgUpdated.count} PackageDaySubject "Guest" → "Guests"`);
   }
-  const guestProjUpdated = await prisma.projectEventDaySubject.updateMany({
+  const guestProjUpdated = await prisma.projectDaySubject.updateMany({
     where: { name: 'Guest' },
     data: { name: 'Guests' },
   });
   if (guestProjUpdated.count > 0) {
-    console.log(`  ✅ Renamed ${guestProjUpdated.count} ProjectEventDaySubject "Guest" → "Guests"`);
+    console.log(`  ✅ Renamed ${guestProjUpdated.count} ProjectDaySubject "Guest" → "Guests"`);
   }
 
   // ── 4. Set default count on existing group subjects that have no count ──
@@ -89,14 +88,14 @@ async function main() {
   const groomsmenRole = allRoles.find(r => r.role_name === 'Groomsmen');
 
   if (bridesmaidsRole) {
-    const updated = await prisma.packageEventDaySubject.updateMany({
+    const updated = await prisma.packageDaySubject.updateMany({
       where: { role_template_id: bridesmaidsRole.id, count: null },
       data: { count: 4 },
     });
     if (updated.count > 0) console.log(`  ✅ Set default count=4 on ${updated.count} Bridesmaids package subjects`);
   }
   if (groomsmenRole) {
-    const updated = await prisma.packageEventDaySubject.updateMany({
+    const updated = await prisma.packageDaySubject.updateMany({
       where: { role_template_id: groomsmenRole.id, count: null },
       data: { count: 4 },
     });
@@ -104,9 +103,8 @@ async function main() {
   }
 
   // ── Summary ─────────────────────────────────────────────────────
-  const finalRoles = await prisma.subjectRoleTemplate.findMany({
-    orderBy: [{ subject_type_id: 'asc' }, { order_index: 'asc' }],
-    include: { subject_type: { select: { name: true } } },
+  const finalRoles = await prisma.subjectRole.findMany({
+    orderBy: [{ order_index: 'asc' }],
   });
 
   console.log('\n📋 Final roles:');
@@ -116,7 +114,7 @@ async function main() {
       r.is_group ? '👥group' : null,
       r.never_group ? '🚫never_group' : null,
     ].filter(Boolean).join(' ');
-    console.log(`  ${r.subject_type.name} | ${r.role_name} ${flags}`);
+    console.log(`  ${r.role_name} ${flags}`);
   }
 
   console.log('\n✅ Done!');

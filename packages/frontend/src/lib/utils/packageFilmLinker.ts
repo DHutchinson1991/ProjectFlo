@@ -197,7 +197,7 @@ export const createLinkedFilmFromTemplate = async ({
         if (!templateId) return;
         try {
             const templates = await request<any[]>(
-                `/subjects/type-templates/brand/${brandId}`,
+                `/subjects/roles/brand/${brandId}`,
                 {},
                 { includeBrandQuery: false }
             );

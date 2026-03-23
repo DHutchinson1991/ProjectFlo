@@ -48,7 +48,7 @@ export const FilmSubjectsTab: React.FC<FilmSubjectsTabProps> = ({
         ];
         if (brandId) {
             fetches.push(
-                request<any[]>(`/subjects/type-templates/brand/${brandId}`, {}, { includeBrandQuery: false })
+                request<any[]>(`/subjects/roles/brand/${brandId}`, {}, { includeBrandQuery: false })
                     .catch(() => [])
             );
         }

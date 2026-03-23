@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { geocodeAddress } from '../common/geocoding.util';
 import {
     CreateNeedsAssessmentSubmissionDto,
     CreateNeedsAssessmentTemplateDto,
@@ -210,31 +211,6 @@ export class NeedsAssessmentsService {
             if (!existingInquiry?.guest_count && responses['guest_count'])
                 inquiryUpdate.guest_count = responses['guest_count'] as string;
 
-            if (!existingInquiry?.venue_details && (responses['ceremony_location'] || responses['venue_name'] || responses['venue_details'])) {
-                // venue_name is the human-readable place name; venue_details is the short address fallback
-                inquiryUpdate.venue_details = (responses['venue_name'] as string | undefined)
-                    || (responses['ceremony_location'] as string | undefined)
-                    || (responses['venue_details'] as string);
-            }
-            if (!existingInquiry?.venue_address && responses['venue_address'])
-                inquiryUpdate.venue_address = responses['venue_address'] as string;
-            else if (!existingInquiry?.venue_address && responses['ceremony_location_address'])
-                inquiryUpdate.venue_address = responses['ceremony_location_address'] as string;
-            if (existingInquiry?.venue_lat == null && responses['venue_lat'] != null)
-                inquiryUpdate.venue_lat = parseFloat(String(responses['venue_lat']));
-            else if (existingInquiry?.venue_lat == null && responses['ceremony_location_lat'] != null)
-                inquiryUpdate.venue_lat = parseFloat(String(responses['ceremony_location_lat']));
-            if (existingInquiry?.venue_lng == null && responses['venue_lng'] != null)
-                inquiryUpdate.venue_lng = parseFloat(String(responses['venue_lng']));
-            else if (existingInquiry?.venue_lng == null && responses['ceremony_location_lng'] != null)
-                inquiryUpdate.venue_lng = parseFloat(String(responses['ceremony_location_lng']));
-
-            // If venue is being set from client submission, track the source
-            if (inquiryUpdate.venue_details || inquiryUpdate.venue_lat) {
-                inquiryUpdate.venue_source = 'client_submission';
-                inquiryUpdate.venue_updated_at = new Date();
-            }
-
             if (!existingInquiry?.notes && responses['notes'])
                 inquiryUpdate.notes = responses['notes'] as string;
 
@@ -319,7 +295,7 @@ export class NeedsAssessmentsService {
             const prefillLastName = ((responses['contact_last_name'] as string | undefined)?.trim()) || existingInquiry?.contact?.last_name || '';
             const prefillContactName = [prefillFirstName, prefillLastName].filter(Boolean).join(' ');
             try {
-                await this.prefillLocationSlots(payload.inquiry_id as number, responses as Record<string, unknown>);
+                await this.prefillLocationSlots(payload.inquiry_id as number, responses as Record<string, unknown>, brandId);
                 await this.prefillSubjectNames(payload.inquiry_id as number, responses as Record<string, unknown>, prefillContactName);
             } catch (err) {
                 // Pre-fill is best-effort — log but don't fail the submission
@@ -332,14 +308,6 @@ export class NeedsAssessmentsService {
 
             const inferredInquiry = {
                 wedding_date: inquiry.wedding_date || (responses['wedding_date'] as string) || new Date().toISOString(),
-                venue_details: inquiry.venue_details || (responses['venue_name'] as string) || (responses['ceremony_location'] as string) || (responses['venue_details'] as string),
-                venue_address: inquiry.venue_address || (responses['venue_address'] as string) || (responses['ceremony_location_address'] as string) || undefined,
-                venue_lat: inquiry.venue_lat
-                    ?? (responses['venue_lat'] != null ? parseFloat(String(responses['venue_lat'])) : undefined)
-                    ?? (responses['ceremony_location_lat'] != null ? parseFloat(String(responses['ceremony_location_lat'])) : undefined),
-                venue_lng: inquiry.venue_lng
-                    ?? (responses['venue_lng'] != null ? parseFloat(String(responses['venue_lng'])) : undefined)
-                    ?? (responses['ceremony_location_lng'] != null ? parseFloat(String(responses['ceremony_location_lng'])) : undefined),
                 guest_count: inquiry.guest_count || (responses['guest_count'] as string),
                 notes: inquiry.notes || (responses['notes'] as string),
                 lead_source: inquiry.lead_source || (responses['lead_source'] as string) || 'Needs Assessment',
@@ -825,12 +793,6 @@ export class NeedsAssessmentsService {
         const responses = submission.responses as Record<string, unknown>;
         const inferredInquiry = {
             wedding_date: (responses['wedding_date'] as string) || new Date().toISOString(),
-            venue_details: (responses['venue_name'] as string) || (responses['ceremony_location'] as string) || (responses['venue_details'] as string),
-            venue_address: (responses['venue_address'] as string) || (responses['ceremony_location_address'] as string) || undefined,
-            venue_lat: (responses['venue_lat'] != null ? parseFloat(String(responses['venue_lat'])) : undefined)
-                ?? (responses['ceremony_location_lat'] != null ? parseFloat(String(responses['ceremony_location_lat'])) : undefined),
-            venue_lng: (responses['venue_lng'] != null ? parseFloat(String(responses['venue_lng'])) : undefined)
-                ?? (responses['ceremony_location_lng'] != null ? parseFloat(String(responses['ceremony_location_lng'])) : undefined),
             guest_count: (responses['guest_count'] as string),
             notes: (responses['notes'] as string),
             lead_source: (responses['lead_source'] as string) || 'Needs Assessment',
@@ -1069,6 +1031,7 @@ export class NeedsAssessmentsService {
     private async prefillLocationSlots(
         inquiryId: number,
         responses: Record<string, unknown>,
+        brandId: number,
     ): Promise<void> {
         // Maps activity name keywords → the NA response field key containing the location name
         const ACTIVITY_TO_RESPONSE_KEY: Record<string, string> = {
@@ -1081,18 +1044,24 @@ export class NeedsAssessmentsService {
 
         const slots = await this.prisma.projectLocationSlot.findMany({
             where: { inquiry_id: inquiryId, name: null },
-            include: { project_activity: { select: { name: true } } },
+            include: {
+                activity_assignments: {
+                    include: { project_activity: { select: { name: true } } },
+                },
+            },
         });
 
         if (slots.length === 0) return;
 
         for (const slot of slots) {
-            const activityNameLower = slot.project_activity?.name?.toLowerCase() ?? '';
+            const assignedNames = slot.activity_assignments
+                .map((a) => a.project_activity?.name?.toLowerCase() ?? '')
+                .filter(Boolean);
             let locationName: string | null = null;
             let locationAddress: string | null = null;
 
             for (const [keyword, responseKey] of Object.entries(ACTIVITY_TO_RESPONSE_KEY)) {
-                if (activityNameLower.includes(keyword)) {
+                if (assignedNames.some((name) => name.includes(keyword))) {
                     const val = responses[responseKey];
                     if (val && typeof val === 'string' && val.trim()) {
                         locationName = val.trim();
@@ -1115,25 +1084,40 @@ export class NeedsAssessmentsService {
                     if (fallbackAddr && typeof fallbackAddr === 'string' && fallbackAddr.trim()) {
                         locationAddress = fallbackAddr.trim();
                     }
-                } else {
-                    // Last resort: read venue_details from the inquiry itself
-                    const inquiry = await this.prisma.inquiries.findUnique({
-                        where: { id: inquiryId },
-                        select: { venue_details: true, venue_address: true },
-                    });
-                    if (inquiry?.venue_details?.trim()) {
-                        locationName = inquiry.venue_details.trim();
-                    }
-                    if (inquiry?.venue_address?.trim()) {
-                        locationAddress = inquiry.venue_address.trim();
-                    }
                 }
             }
 
             if (locationName) {
+                // Look up an existing LocationsLibrary entry (case-insensitive) or create one
+                const existingLib = await this.prisma.locationsLibrary.findFirst({
+                    where: {
+                        name: { equals: locationName, mode: 'insensitive' },
+                        brand_id: brandId,
+                        is_active: true,
+                    },
+                    select: { id: true },
+                });
+                let libEntry = existingLib;
+                if (!libEntry) {
+                    // Attempt to geocode before creating so the library entry has coords from day one
+                    const geocodeQuery = locationAddress
+                        ? `${locationName}, ${locationAddress}`
+                        : locationName;
+                    const coords = await geocodeAddress(geocodeQuery);
+                    libEntry = await this.prisma.locationsLibrary.create({
+                        data: {
+                            name: locationName,
+                            brand_id: brandId,
+                            ...(locationAddress ? { address_line1: locationAddress } : {}),
+                            ...(coords ? { lat: coords.lat, lng: coords.lng, precision: 'EXACT' } : {}),
+                        },
+                        select: { id: true },
+                    });
+                }
                 await this.prisma.projectLocationSlot.update({
                     where: { id: slot.id },
                     data: {
+                        location_id: libEntry.id,
                         name: locationName,
                         ...(locationAddress ? { address: locationAddress } : {}),
                     },
@@ -1159,7 +1143,7 @@ export class NeedsAssessmentsService {
         else if (contactRole === 'groom') partnerRole = 'bride';
         // 'partner' stays null — both partners share the same role label, so we can't map unambiguously
 
-        const subjects = await this.prisma.projectEventDaySubject.findMany({
+        const subjects = await this.prisma.projectDaySubject.findMany({
             where: { inquiry_id: inquiryId, real_name: null },
             orderBy: { order_index: 'asc' },
         });
@@ -1177,7 +1161,7 @@ export class NeedsAssessmentsService {
             }
 
             if (realName) {
-                await this.prisma.projectEventDaySubject.update({
+                await this.prisma.projectDaySubject.update({
                     where: { id: subject.id },
                     data: { real_name: realName },
                 });
@@ -1244,7 +1228,7 @@ export class NeedsAssessmentsService {
             this.prisma.package_sets.findMany({
                 where: { brand_id: template.brand_id },
                 include: {
-                    category: { select: { id: true, name: true } },
+                    event_type: { select: { id: true, name: true, icon: true, color: true } },
                     slots: {
                         orderBy: { order_index: 'asc' },
                         select: { id: true, slot_label: true, service_package_id: true, order_index: true },

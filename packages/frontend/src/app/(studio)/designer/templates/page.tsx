@@ -51,7 +51,7 @@ interface PresetMoment {
     is_key_moment: boolean;
 }
 
-interface EventDayActivityPreset {
+interface EventDayActivity {
     id: number;
     event_day_template_id: number;
     name: string;
@@ -72,7 +72,7 @@ interface EventDay {
     description?: string;
     order_index: number;
     is_active: boolean;
-    activity_presets?: EventDayActivityPreset[];
+    activity_presets?: EventDayActivity[];
 }
 
 interface SubjectRole {
@@ -84,7 +84,7 @@ interface SubjectRole {
     order_index: number;
 }
 
-interface SubjectTypeTemplate {
+interface SubjectType {
     id: number;
     brand_id: number;
     name: string;
@@ -95,7 +95,7 @@ interface SubjectTypeTemplate {
 }
 
 // Event Type types (from backend deep include)
-interface EventTypeEventDay {
+interface EventTypeDay {
     id: number;
     event_type_id: number;
     event_day_template_id: number;
@@ -104,13 +104,13 @@ interface EventTypeEventDay {
     event_day_template: EventDay;
 }
 
-interface EventTypeSubjectType {
+interface EventTypeSubject {
     id: number;
     event_type_id: number;
     subject_type_template_id: number;
     order_index: number;
     is_default: boolean;
-    subject_type_template: SubjectTypeTemplate;
+    subject_type_template: SubjectType;
 }
 
 interface EventType {
@@ -126,8 +126,8 @@ interface EventType {
     is_system: boolean;
     is_active: boolean;
     order_index: number;
-    event_days: EventTypeEventDay[];
-    subject_types: EventTypeSubjectType[];
+    event_days: EventTypeDay[];
+    subject_types: EventTypeSubject[];
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +145,7 @@ const PRESET_COLORS = [
 // ---------------------------------------------------------------------------
 
 function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
-    linkedDays: EventTypeEventDay[];
+    linkedDays: EventTypeDay[];
     eventTypeId: number;
     brandId: number;
     onReload: () => Promise<void>;
@@ -162,7 +162,7 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
     // Preset dialog
     const [presetDialogOpen, setPresetDialogOpen] = useState(false);
     const [presetTargetId, setPresetTargetId] = useState<number | null>(null);
-    const [editingPreset, setEditingPreset] = useState<EventDayActivityPreset | null>(null);
+    const [editingPreset, setEditingPreset] = useState<EventDayActivity | null>(null);
     const [presetForm, setPresetForm] = useState({ name: "", color: PRESET_COLORS[0], default_duration_minutes: "" as string, default_start_time: "", description: "" });
 
     // Moment state
@@ -234,7 +234,7 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
         setPresetDialogOpen(true);
     };
 
-    const openPresetEdit = (preset: EventDayActivityPreset) => {
+    const openPresetEdit = (preset: EventDayActivity) => {
         setPresetTargetId(preset.event_day_template_id);
         setEditingPreset(preset);
         setPresetForm({
@@ -650,7 +650,7 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
 // ---------------------------------------------------------------------------
 
 function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: {
-    linkedSubjects: EventTypeSubjectType[];
+    linkedSubjects: EventTypeSubject[];
     eventTypeId: number;
     brandId: number;
     onReload: () => Promise<void>;
@@ -661,7 +661,7 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
     // Create template dialog
     const [dialogOpen, setDialogOpen] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [form, setForm] = useState({ name: "", description: "", category: "PEOPLE" });
+    const [form, setForm] = useState({ role_name: "", description: "", category: "PEOPLE" });
 
     // Add role dialog
     const [roleDialogOpen, setRoleDialogOpen] = useState(false);
@@ -674,16 +674,16 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
         .map(link => link.subject_type_template);
 
     const handleCreateTemplate = async () => {
-        if (!form.name.trim()) return;
+        if (!form.role_name.trim()) return;
         try {
             setSaving(true);
             // Create new subject type and auto-link to the selected event type
-            const newTemplate = await api.subjects.createTypeTemplate(brandId, form);
+            const newTemplate = await api.subjects.createRole(brandId, form);
             if (newTemplate?.id) {
-                await api.eventTypes.linkSubjectType(eventTypeId, { subject_type_template_id: newTemplate.id });
+                await api.eventTypes.linkSubjectRole(eventTypeId, { subject_role_id: newTemplate.id });
             }
             setDialogOpen(false);
-            setForm({ name: "", description: "", category: "PEOPLE" });
+            setForm({ role_name: "", description: "", category: "PEOPLE" });
             await onReload();
         } catch {
             setError("Failed to create template");
@@ -693,9 +693,9 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
     };
 
     const handleDeleteTemplate = async (id: number) => {
-        if (!window.confirm("Delete this subject type template and all its roles?")) return;
+        if (!window.confirm("Delete this subject type and all its roles?")) return;
         try {
-            await api.subjects.deleteTypeTemplate(id);
+            await api.subjects.deleteRole(id);
             await onReload();
         } catch {
             setError("Failed to delete template");
@@ -703,10 +703,10 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
     };
 
     const handleAddRole = async () => {
-        if (!roleTargetId || !roleForm.role_name.trim()) return;
+        if (!roleForm.role_name.trim()) return;
         try {
             setSaving(true);
-            await api.subjects.addRoleToTemplate(roleTargetId, roleForm);
+            await api.subjects.createRole(brandId, roleForm);
             setRoleDialogOpen(false);
             setRoleForm({ role_name: "", description: "", is_core: false });
             await onReload();
@@ -720,7 +720,7 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
     const handleDeleteRole = async (roleId: number) => {
         if (!window.confirm("Remove this role?")) return;
         try {
-            await api.subjects.removeRoleFromTemplate(roleId);
+            await api.subjects.deleteRole(roleId);
             await onReload();
         } catch {
             setError("Failed to remove role");
@@ -828,7 +828,7 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
                 <DialogTitle sx={{ fontWeight: 700 }}>New Subject Type</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2.5} sx={{ mt: 1 }}>
-                        <TextField label="Name" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} fullWidth required size="small" placeholder='e.g., "Couple", "Wedding Party"' sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }} />
+                        <TextField label="Name" value={form.role_name} onChange={(e) => setForm((p) => ({ ...p, role_name: e.target.value }))} fullWidth required size="small" placeholder='e.g., "Couple", "Wedding Party"' sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }} />
                         <TextField label="Description" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} fullWidth multiline rows={2} size="small" sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }} />
                         <Box>
                             <Typography variant="subtitle2" sx={{ mb: 1 }}>Category</Typography>
@@ -850,7 +850,7 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2.5 }}>
                     <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
-                    <Button variant="contained" onClick={handleCreateTemplate} disabled={saving || !form.name.trim()} disableElevation sx={{ fontWeight: 600, borderRadius: 2 }}>
+                    <Button variant="contained" onClick={handleCreateTemplate} disabled={saving || !form.role_name.trim()} disableElevation sx={{ fontWeight: 600, borderRadius: 2 }}>
                         {saving ? "Creating…" : "Create"}
                     </Button>
                 </DialogActions>

@@ -92,6 +92,9 @@ export interface CreateLocationDto {
     state?: string;
     country?: string;
     postal_code?: string;
+    lat?: number;
+    lng?: number;
+    precision?: 'EXACT' | 'APPROXIMATE';
     contact_name?: string;
     contact_phone?: string;
     contact_email?: string;
@@ -109,6 +112,9 @@ export interface UpdateLocationDto {
     state?: string;
     country?: string;
     postal_code?: string;
+    lat?: number;
+    lng?: number;
+    precision?: 'EXACT' | 'APPROXIMATE';
     contact_name?: string;
     contact_phone?: string;
     contact_email?: string;

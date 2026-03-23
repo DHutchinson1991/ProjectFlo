@@ -44,7 +44,7 @@ import {
 import { Project } from '../../../app/(studio)/projects/types/project.types';
 import { api } from '@/lib/api';
 import { EventDayManager } from '@/components/schedule';
-import type { EventDayTemplate, EventDayFilmScene } from '@/components/schedule';
+import type { EventDay, EventDayFilmScene } from '@/components/schedule';
 import { VisualTimeline } from '@/components/schedule';
 import type { VisualTimelineScene } from '@/components/schedule';
 import { FilmSchedulePanel } from '@/components/films';
@@ -659,7 +659,7 @@ interface ProjectFilmRecord {
 }
 
 function ProjectFilmScheduleSection({ project }: { project: Project }) {
-    const [eventDays, setEventDays] = useState<EventDayTemplate[]>([]);
+    const [eventDays, setEventDays] = useState<EventDay[]>([]);
     const [projectFilms, setProjectFilms] = useState<ProjectFilmRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

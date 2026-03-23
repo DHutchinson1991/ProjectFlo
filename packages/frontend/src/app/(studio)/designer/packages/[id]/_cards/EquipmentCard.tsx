@@ -15,7 +15,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils/formatUtils';
 import { ServicePackage, ServicePackageItem } from '@/lib/types/domains/sales';
-import type { EventDayTemplate } from '@/components/schedule';
+import type { EventDay } from '@/components/schedule';
 import { useOptionalScheduleApi } from '@/components/schedule/ScheduleApiContext';
 
 import type {
@@ -41,7 +41,7 @@ export interface EquipmentCardProps {
     setFormData: React.Dispatch<React.SetStateAction<Partial<ServicePackage>>>;
     packageDayOperators: PackageDayOperatorRecord[];
     setPackageDayOperators: React.Dispatch<React.SetStateAction<PackageDayOperatorRecord[]>>;
-    packageEventDays: EventDayTemplate[];
+    packageEventDays: EventDay[];
     packageActivities: PackageActivityRecord[];
     scheduleActiveDayId: number | null;
     selectedActivityId: number | null;
@@ -97,7 +97,7 @@ export function EquipmentCard({
 
     const activeDayId: number | null = scheduleActiveDayId ?? packageEventDays[0]?.id ?? null;
     const activePackageDay = activeDayId
-        ? packageEventDays.find((d: EventDayTemplate) => d.id === activeDayId)
+        ? packageEventDays.find((d: EventDay) => d.id === activeDayId)
         : packageEventDays[0];
     const activeDayTemplateId = (activePackageDay as any)?.event_day_template_id || (activePackageDay as any)?.event_day?.id || null;
 

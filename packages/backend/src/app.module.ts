@@ -50,7 +50,7 @@ import { LocationsModule } from './locations/locations.module';
 import { ServicePackagesModule } from './business/service-packages/service-packages.module';
 import { ServicePackageCategoriesModule } from './business/service-package-categories/service-package-categories.module';
 import { PackageSetsModule } from './business/package-sets/package-sets.module';
-import { WeddingTypesModule } from './business/wedding-types/wedding-types.module';
+import { EventSubtypesModule } from './business/event-subtypes/event-subtypes.module';
 import { EventTypesModule } from './business/event-types/event-types.module';
 import { WorkflowsModule } from './business/workflows/workflows.module';
 import { NeedsAssessmentsModule } from './needs-assessments/needs-assessments.module';
@@ -107,7 +107,7 @@ import { PricingModule } from './business/pricing/pricing.module';
     ServicePackagesModule,
     ServicePackageCategoriesModule,
     PackageSetsModule,
-    WeddingTypesModule,
+    EventSubtypesModule,
     EventTypesModule,
     WorkflowsModule,
     NeedsAssessmentsModule,

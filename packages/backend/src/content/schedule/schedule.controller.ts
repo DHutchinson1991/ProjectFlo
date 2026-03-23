@@ -11,10 +11,10 @@ import {
 } from '@nestjs/common';
 import { ScheduleService } from './schedule.service';
 import {
-  CreateEventDayTemplateDto,
-  UpdateEventDayTemplateDto,
-  CreateEventDayActivityPresetDto,
-  UpdateEventDayActivityPresetDto,
+  CreateEventDayDto,
+  UpdateEventDayDto,
+  CreateEventDayActivityDto,
+  UpdateEventDayActivityDto,
   CreateFilmSceneScheduleDto,
   UpdateFilmSceneScheduleDto,
   BulkUpsertFilmSceneScheduleDto,
@@ -33,8 +33,8 @@ import {
   UpdatePackageActivityDto,
   CreateProjectActivityDto,
   UpdateProjectActivityDto,
-  CreatePackageEventDaySubjectDto,
-  UpdatePackageEventDaySubjectDto,
+  CreatePackageDaySubjectDto,
+  UpdatePackageDaySubjectDto,
   CreatePackageEventDayLocationDto,
   UpdatePackageEventDayLocationDto,
   CreatePackageLocationSlotDto,
@@ -92,33 +92,33 @@ export class ScheduleController {
   // ─── Event Day Templates ─────────────────────────────────────────────
 
   @Get('event-days/brand/:brandId')
-  getEventDayTemplates(@Param('brandId', ParseIntPipe) brandId: number) {
-    return this.scheduleService.findAllEventDayTemplates(brandId);
+  getEventDays(@Param('brandId', ParseIntPipe) brandId: number) {
+    return this.scheduleService.findAllEventDays(brandId);
   }
 
   @Post('event-days/brand/:brandId')
-  createEventDayTemplate(
+  createEventDay(
     @Param('brandId', ParseIntPipe) brandId: number,
-    @Body() dto: CreateEventDayTemplateDto,
+    @Body() dto: CreateEventDayDto,
   ) {
-    return this.scheduleService.createEventDayTemplate(brandId, dto);
+    return this.scheduleService.createEventDay(brandId, dto);
   }
 
   @Patch('event-days/:id/brand/:brandId')
-  updateEventDayTemplate(
+  updateEventDay(
     @Param('id', ParseIntPipe) id: number,
     @Param('brandId', ParseIntPipe) brandId: number,
-    @Body() dto: UpdateEventDayTemplateDto,
+    @Body() dto: UpdateEventDayDto,
   ) {
-    return this.scheduleService.updateEventDayTemplate(id, brandId, dto);
+    return this.scheduleService.updateEventDay(id, brandId, dto);
   }
 
   @Delete('event-days/:id/brand/:brandId')
-  deleteEventDayTemplate(
+  deleteEventDay(
     @Param('id', ParseIntPipe) id: number,
     @Param('brandId', ParseIntPipe) brandId: number,
   ) {
-    return this.scheduleService.deleteEventDayTemplate(id, brandId);
+    return this.scheduleService.deleteEventDay(id, brandId);
   }
 
   // ─── Event Day Activity Presets ──────────────────────────────────────
@@ -133,7 +133,7 @@ export class ScheduleController {
   @Post('event-days/:eventDayId/activity-presets')
   createActivityPreset(
     @Param('eventDayId', ParseIntPipe) eventDayId: number,
-    @Body() dto: CreateEventDayActivityPresetDto,
+    @Body() dto: CreateEventDayActivityDto,
   ) {
     return this.scheduleService.createActivityPreset(eventDayId, dto);
   }
@@ -149,7 +149,7 @@ export class ScheduleController {
   @Patch('activity-presets/:presetId')
   updateActivityPreset(
     @Param('presetId', ParseIntPipe) presetId: number,
-    @Body() dto: UpdateEventDayActivityPresetDto,
+    @Body() dto: UpdateEventDayActivityDto,
   ) {
     return this.scheduleService.updateActivityPreset(presetId, dto);
   }
@@ -269,12 +269,12 @@ export class ScheduleController {
     return this.scheduleService.setPackageEventDays(packageId, dto);
   }
 
-  @Delete('packages/:packageId/event-days/:eventDayTemplateId')
+  @Delete('packages/:packageId/event-days/:eventDayId')
   removePackageEventDay(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Param('eventDayTemplateId', ParseIntPipe) eventDayTemplateId: number,
+    @Param('eventDayId', ParseIntPipe) eventDayId: number,
   ) {
-    return this.scheduleService.removePackageEventDay(packageId, eventDayTemplateId);
+    return this.scheduleService.removePackageEventDay(packageId, eventDayId);
   }
 
   // ─── Package Films ───────────────────────────────────────────────────
@@ -468,18 +468,18 @@ export class ScheduleController {
   @Get('packages/:packageId/subjects')
   getPackageEventDaySubjects(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Query('eventDayTemplateId') eventDayTemplateId?: string,
+    @Query('eventDayId') eventDayId?: string,
   ) {
     return this.scheduleService.getPackageEventDaySubjects(
       packageId,
-      eventDayTemplateId ? parseInt(eventDayTemplateId, 10) : undefined,
+      eventDayId ? parseInt(eventDayId, 10) : undefined,
     );
   }
 
   @Post('packages/:packageId/subjects')
   createPackageEventDaySubject(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Body() dto: CreatePackageEventDaySubjectDto,
+    @Body() dto: CreatePackageDaySubjectDto,
   ) {
     return this.scheduleService.createPackageEventDaySubject(packageId, dto);
   }
@@ -487,7 +487,7 @@ export class ScheduleController {
   @Patch('packages/subjects/:subjectId')
   updatePackageEventDaySubject(
     @Param('subjectId', ParseIntPipe) subjectId: number,
-    @Body() dto: UpdatePackageEventDaySubjectDto,
+    @Body() dto: UpdatePackageDaySubjectDto,
   ) {
     return this.scheduleService.updatePackageEventDaySubject(subjectId, dto);
   }
@@ -522,11 +522,11 @@ export class ScheduleController {
   @Get('packages/:packageId/locations')
   getPackageEventDayLocations(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Query('eventDayTemplateId') eventDayTemplateId?: string,
+    @Query('eventDayId') eventDayId?: string,
   ) {
     return this.scheduleService.getPackageEventDayLocations(
       packageId,
-      eventDayTemplateId ? parseInt(eventDayTemplateId, 10) : undefined,
+      eventDayId ? parseInt(eventDayId, 10) : undefined,
     );
   }
 
@@ -558,11 +558,11 @@ export class ScheduleController {
   @Get('packages/:packageId/location-slots')
   getPackageLocationSlots(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Query('eventDayTemplateId') eventDayTemplateId?: string,
+    @Query('eventDayId') eventDayId?: string,
   ) {
     return this.scheduleService.getPackageLocationSlots(
       packageId,
-      eventDayTemplateId ? parseInt(eventDayTemplateId, 10) : undefined,
+      eventDayId ? parseInt(eventDayId, 10) : undefined,
     );
   }
 

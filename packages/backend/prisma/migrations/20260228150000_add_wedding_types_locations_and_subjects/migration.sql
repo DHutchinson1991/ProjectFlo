@@ -1,2 +1,0 @@
--- No-op: Seed data moved to migration 20260228172330 (tables must exist first)
--- Original content relocated because this migration ran before the table-creating migration.

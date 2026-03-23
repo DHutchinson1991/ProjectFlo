@@ -4,7 +4,7 @@
  */
 
 export { EventDayManager } from './EventDayManager';
-export type { EventDayTemplate, EventDayFilmScene } from './EventDayManager';
+export type { EventDay, EventDayFilmScene } from './EventDayManager';
 
 export { default as VisualTimeline } from './VisualTimeline';
 export type { VisualTimelineScene, EventDayGroup } from './VisualTimeline';

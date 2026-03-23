@@ -6,13 +6,9 @@ enum SubjectCategory {
   LOCATIONS = 'LOCATIONS',
 }
 
-export class CreatePackageEventDaySubjectDto {
+export class CreatePackageDaySubjectDto {
   @IsInt()
   event_day_template_id!: number;
-
-  @IsOptional()
-  @IsInt()
-  package_activity_id?: number;
 
   @IsOptional()
   @IsInt()
@@ -38,14 +34,10 @@ export class CreatePackageEventDaySubjectDto {
   order_index?: number;
 }
 
-export class UpdatePackageEventDaySubjectDto {
+export class UpdatePackageDaySubjectDto {
   @IsOptional()
   @IsInt()
   event_day_template_id?: number;
-
-  @IsOptional()
-  @IsInt()
-  package_activity_id?: number | null;
 
   @IsOptional()
   @IsInt()

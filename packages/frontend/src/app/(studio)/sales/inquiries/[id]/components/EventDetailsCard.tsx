@@ -11,6 +11,10 @@ import {
     IconButton,
     Chip,
     CircularProgress,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
 } from '@mui/material';
 import {
     Place,
@@ -105,6 +109,18 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
 }) => {
     const [isEditing, setIsEditing] = useState(false);
     const { currentBrand } = useBrand();
+
+    // Event type options
+    const [eventTypeOptions, setEventTypeOptions] = useState<{ id: number; name: string }[]>([]);
+    const [selectedEventTypeId, setSelectedEventTypeId] = useState<number | null>(inquiry.event_type_id ?? null);
+
+    useEffect(() => {
+        api.eventTypes.getAll().then((data: any[]) => setEventTypeOptions(data || [])).catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        setSelectedEventTypeId(inquiry.event_type_id ?? null);
+    }, [inquiry.event_type_id]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const responses = (submission?.responses ?? {}) as Record<string, any>;
@@ -262,19 +278,9 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
     const eventType = responses.event_type;
     const approxDate = responses.wedding_date_approx;
 
-    // Timestamp-based priority: whichever source was updated most recently wins.
-    const inquiryVenueTime = inquiry.venue_updated_at ? new Date(inquiry.venue_updated_at).getTime() : 0;
-    const slotTime = ceremonySlot?.updatedAt?.getTime() ?? 0;
-    const preferSlot = ceremonySlot && slotTime > inquiryVenueTime;
-
-    // Display coordinates: use whichever source won the timestamp comparison
-    // Fallback chain: preferred source → DB coords → ceremony slot → geocoded coords
-    const displayLat = preferSlot
-        ? (ceremonySlot?.lat ?? formData.venue_lat ?? geocodedVenueCoords?.lat ?? null)
-        : (formData.venue_lat ?? ceremonySlot?.lat ?? geocodedVenueCoords?.lat ?? null);
-    const displayLng = preferSlot
-        ? (ceremonySlot?.lng ?? formData.venue_lng ?? geocodedVenueCoords?.lng ?? null)
-        : (formData.venue_lng ?? ceremonySlot?.lng ?? geocodedVenueCoords?.lng ?? null);
+    // Display coordinates from the ceremony location slot (primary source)
+    const displayLat = formData.venue_lat ?? ceremonySlot?.lat ?? geocodedVenueCoords?.lat ?? null;
+    const displayLng = formData.venue_lng ?? ceremonySlot?.lng ?? geocodedVenueCoords?.lng ?? null;
     const hasVenueCoords = displayLat != null && displayLng != null;
 
     const distance = useMemo(() => {
@@ -292,14 +298,11 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const payload: any = {};
             if (formData.wedding_date) payload.wedding_date = formData.wedding_date;
-            payload.venue_details = formData.venue_details;
-            payload.venue_address = formData.venue_address || null;
-            payload.venue_lat = formData.venue_lat;
-            payload.venue_lng = formData.venue_lng;
-            payload.venue_source = 'manual';
+            // Save event type FK when changed
+            payload.event_type_id = selectedEventTypeId ?? null;
             await inquiriesService.update(inquiry.id, payload);
 
-            // Sync the ceremony location slot with the new address
+            // Sync the ceremony location slot with the new address (venue data lives on location slots now)
             if (ceremonySlot?.id) {
                 const shortName = formData.venue_address?.split(',')[0]?.trim() || '';
                 await api.schedule.instanceLocationSlots.update(ceremonySlot.id, {
@@ -358,25 +361,15 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         : 'Date not set';
 
     /* ---- short venue label ---- */
-    // Use timestamp-based priority: whichever source was updated most recently wins.
-    // Inquiry venue_updated_at vs ceremony slot updated_at.
     const slotAddress = ceremonySlot?.address || '';
     const slotName = ceremonySlot?.name || '';
 
     const venueShortName = slotsLoading
         ? ''
-        : preferSlot
-            ? (slotName || slotAddress.split(',')[0]?.trim() || '')
-            : (formData.venue_details
-                || formData.venue_address?.split(',')[0]
-                || slotName
-                || slotAddress.split(',')[0]?.trim()
-                || '');
+        : (slotName || slotAddress.split(',')[0]?.trim() || '');
     const venueFullAddress = slotsLoading
         ? ''
-        : preferSlot
-            ? (slotAddress || '')
-            : (formData.venue_address || slotAddress || '');
+        : (slotAddress || '');
     const venueLabel = ceremonySlot
         ? `Location ${ceremonySlot.slotIndex} of ${ceremonySlot.totalSlots}`
         : 'Venue';
@@ -463,19 +456,28 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                 }}
                             />
 
-                            <Box>
-                                <Typography sx={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600, mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                    {venueLabel}
-                                </Typography>
-                                <AddressSearch
-                                    value={formData.venue_address}
-                                    onSelect={handleAddressSelect}
-                                />
-                            </Box>
+                        <FormControl fullWidth size="small">
+                            <InputLabel sx={{ color: '#64748b' }}>Event Type</InputLabel>
+                            <Select
+                                label="Event Type"
+                                value={selectedEventTypeId ?? ''}
+                                onChange={(e) => setSelectedEventTypeId(e.target.value ? Number(e.target.value) : null)}
+                                sx={{
+                                    bgcolor: 'rgba(15, 23, 42, 0.6)',
+                                    color: '#e2e8f0',
+                                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(51, 65, 85, 0.4)' },
+                                }}
+                            >
+                                <MenuItem value=""><em>Not set</em></MenuItem>
+                                {eventTypeOptions.map((et) => (
+                                    <MenuItem key={et.id} value={et.id}>{et.name}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
                         </Stack>
                     </Box>
                 ) : (
-                    /* ============ VIEW MODE — Two-column ============ */
+                    /* ============ VIEW MODE ============ */
                     <>
                     <Box sx={{
                         display: 'flex',

@@ -78,12 +78,12 @@ export interface NeedsAssessmentSubmissionPayload {
     };
     inquiry?: {
         wedding_date?: string;
-        venue_details?: string;
         guest_count?: string;
         notes?: string;
         lead_source?: string;
         lead_source_details?: string;
         selected_package_id?: number | null;
         preferred_payment_schedule_template_id?: number;
+        event_type_id?: number;
     };
 }

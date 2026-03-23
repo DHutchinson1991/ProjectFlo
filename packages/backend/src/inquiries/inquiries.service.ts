@@ -15,7 +15,6 @@ interface ScheduleUserDataStash {
         count: number | null;
     }>;
     locations: Array<{
-        activityName: string | null;
         locationNumber: number;
         name: string | null;
         address: string | null;
@@ -95,6 +94,11 @@ export class InquiriesService {
                 event_type: {
                     select: { id: true, name: true },
                 },
+                schedule_location_slots: {
+                    orderBy: { order_index: 'asc' },
+                    take: 1,
+                    include: { location: { select: { name: true, address_line1: true, lat: true, lng: true } } },
+                },
                 inquiry_tasks: {
                     where: { is_active: true, is_stage: true },
                     orderBy: { order_index: 'asc' },
@@ -115,17 +119,19 @@ export class InquiriesService {
             },
         });
 
-        return inquiries.map((inquiry) => ({
+        return inquiries.map((inquiry) => {
+            const slot = inquiry.schedule_location_slots?.[0];
+            return {
             id: inquiry.id,
             status: inquiry.status,
             event_date: inquiry.wedding_date,
             wedding_date: inquiry.wedding_date, // Keep for backward compatibility
             source: inquiry.lead_source || 'OTHER',
             notes: inquiry.notes,
-            venue_details: inquiry.venue_details,
-            venue_address: inquiry.venue_address,
-            venue_lat: inquiry.venue_lat,
-            venue_lng: inquiry.venue_lng,
+            venue_details: slot?.location?.name ?? slot?.name ?? null,
+            venue_address: slot?.location?.address_line1 ?? slot?.address ?? null,
+            venue_lat: slot?.location?.lat ?? null,
+            venue_lng: slot?.location?.lng ?? null,
             lead_source: inquiry.lead_source,
             lead_source_details: inquiry.lead_source_details,
             created_at: inquiry.created_at,
@@ -184,6 +190,8 @@ export class InquiriesService {
                 return 'New Lead';
             })(),
             // Include stage definitions for dynamic kanban columns
+            event_type_id: inquiry.event_type?.id ?? null,
+            event_type: inquiry.event_type?.name ?? null,
             pipeline_stages: inquiry.inquiry_tasks.map(s => ({
                 name: s.name,
                 color: s.stage_color,
@@ -191,7 +199,8 @@ export class InquiriesService {
                 total_children: s.children.length,
                 completed_children: s.children.filter(c => c.status === 'Completed').length,
             })),
-        }));
+        };
+        });
     }
 
     async findOne(id: number, brandId: number) {
@@ -209,10 +218,6 @@ export class InquiriesService {
                 status: true,
                 wedding_date: true,
                 notes: true,
-                venue_details: true,
-                venue_address: true,
-                venue_lat: true,
-                venue_lng: true,
                 lead_source: true,
                 lead_source_details: true,
                 selected_package_id: true,
@@ -251,6 +256,11 @@ export class InquiriesService {
                 },
                 activity_logs: {
                     orderBy: { created_at: 'desc' },
+                },
+                schedule_location_slots: {
+                    orderBy: { order_index: 'asc' },
+                    take: 1,
+                    include: { location: { select: { name: true, address_line1: true, lat: true, lng: true } } },
                 },
                 event_type_id: true,
                 event_type: {
@@ -390,6 +400,8 @@ export class InquiriesService {
             }
             : null;
 
+        const detailSlot = inquiry.schedule_location_slots?.[0];
+
         return {
             id: inquiry.id,
             status: inquiry.status,
@@ -397,10 +409,10 @@ export class InquiriesService {
             wedding_date: inquiry.wedding_date, // Keep for backward compatibility
             source: inquiry.lead_source || 'OTHER',
             notes: inquiry.notes,
-            venue_details: inquiry.venue_details,
-            venue_address: inquiry.venue_address,
-            venue_lat: inquiry.venue_lat,
-            venue_lng: inquiry.venue_lng,
+            venue_details: detailSlot?.location?.name ?? detailSlot?.name ?? null,
+            venue_address: detailSlot?.location?.address_line1 ?? detailSlot?.address ?? null,
+            venue_lat: detailSlot?.location?.lat ?? null,
+            venue_lng: detailSlot?.location?.lng ?? null,
             lead_source: inquiry.lead_source,
             lead_source_details: inquiry.lead_source_details,
             selected_package_id: inquiry.selected_package_id,
@@ -460,10 +472,6 @@ export class InquiriesService {
                 wedding_date: new Date(inquiryData.wedding_date),
                 status: inquiryData.status,
                 notes: inquiryData.notes,
-                venue_details: inquiryData.venue_details,
-                venue_address: inquiryData.venue_address ?? null,
-                venue_lat: inquiryData.venue_lat ?? null,
-                venue_lng: inquiryData.venue_lng ?? null,
                 guest_count: inquiryData.guest_count,
                 lead_source: inquiryData.lead_source,
                 lead_source_details: inquiryData.lead_source_details,
@@ -507,7 +515,6 @@ export class InquiriesService {
             status: inquiry.status,
             wedding_date: inquiry.wedding_date,
             notes: inquiry.notes,
-            venue_details: inquiry.venue_details,
             lead_source: inquiry.lead_source,
             lead_source_details: inquiry.lead_source_details,
             first_name: inquiry.contact.first_name,
@@ -563,21 +570,13 @@ export class InquiriesService {
                 ...(inquiryData.wedding_date && { wedding_date: new Date(inquiryData.wedding_date) }),
                 ...(inquiryData.status && { status: inquiryData.status }),
                 ...(inquiryData.notes !== undefined && { notes: inquiryData.notes }),
-                ...(inquiryData.venue_details !== undefined && { venue_details: inquiryData.venue_details }),
-                ...(inquiryData.venue_address !== undefined && { venue_address: inquiryData.venue_address }),
-                ...(inquiryData.venue_lat !== undefined && { venue_lat: inquiryData.venue_lat }),
-                ...(inquiryData.venue_lng !== undefined && { venue_lng: inquiryData.venue_lng }),
-                // Track venue source and timestamp when any venue field changes
-                ...((inquiryData.venue_details !== undefined || inquiryData.venue_address !== undefined) && {
-                    venue_source: inquiryData.venue_source || 'manual',
-                    venue_updated_at: new Date(),
-                }),
                 ...(inquiryData.lead_source !== undefined && { lead_source: inquiryData.lead_source }),
                 ...(inquiryData.lead_source_details !== undefined && { lead_source_details: inquiryData.lead_source_details }),
                 ...(inquiryData.selected_package_id !== undefined && { selected_package_id: inquiryData.selected_package_id }),
                 ...(inquiryData.preferred_payment_schedule_template_id !== undefined && {
                     preferred_payment_schedule_template_id: inquiryData.preferred_payment_schedule_template_id,
                 }),
+                ...(inquiryData.event_type_id !== undefined && { event_type_id: inquiryData.event_type_id }),
             },
             include: {
                 contact: {
@@ -652,10 +651,6 @@ export class InquiriesService {
             status: updatedInquiry.status,
             wedding_date: updatedInquiry.wedding_date,
             notes: updatedInquiry.notes,
-            venue_details: updatedInquiry.venue_details,
-            venue_address: updatedInquiry.venue_address,
-            venue_lat: updatedInquiry.venue_lat,
-            venue_lng: updatedInquiry.venue_lng,
             lead_source: updatedInquiry.lead_source,
             lead_source_details: updatedInquiry.lead_source_details,
             selected_package_id: updatedInquiry.selected_package_id,
@@ -810,7 +805,7 @@ export class InquiriesService {
         tx: Prisma.TransactionClient,
     ): Promise<ScheduleUserDataStash> {
         const [subjects, locations, crew] = await Promise.all([
-            tx.projectEventDaySubject.findMany({
+            tx.projectDaySubject.findMany({
                 where: {
                     inquiry_id: inquiryId,
                     OR: [{ real_name: { not: null } }, { notes: { not: null } }],
@@ -828,7 +823,6 @@ export class InquiriesService {
                     address: true,
                     location_id: true,
                     notes: true,
-                    project_activity: { select: { name: true } },
                 },
             }),
             tx.projectDayOperator.findMany({
@@ -850,7 +844,6 @@ export class InquiriesService {
                 count: s.count,
             })),
             locations: locations.map(l => ({
-                activityName: l.project_activity?.name ?? null,
                 locationNumber: l.location_number,
                 name: l.name,
                 address: l.address,
@@ -884,14 +877,14 @@ export class InquiriesService {
         // ── Restore subject real_names (match by role name) ──
         for (const stashed of stash.subjects) {
             if (!stashed.realName && !stashed.notes) continue;
-            const match = await tx.projectEventDaySubject.findFirst({
+            const match = await tx.projectDaySubject.findFirst({
                 where: {
                     inquiry_id: inquiryId,
                     name: { equals: stashed.roleName, mode: 'insensitive' },
                 },
             });
             if (match) {
-                await tx.projectEventDaySubject.update({
+                await tx.projectDaySubject.update({
                     where: { id: match.id },
                     data: {
                         ...(stashed.realName && { real_name: stashed.realName }),
@@ -911,9 +904,6 @@ export class InquiriesService {
                 where: {
                     inquiry_id: inquiryId,
                     location_number: stashed.locationNumber,
-                    ...(stashed.activityName
-                        ? { project_activity: { name: { equals: stashed.activityName, mode: 'insensitive' } } }
-                        : {}),
                 },
             });
             if (match) {
@@ -1100,8 +1090,8 @@ export class InquiriesService {
         await tx.projectOperatorActivityAssignment.deleteMany({
             where: { project_day_operator: { inquiry_id: inquiryId } },
         });
-        await tx.projectSubjectActivityAssignment.deleteMany({
-            where: { project_event_day_subject: { inquiry_id: inquiryId } },
+        await tx.projectDaySubjectActivity.deleteMany({
+            where: { project_day_subject: { inquiry_id: inquiryId } },
         });
         await tx.projectLocationActivityAssignment.deleteMany({
             where: { project_location_slot: { inquiry_id: inquiryId } },
@@ -1120,7 +1110,7 @@ export class InquiriesService {
         // Child entities
         await tx.projectActivityMoment.deleteMany({ where: { inquiry_id: inquiryId } });
         await tx.projectDayOperator.deleteMany({ where: { inquiry_id: inquiryId } });
-        await tx.projectEventDaySubject.deleteMany({ where: { inquiry_id: inquiryId } });
+        await tx.projectDaySubject.deleteMany({ where: { inquiry_id: inquiryId } });
         await tx.projectLocationSlot.deleteMany({ where: { inquiry_id: inquiryId } });
         await tx.projectFilm.deleteMany({ where: { inquiry_id: inquiryId } });
         await tx.projectActivity.deleteMany({ where: { inquiry_id: inquiryId } });
@@ -1145,7 +1135,7 @@ export class InquiriesService {
             tx.projectEventDay.updateMany({ where, data: ownerUpdate }),
             tx.projectActivity.updateMany({ where, data: ownerUpdate }),
             tx.projectActivityMoment.updateMany({ where, data: ownerUpdate }),
-            tx.projectEventDaySubject.updateMany({ where, data: ownerUpdate }),
+            tx.projectDaySubject.updateMany({ where, data: ownerUpdate }),
             tx.projectLocationSlot.updateMany({ where, data: ownerUpdate }),
             tx.projectDayOperator.updateMany({ where, data: ownerUpdate }),
             tx.projectFilm.updateMany({ where, data: ownerUpdate }),

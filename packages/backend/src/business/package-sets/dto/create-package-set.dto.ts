@@ -14,7 +14,7 @@ export class CreatePackageSetDto {
 
   @IsOptional()
   @IsInt()
-  category_id?: number;
+  event_type_id?: number;
 
   @IsOptional()
   @IsNumber()

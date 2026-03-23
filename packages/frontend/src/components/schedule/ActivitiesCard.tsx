@@ -980,7 +980,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                     .map(a => a.name)
                     .filter(n => editingId ? n !== dayActivities.find(act => act.id === editingId)?.name : true)
                 }
-                eventDayTemplateId={activeDayId}
+                eventDayId={activeDayId}
                 eventDaySubjects={daySubjects}
                 eventDayLocationSlots={dayLocationSlots}
                 eventDayCrew={dayCrew}

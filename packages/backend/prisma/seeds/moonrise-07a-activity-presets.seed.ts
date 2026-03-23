@@ -288,7 +288,7 @@ async function seedActivityPresets(): Promise<SeedSummary> {
     }
 
     // Fetch all event day templates for this brand
-    const templates = await prisma.eventDayTemplate.findMany({
+    const templates = await prisma.eventDay.findMany({
         where: { brand_id: brand.id },
     });
 
@@ -309,7 +309,7 @@ async function seedActivityPresets(): Promise<SeedSummary> {
 
         for (let i = 0; i < presets.length; i++) {
             const p = presets[i];
-            const existing = await prisma.eventDayActivityPreset.findUnique({
+            const existing = await prisma.eventDayActivity.findUnique({
                 where: {
                     event_day_template_id_name: {
                         event_day_template_id: tpl.id,
@@ -321,7 +321,7 @@ async function seedActivityPresets(): Promise<SeedSummary> {
             let presetId: number;
 
             if (existing) {
-                await prisma.eventDayActivityPreset.update({
+                await prisma.eventDayActivity.update({
                     where: { id: existing.id },
                     data: {
                         color: p.color,
@@ -337,7 +337,7 @@ async function seedActivityPresets(): Promise<SeedSummary> {
                 updated += 1;
                 logger.skipped(`  "${p.name}"`, 'already exists, updated', 'verbose');
             } else {
-                const newPreset = await prisma.eventDayActivityPreset.create({
+                const newPreset = await prisma.eventDayActivity.create({
                     data: {
                         event_day_template_id: tpl.id,
                         name: p.name,
@@ -359,7 +359,7 @@ async function seedActivityPresets(): Promise<SeedSummary> {
             if (p.moments && p.moments.length > 0) {
                 for (let j = 0; j < p.moments.length; j++) {
                     const m = p.moments[j];
-                    const existingMoment = await prisma.eventDayActivityPresetMoment.findUnique({
+                    const existingMoment = await prisma.eventDayActivityMoment.findUnique({
                         where: {
                             event_day_activity_preset_id_order_index: {
                                 event_day_activity_preset_id: presetId,
@@ -368,7 +368,7 @@ async function seedActivityPresets(): Promise<SeedSummary> {
                         },
                     });
                     if (existingMoment) {
-                        await prisma.eventDayActivityPresetMoment.update({
+                        await prisma.eventDayActivityMoment.update({
                             where: { id: existingMoment.id },
                             data: {
                                 name: m.name,
@@ -378,7 +378,7 @@ async function seedActivityPresets(): Promise<SeedSummary> {
                             },
                         });
                     } else {
-                        await prisma.eventDayActivityPresetMoment.create({
+                        await prisma.eventDayActivityMoment.create({
                             data: {
                                 event_day_activity_preset_id: presetId,
                                 name: m.name,

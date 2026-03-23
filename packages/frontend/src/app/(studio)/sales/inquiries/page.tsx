@@ -29,6 +29,7 @@ import {
     MenuItem,
     Select,
     FormControl,
+    InputLabel,
 } from '@mui/material';
 import {
     Add as AddIcon,
@@ -45,7 +46,7 @@ import {
     AccessTime,
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
-import { inquiriesService } from '@/lib/api';
+import { inquiriesService, api } from '@/lib/api';
 import { Inquiry, CreateInquiryData, InquiryStatus } from '@/lib/types';
 import { useBrand } from '../../../providers/BrandProvider';
 
@@ -117,6 +118,12 @@ export default function InquiriesPage() {
     /* ---- notification state ---- */
     const [notification, setNotification] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
 
+    /* ---- create dialog state ---- */
+    const [createDialogOpen, setCreateDialogOpen] = useState(false);
+    const [newInquiryEventTypeId, setNewInquiryEventTypeId] = useState<number | ''>('');
+    const [eventTypeOptions, setEventTypeOptions] = useState<{ id: number; name: string }[]>([]);
+    const [isCreating, setIsCreating] = useState(false);
+
     /* ---- delete dialog state ---- */
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [inquiryToDelete, setInquiryToDelete] = useState<Inquiry | null>(null);
@@ -160,7 +167,13 @@ export default function InquiriesPage() {
         setInquiryToDelete(null);
     };
 
-    const handleCreate = async () => {
+    const handleCreate = () => {
+        setNewInquiryEventTypeId('');
+        setCreateDialogOpen(true);
+    };
+
+    const handleCreateConfirm = async () => {
+        setIsCreating(true);
         try {
             const newInquiryData: CreateInquiryData = {
                 first_name: '',
@@ -170,16 +183,19 @@ export default function InquiriesPage() {
                 wedding_date: new Date().toISOString(),
                 status: InquiryStatus.NEW,
                 notes: '',
-                venue_details: '',
                 lead_source: '',
                 lead_source_details: '',
+                event_type_id: newInquiryEventTypeId !== '' ? Number(newInquiryEventTypeId) : null,
             };
             const newInquiry = await inquiriesService.create(newInquiryData);
+            setCreateDialogOpen(false);
             showNotification('New inquiry created. Redirecting...', 'success');
             router.push(`/sales/inquiries/${newInquiry.id}`);
         } catch (error) {
             console.error('Failed to create inquiry:', error);
             showNotification('Failed to create inquiry', 'error');
+        } finally {
+            setIsCreating(false);
         }
     };
 
@@ -188,8 +204,12 @@ export default function InquiriesPage() {
     const loadInquiries = async () => {
         try {
             setIsLoading(true);
-            const data = await inquiriesService.getAll();
+            const [data, types] = await Promise.all([
+                inquiriesService.getAll(),
+                api.eventTypes.getAll().catch(() => []),
+            ]);
             setInquiries(data);
+            setEventTypeOptions(types || []);
         } catch (error) {
             console.error('Failed to load inquiries:', error);
             showNotification('Failed to load inquiries', 'error');
@@ -679,6 +699,35 @@ export default function InquiriesPage() {
                     ))}
                 </Box>
             )}
+
+            {/* Create Inquiry Dialog */}
+            <Dialog open={createDialogOpen} onClose={() => !isCreating && setCreateDialogOpen(false)} maxWidth="xs" fullWidth>
+                <DialogTitle>New Inquiry</DialogTitle>
+                <DialogContent sx={{ pt: 2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Select an event type to get started. You can fill in the rest of the details on the next screen.
+                    </Typography>
+                    <FormControl fullWidth size="small">
+                        <InputLabel>Event Type</InputLabel>
+                        <Select
+                            label="Event Type"
+                            value={newInquiryEventTypeId}
+                            onChange={(e) => setNewInquiryEventTypeId(e.target.value as number | '')}
+                        >
+                            <MenuItem value=""><em>Not set</em></MenuItem>
+                            {eventTypeOptions.map((et) => (
+                                <MenuItem key={et.id} value={et.id}>{et.name}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setCreateDialogOpen(false)} disabled={isCreating}>Cancel</Button>
+                    <Button onClick={handleCreateConfirm} variant="contained" disabled={isCreating}>
+                        {isCreating ? 'Creating...' : 'Create Inquiry'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={deleteDialogOpen} onClose={handleDeleteCancel} maxWidth="xs" fullWidth>

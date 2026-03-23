@@ -15,7 +15,7 @@ import {
   CreateEventTypeDto,
   UpdateEventTypeDto,
   LinkEventDayDto,
-  LinkSubjectTypeDto,
+  LinkSubjectRoleDto,
 } from './dto/event-type.dto';
 import { CreatePackageFromEventTypeDto } from './dto/create-package-from-event-type.dto';
 
@@ -101,32 +101,32 @@ export class EventTypesController {
     return this.eventTypesService.unlinkEventDay(id, dayId, brandId);
   }
 
-  // ────────────────────── SUBJECT TYPE LINKS ──────────────────────
+  // ────────────────────── SUBJECT ROLE LINKS ──────────────────────
 
-  /** POST /event-types/:id/subject-types — link a subject type template */
-  @Post(':id/subject-types')
+  /** POST /event-types/:id/subject-roles — link a subject role */
+  @Post(':id/subject-roles')
   @HttpCode(201)
-  linkSubjectType(
+  linkSubjectRole(
     @Param('id', ParseIntPipe) id: number,
     @Headers('x-brand-context') brandIdHeader: string,
-    @Body() dto: LinkSubjectTypeDto,
+    @Body() dto: LinkSubjectRoleDto,
   ) {
     const brandId = parseInt(brandIdHeader, 10);
-    return this.eventTypesService.linkSubjectType(id, brandId, dto);
+    return this.eventTypesService.linkSubjectRole(id, brandId, dto);
   }
 
-  /** DELETE /event-types/:id/subject-types/:subjectTypeId — unlink a subject type */
-  @Delete(':id/subject-types/:subjectTypeId')
+  /** DELETE /event-types/:id/subject-roles/:subjectRoleId — unlink a subject role */
+  @Delete(':id/subject-roles/:subjectRoleId')
   @HttpCode(204)
-  unlinkSubjectType(
+  unlinkSubjectRole(
     @Param('id', ParseIntPipe) id: number,
-    @Param('subjectTypeId', ParseIntPipe) subjectTypeId: number,
+    @Param('subjectRoleId', ParseIntPipe) subjectRoleId: number,
     @Headers('x-brand-context') brandIdHeader: string,
   ) {
     const brandId = parseInt(brandIdHeader, 10);
-    return this.eventTypesService.unlinkSubjectType(
+    return this.eventTypesService.unlinkSubjectRole(
       id,
-      subjectTypeId,
+      subjectRoleId,
       brandId,
     );
   }

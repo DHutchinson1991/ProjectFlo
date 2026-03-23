@@ -3,14 +3,14 @@
 import { useState, useEffect, useCallback } from 'react';
 
 import { api } from '@/lib/api';
-import { type EventDayTemplate } from '@/components/schedule';
+import { type EventDay } from '@/components/schedule';
 import { ServicePackage } from '@/lib/types/domains/sales';
 import type { JobRole } from '@/lib/types/job-roles';
 import type { TaskAutoGenerationPreview } from '@/lib/types/task-library';
 import { request } from '@/hooks/utils/api';
 
 import type {
-    SubjectTypeTemplate,
+    SubjectType,
     CrewMemberOption,
     PackageDayOperatorRecord,
     PackageFilmRecord,
@@ -42,7 +42,7 @@ export interface UsePackageDataReturn {
     // Reference data (read-only for the component — loaded once)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     categories: any[];
-    subjectTemplates: SubjectTypeTemplate[];
+    subjectTemplates: SubjectType[];
     crewMembers: CrewMemberOption[];
     jobRoles: JobRole[];
     allEquipment: EquipmentRecord[];
@@ -58,8 +58,8 @@ export interface UsePackageDataReturn {
     // Package-specific data (read + write)
     packageFilms: PackageFilmRecord[];
     setPackageFilms: React.Dispatch<React.SetStateAction<PackageFilmRecord[]>>;
-    packageEventDays: EventDayTemplate[];
-    setPackageEventDays: React.Dispatch<React.SetStateAction<EventDayTemplate[]>>;
+    packageEventDays: EventDay[];
+    setPackageEventDays: React.Dispatch<React.SetStateAction<EventDay[]>>;
     packageActivities: PackageActivityRecord[];
     setPackageActivities: React.Dispatch<React.SetStateAction<PackageActivityRecord[]>>;
     packageDayOperators: PackageDayOperatorRecord[];
@@ -106,9 +106,9 @@ export function usePackageData({
     const [categories, setCategories] = useState<any[]>([]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [films, setFilms] = useState<any[]>([]);
-    const [subjectTemplates, setSubjectTemplates] = useState<SubjectTypeTemplate[]>([]);
+    const [subjectTemplates, setSubjectTemplates] = useState<SubjectType[]>([]);
     const [packageFilms, setPackageFilms] = useState<PackageFilmRecord[]>([]);
-    const [packageEventDays, setPackageEventDays] = useState<EventDayTemplate[]>([]);
+    const [packageEventDays, setPackageEventDays] = useState<EventDay[]>([]);
     const [packageActivities, setPackageActivities] = useState<PackageActivityRecord[]>([]);
 
     // Crew & Operator Data
@@ -151,8 +151,8 @@ export function usePackageData({
             setFilms(filmsWithDetails);
 
             try {
-                const templates = await request<SubjectTypeTemplate[]>(
-                    `/subjects/type-templates/brand/${brandId}`,
+                const templates = await request<SubjectType[]>(
+                    `/subjects/roles/brand/${brandId}`,
                     {},
                     { includeBrandQuery: false },
                 );

@@ -101,17 +101,6 @@ export class PackageSetsController {
     return this.service.reorderSlots(setId, brandId, body.slot_ids);
   }
 
-  // ─── Migrate assigned package categories ──────────────────────────
-
-  @Patch(':brandId/:setId/migrate-categories')
-  migratePackagesCategory(
-    @Param('brandId', ParseIntPipe) brandId: number,
-    @Param('setId', ParseIntPipe) setId: number,
-    @Body() body: { category_id: number },
-  ) {
-    return this.service.migratePackagesCategory(setId, brandId, body.category_id);
-  }
-
   // ─── Clear all slot assignments ────────────────────────────────────
 
   @Patch(':brandId/:setId/clear-assignments')

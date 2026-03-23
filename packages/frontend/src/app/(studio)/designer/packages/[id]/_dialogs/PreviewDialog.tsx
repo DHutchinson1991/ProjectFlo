@@ -9,7 +9,7 @@ import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import CloseIcon from '@mui/icons-material/Close';
 
-import type { EventDayTemplate } from '@/components/schedule';
+import type { EventDay } from '@/components/schedule';
 import type { ServicePackageItem } from '@/lib/types/domains/sales';
 
 // ─── Props ───────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ export interface PreviewDialogProps {
             [key: string]: any;
         } | null;
     };
-    packageEventDays: EventDayTemplate[];
+    packageEventDays: EventDay[];
 }
 
 // ─── Component ───────────────────────────────────────────────────────

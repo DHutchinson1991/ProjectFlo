@@ -17,12 +17,15 @@ export interface PackageFilmRecord {
     scene_schedules?: any[];
 }
 
-export interface SubjectTypeTemplate {
+export interface SubjectType {
     id: number;
-    name: string;
+    role_name: string;
     description?: string | null;
-    category: string;
-    roles: Array<{ id: number; role_name: string; is_core: boolean; is_group: boolean; never_group: boolean }>;
+    brand_id: number;
+    is_core: boolean;
+    is_group: boolean;
+    never_group: boolean;
+    order_index: number;
 }
 
 // Crew member from crew API (for assignment dropdowns)

@@ -3,9 +3,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { SubjectResponseDto } from './dto/subject-response.dto';
-import { AssignSubjectToSceneDto } from './dto/assign-subject-to-scene.dto';
+import { CreateSceneSubjectDto } from './dto/create-scene-subject.dto';
 import { UpdateSceneSubjectDto } from './dto/update-scene-subject.dto';
 import { SceneSubjectResponseDto } from './dto/scene-subject-response.dto';
+import { CreateSubjectRolesDto } from './dto/create-subject-role.dto';
+import { UpdateSubjectRoleDto } from './dto/update-subject-role.dto';
 import { SubjectPriority } from '@prisma/client';
 
 @Injectable()
@@ -273,9 +275,13 @@ export class SubjectsService {
     }
 
     // Utility method for getting subject templates library
-    async getSubjectTemplates() {
+    async getSubjectTemplates(brandId?: number) {
+        if (!brandId) {
+            throw new NotFoundException('Brand context is required to load subject templates');
+        }
+
         return this.prisma.subjectTemplate.findMany({
-            where: { is_system: true },
+            where: { brand_id: brandId },
             orderBy: { name: 'asc' },
         });
     }
@@ -322,7 +328,7 @@ export class SubjectsService {
         return subjects.map((subject) => this.mapSceneSubjectResponseDto(subject));
     }
 
-    async assignSubjectToScene(sceneId: number, dto: AssignSubjectToSceneDto) {
+    async assignSubjectToScene(sceneId: number, dto: CreateSceneSubjectDto) {
         const scene = await this.prisma.filmScene.findUnique({
             where: { id: sceneId },
         });
@@ -474,7 +480,7 @@ export class SubjectsService {
         return subjects.map((subject) => this.mapSceneSubjectResponseDto(subject));
     }
 
-    async assignSubjectToMoment(momentId: number, dto: AssignSubjectToSceneDto) {
+    async assignSubjectToMoment(momentId: number, dto: CreateSceneSubjectDto) {
         const moment = await this.prisma.sceneMoment.findUnique({
             where: { id: momentId },
             include: { film_scene: true },
@@ -586,174 +592,75 @@ export class SubjectsService {
         return { message: 'Subject removed from moment' };
     }
 
-    // ===== Subject Type Template Management (Brand-specific) =====
+    // ===== Subject Role Management (Brand-specific) =====
 
-    async getSubjectTypeTemplates(brandId: number) {
-        const templates = await this.prisma.subjectTypeTemplate.findMany({
-            where: { brand_id: brandId, is_active: true },
-            include: {
-                roles: {
-                    orderBy: { order_index: 'asc' },
-                },
-            },
-            orderBy: { name: 'asc' },
+    async getSubjectRoles(brandId: number) {
+        return this.prisma.subjectRole.findMany({
+            where: { brand_id: brandId },
+            orderBy: [{ order_index: 'asc' }, { role_name: 'asc' }],
         });
-
-        return templates.map((template) => ({
-            id: template.id,
-            brand_id: template.brand_id,
-            name: template.name,
-            description: template.description,
-            category: template.category,
-            is_active: template.is_active,
-            created_at: template.created_at,
-            updated_at: template.updated_at,
-            roles: template.roles,
-        }));
     }
 
-    async createSubjectTypeTemplate(brandId: number, dto: any) {
-        // Verify brand exists
-        const brand = await this.prisma.brands.findUnique({
-            where: { id: brandId },
-        });
+    async createSubjectRoles(brandId: number, dto: CreateSubjectRolesDto) {
+        const brand = await this.prisma.brands.findUnique({ where: { id: brandId } });
+        if (!brand) throw new NotFoundException(`Brand with ID ${brandId} not found`);
 
-        if (!brand) {
-            throw new NotFoundException(`Brand with ID ${brandId} not found`);
-        }
-
-        // Check if template with same name already exists for this brand
-        const existing = await this.prisma.subjectTypeTemplate.findFirst({
-            where: {
-                brand_id: brandId,
-                name: dto.name,
-            },
-        });
-
-        if (existing) {
-            throw new BadRequestException(
-                `Subject type template "${dto.name}" already exists for this brand`
-            );
-        }
-
-        // Create template with roles in a transaction
-        const template = await this.prisma.subjectTypeTemplate.create({
-            data: {
-                brand_id: brandId,
-                name: dto.name,
+        // Support batch (dto.roles[]) or single (dto.role_name)
+        const rolesToCreate = dto.roles?.length
+            ? dto.roles
+            : [{
+                role_name: dto.role_name,
                 description: dto.description,
-                category: dto.category,
-                roles: {
-                    create: dto.roles.map((role: any, index: number) => ({
-                        role_name: role.role_name,
-                        description: role.description,
-                        is_core: role.is_core ?? false,
-                        is_group: role.is_group ?? false,
-                        order_index: role.order_index ?? index,
-                    })),
+                is_core: dto.is_core,
+                is_group: dto.is_group,
+                order_index: dto.order_index,
+            }];
+
+        const rolesCount = await this.prisma.subjectRole.count({ where: { brand_id: brandId } });
+
+        const created: any[] = [];
+        for (let i = 0; i < rolesToCreate.length; i++) {
+            const roleData = rolesToCreate[i];
+            if (!roleData.role_name) throw new BadRequestException('role_name is required');
+
+            const existing = await this.prisma.subjectRole.findFirst({
+                where: { brand_id: brandId, role_name: roleData.role_name },
+            });
+            if (existing) throw new BadRequestException(`Role "${roleData.role_name}" already exists for this brand`);
+
+            const role = await this.prisma.subjectRole.create({
+                data: {
+                    brand_id: brandId,
+                    role_name: roleData.role_name,
+                    description: roleData.description,
+                    is_core: roleData.is_core ?? false,
+                    is_group: roleData.is_group ?? false,
+                    order_index: roleData.order_index ?? (rolesCount + i),
                 },
-            },
-            include: {
-                roles: {
-                    orderBy: { order_index: 'asc' },
-                },
-            },
-        });
-
-        return template;
+            });
+            created.push(role);
+        }
+        return created;
     }
 
-    async updateSubjectTypeTemplate(templateId: number, dto: any) {
-        const template = await this.prisma.subjectTypeTemplate.findUnique({
-            where: { id: templateId },
-        });
-
-        if (!template) {
-            throw new NotFoundException(`Template with ID ${templateId} not found`);
-        }
-
-        const updated = await this.prisma.subjectTypeTemplate.update({
-            where: { id: templateId },
-            data: {
-                name: dto.name ?? template.name,
-                description: dto.description ?? template.description,
-                is_active: dto.is_active ?? template.is_active,
-            },
-            include: {
-                roles: {
-                    orderBy: { order_index: 'asc' },
-                },
-            },
-        });
-
-        return updated;
-    }
-
-    async deleteSubjectTypeTemplate(templateId: number) {
-        const template = await this.prisma.subjectTypeTemplate.findUnique({
-            where: { id: templateId },
-        });
-
-        if (!template) {
-            throw new NotFoundException(`Template with ID ${templateId} not found`);
-        }
-
-        await this.prisma.subjectTypeTemplate.delete({
-            where: { id: templateId },
-        });
-
-        return { message: 'Template deleted successfully' };
-    }
-
-    async addRoleToTemplate(templateId: number, roleDto: any) {
-        const template = await this.prisma.subjectTypeTemplate.findUnique({
-            where: { id: templateId },
-            include: { roles: true },
-        });
-
-        if (!template) {
-            throw new NotFoundException(`Template with ID ${templateId} not found`);
-        }
-
-        // Check if role already exists
-        const existingRole = template.roles.find(
-            (r) => r.role_name.toLowerCase() === roleDto.role_name.toLowerCase()
-        );
-
-        if (existingRole) {
-            throw new BadRequestException(
-                `Role "${roleDto.role_name}" already exists in this template`
-            );
-        }
-
-        const newRole = await this.prisma.subjectRoleTemplate.create({
-            data: {
-                subject_type_id: templateId,
-                role_name: roleDto.role_name,
-                description: roleDto.description,
-                is_core: roleDto.is_core ?? false,
-                is_group: roleDto.is_group ?? false,
-                order_index: roleDto.order_index ?? template.roles.length,
-            },
-        });
-
-        return newRole;
-    }
-
-    async removeRoleFromTemplate(roleId: number) {
-        const role = await this.prisma.subjectRoleTemplate.findUnique({
+    async updateSubjectRole(roleId: number, dto: UpdateSubjectRoleDto) {
+        const role = await this.prisma.subjectRole.findUnique({ where: { id: roleId } });
+        if (!role) throw new NotFoundException(`Subject role with ID ${roleId} not found`);
+        return this.prisma.subjectRole.update({
             where: { id: roleId },
+            data: {
+                role_name: dto.role_name ?? role.role_name,
+                description: dto.description ?? role.description,
+                is_core: dto.is_core ?? role.is_core,
+            },
         });
+    }
 
-        if (!role) {
-            throw new NotFoundException(`Role with ID ${roleId} not found`);
-        }
-
-        await this.prisma.subjectRoleTemplate.delete({
-            where: { id: roleId },
-        });
-
-        return { message: 'Role removed from template' };
+    async deleteSubjectRole(roleId: number) {
+        const role = await this.prisma.subjectRole.findUnique({ where: { id: roleId } });
+        if (!role) throw new NotFoundException(`Subject role with ID ${roleId} not found`);
+        await this.prisma.subjectRole.delete({ where: { id: roleId } });
+        return { message: 'Subject role deleted successfully' };
     }
 }
 

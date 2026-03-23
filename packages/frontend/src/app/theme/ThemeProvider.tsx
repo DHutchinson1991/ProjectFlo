@@ -12,6 +12,20 @@ import { ThemeProvider as MUIThemeProvider } from "@mui/material/styles";
 import { CssBaseline } from "@mui/material";
 import { createTheme } from "@mui/material/styles";
 import { PaletteMode } from "@mui/material";
+import { alpha } from "@mui/material/styles";
+import { colors } from "@/lib/theme/tokens";
+
+/* ── MUI module augmentation for custom variants ─────────────── */
+declare module "@mui/material/Card" {
+    interface CardPropsVariantOverrides {
+        glass: true;
+    }
+}
+declare module "@mui/material/Chip" {
+    interface ChipPropsVariantOverrides {
+        status: true;
+    }
+}
 
 // Define theme settings
 const getDesignTokens = (mode: PaletteMode) => ({
@@ -48,6 +62,35 @@ const getDesignTokens = (mode: PaletteMode) => ({
                     color: mode === "light" ? "#333333" : "#ffffff",
                 },
             },
+        },
+        MuiCard: {
+            variants: [
+                {
+                    props: { variant: "glass" as const },
+                    style: {
+                        backgroundColor: alpha(colors.card, 0.55),
+                        backdropFilter: "blur(24px) saturate(1.8)",
+                        border: `1px solid ${alpha(colors.border, 0.6)}`,
+                        borderRadius: 16,
+                        transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+                    },
+                },
+            ],
+        },
+        MuiChip: {
+            variants: [
+                {
+                    props: { variant: "status" as const },
+                    style: {
+                        height: 20,
+                        fontSize: "0.6rem",
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                        border: "none",
+                        "& .MuiChip-label": { px: 1 },
+                    },
+                },
+            ],
         },
     },
 });

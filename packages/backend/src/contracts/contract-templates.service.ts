@@ -253,7 +253,7 @@ export class ContractTemplatesService {
           include: {
             activities: true,
             subjects: true,
-            location_slots: true,
+            location_slots: { include: { location: true } },
           },
           orderBy: { order_index: 'asc' },
         },
@@ -348,6 +348,13 @@ export class ContractTemplatesService {
       )
       .join('\n');
 
+    // Derive primary venue from location slots
+    const firstSlot = eventDays
+      .flatMap((d) => d.location_slots || [])
+      .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))[0];
+    const primaryVenueName = firstSlot?.location?.name || firstSlot?.name || '';
+    const primaryVenueAddress = firstSlot?.location?.address_line1 || firstSlot?.address || '';
+
     const vars: Record<string, string> = {
       // Client
       'client.full_name': [contact?.first_name, contact?.last_name]
@@ -362,8 +369,8 @@ export class ContractTemplatesService {
       // Event
       'event.date': formatDate(weddingDate),
       'event.date_short': formatDate(weddingDate, 'short'),
-      'event.venue': inquiry.venue_details || '',
-      'event.venue_address': inquiry.venue_address || '',
+      'event.venue': primaryVenueName,
+      'event.venue_address': primaryVenueAddress,
       'event.days': eventDaySummary,
       'event.day_count': String(eventDays.length),
       'event.locations': locations.join(', '),

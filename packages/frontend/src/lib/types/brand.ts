@@ -36,6 +36,7 @@ export interface Brand {
     crew_response_deadline_days?: number;
     inquiry_validity_days?: number;
     is_active: boolean;
+    service_types?: string[];
     created_at: string;
     updated_at: string;
 }

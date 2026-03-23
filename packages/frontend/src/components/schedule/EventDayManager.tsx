@@ -34,7 +34,7 @@ import { api } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
-export interface EventDayTemplate {
+export interface EventDay {
   id: number;
   name: string;
   description?: string | null;
@@ -56,10 +56,10 @@ export interface EventDayFilmScene {
 
 interface EventDayManagerProps {
   brandId: number;
-  eventDays: EventDayTemplate[];
+  eventDays: EventDay[];
   /** Map of event_day_id → scenes from all films assigned to that day */
   crossFilmScenes?: Map<number, EventDayFilmScene[]>;
-  onEventDaysChange: (eventDays: EventDayTemplate[]) => void;
+  onEventDaysChange: (eventDays: EventDay[]) => void;
   /** Compact mode for embedding in side panels */
   compact?: boolean;
   readOnly?: boolean;
@@ -73,7 +73,7 @@ interface EventDayDialogProps {
   open: boolean;
   onClose: () => void;
   onSave: (data: { name: string; description: string; order_index: number }) => Promise<void>;
-  initial?: EventDayTemplate | null;
+  initial?: EventDay | null;
   saving: boolean;
 }
 
@@ -187,7 +187,7 @@ const PackageEventDayPickerDialog: React.FC<PackageEventDayPickerDialogProps> = 
   onSave,
   saving,
 }) => {
-  const [allBrandDays, setAllBrandDays] = useState<EventDayTemplate[]>([]);
+  const [allBrandDays, setAllBrandDays] = useState<EventDay[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [loadingDays, setLoadingDays] = useState(false);
 
@@ -197,7 +197,7 @@ const PackageEventDayPickerDialog: React.FC<PackageEventDayPickerDialogProps> = 
       setLoadingDays(true);
       api.schedule.eventDays
         .getAll(brandId)
-        .then((days: EventDayTemplate[]) => setAllBrandDays(days))
+        .then((days: EventDay[]) => setAllBrandDays(days))
         .catch(console.error)
         .finally(() => setLoadingDays(false));
     }
@@ -294,7 +294,7 @@ const PackageEventDayPickerDialog: React.FC<PackageEventDayPickerDialogProps> = 
 // ─── Event Day Card ─────────────────────────────────────────────────────
 
 interface EventDayCardProps {
-  eventDay: EventDayTemplate;
+  eventDay: EventDay;
   scenes?: EventDayFilmScene[];
   compact?: boolean;
   readOnly?: boolean;
@@ -621,7 +621,7 @@ export const EventDayManager: React.FC<EventDayManagerProps> = ({
   const isPackageMode = !!packageId;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [editingDay, setEditingDay] = useState<EventDayTemplate | null>(null);
+  const [editingDay, setEditingDay] = useState<EventDay | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -635,7 +635,7 @@ export const EventDayManager: React.FC<EventDayManagerProps> = ({
     }
   }, [isPackageMode]);
 
-  const handleOpenEdit = useCallback((day: EventDayTemplate) => {
+  const handleOpenEdit = useCallback((day: EventDay) => {
     setEditingDay(day);
     setDialogOpen(true);
   }, []);
@@ -670,7 +670,7 @@ export const EventDayManager: React.FC<EventDayManagerProps> = ({
   );
 
   const handleDelete = useCallback(
-    async (day: EventDayTemplate) => {
+    async (day: EventDay) => {
       setSaving(true);
       setError(null);
       try {

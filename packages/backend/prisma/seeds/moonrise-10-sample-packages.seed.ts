@@ -10,7 +10,7 @@
  *  - SubjectActivityAssignment (activity ↔ subject junction)
  *  - LocationActivityAssignment (activity ↔ location slot junction)
  *
- * This mirrors the WeddingTypesService.createPackageFromTemplate() logic so
+ * This mirrors the EventSubtypesService.createPackageFromTemplate() logic so
  * seed data and UI-created packages share the same structure.
  */
 
@@ -44,7 +44,7 @@ async function seedSamplePackages(): Promise<SeedSummary> {
   }
 
   // Get all system-seeded wedding types with full relations
-  const weddingTypes = await prisma.weddingType.findMany({
+  const weddingTypes = await prisma.eventSubtype.findMany({
     where: { is_system_seeded: true, is_active: true },
     include: {
       activities: {
@@ -67,11 +67,11 @@ async function seedSamplePackages(): Promise<SeedSummary> {
   }
 
   // Get or create "Wedding Day" event day template
-  let weddingDayTemplate = await prisma.eventDayTemplate.findFirst({
+  let weddingDayTemplate = await prisma.eventDay.findFirst({
     where: { brand_id: brand.id, name: 'Wedding Day' },
   });
   if (!weddingDayTemplate) {
-    weddingDayTemplate = await prisma.eventDayTemplate.create({
+    weddingDayTemplate = await prisma.eventDay.create({
       data: {
         brand_id: brand.id,
         name: 'Wedding Day',
@@ -117,9 +117,9 @@ async function seedSamplePackages(): Promise<SeedSummary> {
     });
 
     // ── 3. Create PackageEventDaySubjects ──
-    const subjectMap = new Map<number, number>(); // WeddingTypeSubject.id → PackageEventDaySubject.id
+    const subjectMap = new Map<number, number>(); // EventSubtypeSubject.id → PackageEventDaySubject.id
     for (const subject of wt.subjects) {
-      const pkgSubject = await prisma.packageEventDaySubject.create({
+      const pkgSubject = await prisma.packageDaySubject.create({
         data: {
           package_id: pkg.id,
           event_day_template_id: weddingDayTemplate.id,
@@ -133,7 +133,7 @@ async function seedSamplePackages(): Promise<SeedSummary> {
     }
 
     // ── 4. Create PackageLocationSlots (max 5) ──
-    const locationSlotMap = new Map<number, number>(); // WeddingTypeLocation.id → PackageLocationSlot.id
+    const locationSlotMap = new Map<number, number>(); // EventSubtypeLocation.id → PackageLocationSlot.id
     for (let i = 0; i < wt.locations.length && i < 5; i++) {
       const slot = await prisma.packageLocationSlot.create({
         data: {
@@ -191,9 +191,9 @@ async function seedSamplePackages(): Promise<SeedSummary> {
       for (const actSubj of activity.activity_subjects) {
         const pkgSubjectId = subjectMap.get(actSubj.wedding_type_subject_id);
         if (pkgSubjectId) {
-          await prisma.subjectActivityAssignment.create({
+          await prisma.packageDaySubjectActivity.create({
             data: {
-              package_event_day_subject_id: pkgSubjectId,
+              package_day_subject_id: pkgSubjectId,
               package_activity_id: pkgActivity.id,
             },
           });

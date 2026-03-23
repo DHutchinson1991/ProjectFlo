@@ -100,7 +100,7 @@ export class ProjectPackageSnapshotService {
       this.prisma.projectActivity.count({ where }),
       this.prisma.projectFilm.count({ where }),
       this.prisma.projectDayOperator.count({ where }),
-      this.prisma.projectEventDaySubject.count({ where }),
+      this.prisma.projectDaySubject.count({ where }),
       this.prisma.projectLocationSlot.count({ where }),
     ]);
 
@@ -172,7 +172,6 @@ export class ProjectPackageSnapshotService {
           orderBy: { order_index: 'asc' },
           include: {
             role_template: true,
-            project_activity: { select: { id: true, name: true } },
             activity_assignments: {
               include: { project_activity: { select: { id: true, name: true } } },
             },
@@ -182,7 +181,6 @@ export class ProjectPackageSnapshotService {
           orderBy: { order_index: 'asc' },
           include: {
             location: true,
-            project_activity: { select: { id: true, name: true } },
             activity_assignments: {
               include: { project_activity: { select: { id: true, name: true } } },
             },
@@ -222,7 +220,7 @@ export class ProjectPackageSnapshotService {
         },
         subject_assignments: {
           include: {
-            project_event_day_subject: {
+            project_day_subject: {
               select: { id: true, name: true, real_name: true },
             },
           },
@@ -300,18 +298,13 @@ export class ProjectPackageSnapshotService {
    * Get all subjects.
    */
   async getSubjects(filter: OwnerFilter) {
-    return this.prisma.projectEventDaySubject.findMany({
+    return this.prisma.projectDaySubject.findMany({
       where: this.ownerWhere(filter),
       include: {
         project_event_day: {
           select: { id: true, name: true, date: true },
         },
-        project_activity: {
-          select: { id: true, name: true },
-        },
-        role_template: {
-          include: { subject_type: true },
-        },
+        role_template: true,
         activity_assignments: {
           include: { project_activity: { select: { id: true, name: true } } },
         },
@@ -329,9 +322,6 @@ export class ProjectPackageSnapshotService {
       include: {
         project_event_day: {
           select: { id: true, name: true, date: true },
-        },
-        project_activity: {
-          select: { id: true, name: true },
         },
         location: true,
         activity_assignments: {

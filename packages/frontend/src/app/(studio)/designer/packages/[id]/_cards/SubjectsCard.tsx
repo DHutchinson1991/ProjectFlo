@@ -13,11 +13,11 @@ import DeleteIcon from '@mui/icons-material/Delete';
 
 import { api } from '@/lib/api';
 import { useOptionalScheduleApi } from '@/components/schedule/ScheduleApiContext';
-import type { EventDayTemplate } from '@/components/schedule/EventDayManager';
+import type { EventDay } from '@/components/schedule/EventDayManager';
 import type {
     PackageActivityRecord,
     PackageEventDaySubjectRecord,
-    SubjectTypeTemplate,
+    SubjectType,
 } from '../_lib/types';
 
 /* ================================================================== */
@@ -26,11 +26,11 @@ import type {
 
 interface SubjectsCardProps {
     packageId: number | null;
-    packageEventDays: EventDayTemplate[];
+    packageEventDays: EventDay[];
     packageActivities: PackageActivityRecord[];
     packageSubjects: PackageEventDaySubjectRecord[];
     setPackageSubjects: React.Dispatch<React.SetStateAction<PackageEventDaySubjectRecord[]>>;
-    subjectTemplates: SubjectTypeTemplate[];
+    subjectTemplates: SubjectType[];
     scheduleActiveDayId: number | null;
     selectedActivityId: number | null;
     cardSx: SxProps<Theme>;
@@ -117,16 +117,9 @@ export function SubjectsCard({
         }
     };
 
-    // Find templates whose name matches the active day (e.g. "Wedding" matches "Wedding Day")
-    const matchedTemplates = subjectTemplates.filter(t =>
-        activeDay && (
-            activeDay.name.toLowerCase().includes(t.name.toLowerCase()) ||
-            t.name.toLowerCase().includes(activeDay.name.toLowerCase().split(' ')[0])
-        )
-    );
+    // Suggest all subject roles not yet added to the active day
     const existingNames = new Set(daySubjects.map((s: any) => s.name)); // eslint-disable-line @typescript-eslint/no-explicit-any
-    // Suggested roles from matched templates not yet added
-    const suggestedRoles = matchedTemplates.flatMap(t => t.roles).filter(r => !existingNames.has(r.role_name));
+    const suggestedRoles = subjectTemplates.filter(r => !existingNames.has(r.role_name));
     const autoConnectInFlightRef = useRef<Set<number>>(new Set());
 
     useEffect(() => {
@@ -536,7 +529,7 @@ export function SubjectsCard({
                         <Box sx={{ mt: daySubjects.length > 0 ? 1.5 : 0 }}>
                             {daySubjects.length === 0 && (
                                 <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.58rem', display: 'block', mb: 0.75 }}>
-                                    From {matchedTemplates.map(t => t.name).join(', ')} template:
+                                    Suggested roles:
                                 </Typography>
                             )}
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>

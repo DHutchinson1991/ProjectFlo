@@ -38,7 +38,7 @@ import {
 import Link from "next/link";
 import { useBrand } from "@/app/providers/BrandProvider";
 
-interface RoleTemplate {
+interface SubjectRole {
   id: number;
   role_name: string;
   description?: string;
@@ -47,28 +47,28 @@ interface RoleTemplate {
   order_index: number;
 }
 
-interface SubjectTypeTemplate {
+interface SubjectType {
   id: number;
   name: string;
   description?: string;
   category: string;
   is_active: boolean;
-  roles: RoleTemplate[];
+  roles: SubjectRole[];
 }
 
 export default function SubjectsTemplatesPage() {
   const { currentBrand } = useBrand();
-  const [templates, setTemplates] = useState<SubjectTypeTemplate[]>([]);
+  const [templates, setTemplates] = useState<SubjectType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<SubjectTypeTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<SubjectType | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     category: "PEOPLE",
   });
-  const [roles, setRoles] = useState<Partial<RoleTemplate>[]>([
+  const [roles, setRoles] = useState<Partial<SubjectRole>[]>([
     { role_name: "", is_core: false, is_group: false, order_index: 0 },
   ]);
 
@@ -84,7 +84,7 @@ export default function SubjectsTemplatesPage() {
       setLoading(true);
       setError(null);
       const res = await fetch(
-        `http://localhost:3002/subjects/type-templates/brand/${currentBrand.id}`
+        `http://localhost:3002/subjects/roles/brand/${currentBrand.id}`
       );
       if (!res.ok) throw new Error("Failed to load templates");
       const data = await res.json();
@@ -96,7 +96,7 @@ export default function SubjectsTemplatesPage() {
     }
   };
 
-  const handleOpenDialog = (template?: SubjectTypeTemplate) => {
+  const handleOpenDialog = (template?: SubjectType) => {
     if (template) {
       setEditingTemplate(template);
       setFormData({
@@ -153,14 +153,13 @@ export default function SubjectsTemplatesPage() {
       if (editingTemplate) {
         // Update template
         const res = await fetch(
-          `http://localhost:3002/subjects/type-templates/${editingTemplate.id}`,
+          `http://localhost:3002/subjects/roles/${editingTemplate.id}`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              name: formData.name,
+              role_name: formData.name,
               description: formData.description,
-              is_active: true,
             }),
           }
         );
@@ -168,14 +167,13 @@ export default function SubjectsTemplatesPage() {
       } else {
         // Create new template
         const res = await fetch(
-          `http://localhost:3002/subjects/type-templates/brand/${currentBrand.id}`,
+          `http://localhost:3002/subjects/roles/brand/${currentBrand.id}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              name: formData.name,
+              role_name: formData.name,
               description: formData.description,
-              category: formData.category,
               roles: validRoles.map((r, idx) => ({
                 role_name: r.role_name,
                 description: r.description,
@@ -204,7 +202,7 @@ export default function SubjectsTemplatesPage() {
     try {
       setLoading(true);
       const res = await fetch(
-        `http://localhost:3002/subjects/type-templates/${templateId}`,
+        `http://localhost:3002/subjects/roles/${templateId}`,
         { method: "DELETE" }
       );
       if (!res.ok) throw new Error("Failed to delete template");

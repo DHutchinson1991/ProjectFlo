@@ -38,7 +38,7 @@ export class CustomActivityDto {
   name!: string;
 
   @IsInt()
-  dayTemplateId!: number; // EventDayTemplate.id
+  dayTemplateId!: number; // EventDay.id
 
   @IsOptional()
   @IsString()
@@ -107,7 +107,7 @@ export class CreatePackageFromEventTypeDto {
   @IsString()
   packageDescription?: string;
 
-  // Selected event day link IDs — EventTypeEventDay.id values
+  // Selected event day link IDs — EventTypeDay.id values
   @IsArray()
   @IsInt({ each: true })
   selectedDayIds!: number[];

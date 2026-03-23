@@ -247,6 +247,7 @@ export interface Inquiry {
     status: InquiryStatus;
     event_date?: Date | null;
     event_type?: string | null;
+    event_type_id?: number | null;
     budget_range?: string | null;
     message?: string | null;
     notes?: string | null;
@@ -254,8 +255,6 @@ export interface Inquiry {
     venue_address?: string | null;
     venue_lat?: number | null;
     venue_lng?: number | null;
-    venue_source?: string | null;
-    venue_updated_at?: Date | null;
     lead_source?: string | null;
     lead_source_details?: string | null;
     selected_package_id?: number | null;
@@ -806,9 +805,9 @@ export interface CreateInquiryData {
     wedding_date?: string;
     status?: InquiryStatus;
     notes?: string;
-    venue_details?: string;
     lead_source?: string;
     lead_source_details?: string;
+    event_type_id?: number | null;
 }
 
 export interface UpdateInquiryData {
@@ -819,10 +818,6 @@ export interface UpdateInquiryData {
     wedding_date?: string;
     status?: InquiryStatus;
     notes?: string;
-    venue_details?: string;
-    venue_address?: string | null;
-    venue_lat?: number | null;
-    venue_lng?: number | null;
     lead_source?: string;
     lead_source_details?: string;
     preferred_payment_schedule_template_id?: number | null;
@@ -830,6 +825,7 @@ export interface UpdateInquiryData {
     event_type?: string | null;
     budget_range?: string | null;
     message?: string | null;
+    event_type_id?: number | null;
 }
 
 // Client CRUD DTOs

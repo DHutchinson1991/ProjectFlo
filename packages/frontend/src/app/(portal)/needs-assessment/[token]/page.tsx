@@ -140,7 +140,7 @@ interface PackageData {
 
 interface PackageSetData {
     id: number;
-    category?: { id: number; name: string } | null;
+    category?: { id: number; name: string; event_type_id?: number | null } | null;
     slots?: { id: number; slot_label?: string; service_package_id?: number | null; order_index: number }[];
 }
 
@@ -328,7 +328,15 @@ export default function PublicNeedsAssessmentPage() {
         const allPackages = template?.packages ?? [];
         const packageSets = template?.package_sets ?? [];
         const activeSets = selectedEventType
-            ? packageSets.filter((s) => (s.category?.name ?? "").toLowerCase() === selectedEventType.toLowerCase())
+            ? packageSets.filter((s) => {
+                // Prefer FK match when available (added via event_type_id on category)
+                const eventTypeCache: any[] = (typeof window !== 'undefined' && (window as any).__pflo_eventTypes) || [];
+                const matchedEt = eventTypeCache.find((et: any) => et.name?.toLowerCase() === selectedEventType.toLowerCase());
+                if (matchedEt && s.category?.event_type_id != null) {
+                    return s.category.event_type_id === matchedEt.id;
+                }
+                return (s.category?.name ?? "").toLowerCase() === selectedEventType.toLowerCase();
+            })
             : packageSets;
         const activeIds = new Set<number>();
         for (const set of activeSets) {

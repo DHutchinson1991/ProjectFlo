@@ -26,20 +26,6 @@ export class CreateInquiryDto {
 
     @IsOptional()
     @IsString()
-    venue_details?: string;
-
-    @IsOptional()
-    @IsString()
-    venue_address?: string;
-
-    @IsOptional()
-    venue_lat?: number;
-
-    @IsOptional()
-    venue_lng?: number;
-
-    @IsOptional()
-    @IsString()
     lead_source?: string;
 
     @IsOptional()
@@ -94,24 +80,6 @@ export class UpdateInquiryDto {
 
     @IsOptional()
     @IsString()
-    venue_details?: string;
-
-    @IsOptional()
-    @IsString()
-    venue_address?: string;
-
-    @IsOptional()
-    venue_lat?: number | null;
-
-    @IsOptional()
-    venue_lng?: number | null;
-
-    @IsOptional()
-    @IsString()
-    venue_source?: string;
-
-    @IsOptional()
-    @IsString()
     lead_source?: string;
 
     @IsOptional()
@@ -129,4 +97,12 @@ export class UpdateInquiryDto {
     @IsOptional()
     @IsInt()
     preferred_payment_schedule_template_id?: number | null;
+
+    @IsOptional()
+    @IsInt()
+    event_type_id?: number | null;
+
+    @IsOptional()
+    @IsString()
+    event_type?: string | null;
 }

@@ -408,13 +408,19 @@ export class ClientPortalService {
                 : null,
         };
 
+        // Derive primary venue from location slots
+        const firstLocationSlot = (inquiry.schedule_event_days ?? [])
+            .flatMap((d) => d.location_slots || [])
+            .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))[0];
+
         return {
             inquiry_id: inquiry.id,
             status: inquiry.status,
             event_date: inquiry.wedding_date,
             event_type: inquiry.event_type?.name ?? null,
-            venue: inquiry.venue_details ?? null,
-            venue_address: inquiry.venue_address ?? null,
+            event_type_id: inquiry.event_type?.id ?? null,
+            venue: firstLocationSlot?.location?.name ?? firstLocationSlot?.name ?? null,
+            venue_address: firstLocationSlot?.location?.address_line1 ?? firstLocationSlot?.address ?? null,
             is_contract_signed: contract?.status === 'Signed',
             contact: {
                 first_name: inquiry.contact.first_name,

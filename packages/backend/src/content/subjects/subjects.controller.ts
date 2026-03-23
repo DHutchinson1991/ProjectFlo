@@ -11,8 +11,11 @@ import {
 import { SubjectsService } from './subjects.service';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
-import { AssignSubjectToSceneDto } from './dto/assign-subject-to-scene.dto';
+import { CreateSceneSubjectDto } from './dto/create-scene-subject.dto';
 import { UpdateSceneSubjectDto } from './dto/update-scene-subject.dto';
+import { CreateSubjectRolesDto } from './dto/create-subject-role.dto';
+import { UpdateSubjectRoleDto } from './dto/update-subject-role.dto';
+import { BrandId } from '../../core/auth/decorators/brand-id.decorator';
 
 @Controller('subjects')
 export class SubjectsController {
@@ -54,8 +57,8 @@ export class SubjectsController {
 
     // Utility endpoints
     @Get('templates/library')
-    getSubjectTemplates() {
-        return this.subjectsService.getSubjectTemplates();
+    getSubjectTemplates(@BrandId() brandId?: number) {
+        return this.subjectsService.getSubjectTemplates(brandId);
     }
 
     // Scene subject assignments
@@ -67,7 +70,7 @@ export class SubjectsController {
     @Post('scenes/:sceneId/assign')
     assignToScene(
         @Param('sceneId', ParseIntPipe) sceneId: number,
-        @Body() dto: AssignSubjectToSceneDto,
+        @Body() dto: CreateSceneSubjectDto,
     ) {
         return this.subjectsService.assignSubjectToScene(sceneId, dto);
     }
@@ -98,7 +101,7 @@ export class SubjectsController {
     @Post('moments/:momentId/assign')
     assignToMoment(
         @Param('momentId', ParseIntPipe) momentId: number,
-        @Body() dto: AssignSubjectToSceneDto,
+        @Body() dto: CreateSceneSubjectDto,
     ) {
         return this.subjectsService.assignSubjectToMoment(momentId, dto);
     }
@@ -120,50 +123,35 @@ export class SubjectsController {
         return this.subjectsService.removeSubjectFromMoment(momentId, subjectId);
     }
 
-    // ===== Subject Type Template Management =====
+    // ===== Subject Role Management (Brand-specific) =====
 
-    @Get('type-templates/brand/:brandId')
-    getTypeTemplates(
+    @Get('roles/brand/:brandId')
+    getSubjectRoles(
         @Param('brandId', ParseIntPipe) brandId: number,
     ) {
-        return this.subjectsService.getSubjectTypeTemplates(brandId);
+        return this.subjectsService.getSubjectRoles(brandId);
     }
 
-    @Post('type-templates/brand/:brandId')
-    createTypeTemplate(
+    @Post('roles/brand/:brandId')
+    createSubjectRoles(
         @Param('brandId', ParseIntPipe) brandId: number,
-        @Body() dto: any,
+        @Body() dto: CreateSubjectRolesDto,
     ) {
-        return this.subjectsService.createSubjectTypeTemplate(brandId, dto);
+        return this.subjectsService.createSubjectRoles(brandId, dto);
     }
 
-    @Patch('type-templates/:templateId')
-    updateTypeTemplate(
-        @Param('templateId', ParseIntPipe) templateId: number,
-        @Body() dto: any,
+    @Patch('roles/:roleId')
+    updateSubjectRole(
+        @Param('roleId', ParseIntPipe) roleId: number,
+        @Body() dto: UpdateSubjectRoleDto,
     ) {
-        return this.subjectsService.updateSubjectTypeTemplate(templateId, dto);
+        return this.subjectsService.updateSubjectRole(roleId, dto);
     }
 
-    @Delete('type-templates/:templateId')
-    deleteTypeTemplate(
-        @Param('templateId', ParseIntPipe) templateId: number,
-    ) {
-        return this.subjectsService.deleteSubjectTypeTemplate(templateId);
-    }
-
-    @Post('type-templates/:templateId/roles')
-    addRoleToTemplate(
-        @Param('templateId', ParseIntPipe) templateId: number,
-        @Body() roleDto: any,
-    ) {
-        return this.subjectsService.addRoleToTemplate(templateId, roleDto);
-    }
-
-    @Delete('type-templates/roles/:roleId')
-    removeRoleFromTemplate(
+    @Delete('roles/:roleId')
+    deleteSubjectRole(
         @Param('roleId', ParseIntPipe) roleId: number,
     ) {
-        return this.subjectsService.removeRoleFromTemplate(roleId);
+        return this.subjectsService.deleteSubjectRole(roleId);
     }
 }

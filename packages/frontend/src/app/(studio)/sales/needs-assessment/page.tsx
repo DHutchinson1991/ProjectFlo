@@ -168,27 +168,50 @@ export default function NeedsAssessmentPage() {
     }, [currentBrand?.id]);
 
     /* ── Derived values ─────────────────────────────────── */
+    // Resolve the selected EventType ID from the cached event types list
+    const selectedEventTypeId = useMemo(() => {
+        if (!responses.event_type) return null;
+        const etCache: any[] = (window as any).__pflo_eventTypes || [];
+        const match = etCache.find((et: any) => et.name.toLowerCase() === eventType);
+        return match?.id ?? null;
+    }, [responses.event_type, eventType]);
+
     const eventTypeOptions = useMemo(() => {
-        const seen = new Map<string, string>();
+        const etCache: any[] = (window as any).__pflo_eventTypes || [];
+        const seen = new Map<string | number, { key: string; label: string; emoji: string; desc: string; color: string | null }>();
         for (const s of packageSets) {
-            const name: string | undefined = s.category?.name;
-            if (name && !seen.has(name.toLowerCase())) seen.set(name.toLowerCase(), name);
+            const et = s.event_type;
+            const name: string | undefined = et?.name;
+            if (!name) continue;
+            const etId: number | null = s.event_type_id ?? null;
+            // Deduplicate by event_type_id when available, else by name
+            const key = name.toLowerCase();
+            const dedupeKey = etId ?? key;
+            if (seen.has(dedupeKey)) continue;
+            seen.set(dedupeKey, {
+                key, label: EVENT_LABELS[key] || `A ${name}`, emoji: et?.icon || EVENT_EMOJIS[key] || "🎬",
+                desc: EVENT_DESCS[key] || "", color: et?.color || null,
+            });
         }
-        return Array.from(seen.entries()).map(([key, label]) => ({
-            key, label: EVENT_LABELS[key] || label, emoji: EVENT_EMOJIS[key] || "🎬", desc: EVENT_DESCS[key] || "",
-        }));
+        return Array.from(seen.values());
     }, [packageSets]);
 
     const filteredPackages = useMemo(() => {
         const activeSets = responses.event_type
-            ? packageSets.filter((s: AnyRecord) => (s.category?.name ?? "").toLowerCase() === eventType)
+            ? packageSets.filter((s: AnyRecord) => {
+                // Prefer FK match; fall back to name match for backward compatibility
+                if (selectedEventTypeId != null && s.event_type_id != null) {
+                    return s.event_type_id === selectedEventTypeId;
+                }
+                return (s.event_type?.name ?? "").toLowerCase() === eventType;
+            })
             : packageSets;
         const ids = new Set<number>();
         for (const set of activeSets)
             for (const slot of (set.slots ?? []))
                 if (slot.service_package_id != null) ids.add(slot.service_package_id);
         return allPackages.filter((p) => ids.has(p.id));
-    }, [allPackages, packageSets, responses.event_type, eventType]);
+    }, [allPackages, packageSets, responses.event_type, eventType, selectedEventTypeId]);
 
     const slotLabels = useMemo(() => {
         const m = new Map<number, string>();
@@ -359,7 +382,6 @@ export default function NeedsAssessmentPage() {
                 },
                 inquiry: {
                     wedding_date: responses.wedding_date,
-                    venue_details: responses.venue_details,
                     guest_count: responses.guest_count,
                     notes: responses.special_requests,
                     lead_source: responses.lead_source,
@@ -368,6 +390,7 @@ export default function NeedsAssessmentPage() {
                     preferred_payment_schedule_template_id: responses.payment_schedule_template_id
                         ? Number(responses.payment_schedule_template_id)
                         : undefined,
+                    event_type_id: selectedEventTypeId ?? undefined,
                 },
                 preferred_payment_schedule_template_id: responses.payment_schedule_template_id
                     ? Number(responses.payment_schedule_template_id)

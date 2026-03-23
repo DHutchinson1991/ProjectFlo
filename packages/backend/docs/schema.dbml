@@ -35,6 +35,7 @@ Table brands {
   bank_account_number String
   crew_payment_terms String [default: '50% on booking confirmation, 50% within 7 days of delivery']
   crew_response_deadline_days Int [default: 5]
+  service_types String[] [not null]
   inquiry_validity_days Int [default: 14]
   late_fee_percent Decimal [default: 2]
   cancellation_tier1_days Int [default: 90]
@@ -62,17 +63,19 @@ Table brands {
   needs_assessment_submissions needs_assessment_submissions [not null]
   discovery_questionnaire_templates discovery_questionnaire_templates [not null]
   discovery_questionnaire_submissions discovery_questionnaire_submissions [not null]
-  subject_type_templates subject_type_templates [not null]
+  subject_roles subject_roles [not null]
   equipment_templates equipment_templates [not null]
-  event_day_templates event_day_templates [not null]
+  event_days event_days [not null]
   schedule_presets schedule_presets [not null]
-  wedding_types wedding_types [not null]
+  event_subtypes event_subtypes [not null]
   event_types event_types [not null]
   workflow_templates workflow_templates [not null]
   package_sets package_sets [not null]
   skill_role_mappings skill_role_mappings [not null]
   payment_schedule_templates payment_schedule_templates [not null]
   crew_payment_templates crew_payment_templates [not null]
+  subject_templates subject_templates [not null]
+  scene_templates scene_templates [not null]
   contract_clause_categories contract_clause_categories [not null]
   contract_clauses contract_clauses [not null]
   contract_templates contract_templates [not null]
@@ -129,6 +132,7 @@ Table contacts {
   event_attendees event_attendees [not null]
   inquiries inquiries [not null]
   needs_assessment_submissions needs_assessment_submissions [not null]
+  project_day_subjects project_day_subjects [not null]
 }
 
 Table coverage {
@@ -358,12 +362,6 @@ Table inquiries {
   wedding_date DateTime
   status inquiries_status [not null, default: 'New']
   notes String
-  venue_details String
-  venue_address String
-  venue_lat Float
-  venue_lng Float
-  venue_source String
-  venue_updated_at DateTime
   follow_up_due_date DateTime
   lead_source String
   lead_source_details String
@@ -401,7 +399,7 @@ Table inquiries {
   schedule_activities project_activities [not null]
   schedule_films project_films [not null]
   schedule_day_operators project_day_operators [not null]
-  schedule_subjects project_event_day_subjects [not null]
+  schedule_subjects project_day_subjects [not null]
   schedule_location_slots project_location_slots [not null]
   schedule_activity_moments project_activity_moments [not null]
   schedule_film_tracks project_film_timeline_tracks [not null]
@@ -596,7 +594,7 @@ Table projects {
   project_films project_films [not null]
   project_activities project_activities [not null]
   project_day_operators project_day_operators [not null]
-  project_subjects project_event_day_subjects [not null]
+  project_subjects project_day_subjects [not null]
   project_location_slots project_location_slots [not null]
   project_activity_moments project_activity_moments [not null]
   project_film_tracks project_film_timeline_tracks [not null]
@@ -1808,6 +1806,9 @@ Table locations_library {
   state String
   country String [not null, default: 'United States']
   postal_code String
+  lat Float
+  lng Float
+  precision LocationPrecision [not null, default: 'EXACT']
   contact_name String
   contact_phone String
   contact_email String
@@ -1980,35 +1981,23 @@ Table film_timeline_tracks_v2 {
 
 Table subject_templates {
   id Int [pk, increment]
-  name String [unique, not null]
+  brand_id Int
+  name String [not null]
   category SubjectCategory [not null]
   is_system Boolean [not null, default: true]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
+  brand brands
   suggested_scenes scene_template_suggested_subjects [not null]
-}
-
-Table subject_type_templates {
-  id Int [pk, increment]
-  brand_id Int [not null]
-  name String [not null]
-  description String
-  category SubjectCategory [not null]
-  is_active Boolean [not null, default: true]
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  brand brands [not null]
-  roles subject_role_templates [not null]
-  event_type_subject_types event_type_subject_types [not null]
 
   indexes {
     (brand_id, name) [unique]
   }
 }
 
-Table subject_role_templates {
+Table subject_roles {
   id Int [pk, increment]
-  subject_type_id Int [not null]
+  brand_id Int [not null]
   role_name String [not null]
   description String
   is_core Boolean [not null, default: false]
@@ -2017,14 +2006,17 @@ Table subject_role_templates {
   order_index Int [not null, default: 0]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  subject_type subject_type_templates [not null]
+  brand brands [not null]
   film_subjects film_subjects [not null]
-  package_event_day_subjects package_event_day_subjects [not null]
-  project_event_day_subjects project_event_day_subjects [not null]
+  package_day_subjects package_day_subjects [not null]
+  project_day_subjects project_day_subjects [not null]
   project_film_subjects project_film_subjects [not null]
+  event_day_subject_roles event_day_subject_roles [not null]
+  event_type_subjects event_type_subjects [not null]
+  event_subtype_subjects event_subtype_subjects [not null]
 
   indexes {
-    (subject_type_id, role_name) [unique]
+    (brand_id, role_name) [unique]
   }
 }
 
@@ -2038,7 +2030,7 @@ Table film_subjects {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   film films [not null]
-  role_template subject_role_templates
+  role_template subject_roles
   scene_subjects film_scene_subjects [not null]
   moment_subjects film_scene_moment_subjects [not null]
   project_instances project_film_subjects [not null]
@@ -2066,15 +2058,21 @@ Table film_locations {
 
 Table scene_templates {
   id Int [pk, increment]
-  name String [unique, not null]
+  brand_id Int
+  name String [not null]
   type SceneType
   recording_setup Json
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
+  brand brands
   moments scene_moment_templates [not null]
   suggested_subjects scene_template_suggested_subjects [not null]
   film_scenes film_scenes [not null]
   project_film_scenes project_film_scenes [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
 }
 
 Table scene_template_suggested_subjects {
@@ -2396,7 +2394,7 @@ Table service_packages {
   contents Json
   brand brands [not null]
   package_category service_package_categories
-  wedding_type wedding_types
+  wedding_type event_subtypes
   inquiries inquiries [not null]
   inquiry_source_refs inquiries [not null]
   projects_from_package projects [not null]
@@ -2405,7 +2403,7 @@ Table service_packages {
   package_event_days package_event_days [not null]
   package_day_operators package_day_operators [not null]
   package_activities package_activities [not null]
-  package_event_day_subjects package_event_day_subjects [not null]
+  package_day_subjects package_day_subjects [not null]
   package_event_day_locations package_event_day_locations [not null]
   package_location_slots package_location_slots [not null]
   package_versions package_versions [not null]
@@ -2422,9 +2420,11 @@ Table service_package_categories {
   description String
   order_index Int [not null, default: 0]
   is_active Boolean [not null, default: true]
+  event_type_id Int
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   brand brands [not null]
+  event_type event_types
   packages service_packages [not null]
   package_sets package_sets [not null]
 
@@ -2463,65 +2463,75 @@ Table event_types {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   brand brands [not null]
-  event_days event_type_event_days [not null]
-  subject_types event_type_subject_types [not null]
+  event_days event_type_days [not null]
+  subject_roles event_type_subjects [not null]
+  event_subtypes event_subtypes [not null]
   inquiries inquiries [not null]
+  package_categories service_package_categories [not null]
+  package_sets package_sets [not null]
 
   indexes {
     (brand_id, name) [unique]
   }
 }
 
-Table event_type_event_days {
+Table event_type_days {
   id Int [pk, increment]
   event_type_id Int [not null]
   event_day_template_id Int [not null]
+  event_subtype_id Int
   order_index Int [not null, default: 0]
   is_default Boolean [not null, default: true]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   event_type event_types [not null]
-  event_day_template event_day_templates [not null]
+  event_day_template event_days [not null]
+  event_subtype event_subtypes
 
   indexes {
     (event_type_id, event_day_template_id) [unique]
   }
 }
 
-Table event_type_subject_types {
+Table event_type_subjects {
   id Int [pk, increment]
   event_type_id Int [not null]
-  subject_type_template_id Int [not null]
+  subject_role_id Int [not null]
   order_index Int [not null, default: 0]
   is_default Boolean [not null, default: true]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   event_type event_types [not null]
-  subject_type_template subject_type_templates [not null]
+  subject_role subject_roles [not null]
 
   indexes {
-    (event_type_id, subject_type_template_id) [unique]
+    (event_type_id, subject_role_id) [unique]
   }
 }
 
-Table event_day_templates {
+Table event_days {
   id Int [pk, increment]
   brand_id Int [not null]
   name String [not null]
   description String
+  default_start_time String
+  default_duration_hours Int
+  icon String
+  color String
   order_index Int [not null, default: 0]
   is_active Boolean [not null, default: true]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   brand brands [not null]
-  activity_presets event_day_activity_presets [not null]
-  event_type_event_days event_type_event_days [not null]
+  activity_presets event_day_activities [not null]
+  subject_roles event_day_subject_roles [not null]
+  event_type_days event_type_days [not null]
   film_scene_schedules film_scene_schedules [not null]
   package_scene_schedules package_film_scene_schedules [not null]
   project_event_days project_event_days [not null]
   package_event_days package_event_days [not null]
   package_day_operators package_day_operators [not null]
-  package_event_day_subjects package_event_day_subjects [not null]
+  package_day_subjects package_day_subjects [not null]
   package_event_day_locations package_event_day_locations [not null]
   package_location_slots package_location_slots [not null]
 
@@ -2530,7 +2540,7 @@ Table event_day_templates {
   }
 }
 
-Table event_day_activity_presets {
+Table event_day_activities {
   id Int [pk, increment]
   event_day_template_id Int [not null]
   name String [not null]
@@ -2543,15 +2553,15 @@ Table event_day_activity_presets {
   is_active Boolean [not null, default: true]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  event_day_template event_day_templates [not null]
-  moments event_day_activity_preset_moments [not null]
+  event_day_template event_days [not null]
+  moments event_day_activity_moments [not null]
 
   indexes {
     (event_day_template_id, name) [unique]
   }
 }
 
-Table event_day_activity_preset_moments {
+Table event_day_activity_moments {
   id Int [pk, increment]
   event_day_activity_preset_id Int [not null]
   name String [not null]
@@ -2561,16 +2571,33 @@ Table event_day_activity_preset_moments {
   is_key_moment Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  activity_preset event_day_activity_presets [not null]
+  activity_preset event_day_activities [not null]
 
   indexes {
     (event_day_activity_preset_id, order_index) [unique]
   }
 }
 
-Table wedding_types {
+Table event_day_subject_roles {
+  id Int [pk, increment]
+  event_day_id Int [not null]
+  subject_role_id Int [not null]
+  is_primary Boolean [not null, default: false]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  event_day event_days [not null]
+  subject_role subject_roles [not null]
+
+  indexes {
+    (event_day_id, subject_role_id) [unique]
+  }
+}
+
+Table event_subtypes {
   id Int [pk, increment]
   brand_id Int
+  event_type_id Int
   name String [not null]
   description String
   total_duration_hours Int [not null]
@@ -2582,9 +2609,11 @@ Table wedding_types {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   brand brands
-  activities wedding_type_activities [not null]
-  locations wedding_type_locations [not null]
-  subjects wedding_type_subjects [not null]
+  event_type event_types
+  activities event_subtype_activities [not null]
+  locations event_subtype_locations [not null]
+  subjects event_subtype_subjects [not null]
+  event_type_days event_type_days [not null]
   service_packages_created service_packages [not null]
 
   indexes {
@@ -2592,7 +2621,7 @@ Table wedding_types {
   }
 }
 
-Table wedding_type_activities {
+Table event_subtype_activities {
   id Int [pk, increment]
   wedding_type_id Int [not null]
   name String [not null]
@@ -2604,17 +2633,17 @@ Table wedding_type_activities {
   description String
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type wedding_types [not null]
-  moments wedding_type_activity_moments [not null]
-  activity_locations wedding_type_activity_locations [not null]
-  activity_subjects wedding_type_activity_subjects [not null]
+  wedding_type event_subtypes [not null]
+  moments event_subtype_activity_moments [not null]
+  activity_locations event_subtype_activity_locations [not null]
+  activity_subjects event_subtype_activity_subjects [not null]
 
   indexes {
     (wedding_type_id, order_index) [unique]
   }
 }
 
-Table wedding_type_activity_moments {
+Table event_subtype_activity_moments {
   id Int [pk, increment]
   wedding_type_activity_id Int [not null]
   name String [not null]
@@ -2624,14 +2653,14 @@ Table wedding_type_activity_moments {
   description String
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type_activity wedding_type_activities [not null]
+  wedding_type_activity event_subtype_activities [not null]
 
   indexes {
     (wedding_type_activity_id, order_index) [unique]
   }
 }
 
-Table wedding_type_locations {
+Table event_subtype_locations {
   id Int [pk, increment]
   wedding_type_id Int [not null]
   name String [not null]
@@ -2640,49 +2669,49 @@ Table wedding_type_locations {
   is_primary Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type wedding_types [not null]
-  activity_locations wedding_type_activity_locations [not null]
+  wedding_type event_subtypes [not null]
+  activity_locations event_subtype_activity_locations [not null]
 
   indexes {
     (wedding_type_id, order_index) [unique]
   }
 }
 
-Table wedding_type_subjects {
+Table event_subtype_subjects {
   id Int [pk, increment]
   wedding_type_id Int [not null]
   name String [not null]
   subject_type String
+  subject_role_id Int
   typical_count Int
   order_index Int [not null, default: 0]
   is_primary Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type wedding_types [not null]
-  activity_subjects wedding_type_activity_subjects [not null]
+  wedding_type event_subtypes [not null]
+  subject_role subject_roles
+  activity_subjects event_subtype_activity_subjects [not null]
 
   indexes {
     (wedding_type_id, order_index) [unique]
   }
 }
 
-Table wedding_type_activity_locations {
+Table event_subtype_activity_locations {
   id Int [pk, increment]
   wedding_type_activity_id Int [not null]
   wedding_type_location_id Int [not null]
-  location_sequence_index Int [not null, default: 0]
-  duration_minutes_at_location Int
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type_activity wedding_type_activities [not null]
-  wedding_type_location wedding_type_locations [not null]
+  wedding_type_activity event_subtype_activities [not null]
+  wedding_type_location event_subtype_locations [not null]
 
   indexes {
     (wedding_type_activity_id, wedding_type_location_id) [unique]
   }
 }
 
-Table wedding_type_activity_subjects {
+Table event_subtype_activity_subjects {
   id Int [pk, increment]
   wedding_type_activity_id Int [not null]
   wedding_type_subject_id Int [not null]
@@ -2690,8 +2719,8 @@ Table wedding_type_activity_subjects {
   is_primary_focus Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type_activity wedding_type_activities [not null]
-  wedding_type_subject wedding_type_subjects [not null]
+  wedding_type_activity event_subtype_activities [not null]
+  wedding_type_subject event_subtype_subjects [not null]
 
   indexes {
     (wedding_type_activity_id, wedding_type_subject_id) [unique]
@@ -2713,7 +2742,7 @@ Table film_scene_schedules {
   updated_at DateTime [not null]
   film films [not null]
   scene film_scenes [not null]
-  event_day event_day_templates
+  event_day event_days
 }
 
 Table package_event_days {
@@ -2723,7 +2752,7 @@ Table package_event_days {
   order_index Int [not null, default: 0]
   created_at DateTime [default: `now()`, not null]
   package service_packages [not null]
-  event_day event_day_templates [not null]
+  event_day event_days [not null]
   activities package_activities [not null]
 
   indexes {
@@ -2749,11 +2778,10 @@ Table package_activities {
   package_event_day package_event_days [not null]
   scene_schedules package_film_scene_schedules [not null]
   operators package_day_operators [not null]
-  subjects package_event_day_subjects [not null]
   locations package_event_day_locations [not null]
   project_activities project_activities [not null]
   operator_assignments operator_activity_assignments [not null]
-  subject_assignments subject_activity_assignments [not null]
+  subject_assignments package_day_subject_activities [not null]
   location_assignments location_activity_assignments [not null]
   moments package_activity_moments [not null]
   beat_sources film_scene_beats [not null]
@@ -2794,7 +2822,7 @@ Table package_day_operators {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   package service_packages [not null]
-  event_day event_day_templates [not null]
+  event_day event_days [not null]
   contributor contributors
   package_activity package_activities
   job_role job_roles
@@ -2820,11 +2848,10 @@ Table package_day_operator_equipment {
   }
 }
 
-Table package_event_day_subjects {
+Table package_day_subjects {
   id Int [pk, increment]
   package_id Int [not null]
   event_day_template_id Int [not null]
-  package_activity_id Int
   role_template_id Int
   name String [not null]
   count Int
@@ -2834,10 +2861,9 @@ Table package_event_day_subjects {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   package service_packages [not null]
-  event_day event_day_templates [not null]
-  package_activity package_activities
-  role_template subject_role_templates
-  activity_assignments subject_activity_assignments [not null]
+  event_day event_days [not null]
+  role_template subject_roles
+  activity_assignments package_day_subject_activities [not null]
 
   indexes {
     (package_id, event_day_template_id, name) [unique]
@@ -2855,7 +2881,7 @@ Table package_event_day_locations {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   package service_packages [not null]
-  event_day event_day_templates [not null]
+  event_day event_days [not null]
   package_activity package_activities
   location locations_library [not null]
 
@@ -2898,7 +2924,7 @@ Table package_film_scene_schedules {
   updated_at DateTime [not null]
   package_film package_films [not null]
   scene film_scenes [not null]
-  event_day event_day_templates
+  event_day event_days
   package_activity package_activities
 
   indexes {
@@ -2921,11 +2947,11 @@ Table project_event_days {
   updated_at DateTime [not null]
   project projects
   inquiry inquiries
-  event_day_template event_day_templates
+  event_day_template event_days
   scene_schedules project_film_scene_schedules [not null]
   activities project_activities [not null]
   day_operators project_day_operators [not null]
-  subjects project_event_day_subjects [not null]
+  subjects project_day_subjects [not null]
   location_slots project_location_slots [not null]
 }
 
@@ -2954,10 +2980,8 @@ Table project_activities {
   scene_schedules project_film_scene_schedules [not null]
   moments project_activity_moments [not null]
   operators project_day_operators [not null]
-  subjects project_event_day_subjects [not null]
-  location_slots project_location_slots [not null]
   operator_assignments project_operator_activity_assignments [not null]
-  subject_assignments project_subject_activity_assignments [not null]
+  subject_assignments project_day_subject_activities [not null]
   location_assignments project_location_activity_assignments [not null]
 }
 
@@ -3051,7 +3075,7 @@ Table project_film_subjects {
   inquiry inquiries
   project_film project_films [not null]
   source_subject film_subjects
-  role_template subject_role_templates
+  role_template subject_roles
   scene_subjects project_film_scene_subjects [not null]
   moment_subjects project_film_scene_moment_subjects [not null]
 }
@@ -3284,14 +3308,14 @@ Table project_activity_moments {
   project_activity project_activities [not null]
 }
 
-Table project_event_day_subjects {
+Table project_day_subjects {
   id Int [pk, increment]
   project_id Int
   inquiry_id Int
   project_event_day_id Int [not null]
-  project_activity_id Int
   source_package_subject_id Int
   role_template_id Int
+  contact_id Int
   name String [not null]
   real_name String
   count Int
@@ -3304,9 +3328,9 @@ Table project_event_day_subjects {
   project projects
   inquiry inquiries
   project_event_day project_event_days [not null]
-  project_activity project_activities
-  role_template subject_role_templates
-  activity_assignments project_subject_activity_assignments [not null]
+  role_template subject_roles
+  contact contacts
+  activity_assignments project_day_subject_activities [not null]
 }
 
 Table project_location_slots {
@@ -3314,7 +3338,6 @@ Table project_location_slots {
   project_id Int
   inquiry_id Int
   project_event_day_id Int [not null]
-  project_activity_id Int
   source_package_location_slot_id Int
   location_number Int [not null]
   name String
@@ -3327,7 +3350,6 @@ Table project_location_slots {
   project projects
   inquiry inquiries
   project_event_day project_event_days [not null]
-  project_activity project_activities
   location locations_library
   activity_assignments project_location_activity_assignments [not null]
 }
@@ -3385,16 +3407,16 @@ Table project_operator_activity_assignments {
   }
 }
 
-Table project_subject_activity_assignments {
+Table project_day_subject_activities {
   id Int [pk, increment]
-  project_event_day_subject_id Int [not null]
+  project_day_subject_id Int [not null]
   project_activity_id Int [not null]
   created_at DateTime [default: `now()`, not null]
-  project_event_day_subject project_event_day_subjects [not null]
+  project_day_subject project_day_subjects [not null]
   project_activity project_activities [not null]
 
   indexes {
-    (project_event_day_subject_id, project_activity_id) [unique]
+    (project_day_subject_id, project_activity_id) [unique]
   }
 }
 
@@ -3424,16 +3446,16 @@ Table operator_activity_assignments {
   }
 }
 
-Table subject_activity_assignments {
+Table package_day_subject_activities {
   id Int [pk, increment]
-  package_event_day_subject_id Int [not null]
+  package_day_subject_id Int [not null]
   package_activity_id Int [not null]
   created_at DateTime [default: `now()`, not null]
-  package_event_day_subject package_event_day_subjects [not null]
+  package_day_subject package_day_subjects [not null]
   package_activity package_activities [not null]
 
   indexes {
-    (package_event_day_subject_id, package_activity_id) [unique]
+    (package_day_subject_id, package_activity_id) [unique]
   }
 }
 
@@ -3445,7 +3467,7 @@ Table package_location_slots {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   package service_packages [not null]
-  event_day event_day_templates [not null]
+  event_day event_days [not null]
   activity_assignments location_activity_assignments [not null]
 
   indexes {
@@ -3504,12 +3526,14 @@ Table package_sets {
   description String
   emoji String [default: '📦']
   category_id Int
+  event_type_id Int
   order_index Int [not null, default: 0]
   is_active Boolean [not null, default: true]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   brand brands [not null]
   category service_package_categories
+  event_type event_types
   slots package_set_slots [not null]
 
   indexes {
@@ -3705,6 +3729,11 @@ Table inquiry_equipment_reservations {
   indexes {
     (inquiry_id, project_day_operator_equipment_id) [unique]
   }
+}
+
+Enum LocationPrecision {
+  EXACT
+  APPROXIMATE
 }
 
 Enum SubjectPriority {
@@ -4537,17 +4566,19 @@ Ref: film_timeline_tracks_v2.film_id > films.id [delete: Cascade]
 
 Ref: film_timeline_tracks_v2.contributor_id > contributors.id [delete: Set Null]
 
-Ref: subject_type_templates.brand_id > brands.id [delete: Cascade]
+Ref: subject_templates.brand_id > brands.id [delete: Cascade]
 
-Ref: subject_role_templates.subject_type_id > subject_type_templates.id [delete: Cascade]
+Ref: subject_roles.brand_id > brands.id [delete: Cascade]
 
 Ref: film_subjects.film_id > films.id [delete: Cascade]
 
-Ref: film_subjects.role_template_id > subject_role_templates.id [delete: Set Null]
+Ref: film_subjects.role_template_id > subject_roles.id [delete: Set Null]
 
 Ref: film_locations.film_id > films.id [delete: Cascade]
 
 Ref: film_locations.location_id > locations_library.id [delete: Cascade]
+
+Ref: scene_templates.brand_id > brands.id [delete: Cascade]
 
 Ref: scene_template_suggested_subjects.scene_template_id > scene_templates.id [delete: Cascade]
 
@@ -4617,57 +4648,69 @@ Ref: service_packages.brand_id > brands.id [delete: Cascade]
 
 Ref: service_packages.category_id > service_package_categories.id
 
-Ref: service_packages.wedding_type_id > wedding_types.id [delete: Set Null]
+Ref: service_packages.wedding_type_id > event_subtypes.id [delete: Set Null]
 
 Ref: service_packages.workflow_template_id > workflow_templates.id [delete: Set Null]
 
 Ref: service_package_categories.brand_id > brands.id [delete: Cascade]
 
+Ref: service_package_categories.event_type_id > event_types.id [delete: Set Null]
+
 Ref: schedule_presets.brand_id > brands.id [delete: Cascade]
 
 Ref: event_types.brand_id > brands.id [delete: Cascade]
 
-Ref: event_type_event_days.event_type_id > event_types.id [delete: Cascade]
+Ref: event_type_days.event_type_id > event_types.id [delete: Cascade]
 
-Ref: event_type_event_days.event_day_template_id > event_day_templates.id [delete: Cascade]
+Ref: event_type_days.event_day_template_id > event_days.id [delete: Cascade]
 
-Ref: event_type_subject_types.event_type_id > event_types.id [delete: Cascade]
+Ref: event_type_days.event_subtype_id > event_subtypes.id [delete: Set Null]
 
-Ref: event_type_subject_types.subject_type_template_id > subject_type_templates.id [delete: Cascade]
+Ref: event_type_subjects.event_type_id > event_types.id [delete: Cascade]
 
-Ref: event_day_templates.brand_id > brands.id [delete: Cascade]
+Ref: event_type_subjects.subject_role_id > subject_roles.id [delete: Cascade]
 
-Ref: event_day_activity_presets.event_day_template_id > event_day_templates.id [delete: Cascade]
+Ref: event_days.brand_id > brands.id [delete: Cascade]
 
-Ref: event_day_activity_preset_moments.event_day_activity_preset_id > event_day_activity_presets.id [delete: Cascade]
+Ref: event_day_activities.event_day_template_id > event_days.id [delete: Cascade]
 
-Ref: wedding_types.brand_id > brands.id [delete: Cascade]
+Ref: event_day_activity_moments.event_day_activity_preset_id > event_day_activities.id [delete: Cascade]
 
-Ref: wedding_type_activities.wedding_type_id > wedding_types.id [delete: Cascade]
+Ref: event_day_subject_roles.event_day_id > event_days.id [delete: Cascade]
 
-Ref: wedding_type_activity_moments.wedding_type_activity_id > wedding_type_activities.id [delete: Cascade]
+Ref: event_day_subject_roles.subject_role_id > subject_roles.id [delete: Cascade]
 
-Ref: wedding_type_locations.wedding_type_id > wedding_types.id [delete: Cascade]
+Ref: event_subtypes.brand_id > brands.id [delete: Cascade]
 
-Ref: wedding_type_subjects.wedding_type_id > wedding_types.id [delete: Cascade]
+Ref: event_subtypes.event_type_id > event_types.id [delete: Set Null]
 
-Ref: wedding_type_activity_locations.wedding_type_activity_id > wedding_type_activities.id [delete: Cascade]
+Ref: event_subtype_activities.wedding_type_id > event_subtypes.id [delete: Cascade]
 
-Ref: wedding_type_activity_locations.wedding_type_location_id > wedding_type_locations.id [delete: Cascade]
+Ref: event_subtype_activity_moments.wedding_type_activity_id > event_subtype_activities.id [delete: Cascade]
 
-Ref: wedding_type_activity_subjects.wedding_type_activity_id > wedding_type_activities.id [delete: Cascade]
+Ref: event_subtype_locations.wedding_type_id > event_subtypes.id [delete: Cascade]
 
-Ref: wedding_type_activity_subjects.wedding_type_subject_id > wedding_type_subjects.id [delete: Cascade]
+Ref: event_subtype_subjects.wedding_type_id > event_subtypes.id [delete: Cascade]
+
+Ref: event_subtype_subjects.subject_role_id > subject_roles.id [delete: Set Null]
+
+Ref: event_subtype_activity_locations.wedding_type_activity_id > event_subtype_activities.id [delete: Cascade]
+
+Ref: event_subtype_activity_locations.wedding_type_location_id > event_subtype_locations.id [delete: Cascade]
+
+Ref: event_subtype_activity_subjects.wedding_type_activity_id > event_subtype_activities.id [delete: Cascade]
+
+Ref: event_subtype_activity_subjects.wedding_type_subject_id > event_subtype_subjects.id [delete: Cascade]
 
 Ref: film_scene_schedules.film_id > films.id [delete: Cascade]
 
 Ref: film_scene_schedules.scene_id - film_scenes.id [delete: Cascade]
 
-Ref: film_scene_schedules.event_day_template_id > event_day_templates.id [delete: Set Null]
+Ref: film_scene_schedules.event_day_template_id > event_days.id [delete: Set Null]
 
 Ref: package_event_days.package_id > service_packages.id [delete: Cascade]
 
-Ref: package_event_days.event_day_template_id > event_day_templates.id [delete: Cascade]
+Ref: package_event_days.event_day_template_id > event_days.id [delete: Cascade]
 
 Ref: package_activities.package_id > service_packages.id [delete: Cascade]
 
@@ -4677,7 +4720,7 @@ Ref: package_activity_moments.package_activity_id > package_activities.id [delet
 
 Ref: package_day_operators.package_id > service_packages.id [delete: Cascade]
 
-Ref: package_day_operators.event_day_template_id > event_day_templates.id [delete: Cascade]
+Ref: package_day_operators.event_day_template_id > event_days.id [delete: Cascade]
 
 Ref: package_day_operators.contributor_id > contributors.id [delete: Set Null]
 
@@ -4689,17 +4732,15 @@ Ref: package_day_operator_equipment.package_day_operator_id > package_day_operat
 
 Ref: package_day_operator_equipment.equipment_id > equipment.id [delete: Cascade]
 
-Ref: package_event_day_subjects.package_id > service_packages.id [delete: Cascade]
+Ref: package_day_subjects.package_id > service_packages.id [delete: Cascade]
 
-Ref: package_event_day_subjects.event_day_template_id > event_day_templates.id [delete: Cascade]
+Ref: package_day_subjects.event_day_template_id > event_days.id [delete: Cascade]
 
-Ref: package_event_day_subjects.package_activity_id > package_activities.id [delete: Set Null]
-
-Ref: package_event_day_subjects.role_template_id > subject_role_templates.id [delete: Set Null]
+Ref: package_day_subjects.role_template_id > subject_roles.id [delete: Set Null]
 
 Ref: package_event_day_locations.package_id > service_packages.id [delete: Cascade]
 
-Ref: package_event_day_locations.event_day_template_id > event_day_templates.id [delete: Cascade]
+Ref: package_event_day_locations.event_day_template_id > event_days.id [delete: Cascade]
 
 Ref: package_event_day_locations.package_activity_id > package_activities.id [delete: Set Null]
 
@@ -4713,7 +4754,7 @@ Ref: package_film_scene_schedules.package_film_id > package_films.id [delete: Ca
 
 Ref: package_film_scene_schedules.scene_id > film_scenes.id [delete: Cascade]
 
-Ref: package_film_scene_schedules.event_day_template_id > event_day_templates.id [delete: Set Null]
+Ref: package_film_scene_schedules.event_day_template_id > event_days.id [delete: Set Null]
 
 Ref: package_film_scene_schedules.package_activity_id > package_activities.id [delete: Set Null]
 
@@ -4721,7 +4762,7 @@ Ref: project_event_days.project_id > projects.id [delete: Cascade]
 
 Ref: project_event_days.inquiry_id > inquiries.id [delete: Cascade]
 
-Ref: project_event_days.event_day_template_id > event_day_templates.id [delete: Set Null]
+Ref: project_event_days.event_day_template_id > event_days.id [delete: Set Null]
 
 Ref: project_activities.project_id > projects.id [delete: Cascade]
 
@@ -4765,7 +4806,7 @@ Ref: project_film_subjects.project_film_id > project_films.id [delete: Cascade]
 
 Ref: project_film_subjects.source_subject_id > film_subjects.id [delete: Set Null]
 
-Ref: project_film_subjects.role_template_id > subject_role_templates.id [delete: Set Null]
+Ref: project_film_subjects.role_template_id > subject_roles.id [delete: Set Null]
 
 Ref: project_film_locations.project_id > projects.id [delete: Cascade]
 
@@ -4847,23 +4888,21 @@ Ref: project_activity_moments.inquiry_id > inquiries.id [delete: Cascade]
 
 Ref: project_activity_moments.project_activity_id > project_activities.id [delete: Cascade]
 
-Ref: project_event_day_subjects.project_id > projects.id [delete: Cascade]
+Ref: project_day_subjects.project_id > projects.id [delete: Cascade]
 
-Ref: project_event_day_subjects.inquiry_id > inquiries.id [delete: Cascade]
+Ref: project_day_subjects.inquiry_id > inquiries.id [delete: Cascade]
 
-Ref: project_event_day_subjects.project_event_day_id > project_event_days.id [delete: Cascade]
+Ref: project_day_subjects.project_event_day_id > project_event_days.id [delete: Cascade]
 
-Ref: project_event_day_subjects.project_activity_id > project_activities.id [delete: Set Null]
+Ref: project_day_subjects.role_template_id > subject_roles.id [delete: Set Null]
 
-Ref: project_event_day_subjects.role_template_id > subject_role_templates.id [delete: Set Null]
+Ref: project_day_subjects.contact_id > contacts.id [delete: Set Null]
 
 Ref: project_location_slots.project_id > projects.id [delete: Cascade]
 
 Ref: project_location_slots.inquiry_id > inquiries.id [delete: Cascade]
 
 Ref: project_location_slots.project_event_day_id > project_event_days.id [delete: Cascade]
-
-Ref: project_location_slots.project_activity_id > project_activities.id [delete: Set Null]
 
 Ref: project_location_slots.location_id > locations_library.id [delete: Set Null]
 
@@ -4887,9 +4926,9 @@ Ref: project_operator_activity_assignments.project_day_operator_id > project_day
 
 Ref: project_operator_activity_assignments.project_activity_id > project_activities.id [delete: Cascade]
 
-Ref: project_subject_activity_assignments.project_event_day_subject_id > project_event_day_subjects.id [delete: Cascade]
+Ref: project_day_subject_activities.project_day_subject_id > project_day_subjects.id [delete: Cascade]
 
-Ref: project_subject_activity_assignments.project_activity_id > project_activities.id [delete: Cascade]
+Ref: project_day_subject_activities.project_activity_id > project_activities.id [delete: Cascade]
 
 Ref: project_location_activity_assignments.project_location_slot_id > project_location_slots.id [delete: Cascade]
 
@@ -4899,13 +4938,13 @@ Ref: operator_activity_assignments.package_day_operator_id > package_day_operato
 
 Ref: operator_activity_assignments.package_activity_id > package_activities.id [delete: Cascade]
 
-Ref: subject_activity_assignments.package_event_day_subject_id > package_event_day_subjects.id [delete: Cascade]
+Ref: package_day_subject_activities.package_day_subject_id > package_day_subjects.id [delete: Cascade]
 
-Ref: subject_activity_assignments.package_activity_id > package_activities.id [delete: Cascade]
+Ref: package_day_subject_activities.package_activity_id > package_activities.id [delete: Cascade]
 
 Ref: package_location_slots.package_id > service_packages.id [delete: Cascade]
 
-Ref: package_location_slots.event_day_template_id > event_day_templates.id [delete: Cascade]
+Ref: package_location_slots.event_day_template_id > event_days.id [delete: Cascade]
 
 Ref: location_activity_assignments.package_location_slot_id > package_location_slots.id [delete: Cascade]
 
@@ -4918,6 +4957,8 @@ Ref: package_task_overrides.package_id > service_packages.id [delete: Cascade]
 Ref: package_sets.brand_id > brands.id [delete: Cascade]
 
 Ref: package_sets.category_id > service_package_categories.id [delete: Set Null]
+
+Ref: package_sets.event_type_id > event_types.id [delete: Set Null]
 
 Ref: package_set_slots.package_set_id > package_sets.id [delete: Cascade]
 

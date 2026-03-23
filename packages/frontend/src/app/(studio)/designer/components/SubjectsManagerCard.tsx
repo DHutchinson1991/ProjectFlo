@@ -17,18 +17,20 @@ import {
 import Link from "next/link";
 import { useBrand } from "@/app/providers/BrandProvider";
 
-interface SubjectTypeTemplate {
+interface SubjectType {
   id: number;
-  name: string;
+  role_name: string;
   description?: string;
-  category: string;
-  is_active: boolean;
-  roles: any[];
+  brand_id: number;
+  is_core: boolean;
+  is_group: boolean;
+  never_group: boolean;
+  order_index: number;
 }
 
 export const SubjectsManagerCard: React.FC = () => {
   const { currentBrand } = useBrand();
-  const [templates, setTemplates] = useState<SubjectTypeTemplate[]>([]);
+  const [templates, setTemplates] = useState<SubjectType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,7 +45,7 @@ export const SubjectsManagerCard: React.FC = () => {
     try {
       setLoading(true);
       const res = await fetch(
-        `http://localhost:3002/subjects/type-templates/brand/${currentBrand.id}`
+        `http://localhost:3002/subjects/roles/brand/${currentBrand.id}`
       );
       if (!res.ok) throw new Error("Failed to load templates");
       const data = await res.json();
@@ -108,7 +110,7 @@ export const SubjectsManagerCard: React.FC = () => {
                 {templates.slice(0, 3).map((template) => (
                   <Chip
                     key={template.id}
-                    label={template.name}
+                    label={template.role_name}
                     size="small"
                     variant="outlined"
                   />

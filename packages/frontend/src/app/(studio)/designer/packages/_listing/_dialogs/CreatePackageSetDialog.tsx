@@ -30,18 +30,18 @@ interface CreatePackageSetDialogProps {
     onClose: () => void;
     onCreated: () => void;
     brandId: number;
-    categories: { id: number; name: string }[];
 }
 
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function CreatePackageSetDialog({
-    open, onClose, onCreated, brandId, categories,
+    open, onClose, onCreated, brandId,
 }: CreatePackageSetDialogProps) {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [emoji, setEmoji] = useState('📦');
-    const [categoryId, setCategoryId] = useState<number | null>(null);
+    const [eventTypeId, setEventTypeId] = useState<number | null>(null);
+    const [eventTypes, setEventTypes] = useState<{ id: number; name: string; icon?: string }[]>([]);
     const [selectedTiers, setSelectedTiers] = useState<Set<string>>(new Set(['Basic', 'Standard', 'Premium']));
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -51,9 +51,11 @@ export default function CreatePackageSetDialog({
             setName('');
             setDescription('');
             setEmoji('📦');
-            setCategoryId(null);
+            setEventTypeId(null);
             setSelectedTiers(new Set(['Basic', 'Standard', 'Premium']));
             setError('');
+            // Fetch event types for this brand
+            api.eventTypes.getAll().then(setEventTypes).catch(() => {});
         }
     }, [open]);
 
@@ -66,22 +68,20 @@ export default function CreatePackageSetDialog({
         });
     };
 
-    const handleSelectCategory = (catId: number, catName: string) => {
-        setCategoryId(catId);
-        // Auto-fill the set name from the category if name is empty or was auto-filled
-        if (!name.trim() || categories.some(c => c.name === name.trim())) {
-            setName(catName);
+    const handleSelectEventType = (etId: number, etName: string) => {
+        setEventTypeId(etId);
+        if (!name.trim() || eventTypes.some(et => et.name === name.trim())) {
+            setName(`${etName} Packages`);
         }
     };
 
     const handleCreate = async () => {
-        if (!categoryId) { setError('Please select a category'); return; }
+        if (!eventTypeId) { setError('Please select an event type'); return; }
         if (!name.trim()) { setError('Name is required'); return; }
         if (selectedTiers.size === 0) { setError('Select at least one tier level'); return; }
         setSaving(true);
         setError('');
         try {
-            // Pass selected tier labels so backend creates only those slots
             const tierLabels = TIER_OPTIONS
                 .map(t => t.label)
                 .filter(t => selectedTiers.has(t));
@@ -90,10 +90,9 @@ export default function CreatePackageSetDialog({
                 name: name.trim(),
                 description: description.trim() || undefined,
                 emoji,
-                category_id: categoryId,
+                event_type_id: eventTypeId,
                 tier_labels: tierLabels,
             });
-            // Backend creates the selected tier slots automatically
             onCreated();
             onClose();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -203,28 +202,28 @@ export default function CreatePackageSetDialog({
                     }}
                 />
 
-                {/* Category (required) */}
+                {/* Event Type (required) */}
                 <Box>
                     <Typography sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, mb: 1 }}>
-                        Category <Box component="span" sx={{ color: '#ef4444' }}>*</Box>
+                        Event Type <Box component="span" sx={{ color: '#ef4444' }}>*</Box>
                     </Typography>
-                    {categories.length === 0 ? (
+                    {eventTypes.length === 0 ? (
                         <Typography sx={{ color: '#475569', fontSize: '0.75rem', fontStyle: 'italic' }}>
-                            No categories yet — create one in Categories settings first
+                            No event types yet — add one in your brand settings first
                         </Typography>
                     ) : (
                         <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-                            {categories.map(cat => (
+                            {eventTypes.map(et => (
                                 <Chip
-                                    key={cat.id}
-                                    label={cat.name}
+                                    key={et.id}
+                                    label={`${et.icon || '🎬'} ${et.name}`}
                                     size="small"
-                                    onClick={() => handleSelectCategory(cat.id, cat.name)}
+                                    onClick={() => handleSelectEventType(et.id, et.name)}
                                     sx={{
                                         height: 28, fontSize: '0.7rem', fontWeight: 600, borderRadius: 1.5,
-                                        bgcolor: categoryId === cat.id ? 'rgba(100,140,255,0.12)' : 'rgba(255,255,255,0.03)',
-                                        color: categoryId === cat.id ? '#648CFF' : '#94a3b8',
-                                        border: categoryId === cat.id ? '1px solid rgba(100,140,255,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                                        bgcolor: eventTypeId === et.id ? 'rgba(100,140,255,0.12)' : 'rgba(255,255,255,0.03)',
+                                        color: eventTypeId === et.id ? '#648CFF' : '#94a3b8',
+                                        border: eventTypeId === et.id ? '1px solid rgba(100,140,255,0.3)' : '1px solid rgba(255,255,255,0.06)',
                                         cursor: 'pointer',
                                     }}
                                 />
@@ -296,7 +295,7 @@ export default function CreatePackageSetDialog({
                 </Button>
                 <Button
                     onClick={handleCreate}
-                    disabled={saving || !name.trim() || !categoryId || selectedTiers.size === 0}
+                    disabled={saving || !name.trim() || !eventTypeId || selectedTiers.size === 0}
                     sx={{
                         bgcolor: '#f59e0b', color: '#0f172a', fontWeight: 700,
                         textTransform: 'none', px: 3, fontSize: '0.8rem',

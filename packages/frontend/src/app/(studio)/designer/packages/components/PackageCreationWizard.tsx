@@ -87,6 +87,8 @@ interface PackageCreationWizardProps {
   onClose: () => void;
   onPackageCreated: (packageId: number) => void;
   fullPage?: boolean;
+  /** When provided, auto-selects this event type by name and skips step 0 */
+  initialEventTypeName?: string | null;
 }
 
 export default function PackageCreationWizard({
@@ -94,10 +96,12 @@ export default function PackageCreationWizard({
   onClose,
   onPackageCreated,
   fullPage = false,
+  initialEventTypeName,
 }: PackageCreationWizardProps) {
   const { currentBrand } = useBrand();
   const [activeStep, setActiveStep] = useState(0);
   const [selectedEventType, setSelectedEventType] = useState<EventTypeForWizard | null>(null);
+  const [autoSelectAttempted, setAutoSelectAttempted] = useState(false);
   const [selectedDayIds, setSelectedDayIds] = useState<Set<number>>(new Set());
   const [selectedPresetIds, setSelectedPresetIds] = useState<Set<number>>(new Set());
   const [selectedMomentIds, setSelectedMomentIds] = useState<Set<number>>(new Set());
@@ -173,6 +177,40 @@ export default function PackageCreationWizard({
     if (activeStep === 6 && crewMembers.length === 0) fetchCrew();
     if (activeStep === 7 && equipmentItems.length === 0) fetchEquipment();
   }, [activeStep, crewMembers.length, equipmentItems.length, fetchCrew, fetchEquipment]);
+
+  // Auto-select event type when initialEventTypeName is provided
+  useEffect(() => {
+    if (!open || !initialEventTypeName || autoSelectAttempted) return;
+    setAutoSelectAttempted(true);
+    (async () => {
+      try {
+        const eventTypes = await api.eventTypes.getAll();
+        const match = (eventTypes || []).find(
+          (et: EventTypeForWizard) => et.name.toLowerCase() === initialEventTypeName.toLowerCase(),
+        );
+        if (match) {
+          // Replicate handleEventTypeSelected logic
+          setSelectedEventType(match);
+          setSelectedDayIds(new Set());
+          setSelectedPresetIds(new Set());
+          setSelectedMomentIds(new Set());
+          setSelectedRoleIds(getAllRoleIds(match));
+          setCustomActivities([]);
+          setPresetTimeOverrides({});
+          setPresetDurationOverrides({});
+          setMomentKeyOverrides({});
+          setCrewAssignments([]);
+          setCameraSlots([{ slotNumber: 1, equipmentId: null, assignedContributorId: null, assignedJobRoleId: null }]);
+          setAudioSlots([]);
+          setLocationCount(3);
+          if (!packageName) setPackageName(`${match.name} Package`);
+          setActiveStep(1);
+        }
+      } catch {
+        // Fall back to step 0 if fetch fails
+      }
+    })();
+  }, [open, initialEventTypeName, autoSelectAttempted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Helpers ────────────────────────────────────────────────────────
   const getPresetIdsForDays = (et: EventTypeForWizard, dayIds: Set<number>) => {
@@ -810,6 +848,7 @@ export default function PackageCreationWizard({
   const resetState = () => {
     setActiveStep(0);
     setSelectedEventType(null);
+    setAutoSelectAttempted(false);
     setSelectedDayIds(new Set());
     setSelectedPresetIds(new Set());
     setSelectedMomentIds(new Set());

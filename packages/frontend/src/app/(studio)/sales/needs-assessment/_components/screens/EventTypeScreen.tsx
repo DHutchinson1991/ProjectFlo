@@ -2,19 +2,24 @@
 
 import React from "react";
 import { Box, Typography } from "@mui/material";
-import { alpha, keyframes } from "@mui/material/styles";
+import { alpha, keyframes, lighten, darken } from "@mui/material/styles";
 import { Check as CheckIcon } from "@mui/icons-material";
 import { C } from "../../constants";
 import { fadeInUp } from "../../animations";
 import { NACtx } from "../../types";
 
-/* warm / cool palette per card position */
+/* warm / cool palette per card position — used as fallback when DB color is absent */
 const CARD_THEMES = [
     { g1: "#7c4dff", g2: "#b47cff", g3: "#5c2ecf" },   // purple
     { g1: "#f97316", g2: "#fbbf24", g3: "#c2410c" },   // amber
     { g1: "#06b6d4", g2: "#67e8f9", g3: "#0e7490" },   // cyan
     { g1: "#ec4899", g2: "#f9a8d4", g3: "#be185d" },   // pink
 ];
+
+function deriveTheme(color: string | null | undefined, idx: number): { g1: string; g2: string; g3: string } {
+    if (!color) return CARD_THEMES[idx % CARD_THEMES.length];
+    return { g1: color, g2: lighten(color, 0.3), g3: darken(color, 0.2) };
+}
 
 const softBounce = keyframes`
     0%   { transform: scale(1); }
@@ -47,7 +52,7 @@ export default function EventTypeScreen({ ctx }: { ctx: NACtx }) {
             }}>
                 {eventTypeOptions.map((opt, idx) => {
                     const sel = eventType === opt.key;
-                    const theme = CARD_THEMES[idx % CARD_THEMES.length];
+                    const theme = deriveTheme(opt.color, idx);
                     return (
                         <Box key={opt.key} onClick={() => singleSelect("event_type", opt.key)}
                             sx={{

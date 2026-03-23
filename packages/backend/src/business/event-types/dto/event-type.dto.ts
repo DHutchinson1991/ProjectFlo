@@ -88,9 +88,9 @@ export class LinkEventDayDto {
   is_default?: boolean;
 }
 
-export class LinkSubjectTypeDto {
+export class LinkSubjectRoleDto {
   @IsInt()
-  subject_type_template_id!: number;
+  subject_role_id!: number;
 
   @IsOptional()
   @IsInt()

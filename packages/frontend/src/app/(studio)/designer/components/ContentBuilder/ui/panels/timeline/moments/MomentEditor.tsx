@@ -162,12 +162,12 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
     // Derive subjects inherited from the linked activity
     const inheritedSubjects = React.useMemo(() => {
         if (!activity) return [];
-        const eventDayTemplateId = activity.event_day_template_id ?? activity.package_event_day_id;
+        const eventDayId = activity.event_day_template_id ?? activity.package_event_day_id;
         return activitySubjects.filter((s: any) => {
             if (s.package_activity_id === activity.id) return true;
             if (s.activity_assignments?.some((a: any) => a.package_activity_id === activity.id)) return true;
             const hasNoAssignment = !s.package_activity_id && (!s.activity_assignments || s.activity_assignments.length === 0);
-            if (hasNoAssignment && s.event_day_template_id === eventDayTemplateId) return true;
+            if (hasNoAssignment && s.event_day_template_id === eventDayId) return true;
             return false;
         });
     }, [activitySubjects, activity]);
@@ -175,12 +175,12 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
     // Derive crew inherited from the linked activity (deduplicated by template)
     const inheritedCrew = React.useMemo(() => {
         if (!activity) return [];
-        const eventDayTemplateId = activity.event_day_template_id ?? activity.package_event_day_id;
+        const eventDayId = activity.event_day_template_id ?? activity.package_event_day_id;
         const matched = activityOperators.filter((o: any) => {
             if (o.package_activity_id === activity.id) return true;
             if (o.activity_assignments?.some((a: any) => a.package_activity_id === activity.id)) return true;
             const hasNoAssignment = !o.package_activity_id && (!o.activity_assignments || o.activity_assignments.length === 0);
-            if (hasNoAssignment && o.event_day_template_id === eventDayTemplateId) return true;
+            if (hasNoAssignment && o.event_day_template_id === eventDayId) return true;
             return false;
         });
         const seen = new Map<number, any>();

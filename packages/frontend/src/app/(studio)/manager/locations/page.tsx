@@ -32,10 +32,12 @@ import {
     People as PeopleIcon,
 } from '@mui/icons-material';
 import { api } from '@/lib/api';
+import { useBrand } from '@/app/providers/BrandProvider';
 import { LocationsLibrary, CreateLocationRequest } from '@/lib/types/locations';
 
 export default function LocationsPage() {
     const router = useRouter();
+    const { currentBrand } = useBrand();
     const [locations, setLocations] = useState<LocationsLibrary[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -59,12 +61,12 @@ export default function LocationsPage() {
 
     useEffect(() => {
         loadLocations();
-    }, []);
+    }, [currentBrand?.id]);
 
     const loadLocations = async () => {
         try {
             setLoading(true);
-            const data = await api.locations.getAll();
+            const data = await api.locations.getAll(currentBrand?.id);
             setLocations(data);
         } catch {
             setError('Failed to load locations');
@@ -100,7 +102,10 @@ export default function LocationsPage() {
             if (editingLocation) {
                 await api.locations.update(editingLocation.id, locationForm);
             } else {
-                await api.locations.create(locationForm);
+                await api.locations.create({
+                    ...locationForm,
+                    ...(currentBrand?.id ? { brand_id: currentBrand.id } : {}),
+                });
             }
             setLocationDialogOpen(false);
             loadLocations();

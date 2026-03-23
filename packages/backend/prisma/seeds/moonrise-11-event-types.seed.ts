@@ -1,8 +1,8 @@
 /**
  * Seed: Event Types for Moonrise Films
  *
- * Creates the "Wedding" event type and links existing EventDayTemplates
- * and SubjectTypeTemplates to it via junction tables.
+ * Creates the "Wedding" event type and links existing EventDays
+ * and SubjectTypes to it via junction tables.
  *
  * Prerequisites:
  *   - moonrise-07-event-day-templates (event day templates)
@@ -29,9 +29,9 @@ interface EventTypeDef {
   default_start_time?: string;
   typical_guest_count?: number;
   order_index: number;
-  /** Names of existing EventDayTemplates to link (in display order) */
+  /** Names of existing EventDays to link (in display order) */
   eventDays: string[];
-  /** Names of existing SubjectTypeTemplates to link (in display order) */
+  /** Names of existing SubjectTypes to link (in display order) */
   subjectTypes: string[];
 }
 
@@ -120,7 +120,7 @@ async function seedEventTypes(): Promise<SeedSummary> {
     // ── Link event day templates ──────────────────────────────────
     for (let i = 0; i < def.eventDays.length; i++) {
       const dayName = def.eventDays[i];
-      const dayTemplate = await prisma.eventDayTemplate.findFirst({
+      const dayTemplate = await prisma.eventDay.findFirst({
         where: { brand_id: brand.id, name: dayName },
       });
 
@@ -129,7 +129,7 @@ async function seedEventTypes(): Promise<SeedSummary> {
         continue;
       }
 
-      const existingLink = await prisma.eventTypeEventDay.findFirst({
+      const existingLink = await prisma.eventTypeDay.findFirst({
         where: {
           event_type_id: eventType.id,
           event_day_template_id: dayTemplate.id,
@@ -137,7 +137,7 @@ async function seedEventTypes(): Promise<SeedSummary> {
       });
 
       if (!existingLink) {
-        await prisma.eventTypeEventDay.create({
+        await prisma.eventTypeDay.create({
           data: {
             event_type_id: eventType.id,
             event_day_template_id: dayTemplate.id,
@@ -147,7 +147,7 @@ async function seedEventTypes(): Promise<SeedSummary> {
         });
         logger.created(`  → Linked day "${dayName}" (order ${i})`, undefined, 'verbose');
       } else {
-        await prisma.eventTypeEventDay.update({
+        await prisma.eventTypeDay.update({
           where: { id: existingLink.id },
           data: { order_index: i, is_default: i <= 2 },
         });
@@ -155,37 +155,35 @@ async function seedEventTypes(): Promise<SeedSummary> {
       }
     }
 
-    // ── Link subject type templates ───────────────────────────────
-    for (let i = 0; i < def.subjectTypes.length; i++) {
-      const stName = def.subjectTypes[i];
-      const stTemplate = await prisma.subjectTypeTemplate.findFirst({
-        where: { brand_id: brand.id, name: stName },
+    // ── Link subject roles ─────────────────────────────────────────
+    if (def.subjectTypes.length > 0) {
+      const brandRoles = await prisma.subjectRole.findMany({
+        where: { brand_id: brand.id },
+        orderBy: { order_index: 'asc' },
       });
 
-      if (!stTemplate) {
-        logger.warning(`Subject type template "${stName}" not found — skipping link`);
-        continue;
-      }
-
-      const existingLink = await prisma.eventTypeSubjectType.findFirst({
-        where: {
-          event_type_id: eventType.id,
-          subject_type_template_id: stTemplate.id,
-        },
-      });
-
-      if (!existingLink) {
-        await prisma.eventTypeSubjectType.create({
-          data: {
+      for (let i = 0; i < brandRoles.length; i++) {
+        const role = brandRoles[i];
+        const existingLink = await prisma.eventTypeSubject.findFirst({
+          where: {
             event_type_id: eventType.id,
-            subject_type_template_id: stTemplate.id,
-            order_index: i,
-            is_default: true,
+            subject_role_id: role.id,
           },
         });
-        logger.created(`  → Linked subject type "${stName}" (order ${i})`, undefined, 'verbose');
-      } else {
-        logger.skipped(`  → Subject type "${stName}"`, 'already linked', 'verbose');
+
+        if (!existingLink) {
+          await prisma.eventTypeSubject.create({
+            data: {
+              event_type_id: eventType.id,
+              subject_role_id: role.id,
+              order_index: i,
+              is_default: role.is_core,
+            },
+          });
+          logger.created(`  → Linked subject role "${role.role_name}" (order ${i})`, undefined, 'verbose');
+        } else {
+          logger.skipped(`  → Subject role "${role.role_name}"`, 'already linked', 'verbose');
+        }
       }
     }
   }

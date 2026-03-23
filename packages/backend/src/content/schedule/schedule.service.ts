@@ -3,8 +3,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InquiryTasksService } from '../../inquiry-tasks/inquiry-tasks.service';
 import {
-  CreateEventDayTemplateDto,
-  UpdateEventDayTemplateDto,
+  CreateEventDayDto,
+  UpdateEventDayDto,
   CreateFilmSceneScheduleDto,
   UpdateFilmSceneScheduleDto,
   BulkUpsertFilmSceneScheduleDto,
@@ -22,8 +22,8 @@ import {
   UpdatePackageActivityDto,
   CreateProjectActivityDto,
   UpdateProjectActivityDto,
-  CreatePackageEventDaySubjectDto,
-  UpdatePackageEventDaySubjectDto,
+  CreatePackageDaySubjectDto,
+  UpdatePackageDaySubjectDto,
   CreatePackageEventDayLocationDto,
   UpdatePackageEventDayLocationDto,
   CreatePackageLocationSlotDto,
@@ -110,8 +110,8 @@ export class ScheduleService {
 
   // ─── Event Day Templates ─────────────────────────────────────────────
 
-  async findAllEventDayTemplates(brandId: number) {
-    return this.prisma.eventDayTemplate.findMany({
+  async findAllEventDays(brandId: number) {
+    return this.prisma.eventDay.findMany({
       where: { brand_id: brandId, is_active: true },
       orderBy: { order_index: 'asc' },
       include: {
@@ -126,16 +126,16 @@ export class ScheduleService {
     });
   }
 
-  async findOneEventDayTemplate(id: number, brandId: number) {
-    const template = await this.prisma.eventDayTemplate.findFirst({
+  async findOneEventDay(id: number, brandId: number) {
+    const template = await this.prisma.eventDay.findFirst({
       where: { id, brand_id: brandId },
     });
     if (!template) throw new NotFoundException('Event day template not found');
     return template;
   }
 
-  async createEventDayTemplate(brandId: number, dto: CreateEventDayTemplateDto) {
-    return this.prisma.eventDayTemplate.create({
+  async createEventDay(brandId: number, dto: CreateEventDayDto) {
+    return this.prisma.eventDay.create({
       data: {
         brand_id: brandId,
         name: dto.name,
@@ -145,17 +145,17 @@ export class ScheduleService {
     });
   }
 
-  async updateEventDayTemplate(id: number, brandId: number, dto: UpdateEventDayTemplateDto) {
-    await this.findOneEventDayTemplate(id, brandId);
-    return this.prisma.eventDayTemplate.update({
+  async updateEventDay(id: number, brandId: number, dto: UpdateEventDayDto) {
+    await this.findOneEventDay(id, brandId);
+    return this.prisma.eventDay.update({
       where: { id },
       data: dto,
     });
   }
 
-  async deleteEventDayTemplate(id: number, brandId: number) {
-    await this.findOneEventDayTemplate(id, brandId);
-    return this.prisma.eventDayTemplate.update({
+  async deleteEventDay(id: number, brandId: number) {
+    await this.findOneEventDay(id, brandId);
+    return this.prisma.eventDay.update({
       where: { id },
       data: { is_active: false },
     });
@@ -163,9 +163,9 @@ export class ScheduleService {
 
   // ─── Event Day Activity Presets ──────────────────────────────────────
 
-  async findActivityPresets(eventDayTemplateId: number) {
-    return this.prisma.eventDayActivityPreset.findMany({
-      where: { event_day_template_id: eventDayTemplateId, is_active: true },
+  async findActivityPresets(eventDayId: number) {
+    return this.prisma.eventDayActivity.findMany({
+      where: { event_day_template_id: eventDayId, is_active: true },
       orderBy: { order_index: 'asc' },
       include: {
         moments: { orderBy: { order_index: 'asc' } },
@@ -173,10 +173,10 @@ export class ScheduleService {
     });
   }
 
-  async createActivityPreset(eventDayTemplateId: number, dto: any) {
-    return this.prisma.eventDayActivityPreset.create({
+  async createActivityPreset(eventDayId: number, dto: any) {
+    return this.prisma.eventDayActivity.create({
       data: {
-        event_day_template_id: eventDayTemplateId,
+        event_day_template_id: eventDayId,
         name: dto.name,
         description: dto.description,
         color: dto.color,
@@ -189,43 +189,43 @@ export class ScheduleService {
   }
 
   async updateActivityPreset(presetId: number, dto: any) {
-    const preset = await this.prisma.eventDayActivityPreset.findUnique({ where: { id: presetId } });
+    const preset = await this.prisma.eventDayActivity.findUnique({ where: { id: presetId } });
     if (!preset) throw new NotFoundException('Activity preset not found');
-    return this.prisma.eventDayActivityPreset.update({
+    return this.prisma.eventDayActivity.update({
       where: { id: presetId },
       data: dto,
     });
   }
 
   async deleteActivityPreset(presetId: number) {
-    const preset = await this.prisma.eventDayActivityPreset.findUnique({ where: { id: presetId } });
+    const preset = await this.prisma.eventDayActivity.findUnique({ where: { id: presetId } });
     if (!preset) throw new NotFoundException('Activity preset not found');
-    return this.prisma.eventDayActivityPreset.delete({ where: { id: presetId } });
+    return this.prisma.eventDayActivity.delete({ where: { id: presetId } });
   }
 
-  async bulkCreateActivityPresets(eventDayTemplateId: number, presets: { name: string; color?: string; default_start_time?: string; description?: string; order_index?: number }[]) {
+  async bulkCreateActivityPresets(eventDayId: number, presets: { name: string; color?: string; default_start_time?: string; description?: string; order_index?: number }[]) {
     const data = presets.map((p, i) => ({
-      event_day_template_id: eventDayTemplateId,
+      event_day_template_id: eventDayId,
       name: p.name,
       color: p.color,
       default_start_time: p.default_start_time,
       description: p.description,
       order_index: p.order_index ?? i,
     }));
-    return this.prisma.eventDayActivityPreset.createMany({ data, skipDuplicates: true });
+    return this.prisma.eventDayActivity.createMany({ data, skipDuplicates: true });
   }
 
   // ─── Preset Moments ──────────────────────────────────────────────────
 
   async findPresetMoments(presetId: number) {
-    return this.prisma.eventDayActivityPresetMoment.findMany({
+    return this.prisma.eventDayActivityMoment.findMany({
       where: { event_day_activity_preset_id: presetId },
       orderBy: { order_index: 'asc' },
     });
   }
 
   async createPresetMoment(presetId: number, dto: any) {
-    return this.prisma.eventDayActivityPresetMoment.create({
+    return this.prisma.eventDayActivityMoment.create({
       data: {
         event_day_activity_preset_id: presetId,
         name: dto.name,
@@ -238,18 +238,18 @@ export class ScheduleService {
   }
 
   async updatePresetMoment(momentId: number, dto: any) {
-    const moment = await this.prisma.eventDayActivityPresetMoment.findUnique({ where: { id: momentId } });
+    const moment = await this.prisma.eventDayActivityMoment.findUnique({ where: { id: momentId } });
     if (!moment) throw new NotFoundException('Preset moment not found');
-    return this.prisma.eventDayActivityPresetMoment.update({
+    return this.prisma.eventDayActivityMoment.update({
       where: { id: momentId },
       data: dto,
     });
   }
 
   async deletePresetMoment(momentId: number) {
-    const moment = await this.prisma.eventDayActivityPresetMoment.findUnique({ where: { id: momentId } });
+    const moment = await this.prisma.eventDayActivityMoment.findUnique({ where: { id: momentId } });
     if (!moment) throw new NotFoundException('Preset moment not found');
-    return this.prisma.eventDayActivityPresetMoment.delete({ where: { id: momentId } });
+    return this.prisma.eventDayActivityMoment.delete({ where: { id: momentId } });
   }
 
   async bulkCreatePresetMoments(presetId: number, moments: { name: string; duration_seconds?: number; order_index?: number; is_key_moment?: boolean }[]) {
@@ -260,7 +260,7 @@ export class ScheduleService {
       order_index: m.order_index ?? i,
       is_key_moment: m.is_key_moment ?? false,
     }));
-    return this.prisma.eventDayActivityPresetMoment.createMany({ data, skipDuplicates: true });
+    return this.prisma.eventDayActivityMoment.createMany({ data, skipDuplicates: true });
   }
 
   // ─── Film Scene Schedules ────────────────────────────────────────────
@@ -401,7 +401,7 @@ export class ScheduleService {
       this.prisma.packageActivityMoment.count({
         where: { package_activity: { package_id: packageId } },
       }),
-      this.prisma.packageEventDaySubject.count({ where: { package_id: packageId } }),
+      this.prisma.packageDaySubject.count({ where: { package_id: packageId } }),
       this.prisma.packageLocationSlot.count({ where: { package_id: packageId } }),
       this.prisma.packageDayOperator.count({ where: { package_id: packageId } }),
       this.prisma.packageFilm.count({ where: { package_id: packageId } }),
@@ -476,12 +476,12 @@ export class ScheduleService {
   }
 
   /** Remove an event day template from a package */
-  async removePackageEventDay(packageId: number, eventDayTemplateId: number) {
+  async removePackageEventDay(packageId: number, eventDayId: number) {
     const record = await this.prisma.packageEventDay.findUnique({
       where: {
         package_id_event_day_template_id: {
           package_id: packageId,
-          event_day_template_id: eventDayTemplateId,
+          event_day_template_id: eventDayId,
         },
       },
     });
@@ -1150,15 +1150,14 @@ export class ScheduleService {
   // ─── Package Event Day Subjects ──────────────────────────────────────
 
   /** Get all subjects for a package, optionally filtered by event day */
-  async getPackageEventDaySubjects(packageId: number, eventDayTemplateId?: number) {
-    return this.prisma.packageEventDaySubject.findMany({
+  async getPackageEventDaySubjects(packageId: number, eventDayId?: number) {
+    return this.prisma.packageDaySubject.findMany({
       where: {
         package_id: packageId,
-        ...(eventDayTemplateId ? { event_day_template_id: eventDayTemplateId } : {}),
+        ...(eventDayId ? { event_day_template_id: eventDayId } : {}),
       },
       include: {
-        role_template: { include: { subject_type: true } },
-        package_activity: true,
+        role_template: true,
         event_day: true,
         activity_assignments: { include: { package_activity: true } },
       },
@@ -1167,20 +1166,19 @@ export class ScheduleService {
   }
 
   /** Create a subject assignment for a package event day */
-  async createPackageEventDaySubject(packageId: number, dto: CreatePackageEventDaySubjectDto) {
+  async createPackageEventDaySubject(packageId: number, dto: CreatePackageDaySubjectDto) {
     // Get next order index
-    const existing = await this.prisma.packageEventDaySubject.findMany({
+    const existing = await this.prisma.packageDaySubject.findMany({
       where: { package_id: packageId, event_day_template_id: dto.event_day_template_id },
       orderBy: { order_index: 'desc' },
       take: 1,
     });
     const nextOrder = existing.length > 0 ? existing[0].order_index + 1 : 0;
 
-    return this.prisma.packageEventDaySubject.create({
+    return this.prisma.packageDaySubject.create({
       data: {
         package_id: packageId,
         event_day_template_id: dto.event_day_template_id,
-        package_activity_id: dto.package_activity_id,
         role_template_id: dto.role_template_id,
         name: dto.name,
         count: dto.count,
@@ -1189,8 +1187,7 @@ export class ScheduleService {
         order_index: dto.order_index ?? nextOrder,
       },
       include: {
-        role_template: { include: { subject_type: true } },
-        package_activity: true,
+        role_template: true,
         event_day: true,
         activity_assignments: { include: { package_activity: true } },
       },
@@ -1198,18 +1195,17 @@ export class ScheduleService {
   }
 
   /** Update a package event day subject */
-  async updatePackageEventDaySubject(subjectId: number, dto: UpdatePackageEventDaySubjectDto) {
-    const record = await this.prisma.packageEventDaySubject.findUnique({
+  async updatePackageEventDaySubject(subjectId: number, dto: UpdatePackageDaySubjectDto) {
+    const record = await this.prisma.packageDaySubject.findUnique({
       where: { id: subjectId },
     });
     if (!record) throw new NotFoundException('Package event day subject not found');
 
-    return this.prisma.packageEventDaySubject.update({
+    return this.prisma.packageDaySubject.update({
       where: { id: subjectId },
       data: dto,
       include: {
-        role_template: { include: { subject_type: true } },
-        package_activity: true,
+        role_template: true,
         event_day: true,
         activity_assignments: { include: { package_activity: true } },
       },
@@ -1218,12 +1214,12 @@ export class ScheduleService {
 
   /** Delete a package event day subject */
   async deletePackageEventDaySubject(subjectId: number) {
-    const record = await this.prisma.packageEventDaySubject.findUnique({
+    const record = await this.prisma.packageDaySubject.findUnique({
       where: { id: subjectId },
     });
     if (!record) throw new NotFoundException('Package event day subject not found');
 
-    return this.prisma.packageEventDaySubject.delete({
+    return this.prisma.packageDaySubject.delete({
       where: { id: subjectId },
     });
   }
@@ -1231,13 +1227,13 @@ export class ScheduleService {
   // ─── Subject Activity Assignments (multi-activity) ────────────────
 
   async assignSubjectToActivity(subjectId: number, activityId: number) {
-    const existing = await this.prisma.packageEventDaySubject.findUnique({ where: { id: subjectId } });
+    const existing = await this.prisma.packageDaySubject.findUnique({ where: { id: subjectId } });
     if (!existing) throw new NotFoundException('Package event day subject not found');
 
     try {
-      await this.prisma.subjectActivityAssignment.create({
+      await this.prisma.packageDaySubjectActivity.create({
         data: {
-          package_event_day_subject_id: subjectId,
+          package_day_subject_id: subjectId,
           package_activity_id: activityId,
         },
       });
@@ -1245,11 +1241,10 @@ export class ScheduleService {
       // Already assigned — ignore
     }
 
-    return this.prisma.packageEventDaySubject.findUnique({
+    return this.prisma.packageDaySubject.findUnique({
       where: { id: subjectId },
       include: {
-        role_template: { include: { subject_type: true } },
-        package_activity: true,
+        role_template: true,
         event_day: true,
         activity_assignments: { include: { package_activity: true } },
       },
@@ -1257,21 +1252,20 @@ export class ScheduleService {
   }
 
   async unassignSubjectFromActivity(subjectId: number, activityId: number) {
-    const existing = await this.prisma.packageEventDaySubject.findUnique({ where: { id: subjectId } });
+    const existing = await this.prisma.packageDaySubject.findUnique({ where: { id: subjectId } });
     if (!existing) throw new NotFoundException('Package event day subject not found');
 
-    await this.prisma.subjectActivityAssignment.deleteMany({
+    await this.prisma.packageDaySubjectActivity.deleteMany({
       where: {
-        package_event_day_subject_id: subjectId,
+        package_day_subject_id: subjectId,
         package_activity_id: activityId,
       },
     });
 
-    return this.prisma.packageEventDaySubject.findUnique({
+    return this.prisma.packageDaySubject.findUnique({
       where: { id: subjectId },
       include: {
-        role_template: { include: { subject_type: true } },
-        package_activity: true,
+        role_template: true,
         event_day: true,
         activity_assignments: { include: { package_activity: true } },
       },
@@ -1280,11 +1274,11 @@ export class ScheduleService {
 
   // ─── Package Event Day Locations ─────────────────────────────────────
 
-  async getPackageEventDayLocations(packageId: number, eventDayTemplateId?: number) {
+  async getPackageEventDayLocations(packageId: number, eventDayId?: number) {
     return this.prisma.packageEventDayLocation.findMany({
       where: {
         package_id: packageId,
-        ...(eventDayTemplateId ? { event_day_template_id: eventDayTemplateId } : {}),
+        ...(eventDayId ? { event_day_template_id: eventDayId } : {}),
       },
       include: {
         location: true,
@@ -1355,11 +1349,11 @@ export class ScheduleService {
     activity_assignments: { include: { package_activity: true } },
   };
 
-  async getPackageLocationSlots(packageId: number, eventDayTemplateId?: number) {
+  async getPackageLocationSlots(packageId: number, eventDayId?: number) {
     return this.prisma.packageLocationSlot.findMany({
       where: {
         package_id: packageId,
-        ...(eventDayTemplateId ? { event_day_template_id: eventDayTemplateId } : {}),
+        ...(eventDayId ? { event_day_template_id: eventDayId } : {}),
       },
       include: this.locationSlotInclude,
       orderBy: { location_number: 'asc' },
@@ -1680,7 +1674,7 @@ export class ScheduleService {
     for (const templateId of usedEventDayIds) {
       if (existingTemplateIds.has(templateId)) continue;
 
-      const template = await this.prisma.eventDayTemplate.findUnique({
+      const template = await this.prisma.eventDay.findUnique({
         where: { id: templateId },
       });
       if (!template) continue;
@@ -1728,9 +1722,9 @@ export class ScheduleService {
           const source = pkgSchedule || filmSchedule;
 
           if (source) {
-            const eventDayTemplateId = source.event_day_template_id;
-            const projectEventDayId = eventDayTemplateId
-              ? eventDayMap.get(eventDayTemplateId) ?? null
+            const eventDayId = source.event_day_template_id;
+            const projectEventDayId = eventDayId
+              ? eventDayMap.get(eventDayId) ?? null
               : null;
 
             await this.prisma.projectFilmSceneSchedule.create({
@@ -2083,13 +2077,13 @@ export class ScheduleService {
 
   private readonly instanceSubjectInclude = {
     role_template: true,
-    project_activity: true,
     project_event_day: true,
+    contact: { select: { id: true, first_name: true, last_name: true, email: true } },
     activity_assignments: { include: { project_activity: true } },
   };
 
   async getInstanceEventDaySubjects(owner: InstanceOwner, eventDayId?: number) {
-    return this.prisma.projectEventDaySubject.findMany({
+    return this.prisma.projectDaySubject.findMany({
       where: {
         ...owner,
         ...(eventDayId ? { project_event_day_id: eventDayId } : {}),
@@ -2101,18 +2095,17 @@ export class ScheduleService {
 
   async createInstanceEventDaySubject(owner: InstanceOwner, dto: CreateInstanceEventDaySubjectDto) {
     // Auto-assign next order index
-    const existing = await this.prisma.projectEventDaySubject.findMany({
+    const existing = await this.prisma.projectDaySubject.findMany({
       where: { ...owner, project_event_day_id: dto.project_event_day_id },
       orderBy: { order_index: 'desc' },
       take: 1,
     });
     const nextOrder = existing.length > 0 ? existing[0].order_index + 1 : 0;
 
-    return this.prisma.projectEventDaySubject.create({
+    const subject = await this.prisma.projectDaySubject.create({
       data: {
         ...owner,
         project_event_day_id: dto.project_event_day_id,
-        project_activity_id: dto.project_activity_id,
         role_template_id: dto.role_template_id,
         name: dto.name,
         real_name: dto.real_name,
@@ -2123,43 +2116,92 @@ export class ScheduleService {
       },
       include: this.instanceSubjectInclude,
     });
+
+    // Resolve contact from real_name (non-blocking)
+    if (dto.real_name?.trim() && !subject.contact_id) {
+      try {
+        const brandId = owner.project_id
+          ? (await this.prisma.projects.findUnique({ where: { id: owner.project_id }, select: { brand_id: true } }))?.brand_id
+          : (await this.prisma.inquiries.findUnique({ where: { id: owner.inquiry_id! }, select: { contact: { select: { brand_id: true } } } }))?.contact?.brand_id;
+        if (brandId) {
+          const nameParts = dto.real_name.trim().split(/\s+/);
+          const firstName = nameParts[0];
+          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : null;
+          const email = `${firstName.toLowerCase()}${lastName ? '.' + lastName.toLowerCase() : ''}.${subject.id}@placeholder.internal`;
+          const contact = await this.prisma.contacts.upsert({
+            where: { email },
+            create: { first_name: firstName, last_name: lastName, email, type: 'Client', brand_id: brandId },
+            update: {},
+          });
+          await this.prisma.projectDaySubject.update({ where: { id: subject.id }, data: { contact_id: contact.id } });
+          return this.prisma.projectDaySubject.findUnique({ where: { id: subject.id }, include: this.instanceSubjectInclude });
+        }
+      } catch { /* contact lookup is best-effort */ }
+    }
+
+    return subject;
   }
 
   async updateInstanceEventDaySubject(subjectId: number, dto: UpdateInstanceEventDaySubjectDto) {
-    const record = await this.prisma.projectEventDaySubject.findUnique({ where: { id: subjectId } });
+    const record = await this.prisma.projectDaySubject.findUnique({ where: { id: subjectId } });
     if (!record) throw new NotFoundException('Event day subject not found');
 
     // Build Prisma-compatible data: convert member_names null → Prisma.DbNull
     // so it satisfies the Json? column's NullableJsonNullValueInput type.
-    const { member_names, ...rest } = dto;
-    const data: Prisma.ProjectEventDaySubjectUncheckedUpdateInput = {
+    const { member_names, project_activity_id: _dropped, ...rest } = dto as UpdateInstanceEventDaySubjectDto & { project_activity_id?: number };
+    const data: Prisma.ProjectDaySubjectUncheckedUpdateInput = {
       ...rest,
       ...(member_names !== undefined && {
         member_names: member_names === null ? Prisma.DbNull : member_names,
       }),
     };
 
-    return this.prisma.projectEventDaySubject.update({
+    const updated = await this.prisma.projectDaySubject.update({
       where: { id: subjectId },
       data,
       include: this.instanceSubjectInclude,
     });
+
+    // Re-resolve contact when real_name changes (non-blocking)
+    if (dto.real_name !== undefined && dto.real_name?.trim() && !updated.contact_id) {
+      try {
+        const owner: InstanceOwner = updated.project_id ? { project_id: updated.project_id } : { inquiry_id: updated.inquiry_id! };
+        const brandId = updated.project_id
+          ? (await this.prisma.projects.findUnique({ where: { id: updated.project_id }, select: { brand_id: true } }))?.brand_id
+          : (await this.prisma.inquiries.findUnique({ where: { id: updated.inquiry_id! }, select: { contact: { select: { brand_id: true } } } }))?.contact?.brand_id;
+        if (brandId) {
+          const nameParts = dto.real_name.trim().split(/\s+/);
+          const firstName = nameParts[0];
+          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : null;
+          const email = `${firstName.toLowerCase()}${lastName ? '.' + lastName.toLowerCase() : ''}.${subjectId}@placeholder.internal`;
+          const contact = await this.prisma.contacts.upsert({
+            where: { email },
+            create: { first_name: firstName, last_name: lastName, email, type: 'Client', brand_id: brandId },
+            update: {},
+          });
+          await this.prisma.projectDaySubject.update({ where: { id: subjectId }, data: { contact_id: contact.id } });
+          return this.prisma.projectDaySubject.findUnique({ where: { id: subjectId }, include: this.instanceSubjectInclude });
+        }
+      } catch { /* contact lookup is best-effort */ }
+    }
+
+    return updated;
   }
 
   async deleteInstanceEventDaySubject(subjectId: number) {
-    const record = await this.prisma.projectEventDaySubject.findUnique({ where: { id: subjectId } });
+    const record = await this.prisma.projectDaySubject.findUnique({ where: { id: subjectId } });
     if (!record) throw new NotFoundException('Event day subject not found');
-    return this.prisma.projectEventDaySubject.delete({ where: { id: subjectId } });
+    return this.prisma.projectDaySubject.delete({ where: { id: subjectId } });
   }
 
   async assignInstanceSubjectToActivity(subjectId: number, activityId: number) {
-    const existing = await this.prisma.projectEventDaySubject.findUnique({ where: { id: subjectId } });
+    const existing = await this.prisma.projectDaySubject.findUnique({ where: { id: subjectId } });
     if (!existing) throw new NotFoundException('Event day subject not found');
 
     try {
-      await this.prisma.projectSubjectActivityAssignment.create({
+      await this.prisma.projectDaySubjectActivity.create({
         data: {
-          project_event_day_subject_id: subjectId,
+          project_day_subject_id: subjectId,
           project_activity_id: activityId,
         },
       });
@@ -2167,24 +2209,24 @@ export class ScheduleService {
       // Already assigned — ignore
     }
 
-    return this.prisma.projectEventDaySubject.findUnique({
+    return this.prisma.projectDaySubject.findUnique({
       where: { id: subjectId },
       include: this.instanceSubjectInclude,
     });
   }
 
   async unassignInstanceSubjectFromActivity(subjectId: number, activityId: number) {
-    const existing = await this.prisma.projectEventDaySubject.findUnique({ where: { id: subjectId } });
+    const existing = await this.prisma.projectDaySubject.findUnique({ where: { id: subjectId } });
     if (!existing) throw new NotFoundException('Event day subject not found');
 
-    await this.prisma.projectSubjectActivityAssignment.deleteMany({
+    await this.prisma.projectDaySubjectActivity.deleteMany({
       where: {
-        project_event_day_subject_id: subjectId,
+        project_day_subject_id: subjectId,
         project_activity_id: activityId,
       },
     });
 
-    return this.prisma.projectEventDaySubject.findUnique({
+    return this.prisma.projectDaySubject.findUnique({
       where: { id: subjectId },
       include: this.instanceSubjectInclude,
     });
@@ -2629,7 +2671,7 @@ export class ScheduleService {
           },
           orderBy: [{ project_event_day_id: 'asc' }, { order_index: 'asc' }],
         }),
-        this.prisma.projectEventDaySubject.findMany({
+        this.prisma.projectDaySubject.findMany({
           where: owner,
           include: { role_template: { select: { id: true, role_name: true } } },
           orderBy: { order_index: 'asc' },
@@ -2662,7 +2704,7 @@ export class ScheduleService {
           },
           orderBy: [{ package_event_day_id: 'asc' }, { order_index: 'asc' }],
         }),
-        this.prisma.packageEventDaySubject.findMany({
+        this.prisma.packageDaySubject.findMany({
           where: { package_id: sourcePackageId },
           include: { role_template: { select: { id: true, role_name: true } } },
           orderBy: { order_index: 'asc' },

@@ -7,6 +7,6 @@ export * from './package-film.dto';
 export * from './project-schedule.dto';
 export * from './schedule-preset.dto';
 export * from './activity.dto';
-export * from './package-event-day-subject.dto';
+export * from './package-event-day-subject.dto'; // exports CreatePackageDaySubjectDto, UpdatePackageDaySubjectDto
 export * from './package-event-day-location.dto';
 export * from './package-location-slot.dto';

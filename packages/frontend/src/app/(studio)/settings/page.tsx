@@ -45,6 +45,7 @@ import {
     Menu,
     ListItemIcon,
     ListSubheader,
+    FormHelperText,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import {
@@ -781,9 +782,20 @@ function ProfileSettings() {
 // Brand constants
 // ---------------------------------------------------------------------------
 
-const BUSINESS_TYPES = [
-    'Production House', 'Agency', 'Freelancer', 'Corporate', 'Non-Profit', 'Other'
-];
+// Region-aware legal / business structures keyed by ISO-2 country code
+const BUSINESS_STRUCTURES: Record<string, string[]> = {
+    GB: ['Sole Trader', 'Limited Company (Ltd)', 'Limited Liability Partnership (LLP)', 'Partnership', 'Community Interest Company (CIC)', 'Charity'],
+    US: ['Sole Proprietorship', 'LLC', 'S-Corp', 'C-Corp', 'Partnership', 'Non-Profit (501c3)'],
+    CA: ['Sole Proprietorship', 'Corporation', 'Partnership', 'Co-operative', 'Non-Profit'],
+    AU: ['Sole Trader', 'Pty Ltd', 'Partnership', 'Trust', 'Non-Profit'],
+    NZ: ['Sole Trader', 'Limited Company (Ltd)', 'Partnership', 'Trust', 'Charitable Trust'],
+    IE: ['Sole Trader', 'Limited Company (Ltd)', 'Partnership', 'Designated Activity Company (DAC)', 'Charity'],
+    DE: ['Einzelunternehmen', 'GmbH', 'UG (haftungsbeschränkt)', 'GbR', 'OHG', 'KG', 'e.V.'],
+    FR: ['Auto-entrepreneur', 'SARL', 'SAS', 'EURL', 'SA', 'Association'],
+    _default: ['Sole Trader / Proprietor', 'Limited Company / LLC', 'Partnership', 'Corporation', 'Non-Profit / Charity', 'Other'],
+};
+const getBusinessStructures = (country: string): string[] =>
+    BUSINESS_STRUCTURES[country] ?? BUSINESS_STRUCTURES._default;
 const TIMEZONES = [
     'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
     'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Asia/Tokyo',
@@ -836,6 +848,17 @@ function CompanySettings() {
     const [saving, setSaving] = useState(false);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
     const [validationErrors, setValidationErrors] = useState<BrandValidationErrors>({});
+
+    // ---- Services Offered state ---------------------------------------------
+    const [serviceTypes, setServiceTypes] = useState<string[]>([]);
+    const [confirmingServiceType, setConfirmingServiceType] = useState<{ key: string; label: string; icon: string } | null>(null);
+    const [provisioningType, setProvisioningType] = useState<string | null>(null);
+
+    const SERVICE_TYPE_OPTIONS = [
+        { key: 'WEDDING',    label: 'Weddings',    icon: '💒', color: '#ec4899', description: 'Full wedding day coverage — ceremony, reception, portraits and more.' },
+        { key: 'BIRTHDAY',   label: 'Birthdays',   icon: '🎂', color: '#f59e0b', description: 'Birthday celebrations — cake, speeches, dancing and party coverage.' },
+        { key: 'ENGAGEMENT', label: 'Engagements', icon: '💍', color: '#8b5cf6', description: 'Engagement shoots and parties — portraits, golden hour, and celebrations.' },
+    ];
 
     // ---- Create Brand dialog state -------------------------------------------
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -903,6 +926,7 @@ function CompanySettings() {
         };
         setFormData(values);
         setOriginalFormData(values);
+        setServiceTypes(b.service_types ?? []);
     }, []);
 
     const loadBrand = useCallback(async () => {
@@ -963,6 +987,25 @@ function CompanySettings() {
     const handleDiscard = () => {
         setFormData({ ...originalFormData });
         setValidationErrors({});
+    };
+
+    const handleConfirmEnableServiceType = async () => {
+        if (!brand || !confirmingServiceType) return;
+        const key = confirmingServiceType.key;
+        setConfirmingServiceType(null);
+        setProvisioningType(key);
+        try {
+            const newTypes = [...serviceTypes, key];
+            const updated = await api.brands.update(brand.id, { service_types: newTypes } as any);
+            setBrand(updated);
+            setServiceTypes(updated.service_types ?? newTypes);
+            await refreshBrands();
+            setSnackbar({ open: true, message: `${confirmingServiceType?.label ?? key} service enabled and templates created.`, severity: 'success' });
+        } catch {
+            setSnackbar({ open: true, message: 'Failed to enable service type. Please try again.', severity: 'error' });
+        } finally {
+            setProvisioningType(null);
+        }
     };
 
     // ---- All brands list (for the brands overview) ---------------------------
@@ -1056,10 +1099,11 @@ function CompanySettings() {
         return <Alert severity="error" sx={{ mb: 2 }}>{loadError || 'No active brand selected.'}</Alert>;
     }
 
-    const businessTypeOptions = [...BUSINESS_TYPES];
-    if (formData.business_type && !businessTypeOptions.includes(formData.business_type)) {
-        businessTypeOptions.unshift(formData.business_type);
-    }
+    const businessStructureOptions = getBusinessStructures(formData.country);
+    // Preserve any previously saved value not in the current region's list
+    const allBusinessStructureOptions = formData.business_type && !businessStructureOptions.includes(formData.business_type)
+        ? [formData.business_type, ...businessStructureOptions]
+        : businessStructureOptions;
 
     return (
         <>
@@ -1199,13 +1243,93 @@ function CompanySettings() {
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
                                     <FormControl fullWidth size="small">
-                                        <InputLabel>Business Type</InputLabel>
-                                        <Select value={formData.business_type} onChange={(e) => handleFormChange("business_type", e.target.value)} label="Business Type" sx={{ borderRadius: 2 }}>
-                                            {businessTypeOptions.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                                        <InputLabel>Business Structure</InputLabel>
+                                        <Select value={formData.business_type} onChange={(e) => handleFormChange("business_type", e.target.value)} label="Business Structure" sx={{ borderRadius: 2 }}>
+                                            {allBusinessStructureOptions.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                                         </Select>
+                                        <FormHelperText>Legal entity type — options based on your country</FormHelperText>
                                     </FormControl>
                                 </Grid>
                             </Grid>
+                        </Box>
+                    </Box>
+
+                    {/* Services Offered */}
+                    <Box sx={{ mb: 3.5 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                            <AutoAwesomeIcon sx={{ fontSize: 18, color: "primary.main" }} />
+                            <Typography variant="subtitle2" fontWeight={700}>
+                                Services Offered
+                            </Typography>
+                        </Box>
+                        <Box
+                            sx={{
+                                p: 2.5,
+                                borderRadius: 2.5,
+                                border: 1,
+                                borderColor: "divider",
+                                bgcolor: (theme) => alpha(theme.palette.background.paper, 0.6),
+                            }}
+                        >
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                Enable a service to auto-create its event templates, activities, subjects and a default package set.
+                            </Typography>
+                            <Stack spacing={1.5}>
+                                {SERVICE_TYPE_OPTIONS.map((opt) => {
+                                    const enabled = serviceTypes.includes(opt.key);
+                                    const loading = provisioningType === opt.key;
+                                    return (
+                                        <Box
+                                            key={opt.key}
+                                            sx={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: 2,
+                                                p: 2,
+                                                borderRadius: 2,
+                                                border: 1,
+                                                borderColor: enabled ? opt.color : "divider",
+                                                bgcolor: enabled
+                                                    ? (theme) => alpha(opt.color, 0.06)
+                                                    : "transparent",
+                                                transition: "all 0.2s ease",
+                                            }}
+                                        >
+                                            <Typography sx={{ fontSize: "1.5rem", lineHeight: 1, flexShrink: 0 }}>{opt.icon}</Typography>
+                                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                <Typography variant="body2" fontWeight={700}>{opt.label}</Typography>
+                                                <Typography variant="caption" color="text.secondary">{opt.description}</Typography>
+                                            </Box>
+                                            {enabled ? (
+                                                <Chip
+                                                    label="Enabled"
+                                                    size="small"
+                                                    sx={{
+                                                        height: 24,
+                                                        fontWeight: 700,
+                                                        fontSize: "0.7rem",
+                                                        bgcolor: alpha(opt.color, 0.12),
+                                                        color: opt.color,
+                                                        border: "none",
+                                                        flexShrink: 0,
+                                                    }}
+                                                />
+                                            ) : (
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    disabled={loading}
+                                                    onClick={() => setConfirmingServiceType(opt)}
+                                                    startIcon={loading ? <CircularProgress size={12} /> : <AddIcon />}
+                                                    sx={{ borderRadius: 2, fontWeight: 600, minWidth: 90, flexShrink: 0 }}
+                                                >
+                                                    {loading ? "Enabling…" : "Enable"}
+                                                </Button>
+                                            )}
+                                        </Box>
+                                    );
+                                })}
+                            </Stack>
                         </Box>
                     </Box>
 
@@ -1505,6 +1629,64 @@ function CompanySettings() {
                 </Alert>
             </Snackbar>
 
+            {/* ─── Enable Service Type Confirmation Dialog ─── */}
+            <Dialog
+                open={!!confirmingServiceType}
+                onClose={() => setConfirmingServiceType(null)}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 3 } }}
+            >
+                <DialogTitle sx={{ pb: 1 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                        <Typography sx={{ fontSize: "1.8rem", lineHeight: 1 }}>{confirmingServiceType?.icon}</Typography>
+                        <Box>
+                            <Typography variant="subtitle1" fontWeight={700}>Enable {confirmingServiceType?.label}?</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                This will create templates, activities, and subjects for this service type.
+                            </Typography>
+                        </Box>
+                    </Box>
+                </DialogTitle>
+                <Divider />
+                <DialogContent sx={{ pt: 2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        The following will be automatically created for your brand:
+                    </Typography>
+                    <Stack spacing={1}>
+                        {[
+                            { icon: '📅', label: 'Event days (e.g. Ceremony Day, Getting Ready)' },
+                            { icon: '🎬', label: 'Activities with key moment markers' },
+                            { icon: '👥', label: 'Subject types with standard roles' },
+                            { icon: '📦', label: 'Package category and default package set' },
+                        ].map((item) => (
+                            <Box key={item.label} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                                <Typography sx={{ fontSize: '1rem', mt: 0.1 }}>{item.icon}</Typography>
+                                <Typography variant="body2">{item.label}</Typography>
+                            </Box>
+                        ))}
+                    </Stack>
+                    <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
+                        Enabling a service doesn&apos;t affect existing data. You can customise everything after it&apos;s created.
+                    </Alert>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2.5 }}>
+                    <Button onClick={() => setConfirmingServiceType(null)} sx={{ borderRadius: 2 }}>
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={handleConfirmEnableServiceType}
+                        disableElevation
+                        startIcon={provisioningType ? <CircularProgress size={14} /> : <AutoAwesomeIcon />}
+                        disabled={!!provisioningType}
+                        sx={{ fontWeight: 600, borderRadius: 2 }}
+                    >
+                        {provisioningType ? 'Enabling…' : `Enable ${confirmingServiceType?.label ?? ''}`}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             {/* ─── Create Brand Dialog ─── */}
             <Dialog
                 open={createDialogOpen}
@@ -1537,15 +1719,16 @@ function CompanySettings() {
                             sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
                         />
                         <FormControl fullWidth size="small">
-                            <InputLabel>Business Type</InputLabel>
+                            <InputLabel>Business Structure</InputLabel>
                             <Select
                                 value={newBrandData.business_type}
                                 onChange={(e) => handleNewBrandChange("business_type", e.target.value)}
-                                label="Business Type"
+                                label="Business Structure"
                                 sx={{ borderRadius: 2 }}
                             >
-                                {BUSINESS_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                                {getBusinessStructures(newBrandData.country || 'GB').map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                             </Select>
+                            <FormHelperText>Options based on selected country</FormHelperText>
                         </FormControl>
                         <TextField
                             label="Email"

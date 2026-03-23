@@ -16,6 +16,9 @@ export interface LocationsLibrary {
     capacity?: number;
     notes?: string;
     brand_id?: number;
+    lat?: number;
+    lng?: number;
+    precision?: 'EXACT' | 'APPROXIMATE';
 
     // Venue Floor Plan Fields
     venue_floor_plan_data?: Record<string, unknown> | null;
@@ -156,6 +159,9 @@ export interface CreateLocationRequest {
     state?: string;
     country?: string;
     postal_code?: string;
+    lat?: number;
+    lng?: number;
+    precision?: 'EXACT' | 'APPROXIMATE';
     contact_name?: string;
     contact_phone?: string;
     contact_email?: string;

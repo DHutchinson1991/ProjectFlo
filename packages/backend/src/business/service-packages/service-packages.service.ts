@@ -50,7 +50,7 @@ export class ServicePackagesService {
     // Fetch typical guest count for each package (from is_group role subjects)
     const packageIds = packages.map(p => p.id);
     const groupSubjects = packageIds.length
-      ? await this.prisma.packageEventDaySubject.findMany({
+      ? await this.prisma.packageDaySubject.findMany({
           where: {
             package_id: { in: packageIds },
             role_template: { is_group: true },

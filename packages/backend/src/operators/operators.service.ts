@@ -14,9 +14,9 @@ export class OperatorsService {
   /**
    * Get all crew slots for a package (optionally filtered by event day)
    */
-  async getPackageDayOperators(packageId: number, eventDayTemplateId?: number) {
+  async getPackageDayOperators(packageId: number, eventDayId?: number) {
     const where: Record<string, unknown> = { package_id: packageId };
-    if (eventDayTemplateId) where.event_day_template_id = eventDayTemplateId;
+    if (eventDayId) where.event_day_template_id = eventDayId;
 
     return this.prisma.packageDayOperator.findMany({
       where,

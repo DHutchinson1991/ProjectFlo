@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePackageSetDto } from './dto/create-package-set.dto';
 import { UpdatePackageSetDto } from './dto/update-package-set.dto';
@@ -16,23 +17,32 @@ export class PackageSetsService {
     // Count existing sets for ordering
     const count = await this.prisma.package_sets.count({ where: { brand_id: brandId } });
 
-    const set = await this.prisma.package_sets.create({
-      data: {
-        brand_id: brandId,
-        name: dto.name,
-        description: dto.description,
-        emoji: dto.emoji ?? '📦',
-        category_id: dto.category_id,
-        order_index: dto.order_index ?? count,
-      },
-      include: { slots: { include: { service_package: true }, orderBy: { order_index: 'asc' } }, category: true },
-    });
+    let set;
+    try {
+      set = await this.prisma.package_sets.create({
+        data: {
+          brand_id: brandId,
+          name: dto.name,
+          description: dto.description,
+          emoji: dto.emoji ?? '📦',
+          event_type_id: dto.event_type_id,
+          order_index: dto.order_index ?? count,
+        },
+        include: { slots: { include: { service_package: true }, orderBy: { order_index: 'asc' } }, event_type: true },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException(`A package set named "${dto.name}" already exists for this brand`);
+      }
+      throw e;
+    }
 
     // Create tier slots — use the tiers the caller selected, or all 5 by default
+    const DEFAULT_TIERS = ['Budget', 'Basic', 'Standard', 'Premium'] as const;
     const selectedTiers: string[] =
       Array.isArray(dto.tier_labels) && dto.tier_labels.length > 0
         ? TIER_LABELS.filter(t => dto.tier_labels!.includes(t))
-        : [...TIER_LABELS];
+        : [...DEFAULT_TIERS];
 
     await this.prisma.$transaction(
       selectedTiers.map((label, index) =>
@@ -54,7 +64,7 @@ export class PackageSetsService {
           include: { service_package: true },
           orderBy: { order_index: 'asc' },
         },
-        category: true,
+        event_type: true,
       },
       orderBy: { order_index: 'asc' },
     });
@@ -68,7 +78,7 @@ export class PackageSetsService {
           include: { service_package: true },
           orderBy: { order_index: 'asc' },
         },
-        category: true,
+        event_type: true,
       },
     });
     if (!set) throw new NotFoundException(`Package set #${id} not found`);
@@ -80,7 +90,7 @@ export class PackageSetsService {
     return this.prisma.package_sets.update({
       where: { id },
       data: dto,
-      include: { slots: { include: { service_package: true }, orderBy: { order_index: 'asc' } }, category: true },
+      include: { slots: { include: { service_package: true }, orderBy: { order_index: 'asc' } }, event_type: true },
     });
   }
 
@@ -153,24 +163,6 @@ export class PackageSetsService {
     );
     await this.prisma.$transaction(updates);
     return this.findOne(setId, brandId);
-  }
-
-  // ─── Migrate assigned packages to a new category ──────────────────
-
-  async migratePackagesCategory(setId: number, brandId: number, newCategoryId: number) {
-    const set = await this.findOne(setId, brandId);
-    const assignedPackageIds = set.slots
-      .filter(s => s.service_package_id !== null)
-      .map(s => s.service_package_id!);
-
-    if (assignedPackageIds.length === 0) return { updated: 0 };
-
-    const result = await this.prisma.service_packages.updateMany({
-      where: { id: { in: assignedPackageIds }, brand_id: brandId },
-      data: { category_id: newCategoryId },
-    });
-
-    return { updated: result.count };
   }
 
   // ─── Clear all slot assignments in a set (without deleting packages) ──

@@ -5,10 +5,14 @@ import { UpdateBrandDto } from './dto/update-brand.dto';
 import { CreateBrandSettingDto } from './dto/create-brand-setting.dto';
 import { UpdateBrandSettingDto } from './dto/update-brand-setting.dto';
 import { AddUserToBrandDto } from './dto/add-user-to-brand.dto';
+import { BrandProvisioningService, ServiceTypeKey } from './brand-provisioning.service';
 
 @Injectable()
 export class BrandsService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private provisioning: BrandProvisioningService,
+    ) { }
 
     // Brand CRUD operations
     async create(createBrandDto: CreateBrandDto) {
@@ -69,16 +73,44 @@ export class BrandsService {
             throw new NotFoundException(`Brand with ID ${id} not found`);
         }
 
+        // Self-heal: sync service_types from existing event types
+        const currentTypes: string[] = (brand as any).service_types ?? [];
+        const eventTypes = await this.prisma.eventType.findMany({
+            where: { brand_id: id, is_active: true },
+            select: { name: true },
+        });
+        const NAME_TO_KEY: Record<string, string> = { Wedding: 'WEDDING', Birthday: 'BIRTHDAY', Engagement: 'ENGAGEMENT' };
+        const derivedKeys = eventTypes
+            .map((et) => NAME_TO_KEY[et.name])
+            .filter((k): k is string => !!k);
+        const missingFromArray = derivedKeys.filter((k) => !currentTypes.includes(k));
+        if (missingFromArray.length > 0) {
+            const merged = [...currentTypes, ...missingFromArray];
+            await this.prisma.brands.update({ where: { id }, data: { service_types: merged } });
+            (brand as any).service_types = merged;
+        }
+
         return brand;
     }
 
     async update(id: number, updateBrandDto: UpdateBrandDto) {
-        await this.findOne(id);
+        const existing = await this.findOne(id);
 
-        return this.prisma.brands.update({
+        const { service_types: newServiceTypes, ...rest } = updateBrandDto;
+
+        const updated = await this.prisma.brands.update({
             where: { id },
-            data: updateBrandDto,
+            data: newServiceTypes !== undefined
+                ? { ...rest, service_types: newServiceTypes }
+                : rest,
         });
+
+        // Provision all requested service types (idempotent — existing ones just ensure category/set)
+        if (newServiceTypes && newServiceTypes.length > 0) {
+            await this.provisioning.provision(id, newServiceTypes as ServiceTypeKey[]);
+        }
+
+        return updated;
     }
 
     async remove(id: number) {

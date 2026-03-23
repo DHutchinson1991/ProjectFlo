@@ -1,12 +1,12 @@
 /**
  * Moonrise 09 - Wedding Type Templates Seed
  *
- * Creates system-seeded WeddingType templates with:
+ * Creates system-seeded EventSubtype templates with:
  *  - Locations per wedding type
  *  - Subjects per wedding type
  *  - Activities with moments
- *  - Activity ↔ Location links (WeddingTypeActivityLocation)
- *  - Activity ↔ Subject links (WeddingTypeActivitySubject)
+ *  - Activity ↔ Location links (EventSubtypeActivityLocation)
+ *  - Activity ↔ Subject links (EventSubtypeActivitySubject)
  *
  * These templates are the source of truth used by createPackageFromTemplate().
  */
@@ -131,7 +131,7 @@ interface ActivityDef {
   moments: MomentDef[];
 }
 
-interface WeddingTypeDef {
+interface EventSubtypeDef {
   name: string;
   description: string;
   total_duration_hours: number;
@@ -140,7 +140,7 @@ interface WeddingTypeDef {
   key: string;
 }
 
-const WEDDING_TYPE_TEMPLATES: (WeddingTypeDef & { activities: ActivityDef[] })[] = [
+const WEDDING_TYPE_TEMPLATES: (EventSubtypeDef & { activities: ActivityDef[] })[] = [
   {
     name: '🇬🇧 Traditional British Wedding',
     description: 'Classic British wedding with ceremony and reception',
@@ -496,7 +496,7 @@ const WEDDING_TYPE_TEMPLATES: (WeddingTypeDef & { activities: ActivityDef[] })[]
 ];
 
 // ─── Main seed function ──────────────────────────────────────────────
-async function seedWeddingTypes(): Promise<SeedSummary> {
+async function seedEventSubtypes(): Promise<SeedSummary> {
   logger.sectionHeader('Wedding Type Templates', 'System-seeded wedding type templates with activity-subject-location links');
   logger.startTimer('wedding-types');
 
@@ -506,7 +506,7 @@ async function seedWeddingTypes(): Promise<SeedSummary> {
 
   for (const template of WEDDING_TYPE_TEMPLATES) {
     // Check if this wedding type already exists (system-seeded, brand_id = null)
-    const existing = await prisma.weddingType.findFirst({
+    const existing = await prisma.eventSubtype.findFirst({
       where: { name: template.name, is_system_seeded: true },
     });
 
@@ -517,7 +517,7 @@ async function seedWeddingTypes(): Promise<SeedSummary> {
     }
 
     // Create the wedding type
-    const weddingType = await prisma.weddingType.create({
+    const eventSubtype = await prisma.eventSubtype.create({
       data: {
         name: template.name,
         description: template.description,
@@ -534,9 +534,9 @@ async function seedWeddingTypes(): Promise<SeedSummary> {
     const locationMap: Record<string, number> = {};
     const locations = LOCATIONS_BY_TYPE[template.key] ?? [];
     for (const loc of locations) {
-      const row = await prisma.weddingTypeLocation.create({
+      const row = await prisma.eventSubtypeLocation.create({
         data: {
-          wedding_type_id: weddingType.id,
+          wedding_type_id: eventSubtype.id,
           name: loc.name,
           location_type: loc.location_type,
           order_index: loc.order_index,
@@ -550,9 +550,9 @@ async function seedWeddingTypes(): Promise<SeedSummary> {
     const subjectMap: Record<string, number> = {};
     const subjects = SUBJECTS_BY_TYPE[template.key] ?? [];
     for (const subj of subjects) {
-      const row = await prisma.weddingTypeSubject.create({
+      const row = await prisma.eventSubtypeSubject.create({
         data: {
-          wedding_type_id: weddingType.id,
+          wedding_type_id: eventSubtype.id,
           name: subj.name,
           subject_type: subj.subject_type,
           typical_count: subj.typical_count,
@@ -565,9 +565,9 @@ async function seedWeddingTypes(): Promise<SeedSummary> {
 
     // Create activities with moments + junction links
     for (const activity of template.activities) {
-      const createdActivity = await prisma.weddingTypeActivity.create({
+      const createdActivity = await prisma.eventSubtypeActivity.create({
         data: {
-          wedding_type_id: weddingType.id,
+          wedding_type_id: eventSubtype.id,
           name: activity.name,
           icon: activity.icon,
           color: activity.color,
@@ -580,7 +580,7 @@ async function seedWeddingTypes(): Promise<SeedSummary> {
 
       // Moments
       for (const moment of activity.moments) {
-        await prisma.weddingTypeActivityMoment.create({
+        await prisma.eventSubtypeActivityMoment.create({
           data: {
             wedding_type_activity_id: createdActivity.id,
             name: moment.name,
@@ -596,11 +596,10 @@ async function seedWeddingTypes(): Promise<SeedSummary> {
       for (let li = 0; li < activity.locations.length; li++) {
         const locName = activity.locations[li];
         if (locationMap[locName]) {
-          await prisma.weddingTypeActivityLocation.create({
+          await prisma.eventSubtypeActivityLocation.create({
             data: {
               wedding_type_activity_id: createdActivity.id,
               wedding_type_location_id: locationMap[locName],
-              location_sequence_index: li,
             },
           });
         }
@@ -610,7 +609,7 @@ async function seedWeddingTypes(): Promise<SeedSummary> {
       for (let si = 0; si < activity.subjects.length; si++) {
         const subjName = activity.subjects[si];
         if (subjectMap[subjName]) {
-          await prisma.weddingTypeActivitySubject.create({
+          await prisma.eventSubtypeActivitySubject.create({
             data: {
               wedding_type_activity_id: createdActivity.id,
               wedding_type_subject_id: subjectMap[subjName],
@@ -637,10 +636,10 @@ async function seedWeddingTypes(): Promise<SeedSummary> {
 // Export activity/subject/location definitions for reuse by sample-packages seed
 export { WEDDING_TYPE_TEMPLATES, LOCATIONS_BY_TYPE, SUBJECTS_BY_TYPE };
 
-export default seedWeddingTypes;
+export default seedEventSubtypes;
 
 if (require.main === module) {
-  seedWeddingTypes()
+  seedEventSubtypes()
     .catch((error) => {
       console.error('❌ Error seeding wedding types:', error);
       process.exit(1);

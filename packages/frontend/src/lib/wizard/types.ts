@@ -75,7 +75,7 @@ export interface NACtx {
     // Derived
     eventType: string;
     eventConfig: EventTypeConfig;
-    eventTypeOptions: { key: string; label: string; emoji: string; desc: string }[];
+    eventTypeOptions: { key: string; label: string; emoji: string; desc: string; color: string | null }[];
     filteredPackages: ServicePackage[];
     slotLabels: Map<number, string>;
     budgetLabels: string[];

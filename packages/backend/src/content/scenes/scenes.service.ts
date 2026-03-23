@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSceneDto } from './dto/create-scene.dto';
 import { UpdateSceneDto } from './dto/update-scene.dto';
@@ -632,8 +632,13 @@ export class ScenesService {
     }
 
     // Get all global scene templates with moments and suggested subjects
-    async getSceneTemplates() {
+    async getSceneTemplates(brandId?: number) {
+        if (!brandId) {
+            throw new NotFoundException('Brand context is required to load scene templates');
+        }
+
         const templates = await this.prisma.sceneTemplate.findMany({
+            where: { brand_id: brandId },
             include: {
                 moments: {
                     orderBy: { order_index: 'asc' },
@@ -690,11 +695,20 @@ export class ScenesService {
             throw new NotFoundException(`Scene with ID ${sceneId} not found`);
         }
 
+        const film = await this.prisma.film.findUnique({
+            where: { id: scene.film_id },
+            select: { brand_id: true },
+        });
+
+        if (!film?.brand_id) {
+            throw new NotFoundException(`Brand for scene with ID ${sceneId} not found`);
+        }
+
         const baseName = (name || scene.name || 'Scene').trim();
         let uniqueName = baseName;
         let suffix = 1;
 
-        while (await this.prisma.sceneTemplate.findUnique({ where: { name: uniqueName } })) {
+        while (await this.prisma.sceneTemplate.findFirst({ where: { brand_id: film.brand_id, name: uniqueName } })) {
             suffix += 1;
             uniqueName = `${baseName} (${suffix})`;
         }
@@ -732,11 +746,18 @@ export class ScenesService {
                     .map(async (sceneSubject) => {
                         const subject = sceneSubject.subject!;
                         const subjectTemplate = await this.prisma.subjectTemplate.upsert({
-                            where: { name: subject.name },
+                            where: {
+                                brand_id_name: {
+                                    brand_id: film.brand_id,
+                                    name: subject.name,
+                                },
+                            },
                             update: {
                                 category: subject.category,
+                                is_system: false,
                             },
                             create: {
+                                brand_id: film.brand_id,
                                 name: subject.name,
                                 category: subject.category,
                                 is_system: false,
@@ -763,6 +784,7 @@ export class ScenesService {
 
         const template = await this.prisma.sceneTemplate.create({
             data: {
+                brand_id: film.brand_id,
                 name: uniqueName,
                 type: templateType,
                 recording_setup: recordingSetup ?? undefined,

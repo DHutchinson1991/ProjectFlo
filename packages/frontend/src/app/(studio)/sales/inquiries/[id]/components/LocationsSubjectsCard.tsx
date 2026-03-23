@@ -8,6 +8,7 @@ import {
     CircularProgress,
 } from '@mui/material';
 import PlaceIcon from '@mui/icons-material/Place';
+import PersonIcon from '@mui/icons-material/Person';
 import { Inquiry } from '@/lib/types';
 import { api } from '@/lib/api';
 
@@ -33,6 +34,7 @@ interface EventDaySubject {
     real_name: string | null;
     count: number | null;
     category: string;
+    contact_id?: number | null;
 }
 
 const LocationsSubjectsCard: React.FC<LocationsSubjectsCardProps> = ({ inquiry, WorkflowCard }) => {
@@ -163,9 +165,15 @@ const LocationsSubjectsCard: React.FC<LocationsSubjectsCardProps> = ({ inquiry, 
                                             color: subject.real_name ? 'text.secondary' : 'rgba(255,255,255,0.15)',
                                             fontStyle: subject.real_name ? 'normal' : 'italic',
                                             fontSize: subject.real_name ? '0.78rem' : '0.72rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 0.5,
                                         }}
                                     >
                                         {subject.real_name || '—'}
+                                        {subject.contact_id && (
+                                            <PersonIcon sx={{ fontSize: '0.8rem', color: 'success.main' }} />
+                                        )}
                                     </Typography>
                                 </Box>
                             ))}

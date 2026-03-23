@@ -26,29 +26,49 @@ import {
     ListItemSecondaryAction,
     ListItemIcon,
     Avatar,
+    Divider,
+    Snackbar,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
 } from '@mui/material';
 import {
     ArrowBack as ArrowBackIcon,
-    Save as SaveIcon,
     Edit as EditIcon,
     Delete as DeleteIcon,
     Add as AddIcon,
     Apartment as SpaceIcon,
     Home as HomeIcon,
     Business as BusinessIcon,
-    Cancel as CancelIcon,
     Phone as PhoneIcon,
     Email as EmailIcon,
     Person as PersonIcon,
-    LocationOn as LocationIcon,
-    Map as MapIcon,
     Straighten as DimensionsIcon,
     People as CapacityIcon,
     ChevronRight as ChevronRightIcon,
+    GpsFixed as GpsFixedIcon,
+    Schedule as ScheduleIcon,
 } from '@mui/icons-material';
 import { api } from '@/lib/api';
 import { LocationsLibrary, LocationSpace, CreateLocationSpaceRequest } from '@/lib/types/locations';
 import { FloorPlanCard } from './components/FloorPlan/components/Cards/FloorPlanCard';
+import AddressAutocomplete, { AddressResult, AddressAutocompleteColors } from '@/components/AddressAutocomplete';
+import dynamic from 'next/dynamic';
+
+const VenueMap = dynamic(
+    () => import('@/app/(studio)/sales/inquiries/[id]/components/VenueMap'),
+    { ssr: false },
+);
+
+const MAP_COLORS: AddressAutocompleteColors = {
+    bg: '#1a1f2e',
+    card: '#2a2f3e',
+    text: '#e0e0e0',
+    muted: '#9e9e9e',
+    accent: '#42a5f5',
+    border: '#3a3f4e',
+};
 
 export default function LocationDetailsPage() {
     const params = useParams();
@@ -59,7 +79,8 @@ export default function LocationDetailsPage() {
     const [spaces, setSpaces] = useState<LocationSpace[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>('');
-    const [isEditing, setIsEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [isSpaceDialogOpen, setIsSpaceDialogOpen] = useState(false);
     const [editingSpace, setEditingSpace] = useState<LocationSpace | null>(null);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -108,15 +129,20 @@ export default function LocationDetailsPage() {
         }
     }, [locationId]);
 
-    const handleSaveLocation = async () => {
+    const handleSaveLocation = async (overrideForm?: Partial<LocationsLibrary>) => {
         try {
             setError('');
-            await api.locations.update(locationId, locationForm);
+            setSaving(true);
+            const payload = overrideForm ?? locationForm;
+            await api.locations.update(locationId, payload);
             const updatedLocation = await api.locations.getById(locationId);
             setLocation(updatedLocation);
-            setIsEditing(false);
+            setLocationForm(updatedLocation);
+            setSnackbarOpen(true);
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Failed to update location');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -329,35 +355,7 @@ export default function LocationDetailsPage() {
                         />
                     </Box>
 
-                    {!isEditing ? (
-                        <Button
-                            variant="contained"
-                            startIcon={<EditIcon />}
-                            onClick={() => setIsEditing(true)}
-                        >
-                            Edit Location
-                        </Button>
-                    ) : (
-                        <Box display="flex" gap={1}>
-                            <Button
-                                variant="outlined"
-                                startIcon={<CancelIcon />}
-                                onClick={() => {
-                                    setIsEditing(false);
-                                    setLocationForm(location);
-                                }}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                variant="contained"
-                                startIcon={<SaveIcon />}
-                                onClick={handleSaveLocation}
-                            >
-                                Save Changes
-                            </Button>
-                        </Box>
-                    )}
+                    {saving && <CircularProgress size={24} />}
                 </Box>
             </Box>
 
@@ -367,246 +365,269 @@ export default function LocationDetailsPage() {
                 </Alert>
             )}
 
-            {/* Top Row - Basic Info and Contact | Address and Map */}
+            {/* Top Row - Name+Address | Map  ||  Info+Contact */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
-                {/* Left Column - Basic Info and Contact */}
+
+                {/* Left half — Name + Address fields | Map side-by-side */}
                 <Grid item xs={12} md={6}>
-                    <Grid container spacing={3}>
-                        {/* Basic Information Card */}
-                        <Grid item xs={12}>
-                            <Card sx={{ height: '100%' }}>
-                                <CardContent>
-                                    <Box display="flex" alignItems="center" mb={2}>
-                                        <BusinessIcon sx={{ mr: 1, color: 'primary.main' }} />
-                                        <Typography variant="h6">Basic Information</Typography>
-                                    </Box>
+                    <Card sx={{ height: '100%' }}>
+                        <CardContent sx={{ height: '100%', pb: '16px !important' }}>
+                            <Grid container spacing={2} sx={{ height: '100%' }}>
 
-                                    <Grid container spacing={2}>
+                                {/* Left sub-column — fields */}
+                                <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column' }}>
+                                    {/* Name */}
+                                    <TextField
+                                        fullWidth
+                                        label="Location Name"
+                                        value={locationForm.name || ''}
+                                        onChange={(e) => setLocationForm({ ...locationForm, name: e.target.value })}
+                                        onBlur={() => handleSaveLocation()}
+                                        variant="outlined"
+                                        size="small"
+                                        sx={{ mb: 1.5 }}
+                                        inputProps={{ style: { fontSize: '1rem', fontWeight: 600 } }}
+                                    />
+
+                                    {/* Address search */}
+                                    <AddressAutocomplete
+                                        key={`addr-search-${locationForm.lat ?? 0}-${locationForm.lng ?? 0}`}
+                                        value=""
+                                        placeholder="Search address…"
+                                        colors={MAP_COLORS}
+                                        onSelect={(result: AddressResult | null) => {
+                                            if (!result) return;
+                                            const updated = {
+                                                ...locationForm,
+                                                name: result.name || locationForm.name || '',
+                                                address_line1: result.street || result.display_name.split(',')[0] || '',
+                                                city: result.city || '',
+                                                state: result.county || '',
+                                                postal_code: result.postcode || '',
+                                                country: result.country || '',
+                                                lat: result.lat,
+                                                lng: result.lng,
+                                                precision: 'EXACT' as const,
+                                            };
+                                            setLocationForm(updated);
+                                            handleSaveLocation(updated);
+                                        }}
+                                    />
+
+                                    {/* Address fields */}
+                                    <Grid container spacing={1} sx={{ mt: 1 }}>
                                         <Grid item xs={12}>
-                                            <TextField
-                                                fullWidth
-                                                label="Location Name"
-                                                value={locationForm.name || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, name: e.target.value })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6}>
-                                            <TextField
-                                                fullWidth
-                                                type="number"
-                                                label="Total Capacity"
-                                                value={locationForm.capacity || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, capacity: Number(e.target.value) || undefined })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                                InputProps={{
-                                                    startAdornment: <CapacityIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                                                }}
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6}>
-                                            <Box display="flex" alignItems="center" mt={2}>
-                                                <Chip
-                                                    icon={<SpaceIcon />}
-                                                    label={`${spaces.length} Spaces`}
-                                                    color="primary"
-                                                    variant="outlined"
-                                                />
-                                                <Chip
-                                                    label={location?.is_active ? 'Active' : 'Inactive'}
-                                                    color={location?.is_active ? 'success' : 'default'}
-                                                    sx={{ ml: 1 }}
-                                                />
-                                            </Box>
+                                            <TextField fullWidth label="Address Line 1" value={locationForm.address_line1 || ''} onChange={(e) => setLocationForm({ ...locationForm, address_line1: e.target.value })} onBlur={() => handleSaveLocation()} variant="outlined" size="small" />
                                         </Grid>
                                         <Grid item xs={12}>
-                                            <TextField
-                                                fullWidth
-                                                multiline
-                                                rows={3}
-                                                label="Notes"
-                                                value={locationForm.notes || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, notes: e.target.value })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                            />
+                                            <TextField fullWidth label="Address Line 2" value={locationForm.address_line2 || ''} onChange={(e) => setLocationForm({ ...locationForm, address_line2: e.target.value })} onBlur={() => handleSaveLocation()} variant="outlined" size="small" />
                                         </Grid>
+                                        <Grid item xs={6}>
+                                            <TextField fullWidth label="City" value={locationForm.city || ''} onChange={(e) => setLocationForm({ ...locationForm, city: e.target.value })} onBlur={() => handleSaveLocation()} variant="outlined" size="small" />
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <TextField fullWidth label="County" value={locationForm.state || ''} onChange={(e) => setLocationForm({ ...locationForm, state: e.target.value })} onBlur={() => handleSaveLocation()} variant="outlined" size="small" />
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <TextField fullWidth label="Postal Code" value={locationForm.postal_code || ''} onChange={(e) => setLocationForm({ ...locationForm, postal_code: e.target.value })} onBlur={() => handleSaveLocation()} variant="outlined" size="small" />
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <TextField fullWidth label="Country" value={locationForm.country || ''} onChange={(e) => setLocationForm({ ...locationForm, country: e.target.value })} onBlur={() => handleSaveLocation()} variant="outlined" size="small" />
+                                        </Grid>
+                                        <Grid item xs={12}>
+                                            <FormControl fullWidth size="small">
+                                                <InputLabel>Precision</InputLabel>
+                                                <Select
+                                                    label="Precision"
+                                                    value={locationForm.precision || 'EXACT'}
+                                                    onChange={(e) => {
+                                                        const updated = { ...locationForm, precision: e.target.value as 'EXACT' | 'APPROXIMATE' };
+                                                        setLocationForm(updated);
+                                                        handleSaveLocation(updated);
+                                                    }}
+                                                >
+                                                    <MenuItem value="EXACT">Exact — confirmed address</MenuItem>
+                                                    <MenuItem value="APPROXIMATE">Approximate — vague region</MenuItem>
+                                                </Select>
+                                            </FormControl>
+                                        </Grid>
+                                        {(locationForm.lat != null || locationForm.lng != null) && (
+                                            <>
+                                                <Grid item xs={6}>
+                                                    <TextField
+                                                        fullWidth
+                                                        label="Latitude"
+                                                        size="small"
+                                                        value={locationForm.lat ?? ''}
+                                                        onChange={(e) => setLocationForm({ ...locationForm, lat: e.target.value === '' ? undefined : Number(e.target.value) })}
+                                                        onBlur={() => handleSaveLocation()}
+                                                        variant="outlined"
+                                                        InputProps={{ startAdornment: <GpsFixedIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} /> }}
+                                                    />
+                                                </Grid>
+                                                <Grid item xs={6}>
+                                                    <TextField
+                                                        fullWidth
+                                                        label="Longitude"
+                                                        size="small"
+                                                        value={locationForm.lng ?? ''}
+                                                        onChange={(e) => setLocationForm({ ...locationForm, lng: e.target.value === '' ? undefined : Number(e.target.value) })}
+                                                        onBlur={() => handleSaveLocation()}
+                                                        variant="outlined"
+                                                        InputProps={{ startAdornment: <GpsFixedIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} /> }}
+                                                    />
+                                                </Grid>
+                                            </>
+                                        )}
                                     </Grid>
-                                </CardContent>
-                            </Card>
-                        </Grid>
+                                </Grid>
 
-                        {/* Contact Information Card */}
-                        <Grid item xs={12}>
-                            <Card sx={{ height: '100%' }}>
-                                <CardContent>
-                                    <Box display="flex" alignItems="center" mb={2}>
-                                        <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
-                                        <Typography variant="h6">Contact Information</Typography>
-                                    </Box>
-
-                                    <Grid container spacing={2}>
-                                        <Grid item xs={12}>
-                                            <TextField
-                                                fullWidth
-                                                label="Contact Name"
-                                                value={locationForm.contact_name || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, contact_name: e.target.value })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                                InputProps={{
-                                                    startAdornment: <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                                                }}
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6}>
-                                            <TextField
-                                                fullWidth
-                                                label="Phone Number"
-                                                value={locationForm.contact_phone || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, contact_phone: e.target.value })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                                InputProps={{
-                                                    startAdornment: <PhoneIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                                                }}
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6}>
-                                            <TextField
-                                                fullWidth
-                                                label="Email Address"
-                                                type="email"
-                                                value={locationForm.contact_email || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, contact_email: e.target.value })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                                InputProps={{
-                                                    startAdornment: <EmailIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                                                }}
-                                            />
-                                        </Grid>
-                                    </Grid>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                    </Grid>
-                </Grid>
-
-                {/* Right Column - Address and Map */}
-                <Grid item xs={12} md={6}>
-                    <Grid container spacing={3}>
-                        {/* Address Card */}
-                        <Grid item xs={12}>
-                            <Card sx={{ height: '100%' }}>
-                                <CardContent>
-                                    <Box display="flex" alignItems="center" mb={2}>
-                                        <LocationIcon sx={{ mr: 1, color: 'primary.main' }} />
-                                        <Typography variant="h6">Address</Typography>
-                                    </Box>
-
-                                    <Grid container spacing={2}>
-                                        <Grid item xs={12}>
-                                            <TextField
-                                                fullWidth
-                                                label="Address Line 1"
-                                                value={locationForm.address_line1 || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, address_line1: e.target.value })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12}>
-                                            <TextField
-                                                fullWidth
-                                                label="Address Line 2"
-                                                value={locationForm.address_line2 || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, address_line2: e.target.value })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6}>
-                                            <TextField
-                                                fullWidth
-                                                label="City"
-                                                value={locationForm.city || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, city: e.target.value })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6}>
-                                            <TextField
-                                                fullWidth
-                                                label="State"
-                                                value={locationForm.state || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, state: e.target.value })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6}>
-                                            <TextField
-                                                fullWidth
-                                                label="Postal Code"
-                                                value={locationForm.postal_code || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, postal_code: e.target.value })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6}>
-                                            <TextField
-                                                fullWidth
-                                                label="Country"
-                                                value={locationForm.country || ''}
-                                                onChange={(e) => setLocationForm({ ...locationForm, country: e.target.value })}
-                                                disabled={!isEditing}
-                                                variant={isEditing ? "outlined" : "filled"}
-                                            />
-                                        </Grid>
-                                    </Grid>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-
-                        {/* Map Placeholder Card */}
-                        <Grid item xs={12}>
-                            <Card sx={{ height: 300 }}>
-                                <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                    <Box display="flex" alignItems="center" mb={2}>
-                                        <MapIcon sx={{ mr: 1, color: 'primary.main' }} />
-                                        <Typography variant="h6">Location Map</Typography>
-                                    </Box>
+                                {/* Right sub-column — Map */}
+                                <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column' }}>
                                     <Box
                                         sx={{
                                             flex: 1,
-                                            backgroundColor: 'grey.100',
-                                            border: '2px dashed',
-                                            borderColor: 'grey.300',
+                                            minHeight: 280,
                                             borderRadius: 1,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            flexDirection: 'column'
+                                            overflow: 'hidden',
                                         }}
                                     >
-                                        <MapIcon sx={{ fontSize: 48, color: 'grey.400', mb: 1 }} />
-                                        <Typography variant="body2" color="text.secondary" textAlign="center">
-                                            Interactive map will be displayed here
-                                        </Typography>
-                                        <Typography variant="caption" color="text.secondary" textAlign="center">
-                                            Google Maps / Mapbox integration
-                                        </Typography>
+                                        {locationForm.lat != null && locationForm.lng != null ? (
+                                            <VenueMap lat={locationForm.lat!} lng={locationForm.lng!} height="100%" />
+                                        ) : (
+                                            <Box
+                                                sx={{
+                                                    height: '100%',
+                                                    border: '2px dashed',
+                                                    borderColor: 'grey.700',
+                                                    borderRadius: 1,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                }}
+                                            >
+                                                <Typography variant="body2" color="text.secondary" textAlign="center" px={2}>
+                                                    Search for an address to show the map
+                                                </Typography>
+                                            </Box>
+                                        )}
                                     </Box>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                    </Grid>
+                                </Grid>
+
+                            </Grid>
+                        </CardContent>
+                    </Card>
                 </Grid>
+
+                {/* Right Column - Info + Contact (merged) */}
+                <Grid item xs={12} md={6}>
+                    <Card sx={{ height: '100%' }}>
+                        <CardContent>
+
+                            {/* Status chips */}
+                            <Box display="flex" justifyContent="flex-end" gap={1} mb={2}>
+                                <Chip icon={<SpaceIcon />} label={`${spaces.length} Spaces`} color="primary" variant="outlined" size="small" />
+                                <Chip label={location?.is_active ? 'Active' : 'Inactive'} color={location?.is_active ? 'success' : 'default'} size="small" />
+                            </Box>
+
+                            <Grid container spacing={2}>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField
+                                        fullWidth
+                                        type="number"
+                                        label="Total Capacity"
+                                        value={locationForm.capacity || ''}
+                                        onChange={(e) => setLocationForm({ ...locationForm, capacity: Number(e.target.value) || undefined })}
+                                        variant="outlined"
+                                        onBlur={() => handleSaveLocation()}
+                                        InputProps={{ startAdornment: <CapacityIcon sx={{ mr: 1, color: 'text.secondary' }} /> }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <TextField
+                                        fullWidth
+                                        multiline
+                                        rows={4}
+                                        label="Notes"
+                                        value={locationForm.notes || ''}
+                                        onChange={(e) => setLocationForm({ ...locationForm, notes: e.target.value })}
+                                        variant="outlined"
+                                        onBlur={() => handleSaveLocation()}
+                                    />
+                                </Grid>
+                            </Grid>
+
+                            <Divider sx={{ my: 3 }} />
+
+                            {/* Contact */}
+                            <Box display="flex" alignItems="center" mb={2}>
+                                <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
+                                <Typography variant="h6">Contact</Typography>
+                            </Box>
+
+                            <Grid container spacing={2}>
+                                <Grid item xs={12}>
+                                    <TextField
+                                        fullWidth
+                                        label="Contact Name"
+                                        value={locationForm.contact_name || ''}
+                                        onChange={(e) => setLocationForm({ ...locationForm, contact_name: e.target.value })}
+                                        variant="outlined"
+                                        onBlur={() => handleSaveLocation()}
+                                        InputProps={{ startAdornment: <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} /> }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="Phone Number"
+                                        value={locationForm.contact_phone || ''}
+                                        onChange={(e) => setLocationForm({ ...locationForm, contact_phone: e.target.value })}
+                                        variant="outlined"
+                                        onBlur={() => handleSaveLocation()}
+                                        InputProps={{ startAdornment: <PhoneIcon sx={{ mr: 1, color: 'text.secondary' }} /> }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="Email Address"
+                                        type="email"
+                                        value={locationForm.contact_email || ''}
+                                        onChange={(e) => setLocationForm({ ...locationForm, contact_email: e.target.value })}
+                                        variant="outlined"
+                                        onBlur={() => handleSaveLocation()}
+                                        InputProps={{ startAdornment: <EmailIcon sx={{ mr: 1, color: 'text.secondary' }} /> }}
+                                    />
+                                </Grid>
+                            </Grid>
+
+                            <Divider sx={{ my: 3 }} />
+
+                            {/* Timestamps */}
+                            <Box display="flex" alignItems="center" mb={1.5}>
+                                <ScheduleIcon sx={{ mr: 1, color: 'primary.main' }} />
+                                <Typography variant="h6">Record Info</Typography>
+                            </Box>
+                            <Grid container spacing={1}>
+                                <Grid item xs={12} sm={6}>
+                                    <Typography variant="caption" color="text.secondary" display="block">Created</Typography>
+                                    <Typography variant="body2">
+                                        {location.created_at ? new Date(location.created_at).toLocaleString() : '—'}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <Typography variant="caption" color="text.secondary" display="block">Last Updated</Typography>
+                                    <Typography variant="body2">
+                                        {location.updated_at ? new Date(location.updated_at).toLocaleString() : '—'}
+                                    </Typography>
+                                </Grid>
+                            </Grid>
+
+                        </CardContent>
+                    </Card>
+                </Grid>
+
             </Grid>
 
             {/* Bottom Row - Floor Plan and Spaces List */}
@@ -869,6 +890,15 @@ export default function LocationDetailsPage() {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Auto-save feedback */}
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={2000}
+                onClose={() => setSnackbarOpen(false)}
+                message="Saved"
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            />
         </Box>
     );
 }

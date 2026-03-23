@@ -10,7 +10,7 @@ import {
   CreateEventTypeDto,
   UpdateEventTypeDto,
   LinkEventDayDto,
-  LinkSubjectTypeDto,
+  LinkSubjectRoleDto,
 } from './dto/event-type.dto';
 import { CreatePackageFromEventTypeDto } from './dto/create-package-from-event-type.dto';
 
@@ -40,16 +40,10 @@ export class EventTypesService {
         },
       },
     },
-    subject_types: {
+    subject_roles: {
       orderBy: { order_index: 'asc' as const },
       include: {
-        subject_type_template: {
-          include: {
-            roles: {
-              orderBy: { order_index: 'asc' as const },
-            },
-          },
-        },
+        subject_role: true,
       },
     },
   };
@@ -86,7 +80,7 @@ export class EventTypesService {
     });
     const nextOrder = (maxOrder._max.order_index ?? -1) + 1;
 
-    return this.prisma.eventType.create({
+    const eventType = await this.prisma.eventType.create({
       data: {
         brand_id: brandId,
         name: dto.name,
@@ -100,16 +94,56 @@ export class EventTypesService {
       },
       include: this.deepInclude,
     });
+
+    // Auto-create (or link) a matching service_package_category so the NA wizard
+    // immediately shows packages for this event type without manual setup.
+    await this.syncPackageCategory(brandId, eventType.id, dto.name);
+
+    return eventType;
   }
 
   async update(id: number, brandId: number, dto: UpdateEventTypeDto) {
     // Ensure it exists for this brand
-    await this.findOne(id, brandId);
+    const existing = await this.findOne(id, brandId);
 
-    return this.prisma.eventType.update({
+    const updated = await this.prisma.eventType.update({
       where: { id },
       data: dto,
       include: this.deepInclude,
+    });
+
+    // If the name changed, keep the linked category name in sync
+    if (dto.name && dto.name !== existing.name) {
+      await this.syncPackageCategory(brandId, id, dto.name, existing.name);
+    }
+
+    return updated;
+  }
+
+  /**
+   * Ensures a `service_package_categories` record exists for this event type.
+   * - If a category with the same name already exists, links it via event_type_id.
+   * - Otherwise creates a new category and links it.
+   * - Safe to call multiple times (upsert pattern).
+   */
+  private async syncPackageCategory(
+    brandId: number,
+    eventTypeId: number,
+    name: string,
+    oldName?: string,
+  ) {
+    // If the event type was renamed, try to update the previously linked category name too
+    if (oldName) {
+      await this.prisma.service_package_categories.updateMany({
+        where: { brand_id: brandId, event_type_id: eventTypeId },
+        data: { name },
+      }).catch(() => { /* ignore if unique constraint blocks — category may exist */ });
+    }
+
+    await this.prisma.service_package_categories.upsert({
+      where: { brand_id_name: { brand_id: brandId, name } },
+      create: { brand_id: brandId, name, event_type_id: eventTypeId },
+      update: { event_type_id: eventTypeId },
     });
   }
 
@@ -126,7 +160,7 @@ export class EventTypesService {
     // Auto-increment order_index when not provided
     let orderIndex = dto.order_index;
     if (orderIndex === undefined) {
-      const maxOrder = await this.prisma.eventTypeEventDay.aggregate({
+      const maxOrder = await this.prisma.eventTypeDay.aggregate({
         where: { event_type_id: eventTypeId },
         _max: { order_index: true },
       });
@@ -134,7 +168,7 @@ export class EventTypesService {
     }
 
     try {
-      return await this.prisma.eventTypeEventDay.create({
+      return await this.prisma.eventTypeDay.create({
         data: {
           event_type_id: eventTypeId,
           event_day_template_id: dto.event_day_template_id,
@@ -164,37 +198,37 @@ export class EventTypesService {
 
   async unlinkEventDay(
     eventTypeId: number,
-    eventDayTemplateId: number,
+    eventDayId: number,
     brandId: number,
   ) {
     await this.findOne(eventTypeId, brandId);
 
-    const junction = await this.prisma.eventTypeEventDay.findFirst({
+    const junction = await this.prisma.eventTypeDay.findFirst({
       where: {
         event_type_id: eventTypeId,
-        event_day_template_id: eventDayTemplateId,
+        event_day_template_id: eventDayId,
       },
     });
     if (!junction) {
       throw new NotFoundException('Link not found');
     }
-    return this.prisma.eventTypeEventDay.delete({
+    return this.prisma.eventTypeDay.delete({
       where: { id: junction.id },
     });
   }
 
-  // ────────────────────── LINK / UNLINK SUBJECT TYPES ──────────────────────
+  // ────────────────────── LINK / UNLINK SUBJECT ROLES ──────────────────────
 
-  async linkSubjectType(
+  async linkSubjectRole(
     eventTypeId: number,
     brandId: number,
-    dto: LinkSubjectTypeDto,
+    dto: LinkSubjectRoleDto,
   ) {
     await this.findOne(eventTypeId, brandId);
 
     let orderIndex = dto.order_index;
     if (orderIndex === undefined) {
-      const maxOrder = await this.prisma.eventTypeSubjectType.aggregate({
+      const maxOrder = await this.prisma.eventTypeSubject.aggregate({
         where: { event_type_id: eventTypeId },
         _max: { order_index: true },
       });
@@ -202,48 +236,44 @@ export class EventTypesService {
     }
 
     try {
-      return await this.prisma.eventTypeSubjectType.create({
+      return await this.prisma.eventTypeSubject.create({
         data: {
           event_type_id: eventTypeId,
-          subject_type_template_id: dto.subject_type_template_id,
+          subject_role_id: dto.subject_role_id,
           order_index: orderIndex,
           is_default: dto.is_default ?? true,
         },
         include: {
-          subject_type_template: {
-            include: {
-              roles: { orderBy: { order_index: 'asc' } },
-            },
-          },
+          subject_role: true,
         },
       });
     } catch (error: unknown) {
       if ((error as any)?.code === 'P2002') {
         throw new ConflictException(
-          'This subject type template is already linked to this event type',
+          'This subject role is already linked to this event type',
         );
       }
       throw error;
     }
   }
 
-  async unlinkSubjectType(
+  async unlinkSubjectRole(
     eventTypeId: number,
-    subjectTypeTemplateId: number,
+    subjectRoleId: number,
     brandId: number,
   ) {
     await this.findOne(eventTypeId, brandId);
 
-    const junction = await this.prisma.eventTypeSubjectType.findFirst({
+    const junction = await this.prisma.eventTypeSubject.findFirst({
       where: {
         event_type_id: eventTypeId,
-        subject_type_template_id: subjectTypeTemplateId,
+        subject_role_id: subjectRoleId,
       },
     });
     if (!junction) {
       throw new NotFoundException('Link not found');
     }
-    return this.prisma.eventTypeSubjectType.delete({
+    return this.prisma.eventTypeSubject.delete({
       where: { id: junction.id },
     });
   }
@@ -430,22 +460,21 @@ export class EventTypesService {
 
       // 5. Subjects for this day (flat list from selected role IDs)
       let subjectIdx = 0;
-      for (const stLink of eventType.subject_types) {
-        for (const role of stLink.subject_type_template.roles) {
-          if (!selectedRoleIdSet.has(role.id)) continue;
-          // Use a unique name per-day to avoid unique constraint conflicts
-          await this.prisma.packageEventDaySubject.create({
-            data: {
-              package_id: servicePackage.id,
-              event_day_template_id: templateId,
-              role_template_id: role.id,
-              name: role.role_name,
-              category: 'PEOPLE',
-              order_index: subjectIdx++,
-              count: role.is_group ? 4 : undefined,
-            },
-          });
-        }
+      for (const stLink of eventType.subject_roles) {
+        const role = stLink.subject_role;
+        if (!selectedRoleIdSet.has(role.id)) continue;
+        // Use a unique name per-day to avoid unique constraint conflicts
+        await this.prisma.packageDaySubject.create({
+          data: {
+            package_id: servicePackage.id,
+            event_day_template_id: templateId,
+            role_template_id: role.id,
+            name: role.role_name,
+            category: 'PEOPLE',
+            order_index: subjectIdx++,
+            count: role.is_group ? 4 : undefined,
+          },
+        });
       }
 
       // 6. Location slots
@@ -549,7 +578,7 @@ export class EventTypesService {
             },
           },
         },
-        package_event_day_subjects: {
+        package_day_subjects: {
           orderBy: { order_index: 'asc' },
           include: { role_template: true },
         },

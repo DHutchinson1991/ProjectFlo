@@ -28,7 +28,7 @@ interface ActivityPreset {
   moments: PresetMoment[];
 }
 
-interface EventDayTemplate {
+interface EventDay {
   id: number;
   name: string;
   description?: string;
@@ -43,25 +43,25 @@ interface SubjectRole {
   never_group: boolean;
 }
 
-interface SubjectTypeTemplate {
+interface SubjectType {
   id: number;
   name: string;
   description?: string;
   roles: SubjectRole[];
 }
 
-interface EventTypeEventDay {
+interface EventTypeDay {
   id: number;
   order_index: number;
   is_default: boolean;
-  event_day_template: EventDayTemplate;
+  event_day_template: EventDay;
 }
 
-interface EventTypeSubjectType {
+interface EventTypeSubject {
   id: number;
   order_index: number;
   is_default: boolean;
-  subject_type_template: SubjectTypeTemplate;
+  subject_type_template: SubjectType;
 }
 
 export interface EventTypeForWizard {
@@ -73,8 +73,8 @@ export interface EventTypeForWizard {
   default_duration_hours?: number;
   default_start_time?: string;
   typical_guest_count?: number;
-  event_days: EventTypeEventDay[];
-  subject_types: EventTypeSubjectType[];
+  event_days: EventTypeDay[];
+  subject_types: EventTypeSubject[];
 }
 
 interface EventTypeSelectorProps {

@@ -294,7 +294,7 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
         setPackageActivities((activities || []) as PackageActivity[]);
         setPackageOperators((operators || []) as PackageOperator[]);
 
-        // Build mapping from PackageEventDay join-table ID → actual EventDayTemplate ID
+        // Build mapping from PackageEventDay join-table ID → actual EventDay ID
         const joinToTemplateMap = new Map<number, number>();
         ((eventDays || []) as PackageEventDay[]).forEach((d) => {
           if (d._joinId != null) joinToTemplateMap.set(d._joinId, d.id);
@@ -311,7 +311,7 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
         // Pre-compute crew counts per activity
         const activityCrewCounts = new Map<number, { cameraCount: number; audioCount: number }>();
         ((activities || []) as PackageActivity[]).forEach((act) => {
-          // Resolve the actual template ID (operators use event_day_template_id which is the EventDayTemplate.id)
+          // Resolve the actual template ID (operators use event_day_template_id which is the EventDay.id)
           const activityEventDayId = joinToTemplateMap.get(act.package_event_day_id) ?? act.package_event_day_id;
           // Same 3-condition inheritance filter as MomentEditor
           const matched = ((operators || []) as PackageOperator[]).filter((o) => {

@@ -12,23 +12,23 @@ This document is a compact, operational guide for adding or updating seed logic 
 
 ## Key Building Blocks
 
-- Logger: `createSeedLogger(SeedType.X)` from `prisma/seeds/seed-logger.ts`
+- Logger: `createSeedLogger(SeedType.X)` from `prisma/utils/seed-logger.ts`
   - Section headers: `logger.sectionHeader('Title')`, `logger.sectionDivider('Step')`
   - Item logs: `logger.created(name, details?)` [blue], `logger.skipped(name, reason?)` [yellow]
   - Summaries: `logger.summary('X', { created, skipped, updated, total })`
   - Info/Success/Warning/Error with spacing before text to avoid icon blending
 - Summary contract: `SeedSummary { created, updated, skipped, total }`
   - Helpers: `sumSummaries(...parts)` to aggregate across sub-seeds
-- Final metrics: `printFinalMetrics()` in `prisma/seeds/final-metrics.ts`
+- Final metrics: `printFinalMetrics()` in `prisma/utils/final-metrics.ts`
   - Displays per-item deltas as `(skipped +Y - created +X)` with yellow/blue color coding
   - Includes brand splits (Moonrise, Layer5) and overall run summary
 
 ## File Layout & Naming
 
-- Global seeds: `global-*.ts` (e.g., `global-calendar-seed.ts`)
-- Brand modules: `<brand>-<area>-setup.ts` (e.g., `moonrise-task-library.ts`)
+- System seeds: `system-*.seed.ts` / `system-*.ts`
+- Brand modules: `<brand>-<area>-setup.ts` or `<brand>-*.seed.ts`
 - Brand orchestrators: `<brand>-complete-setup.ts`
-- Root orchestrator: `index.ts` (calls system/global → Moonrise → Layer5 → calendar → final metrics)
+- Root orchestrator: `index.ts` (calls system → brand orchestrators → final metrics)
 
 ## Minimal Seed Template
 
@@ -86,8 +86,7 @@ export default async function seed(): Promise<SeedSummary> {
   - Brands & Teams
   - Run Summary (created this run, skipped this run)
   - Per-brand sections (Moonrise, Layer5) with `(skipped +Y - created +X)`
-  - Projects & Inquiries
-  - Calendar
+  - Projects
 - If your seed returns a `SeedSummary`, the root and/or brand orchestrators will roll it up so totals are accurate.
 
 ## Color & Formatting Conventions
@@ -108,8 +107,8 @@ export default async function seed(): Promise<SeedSummary> {
 - From backend directory:
 
 ```bash
-cd "c:\\Users\\info\\Documents\\Code Projects\\ProjectFlo\\packages\\backend"
-pnpm prisma db seed
+cd packages/backend
+npx prisma db seed
 ```
 
 - For schema changes:

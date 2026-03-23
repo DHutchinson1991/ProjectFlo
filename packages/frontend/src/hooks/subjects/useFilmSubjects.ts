@@ -37,11 +37,11 @@ export const useFilmSubjects = (filmId?: number, brandId?: number) => {
     }
   }, []);
 
-  // Load brand-specific type templates
+  // Load brand-specific subject roles
   const loadTypeTemplates = useCallback(async () => {
     if (!brandId) return;
     try {
-      const data = await request<any[]>(`/subjects/type-templates/brand/${brandId}`);
+      const data = await request<any[]>(`/subjects/roles/brand/${brandId}`);
       setTypeTemplates(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load type templates");

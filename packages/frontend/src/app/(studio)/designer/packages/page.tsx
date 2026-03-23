@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import InventoryIcon from '@mui/icons-material/Inventory';
@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { ServicePackage } from '@/lib/types/domains/sales';
 import { useBrand } from '@/app/providers/BrandProvider';
+import PackageCreationWizard from './components/PackageCreationWizard';
 
 // ─── Local listing submodules ─────────────────────────────────────────
 import {
@@ -17,7 +18,6 @@ import {
     PackageSetSection,
     PackagePickerDialog,
     CreatePackageSetDialog,
-    EditPackageSetDialog,
 } from './_listing';
 
 // ─── Main Component ──────────────────────────────────────────────────
@@ -31,7 +31,6 @@ export default function PackageLibraryPage() {
     // Data
     const [sets, setSets] = useState<PackageSet[]>([]);
     const [allPackages, setAllPackages] = useState<ServicePackage[]>([]);
-    const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Dialogs / drawers
@@ -41,22 +40,24 @@ export default function PackageLibraryPage() {
     const [pickerSlotId, setPickerSlotId] = useState<number | null>(null);
     // The category name of the set whose slot triggered the picker (for strict filtering)
     const [pickerSetCategory, setPickerSetCategory] = useState<string | null>(null);
+    const [pickerSlotLabel, setPickerSlotLabel] = useState<string | null>(null);
+    const [pickerSetName, setPickerSetName] = useState<string | null>(null);
 
-    // Edit set dialog
-    const [editingSet, setEditingSet] = useState<PackageSet | null>(null);
+    // Creation wizard state
+    const [isWizardOpen, setIsWizardOpen] = useState(false);
+    const [wizardEventTypeName, setWizardEventTypeName] = useState<string | null>(null);
+    const [wizardSlotId, setWizardSlotId] = useState<number | null>(null);
 
     // ── Data loading ──
 
     const loadData = useCallback(async () => {
         try {
-            const [setsData, pkgs, cats] = await Promise.all([
+            const [setsData, pkgs] = await Promise.all([
                 api.packageSets.getAll(safeBrandId),
                 api.servicePackages.getAll(safeBrandId),
-                api.servicePackageCategories.getAll(safeBrandId),
             ]);
             setSets(setsData);
             setAllPackages(pkgs);
-            setCategories(cats);
         } catch (err) {
             console.error('Failed to load data', err);
         } finally {
@@ -65,26 +66,6 @@ export default function PackageLibraryPage() {
     }, [safeBrandId]);
 
     useEffect(() => { loadData(); }, [loadData]);
-
-    // ── Auto-create a default set if user has none ──
-    const autoInitRef = useRef(false);
-    useEffect(() => {
-        if (!isLoading && sets.length === 0 && !autoInitRef.current) {
-            autoInitRef.current = true;
-            (async () => {
-                try {
-                    await api.packageSets.create(safeBrandId, {
-                        name: 'My Packages',
-                        emoji: '📦',
-                        tier_labels: ['Basic', 'Standard', 'Premium'],
-                    });
-                    await loadData();
-                } catch (err) {
-                    console.error('Failed to auto-create default set', err);
-                }
-            })();
-        }
-    }, [isLoading, sets.length, safeBrandId, loadData]);
 
     // ── All assigned package IDs across all sets ──
     const assignedIds = sets.flatMap(s => s.slots)
@@ -104,9 +85,11 @@ export default function PackageLibraryPage() {
         setPickerSlotId(null);
     };
 
-    const handleOpenPickerForSlot = (slotId: number, setCategoryName: string | null) => {
+    const handleOpenPickerForSlot = (slotId: number, setCategoryName: string | null, slotLabel: string | null, setName: string | null) => {
         setPickerSlotId(slotId);
         setPickerSetCategory(setCategoryName ?? null);
+        setPickerSlotLabel(slotLabel ?? null);
+        setPickerSetName(setName ?? null);
     };
 
     const handleClearSlot = async (slotId: number) => {
@@ -172,14 +155,7 @@ export default function PackageLibraryPage() {
         }
     };
 
-    const handleDeleteSet = async (setId: number) => {
-        try {
-            await api.packageSets.delete(safeBrandId, setId);
-            await loadData();
-        } catch (err) {
-            console.error('Failed to delete set', err);
-        }
-    };
+
 
 
 
@@ -229,20 +205,20 @@ export default function PackageLibraryPage() {
                         set={set}
                         currencyCode={currencyCode}
                         allPackages={allPackages}
-                        onEditSet={() => setEditingSet(set)}
-                        onDeleteSet={() => handleDeleteSet(set.id)}
-                        onSlotClick={(slotId) => handleOpenPickerForSlot(slotId, set.category?.name ?? null)}
+                        onSlotClick={(slotId) => {
+                            const slot = set.slots.find(s => s.id === slotId);
+                            handleOpenPickerForSlot(slotId, set.event_type?.name ?? null, slot?.slot_label ?? null, set.name);
+                        }}
                         onClearSlot={handleClearSlot}
                         onAddSlot={() => handleAddSlot(set.id)}
                         onRemoveSlot={handleRemoveSlot}
                         onSwapPackages={handleSwapPackages}
                         onOpenPackage={(pkgId) => router.push(`/designer/packages/${pkgId}`)}
-                        setCategoryName={set.category?.name ?? null}
                         onCreateNew={(slotId) => {
                             const params = new URLSearchParams();
                             if (slotId) params.set('slotId', String(slotId));
-                            if (set.category?.name) params.set('category', set.category.name);
-                            if (set.category_id) params.set('category_id', String(set.category_id));
+                            if (set.event_type?.name) params.set('category', set.event_type.name);
+                            if (set.event_type_id) params.set('category_id', String(set.event_type_id));
                             const qs = params.toString();
                             router.push(`/designer/packages/new${qs ? `?${qs}` : ''}`);
                         }}
@@ -283,7 +259,12 @@ export default function PackageLibraryPage() {
             {/* ── Package Picker Dialog ── */}
             <PackagePickerDialog
                 open={pickerSlotId !== null}
-                onClose={() => { setPickerSlotId(null); setPickerSetCategory(null); }}
+                onClose={() => {
+                    setPickerSlotId(null);
+                    setPickerSetCategory(null);
+                    setPickerSlotLabel(null);
+                    setPickerSetName(null);
+                }}
                 packages={allPackages}
                 loading={isLoading}
                 currencyCode={currencyCode}
@@ -291,6 +272,47 @@ export default function PackageLibraryPage() {
                 onSelect={handleSelectPackage}
                 slotId={pickerSlotId}
                 filterCategory={pickerSetCategory}
+                slotLabel={pickerSlotLabel}
+                setName={pickerSetName}
+                onCreateNew={() => {
+                    // Capture picker state before closing
+                    const slotId = pickerSlotId;
+                    const category = pickerSetCategory;
+                    // Close picker
+                    setPickerSlotId(null);
+                    setPickerSetCategory(null);
+                    setPickerSlotLabel(null);
+                    setPickerSetName(null);
+                    // Open creation wizard
+                    setWizardSlotId(slotId);
+                    setWizardEventTypeName(category);
+                    setIsWizardOpen(true);
+                }}
+            />
+
+            <PackageCreationWizard
+                open={isWizardOpen}
+                initialEventTypeName={wizardEventTypeName}
+                onClose={() => {
+                    setIsWizardOpen(false);
+                    setWizardEventTypeName(null);
+                    setWizardSlotId(null);
+                }}
+                onPackageCreated={async (packageId) => {
+                    // Assign to slot if one was active
+                    if (wizardSlotId) {
+                        try {
+                            await api.packageSets.assignPackage(safeBrandId, wizardSlotId, packageId);
+                        } catch (err) {
+                            console.warn('Failed to assign package to slot:', err);
+                        }
+                    }
+                    setIsWizardOpen(false);
+                    setWizardEventTypeName(null);
+                    setWizardSlotId(null);
+                    await loadData();
+                    router.push(`/designer/packages/${packageId}`);
+                }}
             />
 
             <CreatePackageSetDialog
@@ -298,16 +320,6 @@ export default function PackageLibraryPage() {
                 onClose={() => setIsCreateSetOpen(false)}
                 onCreated={loadData}
                 brandId={safeBrandId}
-                categories={categories}
-            />
-
-            <EditPackageSetDialog
-                open={editingSet !== null}
-                onClose={() => setEditingSet(null)}
-                onUpdated={async () => { await loadData(); setEditingSet(null); }}
-                brandId={safeBrandId}
-                categories={categories}
-                set={editingSet}
             />
         </Box>
     );

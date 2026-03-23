@@ -46,6 +46,8 @@ model brands {
   // Crew engagement defaults
   crew_payment_terms           String?                        @default("50% on booking confirmation, 50% within 7 days of delivery")
   crew_response_deadline_days  Int?                           @default(5)
+  // Services offered (auto-provisioning)
+  service_types                String[]                       @default([])
   // Inquiry defaults
   inquiry_validity_days        Int?                           @default(14)
   // Contract policy defaults
@@ -75,17 +77,19 @@ model brands {
   needs_assessment_submissions         needs_assessment_submissions[]
   discovery_questionnaire_templates    discovery_questionnaire_templates[]
   discovery_questionnaire_submissions  discovery_questionnaire_submissions[]
-  subject_type_templates               SubjectTypeTemplate[]
+  subject_roles                SubjectRole[]
   equipment_templates          EquipmentTemplate[]
-  event_day_templates          EventDayTemplate[]
+  event_days          EventDay[]
   schedule_presets             SchedulePreset[]
-  wedding_types                WeddingType[]
+  event_subtypes                EventSubtype[]
   event_types                  EventType[]
   workflow_templates           workflow_templates[]
   package_sets                 package_sets[]
   skill_role_mappings          skill_role_mappings[]
   payment_schedule_templates   payment_schedule_templates[]
   crew_payment_templates        crew_payment_templates[]
+  subject_templates            SubjectTemplate[]
+  scene_templates              SceneTemplate[]
   contract_clause_categories    contract_clause_categories[]
   contract_clauses              contract_clauses[]
   contract_templates            contract_templates[]
@@ -146,6 +150,7 @@ model contacts {
   event_attendees              event_attendees[]
   inquiries                    inquiries[]
   needs_assessment_submissions needs_assessment_submissions[]
+  project_day_subjects         ProjectDaySubject[]
 
   @@index([email])
   @@index([type])
@@ -417,12 +422,6 @@ model inquiries {
   wedding_date                 DateTime?
   status                       inquiries_status               @default(New)
   notes                        String?
-  venue_details                String?
-  venue_address                String?
-  venue_lat                    Float?
-  venue_lng                    Float?
-  venue_source                 String?                        // 'manual' | 'client_submission' | 'slot'
-  venue_updated_at             DateTime?
   follow_up_due_date           DateTime?
   lead_source                  String?
   lead_source_details          String?
@@ -462,7 +461,7 @@ model inquiries {
   schedule_activities          ProjectActivity[]
   schedule_films               ProjectFilm[]
   schedule_day_operators       ProjectDayOperator[]
-  schedule_subjects            ProjectEventDaySubject[]
+  schedule_subjects            ProjectDaySubject[]
   schedule_location_slots      ProjectLocationSlot[]
   schedule_activity_moments    ProjectActivityMoment[]
   schedule_film_tracks         ProjectFilmTimelineTrack[]
@@ -689,7 +688,7 @@ model projects {
   project_films              ProjectFilm[]
   project_activities         ProjectActivity[]
   project_day_operators      ProjectDayOperator[]
-  project_subjects           ProjectEventDaySubject[]
+  project_subjects           ProjectDaySubject[]
   project_location_slots     ProjectLocationSlot[]
   project_activity_moments   ProjectActivityMoment[]
   project_film_tracks        ProjectFilmTimelineTrack[]
@@ -2090,6 +2089,11 @@ model equipment_availability {
   @@map("equipment_availability")
 }
 
+enum LocationPrecision {
+  EXACT
+  APPROXIMATE
+}
+
 model LocationsLibrary {
   id                          Int                       @id @default(autoincrement())
   name                        String
@@ -2099,6 +2103,9 @@ model LocationsLibrary {
   state                       String?
   country                     String                    @default("United States")
   postal_code                 String?
+  lat                         Float?                    // Latitude (from Nominatim or manual entry)
+  lng                         Float?                    // Longitude (from Nominatim or manual entry)
+  precision                   LocationPrecision         @default(EXACT) // EXACT = confirmed address; APPROXIMATE = vague region
   contact_name                String?
   contact_phone               String?
   contact_email               String?
@@ -2523,60 +2530,47 @@ model FilmTimelineTrack {
 
 model SubjectTemplate {
   id         Int             @id @default(autoincrement())
-  name       String          @unique
+  brand_id   Int?
+  name       String
   category   SubjectCategory
   is_system  Boolean         @default(true)
   created_at DateTime        @default(now())
   updated_at DateTime        @updatedAt
 
+  brand            brands?                      @relation(fields: [brand_id], references: [id], onDelete: Cascade)
   suggested_scenes SceneTemplateSuggestedSubject[]
 
+  @@unique([brand_id, name])
+  @@index([brand_id])
   @@map("subject_templates")
 }
 
 // Brand-specific subject type templates (e.g., "Wedding" template with roles like "Bride", "Groom")
-model SubjectTypeTemplate {
-  id          Int             @id @default(autoincrement())
-  brand_id    Int
-  name        String // e.g., "Wedding"
-  description String?
-  category    SubjectCategory // PEOPLE, OBJECTS, LOCATIONS
-  is_active   Boolean         @default(true)
-  created_at  DateTime        @default(now())
-  updated_at  DateTime        @updatedAt
-
-  brand                    brands                  @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  roles                    SubjectRoleTemplate[]
-  event_type_subject_types EventTypeSubjectType[]
-
-  @@unique([brand_id, name])
-  @@index([brand_id])
-  @@index([category])
-  @@map("subject_type_templates")
-}
-
 // Individual role definitions within a subject type template (e.g., "Bride", "Groom" for "Wedding")
-model SubjectRoleTemplate {
-  id              Int      @id @default(autoincrement())
-  subject_type_id Int
-  role_name       String // e.g., "Bride", "Groom", "Best Man"
-  description     String?
-  is_core         Boolean  @default(false) // Core roles are pre-selected by default
-  is_group        Boolean  @default(false) // Group roles always show a headcount input (e.g., Guests, Bridesmaids)
-  never_group     Boolean  @default(false) // Never allow group toggle (e.g., Bride, Groom, Maid of Honor)
-  order_index     Int      @default(0)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+model SubjectRole {
+  id          Int      @id @default(autoincrement())
+  brand_id    Int
+  role_name   String // e.g., "Bride", "Groom", "Best Man"
+  description String?
+  is_core     Boolean  @default(false) // Core roles are pre-selected by default
+  is_group    Boolean  @default(false) // Group roles always show a headcount input (e.g., Guests, Bridesmaids)
+  never_group Boolean  @default(false) // Never allow group toggle (e.g., Bride, Groom, Maid of Honor)
+  order_index Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
-  subject_type               SubjectTypeTemplate      @relation(fields: [subject_type_id], references: [id], onDelete: Cascade)
-  film_subjects              FilmSubject[]
-  package_event_day_subjects PackageEventDaySubject[]
-  project_event_day_subjects ProjectEventDaySubject[]
-  project_film_subjects      ProjectFilmSubject[]
+  brand                  brands                 @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  film_subjects          FilmSubject[]
+  package_day_subjects   PackageDaySubject[]
+  project_day_subjects   ProjectDaySubject[]
+  project_film_subjects  ProjectFilmSubject[]
+  event_day_subject_roles EventDaySubjectRole[]
+  event_type_subjects    EventTypeSubject[]
+  event_subtype_subjects EventSubtypeSubject[]
 
-  @@unique([subject_type_id, role_name])
-  @@index([subject_type_id])
-  @@map("subject_role_templates")
+  @@unique([brand_id, role_name])
+  @@index([brand_id])
+  @@map("subject_roles")
 }
 
 model FilmSubject {
@@ -2590,7 +2584,7 @@ model FilmSubject {
   updated_at       DateTime        @updatedAt
 
   film            Film                     @relation(fields: [film_id], references: [id], onDelete: Cascade)
-  role_template   SubjectRoleTemplate?     @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
+  role_template   SubjectRole?     @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
   scene_subjects  FilmSceneSubject[]
   moment_subjects FilmSceneMomentSubject[]
   project_instances ProjectFilmSubject[]
@@ -2621,17 +2615,21 @@ model FilmLocation {
 
 model SceneTemplate {
   id              Int        @id @default(autoincrement())
-  name            String     @unique
+  brand_id        Int?
+  name            String
   type            SceneType?
   recording_setup Json?
   created_at      DateTime   @default(now())
   updated_at      DateTime   @updatedAt
 
+  brand              brands?                    @relation(fields: [brand_id], references: [id], onDelete: Cascade)
   moments            SceneMomentTemplate[]
   suggested_subjects SceneTemplateSuggestedSubject[]
   film_scenes        FilmScene[]
   project_film_scenes ProjectFilmScene[]
 
+  @@unique([brand_id, name])
+  @@index([brand_id])
   @@map("scene_templates")
 }
 
@@ -3207,7 +3205,7 @@ model service_packages {
 
   brand                brands                      @relation(fields: [brand_id], references: [id], onDelete: Cascade)
   package_category     service_package_categories? @relation(fields: [category_id], references: [id])
-  wedding_type         WeddingType?                @relation("CreatedFromWeddingType", fields: [wedding_type_id], references: [id], onDelete: SetNull)
+  wedding_type         EventSubtype?                @relation("CreatedFromEventSubtype", fields: [wedding_type_id], references: [id], onDelete: SetNull)
   inquiries            inquiries[]
   inquiry_source_refs   inquiries[]             @relation("InquirySourcePackage")
   projects_from_package projects[]              @relation("ProjectSourcePackage")
@@ -3217,7 +3215,7 @@ model service_packages {
   package_event_days          PackageEventDay[]
   package_day_operators       PackageDayOperator[]
   package_activities          PackageActivity[]
-  package_event_day_subjects  PackageEventDaySubject[]
+  package_day_subjects        PackageDaySubject[]
   package_event_day_locations PackageEventDayLocation[]
   package_location_slots      PackageLocationSlot[]
   package_versions            PackageVersion[]
@@ -3234,21 +3232,24 @@ model service_packages {
 }
 
 model service_package_categories {
-  id          Int      @id @default(autoincrement())
-  brand_id    Int
-  name        String
-  description String?
-  order_index Int      @default(0)
-  is_active   Boolean  @default(true)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  brand_id      Int
+  name          String
+  description   String?
+  order_index   Int      @default(0)
+  is_active     Boolean  @default(true)
+  event_type_id Int?     // FK → event_types; populated automatically when EventType is created
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
 
-  brand    brands             @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  packages service_packages[]
+  brand      brands             @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  event_type EventType?         @relation(fields: [event_type_id], references: [id], onDelete: SetNull)
+  packages   service_packages[]
   package_sets package_sets[]
 
   @@unique([brand_id, name])
   @@index([brand_id])
+  @@index([event_type_id])
   @@map("service_package_categories")
 }
 
@@ -3294,10 +3295,13 @@ model EventType {
   created_at             DateTime @default(now())
   updated_at             DateTime @updatedAt
 
-  brand         brands                  @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  event_days    EventTypeEventDay[]
-  subject_types EventTypeSubjectType[]
-  inquiries     inquiries[]
+  brand              brands                      @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  event_days         EventTypeDay[]
+  subject_roles      EventTypeSubject[]
+  event_subtypes     EventSubtype[]
+  inquiries          inquiries[]
+  package_categories service_package_categories[]
+  package_sets       package_sets[]
 
   @@unique([brand_id, name])
   @@index([brand_id])
@@ -3306,77 +3310,87 @@ model EventType {
   @@map("event_types")
 }
 
-// Junction: EventType ↔ EventDayTemplate (many-to-many)
-model EventTypeEventDay {
+// Junction: EventType ↔ EventDay (many-to-many)
+// Optional event_subtype_id narrows this day to a specific subtype (e.g., Indian Wedding)
+model EventTypeDay {
   id                    Int      @id @default(autoincrement())
   event_type_id         Int
   event_day_template_id Int
+  event_subtype_id      Int? // Nullable: when set, this day only applies to the given subtype
   order_index           Int      @default(0)
   is_default            Boolean  @default(true) // Pre-selected in wizard
   created_at            DateTime @default(now())
   updated_at            DateTime @updatedAt
 
   event_type         EventType        @relation(fields: [event_type_id], references: [id], onDelete: Cascade)
-  event_day_template EventDayTemplate @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
+  event_day_template EventDay @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
+  event_subtype      EventSubtype?    @relation(fields: [event_subtype_id], references: [id], onDelete: SetNull)
 
   @@unique([event_type_id, event_day_template_id])
   @@index([event_type_id])
   @@index([event_day_template_id])
-  @@map("event_type_event_days")
+  @@index([event_subtype_id])
+  @@map("event_type_days")
 }
 
-// Junction: EventType ↔ SubjectTypeTemplate (many-to-many)
-model EventTypeSubjectType {
-  id                       Int      @id @default(autoincrement())
-  event_type_id            Int
-  subject_type_template_id Int
-  order_index              Int      @default(0)
-  is_default               Boolean  @default(true) // Pre-selected in wizard
-  created_at               DateTime @default(now())
-  updated_at               DateTime @updatedAt
+// Junction: EventType ↔ SubjectRole (many-to-many)
+model EventTypeSubject {
+  id              Int      @id @default(autoincrement())
+  event_type_id   Int
+  subject_role_id Int
+  order_index     Int      @default(0)
+  is_default      Boolean  @default(true) // Pre-selected in wizard
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
 
-  event_type            EventType           @relation(fields: [event_type_id], references: [id], onDelete: Cascade)
-  subject_type_template SubjectTypeTemplate @relation(fields: [subject_type_template_id], references: [id], onDelete: Cascade)
+  event_type   EventType   @relation(fields: [event_type_id], references: [id], onDelete: Cascade)
+  subject_role SubjectRole @relation(fields: [subject_role_id], references: [id], onDelete: Cascade)
 
-  @@unique([event_type_id, subject_type_template_id])
+  @@unique([event_type_id, subject_role_id])
   @@index([event_type_id])
-  @@index([subject_type_template_id])
-  @@map("event_type_subject_types")
+  @@index([subject_role_id])
+  @@map("event_type_subjects")
 }
 
-// Brand-level event day templates (e.g., "Rehearsal Dinner", "Wedding Day", "Reception")
-model EventDayTemplate {
-  id          Int      @id @default(autoincrement())
-  brand_id    Int
-  name        String
-  description String?
-  order_index Int      @default(0)
-  is_active   Boolean  @default(true)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+// Brand-level event days (e.g., "Rehearsal Dinner", "Wedding Day", "Reception")
+// EventDay is the single source of truth for activities, moments, subjects, and locations
+model EventDay {
+  id                     Int      @id @default(autoincrement())
+  brand_id               Int
+  name                   String
+  description            String?
+  default_start_time     String? // "HH:MM" e.g., "14:00"
+  default_duration_hours Int?    // Typical duration for this day type
+  icon                   String? // Icon identifier for UI
+  color                  String? // Hex color for UI
+  order_index            Int      @default(0)
+  is_active              Boolean  @default(true)
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
 
   brand                       brands                     @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  activity_presets             EventDayActivityPreset[]
-  event_type_event_days       EventTypeEventDay[]
+  activity_presets             EventDayActivity[]
+  subject_roles               EventDaySubjectRole[]
+  event_type_days             EventTypeDay[]
   film_scene_schedules        FilmSceneSchedule[]
   package_scene_schedules     PackageFilmSceneSchedule[]
   project_event_days          ProjectEventDay[]
   package_event_days          PackageEventDay[]
   package_day_operators       PackageDayOperator[]
-  package_event_day_subjects  PackageEventDaySubject[]
+  package_day_subjects        PackageDaySubject[]
   package_event_day_locations PackageEventDayLocation[]
   package_location_slots      PackageLocationSlot[]
 
   @@unique([brand_id, name])
   @@index([brand_id])
-  @@map("event_day_templates")
+  @@map("event_days")
 }
 
 // Activity presets for each event day template type
 // e.g., "Wedding Day" → Bridal Prep, Ceremony, Reception
 // "Rehearsal Dinner" → Welcome Drinks, Rehearsal, Dinner
 // These populate the Add Activity dialog dropdown per event day type
-model EventDayActivityPreset {
+model EventDayActivity {
   id                       Int      @id @default(autoincrement())
   event_day_template_id    Int
   name                     String // "Bridal Prep", "Ceremony", etc.
@@ -3390,18 +3404,18 @@ model EventDayActivityPreset {
   created_at               DateTime @default(now())
   updated_at               DateTime @updatedAt
 
-  event_day_template EventDayTemplate               @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
-  moments            EventDayActivityPresetMoment[]
+  event_day_template EventDay               @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
+  moments            EventDayActivityMoment[]
 
   @@unique([event_day_template_id, name])
   @@index([event_day_template_id])
-  @@map("event_day_activity_presets")
+  @@map("event_day_activities")
 }
 
 // Default moments within an activity preset
 // e.g., "Ceremony" → Processional, Vows, Ring Exchange, First Kiss, Recessional
 // These auto-populate when an activity is added from a preset
-model EventDayActivityPresetMoment {
+model EventDayActivityMoment {
   id                          Int      @id @default(autoincrement())
   event_day_activity_preset_id Int
   name                        String // "Processional", "Vows", etc.
@@ -3412,20 +3426,41 @@ model EventDayActivityPresetMoment {
   created_at                  DateTime @default(now())
   updated_at                  DateTime @updatedAt
 
-  activity_preset EventDayActivityPreset @relation(fields: [event_day_activity_preset_id], references: [id], onDelete: Cascade)
+  activity_preset EventDayActivity @relation(fields: [event_day_activity_preset_id], references: [id], onDelete: Cascade)
 
   @@unique([event_day_activity_preset_id, order_index])
   @@index([event_day_activity_preset_id])
-  @@map("event_day_activity_preset_moments")
+  @@map("event_day_activity_moments")
 }
 
-// ─── Wedding Type Templates ──────────────────────────────────────────
-// System-seeded templates for pre-filled package creation workflows
-// (e.g., "Traditional British Wedding", "Indian Wedding", etc.)
-// Each wedding type has a standard set of activities suitable for that culture/style
-model WeddingType {
+// ─── Event Day Subject Roles ─────────────────────────────────────────
+// Which subject roles are relevant for this event day
+// e.g., "Wedding Day" → Bride, Groom, Bridesmaids, Groomsmen
+model EventDaySubjectRole {
+  id              Int      @id @default(autoincrement())
+  event_day_id    Int
+  subject_role_id Int
+  is_primary      Boolean  @default(false) // Primary focus for this day
+  order_index     Int      @default(0)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  event_day    EventDay    @relation(fields: [event_day_id], references: [id], onDelete: Cascade)
+  subject_role SubjectRole @relation(fields: [subject_role_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_day_id, subject_role_id])
+  @@index([event_day_id])
+  @@index([subject_role_id])
+  @@map("event_day_subject_roles")
+}
+
+// ─── Event Subtypes ──────────────────────────────────────────────────
+// Cultural/style variations within an event type (e.g., "Indian Wedding", "Traditional British Wedding")
+// Each subtype has a standard set of activities suitable for that culture/style
+model EventSubtype {
   id                   Int      @id @default(autoincrement())
   brand_id             Int? // Brand-specific override, NULL = system default
+  event_type_id        Int? // Which event type this subtype belongs to (e.g., Wedding → Indian Wedding)
   name                 String // "Traditional British Wedding", "Indian Wedding", etc.
   description          String?
   total_duration_hours Int // e.g., 10 for British, 14 for Indian
@@ -3438,21 +3473,24 @@ model WeddingType {
   updated_at           DateTime @updatedAt
 
   brand                    brands?               @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  activities               WeddingTypeActivity[]
-  locations                WeddingTypeLocation[]
-  subjects                 WeddingTypeSubject[]
-  service_packages_created service_packages[]    @relation("CreatedFromWeddingType")
+  event_type               EventType?            @relation(fields: [event_type_id], references: [id], onDelete: SetNull)
+  activities               EventSubtypeActivity[]
+  locations                EventSubtypeLocation[]
+  subjects                 EventSubtypeSubject[]
+  event_type_days          EventTypeDay[]
+  service_packages_created service_packages[]    @relation("CreatedFromEventSubtype")
 
   @@unique([brand_id, name])
   @@index([brand_id])
+  @@index([event_type_id])
   @@index([is_system_seeded])
   @@index([is_active])
-  @@map("wedding_types")
+  @@map("event_subtypes")
 }
 
 // Activities within a wedding type template
 // These auto-populate into the package when created "from" this wedding type
-model WeddingTypeActivity {
+model EventSubtypeActivity {
   id                        Int      @id @default(autoincrement())
   wedding_type_id           Int
   name                      String // "Getting Ready", "Ceremony", "Reception", etc.
@@ -3465,19 +3503,19 @@ model WeddingTypeActivity {
   created_at                DateTime @default(now())
   updated_at                DateTime @updatedAt
 
-  wedding_type       WeddingType                   @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
-  moments            WeddingTypeActivityMoment[]
-  activity_locations WeddingTypeActivityLocation[]
-  activity_subjects  WeddingTypeActivitySubject[]
+  wedding_type       EventSubtype                   @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
+  moments            EventSubtypeActivityMoment[]
+  activity_locations EventSubtypeActivityLocation[]
+  activity_subjects  EventSubtypeActivitySubject[]
 
   @@unique([wedding_type_id, order_index])
   @@index([wedding_type_id])
-  @@map("wedding_type_activities")
+  @@map("event_subtype_activities")
 }
 
 // Moments within a wedding type activity
 // These auto-populate into the PackageActivityMoment when package is created
-model WeddingTypeActivityMoment {
+model EventSubtypeActivityMoment {
   id                       Int      @id @default(autoincrement())
   wedding_type_activity_id Int
   name                     String // "Processional", "Vows", "First Dance", "Cutting Cake", etc.
@@ -3488,16 +3526,16 @@ model WeddingTypeActivityMoment {
   created_at               DateTime @default(now())
   updated_at               DateTime @updatedAt
 
-  wedding_type_activity WeddingTypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
+  wedding_type_activity EventSubtypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
 
   @@unique([wedding_type_activity_id, order_index])
   @@index([wedding_type_activity_id])
-  @@map("wedding_type_activity_moments")
+  @@map("event_subtype_activity_moments")
 }
 
 // Locations for a wedding type template
 // e.g., "Bride's Home", "Venue", "Reception Hall", "Garden"
-model WeddingTypeLocation {
+model EventSubtypeLocation {
   id              Int      @id @default(autoincrement())
   wedding_type_id Int
   name            String // "Bride's Getting Ready", "Ceremony Venue", "Reception Hall", etc.
@@ -3507,56 +3545,57 @@ model WeddingTypeLocation {
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
-  wedding_type       WeddingType                   @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
-  activity_locations WeddingTypeActivityLocation[]
+  wedding_type       EventSubtype                   @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
+  activity_locations EventSubtypeActivityLocation[]
 
   @@unique([wedding_type_id, order_index])
   @@index([wedding_type_id])
-  @@map("wedding_type_locations")
+  @@map("event_subtype_locations")
 }
 
 // Subjects for a wedding type template
 // e.g., "Bride", "Groom", "Bridesmaids", "Family", "Guests"
-model WeddingTypeSubject {
+model EventSubtypeSubject {
   id              Int      @id @default(autoincrement())
   wedding_type_id Int
   name            String // "Bride", "Groom", "Bridesmaids", "Groomsmen", "Parents", "Family", "Guests"
   subject_type    String? // "couple", "wedding_party", "family", "guests", "children", "pets"
+  subject_role_id Int? // FK → SubjectRole for canonical role matching
   typical_count   Int? // For "Bridesmaids": 3, "Guests": 80, etc.
   order_index     Int      @default(0)
   is_primary      Boolean  @default(false) // Core/primary subject type
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
-  wedding_type      WeddingType                  @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
-  activity_subjects WeddingTypeActivitySubject[]
+  wedding_type      EventSubtype                  @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
+  subject_role      SubjectRole?                  @relation(fields: [subject_role_id], references: [id], onDelete: SetNull)
+  activity_subjects EventSubtypeActivitySubject[]
 
   @@unique([wedding_type_id, order_index])
   @@index([wedding_type_id])
-  @@map("wedding_type_subjects")
+  @@index([subject_role_id])
+  @@map("event_subtype_subjects")
 }
 
 // Junction table: Activity -> Locations (many-to-many)
-model WeddingTypeActivityLocation {
+model EventSubtypeActivityLocation {
   id                           Int      @id @default(autoincrement())
   wedding_type_activity_id     Int
   wedding_type_location_id     Int
-  location_sequence_index      Int      @default(0)
-  duration_minutes_at_location Int? // Time spent at this location during activity
   created_at                   DateTime @default(now())
   updated_at                   DateTime @updatedAt
 
-  wedding_type_activity WeddingTypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
-  wedding_type_location WeddingTypeLocation @relation(fields: [wedding_type_location_id], references: [id], onDelete: Cascade)
+  wedding_type_activity EventSubtypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
+  wedding_type_location EventSubtypeLocation @relation(fields: [wedding_type_location_id], references: [id], onDelete: Cascade)
 
   @@unique([wedding_type_activity_id, wedding_type_location_id])
   @@index([wedding_type_activity_id])
   @@index([wedding_type_location_id])
-  @@map("wedding_type_activity_locations")
+  @@map("event_subtype_activity_locations")
 }
 
 // Junction table: Activity -> Subjects (many-to-many)
-model WeddingTypeActivitySubject {
+model EventSubtypeActivitySubject {
   id                       Int      @id @default(autoincrement())
   wedding_type_activity_id Int
   wedding_type_subject_id  Int
@@ -3565,13 +3604,13 @@ model WeddingTypeActivitySubject {
   created_at               DateTime @default(now())
   updated_at               DateTime @updatedAt
 
-  wedding_type_activity WeddingTypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
-  wedding_type_subject  WeddingTypeSubject  @relation(fields: [wedding_type_subject_id], references: [id], onDelete: Cascade)
+  wedding_type_activity EventSubtypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
+  wedding_type_subject  EventSubtypeSubject  @relation(fields: [wedding_type_subject_id], references: [id], onDelete: Cascade)
 
   @@unique([wedding_type_activity_id, wedding_type_subject_id])
   @@index([wedding_type_activity_id])
   @@index([wedding_type_subject_id])
-  @@map("wedding_type_activity_subjects")
+  @@map("event_subtype_activity_subjects")
 }
 
 // Film-level scene schedule defaults (1:1 with FilmScene)
@@ -3592,7 +3631,7 @@ model FilmSceneSchedule {
 
   film      Film              @relation(fields: [film_id], references: [id], onDelete: Cascade)
   scene     FilmScene         @relation(fields: [scene_id], references: [id], onDelete: Cascade)
-  event_day EventDayTemplate? @relation(fields: [event_day_template_id], references: [id], onDelete: SetNull)
+  event_day EventDay? @relation(fields: [event_day_template_id], references: [id], onDelete: SetNull)
 
   @@index([film_id])
   @@index([event_day_template_id])
@@ -3608,7 +3647,7 @@ model PackageEventDay {
   created_at            DateTime @default(now())
 
   package    service_packages  @relation(fields: [package_id], references: [id], onDelete: Cascade)
-  event_day  EventDayTemplate  @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
+  event_day  EventDay  @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
   activities PackageActivity[]
 
   @@unique([package_id, event_day_template_id])
@@ -3641,11 +3680,10 @@ model PackageActivity {
   package_event_day    PackageEventDay              @relation(fields: [package_event_day_id], references: [id], onDelete: Cascade)
   scene_schedules      PackageFilmSceneSchedule[]
   operators            PackageDayOperator[]
-  subjects             PackageEventDaySubject[]
   locations            PackageEventDayLocation[]
   project_activities   ProjectActivity[]
   operator_assignments OperatorActivityAssignment[]
-  subject_assignments  SubjectActivityAssignment[]
+  subject_assignments  PackageDaySubjectActivity[]
   location_assignments LocationActivityAssignment[]
   moments              PackageActivityMoment[]
   beat_sources         SceneBeat[]
@@ -3694,7 +3732,7 @@ model PackageDayOperator {
   updated_at            DateTime @updatedAt
 
   package              service_packages              @relation(fields: [package_id], references: [id], onDelete: Cascade)
-  event_day            EventDayTemplate              @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
+  event_day            EventDay              @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
   contributor          contributors?                 @relation(fields: [contributor_id], references: [id], onDelete: SetNull)
   package_activity     PackageActivity?              @relation(fields: [package_activity_id], references: [id], onDelete: SetNull)
   job_role             job_roles?                    @relation(fields: [job_role_id], references: [id], onDelete: SetNull)
@@ -3727,15 +3765,14 @@ model PackageDayOperatorEquipment {
   @@map("package_day_operator_equipment")
 }
 
-// ─── Package Event Day Subjects ──────────────────────────────────────
+// ─── Package Day Subjects ──────────────────────────────────────────
 // Subjects (people/objects) assigned to a package's event day.
-// Follows same pattern as PackageDayOperator: event_day + optional activity.
-model PackageEventDaySubject {
+// Uses junction table PackageDaySubjectActivity for multi-activity assignment.
+model PackageDaySubject {
   id                    Int             @id @default(autoincrement())
   package_id            Int
   event_day_template_id Int
-  package_activity_id   Int? // Optional: assign to a specific activity
-  role_template_id      Int? // Link to SubjectRoleTemplate (e.g., "Bride")
+  role_template_id      Int? // Link to SubjectRole (e.g., "Bride")
   name                  String // Display name ("Bride", "Groom", etc.)
   count                 Int?    // Optional headcount for groups (e.g. 6 Bridesmaids)
   category              SubjectCategory @default(PEOPLE)
@@ -3744,23 +3781,21 @@ model PackageEventDaySubject {
   created_at            DateTime        @default(now())
   updated_at            DateTime        @updatedAt
 
-  package              service_packages            @relation(fields: [package_id], references: [id], onDelete: Cascade)
-  event_day            EventDayTemplate            @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
-  package_activity     PackageActivity?            @relation(fields: [package_activity_id], references: [id], onDelete: SetNull)
-  role_template        SubjectRoleTemplate?        @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
-  activity_assignments SubjectActivityAssignment[]
+  package              service_packages           @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  event_day            EventDay                   @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
+  role_template        SubjectRole?               @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
+  activity_assignments PackageDaySubjectActivity[]
 
   @@unique([package_id, event_day_template_id, name])
   @@index([package_id])
   @@index([event_day_template_id])
-  @@index([package_activity_id])
   @@index([role_template_id])
-  @@map("package_event_day_subjects")
+  @@map("package_day_subjects")
 }
 
 // ─── Package Event Day Locations ───────────────────────────────────
 // Locations assigned to a package's event day or activity.
-// Mirrors PackageEventDaySubject pattern.
+// Mirrors PackageDaySubject pattern.
 model PackageEventDayLocation {
   id                    Int      @id @default(autoincrement())
   package_id            Int
@@ -3773,7 +3808,7 @@ model PackageEventDayLocation {
   updated_at            DateTime @updatedAt
 
   package          service_packages @relation(fields: [package_id], references: [id], onDelete: Cascade)
-  event_day        EventDayTemplate @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
+  event_day        EventDay @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
   package_activity PackageActivity? @relation(fields: [package_activity_id], references: [id], onDelete: SetNull)
   location         LocationsLibrary @relation(fields: [location_id], references: [id], onDelete: Cascade)
 
@@ -3825,7 +3860,7 @@ model PackageFilmSceneSchedule {
 
   package_film     PackageFilm       @relation(fields: [package_film_id], references: [id], onDelete: Cascade)
   scene            FilmScene         @relation(fields: [scene_id], references: [id], onDelete: Cascade)
-  event_day        EventDayTemplate? @relation(fields: [event_day_template_id], references: [id], onDelete: SetNull)
+  event_day        EventDay? @relation(fields: [event_day_template_id], references: [id], onDelete: SetNull)
   package_activity PackageActivity?  @relation(fields: [package_activity_id], references: [id], onDelete: SetNull)
 
   @@unique([package_film_id, scene_id])
@@ -3853,11 +3888,11 @@ model ProjectEventDay {
 
   project            projects?                  @relation(fields: [project_id], references: [id], onDelete: Cascade)
   inquiry            inquiries?                 @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
-  event_day_template EventDayTemplate?          @relation(fields: [event_day_template_id], references: [id], onDelete: SetNull)
+  event_day_template EventDay?          @relation(fields: [event_day_template_id], references: [id], onDelete: SetNull)
   scene_schedules    ProjectFilmSceneSchedule[]
   activities         ProjectActivity[]
   day_operators      ProjectDayOperator[]
-  subjects           ProjectEventDaySubject[]
+  subjects           ProjectDaySubject[]
   location_slots     ProjectLocationSlot[]
 
   @@index([project_id])
@@ -3894,10 +3929,8 @@ model ProjectActivity {
   scene_schedules   ProjectFilmSceneSchedule[]
   moments           ProjectActivityMoment[]
   operators         ProjectDayOperator[]
-  subjects          ProjectEventDaySubject[]
-  location_slots    ProjectLocationSlot[]
   operator_assignments  ProjectOperatorActivityAssignment[]
-  subject_assignments   ProjectSubjectActivityAssignment[]
+  subject_assignments   ProjectDaySubjectActivity[]
   location_assignments  ProjectLocationActivityAssignment[]
 
   @@index([project_id])
@@ -4024,7 +4057,7 @@ model ProjectFilmSubject {
   inquiry         inquiries?                 @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   project_film    ProjectFilm                @relation(fields: [project_film_id], references: [id], onDelete: Cascade)
   source_subject  FilmSubject?               @relation(fields: [source_subject_id], references: [id], onDelete: SetNull)
-  role_template   SubjectRoleTemplate?       @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
+  role_template   SubjectRole?       @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
   scene_subjects  ProjectFilmSceneSubject[]
   moment_subjects ProjectFilmSceneMomentSubject[]
 
@@ -4346,40 +4379,40 @@ model ProjectActivityMoment {
   @@map("project_activity_moments")
 }
 
-// Project event day subjects (cloned from PackageEventDaySubject)
+// Project day subjects (cloned from PackageDaySubject)
 // Adds real_name for actual person name at project level
 // Dual-owner: owned by either a project OR an inquiry (exactly one must be set)
-model ProjectEventDaySubject {
-  id                          Int             @id @default(autoincrement())
-  project_id                  Int? // Nullable: set when owned by project
-  inquiry_id                  Int? // Nullable: set when owned by inquiry (before booking)
-  project_event_day_id        Int
-  project_activity_id         Int? // Optional: assigned to a specific activity
-  source_package_subject_id   Int? // Traceability to original PackageEventDaySubject
-  role_template_id            Int? // Link to SubjectRoleTemplate (e.g., "Bride")
-  name                        String // Role display name ("Bride", "Groom", etc.)
-  real_name                   String? // Actual person name ("Sarah Johnson")
-  count                       Int?    // Optional headcount for groups
-  member_names                Json?   // Named slots for group members, e.g. ["Sarah", "Emily", "", ""] — length matches count
-  category                    SubjectCategory @default(PEOPLE)
-  notes                       String?
-  order_index                 Int             @default(0)
-  created_at                  DateTime        @default(now())
-  updated_at                  DateTime        @updatedAt
+model ProjectDaySubject {
+  id                        Int             @id @default(autoincrement())
+  project_id                Int? // Nullable: set when owned by project
+  inquiry_id                Int? // Nullable: set when owned by inquiry (before booking)
+  project_event_day_id      Int
+  source_package_subject_id Int? // Traceability to original PackageDaySubject
+  role_template_id          Int? // Link to SubjectRole (e.g., "Bride")
+  contact_id                Int? // FK → contacts when real_name resolves to a known contact
+  name                      String // Role display name ("Bride", "Groom", etc.)
+  real_name                 String? // Actual person name ("Sarah Johnson")
+  count                     Int?    // Optional headcount for groups
+  member_names              Json?   // Named slots for group members, e.g. ["Sarah", "Emily", "", ""] — length matches count
+  category                  SubjectCategory @default(PEOPLE)
+  notes                     String?
+  order_index               Int             @default(0)
+  created_at                DateTime        @default(now())
+  updated_at                DateTime        @updatedAt
 
-  project           projects?             @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  inquiry           inquiries?            @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
-  project_event_day ProjectEventDay       @relation(fields: [project_event_day_id], references: [id], onDelete: Cascade)
-  project_activity  ProjectActivity?      @relation(fields: [project_activity_id], references: [id], onDelete: SetNull)
-  role_template     SubjectRoleTemplate?  @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
-  activity_assignments ProjectSubjectActivityAssignment[]
+  project           projects?              @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry           inquiries?             @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_event_day ProjectEventDay        @relation(fields: [project_event_day_id], references: [id], onDelete: Cascade)
+  role_template     SubjectRole?           @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
+  contact           contacts?              @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  activity_assignments ProjectDaySubjectActivity[]
 
   @@index([project_id])
   @@index([inquiry_id])
   @@index([project_event_day_id])
-  @@index([project_activity_id])
   @@index([role_template_id])
-  @@map("project_event_day_subjects")
+  @@index([contact_id])
+  @@map("project_day_subjects")
 }
 
 // Project location slots (cloned from PackageLocationSlot)
@@ -4390,13 +4423,13 @@ model ProjectLocationSlot {
   project_id                        Int? // Nullable: set when owned by project
   inquiry_id                        Int? // Nullable: set when owned by inquiry (before booking)
   project_event_day_id              Int
-  project_activity_id               Int? // Optional: assigned to a specific activity
   source_package_location_slot_id   Int? // Traceability to original PackageLocationSlot
   location_number                   Int // Slot number (1-5)
-  name                              String? // Real location name ("St. Mary's Church")
-  address                           String? // Full address for project logistics
-  location_id                       Int? // Optional FK → LocationsLibrary for linked venue
-  notes                             String?
+  // Deprecated: name/address kept for migration; use location_id → LocationsLibrary instead
+  name                              String? // @deprecated — migrate to location_id
+  address                           String? // @deprecated — migrate to location_id
+  location_id                       Int? // FK → LocationsLibrary (single source of truth for venue details)
+  notes                             String? // Inquiry/project-specific notes for this venue use
   order_index                       Int      @default(0)
   created_at                        DateTime @default(now())
   updated_at                        DateTime @updatedAt
@@ -4404,14 +4437,12 @@ model ProjectLocationSlot {
   project           projects?         @relation(fields: [project_id], references: [id], onDelete: Cascade)
   inquiry           inquiries?        @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   project_event_day ProjectEventDay   @relation(fields: [project_event_day_id], references: [id], onDelete: Cascade)
-  project_activity  ProjectActivity?  @relation(fields: [project_activity_id], references: [id], onDelete: SetNull)
   location          LocationsLibrary? @relation(fields: [location_id], references: [id], onDelete: SetNull)
   activity_assignments ProjectLocationActivityAssignment[]
 
   @@index([project_id])
   @@index([inquiry_id])
   @@index([project_event_day_id])
-  @@index([project_activity_id])
   @@index([location_id])
   @@map("project_location_slots")
 }
@@ -4487,19 +4518,19 @@ model ProjectOperatorActivityAssignment {
   @@map("project_operator_activity_assignments")
 }
 
-model ProjectSubjectActivityAssignment {
-  id                             Int      @id @default(autoincrement())
-  project_event_day_subject_id   Int
-  project_activity_id            Int
-  created_at                     DateTime @default(now())
+model ProjectDaySubjectActivity {
+  id                     Int      @id @default(autoincrement())
+  project_day_subject_id Int
+  project_activity_id    Int
+  created_at             DateTime @default(now())
 
-  project_event_day_subject ProjectEventDaySubject @relation(fields: [project_event_day_subject_id], references: [id], onDelete: Cascade)
-  project_activity          ProjectActivity        @relation(fields: [project_activity_id], references: [id], onDelete: Cascade)
+  project_day_subject ProjectDaySubject @relation(fields: [project_day_subject_id], references: [id], onDelete: Cascade)
+  project_activity    ProjectActivity   @relation(fields: [project_activity_id], references: [id], onDelete: Cascade)
 
-  @@unique([project_event_day_subject_id, project_activity_id])
-  @@index([project_event_day_subject_id])
+  @@unique([project_day_subject_id, project_activity_id])
+  @@index([project_day_subject_id])
   @@index([project_activity_id])
-  @@map("project_subject_activity_assignments")
+  @@map("project_day_subject_activities")
 }
 
 model ProjectLocationActivityAssignment {
@@ -4535,19 +4566,19 @@ model OperatorActivityAssignment {
   @@map("operator_activity_assignments")
 }
 
-model SubjectActivityAssignment {
-  id                           Int      @id @default(autoincrement())
-  package_event_day_subject_id Int
-  package_activity_id          Int
-  created_at                   DateTime @default(now())
+model PackageDaySubjectActivity {
+  id                     Int      @id @default(autoincrement())
+  package_day_subject_id Int
+  package_activity_id    Int
+  created_at             DateTime @default(now())
 
-  package_event_day_subject PackageEventDaySubject @relation(fields: [package_event_day_subject_id], references: [id], onDelete: Cascade)
-  package_activity          PackageActivity        @relation(fields: [package_activity_id], references: [id], onDelete: Cascade)
+  package_day_subject PackageDaySubject @relation(fields: [package_day_subject_id], references: [id], onDelete: Cascade)
+  package_activity    PackageActivity   @relation(fields: [package_activity_id], references: [id], onDelete: Cascade)
 
-  @@unique([package_event_day_subject_id, package_activity_id])
-  @@index([package_event_day_subject_id])
+  @@unique([package_day_subject_id, package_activity_id])
+  @@index([package_day_subject_id])
   @@index([package_activity_id])
-  @@map("subject_activity_assignments")
+  @@map("package_day_subject_activities")
 }
 
 // ─── Package Location Slots ─────────────────────────────────────────
@@ -4562,8 +4593,8 @@ model PackageLocationSlot {
   created_at            DateTime @default(now())
   updated_at            DateTime @updatedAt
 
-  package              service_packages             @relation(fields: [package_id], references: [id], onDelete: Cascade)
-  event_day            EventDayTemplate             @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
+  package              service_packages           @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  event_day            EventDay                   @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
   activity_assignments LocationActivityAssignment[]
 
   @@unique([package_id, event_day_template_id, location_number])
@@ -4635,24 +4666,27 @@ model PackageTaskOverride {
 // ============================================================
 
 model package_sets {
-  id          Int      @id @default(autoincrement())
-  brand_id    Int
-  name        String
-  description String?
-  emoji       String?  @default("📦")
-  category_id Int?
-  order_index Int      @default(0)
-  is_active   Boolean  @default(true)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  brand_id      Int
+  name          String
+  description   String?
+  emoji         String?  @default("📦")
+  category_id   Int?
+  event_type_id Int?
+  order_index   Int      @default(0)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
 
-  brand    brands                      @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  category service_package_categories? @relation(fields: [category_id], references: [id], onDelete: SetNull)
-  slots    package_set_slots[]
+  brand      brands                      @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  category   service_package_categories? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  event_type EventType?                  @relation(fields: [event_type_id], references: [id], onDelete: SetNull)
+  slots      package_set_slots[]
 
   @@unique([brand_id, name])
   @@index([brand_id])
   @@index([category_id])
+  @@index([event_type_id])
   @@map("package_sets")
 }
 

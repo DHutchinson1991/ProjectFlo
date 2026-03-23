@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
-export interface EventDayTemplate {
+export interface EventDay {
   id: number;
   name: string;
   description?: string | null;
@@ -36,7 +36,7 @@ export interface SceneScheduleData {
   beat_schedules?: BeatScheduleItem[] | null;
   notes?: string | null;
   order_index?: number;
-  event_day?: EventDayTemplate | null;
+  event_day?: EventDay | null;
 }
 
 // ─── Hook ───────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ export function useFilmSchedule(
   brandId: number | null | undefined,
   packageId?: number | null | undefined,
 ) {
-  const [eventDays, setEventDays] = useState<EventDayTemplate[]>([]);
+  const [eventDays, setEventDays] = useState<EventDay[]>([]);
   const [scheduleMap, setScheduleMap] = useState<Map<number, SceneScheduleData>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

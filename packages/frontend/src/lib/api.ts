@@ -731,31 +731,23 @@ class ApiService extends BaseApiClient {
     removeFromMoment: (momentId: number, subjectId: number): Promise<void> =>
       this.delete(`/subjects/moments/${momentId}/subjects/${subjectId}`),
 
-    // ===== Subject Type Template Management =====
+    // ===== Subject Role Management =====
 
-    // Get all type templates for a brand
-    getTypeTemplates: (brandId: number): Promise<any[]> =>
-      this.get(`/subjects/type-templates/brand/${brandId}`),
+    // Get all subject roles for a brand
+    getRoles: (brandId: number): Promise<any[]> =>
+      this.get(`/subjects/roles/brand/${brandId}`),
 
-    // Create a new type template for a brand
-    createTypeTemplate: (brandId: number, data: { name: string; description?: string; category: string }): Promise<any> =>
-      this.post(`/subjects/type-templates/brand/${brandId}`, data),
+    // Create subject role(s) for a brand (single or batch via roles[])
+    createRole: (brandId: number, data: { role_name: string; description?: string; is_core?: boolean; is_group?: boolean; roles?: any[] }): Promise<any> =>
+      this.post(`/subjects/roles/brand/${brandId}`, data),
 
-    // Update a type template
-    updateTypeTemplate: (templateId: number, data: { name?: string; description?: string; category?: string; is_active?: boolean }): Promise<any> =>
-      this.patch(`/subjects/type-templates/${templateId}`, data),
+    // Update a subject role
+    updateRole: (roleId: number, data: { role_name?: string; description?: string; is_core?: boolean }): Promise<any> =>
+      this.patch(`/subjects/roles/${roleId}`, data),
 
-    // Delete a type template
-    deleteTypeTemplate: (templateId: number): Promise<void> =>
-      this.delete(`/subjects/type-templates/${templateId}`),
-
-    // Add a role to a type template
-    addRoleToTemplate: (templateId: number, data: { role_name: string; description?: string; is_core?: boolean; is_group?: boolean }): Promise<any> =>
-      this.post(`/subjects/type-templates/${templateId}/roles`, data),
-
-    // Remove a role from a type template
-    removeRoleFromTemplate: (roleId: number): Promise<void> =>
-      this.delete(`/subjects/type-templates/roles/${roleId}`),
+    // Delete a subject role
+    deleteRole: (roleId: number): Promise<void> =>
+      this.delete(`/subjects/roles/${roleId}`),
   };
 
   // Film location assignments
@@ -1711,9 +1703,9 @@ class ApiService extends BaseApiClient {
   packageSets = {
     getAll: (brandId: number): Promise<any[]> => this.get(`/package-sets/${brandId}`),
     getOne: (brandId: number, id: number): Promise<any> => this.get(`/package-sets/${brandId}/${id}`),
-    create: (brandId: number, data: { name: string; description?: string; emoji?: string; category_id?: number; tier_labels?: string[] }): Promise<any> =>
+    create: (brandId: number, data: { name: string; description?: string; emoji?: string; event_type_id?: number; tier_labels?: string[] }): Promise<any> =>
       this.post(`/package-sets/${brandId}`, data),
-    update: (brandId: number, id: number, data: { name?: string; description?: string; emoji?: string; category_id?: number; order_index?: number }): Promise<any> =>
+    update: (brandId: number, id: number, data: { name?: string; description?: string; emoji?: string; event_type_id?: number; order_index?: number }): Promise<any> =>
       this.patch(`/package-sets/${brandId}/${id}`, data),
     delete: (brandId: number, id: number): Promise<void> => this.delete(`/package-sets/${brandId}/${id}`),
     // Slot operations
@@ -1735,15 +1727,15 @@ class ApiService extends BaseApiClient {
       this.patch(`/package-sets/${brandId}/${setId}/clear-assignments`, {}),
   };
 
-  // ─── Wedding Types System ────────────────────────────────────────────
+  // ─── Event Subtypes System ────────────────────────────────────────────
 
-  weddingTypes = {
-    getAll: (brandId: number): Promise<any[]> => this.get(`/wedding-types?brandId=${brandId}`),
-    getById: (id: number, brandId: number): Promise<any> => this.get(`/wedding-types/${id}?brandId=${brandId}`),
-    getSystemSeeded: (): Promise<any[]> => this.get(`/wedding-types/system-seeded`),
-    getBrandSpecific: (brandId: number): Promise<any[]> => this.get(`/wedding-types/brand-specific?brandId=${brandId}`),
-    createPackageFromTemplate: (weddingTypeId: number, data: { packageName: string; packageDescription?: string }, brandId: number): Promise<any> =>
-      this.post(`/wedding-types/${weddingTypeId}/create-package?brandId=${brandId}`, data),
+  eventSubtypes = {
+    getAll: (brandId: number): Promise<any[]> => this.get(`/event-subtypes?brandId=${brandId}`),
+    getById: (id: number, brandId: number): Promise<any> => this.get(`/event-subtypes/${id}?brandId=${brandId}`),
+    getSystemSeeded: (): Promise<any[]> => this.get(`/event-subtypes/system-seeded`),
+    getBrandSpecific: (brandId: number): Promise<any[]> => this.get(`/event-subtypes/brand-specific?brandId=${brandId}`),
+    createPackageFromTemplate: (eventSubtypeId: number, data: { packageName: string; packageDescription?: string }, brandId: number): Promise<any> =>
+      this.post(`/event-subtypes/${eventSubtypeId}/create-package?brandId=${brandId}`, data),
   };
 
   // ─── Event Types System ────────────────────────────────────────────
@@ -1783,14 +1775,14 @@ class ApiService extends BaseApiClient {
     unlinkEventDay: (eventTypeId: number, dayTemplateId: number): Promise<void> =>
       this.delete(`/event-types/${eventTypeId}/event-days/${dayTemplateId}`),
 
-    // Subject type links
-    linkSubjectType: (eventTypeId: number, data: {
-      subject_type_template_id: number;
+    // Subject role links
+    linkSubjectRole: (eventTypeId: number, data: {
+      subject_role_id: number;
       order_index?: number;
       is_default?: boolean;
-    }): Promise<any> => this.post(`/event-types/${eventTypeId}/subject-types`, data),
-    unlinkSubjectType: (eventTypeId: number, subjectTypeTemplateId: number): Promise<void> =>
-      this.delete(`/event-types/${eventTypeId}/subject-types/${subjectTypeTemplateId}`),
+    }): Promise<any> => this.post(`/event-types/${eventTypeId}/subject-roles`, data),
+    unlinkSubjectRole: (eventTypeId: number, subjectRoleId: number): Promise<void> =>
+      this.delete(`/event-types/${eventTypeId}/subject-roles/${subjectRoleId}`),
 
     // Package creation from wizard
     createPackageFromWizard: (eventTypeId: number, data: {
@@ -1911,12 +1903,12 @@ class ApiService extends BaseApiClient {
 
     // Event Day Activity Presets (per event day template)
     activityPresets: {
-      getAll: (eventDayTemplateId: number): Promise<any[]> =>
-        this.get(`/schedule/event-days/${eventDayTemplateId}/activity-presets`),
-      create: (eventDayTemplateId: number, data: { name: string; color?: string; icon?: string; default_duration_minutes?: number; order_index?: number }): Promise<any> =>
-        this.post(`/schedule/event-days/${eventDayTemplateId}/activity-presets`, data),
-      bulkCreate: (eventDayTemplateId: number, presets: { name: string; color?: string; order_index?: number }[]): Promise<any> =>
-        this.post(`/schedule/event-days/${eventDayTemplateId}/activity-presets/bulk`, { presets }),
+      getAll: (eventDayId: number): Promise<any[]> =>
+        this.get(`/schedule/event-days/${eventDayId}/activity-presets`),
+      create: (eventDayId: number, data: { name: string; color?: string; icon?: string; default_duration_minutes?: number; order_index?: number }): Promise<any> =>
+        this.post(`/schedule/event-days/${eventDayId}/activity-presets`, data),
+      bulkCreate: (eventDayId: number, presets: { name: string; color?: string; order_index?: number }[]): Promise<any> =>
+        this.post(`/schedule/event-days/${eventDayId}/activity-presets/bulk`, { presets }),
       update: (presetId: number, data: any): Promise<any> =>
         this.patch(`/schedule/activity-presets/${presetId}`, data),
       delete: (presetId: number): Promise<void> =>
@@ -1954,12 +1946,12 @@ class ApiService extends BaseApiClient {
     packageEventDays: {
       getAll: (packageId: number): Promise<any[]> =>
         this.get(`/schedule/packages/${packageId}/event-days`),
-      add: (packageId: number, eventDayTemplateId: number): Promise<any> =>
-        this.post(`/schedule/packages/${packageId}/event-days`, { event_day_template_id: eventDayTemplateId }),
-      remove: (packageId: number, eventDayTemplateId: number): Promise<void> =>
-        this.delete(`/schedule/packages/${packageId}/event-days/${eventDayTemplateId}`),
-      set: (packageId: number, eventDayTemplateIds: number[]): Promise<any[]> =>
-        this.post(`/schedule/packages/${packageId}/event-days/set`, { event_day_template_ids: eventDayTemplateIds }),
+      add: (packageId: number, eventDayId: number): Promise<any> =>
+        this.post(`/schedule/packages/${packageId}/event-days`, { event_day_template_id: eventDayId }),
+      remove: (packageId: number, eventDayId: number): Promise<void> =>
+        this.delete(`/schedule/packages/${packageId}/event-days/${eventDayId}`),
+      set: (packageId: number, eventDayIds: number[]): Promise<any[]> =>
+        this.post(`/schedule/packages/${packageId}/event-days/set`, { event_day_template_ids: eventDayIds }),
     },
 
     // Package activities (real-world schedule blocks: Bridal Prep, Ceremony, etc.)
@@ -2036,8 +2028,8 @@ class ApiService extends BaseApiClient {
 
     // Package event day subjects (people/objects assigned to event days)
     packageEventDaySubjects: {
-      getAll: (packageId: number, eventDayTemplateId?: number): Promise<any[]> =>
-        this.get(`/schedule/packages/${packageId}/subjects${eventDayTemplateId ? `?eventDayTemplateId=${eventDayTemplateId}` : ''}`),
+      getAll: (packageId: number, eventDayId?: number): Promise<any[]> =>
+        this.get(`/schedule/packages/${packageId}/subjects${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       create: (packageId: number, data: {
         event_day_template_id: number;
         name: string;
@@ -2062,8 +2054,8 @@ class ApiService extends BaseApiClient {
 
     // Package event day locations (linked to event days / activities)
     packageEventDayLocations: {
-      getAll: (packageId: number, eventDayTemplateId?: number): Promise<any[]> =>
-        this.get(`/schedule/packages/${packageId}/locations${eventDayTemplateId ? `?eventDayTemplateId=${eventDayTemplateId}` : ''}`),
+      getAll: (packageId: number, eventDayId?: number): Promise<any[]> =>
+        this.get(`/schedule/packages/${packageId}/locations${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       create: (packageId: number, data: {
         event_day_template_id: number;
         location_id: number;
@@ -2080,8 +2072,8 @@ class ApiService extends BaseApiClient {
 
     // Package location slots (abstract numbered locations 1-5)
     packageLocationSlots: {
-      getAll: (packageId: number, eventDayTemplateId?: number): Promise<any[]> =>
-        this.get(`/schedule/packages/${packageId}/location-slots${eventDayTemplateId ? `?eventDayTemplateId=${eventDayTemplateId}` : ''}`),
+      getAll: (packageId: number, eventDayId?: number): Promise<any[]> =>
+        this.get(`/schedule/packages/${packageId}/location-slots${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       create: (packageId: number, data: {
         event_day_template_id: number;
         location_number?: number;
@@ -2570,7 +2562,7 @@ class ApiService extends BaseApiClient {
     getById: (id: number): Promise<LocationsLibrary> =>
       this.get(`/locations/${id}`),
     update: (id: number, data: UpdateLocationRequest): Promise<LocationsLibrary> =>
-      this.put(`/locations/${id}`, data),
+      this.patch(`/locations/${id}`, data),
     delete: (id: number): Promise<LocationsLibrary> =>
       this.delete(`/locations/${id}`),
 
@@ -2582,7 +2574,7 @@ class ApiService extends BaseApiClient {
     getSpaceById: (id: number): Promise<LocationSpace> =>
       this.get(`/locations/spaces/${id}`),
     updateSpace: (id: number, data: UpdateLocationSpaceRequest): Promise<LocationSpace> =>
-      this.put(`/locations/spaces/${id}`, data),
+      this.patch(`/locations/spaces/${id}`, data),
     deleteSpace: (id: number): Promise<LocationSpace> =>
       this.delete(`/locations/spaces/${id}`),
 
@@ -2596,7 +2588,7 @@ class ApiService extends BaseApiClient {
     getFloorPlanById: (id: number): Promise<FloorPlan> =>
       this.get(`/locations/floor-plans/${id}`),
     updateFloorPlan: (id: number, data: UpdateFloorPlanRequest): Promise<FloorPlan> =>
-      this.put(`/locations/floor-plans/${id}`, data),
+      this.patch(`/locations/floor-plans/${id}`, data),
     deleteFloorPlan: (id: number): Promise<FloorPlan> =>
       this.delete(`/locations/floor-plans/${id}`),
     duplicateFloorPlan: (id: number, projectId?: number): Promise<FloorPlan> => {

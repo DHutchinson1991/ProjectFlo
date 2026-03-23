@@ -12,7 +12,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 
 import { api } from '@/lib/api';
 import { useOptionalScheduleApi } from '@/components/schedule/ScheduleApiContext';
-import type { EventDayTemplate } from '@/components/schedule/EventDayManager';
+import type { EventDay } from '@/components/schedule/EventDayManager';
 import type {
     PackageActivityRecord,
     PackageLocationSlotRecord,
@@ -24,7 +24,7 @@ import type {
 
 interface LocationsCardProps {
     packageId: number | null;
-    packageEventDays: EventDayTemplate[];
+    packageEventDays: EventDay[];
     packageActivities: PackageActivityRecord[];
     packageLocationSlots: PackageLocationSlotRecord[];
     setPackageLocationSlots: React.Dispatch<React.SetStateAction<PackageLocationSlotRecord[]>>;

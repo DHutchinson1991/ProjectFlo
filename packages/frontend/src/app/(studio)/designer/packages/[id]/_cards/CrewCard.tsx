@@ -15,7 +15,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils/formatUtils';
 import { useOptionalScheduleApi } from '@/components/schedule/ScheduleApiContext';
-import type { EventDayTemplate } from '@/components/schedule';
+import type { EventDay } from '@/components/schedule';
 import type { JobRole } from '@/lib/types/job-roles';
 import type { TaskAutoGenerationPreview } from '@/lib/types/task-library';
 
@@ -36,7 +36,7 @@ export interface CrewCardProps {
     packageId: number | null;
     packageDayOperators: PackageDayOperatorRecord[];
     setPackageDayOperators: React.Dispatch<React.SetStateAction<PackageDayOperatorRecord[]>>;
-    packageEventDays: EventDayTemplate[];
+    packageEventDays: EventDay[];
     packageActivities: PackageActivityRecord[];
     scheduleActiveDayId: number | null;
     selectedActivityId: number | null;

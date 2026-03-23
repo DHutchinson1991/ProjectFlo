@@ -58,8 +58,6 @@ function normalizeSubject(subj: any): any {
     // SubjectsCard filters by: s.event_day_template_id === activeEventDayId
     event_day_template_id: subj.event_day_template_id ?? subj.project_event_day_id,
     activity_assignments: normalizeAssignments(subj.activity_assignments),
-    // Legacy field: package_activity_id alias
-    package_activity_id: subj.package_activity_id ?? subj.project_activity_id,
   };
 }
 
@@ -223,7 +221,7 @@ export function useInstanceScheduleData(
 
         try {
           const templates = await request<any[]>(
-            `/subjects/type-templates/brand/${brandId}`,
+            `/subjects/roles/brand/${brandId}`,
             {},
             { includeBrandQuery: false },
           );

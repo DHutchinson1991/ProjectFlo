@@ -21,6 +21,20 @@ export const CATEGORY_COLORS: Record<string, string> = {
     'Uncategorized': '#64748b',
 };
 
+export const CATEGORY_EMOJIS: Record<string, string> = {
+    'Wedding': '💒', 'Weddings': '💒',
+    'Birthday': '🎂', 'Birthdays': '🎂',
+    'Engagement': '💍', 'Engagements': '💍',
+    'Elopement': '🌿', 'Corporate': '🏢',
+    'Event': '🎉', 'Music Video': '🎵',
+    'Commercial': '🎬',
+};
+
+export function getCategoryEmoji(categoryName: string | null | undefined): string {
+    if (!categoryName) return '📦';
+    return CATEGORY_EMOJIS[categoryName] ?? '📦';
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 export function getTierColor(tier: string): string {

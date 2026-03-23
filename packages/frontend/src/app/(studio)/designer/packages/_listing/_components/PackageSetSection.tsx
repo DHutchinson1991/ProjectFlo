@@ -3,12 +3,8 @@
 import React, { useState } from 'react';
 import {
     Box, Typography, IconButton, Chip, Tooltip,
-    Menu, MenuItem, ListItemIcon, ListItemText,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
 import {
     DndContext, closestCenter, PointerSensor, KeyboardSensor,
     useSensor, useSensors, DragEndEvent, DragOverlay, DragStartEvent,
@@ -31,15 +27,12 @@ import { FilledSlot } from './FilledSlot';
 
 export function PackageSetSection({
     set, currencyCode, allPackages,
-    onEditSet,
-    onDeleteSet, onSlotClick, onClearSlot, onAddSlot, onRemoveSlot, onSwapPackages,
-    onOpenPackage, onCreateNew, hasLibraryPackages, setCategoryName,
+    onSlotClick, onClearSlot, onAddSlot, onRemoveSlot, onSwapPackages,
+    onOpenPackage, onCreateNew, hasLibraryPackages,
 }: {
     set: PackageSet;
     currencyCode: string;
     allPackages: ServicePackage[];
-    onEditSet: () => void;
-    onDeleteSet: () => void;
     onSlotClick: (slotId: number) => void;
     onClearSlot: (slotId: number) => void;
     onAddSlot: () => void;
@@ -48,9 +41,7 @@ export function PackageSetSection({
     onOpenPackage: (pkgId: number) => void;
     onCreateNew: (slotId?: number) => void;
     hasLibraryPackages: boolean;
-    setCategoryName: string | null;
 }) {
-    const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
     const [draggingSlotId, setDraggingSlotId] = useState<number | null>(null);
     const tierMap = resolveSlotTiers(set.slots);
     const sortedSlots = [...set.slots].sort((a, b) => {
@@ -99,22 +90,20 @@ export function PackageSetSection({
                         bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(52, 58, 68, 0.3)',
                         fontSize: '1.3rem',
                     }}>
-                        {set.emoji || '📦'}
+                        {set.emoji || set.event_type?.icon || '📦'}
                     </Box>
 
                     {/* Name */}
                     <Box>
                         <Typography sx={{
                                 fontWeight: 800, color: '#f1f5f9', fontSize: '1.15rem', lineHeight: 1.3,
-                                cursor: 'pointer',
-                                '&:hover': { color: '#648CFF' },
-                            }} onClick={onEditSet}>
+                            }}>
                                 {set.name}
                             </Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
-                                {setCategoryName && (
+                                {set.event_type?.name && (
                                     <Chip
-                                        label={setCategoryName}
+                                        label={set.event_type.name}
                                         size="small"
                                         sx={{
                                             height: 18, fontSize: '0.65rem', fontWeight: 600,
@@ -139,29 +128,6 @@ export function PackageSetSection({
                             </IconButton>
                         </Tooltip>
                     )}
-                    <IconButton onClick={e => setMenuAnchor(e.currentTarget)} sx={{ color: '#64748b' }}>
-                        <MoreVertIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
-                    <Menu
-                        anchorEl={menuAnchor}
-                        open={Boolean(menuAnchor)}
-                        onClose={() => setMenuAnchor(null)}
-                        PaperProps={{
-                            sx: {
-                                bgcolor: '#1a1d26', border: '1px solid rgba(52,58,68,0.4)',
-                                borderRadius: 2, minWidth: 160,
-                            },
-                        }}
-                    >
-                        <MenuItem onClick={() => { setMenuAnchor(null); onEditSet(); }}>
-                            <ListItemIcon><EditIcon sx={{ fontSize: 16, color: '#94a3b8' }} /></ListItemIcon>
-                            <ListItemText primaryTypographyProps={{ fontSize: '0.8rem', color: '#e2e8f0' }}>Edit Set</ListItemText>
-                        </MenuItem>
-                        <MenuItem onClick={() => { setMenuAnchor(null); onDeleteSet(); }}>
-                            <ListItemIcon><DeleteOutlineIcon sx={{ fontSize: 16, color: '#ef4444' }} /></ListItemIcon>
-                            <ListItemText primaryTypographyProps={{ fontSize: '0.8rem', color: '#ef4444' }}>Delete Set</ListItemText>
-                        </MenuItem>
-                    </Menu>
                 </Box>
             </Box>
 

@@ -1,6 +1,7 @@
-import { IsString, IsOptional, IsInt, IsBoolean, IsEmail, Min } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsBoolean, IsEmail, IsNumber, IsEnum, Min } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { PartialType } from '@nestjs/mapped-types';
+import { LocationPrecision } from '@prisma/client';
 
 /**
  * DTO for creating a new location/venue
@@ -32,6 +33,18 @@ export class CreateLocationDto {
     @IsOptional()
     @IsString()
     postal_code?: string;
+
+    @IsOptional()
+    @IsNumber()
+    lat?: number;
+
+    @IsOptional()
+    @IsNumber()
+    lng?: number;
+
+    @IsOptional()
+    @IsEnum(LocationPrecision)
+    precision?: LocationPrecision;
 
     @IsOptional()
     @IsString()

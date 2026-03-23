@@ -163,7 +163,7 @@ export const EVENT_LABELS: Record<string, string> = {
 
 export const EVENT_EMOJIS: Record<string, string> = {
     wedding: "💍", weddings: "💍", birthday: "🎂", birthdays: "🎂",
-    engagement: "💎", engagements: "💎", elopement: "🏔️", elopements: "🏔️",
+    engagement: "�", engagements: "💍", elopement: "🏔️", elopements: "🏔️",
     corporate: "🏢", events: "🎬",
 };
 

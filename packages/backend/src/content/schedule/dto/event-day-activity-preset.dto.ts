@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsInt, IsBoolean } from 'class-validator';
 
-export class CreateEventDayActivityPresetDto {
+export class CreateEventDayActivityDto {
   @IsString()
   name: string;
 
@@ -29,7 +29,7 @@ export class CreateEventDayActivityPresetDto {
   order_index?: number;
 }
 
-export class UpdateEventDayActivityPresetDto {
+export class UpdateEventDayActivityDto {
   @IsOptional()
   @IsString()
   name?: string;

@@ -54,6 +54,7 @@ const studioNavItems = [
         icon: <PackagesIcon />,
         subItems: [
             { title: "Package Library", href: "/designer/packages" },
+            { title: "All Packages", href: "/designer/packages/list" },
             { title: "Templates", href: "/designer/templates" },
         ],
     },

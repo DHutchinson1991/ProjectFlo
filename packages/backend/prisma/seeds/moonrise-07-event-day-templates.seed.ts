@@ -10,7 +10,7 @@ const logger = createSeedLogger(SeedType.MOONRISE);
  * These templates are brand-level and can be assigned to scenes across
  * multiple films (e.g., both Highlights and Ceremony films share "Wedding Day").
  */
-async function seedEventDayTemplates(): Promise<SeedSummary> {
+async function seedEventDays(): Promise<SeedSummary> {
     logger.sectionHeader('Event Day Templates', 'Schedule: Event day templates for films');
     logger.startTimer('event-day-templates');
 
@@ -63,12 +63,12 @@ async function seedEventDayTemplates(): Promise<SeedSummary> {
     ];
 
     for (const tpl of templates) {
-        const existing = await prisma.eventDayTemplate.findFirst({
+        const existing = await prisma.eventDay.findFirst({
             where: { brand_id: brand.id, name: tpl.name },
         });
 
         if (existing) {
-            await prisma.eventDayTemplate.update({
+            await prisma.eventDay.update({
                 where: { id: existing.id },
                 data: {
                     description: tpl.description,
@@ -78,7 +78,7 @@ async function seedEventDayTemplates(): Promise<SeedSummary> {
             updated += 1;
             logger.skipped(`Event day "${tpl.name}"`, 'already exists, updated', 'verbose');
         } else {
-            await prisma.eventDayTemplate.create({
+            await prisma.eventDay.create({
                 data: {
                     brand_id: brand.id,
                     name: tpl.name,
@@ -97,10 +97,10 @@ async function seedEventDayTemplates(): Promise<SeedSummary> {
     return { created, updated, skipped, total };
 }
 
-export default seedEventDayTemplates;
+export default seedEventDays;
 
 if (require.main === module) {
-    seedEventDayTemplates()
+    seedEventDays()
         .catch((error) => {
             console.error('❌ Error seeding event day templates:', error);
             process.exit(1);

@@ -7,11 +7,11 @@ import {
     Param,
     Delete,
     ParseIntPipe,
-    Query,
 } from '@nestjs/common';
 import { ScenesService } from './scenes.service';
 import { CreateSceneDto } from './dto/create-scene.dto';
 import { UpdateSceneDto } from './dto/update-scene.dto';
+import { BrandId } from '../../core/auth/decorators/brand-id.decorator';
 
 @Controller('scenes')
 export class ScenesController {
@@ -34,8 +34,8 @@ export class ScenesController {
     }
 
     @Get('templates')
-    getSceneTemplates(@Query('brandId') brandId?: string) {
-        return this.scenesService.getSceneTemplates();
+    getSceneTemplates(@BrandId() brandId?: number) {
+        return this.scenesService.getSceneTemplates(brandId);
     }
 
     @Post('templates/from-scene')

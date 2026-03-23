@@ -40,7 +40,7 @@ import type { VisualTimelineScene } from "@/components/schedule/VisualTimeline";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
-interface EventDayTemplate {
+interface EventDay {
   id: number;
   name: string;
   description?: string | null;
@@ -69,7 +69,7 @@ interface SceneSchedule {
   moment_schedules?: MomentScheduleItem[] | null;
   beat_schedules?: BeatScheduleItem[] | null;
   notes?: string | null;
-  event_day?: EventDayTemplate | null;
+  event_day?: EventDay | null;
 }
 
 /** Lightweight activity record for the scene→activity dropdown */
@@ -211,7 +211,7 @@ function getTotalScheduledMinutes(scenes: Scene[], scheduleMap: Map<number, Scen
 interface SceneScheduleRowProps {
   scene: Scene;
   schedule: SceneSchedule | null;
-  eventDays: EventDayTemplate[];
+  eventDays: EventDay[];
   expanded: boolean;
   onToggleExpand: () => void;
   onChange: (sceneId: number, updates: Partial<SceneSchedule>) => void;
@@ -894,7 +894,7 @@ export const FilmSchedulePanel: React.FC<FilmSchedulePanelProps> = ({
   onScheduleChange,
   showEventDayManager = false,
 }) => {
-  const [eventDays, setEventDays] = useState<EventDayTemplate[]>([]);
+  const [eventDays, setEventDays] = useState<EventDay[]>([]);
   const [scheduleMap, setScheduleMap] = useState<Map<number, SceneSchedule>>(new Map());
   const [filmScenes, setFilmScenes] = useState<Scene[]>([]);
   const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set());
