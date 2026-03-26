@@ -5,7 +5,11 @@
  * and workflow-related query/mutation DTOs.
  */
 
-import { BaseEntity } from "./common";
+interface BaseEntity {
+    id: number;
+    created_at: string;
+    updated_at: string;
+}
 
 // ========================
 // WORKFLOW TEMPLATE

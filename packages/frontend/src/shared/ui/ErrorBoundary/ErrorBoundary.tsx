@@ -1,8 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { ReactNode } from "react";
 import { DefaultErrorFallback } from "./DefaultErrorFallback";
-import { ErrorBoundaryState, ErrorBoundaryProps } from "@/lib/types";
+
+interface ErrorBoundaryProps {
+    children: ReactNode;
+    fallback?: React.ComponentType<{ error: Error; retry: () => void }>;
+    onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+}
+
+interface ErrorBoundaryState {
+    hasError: boolean;
+    error: Error | null;
+    errorInfo: React.ErrorInfo | null;
+}
 
 export class ErrorBoundary extends React.Component<
     ErrorBoundaryProps,

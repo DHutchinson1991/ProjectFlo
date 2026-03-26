@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Box,
@@ -29,65 +29,8 @@ import {
   Bolt,
   ExpandMore as ExpandMoreIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
 import { ActiveTask, InquiryTaskEvent } from "@/lib/types";
-
-// ── Page context parsing ──────────────────────────────────────
-type PageCtx =
-  | { type: "hidden" }
-  | { type: "inquiry"; id: number }
-  | { type: "project"; id: number }
-  | { type: "global" };
-
-function parseContext(pathname: string): PageCtx {
-  if (/\/manager\/active-tasks/.test(pathname)) return { type: "hidden" };
-  const inq = pathname.match(/\/sales\/inquiries\/(\d+)/);
-  if (inq) return { type: "inquiry", id: Number(inq[1]) };
-  const proj = pathname.match(/\/projects\/(\d+)/);
-  if (proj) return { type: "project", id: Number(proj[1]) };
-  return { type: "global" };
-}
-
-// ── Navigation URL (mirrors active-tasks page logic) ─────────
-function getNavUrl(task: ActiveTask): string | null {
-  if (task.source === "inquiry" && task.inquiry_id) {
-    const base = `/sales/inquiries/${task.inquiry_id}`;
-    const subtaskSectionMap: Record<string, string> = {
-      verify_contact_details: "needs-assessment-section",
-      verify_event_date: "needs-assessment-section",
-      confirm_package_selection: "needs-assessment-section",
-      check_crew_availability: "availability-section",
-      check_equipment_availability: "availability-section",
-      resolve_availability_conflicts: "availability-section",
-      send_crew_availability_requests: "availability-section",
-      reserve_equipment: "availability-section",
-      mark_inquiry_qualified: "qualify-section",
-      send_welcome_response: "qualify-section",
-    };
-
-    if (task.task_kind === "subtask" && task.subtask_key && subtaskSectionMap[task.subtask_key]) {
-      return `${base}#${subtaskSectionMap[task.subtask_key]}`;
-    }
-
-    const n = (task.name + " " + (task.description ?? "")).toLowerCase();
-    if (n.includes("review needs assessment")) return `${base}?open=needs-assessment`;
-    if (n.includes("needs assessment") || n.includes("assessment form")) return `${base}/needs-assessment`;
-    if (n.includes("package") && (n.includes("select") || n.includes("review") || n.includes("scope") || n.includes("present"))) return `${base}/package`;
-    if (n.includes("contract") || n.includes("sign agreement")) return `${base}#contracts-section`;
-    if (n.includes("proposal review") || n.includes("review proposal")) return `${base}#proposal-review-section`;
-    if (n.includes("proposal")) return `${base}#proposals-section`;
-    if (n.includes("availability") || n.includes("crew") || n.includes("equipment")) return `${base}#availability-section`;
-    if (n.includes("qualify")) return `${base}#qualify-section`;
-    if (n.includes("quote")) return `${base}#quotes-section`;
-    if (n.includes("estimate") || n.includes("budget")) return `${base}#estimates-section`;
-    if (n.includes("discovery") || n.includes("questionnaire")) return `${base}#discovery-questionnaire-section`;
-    if (n.includes("call") || n.includes("meeting") || n.includes("consultation")) return `${base}#calls-section`;
-    if (n.includes("approval") || n.includes("client review")) return `${base}#approval-section`;
-    return base;
-  }
-  if (task.source === "project" && task.project_id) return `/projects/${task.project_id}`;
-  return null;
-}
+import { useGlobalTaskDrawer, getNavUrl, isOverdue } from "../hooks/useGlobalTaskDrawer";
 
 // ── Status config ─────────────────────────────────────────────
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
@@ -114,12 +57,6 @@ function avatarColor(name: string) {
   const colors = ["#0086C0", "#A25DDC", "#FF158A", "#FDAB3D", "#00C875", "#579BFC", "#FF5AC4", "#CAB641", "#7F5347", "#66CCFF"];
   let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
   return colors[Math.abs(h) % colors.length];
-}
-function isOverdue(task: ActiveTask) {
-  if (!task.due_date || task.status === "Completed") return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(task.due_date) < today;
 }
 function formatDateShort(dateStr: string | null, isCompleted: boolean): { text: string; color: string } {
   if (!dateStr) return { text: "—", color: "rgba(255,255,255,0.2)" };
@@ -451,107 +388,34 @@ export default function GlobalTaskDrawer() {
   const pathname = usePathname();
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
-  const [tasks, setTasks] = useState<ActiveTask[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("active");
-  const [groupByStage, setGroupByStage] = useState(true);
   const [hoverGroup, setHoverGroup] = useState(false);
-  const [showAuto, setShowAuto] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    const s = localStorage.getItem('pfo_drawer_show_auto');
-    return s === null ? true : s === 'true';
-  });
 
-  const ctx = useMemo(() => parseContext(pathname), [pathname]);
+  const {
+    loading,
+    ctx,
+    contextLabel,
+    visibleTasks,
+    subtasksByParent,
+    total,
+    active,
+    done,
+    overdueCount,
+    dueTodayCount,
+    progress,
+    autoHiddenCount,
+    statusFilter,
+    setStatusFilter,
+    groupByStage,
+    setGroupByStage,
+    showAuto,
+    setShowAuto,
+    handleNavigate,
+  } = useGlobalTaskDrawer();
 
   // Collapse when page changes
   useEffect(() => { setExpanded(false); }, [pathname]);
 
-  // Fetch tasks
-  const fetchTasks = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await api.activeTasks.getAll();
-      setTasks(data);
-    } catch { /* silent */ } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (ctx.type !== "hidden") fetchTasks();
-  }, [ctx.type, fetchTasks]);
-
-  // Filter to page context
-  const contextTasks = useMemo(() => {
-    if (ctx.type === "hidden") return [];
-    if (ctx.type === "inquiry") return tasks.filter(t => t.source === "inquiry" && t.inquiry_id === ctx.id);
-    if (ctx.type === "project") return tasks.filter(t => t.source === "project" && t.project_id === ctx.id);
-    return tasks;
-  }, [tasks, ctx]);
-
-  // Status filter in expanded view
-  const autoHiddenCount = useMemo(() => {
-    if (showAuto) return 0;
-    let base = contextTasks;
-    if (statusFilter === "active") base = base.filter(t => t.status !== "Completed" && t.status !== "Archived");
-    else if (statusFilter !== "all") base = base.filter(t => t.status === statusFilter);
-    return base.filter(t => t.is_auto_only).length;
-  }, [contextTasks, statusFilter, showAuto]);
-
-  const visibleTasks = useMemo(() => {
-    return contextTasks.filter(t => {
-      // Subtasks are always included — they render nested under their parent.
-      // Filtering them out breaks the subtask expand UI.
-      if (t.task_kind === 'subtask') return true;
-      if (statusFilter === "active" && (t.status === "Completed" || t.status === "Archived")) return false;
-      if (statusFilter !== "active" && statusFilter !== "all" && t.status !== statusFilter) return false;
-      if (!showAuto && t.is_auto_only) return false;
-      return true;
-    });
-  }, [contextTasks, statusFilter, showAuto]);
-
-  const subtasksByParent = useMemo(() => {
-    const map = new Map<number, ActiveTask[]>();
-    visibleTasks.forEach((task) => {
-      if (!task.subtask_parent_id) {
-        return;
-      }
-      const list = map.get(task.subtask_parent_id) ?? [];
-      list.push(task);
-      map.set(task.subtask_parent_id, list);
-    });
-    return map;
-  }, [visibleTasks]);
-
   if (ctx.type === "hidden") return null;
-
-  // Stats (exclude subtasks from counts — they are rendered nested, not as top-level items)
-  const leafContext = contextTasks.filter(t => t.task_kind !== 'subtask');
-  const total = leafContext.length;
-  const active = leafContext.filter(t => t.status !== "Completed" && t.status !== "Archived").length;
-  const done = leafContext.filter(t => t.status === "Completed").length;
-  const overdueCount = leafContext.filter(isOverdue).length;
-  const dueTodayCount = leafContext.filter(t => {
-    if (!t.due_date || t.status === "Completed") return false;
-    const due = new Date(t.due_date);
-    const now = new Date();
-    return due.getFullYear() === now.getFullYear() && due.getMonth() === now.getMonth() && due.getDate() === now.getDate();
-  }).length;
-
-  const progress = total > 0 ? (done / total) * 100 : 0;
-
-  const contextLabel =
-    ctx.type === "inquiry" || ctx.type === "project"
-      ? contextTasks[0]?.context_label ?? (ctx.type === "inquiry" ? `Inquiry #${ctx.id}` : `Project #${ctx.id}`)
-      : "All Active Tasks";
-
-
-
-  const handleNavigate = (task: ActiveTask) => {
-    const url = getNavUrl(task);
-    if (url) router.push(url);
-  };
 
   const PANEL_WIDTH = 920;
   const CLIPBOARD_WIDTH = 220;
@@ -794,11 +658,7 @@ export default function GlobalTaskDrawer() {
             <Tooltip title={showAuto ? "Hide automated tasks" : "Show automated tasks"} arrow>
               <IconButton
                 size="small"
-                onClick={() => {
-                  const next = !showAuto;
-                  setShowAuto(next);
-                  localStorage.setItem('pfo_drawer_show_auto', String(next));
-                }}
+                onClick={() => setShowAuto(!showAuto)}
                 sx={{
                   width: 24, height: 24, borderRadius: 1,
                   border: "1px solid rgba(255,255,255,0.08)",

@@ -53,11 +53,8 @@ export * from "./equipment";
 // Subjects management types
 export * from "./subjects";
 
-// UI and component prop types
-export * from "./ui";
-
-// Common utility types and generic interfaces
-export * from "./common";
+// UI types - REMOVED (inlined into consumers)
+// Common types - REMOVED (inlined into consumers)
 
 // ============================================================================
 // API INTEGRATION (Backend communication types and utilities)

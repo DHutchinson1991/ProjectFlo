@@ -6,7 +6,15 @@ import { useAuth } from "../../AuthProvider";
 import { UnauthorizedPage } from "../UnauthorizedPage/UnauthorizedPage";
 import { Loading } from "@/shared/ui";
 import { LoginModal } from "@/features/platform/auth/components/LoginModal";
-import { ProtectedRouteProps } from "@/lib/types";
+
+interface ProtectedRouteProps {
+    children: React.ReactNode;
+    requiredRole?: string;
+    requiredRoles?: string[];
+    redirectTo?: string;
+    showUnauthorizedPage?: boolean;
+    fallback?: React.ReactNode;
+}
 
 export function ProtectedRoute({
     children,
