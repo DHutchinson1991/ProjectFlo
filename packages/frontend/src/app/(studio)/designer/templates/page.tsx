@@ -1,41 +1,10 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useCallback } from "react";
-import {
-    Box,
-    Typography,
-    Card,
-    Button,
-    Stack,
-    TextField,
-    Chip,
-    IconButton,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Alert,
-    CircularProgress,
-    Tooltip,
-    Switch,
-    FormControlLabel,
-    Divider,
-    Avatar,
-} from "@mui/material";
-import { alpha } from "@mui/material/styles";
-import {
-    Add as AddIcon,
-    Edit as EditIcon,
-    Delete as DeleteIcon,
-    CalendarMonth as EventDayIcon,
-    People as SubjectsIcon,
-    Category as EventTypeIcon,
-    ExpandMore as ExpandIcon,
-    ExpandLess as CollapseIcon,
-    Star as StarIcon,
-} from "@mui/icons-material";
-import { api } from "@/lib/api";
-import { useBrand } from "@/app/providers/BrandProvider";
+import { EventTypeTemplatesScreen } from '@/features/catalog/event-types';
+
+export default function TemplatesPage() {
+    return <EventTypeTemplatesScreen />;
+}
 
 // ---------------------------------------------------------------------------
 // Types
