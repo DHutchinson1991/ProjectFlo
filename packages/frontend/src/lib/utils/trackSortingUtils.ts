@@ -3,7 +3,7 @@
  * Handles sorting, ordering, color mapping, and normalization
  */
 
-import { getDefaultTrackColor } from "@/app/(studio)/designer/components/ContentBuilder/utils/colorUtils";
+import { getDefaultTrackColor } from "@/features/content/content-builder";
 
 export type TrackType = 'video' | 'audio' | 'graphics' | 'music';
 

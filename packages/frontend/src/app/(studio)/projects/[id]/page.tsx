@@ -23,16 +23,16 @@ import {
 } from '@mui/icons-material';
 
 // Import phase components
-import ProjectPhaseBar from '../../../../components/projects/ProjectPhaseBar';
-import ProjectOverviewTab from '../../../../components/projects/tabs/ProjectOverviewTab';
-import CreativeDevelopmentTab from '../../../../components/projects/tabs/CreativeDevelopmentTab';
-import { projectApiService } from '../services/projectApi';
-import { Project } from '../types/project.types';
-import PreProductionTab from '../../../../components/projects/tabs/PreProductionTab';
-import ProductionTab from '../../../../components/projects/tabs/ProductionTab';
-import PostProductionTab from '../../../../components/projects/tabs/PostProductionTab';
-import DeliveryTab from '../../../../components/projects/tabs/DeliveryTab';
-import PackageScheduleTab from '../../../../components/projects/tabs/PackageScheduleTab';
+import ProjectPhaseBar from '@/features/workflow/projects/components/ProjectPhaseBar';
+import ProjectOverviewTab from '@/features/workflow/projects/components/tabs/ProjectOverviewTab';
+import CreativeDevelopmentTab from '@/features/workflow/projects/components/tabs/CreativeDevelopmentTab';
+import { projectsService } from '@/lib/api';
+import { Project } from '@/features/workflow/projects/types/project.types';
+import PreProductionTab from '@/features/workflow/projects/components/tabs/PreProductionTab';
+import ProductionTab from '@/features/workflow/projects/components/tabs/ProductionTab';
+import PostProductionTab from '@/features/workflow/projects/components/tabs/PostProductionTab';
+import DeliveryTab from '@/features/workflow/projects/components/tabs/DeliveryTab';
+import PackageScheduleTab from '@/features/workflow/projects/components/tabs/PackageScheduleTab';
 
 // Types
 
@@ -133,7 +133,7 @@ export default function ProjectDetailPage() {
             setLoading(true);
             setError(null);
 
-            const data = await projectApiService.getProjectById(Number(projectId));
+            const data = await projectsService.getById(Number(projectId));
             setProject(data);
 
             // Set current phase from project data

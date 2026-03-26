@@ -1,4 +1,6 @@
-"use client";
+// Re-export shim — canonical SocialLinksSettings has moved to @/features/platform/settings
+export { default } from "@/features/platform/settings/components/SocialLinksSettings";
+export { default as SocialLinksSettings } from "@/features/platform/settings/components/SocialLinksSettings";
 
 import React, { useCallback, useEffect, useState } from "react";
 import {

@@ -3,7 +3,7 @@
  */
 import { TimelineScene, TimelineTrack } from "@/lib/types/timeline";
 import { ScenesLibrary } from "@/lib/types/domains/scenes";
-import { getDefaultTrackColor } from "@/app/(studio)/designer/components/ContentBuilder/utils/colorUtils";
+import { getDefaultTrackColor } from "@/features/content/content-builder";
 
 /**
  * Transforms a backend track object to a frontend TimelineTrack object

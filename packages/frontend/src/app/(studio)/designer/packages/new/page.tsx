@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import PackageCreationWizard from '../components/PackageCreationWizard';
+import PackageCreationWizard from '@/features/catalog/packages/components/creation/PackageCreationWizard';
 import { api } from '@/lib/api';
 import { useBrand } from '@/app/providers/BrandProvider';
 

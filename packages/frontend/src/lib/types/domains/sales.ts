@@ -27,218 +27,54 @@ export enum InquirySource {
     OTHER = "OTHER",
 }
 
-// Contract types
-export enum ContractStatus {
-    DRAFT = "Draft",
-    SENT = "Sent",
-    SIGNED = "Signed",
-    CANCELLED = "Cancelled",
-}
-
-// Invoice types
-export enum InvoiceStatus {
-    DRAFT = "Draft",
-    SENT = "Sent",
-    PAID = "Paid",
-    OVERDUE = "Overdue",
-}
-
-export interface InvoiceItem {
-    id?: number;
-    description: string;
-    quantity: number;
-    unit_price: number;
-}
-
-export interface ClientProject {
-    id: number;
-    name: string;
-    status: string;
-    created_at: Date;
-    start_date?: Date | null;
-    end_date?: Date | null;
-}
-
-export interface ContractSigner {
-    id: number;
-    contract_id: number;
-    name: string;
-    email: string;
-    role: string;
-    token: string;
-    status: 'pending' | 'viewed' | 'signed';
-    signed_at: string | null;
-    signature_text: string | null;
-    viewed_at: string | null;
-    created_at: string;
-}
-
-export interface Contract {
-    id: number;
-    inquiry_id: number;
-    project_id?: number | null;
-    title: string;
-    content?: OutputData | null;
-    status: ContractStatus;
-    created_at: Date;
-    updated_at: Date;
-    signing_token?: string | null;
-    rendered_html?: string | null;
-    template_id?: number | null;
-    sent_at?: Date | null;
-    signed_date?: Date | null;
-    signers?: ContractSigner[];
-    inquiry?: Inquiry;
-    project?: ClientProject | null;
-}
-
-export interface ComposeContractData {
-    template_id: number;
-    title?: string;
-}
-
-export interface SendContractData {
-    signers: Array<{ name: string; email: string; role?: string }>;
-}
-
-export interface SigningContractView {
-    signer: {
-        id: number;
-        name: string;
-        email: string;
-        role: string;
-        status: string;
-        signed_at: string | null;
-    };
-    contract: {
-        id: number;
-        title: string;
-        status: string;
-        rendered_html: string | null;
-        content: unknown;
-        sent_at: string | null;
-    };
-    signers: Array<{
-        name: string;
-        role: string;
-        status: string;
-        signed_at: string | null;
-    }>;
-}
-
-export interface Invoice {
-    id: number;
-    inquiry_id: number;
-    project_id?: number | null;
-    invoice_number: string;
-    status: InvoiceStatus;
-    issue_date: Date;
-    due_date: Date;
-    amount: number;
-    amount_paid?: number | null;
-    items: InvoiceItem[];
-    created_at: Date;
-    updated_at: Date;
-    inquiry?: Inquiry;
-    project?: ClientProject | null;
-}
-
-export interface EstimateItem {
-    id?: number;
-    category?: string;
-    description: string;
-    service_date?: Date | null;
-    start_time?: string;
-    end_time?: string;
-    quantity: number;
-    unit?: string;
-    unit_price: number;
-}
-
-export interface Estimate {
-    id: number;
-    inquiry_id: number;
-    project_id?: number | null;
-    estimate_number: string;
-    title?: string;
-    status: string; // "Draft", "Sent", "Accepted", "Declined"
-    issue_date: Date;
-    expiry_date: Date;
-    total_amount: number;
-    total_with_tax?: number;
-    tax_rate?: number;
-    currency?: string;
-    deposit_required?: number;
-    payment_method?: string;
-    installments?: number;
-    is_primary?: boolean;
-    version?: number;
-    is_stale?: boolean;
-    notes?: string;
-    terms?: string;
-    schedule_template_id?: number | null;
-    items: EstimateItem[];
-    payment_milestones?: EstimatePaymentMilestone[];
-    created_at: Date;
-    updated_at: Date;
-    inquiry?: Inquiry;
-    project?: ClientProject | null;
-}
-
-export interface EstimateSnapshot {
-    id: number;
-    estimate_id: number;
-    version_number: number;
-    snapshotted_at: Date;
-    total_amount: number;
-    items_snapshot: Array<{
-        description: string;
-        category?: string | null;
-        quantity: number;
-        unit?: string | null;
-        unit_price: number;
-    }>;
-    label?: string | null;
-}
-
-export interface QuoteItem {
-    id?: number;
-    description: string;
-    category?: string;
-    unit?: string;
-    quantity: number;
-    unit_price: number;
-}
-
-export interface Quote {
-    id: number;
-    inquiry_id: number;
-    project_id?: number | null;
-    quote_number: string;
-    title?: string;
-    status: string; // "Draft", "Sent", "Accepted", "Declined"
-    issue_date: Date;
-    expiry_date: Date;
-    total_amount: number;
-    total_with_tax?: number;
-    tax_rate?: number;
-    currency?: string;
-    deposit_required?: number;
-    payment_method?: string;
-    installments?: number;
-    is_primary?: boolean;
-    consultation_notes?: string | null;
-    notes?: string;
-    terms?: string;
-    version?: number;
-    schedule_template_id?: number | null;
-    items: QuoteItem[];
-    payment_milestones?: QuotePaymentMilestone[];
-    created_at: Date;
-    updated_at: Date;
-    inquiry?: Inquiry;
-    project?: ClientProject | null;
-}
+// ── Finance types (canonical definitions in features/finance/*) ──────────────
+export type {
+    ContractStatus,
+    ContractSigner,
+    Contract,
+    ComposeContractData,
+    SendContractData,
+    SigningContractView,
+    CreateContractData,
+    UpdateContractData,
+    ContractClause,
+    ContractClauseCategory,
+    CreateContractClauseCategoryData,
+    UpdateContractClauseCategoryData,
+    CreateContractClauseData,
+    UpdateContractClauseData,
+    ContractTemplateClause,
+    ContractTemplate,
+    TemplateClauseInput,
+    CreateContractTemplateData,
+    UpdateContractTemplateData,
+    ContractVariableInfo,
+    ContractVariableCategory,
+    ContractPreviewSection,
+    ContractPreview,
+} from '@/features/finance/contracts/types';
+export type {
+    InvoiceStatus,
+    InvoiceItem,
+    Invoice,
+    CreateInvoiceData,
+    UpdateInvoiceData,
+} from '@/features/finance/invoices/types';
+export type {
+    EstimateItem,
+    Estimate,
+    EstimateSnapshot,
+    CreateEstimateData,
+    UpdateEstimateData,
+    EstimatePaymentMilestone,
+} from '@/features/finance/estimates/types';
+export type {
+    QuoteItem,
+    Quote,
+    CreateQuoteData,
+    UpdateQuoteData,
+    QuotePaymentMilestone,
+} from '@/features/finance/quotes/types';
 
 // Domain interfaces
 export interface Inquiry {
@@ -860,392 +696,28 @@ export interface UpdateProposalData {
     version?: number;
 }
 
-export interface CreateContractData {
-    title: string;
-    content?: OutputData;
-    status?: ContractStatus;
-    project_id?: number;
-}
+// ── Payment Schedule Types (moved to features/finance/payment-schedules) ─────
+export type {
+    PaymentTriggerType,
+    PaymentAmountType,
+    MilestoneStatus,
+    PaymentScheduleRule,
+    PaymentScheduleTemplate,
+    EstimatePaymentMilestone,
+    QuotePaymentMilestone,
+    CreatePaymentScheduleTemplateData,
+    UpdatePaymentScheduleTemplateData,
+    ApplyScheduleToEstimateData,
+    ApplyScheduleToQuoteData,
+} from '@/features/finance/payment-schedules/types';
 
-export interface UpdateContractData {
-    title?: string;
-    content?: OutputData;
-    status?: ContractStatus;
-    project_id?: number;
-}
-
-export interface CreateInvoiceData {
-    invoice_number: string;
-    issue_date: string;
-    due_date: string;
-    status?: InvoiceStatus;
-    project_id?: number;
-    items: InvoiceItem[];
-}
-
-export interface UpdateInvoiceData {
-    invoice_number?: string;
-    issue_date?: string;
-    due_date?: string;
-    status?: InvoiceStatus;
-    project_id?: number;
-    items?: InvoiceItem[];
-}
-
-export interface CreateEstimateData {
-    estimate_number?: string;
-    title?: string;
-    issue_date: string;
-    expiry_date: string;
-    status?: string;
-    tax_rate?: number;
-    deposit_required?: number;
-    payment_method?: string;
-    installments?: number;
-    notes?: string;
-    terms?: string;
-    project_id?: number;
-    items: EstimateItem[];
-}
-
-export interface UpdateEstimateData {
-    estimate_number?: string;
-    title?: string;
-    issue_date?: string;
-    expiry_date?: string;
-    status?: string;
-    is_primary?: boolean;
-    tax_rate?: number;
-    deposit_required?: number;
-    payment_method?: string;
-    installments?: number;
-    notes?: string;
-    terms?: string;
-    project_id?: number;
-    items?: EstimateItem[];
-}
-
-export interface CreateQuoteData {
-    quote_number: string;
-    title?: string;
-    issue_date: string;
-    expiry_date: string;
-    consultation_notes?: string;
-    status?: string;
-    tax_rate?: number;
-    deposit_required?: number;
-    payment_method?: string;
-    installments?: number;
-    notes?: string;
-    project_id?: number;
-    items: QuoteItem[];
-}
-
-export interface UpdateQuoteData {
-    quote_number?: string;
-    title?: string;
-    issue_date?: string;
-    expiry_date?: string;
-    consultation_notes?: string;
-    status?: string;
-    is_primary?: boolean;
-    tax_rate?: number;
-    deposit_required?: number;
-    payment_method?: string;
-    installments?: number;
-    notes?: string;
-    project_id?: number;
-    items?: QuoteItem[];
-}
-
-// ── Payment Schedule Types ────────────────────────────────────────────────────
-
-export type PaymentTriggerType = 'AFTER_BOOKING' | 'BEFORE_EVENT' | 'AFTER_EVENT' | 'ON_DATE';
-export type PaymentAmountType = 'PERCENT' | 'FIXED';
-export type MilestoneStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'WAIVED';
-
-export interface PaymentScheduleRule {
-    id?: number;
-    template_id?: number;
-    label: string;
-    amount_type: PaymentAmountType;
-    amount_value: number;
-    trigger_type: PaymentTriggerType;
-    trigger_days?: number | null;
-    order_index?: number;
-}
-
-export interface PaymentScheduleTemplate {
-    id: number;
-    brand_id: number;
-    name: string;
-    description?: string;
-    is_default: boolean;
-    is_active: boolean;
-    rules: PaymentScheduleRule[];
-    created_at: Date;
-    updated_at: Date;
-}
-
-export interface EstimatePaymentMilestone {
-    id: number;
-    estimate_id: number;
-    label: string;
-    amount: number;
-    due_date: string;
-    status: MilestoneStatus;
-    notes?: string;
-    order_index: number;
-    created_at: Date;
-    updated_at: Date;
-}
-
-export interface QuotePaymentMilestone {
-    id: number;
-    quote_id: number;
-    label: string;
-    amount: number;
-    due_date: string;
-    status: MilestoneStatus;
-    notes?: string;
-    order_index: number;
-    created_at: Date;
-    updated_at: Date;
-}
-
-export interface CreatePaymentScheduleTemplateData {
-    name: string;
-    description?: string;
-    is_default?: boolean;
-    rules: PaymentScheduleRule[];
-}
-
-export interface UpdatePaymentScheduleTemplateData {
-    name?: string;
-    description?: string;
-    is_default?: boolean;
-    is_active?: boolean;
-    rules?: PaymentScheduleRule[];
-}
-
-export interface ApplyScheduleToEstimateData {
-    template_id: number;
-    booking_date: string;  // ISO
-    event_date: string;    // ISO
-    total_amount: number;
-}
-
-export interface ApplyScheduleToQuoteData {
-    template_id: number;
-    booking_date: string;
-    event_date: string;
-    total_amount: number;
-}
-
-// ── Crew Payment Template Types ──────────────────────────────────────────────
-
-export type CrewPaymentTriggerType =
-    | 'ON_BOOKING'
-    | 'ON_SHOOT_DAY'
-    | 'ON_COMPLETION'
-    | 'AFTER_DELIVERY'
-    | 'BEFORE_EVENT'
-    | 'AFTER_EVENT'
-    | 'ON_FIRST_EDIT'
-    | 'AFTER_ROUGH_CUT'
-    | 'NET_DAYS'
-    | 'ON_TASK_COMPLETE'
-    | 'RECURRING';
-export type CrewPaymentRoleType = 'on_site' | 'off_site';
-export type CrewPaymentTerms = 'DUE_ON_RECEIPT' | 'NET_7' | 'NET_14' | 'NET_30' | 'NET_60';
-export type CrewPaymentFrequency = 'WEEKLY' | 'FORTNIGHTLY' | 'MONTHLY';
-
-export interface CrewPaymentRule {
-    id?: number;
-    template_id?: number;
-    label: string;
-    amount_type: PaymentAmountType;
-    amount_value: number;
-    trigger_type: CrewPaymentTriggerType;
-    trigger_days?: number | null;
-    task_library_id?: number | null;
-    frequency?: CrewPaymentFrequency | null;
-    order_index?: number;
-}
-
-export interface CrewPaymentTemplate {
-    id: number;
-    brand_id: number;
-    name: string;
-    description?: string;
-    role_type: CrewPaymentRoleType;
-    payment_terms?: CrewPaymentTerms | null;
-    is_default: boolean;
-    is_active: boolean;
-    rules: CrewPaymentRule[];
-    created_at: Date;
-    updated_at: Date;
-}
-
-export interface CreateCrewPaymentTemplateData {
-    name: string;
-    description?: string;
-    role_type: CrewPaymentRoleType;
-    payment_terms?: CrewPaymentTerms;
-    is_default?: boolean;
-    rules: Omit<CrewPaymentRule, 'id' | 'template_id'>[];
-}
-
-export interface UpdateCrewPaymentTemplateData {
-    name?: string;
-    description?: string;
-    role_type?: CrewPaymentRoleType;
-    payment_terms?: CrewPaymentTerms;
-    is_default?: boolean;
-    is_active?: boolean;
-    rules?: Omit<CrewPaymentRule, 'id' | 'template_id'>[];
-}
-
-// ---------------------------------------------------------------------------
-// Contract Clause Settings
-// ---------------------------------------------------------------------------
-
-export interface ContractClauseCategory {
-    id: number;
-    brand_id: number;
-    name: string;
-    description: string | null;
-    order_index: number;
-    is_default: boolean;
-    country_code: string | null;
-    is_active: boolean;
-    created_at: string;
-    updated_at: string;
-    clauses: ContractClause[];
-}
-
-export interface ContractClause {
-    id: number;
-    category_id: number;
-    brand_id: number;
-    title: string;
-    body: string;
-    clause_type: 'STANDARD' | 'EXTRA';
-    country_code: string | null;
-    is_default: boolean;
-    is_active: boolean;
-    order_index: number;
-    created_at: string;
-    updated_at: string;
-    category?: ContractClauseCategory;
-}
-
-export interface CreateContractClauseCategoryData {
-    name: string;
-    description?: string;
-    order_index?: number;
-    country_code?: string;
-}
-
-export interface UpdateContractClauseCategoryData {
-    name?: string;
-    description?: string;
-    order_index?: number;
-    country_code?: string;
-    is_active?: boolean;
-}
-
-export interface CreateContractClauseData {
-    category_id: number;
-    title: string;
-    body: string;
-    clause_type?: 'STANDARD' | 'EXTRA';
-    country_code?: string;
-    order_index?: number;
-}
-
-export interface UpdateContractClauseData {
-    category_id?: number;
-    title?: string;
-    body?: string;
-    clause_type?: 'STANDARD' | 'EXTRA';
-    country_code?: string;
-    is_active?: boolean;
-    order_index?: number;
-}
-
-// ── Contract Templates ────────────────────────────────────────────
-
-export interface ContractTemplateClause {
-    id: number;
-    template_id: number;
-    clause_id: number;
-    order_index: number;
-    override_body: string | null;
-    created_at: string;
-    clause: ContractClause & { category: ContractClauseCategory | null };
-}
-
-export interface ContractTemplate {
-    id: number;
-    brand_id: number;
-    name: string;
-    description: string | null;
-    payment_schedule_template_id: number | null;
-    is_default: boolean;
-    is_active: boolean;
-    created_at: string;
-    updated_at: string;
-    template_clauses: ContractTemplateClause[];
-    payment_schedule?: PaymentScheduleTemplate | null;
-}
-
-export interface TemplateClauseInput {
-    clause_id: number;
-    order_index?: number;
-    override_body?: string;
-}
-
-export interface CreateContractTemplateData {
-    name: string;
-    description?: string;
-    payment_schedule_template_id?: number;
-    is_default?: boolean;
-    clauses?: TemplateClauseInput[];
-}
-
-export interface UpdateContractTemplateData {
-    name?: string;
-    description?: string;
-    payment_schedule_template_id?: number | null;
-    is_default?: boolean;
-    is_active?: boolean;
-    clauses?: TemplateClauseInput[];
-}
-
-export interface ContractVariableInfo {
-    key: string;
-    label: string;
-    example: string;
-}
-
-export interface ContractVariableCategory {
-    category: string;
-    variables: ContractVariableInfo[];
-}
-
-export interface ContractPreviewSection {
-    clause_id: number;
-    title: string;
-    category: string;
-    body: string;
-    order_index: number;
-}
-
-export interface ContractPreview {
-    template_id: number;
-    template_name: string;
-    inquiry_id: number | null;
-    sections: ContractPreviewSection[];
-    available_variables: ContractVariableCategory[];
-}
+export type {
+    CrewPaymentTriggerType,
+    CrewPaymentRoleType,
+    CrewPaymentTerms,
+    CrewPaymentFrequency,
+    CrewPaymentRule,
+    CrewPaymentTemplate,
+    CreateCrewPaymentTemplateData,
+    UpdateCrewPaymentTemplateData,
+} from '@/features/finance/crew-payment-templates/types';

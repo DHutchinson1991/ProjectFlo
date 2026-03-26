@@ -1,0 +1,148 @@
+import type { ApiClient } from "@/lib/api/api-client.types";
+import type { ContributorApiResponse } from "@/lib/types/api/users";
+import { mapContributorResponse } from "@/lib/types/mappers/users";
+import type { Contributor } from "@/lib/types";
+import type {
+    Equipment,
+    EquipmentRental,
+    EquipmentMaintenance,
+    CreateEquipmentDto,
+    UpdateEquipmentDto,
+    CreateEquipmentRentalDto,
+    UpdateEquipmentRentalDto,
+    CreateEquipmentMaintenanceDto,
+    UpdateEquipmentMaintenanceDto,
+    EquipmentByCategory,
+    EquipmentStats,
+} from "../types/equipment.types";
+
+export const createEquipmentApi = (client: ApiClient) => ({
+    // Main equipment CRUD
+    getAll: (query?: {
+        category?: string;
+        type?: string;
+        status?: string;
+        search?: string;
+        manufacturer?: string;
+        location?: string;
+    }): Promise<Equipment[]> => {
+        const params = new URLSearchParams();
+        if (query?.category) params.append("category", query.category);
+        if (query?.type) params.append("type", query.type);
+        if (query?.status) params.append("status", query.status);
+        if (query?.search) params.append("search", query.search);
+        if (query?.manufacturer) params.append("manufacturer", query.manufacturer);
+        if (query?.location) params.append("location", query.location);
+        const queryString = params.toString();
+        return client.get<Equipment[]>(`/equipment${queryString ? `?${queryString}` : ""}`);
+    },
+
+    getById: (id: number): Promise<Equipment> =>
+        client.get<Equipment>(`/equipment/${id}`),
+
+    create: (data: CreateEquipmentDto): Promise<Equipment> =>
+        client.post<Equipment>("/equipment", data),
+
+    update: (id: number, data: UpdateEquipmentDto | Partial<CreateEquipmentDto>): Promise<Equipment> =>
+        client.patch<Equipment>(`/equipment/${id}`, data),
+
+    delete: (id: number): Promise<void> =>
+        client.delete<void>(`/equipment/${id}`),
+
+    getGroupedByCategory: async (): Promise<EquipmentByCategory> => {
+        const response = await client.get<{ groupedByType: EquipmentByCategory }>("/equipment/grouped");
+        return response.groupedByType;
+    },
+
+    getStats: (): Promise<EquipmentStats> =>
+        client.get<EquipmentStats>("/equipment/stats"),
+
+    getAvailable: (startDate?: string, endDate?: string): Promise<Equipment[]> => {
+        const params = new URLSearchParams();
+        if (startDate) params.append("startDate", startDate);
+        if (endDate) params.append("endDate", endDate);
+        const queryString = params.toString();
+        return client.get<Equipment[]>(`/equipment/available${queryString ? `?${queryString}` : ""}`);
+    },
+
+    // Equipment unmanned status
+    findUnmanned: (brandId: number): Promise<Equipment[]> =>
+        client.get<Equipment[]>(`/equipment/unmanned/${brandId}`),
+
+    setUnmannedStatus: (equipmentId: number, isUnmanned: boolean): Promise<Equipment> =>
+        client.patch<Equipment>(`/equipment/${equipmentId}/unmanned`, { isUnmanned }),
+
+    // Contributors (used to populate owner dropdowns)
+    getContributors: async (): Promise<Contributor[]> => {
+        const apiResponse = await client.get<ContributorApiResponse[]>("/contributors");
+        return apiResponse.map(mapContributorResponse);
+    },
+
+    // Equipment rental methods
+    rentals: {
+        getAll: (equipmentId?: number): Promise<EquipmentRental[]> => {
+            const endpoint = equipmentId
+                ? `/equipment/${equipmentId}/rentals`
+                : "/equipment/rentals";
+            return client.get<EquipmentRental[]>(endpoint);
+        },
+
+        getById: (id: number): Promise<EquipmentRental> =>
+            client.get<EquipmentRental>(`/equipment/rentals/${id}`),
+
+        create: (data: CreateEquipmentRentalDto): Promise<EquipmentRental> =>
+            client.post<EquipmentRental>("/equipment/rentals", data),
+
+        update: (id: number, data: UpdateEquipmentRentalDto): Promise<EquipmentRental> =>
+            client.patch<EquipmentRental>(`/equipment/rentals/${id}`, data),
+
+        delete: (id: number): Promise<void> =>
+            client.delete<void>(`/equipment/rentals/${id}`),
+
+        returnEquipment: (id: number, depositReturned = true): Promise<EquipmentRental> =>
+            client.patch<EquipmentRental>(`/equipment/rentals/${id}/return`, {
+                status: "Completed",
+                deposit_returned: depositReturned,
+            }),
+
+        getActive: (): Promise<EquipmentRental[]> =>
+            client.get<EquipmentRental[]>("/equipment/rentals?status=Active"),
+    },
+
+    // Equipment maintenance methods
+    maintenance: {
+        getAll: (equipmentId?: number): Promise<EquipmentMaintenance[]> => {
+            const endpoint = equipmentId
+                ? `/equipment/${equipmentId}/maintenance`
+                : "/equipment/maintenance";
+            return client.get<EquipmentMaintenance[]>(endpoint);
+        },
+
+        getById: (id: number): Promise<EquipmentMaintenance> =>
+            client.get<EquipmentMaintenance>(`/equipment/maintenance/${id}`),
+
+        create: (data: CreateEquipmentMaintenanceDto): Promise<EquipmentMaintenance> =>
+            client.post<EquipmentMaintenance>("/equipment/maintenance", data),
+
+        update: (id: number, data: UpdateEquipmentMaintenanceDto): Promise<EquipmentMaintenance> =>
+            client.patch<EquipmentMaintenance>(`/equipment/maintenance/${id}`, data),
+
+        delete: (id: number): Promise<void> =>
+            client.delete<void>(`/equipment/maintenance/${id}`),
+
+        complete: (id: number, notes?: string): Promise<EquipmentMaintenance> =>
+            client.patch<EquipmentMaintenance>(`/equipment/maintenance/${id}/complete`, {
+                status: "Completed",
+                completed_date: new Date().toISOString(),
+                notes,
+            }),
+
+        getDue: (): Promise<EquipmentMaintenance[]> =>
+            client.get<EquipmentMaintenance[]>("/equipment/maintenance/due"),
+
+        getScheduled: (): Promise<EquipmentMaintenance[]> =>
+            client.get<EquipmentMaintenance[]>("/equipment/maintenance?status=Scheduled"),
+    },
+});
+
+export type EquipmentApi = ReturnType<typeof createEquipmentApi>;

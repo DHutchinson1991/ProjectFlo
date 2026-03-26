@@ -1,6 +1,6 @@
 import { api, apiClient } from "@/lib/api";
 import { ApiClient } from "@/lib/api/api-client.types";
-import { request } from "@/hooks/utils/api";
+import { request } from "@/shared/utils/request";
 import { createScenesApi } from "@/lib/api/scenes.api";
 
 type TrackLike = {
@@ -129,7 +129,7 @@ export const applyEquipmentTemplateToFilm = async (
         const numCameras = typeof counts?.cameras === 'number' ? counts.cameras : inferredCameraCount;
         const numAudio = typeof counts?.audio === 'number' ? counts.audio : inferredAudioCount;
 
-        await request(`/films/${filmId}/equipment`, {
+        await request(`/api/films/${filmId}/equipment`, {
             method: 'PATCH',
             body: JSON.stringify({
                 num_cameras: numCameras,
@@ -139,7 +139,7 @@ export const applyEquipmentTemplateToFilm = async (
         });
 
         const existingAssignments = await request<any[]>(
-            `/films/${filmId}/equipment-assignments`
+            `/api/films/${filmId}/equipment-assignments`
         );
         const assignedEquipmentIds = new Set(existingAssignments.map((a) => a.equipment_id));
 
@@ -156,7 +156,7 @@ export const applyEquipmentTemplateToFilm = async (
             }
             const slotKey = `slot:${item.slot_type.toLowerCase()}-${item.slot_index}`;
             try {
-                await request(`/films/${filmId}/equipment-assignments`, {
+                await request(`/api/films/${filmId}/equipment-assignments`, {
                     method: 'POST',
                     body: JSON.stringify({
                         equipment_id: item.equipment_id,
@@ -197,7 +197,7 @@ export const createLinkedFilmFromTemplate = async ({
         if (!templateId) return;
         try {
             const templates = await request<any[]>(
-                `/subjects/roles/brand/${brandId}`,
+                `/api/subjects/roles/brand/${brandId}`,
                 {},
                 { includeBrandQuery: false }
             );
@@ -207,7 +207,7 @@ export const createLinkedFilmFromTemplate = async ({
             for (const role of template.roles) {
                 try {
                     await request(
-                        `/subjects/films/${filmId}/subjects`,
+                        `/api/subjects/films/${filmId}/subjects`,
                         {
                             method: "POST",
                             body: JSON.stringify({

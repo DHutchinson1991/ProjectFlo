@@ -3,7 +3,7 @@ import type {
     FilmEquipmentAssignment,
     FilmEquipmentAssignmentsBySlot,
     FilmEquipmentSlotAssignment,
-} from "@/types/film-equipment.types";
+} from "@/features/content/films/types/film-equipment.types";
 
 const SLOT_PREFIX = "slot:";
 const SLOT_PATTERN = /^slot:(camera|audio)-(\d+)$/i;

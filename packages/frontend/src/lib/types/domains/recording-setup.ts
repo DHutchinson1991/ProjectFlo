@@ -6,7 +6,7 @@
 import type { SceneMoment } from './moments';
 import type { FilmTimelineTrack } from './equipment';
 import type { FilmSubject } from './subjects';
-import type { ShotType } from '@/types/coverage.types';
+import type { ShotType } from '@/features/content/coverage/types';
 
 /**
  * CameraSubjectAssignment - Links a camera/track to subjects for a moment

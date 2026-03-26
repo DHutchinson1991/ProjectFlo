@@ -1,4 +1,6 @@
-"use client";
+// Re-export shim — canonical ProposalSettings has moved to @/features/platform/settings
+export { default } from "@/features/platform/settings/components/ProposalSettings";
+export { default as ProposalSettings } from "@/features/platform/settings/components/ProposalSettings";
 
 import React, { useState, useEffect, useCallback } from "react";
 import {

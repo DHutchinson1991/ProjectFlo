@@ -9,8 +9,15 @@ export interface ApiClientOptions {
 }
 
 export interface ApiClient {
-  get<T = any>(url: string, options?: ApiClientOptions): Promise<T>;
-  post<T = any>(url: string, data?: any, options?: ApiClientOptions): Promise<T>;
-  patch<T = any>(url: string, data?: any, options?: ApiClientOptions): Promise<T>;
-  delete<T = any>(url: string, options?: ApiClientOptions): Promise<T>;
+  get<T = unknown>(url: string, options?: ApiClientOptions): Promise<T>;
+  post<T = unknown>(url: string, data?: unknown, options?: ApiClientOptions): Promise<T>;
+  patch<T = unknown>(url: string, data?: unknown, options?: ApiClientOptions): Promise<T>;
+  put<T = unknown>(url: string, data?: unknown, options?: ApiClientOptions): Promise<T>;
+  delete<T = unknown>(url: string, options?: ApiClientOptions): Promise<T>;
+}
+
+export interface PublicApiClient {
+  publicGet<T = unknown>(url: string): Promise<T>;
+  publicPost<T = unknown>(url: string, data?: unknown): Promise<T>;
+  publicPatch<T = unknown>(url: string, data?: unknown): Promise<T>;
 }

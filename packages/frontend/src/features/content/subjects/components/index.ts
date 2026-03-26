@@ -1,0 +1,1 @@
+export { SubjectsCard } from './SubjectsCard';

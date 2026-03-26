@@ -3,10 +3,10 @@
 import React from "react";
 import { Box } from "@mui/material";
 import { usePathname } from "next/navigation";
-import StudioSidebar from "./components/StudioSidebar";
-import StudioHeader from "./components/StudioHeader";
-import GlobalTaskDrawer from "./components/GlobalTaskDrawer";
-import { ProjectProvider } from "./providers/ProjectProvider";
+import StudioSidebar from "@/features/platform/studio-layout/components/StudioSidebar";
+import StudioHeader from "@/features/platform/studio-layout/components/StudioHeader";
+import GlobalTaskDrawer from "@/features/workflow/tasks/components/GlobalTaskDrawer";
+import { ProjectProvider } from "@/features/workflow/projects";
 import { ProtectedRoute } from "../components/auth/ProtectedRoute/ProtectedRoute";
 
 interface StudioLayoutProps {

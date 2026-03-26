@@ -1,4 +1,6 @@
-"use client";
+// Re-export shim — canonical ClientPortalSettings has moved to @/features/platform/settings
+export { default } from "@/features/platform/settings/components/ClientPortalSettings";
+export { default as ClientPortalSettings } from "@/features/platform/settings/components/ClientPortalSettings";
 
 import React, { useState } from "react";
 import { Box, Typography, Chip } from "@mui/material";

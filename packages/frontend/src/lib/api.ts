@@ -42,9 +42,6 @@ import {
   UpdateInquiryData,
   CreateClientData,
   UpdateClientData,
-  Proposal,
-  CreateProposalData,
-  UpdateProposalData,
   ServicePackage,
   NeedsAssessmentTemplate,
   NeedsAssessmentSubmission,
@@ -57,7 +54,6 @@ import {
 
   // Contracts and Invoices domain
   Contract,
-  ContractSigner,
   Invoice,
   CreateContractData,
   UpdateContractData,
@@ -84,13 +80,11 @@ import {
 
   // Estimates domain
   Estimate,
-  EstimateItem,
   CreateEstimateData,
   UpdateEstimateData,
 
   // Payment Schedules domain
   PaymentScheduleTemplate,
-  PaymentScheduleRule,
   EstimatePaymentMilestone,
   QuotePaymentMilestone,
   CreatePaymentScheduleTemplateData,
@@ -105,16 +99,13 @@ import {
 
   // Quotes domain
   Quote,
-  QuoteItem,
   CreateQuoteData,
   UpdateQuoteData,
 
   // Content domain - NOTE: ScenesLibrary moved to domains/scenes
   CreateSceneDto,
   UpdateSceneDto,
-  TimelineSceneData,
   TimelineLayerData,
-  TimelineAnalyticsData,
   EditingStyleData,
   CreateEditingStyleData,
   UpdateEditingStyleData,
@@ -131,7 +122,6 @@ import {
   UpdateTaskLibrarySkillRateDto,
   TaskLibraryByPhase,
   BatchUpdateTaskOrderDto,
-  TaskOrderUpdateDto,
   TaskAutoGenerationPreview,
   ExecuteAutoGenerationResult,
   ExecuteAutoGenerationDto,
@@ -139,8 +129,6 @@ import {
 
   // Workflow Management domain
   WorkflowTemplate,
-  WorkflowStage,
-  TaskGenerationRule,
   WorkflowTaskPreview,
   WorkflowTemplateTask,
   TemplateTasksResponse,
@@ -150,11 +138,6 @@ import {
   AddTaskToTemplateDto,
   SyncTemplateTasksDto,
   UpdateTemplateTaskDto,
-  CreateWorkflowStageDto,
-  UpdateWorkflowStageDto,
-  ReorderStagesDto,
-  CreateTaskGenerationRuleDto,
-  UpdateTaskGenerationRuleDto,
   WorkflowQueryParams,
 
   // Equipment Management domain
@@ -208,13 +191,9 @@ import {
   mapContributorResponse,
   mapContactResponse,
   InquiryApiResponse,
-  ProposalApiResponse,
-  mapProposalResponse,
-  ClientApiResponse,
   ClientListApiResponse,
   ClientDetailApiResponse,
   mapInquiryResponse,
-  mapClientResponse,
   mapClientListResponse,
   mapClientDetailResponse,
 } from "./types";
@@ -323,7 +302,7 @@ export function setBrandContextProvider(provider: BrandContextProvider) {
 }
 
 // Function to get current brand ID
-function getCurrentBrandId(): number | null {
+export function getCurrentBrandId(): number | null {
   return globalBrandContextProvider?.getCurrentBrandId() || null;
 }
 
@@ -434,7 +413,7 @@ class BaseApiClient {
         if (this.refreshToken) {
           try {
             // Make refresh request
-            const refreshResponse = await fetch(`${this.baseURL}/auth/refresh`, {
+            const refreshResponse = await fetch(`${this.baseURL}/api/auth/refresh`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ refresh_token: this.refreshToken }),
@@ -494,7 +473,7 @@ class BaseApiClient {
     return {} as T;
   }
 
-  protected async get<T>(endpoint: string, options: { skipBrandContext?: boolean } = {}): Promise<T> {
+  public async get<T>(endpoint: string, options: { skipBrandContext?: boolean } = {}): Promise<T> {
     const url = options.skipBrandContext ? endpoint : this.addBrandContextToUrl(endpoint);
     const response = await this.loggedFetch(`${this.baseURL}${url}`, {
       method: "GET",
@@ -503,7 +482,7 @@ class BaseApiClient {
     return this.handleResponse<T>(response);
   }
 
-  protected async post<T>(endpoint: string, data?: unknown, options: { skipBrandContext?: boolean } = {}): Promise<T> {
+  public async post<T>(endpoint: string, data?: unknown, options: { skipBrandContext?: boolean } = {}): Promise<T> {
     const url = options.skipBrandContext ? endpoint : this.addBrandContextToUrl(endpoint);
     const response = await this.loggedFetch(`${this.baseURL}${url}`, {
       method: "POST",
@@ -513,7 +492,7 @@ class BaseApiClient {
     return this.handleResponse<T>(response);
   }
 
-  protected async patch<T>(endpoint: string, data?: unknown, options: { skipBrandContext?: boolean } = {}): Promise<T> {
+  public async patch<T>(endpoint: string, data?: unknown, options: { skipBrandContext?: boolean } = {}): Promise<T> {
     const url = options.skipBrandContext ? endpoint : this.addBrandContextToUrl(endpoint);
     const response = await this.loggedFetch(`${this.baseURL}${url}`, {
       method: "PATCH",
@@ -523,7 +502,7 @@ class BaseApiClient {
     return this.handleResponse<T>(response);
   }
 
-  protected async put<T>(endpoint: string, data?: unknown, options: { skipBrandContext?: boolean } = {}): Promise<T> {
+  public async put<T>(endpoint: string, data?: unknown, options: { skipBrandContext?: boolean } = {}): Promise<T> {
     const url = options.skipBrandContext ? endpoint : this.addBrandContextToUrl(endpoint);
     const response = await this.loggedFetch(`${this.baseURL}${url}`, {
       method: "PUT",
@@ -533,11 +512,37 @@ class BaseApiClient {
     return this.handleResponse<T>(response);
   }
 
-  protected async delete<T>(endpoint: string, options: { skipBrandContext?: boolean } = {}): Promise<T> {
+  public async delete<T>(endpoint: string, options: { skipBrandContext?: boolean } = {}): Promise<T> {
     const url = options.skipBrandContext ? endpoint : this.addBrandContextToUrl(endpoint);
     const response = await this.loggedFetch(`${this.baseURL}${url}`, {
       method: "DELETE",
       headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse<T>(response);
+  }
+
+  // Public (unauthenticated) request helpers — no auth headers, no brand context
+  public async publicGet<T>(endpoint: string): Promise<T> {
+    const response = await this.loggedFetch(`${this.baseURL}${endpoint}`, {
+      method: "GET",
+    });
+    return this.handleResponse<T>(response);
+  }
+
+  public async publicPost<T>(endpoint: string, data?: unknown): Promise<T> {
+    const response = await this.loggedFetch(`${this.baseURL}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    return this.handleResponse<T>(response);
+  }
+
+  public async publicPatch<T>(endpoint: string, data?: unknown): Promise<T> {
+    const response = await this.loggedFetch(`${this.baseURL}${endpoint}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: data ? JSON.stringify(data) : undefined,
     });
     return this.handleResponse<T>(response);
   }
@@ -548,13 +553,13 @@ class ApiService extends BaseApiClient {
   // Authentication methods
   auth = {
     login: (credentials: LoginCredentials): Promise<AuthResponse & { refresh_token: string }> =>
-      this.post("/auth/login", credentials, { skipBrandContext: true }),
+      this.post("/api/auth/login", credentials, { skipBrandContext: true }),
 
     getProfile: (): Promise<UserProfile> =>
-      this.get("/auth/profile", { skipBrandContext: true }),
+      this.get("/api/auth/profile", { skipBrandContext: true }),
 
     refresh: (refreshToken: string): Promise<{ access_token: string; refresh_token: string }> =>
-      this.post("/auth/refresh", { refresh_token: refreshToken }, { skipBrandContext: true }),
+      this.post("/api/auth/refresh", { refresh_token: refreshToken }, { skipBrandContext: true }),
 
     setToken: (token: string | null) => this.setAuthToken(token),
     setRefreshToken: (token: string | null) => this.setRefreshToken(token),
@@ -568,35 +573,35 @@ class ApiService extends BaseApiClient {
   // Contributors methods (brand-specific)
   contributors = {
     getAll: async (): Promise<Contributor[]> => {
-      const apiResponse: ContributorApiResponse[] = await this.get("/contributors");
+      const apiResponse: ContributorApiResponse[] = await this.get("/api/contributors");
       return apiResponse.map(mapContributorResponse);
     },
     getById: async (id: number): Promise<Contributor> => {
-      const apiResponse: ContributorApiResponse = await this.get(`/contributors/${id}`);
+      const apiResponse: ContributorApiResponse = await this.get(`/api/contributors/${id}`);
       return mapContributorResponse(apiResponse);
     },
     create: async (data: NewContributorData): Promise<Contributor> => {
-      const apiResponse: ContributorApiResponse = await this.post("/contributors", data);
+      const apiResponse: ContributorApiResponse = await this.post("/api/contributors", data);
       return mapContributorResponse(apiResponse);
     },
     update: async (id: number, data: UpdateContributorDto): Promise<Contributor> => {
-      const apiResponse: ContributorApiResponse = await this.patch(`/contributors/${id}`, data);
+      const apiResponse: ContributorApiResponse = await this.patch(`/api/contributors/${id}`, data);
       return mapContributorResponse(apiResponse);
     },
-    delete: (id: number): Promise<void> => this.delete(`/contributors/${id}`),
+    delete: (id: number): Promise<void> => this.delete(`/api/contributors/${id}`),
     // Job role management methods
     addJobRole: async (id: number, jobRoleId: number): Promise<Contributor> => {
-      const apiResponse: ContributorApiResponse = await this.post(`/contributors/${id}/job-roles`, {
+      const apiResponse: ContributorApiResponse = await this.post(`/api/contributors/${id}/job-roles`, {
         job_role_id: jobRoleId,
       });
       return mapContributorResponse(apiResponse);
     },
     removeJobRole: async (id: number, jobRoleId: number): Promise<Contributor> => {
-      const apiResponse: ContributorApiResponse = await this.delete(`/contributors/${id}/job-roles/${jobRoleId}`);
+      const apiResponse: ContributorApiResponse = await this.delete(`/api/contributors/${id}/job-roles/${jobRoleId}`);
       return mapContributorResponse(apiResponse);
     },
     setPrimaryJobRole: async (id: number, jobRoleId: number): Promise<Contributor> => {
-      const apiResponse: ContributorApiResponse = await this.put(`/contributors/${id}/job-roles/${jobRoleId}/primary`, {});
+      const apiResponse: ContributorApiResponse = await this.put(`/api/contributors/${id}/job-roles/${jobRoleId}/primary`, {});
       return mapContributorResponse(apiResponse);
     },
   };
@@ -683,144 +688,144 @@ class ApiService extends BaseApiClient {
   // Subjects methods (library-based with optional brand context)
   subjects = {
     // Get all subjects from library (brand-specific or global)
-    getAll: (): Promise<SubjectsLibrary[]> => this.get("/subjects"),
+    getAll: (): Promise<SubjectsLibrary[]> => this.get("/api/subjects"),
 
     // Get subject by ID
-    getById: (id: number): Promise<SubjectsLibrary> => this.get(`/subjects/${id}`),
+    getById: (id: number): Promise<SubjectsLibrary> => this.get(`/api/subjects/${id}`),
 
     // Create new subject in library
     create: (data: CreateSubjectDto): Promise<SubjectsLibrary> =>
-      this.post("/subjects", data),
+      this.post("/api/subjects", data),
 
     // Update subject in library
     update: (id: number, data: UpdateSubjectDto): Promise<SubjectsLibrary> =>
-      this.patch(`/subjects/${id}`, data),
+      this.patch(`/api/subjects/${id}`, data),
 
     // Delete subject from library
-    delete: (id: number): Promise<void> => this.delete(`/subjects/${id}`),
+    delete: (id: number): Promise<void> => this.delete(`/api/subjects/${id}`),
 
     // Get subjects assigned to a specific scene
     getByScene: (sceneId: number): Promise<SceneSubjects[]> =>
-      this.get(`/subjects/scenes/${sceneId}`),
+      this.get(`/api/subjects/scenes/${sceneId}`),
 
     // Assign subject to scene with priority
     assignToScene: (sceneId: number, data: AssignSubjectToSceneDto): Promise<SceneSubjects> =>
-      this.post(`/subjects/scenes/${sceneId}/assign`, data),
+      this.post(`/api/subjects/scenes/${sceneId}/assign`, data),
 
     // Update scene subject assignment (priority, notes)
     updateSceneAssignment: (sceneId: number, subjectId: number, data: UpdateSceneSubjectDto): Promise<SceneSubjects> =>
-      this.patch(`/subjects/scenes/${sceneId}/subjects/${subjectId}`, data),
+      this.patch(`/api/subjects/scenes/${sceneId}/subjects/${subjectId}`, data),
 
     // Remove subject from scene
     removeFromScene: (sceneId: number, subjectId: number): Promise<void> =>
-      this.delete(`/subjects/scenes/${sceneId}/subjects/${subjectId}`),
+      this.delete(`/api/subjects/scenes/${sceneId}/subjects/${subjectId}`),
 
     // Get subjects assigned to a specific moment
     getByMoment: (momentId: number): Promise<SceneSubjects[]> =>
-      this.get(`/subjects/moments/${momentId}`),
+      this.get(`/api/subjects/moments/${momentId}`),
 
     // Assign subject to moment with priority
     assignToMoment: (momentId: number, data: AssignSubjectToSceneDto): Promise<SceneSubjects> =>
-      this.post(`/subjects/moments/${momentId}/assign`, data),
+      this.post(`/api/subjects/moments/${momentId}/assign`, data),
 
     // Update moment subject assignment (priority, notes)
     updateMomentAssignment: (momentId: number, subjectId: number, data: UpdateSceneSubjectDto): Promise<SceneSubjects> =>
-      this.patch(`/subjects/moments/${momentId}/subjects/${subjectId}`, data),
+      this.patch(`/api/subjects/moments/${momentId}/subjects/${subjectId}`, data),
 
     // Remove subject from moment
     removeFromMoment: (momentId: number, subjectId: number): Promise<void> =>
-      this.delete(`/subjects/moments/${momentId}/subjects/${subjectId}`),
+      this.delete(`/api/subjects/moments/${momentId}/subjects/${subjectId}`),
 
     // ===== Subject Role Management =====
 
     // Get all subject roles for a brand
     getRoles: (brandId: number): Promise<any[]> =>
-      this.get(`/subjects/roles/brand/${brandId}`),
+      this.get(`/api/subjects/roles/brand/${brandId}`),
 
     // Create subject role(s) for a brand (single or batch via roles[])
     createRole: (brandId: number, data: { role_name: string; description?: string; is_core?: boolean; is_group?: boolean; roles?: any[] }): Promise<any> =>
-      this.post(`/subjects/roles/brand/${brandId}`, data),
+      this.post(`/api/subjects/roles/brand/${brandId}`, data),
 
     // Update a subject role
     updateRole: (roleId: number, data: { role_name?: string; description?: string; is_core?: boolean }): Promise<any> =>
-      this.patch(`/subjects/roles/${roleId}`, data),
+      this.patch(`/api/subjects/roles/${roleId}`, data),
 
     // Delete a subject role
     deleteRole: (roleId: number): Promise<void> =>
-      this.delete(`/subjects/roles/${roleId}`),
+      this.delete(`/api/subjects/roles/${roleId}`),
   };
 
   // Film location assignments
   filmLocations = {
     getByFilm: (filmId: number): Promise<FilmLocationAssignment[]> =>
-      this.get(`/film-locations/films/${filmId}/locations`),
+      this.get(`/api/film-locations/films/${filmId}/locations`),
     addToFilm: (filmId: number, data: { location_id: number; notes?: string }): Promise<FilmLocationAssignment> =>
-      this.post(`/film-locations/films/${filmId}/locations`, data),
+      this.post(`/api/film-locations/films/${filmId}/locations`, data),
     removeFromFilm: (filmId: number, locationId: number): Promise<void> =>
-      this.delete(`/film-locations/films/${filmId}/locations/${locationId}`),
+      this.delete(`/api/film-locations/films/${filmId}/locations/${locationId}`),
     getSceneLocation: (sceneId: number): Promise<FilmSceneLocationAssignment | null> =>
-      this.get(`/film-locations/scenes/${sceneId}/location`),
+      this.get(`/api/film-locations/scenes/${sceneId}/location`),
     setSceneLocation: (sceneId: number, data: { location_id: number }): Promise<FilmSceneLocationAssignment> =>
-      this.put(`/film-locations/scenes/${sceneId}/location`, data),
+      this.put(`/api/film-locations/scenes/${sceneId}/location`, data),
     clearSceneLocation: (sceneId: number): Promise<void> =>
-      this.delete(`/film-locations/scenes/${sceneId}/location`),
+      this.delete(`/api/film-locations/scenes/${sceneId}/location`),
   };
 
   // Contacts methods (brand-specific)
   contacts = {
     getAll: async (): Promise<Contact[]> => {
-      const apiResponse: ContactApiResponse[] = await this.get("/contacts");
+      const apiResponse: ContactApiResponse[] = await this.get("/api/contacts");
       return apiResponse.map(mapContactResponse);
     },
     getById: async (id: number): Promise<Contact> => {
-      const apiResponse: ContactApiResponse = await this.get(`/contacts/${id}`);
+      const apiResponse: ContactApiResponse = await this.get(`/api/contacts/${id}`);
       return mapContactResponse(apiResponse);
     },
     create: async (data: NewContactData): Promise<Contact> => {
-      const apiResponse: ContactApiResponse = await this.post("/contacts", data);
+      const apiResponse: ContactApiResponse = await this.post("/api/contacts", data);
       return mapContactResponse(apiResponse);
     },
     update: async (id: number, data: UpdateContactDto): Promise<Contact> => {
-      const apiResponse: ContactApiResponse = await this.patch(`/contacts/${id}`, data);
+      const apiResponse: ContactApiResponse = await this.patch(`/api/contacts/${id}`, data);
       return mapContactResponse(apiResponse);
     },
-    delete: (id: number): Promise<void> => this.delete(`/contacts/${id}`),
+    delete: (id: number): Promise<void> => this.delete(`/api/contacts/${id}`),
   };
 
   // Roles methods (universal - no brand context needed)
   roles = {
-    getAll: (): Promise<Role[]> => this.get("/roles", { skipBrandContext: true }),
-    getById: (id: number): Promise<Role> => this.get(`/roles/${id}`, { skipBrandContext: true }),
+    getAll: (): Promise<Role[]> => this.get("/api/roles", { skipBrandContext: true }),
+    getById: (id: number): Promise<Role> => this.get(`/api/roles/${id}`, { skipBrandContext: true }),
     create: (data: { name: string; description?: string }): Promise<Role> =>
-      this.post("/roles", data, { skipBrandContext: true }),
+      this.post("/api/roles", data, { skipBrandContext: true }),
     update: (
       id: number,
       data: { name?: string; description?: string },
-    ): Promise<Role> => this.patch(`/roles/${id}`, data, { skipBrandContext: true }),
-    delete: (id: number): Promise<void> => this.delete(`/roles/${id}`, { skipBrandContext: true }),
+    ): Promise<Role> => this.patch(`/api/roles/${id}`, data, { skipBrandContext: true }),
+    delete: (id: number): Promise<void> => this.delete(`/api/roles/${id}`, { skipBrandContext: true }),
   };
 
   // Scenes methods (brand-specific)
   scenes = {
     getAll: (): Promise<ScenesLibrary[]> => {
-      return this.get("/scenes/templates");
+      return this.get("/api/scenes/templates");
     },
     getByFilm: (filmId: number): Promise<ScenesLibrary[]> => {
-      return this.get(`/scenes/films/${filmId}/scenes`);
+      return this.get(`/api/scenes/films/${filmId}/scenes`);
     },
     getTemplates: (): Promise<ScenesLibrary[]> => {
-      return this.get("/scenes/templates");
+      return this.get("/api/scenes/templates");
     },
     createTemplateFromScene: (sceneId: number, name?: string): Promise<ScenesLibrary> =>
-      this.post("/scenes/templates/from-scene", { scene_id: sceneId, name }, { skipBrandContext: true }),
+      this.post("/api/scenes/templates/from-scene", { scene_id: sceneId, name }, { skipBrandContext: true }),
     deleteTemplate: (id: number): Promise<{ message: string }> =>
-      this.delete(`/scenes/templates/${id}`, { skipBrandContext: true }),
-    getById: (id: number): Promise<ScenesLibrary> => this.get(`/scenes/${id}`),
+      this.delete(`/api/scenes/templates/${id}`, { skipBrandContext: true }),
+    getById: (id: number): Promise<ScenesLibrary> => this.get(`/api/scenes/${id}`),
     create: (data: CreateSceneDto): Promise<ScenesLibrary> =>
-      this.post("/scenes", data),
+      this.post("/api/scenes", data),
     update: (id: number, data: UpdateSceneDto): Promise<ScenesLibrary> =>
-      this.patch(`/scenes/${id}`, data),
-    delete: (id: number): Promise<void> => this.delete(`/scenes/${id}`),
+      this.patch(`/api/scenes/${id}`, data),
+    delete: (id: number): Promise<void> => this.delete(`/api/scenes/${id}`),
     // Scene-Coverage relationship methods
     addCoverageToScene: (
       sceneId: number, 
@@ -833,97 +838,97 @@ class ApiService extends BaseApiClient {
       coverage_ids: number[];
       scene_coverage_records?: { id: number; coverage_id: number; assignment: string }[]
     }> =>
-      this.post(`/scenes/${sceneId}/coverage`, { coverageIds, assignments }),
+      this.post(`/api/scenes/${sceneId}/coverage`, { coverageIds, assignments }),
     getSceneCoverage: (sceneId: number): Promise<{ 
       scene_id: number; 
       scene_name: string; 
       coverage_items: (Coverage & { scene_coverage_id: number; assignment?: string; priority_order?: number })[] 
     }> =>
-      this.get(`/scenes/${sceneId}/coverage`),
+      this.get(`/api/scenes/${sceneId}/coverage`),
     removeCoverageFromScene: (sceneId: number, coverageId: number): Promise<{ success: boolean; message: string; scene_id: number; coverage_id: number }> =>
-      this.delete(`/scenes/${sceneId}/coverage/${coverageId}`),
+      this.delete(`/api/scenes/${sceneId}/coverage/${coverageId}`),
     removeAllCoverageFromScene: (sceneId: number): Promise<{ success: boolean; message: string; scene_id: number; removed_count: number }> =>
-      this.delete(`/scenes/${sceneId}/coverage`),
+      this.delete(`/api/scenes/${sceneId}/coverage`),
   };
 
   // Coverage methods (library)
   // Films methods (brand-specific)
   films = {
     getAll: (): Promise<Film[]> => {
-      return this.get("/films");
+      return this.get("/api/films");
     },
-    getById: (id: number): Promise<Film> => this.get(`/films/${id}`),
+    getById: (id: number): Promise<Film> => this.get(`/api/films/${id}`),
     create: (data: CreateFilmDto): Promise<Film> =>
-      this.post("/films", data),
+      this.post("/api/films", data),
     update: (id: number, data: UpdateFilmDto): Promise<Film> =>
-      this.patch(`/films/${id}`, data),
-    delete: (id: number): Promise<void> => this.delete(`/films/${id}`),
+      this.patch(`/api/films/${id}`, data),
+    delete: (id: number): Promise<void> => this.delete(`/api/films/${id}`),
 
     // Equipment Management
     equipment: {
       set: (filmId: number, data: SetEquipmentDto): Promise<FilmEquipment> =>
-        this.post(`/films/${filmId}/equipment`, data),
+        this.post(`/api/films/${filmId}/equipment`, data),
       update: (filmId: number, data: { num_cameras?: number; num_audio?: number; allow_removal?: boolean }): Promise<any> =>
-        this.patch(`/films/${filmId}/equipment`, data),
+        this.patch(`/api/films/${filmId}/equipment`, data),
       getAll: (filmId: number): Promise<FilmEquipment[]> =>
-        this.get(`/films/${filmId}/equipment`),
+        this.get(`/api/films/${filmId}/equipment`),
       getSummary: (filmId: number): Promise<EquipmentSummary> =>
-        this.get(`/films/${filmId}/equipment/summary`),
+        this.get(`/api/films/${filmId}/equipment/summary`),
       delete: (filmId: number, equipmentType: string): Promise<void> =>
-        this.delete(`/films/${filmId}/equipment/${equipmentType}`),
+        this.delete(`/api/films/${filmId}/equipment/${equipmentType}`),
     },
 
     equipmentAssignments: {
       getAll: (filmId: number): Promise<FilmEquipmentAssignment[]> =>
-        this.get(`/films/${filmId}/equipment-assignments`),
+        this.get(`/api/films/${filmId}/equipment-assignments`),
       getSummary: (filmId: number): Promise<{ cameras: number; audio: number; music: number; lighting: number; other: number }> =>
-        this.get(`/films/${filmId}/equipment-summary`),
+        this.get(`/api/films/${filmId}/equipment-summary`),
       assign: (filmId: number, data: { equipment_id: number; quantity?: number; notes?: string }): Promise<FilmEquipmentAssignment> =>
-        this.post(`/films/${filmId}/equipment-assignments`, data),
+        this.post(`/api/films/${filmId}/equipment-assignments`, data),
       update: (filmId: number, equipmentId: number, data: { quantity?: number; notes?: string }): Promise<FilmEquipmentAssignment> =>
-        this.patch(`/films/${filmId}/equipment-assignments/${equipmentId}`, data),
+        this.patch(`/api/films/${filmId}/equipment-assignments/${equipmentId}`, data),
       remove: (filmId: number, equipmentId: number): Promise<void> =>
-        this.delete(`/films/${filmId}/equipment-assignments/${equipmentId}`),
+        this.delete(`/api/films/${filmId}/equipment-assignments/${equipmentId}`),
     },
 
     // Timeline Tracks
     tracks: {
       generate: (filmId: number, data?: GenerateTracksDto): Promise<TimelineTrack[]> =>
-        this.post(`/films/${filmId}/tracks/generate`, data),
+        this.post(`/api/films/${filmId}/tracks/generate`, data),
       getAll: (filmId: number, activeOnly?: boolean): Promise<TimelineTrack[]> => {
         const query = activeOnly !== undefined ? `?activeOnly=${activeOnly}` : '';
-        return this.get(`/films/${filmId}/tracks${query}`);
+        return this.get(`/api/films/${filmId}/tracks${query}`);
       },
       getByType: (filmId: number): Promise<TracksByType> =>
-        this.get(`/films/${filmId}/tracks/by-type`),
+        this.get(`/api/films/${filmId}/tracks/by-type`),
       update: (filmId: number, trackId: number, data: UpdateTrackDto): Promise<TimelineTrack> =>
-        this.patch(`/films/${filmId}/tracks/${trackId}`, data),
+        this.patch(`/api/films/${filmId}/tracks/${trackId}`, data),
       reorder: (filmId: number, data: ReorderTracksDto): Promise<TimelineTrack[]> =>
-        this.post(`/films/${filmId}/tracks/reorder`, data),
+        this.post(`/api/films/${filmId}/tracks/reorder`, data),
       delete: (filmId: number, trackId: number): Promise<void> =>
-        this.delete(`/films/${filmId}/tracks/${trackId}`),
+        this.delete(`/api/films/${filmId}/tracks/${trackId}`),
       getStatistics: (filmId: number): Promise<TrackStatistics> =>
-        this.get(`/films/${filmId}/tracks/statistics`),
+        this.get(`/api/films/${filmId}/tracks/statistics`),
     },
 
     // Scene Management
     localScenes: {
       createFromTemplate: (filmId: number, data: CreateSceneFromTemplateDto): Promise<FilmLocalScene> =>
-        this.post(`/films/${filmId}/scenes/from-template`, data),
+        this.post(`/api/films/${filmId}/scenes/from-template`, data),
       createBlank: (filmId: number, data: CreateBlankSceneDto): Promise<FilmLocalScene> =>
-        this.post(`/films/${filmId}/scenes/blank`, data),
+        this.post(`/api/films/${filmId}/scenes/blank`, data),
       getAll: (filmId: number): Promise<FilmLocalScene[]> =>
-        this.get(`/films/${filmId}/scenes`),
+        this.get(`/api/films/${filmId}/scenes`),
       updateDurationMode: (filmId: number, sceneId: number, data: UpdateDurationModeDto): Promise<FilmLocalScene> =>
-        this.patch(`/films/${filmId}/scenes/${sceneId}/duration-mode`, data),
+        this.patch(`/api/films/${filmId}/scenes/${sceneId}/duration-mode`, data),
       getDuration: (filmId: number, sceneId: number): Promise<SceneDurationInfo> =>
-        this.get(`/films/${filmId}/scenes/${sceneId}/duration`),
+        this.get(`/api/films/${filmId}/scenes/${sceneId}/duration`),
       getAllDurations: (filmId: number): Promise<SceneDurationInfo[]> =>
-        this.get(`/films/${filmId}/scenes/durations`),
+        this.get(`/api/films/${filmId}/scenes/durations`),
       create: (filmId: number, data: { name: string; scene_template_id?: number; order_index?: number; shot_count?: number | null; duration_seconds?: number | null; mode?: 'MOMENTS' | 'MONTAGE'; montage_style?: string; montage_bpm?: number }): Promise<FilmLocalScene> =>
-        this.post(`/scenes/films/${filmId}/scenes`, data),
+        this.post(`/api/scenes/films/${filmId}/scenes`, data),
       reorder: (filmId: number, sceneOrderings: Array<{ id: number; order_index: number }>): Promise<any> =>
-        this.post(`/scenes/${filmId}/reorder`, sceneOrderings),
+        this.post(`/api/scenes/${filmId}/reorder`, sceneOrderings),
     },
   };
 
@@ -944,7 +949,7 @@ class ApiService extends BaseApiClient {
   // Moments methods (brand-specific)
   moments = {
     getSceneMoments: (sceneId: number): Promise<any[]> =>
-      this.get(`/moments/scenes/${sceneId}/moments`),
+      this.get(`/api/moments/scenes/${sceneId}/moments`),
     
     create: (sceneId: number, data: { name: string; duration?: number; order_index?: number; source_activity_id?: number }): Promise<any> => {
       const payload = {
@@ -953,20 +958,20 @@ class ApiService extends BaseApiClient {
         order_index: data.order_index !== undefined ? data.order_index : 0,
         source_activity_id: data.source_activity_id,
       };
-      return this.post(`/moments/scenes/${sceneId}/moments`, payload);
+      return this.post(`/api/moments/scenes/${sceneId}/moments`, payload);
     },
     
     update: (sceneId: number, momentId: number, data: { name?: string; duration?: number; order_index?: number }): Promise<any> =>
-      this.patch(`/moments/${momentId}`, data),
+      this.patch(`/api/moments/${momentId}`, data),
     
     delete: (sceneId: number, momentId: number): Promise<void> =>
-      this.delete(`/moments/${momentId}`),
+      this.delete(`/api/moments/${momentId}`),
   };
 
   // Beats methods (montage)
   beats = {
     getSceneBeats: (sceneId: number): Promise<any[]> =>
-      this.get(`/beats/scenes/${sceneId}/beats`),
+      this.get(`/api/beats/scenes/${sceneId}/beats`),
 
     create: (sceneId: number, data: { name: string; duration_seconds?: number; order_index?: number; shot_count?: number | null }): Promise<any> => {
       const payload = {
@@ -975,23 +980,23 @@ class ApiService extends BaseApiClient {
         order_index: data.order_index !== undefined ? data.order_index : 0,
         shot_count: data.shot_count ?? null,
       };
-      return this.post(`/beats/scenes/${sceneId}/beats`, payload);
+      return this.post(`/api/beats/scenes/${sceneId}/beats`, payload);
     },
 
     update: (beatId: number, data: { name?: string; duration_seconds?: number; order_index?: number; shot_count?: number | null }): Promise<any> =>
-      this.patch(`/beats/${beatId}`, data),
+      this.patch(`/api/beats/${beatId}`, data),
 
     delete: (beatId: number): Promise<void> =>
-      this.delete(`/beats/${beatId}`),
+      this.delete(`/api/beats/${beatId}`),
 
     reorder: (sceneId: number, beatOrderings: Array<{ id: number; order_index: number }>): Promise<any> =>
-      this.post(`/beats/scenes/${sceneId}/reorder`, beatOrderings),
+      this.post(`/api/beats/scenes/${sceneId}/reorder`, beatOrderings),
 
     recordingSetup: {
-      get: (beatId: number): Promise<any> => this.get(`/beats/${beatId}/recording-setup`),
+      get: (beatId: number): Promise<any> => this.get(`/api/beats/${beatId}/recording-setup`),
       upsert: (beatId: number, data: { camera_track_ids?: number[]; audio_track_ids?: number[]; graphics_enabled?: boolean }): Promise<any> =>
-        this.patch(`/beats/${beatId}/recording-setup`, data),
-      delete: (beatId: number): Promise<any> => this.delete(`/beats/${beatId}/recording-setup`),
+        this.patch(`/api/beats/${beatId}/recording-setup`, data),
+      delete: (beatId: number): Promise<any> => this.delete(`/api/beats/${beatId}/recording-setup`),
     },
   };
 
@@ -999,16 +1004,16 @@ class ApiService extends BaseApiClient {
   montagePresets = {
     getAll: (brandId?: number): Promise<MontagePreset[]> => {
       const query = brandId ? `?brandId=${brandId}` : '';
-      return this.get(`/montage-presets${query}`);
+      return this.get(`/api/montage-presets${query}`);
     },
     getById: (id: number): Promise<MontagePreset> =>
-      this.get(`/montage-presets/${id}`),
+      this.get(`/api/montage-presets/${id}`),
     create: (data: CreateMontagePresetDto): Promise<MontagePreset> =>
-      this.post('/montage-presets', data),
+      this.post('/api/montage-presets', data),
     update: (id: number, data: UpdateMontagePresetDto): Promise<MontagePreset> =>
-      this.patch(`/montage-presets/${id}`, data),
+      this.patch(`/api/montage-presets/${id}`, data),
     delete: (id: number): Promise<void> =>
-      this.delete(`/montage-presets/${id}`),
+      this.delete(`/api/montage-presets/${id}`),
   };
 
   // Film Structure Templates (brand-scoped)
@@ -1018,81 +1023,81 @@ class ApiService extends BaseApiClient {
       if (brandId) params.set('brandId', String(brandId));
       if (filmType) params.set('filmType', filmType);
       const query = params.toString() ? `?${params.toString()}` : '';
-      return this.get(`/film-structure-templates${query}`);
+      return this.get(`/api/film-structure-templates${query}`);
     },
     getById: (id: number): Promise<FilmStructureTemplate> =>
-      this.get(`/film-structure-templates/${id}`),
+      this.get(`/api/film-structure-templates/${id}`),
     create: (data: CreateFilmStructureTemplateDto): Promise<FilmStructureTemplate> =>
-      this.post('/film-structure-templates', data),
+      this.post('/api/film-structure-templates', data),
     update: (id: number, data: UpdateFilmStructureTemplateDto): Promise<FilmStructureTemplate> =>
-      this.patch(`/film-structure-templates/${id}`, data),
+      this.patch(`/api/film-structure-templates/${id}`, data),
     delete: (id: number): Promise<void> =>
-      this.delete(`/film-structure-templates/${id}`),
+      this.delete(`/api/film-structure-templates/${id}`),
   };
 
   // Scene Audio Sources
   sceneAudioSources = {
     getByScene: (sceneId: number): Promise<SceneAudioSource[]> =>
-      this.get(`/scene-audio-sources/scenes/${sceneId}/audio-sources`),
+      this.get(`/api/scene-audio-sources/scenes/${sceneId}/audio-sources`),
     getById: (id: number): Promise<SceneAudioSource> =>
-      this.get(`/scene-audio-sources/${id}`),
+      this.get(`/api/scene-audio-sources/${id}`),
     create: (sceneId: number, data: CreateSceneAudioSourceDto): Promise<SceneAudioSource> =>
-      this.post(`/scene-audio-sources/scenes/${sceneId}/audio-sources`, data),
+      this.post(`/api/scene-audio-sources/scenes/${sceneId}/audio-sources`, data),
     update: (id: number, data: UpdateSceneAudioSourceDto): Promise<SceneAudioSource> =>
-      this.patch(`/scene-audio-sources/${id}`, data),
+      this.patch(`/api/scene-audio-sources/${id}`, data),
     delete: (id: number): Promise<void> =>
-      this.delete(`/scene-audio-sources/${id}`),
+      this.delete(`/api/scene-audio-sources/${id}`),
     reorder: (sceneId: number, orderings: Array<{ id: number; order_index: number }>): Promise<SceneAudioSource[]> =>
-      this.post(`/scene-audio-sources/scenes/${sceneId}/audio-sources/reorder`, orderings),
+      this.post(`/api/scene-audio-sources/scenes/${sceneId}/audio-sources/reorder`, orderings),
   };
 
   // Timeline methods - layers managed via Films API
   timeline = {
     // Timeline layers (track organization metadata)
     getLayers: (): Promise<TimelineLayerData[]> =>
-      this.get("/films/timeline-layers", { skipBrandContext: true }),
+      this.get("/api/films/timeline-layers", { skipBrandContext: true }),
 
     createLayer: (data: { name: string; order_index: number; color_hex: string; description?: string }): Promise<TimelineLayerData> =>
-      this.post("/films/timeline-layers", data, { skipBrandContext: true }),
+      this.post("/api/films/timeline-layers", data, { skipBrandContext: true }),
 
     updateLayer: (id: number, data: Partial<TimelineLayerData>): Promise<TimelineLayerData> =>
-      this.patch(`/films/timeline-layers/${id}`, data, { skipBrandContext: true }),
+      this.patch(`/api/films/timeline-layers/${id}`, data, { skipBrandContext: true }),
 
     deleteLayer: (id: number): Promise<void> =>
-      this.delete(`/films/timeline-layers/${id}`, { skipBrandContext: true }),
+      this.delete(`/api/films/timeline-layers/${id}`, { skipBrandContext: true }),
   };
 
   // Brands methods (universal - used for brand management itself)
   brands = {
-    getAll: (): Promise<Brand[]> => this.get("/brands", { skipBrandContext: true }),
-    getById: (id: number): Promise<Brand> => this.get(`/brands/${id}`, { skipBrandContext: true }),
+    getAll: (): Promise<Brand[]> => this.get("/api/brands", { skipBrandContext: true }),
+    getById: (id: number): Promise<Brand> => this.get(`/api/brands/${id}`, { skipBrandContext: true }),
     create: (data: Omit<Brand, 'id' | 'created_at' | 'updated_at'>): Promise<Brand> =>
-      this.post("/brands", data, { skipBrandContext: true }),
+      this.post("/api/brands", data, { skipBrandContext: true }),
     update: (id: number, data: Partial<Omit<Brand, 'id' | 'created_at' | 'updated_at'>>): Promise<Brand> =>
-      this.patch(`/brands/${id}`, data, { skipBrandContext: true }),
+      this.patch(`/api/brands/${id}`, data, { skipBrandContext: true }),
     delete: (id: number): Promise<void> =>
-      this.delete(`/brands/${id}`, { skipBrandContext: true }),
+      this.delete(`/api/brands/${id}`, { skipBrandContext: true }),
     getUserBrands: (userId: number): Promise<UserBrand[]> =>
-      this.get(`/brands/users/${userId}/brands`, { skipBrandContext: true }),
+      this.get(`/api/brands/users/${userId}/brands`, { skipBrandContext: true }),
     getBrandContext: (brandId: number, userId: number) =>
-      this.get(`/brands/${brandId}/context/users/${userId}`, { skipBrandContext: true }),
+      this.get(`/api/brands/${brandId}/context/users/${userId}`, { skipBrandContext: true }),
     // Brand Settings
     getSettings: (brandId: number, category?: string): Promise<BrandSetting[]> =>
-      this.get(`/brands/${brandId}/settings${category ? `?category=${category}` : ""}`, { skipBrandContext: true }),
+      this.get(`/api/brands/${brandId}/settings${category ? `?category=${category}` : ""}`, { skipBrandContext: true }),
     getSetting: (brandId: number, key: string): Promise<BrandSetting> =>
-      this.get(`/brands/${brandId}/settings/${key}`, { skipBrandContext: true }),
+      this.get(`/api/brands/${brandId}/settings/${key}`, { skipBrandContext: true }),
     createSetting: (brandId: number, data: { key: string; value: string; data_type?: string; category?: string; description?: string }): Promise<BrandSetting> =>
-      this.post(`/brands/${brandId}/settings`, data, { skipBrandContext: true }),
+      this.post(`/api/brands/${brandId}/settings`, data, { skipBrandContext: true }),
     updateSetting: (brandId: number, key: string, data: { value?: string; description?: string; is_active?: boolean }): Promise<BrandSetting> =>
-      this.patch(`/brands/${brandId}/settings/${key}`, data, { skipBrandContext: true }),
+      this.patch(`/api/brands/${brandId}/settings/${key}`, data, { skipBrandContext: true }),
     getMeetingSettings: (brandId: number): Promise<MeetingSettings> =>
-      this.get(`/brands/${brandId}/meeting-settings`, { skipBrandContext: true }),
+      this.get(`/api/brands/${brandId}/meeting-settings`, { skipBrandContext: true }),
     saveMeetingSettings: (brandId: number, data: Partial<MeetingSettings>): Promise<MeetingSettings> =>
-      this.put(`/brands/${brandId}/meeting-settings`, data, { skipBrandContext: true }),
+      this.put(`/api/brands/${brandId}/meeting-settings`, data, { skipBrandContext: true }),
     getWelcomeSettings: (brandId: number): Promise<WelcomeSettings> =>
-      this.get(`/brands/${brandId}/welcome-settings`, { skipBrandContext: true }),
+      this.get(`/api/brands/${brandId}/welcome-settings`, { skipBrandContext: true }),
     saveWelcomeSettings: (brandId: number, data: Partial<WelcomeSettings>): Promise<WelcomeSettings> =>
-      this.put(`/brands/${brandId}/welcome-settings`, data, { skipBrandContext: true }),
+      this.put(`/api/brands/${brandId}/welcome-settings`, data, { skipBrandContext: true }),
   };
 
   // Task Library methods (brand-specific)
@@ -1489,65 +1494,28 @@ class ApiService extends BaseApiClient {
 
   // Public needs assessment methods (no auth required)
   publicNeedsAssessment = {
-    getByShareToken: async (token: string): Promise<any> => {
-      const res = await fetch(`${this.baseURL}/api/needs-assessments/share/${encodeURIComponent(token)}`);
-      if (!res.ok) throw new Error('Questionnaire not found');
-      return res.json();
-    },
-    submit: async (token: string, data: Record<string, unknown>): Promise<any> => {
-      const res = await fetch(`${this.baseURL}/api/needs-assessments/share/${encodeURIComponent(token)}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error('Failed to submit');
-      return res.json();
-    },
-    updateSubmission: async (submissionId: number, responses: Record<string, unknown>): Promise<any> => {
-      const res = await fetch(`${this.baseURL}/api/needs-assessments/share/submission/${submissionId}/responses`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ responses }),
-      });
-      if (!res.ok) throw new Error('Failed to update');
-      return res.json();
-    },
+    getByShareToken: (token: string): Promise<NeedsAssessmentTemplate & { questions: unknown[] }> =>
+      this.publicGet(`/api/needs-assessments/share/${encodeURIComponent(token)}`),
+    submit: (token: string, data: Record<string, unknown>): Promise<NeedsAssessmentSubmission> =>
+      this.publicPost(`/api/needs-assessments/share/${encodeURIComponent(token)}/submit`, data),
+    updateSubmission: (submissionId: number, responses: Record<string, unknown>): Promise<NeedsAssessmentSubmission> =>
+      this.publicPatch(`/api/needs-assessments/share/submission/${submissionId}/responses`, { responses }),
     generateShareToken: (templateId: number): Promise<{ share_token: string }> =>
       this.post(`/api/needs-assessments/templates/${templateId}/share-token`),
   };
 
   // Client Portal methods (public, no auth)
   clientPortal = {
-    getByToken: async (token: string): Promise<any> => {
-      const res = await fetch(`${this.baseURL}/api/client-portal/${encodeURIComponent(token)}`);
-      if (!res.ok) throw new Error('Portal not found');
-      return res.json();
-    },
+    getByToken: (token: string): Promise<Record<string, unknown>> =>
+      this.publicGet(`/api/client-portal/${encodeURIComponent(token)}`),
     generateToken: (inquiryId: number): Promise<{ portal_token: string }> =>
       this.post(`/api/inquiries/${inquiryId}/portal-token`),
-    getPackageOptions: async (token: string): Promise<any> => {
-      const res = await fetch(`${this.baseURL}/api/client-portal/${encodeURIComponent(token)}/packages`);
-      if (!res.ok) throw new Error('Failed to load packages');
-      return res.json();
-    },
-    submitPackageRequest: async (token: string, data: Record<string, unknown>): Promise<any> => {
-      const res = await fetch(`${this.baseURL}/api/client-portal/${encodeURIComponent(token)}/package-request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error('Failed to submit package request');
-      return res.json();
-    },
-    respondToProposal: async (token: string, response: string, message?: string): Promise<any> => {
-      const res = await fetch(`${this.baseURL}/api/client-portal/${encodeURIComponent(token)}/proposal-respond`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ response, message }),
-      });
-      if (!res.ok) throw new Error('Failed to submit proposal response');
-      return res.json();
-    },
+    getPackageOptions: (token: string): Promise<Record<string, unknown>[]> =>
+      this.publicGet(`/api/client-portal/${encodeURIComponent(token)}/packages`),
+    submitPackageRequest: (token: string, data: Record<string, unknown>): Promise<Record<string, unknown>> =>
+      this.publicPost(`/api/client-portal/${encodeURIComponent(token)}/package-request`, data),
+    respondToProposal: (token: string, response: string, message?: string): Promise<Record<string, unknown>> =>
+      this.publicPost(`/api/client-portal/${encodeURIComponent(token)}/proposal-respond`, { response, message }),
   };
 
   // Discovery Questionnaire methods (brand-specific)
@@ -1589,58 +1557,6 @@ class ApiService extends BaseApiClient {
       this.put(`/api/clients/${id}`, data),
     delete: (id: number): Promise<void> =>
       this.delete(`/api/clients/${id}`),
-  };
-
-  // Proposals methods (brand-specific, nested under inquiries)
-  proposals = {
-    getById: async (inquiryId: number, proposalId: number): Promise<Proposal> => {
-      const apiResponse: ProposalApiResponse = await this.get(`/api/inquiries/${inquiryId}/proposals/${proposalId}`);
-      return mapProposalResponse(apiResponse);
-    },
-    getAllByInquiry: async (inquiryId: number): Promise<Proposal[]> => {
-      const apiResponse: ProposalApiResponse[] = await this.get(`/api/inquiries/${inquiryId}/proposals`);
-      return apiResponse.map(mapProposalResponse);
-    },
-    create: async (inquiryId: number, data: CreateProposalData): Promise<Proposal> => {
-      const apiResponse: ProposalApiResponse = await this.post(`/api/inquiries/${inquiryId}/proposals`, data);
-      return mapProposalResponse(apiResponse);
-    },
-    update: async (inquiryId: number, proposalId: number, data: UpdateProposalData): Promise<Proposal> => {
-      const apiResponse: ProposalApiResponse = await this.put(`/api/inquiries/${inquiryId}/proposals/${proposalId}`, data);
-      return mapProposalResponse(apiResponse);
-    },
-    delete: (inquiryId: number, proposalId: number): Promise<void> =>
-      this.delete(`/api/inquiries/${inquiryId}/proposals/${proposalId}`),
-    sendProposal: async (inquiryId: number, proposalId: number): Promise<Proposal> => {
-      const apiResponse: ProposalApiResponse = await this.post(`/api/inquiries/${inquiryId}/proposals/${proposalId}/send`);
-      return mapProposalResponse(apiResponse);
-    },
-    getOne: async (inquiryId: number, proposalId: number): Promise<Proposal> => {
-      const apiResponse: ProposalApiResponse = await this.get(`/api/inquiries/${inquiryId}/proposals/${proposalId}`);
-      return mapProposalResponse(apiResponse);
-    },
-    generateShareToken: async (inquiryId: number, proposalId: number): Promise<string> => {
-      const result: { share_token: string } = await this.post(`/api/inquiries/${inquiryId}/proposals/${proposalId}/share-token`);
-      return result.share_token;
-    },
-  };
-
-  // Public proposal methods (no auth required)
-  publicProposals = {
-    getByShareToken: async (token: string): Promise<any> => {
-      const res = await fetch(`${this.baseURL}/api/proposals/share/${encodeURIComponent(token)}`);
-      if (!res.ok) throw new Error('Proposal not found');
-      return res.json();
-    },
-    respond: async (token: string, response: 'Accepted' | 'ChangesRequested', message?: string): Promise<any> => {
-      const res = await fetch(`${this.baseURL}/api/proposals/share/${encodeURIComponent(token)}/respond`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ response, message }),
-      });
-      if (!res.ok) throw new Error('Failed to respond');
-      return res.json();
-    },
   };
 
   servicePackages = {
@@ -1811,19 +1727,19 @@ class ApiService extends BaseApiClient {
   crew = {
     // Crew members (brand-scoped)
     getByBrand: (brandId: number): Promise<any[]> =>
-      this.get(`/crew/brand/${brandId}`),
+      this.get(`/api/crew/brand/${brandId}`),
     getAllContributors: (brandId: number): Promise<any[]> =>
-      this.get(`/crew/brand/${brandId}/all-contributors`),
+      this.get(`/api/crew/brand/${brandId}/all-contributors`),
     getByJobRole: (brandId: number, jobRoleId: number): Promise<any[]> =>
-      this.get(`/crew/brand/${brandId}/by-role/${jobRoleId}`),
+      this.get(`/api/crew/brand/${brandId}/by-role/${jobRoleId}`),
     getWorkload: (brandId: number): Promise<any[]> =>
-      this.get(`/crew/brand/${brandId}/workload`),
+      this.get(`/api/crew/brand/${brandId}/workload`),
     getById: (id: number): Promise<any> =>
-      this.get(`/crew/${id}`),
+      this.get(`/api/crew/${id}`),
     setCrewStatus: (id: number, data: { is_crew: boolean; crew_color?: string | null; bio?: string | null }): Promise<any> =>
-      this.patch(`/crew/${id}/crew-status`, data),
+      this.patch(`/api/crew/${id}/crew-status`, data),
     updateProfile: (id: number, data: { crew_color?: string | null; bio?: string | null; default_hourly_rate?: number }): Promise<any> =>
-      this.patch(`/crew/${id}/profile`, data),
+      this.patch(`/api/crew/${id}/profile`, data),
   };
 
   // ─── Operators System (Package Crew Slots) ───────────────────────────
@@ -1880,86 +1796,86 @@ class ApiService extends BaseApiClient {
     // Shared schedule presets (brand-level)
     presets: {
       getAll: (brandId: number): Promise<any[]> =>
-        this.get(`/schedule/presets/brand/${brandId}`),
+        this.get(`/api/schedule/presets/brand/${brandId}`),
       upsert: (brandId: number, data: { name: string; schedule_data: any[] }): Promise<any> =>
-        this.post(`/schedule/presets/brand/${brandId}`, data),
+        this.post(`/api/schedule/presets/brand/${brandId}`, data),
       rename: (brandId: number, presetId: number, name: string): Promise<any> =>
-        this.patch(`/schedule/presets/${presetId}/brand/${brandId}/rename`, { name }),
+        this.patch(`/api/schedule/presets/${presetId}/brand/${brandId}/rename`, { name }),
       delete: (brandId: number, presetId: number): Promise<void> =>
-        this.delete(`/schedule/presets/${presetId}/brand/${brandId}`),
+        this.delete(`/api/schedule/presets/${presetId}/brand/${brandId}`),
     },
 
     // Event Day Templates (brand-level)
     eventDays: {
       getAll: (brandId: number): Promise<any[]> =>
-        this.get(`/schedule/event-days/brand/${brandId}`),
+        this.get(`/api/schedule/event-days/brand/${brandId}`),
       create: (brandId: number, data: { name: string; description?: string; order_index?: number }): Promise<any> =>
-        this.post(`/schedule/event-days/brand/${brandId}`, data),
+        this.post(`/api/schedule/event-days/brand/${brandId}`, data),
       update: (brandId: number, id: number, data: any): Promise<any> =>
-        this.patch(`/schedule/event-days/${id}/brand/${brandId}`, data),
+        this.patch(`/api/schedule/event-days/${id}/brand/${brandId}`, data),
       delete: (brandId: number, id: number): Promise<void> =>
-        this.delete(`/schedule/event-days/${id}/brand/${brandId}`),
+        this.delete(`/api/schedule/event-days/${id}/brand/${brandId}`),
     },
 
     // Event Day Activity Presets (per event day template)
     activityPresets: {
       getAll: (eventDayId: number): Promise<any[]> =>
-        this.get(`/schedule/event-days/${eventDayId}/activity-presets`),
+        this.get(`/api/schedule/event-days/${eventDayId}/activity-presets`),
       create: (eventDayId: number, data: { name: string; color?: string; icon?: string; default_duration_minutes?: number; order_index?: number }): Promise<any> =>
-        this.post(`/schedule/event-days/${eventDayId}/activity-presets`, data),
+        this.post(`/api/schedule/event-days/${eventDayId}/activity-presets`, data),
       bulkCreate: (eventDayId: number, presets: { name: string; color?: string; order_index?: number }[]): Promise<any> =>
-        this.post(`/schedule/event-days/${eventDayId}/activity-presets/bulk`, { presets }),
+        this.post(`/api/schedule/event-days/${eventDayId}/activity-presets/bulk`, { presets }),
       update: (presetId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/activity-presets/${presetId}`, data),
+        this.patch(`/api/schedule/activity-presets/${presetId}`, data),
       delete: (presetId: number): Promise<void> =>
-        this.delete(`/schedule/activity-presets/${presetId}`),
+        this.delete(`/api/schedule/activity-presets/${presetId}`),
     },
 
     presetMoments: {
       getAll: (presetId: number): Promise<any[]> =>
-        this.get(`/schedule/activity-presets/${presetId}/moments`),
+        this.get(`/api/schedule/activity-presets/${presetId}/moments`),
       create: (presetId: number, data: { name: string; duration_seconds?: number; order_index?: number; is_key_moment?: boolean }): Promise<any> =>
-        this.post(`/schedule/activity-presets/${presetId}/moments`, data),
+        this.post(`/api/schedule/activity-presets/${presetId}/moments`, data),
       bulkCreate: (presetId: number, moments: { name: string; duration_seconds?: number; order_index?: number; is_key_moment?: boolean }[]): Promise<any> =>
-        this.post(`/schedule/activity-presets/${presetId}/moments/bulk`, { moments }),
+        this.post(`/api/schedule/activity-presets/${presetId}/moments/bulk`, { moments }),
       update: (momentId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/preset-moments/${momentId}`, data),
+        this.patch(`/api/schedule/preset-moments/${momentId}`, data),
       delete: (momentId: number): Promise<void> =>
-        this.delete(`/schedule/preset-moments/${momentId}`),
+        this.delete(`/api/schedule/preset-moments/${momentId}`),
     },
 
     // Film-level schedules
     film: {
       get: (filmId: number): Promise<any> =>
-        this.get(`/schedule/films/${filmId}`),
+        this.get(`/api/schedule/films/${filmId}`),
       upsertScene: (filmId: number, data: any): Promise<any> =>
-        this.post(`/schedule/films/${filmId}/scenes`, data),
+        this.post(`/api/schedule/films/${filmId}/scenes`, data),
       bulkUpsertScenes: (filmId: number, schedules: any[]): Promise<any[]> =>
-        this.post(`/schedule/films/${filmId}/scenes/bulk`, schedules),
+        this.post(`/api/schedule/films/${filmId}/scenes/bulk`, schedules),
       updateScene: (scheduleId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/films/scenes/${scheduleId}`, data),
+        this.patch(`/api/schedule/films/scenes/${scheduleId}`, data),
       deleteScene: (scheduleId: number): Promise<void> =>
-        this.delete(`/schedule/films/scenes/${scheduleId}`),
+        this.delete(`/api/schedule/films/scenes/${scheduleId}`),
     },
 
     // Package event day assignments (which event days apply to a package)
     packageEventDays: {
       getAll: (packageId: number): Promise<any[]> =>
-        this.get(`/schedule/packages/${packageId}/event-days`),
+        this.get(`/api/schedule/packages/${packageId}/event-days`),
       add: (packageId: number, eventDayId: number): Promise<any> =>
-        this.post(`/schedule/packages/${packageId}/event-days`, { event_day_template_id: eventDayId }),
+        this.post(`/api/schedule/packages/${packageId}/event-days`, { event_day_template_id: eventDayId }),
       remove: (packageId: number, eventDayId: number): Promise<void> =>
-        this.delete(`/schedule/packages/${packageId}/event-days/${eventDayId}`),
+        this.delete(`/api/schedule/packages/${packageId}/event-days/${eventDayId}`),
       set: (packageId: number, eventDayIds: number[]): Promise<any[]> =>
-        this.post(`/schedule/packages/${packageId}/event-days/set`, { event_day_template_ids: eventDayIds }),
+        this.post(`/api/schedule/packages/${packageId}/event-days/set`, { event_day_template_ids: eventDayIds }),
     },
 
     // Package activities (real-world schedule blocks: Bridal Prep, Ceremony, etc.)
     packageActivities: {
       getAll: (packageId: number): Promise<any[]> =>
-        this.get(`/schedule/packages/${packageId}/activities`),
+        this.get(`/api/schedule/packages/${packageId}/activities`),
       getByDay: (packageId: number, packageEventDayId: number): Promise<any[]> =>
-        this.get(`/schedule/packages/${packageId}/activities/day/${packageEventDayId}`),
+        this.get(`/api/schedule/packages/${packageId}/activities/day/${packageEventDayId}`),
       create: (packageId: number, data: {
         package_event_day_id: number;
         name: string;
@@ -1971,19 +1887,19 @@ class ApiService extends BaseApiClient {
         duration_minutes?: number;
         order_index?: number;
       }): Promise<any> =>
-        this.post(`/schedule/packages/${packageId}/activities`, data),
+        this.post(`/api/schedule/packages/${packageId}/activities`, data),
       update: (activityId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/packages/activities/${activityId}`, data),
+        this.patch(`/api/schedule/packages/activities/${activityId}`, data),
       delete: (activityId: number): Promise<void> =>
-        this.delete(`/schedule/packages/activities/${activityId}`),
+        this.delete(`/api/schedule/packages/activities/${activityId}`),
       reorder: (packageId: number, packageEventDayId: number, activityIds: number[]): Promise<any[]> =>
-        this.post(`/schedule/packages/${packageId}/activities/day/${packageEventDayId}/reorder`, { activity_ids: activityIds }),
+        this.post(`/api/schedule/packages/${packageId}/activities/day/${packageEventDayId}/reorder`, { activity_ids: activityIds }),
     },
 
     // Package activity moments (moments within activities)
     packageActivityMoments: {
       getAll: (activityId: number): Promise<any[]> =>
-        this.get(`/schedule/packages/activities/${activityId}/moments`),
+        this.get(`/api/schedule/packages/activities/${activityId}/moments`),
       create: (activityId: number, data: {
         name: string;
         order_index?: number;
@@ -1991,7 +1907,7 @@ class ApiService extends BaseApiClient {
         is_required?: boolean;
         notes?: string;
       }): Promise<any> =>
-        this.post(`/schedule/packages/activities/${activityId}/moments`, data),
+        this.post(`/api/schedule/packages/activities/${activityId}/moments`, data),
       bulkCreate: (activityId: number, moments: Array<{
         name: string;
         order_index?: number;
@@ -1999,7 +1915,7 @@ class ApiService extends BaseApiClient {
         is_required?: boolean;
         notes?: string;
       }>): Promise<any[]> =>
-        this.post(`/schedule/packages/activities/${activityId}/moments/bulk`, { moments }),
+        this.post(`/api/schedule/packages/activities/${activityId}/moments/bulk`, { moments }),
       update: (momentId: number, data: {
         name?: string;
         order_index?: number;
@@ -2007,29 +1923,29 @@ class ApiService extends BaseApiClient {
         is_required?: boolean;
         notes?: string;
       }): Promise<any> =>
-        this.patch(`/schedule/packages/activities/moments/${momentId}`, data),
+        this.patch(`/api/schedule/packages/activities/moments/${momentId}`, data),
       delete: (momentId: number): Promise<void> =>
-        this.delete(`/schedule/packages/activities/moments/${momentId}`),
+        this.delete(`/api/schedule/packages/activities/moments/${momentId}`),
       reorder: (activityId: number, momentIds: number[]): Promise<any[]> =>
-        this.post(`/schedule/packages/activities/${activityId}/moments/reorder`, { moment_ids: momentIds }),
+        this.post(`/api/schedule/packages/activities/${activityId}/moments/reorder`, { moment_ids: momentIds }),
     },
 
     // Project activities
     projectActivities: {
       getByDay: (projectId: number, projectEventDayId: number): Promise<any[]> =>
-        this.get(`/schedule/projects/${projectId}/activities/${projectEventDayId}`),
+        this.get(`/api/schedule/projects/${projectId}/activities/${projectEventDayId}`),
       create: (projectId: number, data: any): Promise<any> =>
-        this.post(`/schedule/projects/${projectId}/activities`, data),
+        this.post(`/api/schedule/projects/${projectId}/activities`, data),
       update: (activityId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/projects/activities/${activityId}`, data),
+        this.patch(`/api/schedule/projects/activities/${activityId}`, data),
       delete: (activityId: number): Promise<void> =>
-        this.delete(`/schedule/projects/activities/${activityId}`),
+        this.delete(`/api/schedule/projects/activities/${activityId}`),
     },
 
     // Package event day subjects (people/objects assigned to event days)
     packageEventDaySubjects: {
       getAll: (packageId: number, eventDayId?: number): Promise<any[]> =>
-        this.get(`/schedule/packages/${packageId}/subjects${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+        this.get(`/api/schedule/packages/${packageId}/subjects${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       create: (packageId: number, data: {
         event_day_template_id: number;
         name: string;
@@ -2040,22 +1956,22 @@ class ApiService extends BaseApiClient {
         notes?: string;
         order_index?: number;
       }): Promise<any> =>
-        this.post(`/schedule/packages/${packageId}/subjects`, data),
+        this.post(`/api/schedule/packages/${packageId}/subjects`, data),
       update: (subjectId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/packages/subjects/${subjectId}`, data),
+        this.patch(`/api/schedule/packages/subjects/${subjectId}`, data),
       delete: (subjectId: number): Promise<void> =>
-        this.delete(`/schedule/packages/subjects/${subjectId}`),
+        this.delete(`/api/schedule/packages/subjects/${subjectId}`),
       // Multi-activity assignments
       assignActivity: (subjectId: number, activityId: number): Promise<any> =>
-        this.post(`/schedule/packages/subjects/${subjectId}/activities/${activityId}`, {}),
+        this.post(`/api/schedule/packages/subjects/${subjectId}/activities/${activityId}`, {}),
       unassignActivity: (subjectId: number, activityId: number): Promise<any> =>
-        this.delete(`/schedule/packages/subjects/${subjectId}/activities/${activityId}`),
+        this.delete(`/api/schedule/packages/subjects/${subjectId}/activities/${activityId}`),
     },
 
     // Package event day locations (linked to event days / activities)
     packageEventDayLocations: {
       getAll: (packageId: number, eventDayId?: number): Promise<any[]> =>
-        this.get(`/schedule/packages/${packageId}/locations${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+        this.get(`/api/schedule/packages/${packageId}/locations${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       create: (packageId: number, data: {
         event_day_template_id: number;
         location_id: number;
@@ -2063,75 +1979,75 @@ class ApiService extends BaseApiClient {
         notes?: string;
         order_index?: number;
       }): Promise<any> =>
-        this.post(`/schedule/packages/${packageId}/locations`, data),
+        this.post(`/api/schedule/packages/${packageId}/locations`, data),
       update: (locationId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/packages/locations/${locationId}`, data),
+        this.patch(`/api/schedule/packages/locations/${locationId}`, data),
       delete: (locationId: number): Promise<void> =>
-        this.delete(`/schedule/packages/locations/${locationId}`),
+        this.delete(`/api/schedule/packages/locations/${locationId}`),
     },
 
     // Package location slots (abstract numbered locations 1-5)
     packageLocationSlots: {
       getAll: (packageId: number, eventDayId?: number): Promise<any[]> =>
-        this.get(`/schedule/packages/${packageId}/location-slots${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+        this.get(`/api/schedule/packages/${packageId}/location-slots${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       create: (packageId: number, data: {
         event_day_template_id: number;
         location_number?: number;
       }): Promise<any> =>
-        this.post(`/schedule/packages/${packageId}/location-slots`, data),
+        this.post(`/api/schedule/packages/${packageId}/location-slots`, data),
       delete: (slotId: number): Promise<void> =>
-        this.delete(`/schedule/packages/location-slots/${slotId}`),
+        this.delete(`/api/schedule/packages/location-slots/${slotId}`),
       assignActivity: (slotId: number, activityId: number): Promise<any> =>
-        this.post(`/schedule/packages/location-slots/${slotId}/activities/${activityId}`, {}),
+        this.post(`/api/schedule/packages/location-slots/${slotId}/activities/${activityId}`, {}),
       unassignActivity: (slotId: number, activityId: number): Promise<any> =>
-        this.delete(`/schedule/packages/location-slots/${slotId}/activities/${activityId}`),
+        this.delete(`/api/schedule/packages/location-slots/${slotId}/activities/${activityId}`),
     },
 
     // Package-film relationships & schedules
     packageFilms: {
       getAll: (packageId: number): Promise<any[]> =>
-        this.get(`/schedule/packages/${packageId}/films`),
+        this.get(`/api/schedule/packages/${packageId}/films`),
       create: (packageId: number, data: { film_id: number; order_index?: number; notes?: string }): Promise<any> =>
-        this.post(`/schedule/packages/${packageId}/films`, data),
+        this.post(`/api/schedule/packages/${packageId}/films`, data),
       update: (packageFilmId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/packages/films/${packageFilmId}`, data),
+        this.patch(`/api/schedule/packages/films/${packageFilmId}`, data),
       delete: (packageFilmId: number): Promise<void> =>
-        this.delete(`/schedule/packages/films/${packageFilmId}`),
+        this.delete(`/api/schedule/packages/films/${packageFilmId}`),
       getSchedule: (packageFilmId: number): Promise<any> =>
-        this.get(`/schedule/packages/films/${packageFilmId}/schedule`),
+        this.get(`/api/schedule/packages/films/${packageFilmId}/schedule`),
       upsertSceneSchedule: (packageFilmId: number, data: any): Promise<any> =>
-        this.post(`/schedule/packages/films/${packageFilmId}/scenes`, data),
+        this.post(`/api/schedule/packages/films/${packageFilmId}/scenes`, data),
       bulkUpsertSceneSchedules: (packageFilmId: number, schedules: any[]): Promise<any[]> =>
-        this.post(`/schedule/packages/films/${packageFilmId}/scenes/bulk`, schedules),
+        this.post(`/api/schedule/packages/films/${packageFilmId}/scenes/bulk`, schedules),
     },
 
     // Project event days
     projectEventDays: {
       getAll: (projectId: number): Promise<any[]> =>
-        this.get(`/schedule/projects/${projectId}/event-days`),
+        this.get(`/api/schedule/projects/${projectId}/event-days`),
       create: (projectId: number, data: any): Promise<any> =>
-        this.post(`/schedule/projects/${projectId}/event-days`, data),
+        this.post(`/api/schedule/projects/${projectId}/event-days`, data),
       update: (eventDayId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/projects/event-days/${eventDayId}`, data),
+        this.patch(`/api/schedule/projects/event-days/${eventDayId}`, data),
       delete: (eventDayId: number): Promise<void> =>
-        this.delete(`/schedule/projects/event-days/${eventDayId}`),
+        this.delete(`/api/schedule/projects/event-days/${eventDayId}`),
     },
 
     // Project films & schedules
     projectFilms: {
       getAll: (projectId: number): Promise<any[]> =>
-        this.get(`/schedule/projects/${projectId}/films`),
+        this.get(`/api/schedule/projects/${projectId}/films`),
       create: (projectId: number, data: { film_id: number; package_film_id?: number; order_index?: number }): Promise<any> =>
-        this.post(`/schedule/projects/${projectId}/films`, data),
+        this.post(`/api/schedule/projects/${projectId}/films`, data),
       delete: (projectFilmId: number): Promise<void> =>
-        this.delete(`/schedule/projects/films/${projectFilmId}`),
+        this.delete(`/api/schedule/projects/films/${projectFilmId}`),
       upsertSceneSchedule: (projectFilmId: number, data: any): Promise<any> =>
-        this.post(`/schedule/projects/films/${projectFilmId}/scenes`, data),
+        this.post(`/api/schedule/projects/films/${projectFilmId}/scenes`, data),
       bulkUpsertSceneSchedules: (projectFilmId: number, schedules: any[]): Promise<any[]> =>
-        this.post(`/schedule/projects/films/${projectFilmId}/scenes/bulk`, schedules),
+        this.post(`/api/schedule/projects/films/${projectFilmId}/scenes/bulk`, schedules),
       /** Initialize a project's schedule from a package (creates event days, project films, and scene schedules) */
       initializeFromPackage: (projectId: number, packageId: number): Promise<any> =>
-        this.post(`/schedule/projects/${projectId}/initialize-from-package/${packageId}`, {}),
+        this.post(`/api/schedule/projects/${projectId}/initialize-from-package/${packageId}`, {}),
     },
 
     // ─── Inquiry Schedule CRUD ───────────────────────────────────────────
@@ -2139,40 +2055,40 @@ class ApiService extends BaseApiClient {
 
     inquiryEventDays: {
       getAll: (inquiryId: number): Promise<any[]> =>
-        this.get(`/schedule/inquiries/${inquiryId}/event-days`),
+        this.get(`/api/schedule/inquiries/${inquiryId}/event-days`),
       create: (inquiryId: number, data: any): Promise<any> =>
-        this.post(`/schedule/inquiries/${inquiryId}/event-days`, data),
+        this.post(`/api/schedule/inquiries/${inquiryId}/event-days`, data),
       update: (eventDayId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/inquiries/event-days/${eventDayId}`, data),
+        this.patch(`/api/schedule/inquiries/event-days/${eventDayId}`, data),
       delete: (eventDayId: number): Promise<void> =>
-        this.delete(`/schedule/inquiries/event-days/${eventDayId}`),
+        this.delete(`/api/schedule/inquiries/event-days/${eventDayId}`),
     },
 
     inquiryActivities: {
       getAll: (inquiryId: number): Promise<any[]> =>
-        this.get(`/schedule/inquiries/${inquiryId}/activities`),
+        this.get(`/api/schedule/inquiries/${inquiryId}/activities`),
       getByDay: (inquiryId: number, eventDayId: number): Promise<any[]> =>
-        this.get(`/schedule/inquiries/${inquiryId}/activities/${eventDayId}`),
+        this.get(`/api/schedule/inquiries/${inquiryId}/activities/${eventDayId}`),
       create: (inquiryId: number, data: any): Promise<any> =>
-        this.post(`/schedule/inquiries/${inquiryId}/activities`, data),
+        this.post(`/api/schedule/inquiries/${inquiryId}/activities`, data),
       update: (activityId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/inquiries/activities/${activityId}`, data),
+        this.patch(`/api/schedule/inquiries/activities/${activityId}`, data),
       delete: (activityId: number): Promise<void> =>
-        this.delete(`/schedule/inquiries/activities/${activityId}`),
+        this.delete(`/api/schedule/inquiries/activities/${activityId}`),
     },
 
     inquiryFilms: {
       getAll: (inquiryId: number): Promise<any[]> =>
-        this.get(`/schedule/inquiries/${inquiryId}/films`),
+        this.get(`/api/schedule/inquiries/${inquiryId}/films`),
       create: (inquiryId: number, data: { film_id: number; package_film_id?: number; order_index?: number }): Promise<any> =>
-        this.post(`/schedule/inquiries/${inquiryId}/films`, data),
+        this.post(`/api/schedule/inquiries/${inquiryId}/films`, data),
       // Inquiry/project instance films share the same underlying scene-schedule table and PK routing.
       delete: (filmId: number): Promise<void> =>
-        this.delete(`/schedule/projects/films/${filmId}`),
+        this.delete(`/api/schedule/projects/films/${filmId}`),
       upsertSceneSchedule: (filmId: number, data: any): Promise<any> =>
-        this.post(`/schedule/projects/films/${filmId}/scenes`, data),
+        this.post(`/api/schedule/projects/films/${filmId}/scenes`, data),
       bulkUpsertSceneSchedules: (filmId: number, schedules: any[]): Promise<any[]> =>
-        this.post(`/schedule/projects/films/${filmId}/scenes/bulk`, schedules),
+        this.post(`/api/schedule/projects/films/${filmId}/scenes/bulk`, schedules),
     },
 
     // ─── Instance CRUD (shared — works with both project & inquiry records) ──
@@ -2180,91 +2096,91 @@ class ApiService extends BaseApiClient {
     // Activity moments (for project or inquiry activities)
     instanceMoments: {
       getByActivity: (activityId: number): Promise<any[]> =>
-        this.get(`/schedule/instance/activities/${activityId}/moments`),
+        this.get(`/api/schedule/instance/activities/${activityId}/moments`),
       createForProject: (projectId: number, data: any): Promise<any> =>
-        this.post(`/schedule/projects/${projectId}/activity-moments`, data),
+        this.post(`/api/schedule/projects/${projectId}/activity-moments`, data),
       createForInquiry: (inquiryId: number, data: any): Promise<any> =>
-        this.post(`/schedule/inquiries/${inquiryId}/activity-moments`, data),
+        this.post(`/api/schedule/inquiries/${inquiryId}/activity-moments`, data),
       update: (momentId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/instance/moments/${momentId}`, data),
+        this.patch(`/api/schedule/instance/moments/${momentId}`, data),
       delete: (momentId: number): Promise<void> =>
-        this.delete(`/schedule/instance/moments/${momentId}`),
+        this.delete(`/api/schedule/instance/moments/${momentId}`),
       reorder: (activityId: number, momentIds: number[]): Promise<any[]> =>
-        this.post(`/schedule/instance/activities/${activityId}/moments/reorder`, { moment_ids: momentIds }),
+        this.post(`/api/schedule/instance/activities/${activityId}/moments/reorder`, { moment_ids: momentIds }),
     },
 
     // Instance event day subjects (project or inquiry)
     instanceSubjects: {
       getForProject: (projectId: number, eventDayId?: number): Promise<any[]> =>
-        this.get(`/schedule/projects/${projectId}/subjects${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+        this.get(`/api/schedule/projects/${projectId}/subjects${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       getForInquiry: (inquiryId: number, eventDayId?: number): Promise<any[]> =>
-        this.get(`/schedule/inquiries/${inquiryId}/subjects${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+        this.get(`/api/schedule/inquiries/${inquiryId}/subjects${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       createForProject: (projectId: number, data: any): Promise<any> =>
-        this.post(`/schedule/projects/${projectId}/subjects`, data),
+        this.post(`/api/schedule/projects/${projectId}/subjects`, data),
       createForInquiry: (inquiryId: number, data: any): Promise<any> =>
-        this.post(`/schedule/inquiries/${inquiryId}/subjects`, data),
+        this.post(`/api/schedule/inquiries/${inquiryId}/subjects`, data),
       update: (subjectId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/instance/subjects/${subjectId}`, data),
+        this.patch(`/api/schedule/instance/subjects/${subjectId}`, data),
       delete: (subjectId: number): Promise<void> =>
-        this.delete(`/schedule/instance/subjects/${subjectId}`),
+        this.delete(`/api/schedule/instance/subjects/${subjectId}`),
       assignActivity: (subjectId: number, activityId: number): Promise<any> =>
-        this.post(`/schedule/instance/subjects/${subjectId}/activities/${activityId}`, {}),
+        this.post(`/api/schedule/instance/subjects/${subjectId}/activities/${activityId}`, {}),
       unassignActivity: (subjectId: number, activityId: number): Promise<any> =>
-        this.delete(`/schedule/instance/subjects/${subjectId}/activities/${activityId}`),
+        this.delete(`/api/schedule/instance/subjects/${subjectId}/activities/${activityId}`),
     },
 
     // Instance location slots (project or inquiry)
     instanceLocationSlots: {
       getForProject: (projectId: number, eventDayId?: number): Promise<any[]> =>
-        this.get(`/schedule/projects/${projectId}/location-slots${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+        this.get(`/api/schedule/projects/${projectId}/location-slots${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       getForInquiry: (inquiryId: number, eventDayId?: number): Promise<any[]> =>
-        this.get(`/schedule/inquiries/${inquiryId}/location-slots${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+        this.get(`/api/schedule/inquiries/${inquiryId}/location-slots${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       createForProject: (projectId: number, data: any): Promise<any> =>
-        this.post(`/schedule/projects/${projectId}/location-slots`, data),
+        this.post(`/api/schedule/projects/${projectId}/location-slots`, data),
       createForInquiry: (inquiryId: number, data: any): Promise<any> =>
-        this.post(`/schedule/inquiries/${inquiryId}/location-slots`, data),
+        this.post(`/api/schedule/inquiries/${inquiryId}/location-slots`, data),
       update: (slotId: number, data: { name?: string | null; address?: string | null; notes?: string | null }): Promise<any> =>
-        this.patch(`/schedule/instance/location-slots/${slotId}`, data),
+        this.patch(`/api/schedule/instance/location-slots/${slotId}`, data),
       delete: (slotId: number): Promise<void> =>
-        this.delete(`/schedule/instance/location-slots/${slotId}`),
+        this.delete(`/api/schedule/instance/location-slots/${slotId}`),
       assignActivity: (slotId: number, activityId: number): Promise<any> =>
-        this.post(`/schedule/instance/location-slots/${slotId}/activities/${activityId}`, {}),
+        this.post(`/api/schedule/instance/location-slots/${slotId}/activities/${activityId}`, {}),
       unassignActivity: (slotId: number, activityId: number): Promise<any> =>
-        this.delete(`/schedule/instance/location-slots/${slotId}/activities/${activityId}`),
+        this.delete(`/api/schedule/instance/location-slots/${slotId}/activities/${activityId}`),
     },
 
     // Instance day operators / crew (project or inquiry)
     instanceOperators: {
       getForProject: (projectId: number, eventDayId?: number): Promise<any[]> =>
-        this.get(`/schedule/projects/${projectId}/operators${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+        this.get(`/api/schedule/projects/${projectId}/operators${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       getForInquiry: (inquiryId: number, eventDayId?: number): Promise<any[]> =>
-        this.get(`/schedule/inquiries/${inquiryId}/operators${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+        this.get(`/api/schedule/inquiries/${inquiryId}/operators${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
       createForProject: (projectId: number, data: any): Promise<any> =>
-        this.post(`/schedule/projects/${projectId}/operators`, data),
+        this.post(`/api/schedule/projects/${projectId}/operators`, data),
       createForInquiry: (inquiryId: number, data: any): Promise<any> =>
-        this.post(`/schedule/inquiries/${inquiryId}/operators`, data),
+        this.post(`/api/schedule/inquiries/${inquiryId}/operators`, data),
       update: (operatorId: number, data: any): Promise<any> =>
-        this.patch(`/schedule/instance/operators/${operatorId}`, data),
+        this.patch(`/api/schedule/instance/operators/${operatorId}`, data),
       assignCrew: (operatorId: number, contributorId: number | null): Promise<any> =>
-        this.patch(`/schedule/instance/operators/${operatorId}/assign`, { contributor_id: contributorId }),
+        this.patch(`/api/schedule/instance/operators/${operatorId}/assign`, { contributor_id: contributorId }),
       delete: (operatorId: number): Promise<void> =>
-        this.delete(`/schedule/instance/operators/${operatorId}`),
+        this.delete(`/api/schedule/instance/operators/${operatorId}`),
       setEquipment: (operatorId: number, equipment: { equipment_id: number; is_primary: boolean }[]): Promise<any> =>
-        this.post(`/schedule/instance/operators/${operatorId}/equipment`, { equipment }),
+        this.post(`/api/schedule/instance/operators/${operatorId}/equipment`, { equipment }),
       assignActivity: (operatorId: number, activityId: number): Promise<any> =>
-        this.post(`/schedule/instance/operators/${operatorId}/activities/${activityId}`, {}),
+        this.post(`/api/schedule/instance/operators/${operatorId}/activities/${activityId}`, {}),
       unassignActivity: (operatorId: number, activityId: number): Promise<any> =>
-        this.delete(`/schedule/instance/operators/${operatorId}/activities/${activityId}`),
+        this.delete(`/api/schedule/instance/operators/${operatorId}/activities/${activityId}`),
     },
 
     // Enhanced project instance readers (richer includes)
     projectInstanceEventDays: {
       getAll: (projectId: number): Promise<any[]> =>
-        this.get(`/schedule/projects/${projectId}/instance-event-days`),
+        this.get(`/api/schedule/projects/${projectId}/instance-event-days`),
     },
     projectAllActivities: {
       getAll: (projectId: number): Promise<any[]> =>
-        this.get(`/schedule/projects/${projectId}/all-activities`),
+        this.get(`/api/schedule/projects/${projectId}/all-activities`),
     },
 
     // Resolved schedule (inheritance chain merged)
@@ -2273,7 +2189,7 @@ class ApiService extends BaseApiClient {
       if (params?.packageFilmId) query.set('packageFilmId', String(params.packageFilmId));
       if (params?.projectFilmId) query.set('projectFilmId', String(params.projectFilmId));
       const qs = query.toString();
-      return this.get(`/schedule/resolved/${filmId}${qs ? `?${qs}` : ''}`);
+      return this.get(`/api/schedule/resolved/${filmId}${qs ? `?${qs}` : ''}`);
     },
 
     // Project package snapshot (read-only cloned schedule data owned by a project)
@@ -2310,7 +2226,7 @@ class ApiService extends BaseApiClient {
     packageSummary: {
       /** Get summary (counts, event day names) for a package's schedule template */
       get: (packageId: number): Promise<any> =>
-        this.get(`/schedule/packages/${packageId}/summary`),
+        this.get(`/api/schedule/packages/${packageId}/summary`),
     },
 
     // Schedule Diff — compare instance schedule against source package
@@ -2519,35 +2435,35 @@ class ApiService extends BaseApiClient {
   // Activity Logs methods
   activityLogs = {
     create: (data: { inquiry_id: number; description: string; type: string }): Promise<any> =>
-      this.post("/activity-logs", data),
+      this.post("/api/activity-logs", data),
     getByInquiry: (inquiryId: number): Promise<any[]> =>
-      this.get(`/activity-logs/inquiry/${inquiryId}`),
+      this.get(`/api/activity-logs/inquiry/${inquiryId}`),
     logNote: (inquiryId: number, note: string): Promise<any> =>
-      this.post("/activity-logs/note", { inquiryId, note }),
+      this.post("/api/activity-logs/note", { inquiryId, note }),
   };
 
   // Coverage methods (brand-agnostic for creation, brand-specific for retrieval)
   coverage = {
     getById: (id: string): Promise<Coverage> =>
-      this.get(`/coverage/${id}`),
+      this.get(`/api/coverage/${id}`),
     getAll: (): Promise<Coverage[]> =>
-      this.get("/coverage"),
+      this.get("/api/coverage"),
     create: (data: CreateCoverageDto): Promise<Coverage> =>
-      this.post("/coverage", data, { skipBrandContext: true }),
+      this.post("/api/coverage", data, { skipBrandContext: true }),
     update: (id: string, data: UpdateCoverageDto): Promise<Coverage> =>
-      this.patch(`/coverage/${id}`, data),
+      this.patch(`/api/coverage/${id}`, data),
     delete: (id: string): Promise<void> =>
-      this.delete(`/coverage/${id}`),
+      this.delete(`/api/coverage/${id}`),
   };
 
   // Coverage Library methods (brand-specific)
   coverageLibrary = {
     getAll: (): Promise<CoverageLibraryItem[]> =>
-      this.get("/coverage"),
+      this.get("/api/coverage"),
     getById: (id: string): Promise<CoverageLibraryItem> =>
-      this.get(`/coverage/${id}`),
+      this.get(`/api/coverage/${id}`),
     getByType: (type: 'VIDEO' | 'AUDIO' | 'MUSIC'): Promise<CoverageLibraryItem[]> =>
-      this.get(`/coverage?type=${type}`),
+      this.get(`/api/coverage?type=${type}`),
   };
 
   // Locations methods (brand-specific)
@@ -2641,14 +2557,14 @@ class ApiService extends BaseApiClient {
   instanceFilms = {
     /** Deep-clone library film content into instance tables (idempotent). */
     cloneFromLibrary: (projectFilmId: number): Promise<any> =>
-      this.post(`/instance-films/${projectFilmId}/clone-from-library`, {}),
+      this.post(`/api/instance-films/${projectFilmId}/clone-from-library`, {}),
 
     // ── Scenes ──────────────────────────────────────────────────────
     scenes: {
       getAll: (projectFilmId: number): Promise<any[]> =>
-        this.get(`/instance-films/${projectFilmId}/scenes`),
+        this.get(`/api/instance-films/${projectFilmId}/scenes`),
       getById: (sceneId: number): Promise<any> =>
-        this.get(`/instance-films/scenes/${sceneId}`),
+        this.get(`/api/instance-films/scenes/${sceneId}`),
       create: (projectFilmId: number, data: {
         name: string;
         mode?: string;
@@ -2657,104 +2573,104 @@ class ApiService extends BaseApiClient {
         source_scene_id?: number;
         scene_template_id?: number;
       }): Promise<any> =>
-        this.post(`/instance-films/${projectFilmId}/scenes`, data),
+        this.post(`/api/instance-films/${projectFilmId}/scenes`, data),
       update: (sceneId: number, data: {
         name?: string;
         order_index?: number;
         duration_seconds?: number;
       }): Promise<any> =>
-        this.patch(`/instance-films/scenes/${sceneId}`, data),
+        this.patch(`/api/instance-films/scenes/${sceneId}`, data),
       delete: (sceneId: number): Promise<void> =>
-        this.delete(`/instance-films/scenes/${sceneId}`),
+        this.delete(`/api/instance-films/scenes/${sceneId}`),
       reorder: (projectFilmId: number, orderings: Array<{ id: number; order_index: number }>): Promise<any> =>
-        this.post(`/instance-films/${projectFilmId}/scenes/reorder`, orderings),
+        this.post(`/api/instance-films/${projectFilmId}/scenes/reorder`, orderings),
 
       recordingSetup: {
         get: (sceneId: number): Promise<any> =>
-          this.get(`/instance-films/scenes/${sceneId}/recording-setup`),
+          this.get(`/api/instance-films/scenes/${sceneId}/recording-setup`),
         upsert: (sceneId: number, data: {
           camera_track_ids?: number[];
           audio_track_ids?: number[];
           graphics_enabled?: boolean;
         }): Promise<any> =>
-          this.patch(`/instance-films/scenes/${sceneId}/recording-setup`, data),
+          this.patch(`/api/instance-films/scenes/${sceneId}/recording-setup`, data),
         delete: (sceneId: number): Promise<any> =>
-          this.delete(`/instance-films/scenes/${sceneId}/recording-setup`),
+          this.delete(`/api/instance-films/scenes/${sceneId}/recording-setup`),
       },
     },
 
     // ── Moments ─────────────────────────────────────────────────────
     moments: {
       getByScene: (sceneId: number): Promise<any[]> =>
-        this.get(`/instance-films/scenes/${sceneId}/moments`),
+        this.get(`/api/instance-films/scenes/${sceneId}/moments`),
       getById: (momentId: number): Promise<any> =>
-        this.get(`/instance-films/moments/${momentId}`),
+        this.get(`/api/instance-films/moments/${momentId}`),
       create: (sceneId: number, data: {
         name: string;
         order_index?: number;
         duration?: number;
       }): Promise<any> =>
-        this.post(`/instance-films/scenes/${sceneId}/moments`, data),
+        this.post(`/api/instance-films/scenes/${sceneId}/moments`, data),
       update: (momentId: number, data: {
         name?: string;
         order_index?: number;
         duration?: number;
       }): Promise<any> =>
-        this.patch(`/instance-films/moments/${momentId}`, data),
+        this.patch(`/api/instance-films/moments/${momentId}`, data),
       delete: (momentId: number): Promise<void> =>
-        this.delete(`/instance-films/moments/${momentId}`),
+        this.delete(`/api/instance-films/moments/${momentId}`),
       reorder: (sceneId: number, orderings: Array<{ id: number; order_index: number }>): Promise<any> =>
-        this.post(`/instance-films/scenes/${sceneId}/moments/reorder`, orderings),
+        this.post(`/api/instance-films/scenes/${sceneId}/moments/reorder`, orderings),
 
       recordingSetup: {
         get: (momentId: number): Promise<any> =>
-          this.get(`/instance-films/moments/${momentId}/recording-setup`),
+          this.get(`/api/instance-films/moments/${momentId}/recording-setup`),
         upsert: (momentId: number, data: {
           camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null }>;
           audio_track_ids?: number[];
           graphics_enabled?: boolean;
           graphics_title?: string | null;
         }): Promise<any> =>
-          this.patch(`/instance-films/moments/${momentId}/recording-setup`, data),
+          this.patch(`/api/instance-films/moments/${momentId}/recording-setup`, data),
         delete: (momentId: number): Promise<any> =>
-          this.delete(`/instance-films/moments/${momentId}/recording-setup`),
+          this.delete(`/api/instance-films/moments/${momentId}/recording-setup`),
       },
     },
 
     // ── Beats ───────────────────────────────────────────────────────
     beats: {
       getByScene: (sceneId: number): Promise<any[]> =>
-        this.get(`/instance-films/scenes/${sceneId}/beats`),
+        this.get(`/api/instance-films/scenes/${sceneId}/beats`),
       getById: (beatId: number): Promise<any> =>
-        this.get(`/instance-films/beats/${beatId}`),
+        this.get(`/api/instance-films/beats/${beatId}`),
       create: (sceneId: number, data: {
         name: string;
         duration_seconds?: number;
         order_index?: number;
         shot_count?: number | null;
       }): Promise<any> =>
-        this.post(`/instance-films/scenes/${sceneId}/beats`, data),
+        this.post(`/api/instance-films/scenes/${sceneId}/beats`, data),
       update: (beatId: number, data: {
         name?: string;
         duration_seconds?: number;
         order_index?: number;
         shot_count?: number | null;
       }): Promise<any> =>
-        this.patch(`/instance-films/beats/${beatId}`, data),
+        this.patch(`/api/instance-films/beats/${beatId}`, data),
       delete: (beatId: number): Promise<void> =>
-        this.delete(`/instance-films/beats/${beatId}`),
+        this.delete(`/api/instance-films/beats/${beatId}`),
 
       recordingSetup: {
         get: (beatId: number): Promise<any> =>
-          this.get(`/instance-films/beats/${beatId}/recording-setup`),
+          this.get(`/api/instance-films/beats/${beatId}/recording-setup`),
         upsert: (beatId: number, data: {
           camera_track_ids?: number[];
           audio_track_ids?: number[];
           graphics_enabled?: boolean;
         }): Promise<any> =>
-          this.patch(`/instance-films/beats/${beatId}/recording-setup`, data),
+          this.patch(`/api/instance-films/beats/${beatId}/recording-setup`, data),
         delete: (beatId: number): Promise<any> =>
-          this.delete(`/instance-films/beats/${beatId}/recording-setup`),
+          this.delete(`/api/instance-films/beats/${beatId}/recording-setup`),
       },
     },
 
@@ -2762,7 +2678,7 @@ class ApiService extends BaseApiClient {
     tracks: {
       getAll: (projectFilmId: number, activeOnly?: boolean): Promise<any[]> => {
         const params = activeOnly ? '?activeOnly=true' : '';
-        return this.get(`/instance-films/${projectFilmId}/tracks${params}`);
+        return this.get(`/api/instance-films/${projectFilmId}/tracks${params}`);
       },
       create: (projectFilmId: number, data: {
         name: string;
@@ -2770,72 +2686,72 @@ class ApiService extends BaseApiClient {
         order_index?: number;
         is_active?: boolean;
       }): Promise<any> =>
-        this.post(`/instance-films/${projectFilmId}/tracks`, data),
+        this.post(`/api/instance-films/${projectFilmId}/tracks`, data),
       update: (trackId: number, data: {
         name?: string;
         order_index?: number;
         is_active?: boolean;
       }): Promise<any> =>
-        this.patch(`/instance-films/tracks/${trackId}`, data),
+        this.patch(`/api/instance-films/tracks/${trackId}`, data),
       delete: (trackId: number): Promise<void> =>
-        this.delete(`/instance-films/tracks/${trackId}`),
+        this.delete(`/api/instance-films/tracks/${trackId}`),
     },
 
     // ── Subjects ────────────────────────────────────────────────────
     subjects: {
       getAll: (projectFilmId: number): Promise<any[]> =>
-        this.get(`/instance-films/${projectFilmId}/subjects`),
+        this.get(`/api/instance-films/${projectFilmId}/subjects`),
       create: (projectFilmId: number, data: {
         name: string;
         category?: string;
         priority?: string;
       }): Promise<any> =>
-        this.post(`/instance-films/${projectFilmId}/subjects`, data),
+        this.post(`/api/instance-films/${projectFilmId}/subjects`, data),
       update: (subjectId: number, data: {
         name?: string;
         category?: string;
         priority?: string;
       }): Promise<any> =>
-        this.patch(`/instance-films/subjects/${subjectId}`, data),
+        this.patch(`/api/instance-films/subjects/${subjectId}`, data),
       delete: (subjectId: number): Promise<void> =>
-        this.delete(`/instance-films/subjects/${subjectId}`),
+        this.delete(`/api/instance-films/subjects/${subjectId}`),
     },
 
     // ── Locations ───────────────────────────────────────────────────
     locations: {
       getAll: (projectFilmId: number): Promise<any[]> =>
-        this.get(`/instance-films/${projectFilmId}/locations`),
+        this.get(`/api/instance-films/${projectFilmId}/locations`),
       create: (projectFilmId: number, data: {
         location_id: number;
         notes?: string;
       }): Promise<any> =>
-        this.post(`/instance-films/${projectFilmId}/locations`, data),
+        this.post(`/api/instance-films/${projectFilmId}/locations`, data),
       delete: (locationId: number): Promise<void> =>
-        this.delete(`/instance-films/locations/${locationId}`),
+        this.delete(`/api/instance-films/locations/${locationId}`),
     },
 
     // ── Scene Subjects ──────────────────────────────────────────────
     sceneSubjects: {
       getAll: (sceneId: number): Promise<any[]> =>
-        this.get(`/instance-films/scenes/${sceneId}/subjects`),
+        this.get(`/api/instance-films/scenes/${sceneId}/subjects`),
       add: (sceneId: number, data: {
         project_film_subject_id: number;
         priority?: number;
         notes?: string;
       }): Promise<any> =>
-        this.post(`/instance-films/scenes/${sceneId}/subjects`, data),
+        this.post(`/api/instance-films/scenes/${sceneId}/subjects`, data),
       remove: (id: number): Promise<void> =>
-        this.delete(`/instance-films/scene-subjects/${id}`),
+        this.delete(`/api/instance-films/scene-subjects/${id}`),
     },
 
     // ── Scene Location ──────────────────────────────────────────────
     sceneLocation: {
       get: (sceneId: number): Promise<any> =>
-        this.get(`/instance-films/scenes/${sceneId}/location`),
+        this.get(`/api/instance-films/scenes/${sceneId}/location`),
       set: (sceneId: number, data: { location_id: number }): Promise<any> =>
-        this.post(`/instance-films/scenes/${sceneId}/location`, data),
+        this.post(`/api/instance-films/scenes/${sceneId}/location`, data),
       remove: (sceneId: number): Promise<void> =>
-        this.delete(`/instance-films/scenes/${sceneId}/location`),
+        this.delete(`/api/instance-films/scenes/${sceneId}/location`),
     },
   };
 
@@ -2843,16 +2759,16 @@ class ApiService extends BaseApiClient {
   projects = {
     getAll: (brandId?: number): Promise<any[]> => {
       const params = brandId ? `?brandId=${brandId}` : '';
-      return this.get(`/projects${params}`);
+      return this.get(`/api/projects${params}`);
     },
     getById: (id: number): Promise<any> =>
-      this.get(`/projects/${id}`),
+      this.get(`/api/projects/${id}`),
     create: (data: { project_name: string; wedding_date?: string; booking_date?: string; edit_start_date?: string; phase?: string; client_id?: number; workflow_template_id?: number }): Promise<any> =>
-      this.post('/projects', data),
+      this.post('/api/projects', data),
     update: (id: number, data: { project_name?: string; wedding_date?: string; booking_date?: string; edit_start_date?: string; phase?: string; client_id?: number; workflow_template_id?: number }): Promise<any> =>
-      this.put(`/projects/${id}`, data),
+      this.put(`/api/projects/${id}`, data),
     delete: (id: number): Promise<void> =>
-      this.delete(`/projects/${id}`),
+      this.delete(`/api/projects/${id}`),
   };
 }
 
@@ -2953,8 +2869,6 @@ export const contributorsService = api.contributors;
 export const contactsService = api.contacts;
 export const inquiriesService = api.inquiries;
 export const clientsService = api.clients;
-export const proposalsService = api.proposals;
-export const publicProposalsService = api.publicProposals;
 export const contractsService = api.contracts;
 export const contractSigningService = api.contractSigning;
 export const invoicesService = api.invoices;

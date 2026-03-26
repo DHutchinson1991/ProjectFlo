@@ -1,4 +1,6 @@
-"use client";
+// Re-export shim — canonical FormsSettings has moved to @/features/platform/settings
+export { FormsSettings } from "@/features/platform/settings/components";
+export { FormsSettings as default } from "@/features/platform/settings/components";
 
 import React, { useCallback, useEffect, useState } from "react";
 import {
