@@ -105,7 +105,7 @@ export function ProposalDetailScreen() {
       await queryClient.invalidateQueries({ queryKey: proposalKeys.byInquiry(brandId, inquiryId) });
       await queryClient.removeQueries({ queryKey: proposalKeys.detail(brandId, inquiryId, proposal.id) });
       queryClient.setQueryData(proposalKeys.detail(brandId, inquiryId, nextProposal.id), nextProposal);
-      router.replace(`/sales/inquiries/${inquiryId}/proposals/${nextProposal.id}`);
+      router.replace(`/inquiries/${inquiryId}/proposals/${nextProposal.id}`);
       setNotification({ message: 'Proposal regenerated from current settings!', severity: 'success' });
     } catch {
       setNotification({ message: 'Failed to regenerate.', severity: 'error' });
@@ -119,7 +119,7 @@ export function ProposalDetailScreen() {
       await proposalsApi.delete(inquiryId, proposal.id);
       await queryClient.invalidateQueries({ queryKey: proposalKeys.byInquiry(brandId, inquiryId) });
       await queryClient.removeQueries({ queryKey: proposalKeys.detail(brandId, inquiryId, proposal.id) });
-      router.push(`/sales/inquiries/${inquiryId}/proposals`);
+      router.push(`/inquiries/${inquiryId}/proposals`);
     } catch {
       setNotification({ message: 'Failed to delete.', severity: 'error' });
     }
@@ -154,7 +154,7 @@ export function ProposalDetailScreen() {
     <Box sx={{ maxWidth: 720, mx: 'auto', p: { xs: 2, md: 4 } }}>
       <Button
         startIcon={<ArrowBackIcon />}
-        onClick={() => router.push(`/sales/inquiries/${inquiryId}/proposals`)}
+        onClick={() => router.push(`/inquiries/${inquiryId}/proposals`)}
         sx={{ mb: 3, textTransform: 'none', color: '#94a3b8' }}
       >
         Back to Proposals

@@ -5,9 +5,9 @@ This document is a compact, operational guide for adding or updating seed logic 
 ## Core Principles
 
 - Idempotent by design: re-runs must not duplicate data or destroy unrelated data.
-- One logger to rule them all: use our shared Seed Logger for uniform, readable output.
+- Keep the logging surface small: use the shared Seed Logger for uniform, readable output.
 - Always return a SeedSummary: enables accurate run totals and final metrics.
-- Show your work: log each created/skipped at item level (created = blue, skipped = yellow).
+- Use item-level created/skipped logs when useful; rely on one summary per seed at normal verbosity.
 - Final metrics are canonical: do not print your own “global” summaries; the orchestrator prints a single authoritative block at the end.
 
 ## Key Building Blocks
@@ -15,11 +15,11 @@ This document is a compact, operational guide for adding or updating seed logic 
 - Logger: `createSeedLogger(SeedType.X)` from `prisma/utils/seed-logger.ts`
   - Section headers: `logger.sectionHeader('Title')`, `logger.sectionDivider('Step')`
   - Item logs: `logger.created(name, details?)` [blue], `logger.skipped(name, reason?)` [yellow]
+  - Status logs: `logger.processing()`, `logger.success()`, `logger.warning()`, `logger.error()`
   - Summaries: `logger.summary('X', { created, skipped, updated, total })`
-  - Info/Success/Warning/Error with spacing before text to avoid icon blending
 - Summary contract: `SeedSummary { created, updated, skipped, total }`
   - Helpers: `sumSummaries(...parts)` to aggregate across sub-seeds
-- Final metrics: `printFinalMetrics()` in `prisma/utils/final-metrics.ts`
+- Final metrics: `printFinalMetrics()` in `prisma/utils/seed-metrics.ts`
   - Displays per-item deltas as `(skipped +Y - created +X)` with yellow/blue color coding
   - Includes brand splits (Moonrise, Layer5) and overall run summary
 
@@ -91,9 +91,10 @@ export default async function seed(): Promise<SeedSummary> {
 
 ## Color & Formatting Conventions
 
-- Created is blue; Skipped is yellow
-- Prefer `logger.created()` / `logger.skipped()` for every item
-- Use `logger.sectionHeader()` to delineate major phases and `logger.sectionDivider('STEP X: ...')` within a file
+- Created is blue; skipped and updated are yellow
+- Prefer one summary per seed at normal log level
+- Use item-level `logger.created()` / `logger.skipped()` lines for verbose output or when debugging a specific seed
+- Use `logger.sectionHeader()` to delineate major phases and `logger.sectionDivider()` within larger orchestrators
 - The logger prints a space between icon and text to keep lines readable
 
 ## Idempotency Guidelines
@@ -127,7 +128,7 @@ npx prisma db seed
 
 ## Extending Per-Brand Run Details (Optional)
 
-- `final-metrics` supports an optional `perBrandRun` map keyed by brand name, with per-entity `SeedSummary`s (films, scenes, tasks, etc.).
+- `seed-metrics` supports an optional `perBrandRun` map keyed by brand name, with per-entity `SeedSummary`s (films, scenes, tasks, etc.).
 - To surface precise per-item “skipped this run” (instead of computed fallback), have brand orchestrators collect and pass these entity-level summaries when invoking `printFinalMetrics()`.
 
 ---

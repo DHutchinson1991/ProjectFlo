@@ -32,15 +32,25 @@ Use `<Card variant="glass">` and `<Chip variant="status">` instead of copy-pasti
 
 ## Shared UI components
 
-Before building new UI, check existing shared components in `packages/frontend/src/app/components/ui/`:
+Before building new UI, check existing shared components in `packages/frontend/src/shared/ui/` (barrel export: `@/shared/ui`):
 
 | Component | Import | Use for |
-|-----------|--------|---------|
-| `StatusChip` | `@/app/components` | Status badges — auto-resolves colour from `statusColors` |
-| `EmptyState` | `@/app/components` | "Nothing here yet" placeholder with icon + CTA |
-| `FormDialog` | `@/app/components` | Standard create/edit dialog shell (title, body, save/cancel) |
-| `PageHeader` | `@/app/components` | Page title + subtitle + action buttons row |
-| `Loading` | `@/app/components` | Spinner / skeleton / dots variants |
+|-----------|--------|--------|
+| `StatusChip` | `@/shared/ui` | Status badges — auto-resolves colour from `statusColors` |
+| `EmptyState` | `@/shared/ui` | "Nothing here yet" placeholder with icon + CTA |
+| `FormDialog` | `@/shared/ui` | Standard create/edit dialog shell (title, body, save/cancel) |
+| `PageHeader` | `@/shared/ui` | Page title + subtitle + action buttons row |
+| `Loading` | `@/shared/ui` | Spinner / skeleton / dots variants |
+| `ErrorBoundary` | `@/shared/ui` | React error boundary with fallback UI |
+| `VenueMap` | `@/shared/ui` | Interactive map for location/venue display |
+| `AddressAutocomplete` | `@/shared/ui` | Address search input with Nominatim autocomplete |
+
+```ts
+// Example import
+import { StatusChip, EmptyState, FormDialog } from '@/shared/ui';
+```
+
+> **Legacy path**: Some older code imports from `@/app/components`. This is the old location — new code must import from `@/shared/ui` instead.
 
 ## Before building new UI
 
@@ -57,4 +67,6 @@ Before building new UI, check existing shared components in `packages/frontend/s
 - Use `StatusChip` for any status badge — don't create inline Chip + alpha styling.
 - Use `EmptyState` for any list-empty placeholder — don't recreate the dashed-border pattern.
 - Use `FormDialog` for any create/edit dialog — don't recreate Dialog + DialogActions + spinner.
+- Use `ErrorBoundary` for feature-level error catching — don't build custom try/catch wrappers in components.
 - When adding a new status value, add its colour to `statusColors` in `tokens.ts`.
+- Always import shared UI from `@/shared/ui` — never from `@/app/components` or `@/app/components/ui/`.

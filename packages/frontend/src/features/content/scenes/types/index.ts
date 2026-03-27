@@ -6,9 +6,9 @@
  */
 
 import type { SceneMoment } from '@/features/content/moments/types';
-import type { SceneBeat } from '@/lib/types/domains/beats';
-import type { SceneMusic } from '@/lib/types/domains/music';
-import type { SceneAudioSource } from '@/lib/types/domains/audio-sources';
+import type { SceneBeat } from './beats';
+import type { SceneMusic } from '@/features/content/music/types';
+import type { SceneAudioSource } from './audio-sources';
 import type { FilmSceneLocationAssignment } from '@/features/workflow/locations/types';
 
 /**

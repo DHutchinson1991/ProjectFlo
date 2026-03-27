@@ -11,8 +11,8 @@ import {
     Grid,
 } from '@mui/material';
 import type { TaskType, Priority, Project } from '@/features/workflow/calendar/types/calendar-types';
-import { ContributorSelector } from './ContributorSelector';
-import type { ContributorOption } from '@/features/workflow/calendar/hooks/use-contributors';
+import { CrewMemberSelector } from './CrewMemberSelector';
+import type { CrewMemberOption } from '@/features/workflow/calendar/hooks/use-contributors';
 import { taskTypeConfig, priorityConfig } from '@/features/workflow/calendar/constants/calendar-config';
 
 export interface TaskFormData {
@@ -21,7 +21,7 @@ export interface TaskFormData {
     dueDate: Date;
     type: TaskType;
     priority: Priority;
-    assignee: ContributorOption | null;
+    assignee: CrewMemberOption | null;
     project: Project | null;
     estimatedHours: number;
 }
@@ -29,19 +29,19 @@ export interface TaskFormData {
 interface TaskFormProps {
     newTask: TaskFormData;
     setNewTask: React.Dispatch<React.SetStateAction<TaskFormData>>;
-    contributors: ContributorOption[];
-    currentUserContributor: ContributorOption | null;
-    contributorsLoading: boolean;
-    contributorsError: string | null;
+    crewMembers: CrewMemberOption[];
+    currentUserCrewMember: CrewMemberOption | null;
+    crewMembersLoading: boolean;
+    crewMembersError: string | null;
 }
 
 export function TaskForm({
     newTask,
     setNewTask,
-    contributors,
-    currentUserContributor,
-    contributorsLoading,
-    contributorsError,
+    crewMembers,
+    currentUserCrewMember,
+    crewMembersLoading,
+    crewMembersError,
 }: TaskFormProps) {
     return (
         <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -77,7 +77,7 @@ export function TaskForm({
                 <Autocomplete options={[] as Project[]} getOptionLabel={o => o.name} value={newTask.project} onChange={(_, v) => setNewTask(prev => ({ ...prev, project: v }))} renderInput={p => <TextField {...p} label="Project" />} />
             </Grid>
             <Grid item xs={6}>
-                <ContributorSelector selectedContributor={newTask.assignee} onContributorChange={c => setNewTask(prev => ({ ...prev, assignee: c }))} contributors={contributors} currentUserContributor={currentUserContributor} loading={contributorsLoading} error={contributorsError} label="Assignee" />
+                <CrewMemberSelector selectedCrewMember={newTask.assignee} onCrewMemberChange={c => setNewTask(prev => ({ ...prev, assignee: c }))} contributors={crewMembers} currentUserCrewMember={currentUserCrewMember} loading={crewMembersLoading} error={crewMembersError} label="Assignee" />
             </Grid>
         </Grid>
     );

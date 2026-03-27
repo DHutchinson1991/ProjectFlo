@@ -4,8 +4,8 @@ import {
     Switch, Autocomplete, Grid, Typography, Box,
 } from '@mui/material';
 import { CalendarEvent, EventType, Priority, Project } from '@/features/workflow/calendar/types/calendar-types';
-import { ContributorSelector } from '../ContributorSelector';
-import { ContributorOption } from '@/features/workflow/calendar/hooks/use-contributors';
+import { CrewMemberSelector } from '../CrewMemberSelector';
+import { CrewMemberOption } from '@/features/workflow/calendar/hooks/use-contributors';
 import { eventTypeConfig, priorityConfig } from '@/features/workflow/calendar/constants/calendar-config';
 import { formatDateTimeLocal } from '../../hooks/use-event-form';
 
@@ -51,7 +51,7 @@ interface FormState {
     allDay: boolean;
     type: EventType;
     priority: Priority;
-    assignee: ContributorOption | null;
+    assignee: CrewMemberOption | null;
     project: Project | null;
     location: string;
 }
@@ -61,15 +61,15 @@ interface EventFormFieldsProps {
     setFormData: React.Dispatch<React.SetStateAction<FormState>>;
     mode: 'create' | 'edit';
     event?: CalendarEvent | null;
-    contributors: ContributorOption[];
-    currentUserContributor: ContributorOption | null;
-    contributorsLoading: boolean;
-    contributorsError: string | null;
+    crewMembers: CrewMemberOption[];
+    currentUserCrewMember: CrewMemberOption | null;
+    crewMembersLoading: boolean;
+    crewMembersError: string | null;
 }
 
 const EventFormFields: React.FC<EventFormFieldsProps> = ({
     formData, setFormData, mode, event,
-    contributors, currentUserContributor, contributorsLoading, contributorsError,
+    crewMembers, currentUserCrewMember, crewMembersLoading, crewMembersError,
 }) => (
     <Grid container spacing={2}>
         <Grid item xs={12}>
@@ -134,10 +134,10 @@ const EventFormFields: React.FC<EventFormFieldsProps> = ({
         </Grid>
 
         <Grid item xs={6}>
-            <ContributorSelector selectedContributor={formData.assignee}
-                onContributorChange={(c) => setFormData(prev => ({ ...prev, assignee: c }))}
-                contributors={contributors} currentUserContributor={currentUserContributor}
-                loading={contributorsLoading} error={contributorsError} label="Assignee" />
+            <CrewMemberSelector selectedCrewMember={formData.assignee}
+                onCrewMemberChange={(c) => setFormData(prev => ({ ...prev, assignee: c }))}
+                contributors={crewMembers} currentUserCrewMember={currentUserCrewMember}
+                loading={crewMembersLoading} error={crewMembersError} label="Assignee" />
         </Grid>
 
         <Grid item xs={6}>

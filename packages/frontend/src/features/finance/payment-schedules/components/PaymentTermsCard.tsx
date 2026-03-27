@@ -1,23 +1,24 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     Box, Typography, Stack, Chip, MenuItem, Select, FormControl,
     InputLabel, CircularProgress, Alert, Tooltip,
 } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
 import {
     AccountBalance, CheckCircle, Warning,
 } from '@mui/icons-material';
 import { inquiriesApi } from '@/features/workflow/inquiries';
 import { paymentSchedulesApi } from '@/features/finance/payment-schedules';
-import { useBrand } from '@/app/providers/BrandProvider';
-import type { PaymentScheduleTemplate } from '@/features/finance/payment-schedules/types';
+import { usePaymentScheduleTemplates } from '@/features/finance/payment-schedules';
+import { useBrand } from '@/features/platform/brand';
 import type { Estimate } from '@/features/finance/estimates/types';
 import type { Quote } from '@/features/finance/quotes/types';
-import type { WorkflowCardProps } from '@/app/(studio)/sales/inquiries/[id]/_detail/_lib';
-import { WorkflowCard } from '@/app/(studio)/sales/inquiries/[id]/_detail/_components/WorkflowCard';
-
-const MILESTONE_COLORS = ['#a78bfa', '#60a5fa', '#34d399', '#f59e0b', '#f87171', '#818cf8', '#2dd4bf'];
+import type { WorkflowCardProps } from '@/features/workflow/inquiries/lib/types';
+import { WorkflowCard } from '@/features/workflow/inquiries/components/WorkflowCard';
+import { roundMoney } from '@/shared/utils/pricing';
+import { formatCurrency, DEFAULT_CURRENCY } from '@projectflo/shared';
 
 const PaymentTermsCard: React.FC<WorkflowCardProps> = ({
     inquiry,
@@ -25,40 +26,31 @@ const PaymentTermsCard: React.FC<WorkflowCardProps> = ({
     isActive,
     activeColor,
 }) => {
+    const theme = useTheme();
     const { currentBrand } = useBrand();
 
-    const [templates, setTemplates] = useState<PaymentScheduleTemplate[]>([]);
-    const [loading, setLoading] = useState(true);
+    const MILESTONE_COLORS = [
+        theme.palette.secondary.main,
+        theme.palette.info.main,
+        theme.palette.success.main,
+        theme.palette.warning.main,
+        theme.palette.error.main,
+        alpha(theme.palette.primary.main, 0.7),
+        alpha(theme.palette.info.main, 0.7),
+    ];
+
+    const { data: templates = [], isLoading: loading, error: fetchError } = usePaymentScheduleTemplates();
+
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(fetchError ? 'Failed to load payment schedule templates.' : null);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
     const [selectedId, setSelectedId] = useState<number | null>(
         inquiry.preferred_payment_schedule_template_id ?? null
     );
 
-    // Load brand templates once (only depends on brand, not inquiry preference)
-    useEffect(() => {
-        if (!currentBrand?.id) return;
-        let cancelled = false;
-        setLoading(true);
-        paymentSchedulesApi.getAll()
-            .then((data) => {
-                if (cancelled) return;
-                setTemplates(data);
-            })
-            .catch(() => {
-                if (cancelled) return;
-                setError('Failed to load payment schedule templates.');
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false);
-            });
-        return () => { cancelled = true; };
-    }, [currentBrand?.id]);
-
     // Sync selectedId from inquiry prop (handles external changes + initial pre-select)
-    useEffect(() => {
+    React.useEffect(() => {
         const prefId = inquiry.preferred_payment_schedule_template_id ?? null;
         if (prefId !== null) {
             setSelectedId(prefId);
@@ -134,14 +126,14 @@ const PaymentTermsCard: React.FC<WorkflowCardProps> = ({
             <Box sx={{ p: 2.5 }}>
                 {/* Header */}
                 <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                    <AccountBalance sx={{ color: activeColor || '#a78bfa', fontSize: 20 }} />
+                    <AccountBalance sx={{ color: activeColor || theme.palette.secondary.main, fontSize: 20 }} />
                     <Typography variant="subtitle1" fontWeight={600} sx={{ color: 'text.primary', flex: 1 }}>
                         Payment Terms
                     </Typography>
                     {saving ? (
-                        <CircularProgress size={16} sx={{ color: activeColor || '#a78bfa' }} />
+                        <CircularProgress size={16} sx={{ color: activeColor || theme.palette.secondary.main }} />
                     ) : inquiry.preferred_payment_schedule_template_id ? (
-                        <CheckCircle sx={{ color: '#4ade80', fontSize: 18 }} />
+                        <CheckCircle sx={{ color: 'success.main', fontSize: 18 }} />
                     ) : null}
                 </Stack>
 
@@ -203,13 +195,13 @@ const PaymentTermsCard: React.FC<WorkflowCardProps> = ({
                             const allEstimates: Estimate[] = inquiry.estimates ?? [];
                             const grandTotal = allEstimates.reduce((s, e) => s + (Number(e.total_amount) || 0), 0);
                             const hasPricing = grandTotal > 0;
-                            const currencySymbol = currentBrand?.currency === 'GBP' ? '£' : currentBrand?.currency === 'EUR' ? '€' : '$';
+                            const currency = currentBrand?.currency ?? DEFAULT_CURRENCY;
 
                             const sorted = activeTemplate.rules.slice().sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
                             const rows = sorted.map((rule, i) => {
                                 const pct = rule.amount_type === 'PERCENT' ? Number(rule.amount_value) : 0;
                                 const amount = hasPricing
-                                    ? (rule.amount_type === 'PERCENT' ? (pct / 100) * grandTotal : Number(rule.amount_value))
+                                    ? (rule.amount_type === 'PERCENT' ? roundMoney((pct / 100) * grandTotal) : Number(rule.amount_value))
                                     : 0;
                                 const trigger =
                                     rule.trigger_type === 'AFTER_BOOKING' ? `${rule.trigger_days ?? 0}d after booking` :
@@ -220,7 +212,9 @@ const PaymentTermsCard: React.FC<WorkflowCardProps> = ({
                                     label: rule.label,
                                     pct,
                                     amount,
-                                    displayPct: rule.amount_type === 'PERCENT' ? `${rule.amount_value}%` : `${Number(rule.amount_value).toLocaleString()}`,
+                                    displayPct: rule.amount_type === 'PERCENT'
+                                        ? `${rule.amount_value}%`
+                                        : formatCurrency(Number(rule.amount_value), currency),
                                     trigger,
                                     color: MILESTONE_COLORS[i % MILESTONE_COLORS.length],
                                 };
@@ -236,7 +230,7 @@ const PaymentTermsCard: React.FC<WorkflowCardProps> = ({
                                     {/* Segmented split bar */}
                                     <Box sx={{ display: 'flex', gap: 0.5, mt: 1.5, mb: 1, height: 4, borderRadius: 2, overflow: 'hidden', bgcolor: 'rgba(255,255,255,0.04)' }}>
                                         {rows.map((r, i) => (
-                                            <Tooltip key={i} title={`${r.label}: ${hasPricing ? `${currencySymbol}${r.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : r.displayPct}`} arrow placement="top">
+                                            <Tooltip key={i} title={`${r.label}: ${hasPricing ? formatCurrency(r.amount, currency) : r.displayPct}`} arrow placement="top">
                                                 <Box sx={{ flex: (r.pct || 1) / barTotal, bgcolor: r.color, borderRadius: 1, minWidth: 4, transition: 'flex 0.3s' }} />
                                             </Tooltip>
                                         ))}
@@ -247,18 +241,18 @@ const PaymentTermsCard: React.FC<WorkflowCardProps> = ({
                                         {rows.map((r, i) => (
                                             <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                                 <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: r.color, flexShrink: 0 }} />
-                                                <Typography sx={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', fontWeight: 600, whiteSpace: 'nowrap' }}>
                                                     {r.label}
                                                 </Typography>
                                                 {hasPricing ? (
                                                     <>
-                                                        <Typography sx={{ fontSize: '0.62rem', color: '#94a3b8', fontFamily: 'monospace', fontWeight: 700 }}>
-                                                            {currencySymbol}{r.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                                        <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', fontFamily: 'monospace', fontWeight: 700 }}>
+                                                            {formatCurrency(r.amount, currency, 0)}
                                                         </Typography>
-                                                        <Typography sx={{ fontSize: '0.58rem', color: '#475569' }}>({r.displayPct})</Typography>
+                                                        <Typography sx={{ fontSize: '0.58rem', color: 'text.secondary' }}>({r.displayPct})</Typography>
                                                     </>
                                                 ) : (
-                                                    <Typography sx={{ fontSize: '0.62rem', color: '#94a3b8', fontFamily: 'monospace', fontWeight: 700 }}>
+                                                    <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', fontFamily: 'monospace', fontWeight: 700 }}>
                                                         {r.displayPct}
                                                     </Typography>
                                                 )}
@@ -271,12 +265,12 @@ const PaymentTermsCard: React.FC<WorkflowCardProps> = ({
                                         {rows.map((r, i) => (
                                             <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, px: 0.75, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.02)', borderLeft: `3px solid ${r.color}` }}>
                                                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                    <Typography sx={{ fontSize: '0.73rem', color: '#cbd5e1', fontWeight: 600, lineHeight: 1.2 }}>{r.label}</Typography>
-                                                    <Typography sx={{ fontSize: '0.6rem', color: '#475569', mt: 0.1 }}>{r.trigger}</Typography>
+                                                    <Typography sx={{ fontSize: '0.73rem', color: 'text.primary', fontWeight: 600, lineHeight: 1.2 }}>{r.label}</Typography>
+                                                    <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', mt: 0.1 }}>{r.trigger}</Typography>
                                                 </Box>
                                                 <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', color: r.color, minWidth: 48, textAlign: 'right' }}>
                                                     {hasPricing
-                                                        ? `${currencySymbol}${r.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                                        ? formatCurrency(r.amount, currency)
                                                         : r.displayPct}
                                                 </Typography>
                                             </Box>

@@ -9,6 +9,7 @@ import {
 import HistoryIcon from '@mui/icons-material/History';
 import RestoreIcon from '@mui/icons-material/Restore';
 import CloseIcon from '@mui/icons-material/Close';
+import { DEFAULT_CURRENCY, formatCurrency } from '@projectflo/shared';
 
 // ─── Props ───────────────────────────────────────────────────────────
 
@@ -110,7 +111,7 @@ export function VersionHistoryDialog({
                                                     />
                                                     {!!snapshot.base_price && (
                                                         <Chip
-                                                            label={`$${Number(snapshot.base_price).toFixed(2)}`}
+                                                            label={formatCurrency(Number(snapshot.base_price), String(snapshot.currency || DEFAULT_CURRENCY))}
                                                             size="small"
                                                             sx={{ height: 20, fontSize: '0.62rem', bgcolor: 'rgba(16, 185, 129, 0.08)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}
                                                         />

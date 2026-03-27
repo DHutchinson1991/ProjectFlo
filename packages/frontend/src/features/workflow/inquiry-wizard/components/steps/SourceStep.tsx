@@ -2,11 +2,11 @@
 
 import React from "react";
 import { Box, TextField } from "@mui/material";
-import { LEAD_SOURCES, fieldSx } from '../constants/wizard-config';
-import { fadeInUp } from '../constants/animations';
-import { NACtx } from '../types';
-import { Q } from './QuestionWrapper';
-import { Chp } from './SelectionChip';
+import { LEAD_SOURCES, fieldSx } from '../../constants/wizard-config';
+import { fadeInUp } from '../../constants/animations';
+import { NACtx } from '../../types';
+import { Q } from '../QuestionWrapper';
+import { Chp } from '../SelectionChip';
 
 export default function SourceScreen({ ctx }: { ctx: NACtx }) {
     const { responses, handleChange, handleContinue } = ctx;

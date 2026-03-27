@@ -23,14 +23,15 @@ import {
     Groups as GroupsIcon,
     Print as PrintIcon,
 } from "@mui/icons-material";
-import { computeTaxBreakdown } from "@/lib/utils/pricing";
+import { computeTaxBreakdown, computeLineTotal } from "@/shared/utils/pricing";
 import {
     fadeIn, float,
     pulseGlow, gradientShift, subtleFloat,
     useReveal, revealSx,
-} from "@/lib/portal/animations";
-import type { PortalThemeColors } from "@/lib/portal/themes";
-import { formatDateLong as formatDate, getDaysUntil, formatCurrency, sanitizeHtml } from "@/lib/portal/formatting";
+} from "@/features/workflow/proposals/utils/portal/animations";
+import type { PortalThemeColors } from "@/features/workflow/proposals/utils/portal/themes";
+import { formatDateLong as formatDate, getDaysUntil, formatCurrency, sanitizeHtml } from "@/features/workflow/proposals/utils/portal/formatting";
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import type {
     PublicProposalBrand,
     PublicProposalContent,
@@ -127,7 +128,7 @@ export default function ProposalRenderer({
     const footerReveal = useReveal();
 
     const daysUntil = getDaysUntil(weddingDate);
-    const currency = pkg?.currency || "USD";
+    const currency = pkg?.currency ?? DEFAULT_CURRENCY;
     const isDark = !content?.theme || content.theme === "cinematic-dark";
 
     const textSection = content?.sections?.find((s) => s.type === "text" && s.isVisible);
@@ -729,7 +730,7 @@ export default function ProposalRenderer({
                                         {estimate.items.map((item, idx) => {
                                             const qty = parseFloat(String(item.quantity));
                                             const price = parseFloat(String(item.unit_price)) || findPkgPrice(item.description);
-                                            const lineTotal = qty * price;
+                                            const lineTotal = computeLineTotal(qty, price);
                                             return (
                                                 <Box
                                                     key={item.id || idx}

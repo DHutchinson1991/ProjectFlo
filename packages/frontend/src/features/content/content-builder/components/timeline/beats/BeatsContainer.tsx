@@ -3,9 +3,9 @@
 import React from "react";
 import { Box, Typography } from "@mui/material";
 import { alpha, lighten } from "@mui/material/styles";
-import { TimelineScene } from "@/lib/types/timeline";
+import { TimelineScene } from "@/features/content/content-builder/types/timeline";
 import { getDefaultTrackColor } from "../../../utils/colorUtils";
-import type { SceneBeat } from "@/lib/types/domains/beats";
+import type { SceneBeat } from "@/features/content/scenes/types/beats";
 
 interface BeatsContainerProps {
   scene: TimelineScene;

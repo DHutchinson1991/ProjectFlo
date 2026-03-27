@@ -21,10 +21,10 @@ import {
     TextField,
     Typography,
 } from "@mui/material";
-import { MusicType, MUSIC_TYPE_LABELS } from "@/lib/types/domains/music";
-import type { TimelineTrack } from "@/lib/types/timeline";
+import { MusicType, MUSIC_TYPE_LABELS } from "@/features/content/music/types";
+import type { TimelineTrack } from "@/features/content/content-builder/types/timeline";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
-import { getEquipmentLabelForTrackName } from "@/lib/utils/equipmentAssignments";
+import { getEquipmentLabelForTrackName } from "@/features/content/films/utils/equipmentAssignments";
 
 interface SceneRecordingSetupDialogProps {
     open: boolean;

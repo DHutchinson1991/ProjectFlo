@@ -30,7 +30,7 @@ import {
   Schedule as ScheduleIcon,
   Videocam as FilmIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -195,7 +195,7 @@ const PackageEventDayPickerDialog: React.FC<PackageEventDayPickerDialogProps> = 
     if (open) {
       setSelectedIds(new Set(currentEventDayIds));
       setLoadingDays(true);
-      api.schedule.eventDays
+      scheduleApi.eventDays
         .getAll(brandId)
         .then((days: EventDay[]) => setAllBrandDays(days))
         .catch(console.error)
@@ -651,12 +651,12 @@ export const EventDayManager: React.FC<EventDayManagerProps> = ({
       setError(null);
       try {
         if (editingDay) {
-          const updated = await api.schedule.eventDays.update(brandId, editingDay.id, data);
+          const updated = await scheduleApi.eventDays.update(brandId, editingDay.id, data);
           onEventDaysChange(
             eventDays.map((d) => (d.id === editingDay.id ? { ...d, ...updated } : d))
           );
         } else {
-          const created = await api.schedule.eventDays.create(brandId, data);
+          const created = await scheduleApi.eventDays.create(brandId, data);
           onEventDaysChange([...eventDays, created]);
         }
         handleClose();
@@ -676,10 +676,10 @@ export const EventDayManager: React.FC<EventDayManagerProps> = ({
       try {
         if (isPackageMode && packageId) {
           // In package mode: remove assignment, don't delete the template
-          await api.schedule.packageEventDays.remove(packageId, day.id);
+          await scheduleApi.packageEventDays.remove(packageId, day.id);
         } else {
           // In brand mode: soft-delete the template
-          await api.schedule.eventDays.delete(brandId, day.id);
+          await scheduleApi.eventDays.delete(brandId, day.id);
         }
         onEventDaysChange(eventDays.filter((d) => d.id !== day.id));
       } catch (err: unknown) {
@@ -698,7 +698,7 @@ export const EventDayManager: React.FC<EventDayManagerProps> = ({
       setSaving(true);
       setError(null);
       try {
-        const updated = await api.schedule.packageEventDays.set(packageId, selectedIds);
+        const updated = await scheduleApi.packageEventDays.set(packageId, selectedIds);
         onEventDaysChange(updated);
         setPickerOpen(false);
       } catch (err: unknown) {
@@ -752,7 +752,7 @@ export const EventDayManager: React.FC<EventDayManagerProps> = ({
       try {
         await Promise.all(
           reordered.map((day) =>
-            api.schedule.eventDays.update(brandId, day.id, { order_index: day.order_index })
+            scheduleApi.eventDays.update(brandId, day.id, { order_index: day.order_index })
           )
         );
       } catch (err) {

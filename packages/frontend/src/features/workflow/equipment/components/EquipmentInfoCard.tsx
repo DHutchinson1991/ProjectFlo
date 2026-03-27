@@ -27,7 +27,7 @@ import {
     EQUIPMENT_AVAILABILITY_COLORS,
     EQUIPMENT_CONDITION_COLORS,
 } from "@/features/workflow/equipment/types/equipment.types";
-import type { Contributor } from "@/lib/types";
+import type { CrewMember } from "@/shared/types/users";
 
 const inputSx = {
     "& .MuiOutlinedInput-root": {
@@ -56,11 +56,11 @@ interface EquipmentInfoCardProps {
     equipment: Equipment;
     isEditing: boolean;
     editData: Partial<Equipment>;
-    contributors: Contributor[];
+    crewMembers: CrewMember[];
     onUpdate: (field: keyof Equipment, value: unknown) => void;
 }
 
-export function EquipmentInfoCard({ equipment, isEditing, editData, contributors, onUpdate }: EquipmentInfoCardProps) {
+export function EquipmentInfoCard({ equipment, isEditing, editData, crewMembers, onUpdate }: EquipmentInfoCardProps) {
     const val = <K extends keyof Equipment>(field: K) =>
         isEditing ? (editData[field] ?? equipment[field]) : equipment[field];
 

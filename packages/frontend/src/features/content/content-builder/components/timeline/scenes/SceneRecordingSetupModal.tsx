@@ -24,16 +24,14 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import { MusicType, MUSIC_TYPE_LABELS } from "@/lib/types/domains/music";
-import type { TimelineTrack } from "@/lib/types/timeline";
+import { MusicType, MUSIC_TYPE_LABELS } from "@/features/content/music/types";
+import type { TimelineTrack } from "@/features/content/content-builder/types/timeline";
 import { useFilmSubjects } from "@/features/content/subjects";
 import { useSceneSubjects } from '@/features/content/subjects';
-import { createScenesApi } from "@/features/content/scenes/api";
-import { apiClient } from "@/lib/api";
-import type { ApiClient } from "@/lib/api/api-client.types";
+import { scenesApi } from "@/features/content/scenes/api";
 import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
-import { getEquipmentLabelForTrackName } from "@/lib/utils/equipmentAssignments";
+import { getEquipmentLabelForTrackName } from "@/features/content/films/utils/equipmentAssignments";
 
 interface SceneRecordingSetupModalProps {
     open: boolean;
@@ -121,7 +119,6 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
     activityOperators = [],
 }) => {
     const { equipmentAssignmentsBySlot, loadAvailableScenes } = useContentBuilder();
-    const scenesApi = React.useMemo(() => createScenesApi(apiClient as unknown as ApiClient), []);
     useFilmSubjects(filmId ?? undefined); // retained for potential future use
     const {
         subjects: sceneSubjects,
@@ -173,10 +170,10 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
             if (hasNoAssignment && o.event_day_template_id === eventDayId) return true;
             return false;
         });
-        // Deduplicate by contributor_id (same person on multiple days)
+        // Deduplicate by crew_member_id (same person on multiple days)
         const seen = new Map<number, any>();
         matched.forEach((o: any) => {
-            const crewId = o.contributor_id ?? o.id;
+            const crewId = o.crew_member_id ?? o.id;
             if (!seen.has(crewId)) seen.set(crewId, o);
         });
         return Array.from(seen.values());
@@ -525,8 +522,7 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
                                                         fontWeight: 500,
                                                         border: '1px solid rgba(236,72,153,0.15)',
                                                     }}>
-                                                        {o.position_name || o.name || 'Crew'}
-                                                        {(o.job_role?.display_name || o.job_role?.name) && ` · ${o.job_role?.display_name || o.job_role?.name}`}
+                                                        {o.label || o.job_role?.display_name || o.job_role?.name || o.name || 'Crew'}
                                                     </Box>
                                                 ))}
                                                 {inheritedCrew.length > 4 && (
@@ -704,9 +700,9 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
                                         Inherited from {selectedActivity?.name || 'linked activity'}
                                     </Typography>
                                     {inheritedCrew.map((crew: any) => {
-                                        const crewName = crew.position_name || crew.name || 'Crew';
+                                        const crewName = crew.label || crew.job_role?.display_name || crew.job_role?.name || crew.name || 'Crew';
                                         const crewRole = crew.job_role?.display_name || crew.job_role?.name;
-                                        const crewColor = crew.position_color || crew.contributor?.crew_color;
+                                        const crewColor = crew.crew_member?.crew_color;
                                         return (
                                             <Box
                                                 key={`inherited-crew-${crew.id}`}

@@ -40,15 +40,7 @@ export function getColors() {
 }
 export type PortalColors = ReturnType<typeof getColors>;
 
-const CURRENCY_SYMBOLS: Record<string, string> = {
-    USD: '$', GBP: '£', EUR: '€', AUD: 'A$', CAD: 'C$', NZD: 'NZ$',
-    JPY: '¥', CHF: 'CHF', SEK: 'kr', NOK: 'kr', DKK: 'kr',
-    ZAR: 'R', INR: '₹', SGD: 'S$', HKD: 'HK$', MXN: 'MX$',
-};
-export function getCurrencySymbol(currency: string | null | undefined): string {
-    if (!currency) return '$';
-    return CURRENCY_SYMBOLS[currency.toUpperCase()] ?? currency;
-}
+export { getCurrencySymbol } from '@/shared/utils/formatUtils';
 
 export const CONTACT_TIME_OPTIONS = [
     'Morning (8am–12pm)', 'Afternoon (12pm–5pm)', 'Evening (5pm–9pm)', 'Flexible',

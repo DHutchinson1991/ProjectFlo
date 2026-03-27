@@ -16,8 +16,9 @@ import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import MicIcon from '@mui/icons-material/Mic';
 import PlaceIcon from '@mui/icons-material/Place';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import { ServicePackage } from '@/lib/types/domains/sales';
-import { formatCurrency } from '@/lib/utils/formatUtils';
+import { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
+import { formatCurrency } from '@/shared/utils/formatUtils';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -409,7 +410,7 @@ export default function PackagePickerDialog({
                                                             fontWeight: 800, color: '#f59e0b', fontSize: '0.9rem',
                                                             fontFamily: 'monospace',
                                                         }}>
-                                                            {formatCurrency(Number(pkg.base_price ?? 0), currencyCode || 'USD')}
+                                                            {formatCurrency(Number(pkg.base_price ?? 0), currencyCode ?? DEFAULT_CURRENCY)}
                                                         </Typography>
                                                     </Box>
                                                 </Box>

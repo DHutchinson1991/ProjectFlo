@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { taskLibraryApi } from '../api';
-import { PHASE_LABELS, ProjectPhase } from '@/lib/types';
-import type { TaskLibrary, TaskLibraryByPhase } from '@/lib/types';
+import { PHASE_LABELS, ProjectPhase } from '@/features/catalog/task-library/types';
+import type { TaskLibrary, TaskLibraryByPhase } from '@/features/catalog/task-library/types';
 
 interface Props {
     tasksByPhase: TaskLibraryByPhase;

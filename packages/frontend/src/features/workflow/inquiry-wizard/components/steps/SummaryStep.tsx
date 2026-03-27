@@ -4,12 +4,13 @@ import React from "react";
 import { Box, Typography, Stack, Switch, IconButton, CircularProgress, Divider } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { Edit as EditIcon } from "@mui/icons-material";
-import { C, glassSx } from '../constants/wizard-config';
-import { NACtx, ScreenId } from '../types';
-import { formatNiceDate } from '../selectors/wizard-navigation';
-import { Q } from './QuestionWrapper';
-import type { ServicePackage, ServicePackageItem } from '@/lib/types/domains/sales';
+import { C, glassSx } from '../../constants/wizard-config';
+import { NACtx, ScreenId } from '../../types';
+import { formatNiceDate } from '../../selectors/wizard-navigation';
+import { Q } from '../QuestionWrapper';
+import type { ServicePackage, ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
 import type { EventType, EventTypeDay, EventDayActivity } from '@/features/catalog/event-types/types';
+import { formatCurrency } from '@projectflo/shared';
 
 type EnrichedPackage = ServicePackage & {
     _tax?: { rate: number; amount: number; totalWithTax: number } | null;
@@ -18,7 +19,7 @@ type EnrichedPackage = ServicePackage & {
 
 export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
     const {
-        responses, eventConfig, eventType, filteredPackages, currSym,
+        responses, eventConfig, eventType, filteredPackages, currency,
         linkedInquiryId, createInquiry, setCreateInquiry, goTo,
         priceEstimate, priceLoading,
     } = ctx;
@@ -83,13 +84,13 @@ export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
         ).join(", ");
     };
 
-    const pkgPrice = (): string => {
-        if (!selectedPkg) return "";
+    const pkgPrice = (): number => {
+        if (!selectedPkg) return 0;
         const epkg = selectedPkg as EnrichedPackage;
         const backendTax = epkg._tax;
         const t = backendTax?.totalWithTax ?? Number(epkg._totalCost ?? 0);
         const it = (selectedPkg.contents?.items ?? []).reduce((s: number, i: ServicePackageItem) => s + (i.price ?? 0), 0);
-        return (t > 0 ? t : (Number(selectedPkg.base_price) || it || 0)).toLocaleString();
+        return t > 0 ? t : (Number(selectedPkg.base_price) || it || 0);
     };
 
     return (
@@ -116,7 +117,7 @@ export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
                         <Val label="Budget" value={responses.budget_range} />
                         <Val label="Package" value={
                             selectedPkg
-                                ? `${selectedPkg.name} — ${currSym}${pkgPrice()}`
+                                ? `${selectedPkg.name} \u2014 ${formatCurrency(pkgPrice(), currency, 0)}`
                                 : responses.selected_package === "none" ? "Decide later" : undefined
                         } />
                     </Section>
@@ -142,16 +143,16 @@ export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
                                     Estimated Investment
                                 </Typography>
                                 {priceEstimate.summary.equipmentCost > 0 && (
-                                    <Val label="Equipment" value={`${currSym}${priceEstimate.summary.equipmentCost.toLocaleString()}`} />
+                                    <Val label="Equipment" value={formatCurrency(priceEstimate.summary.equipmentCost, currency, 0)} />
                                 )}
                                 {priceEstimate.summary.crewCost > 0 && (
-                                    <Val label="Crew" value={`${currSym}${priceEstimate.summary.crewCost.toLocaleString()}`} />
+                                    <Val label="Crew" value={formatCurrency(priceEstimate.summary.crewCost, currency, 0)} />
                                 )}
 
                                 <Box sx={{ display: "flex", justifyContent: "space-between", pt: 1, mt: 0.5, borderTop: `1px solid ${alpha(C.accent, 0.2)}` }}>
                                     <Typography sx={{ color: C.text, fontSize: "0.85rem", fontWeight: 700 }}>Estimated Total</Typography>
                                     <Typography sx={{ color: C.accent, fontSize: "0.85rem", fontWeight: 700 }}>
-                                        {currSym}{priceEstimate.summary.subtotal.toLocaleString()}
+                                        {formatCurrency(priceEstimate.summary.subtotal, currency, 0)}
                                     </Typography>
                                 </Box>
                             </Box>

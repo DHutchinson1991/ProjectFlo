@@ -1,4 +1,4 @@
-import type { TimelineScene } from "@/lib/types/timeline";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SceneRecord = any;

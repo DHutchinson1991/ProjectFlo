@@ -7,7 +7,7 @@ import {
     CloudDone as SavedIcon,
     Warning as UnsavedIcon,
 } from "@mui/icons-material";
-import { SaveState } from "@/lib/types/timeline";
+import { SaveState } from "@/features/content/content-builder/types/timeline";
 
 interface SaveControlsProps {
     saveState: SaveState;

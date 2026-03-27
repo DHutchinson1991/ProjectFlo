@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { api } from "@/lib/api";
+import { scheduleApi } from "@/features/workflow/scheduling/api";
 import type { SchedulePreset } from "../types/schedule-panel.types";
 
 export function useSchedulePresets(brandId: number | undefined) {
@@ -13,7 +13,7 @@ export function useSchedulePresets(brandId: number | undefined) {
       setSelectedPresetId(null);
       return;
     }
-    const presets = await api.schedule.presets.getAll(brandId);
+    const presets = await scheduleApi.presets.getAll(brandId);
     const normalized = (presets as SchedulePreset[]) ?? [];
     setPresetList(normalized);
 

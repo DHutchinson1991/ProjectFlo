@@ -1,5 +1,5 @@
 import { taskLibraryApi } from '../api';
-import type { TaskLibrary, TaskLibraryByPhase, JobRole } from '@/lib/types';
+import type { TaskLibrary, TaskLibraryByPhase, JobRole } from '@/features/catalog/task-library/types';
 
 interface Props {
     setTasksByPhase: React.Dispatch<React.SetStateAction<TaskLibraryByPhase>>;
@@ -47,22 +47,22 @@ export function useTaskLibraryRoleSkills({ setTasksByPhase, setError, jobRoles, 
                 r.default_job_role = data.default_job_role_id ? (jobRoles.find(jr => jr.id === data.default_job_role_id) ?? null) : null;
             }
             if (data.skills_needed !== undefined) r.skills_needed = data.skills_needed;
-            if (updated) { r.default_contributor_id = updated.default_contributor_id ?? null; r.default_contributor = updated.default_contributor ?? null; }
+            if (updated) { r.default_crew_member_id = updated.default_crew_member_id ?? null; r.default_crew_member = updated.default_crew_member ?? null; }
             return r;
         }));
     };
 
-    const handleUpdateContributor = async (taskId: number, contributorId: number | null) => {
+    const handleUpdateContributor = async (taskId: number, crewMemberId: number | null) => {
         try {
-            const updated = await taskLibraryApi.update(taskId, { default_contributor_id: contributorId as number });
-            const newId = updated?.default_contributor_id ?? contributorId;
-            const newContrib = updated?.default_contributor ?? null;
+            const updated = await taskLibraryApi.update(taskId, { default_crew_member_id: crewMemberId as number });
+            const newId = updated?.default_crew_member_id ?? crewMemberId;
+            const newContrib = updated?.default_crew_member ?? null;
             setTasksByPhase(prev => applyTaskUpdate(prev, taskId, t => ({
-                ...t, default_contributor_id: newId, default_contributor: newContrib,
+                ...t, default_crew_member_id: newId, default_crew_member: newContrib,
             })));
         } catch (err) {
-            console.error('Failed to update contributor:', err);
-            setError('Failed to save contributor assignment.');
+            console.error('Failed to update crew member:', err);
+            setError('Failed to save crew member assignment.');
         }
     };
 

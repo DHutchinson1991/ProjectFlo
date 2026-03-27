@@ -1,6 +1,6 @@
-import type { TimelineScene } from "@/lib/types/timeline";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
 import { loadSceneTemplate } from "./sceneTemplateLoader";
-import { isLogEnabled } from "@/lib/debug/log-flags";
+import { isLogEnabled } from "@/shared/debug/log-flags";
 import { getSceneColorByType, sortAndNormalizeScenes } from "./scene-enrichment-utils";
 
 /**

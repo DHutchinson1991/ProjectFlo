@@ -1,14 +1,11 @@
-import { useState, useCallback, useMemo } from "react";
-import { createScenesApi } from "@/features/content/scenes/api";
-import { apiClient } from "@/lib/api";
-import type { ApiClient } from "@/lib/api/api-client.types";
+import { useState, useCallback } from "react";
+import { scenesApi } from "@/features/content/scenes/api";
 import type { ScenesLibrary, ScenesLibraryState } from '@/features/content/scenes/types';
 
 /**
  * Hook for managing scenes library state including loading, filtering, and search
  */
 export const useScenesLibrary = (filmId?: number) => {
-    const scenesApi = useMemo(() => createScenesApi(apiClient as unknown as ApiClient), []);
     const [libraryState, setLibraryState] = useState<ScenesLibraryState>({
         availableScenes: [],
         loadingScenes: false,

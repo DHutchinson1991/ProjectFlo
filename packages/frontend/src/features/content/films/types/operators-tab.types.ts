@@ -1,4 +1,4 @@
-export interface EquipmentRecord {
+﻿export interface EquipmentRecord {
   id: number;
   equipment_id: number;
   is_primary: boolean;
@@ -11,18 +11,16 @@ export interface EquipmentRecord {
   };
 }
 
-export interface PackageDayOperator {
+export interface PackageCrewSlot {
   id: number;
   package_id: number;
   event_day_template_id: number;
-  contributor_id?: number | null;
-  position_name: string;
-  position_color?: string | null;
+  crew_member_id?: number | null;
+  label?: string | null;
   job_role_id?: number | null;
   hours: number;
-  notes?: string | null;
   order_index: number;
-  contributor?: {
+  crew_member?: {
     id: number;
     crew_color?: string | null;
     contact: { id: number; first_name?: string | null; last_name?: string | null; email: string };
@@ -37,8 +35,8 @@ export interface TrackRecord {
   name: string;
   type: string;
   is_active: boolean;
-  contributor_id: number | null;
-  contributor: { id: number; crew_color?: string | null; contact: { first_name?: string | null; last_name?: string | null } } | null;
+  crew_member_id: number | null;
+  crew_member: { id: number; crew_color?: string | null; contact: { first_name?: string | null; last_name?: string | null } } | null;
 }
 
 export interface FilmOperatorsTabProps {

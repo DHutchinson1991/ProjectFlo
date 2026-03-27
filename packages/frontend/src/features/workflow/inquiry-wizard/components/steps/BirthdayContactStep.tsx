@@ -3,11 +3,11 @@
 import React from "react";
 import { Box, Stack, TextField, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { C, fieldSx, BIRTHDAY_RELATIONS } from '../constants/wizard-config';
-import { fadeInUp } from '../constants/animations';
-import { NACtx } from '../types';
-import { Q } from './QuestionWrapper';
-import { Chp } from './SelectionChip';
+import { C, fieldSx, BIRTHDAY_RELATIONS } from '../../constants/wizard-config';
+import { fadeInUp } from '../../constants/animations';
+import { NACtx } from '../../types';
+import { Q } from '../QuestionWrapper';
+import { Chp } from '../SelectionChip';
 
 export default function BirthdayContactScreen({ ctx }: { ctx: NACtx }) {
     const { responses, handleChange } = ctx;

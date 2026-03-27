@@ -9,16 +9,9 @@ export enum LogLevel {
 
 export enum SeedType {
     ADMIN = 'admin',
-    INFRASTRUCTURE = 'infrastructure',
-    CALENDAR = 'calendar',
+    SYSTEM = 'system',
     MOONRISE = 'moonrise',
     LAYER5 = 'layer5',
-    COVERAGE = 'coverage',
-    EQUIPMENT = 'equipment',
-    SUBJECTS = 'subjects',
-    MUSIC = 'music',
-    LOCATIONS = 'locations',
-    MOMENTS = 'moments'
 }
 
 export class SeedLogger {
@@ -68,16 +61,9 @@ export class SeedLogger {
     private icons = {
         // Seed types
         [SeedType.ADMIN]: '👑',
-        [SeedType.INFRASTRUCTURE]: '🏗️',
-        [SeedType.CALENDAR]: '📅',
+        [SeedType.SYSTEM]: '🏗️',
         [SeedType.MOONRISE]: '🌙',
         [SeedType.LAYER5]: '🏢',
-        [SeedType.COVERAGE]: '🎬',
-        [SeedType.EQUIPMENT]: '🎥',
-        [SeedType.SUBJECTS]: '👰',
-        [SeedType.MUSIC]: '🎵',
-        [SeedType.LOCATIONS]: '🏰',
-        [SeedType.MOMENTS]: '⏰',
 
         // Operations
         success: '✅',
@@ -261,42 +247,6 @@ export class SeedLogger {
         if (!this.shouldLog(level)) return;
         console.log(`${this.icons.tag}  ${this.colorize('Tagged', 'cyan')}: ${item} → ${tag}`);
     }
-
-    // Seed type specific loggers
-    equipment(message: string, level: 'quiet' | 'normal' | 'verbose' = 'normal'): void {
-        if (!this.shouldLog(level)) return;
-        console.log(`${this.icons.equipment}  ${message}`);
-    }
-
-    subjects(message: string, level: 'quiet' | 'normal' | 'verbose' = 'normal'): void {
-        if (!this.shouldLog(level)) return;
-        console.log(`${this.icons.subjects}  ${message}`);
-    }
-
-    music(message: string, level: 'quiet' | 'normal' | 'verbose' = 'normal'): void {
-        if (!this.shouldLog(level)) return;
-        console.log(`${this.icons.music}  ${message}`);
-    }
-
-    locations(message: string, level: 'quiet' | 'normal' | 'verbose' = 'normal'): void {
-        if (!this.shouldLog(level)) return;
-        console.log(`${this.icons.locations}  ${message}`);
-    }
-
-    moments(message: string, level: 'quiet' | 'normal' | 'verbose' = 'normal'): void {
-        if (!this.shouldLog(level)) return;
-        console.log(`${this.icons.moments}  ${message}`);
-    }
-
-    coverage(message: string, level: 'quiet' | 'normal' | 'verbose' = 'normal'): void {
-        if (!this.shouldLog(level)) return;
-        console.log(`${this.icons.coverage}  ${message}`);
-    }
-
-    calendar(message: string, level: 'quiet' | 'normal' | 'verbose' = 'normal'): void {
-        if (!this.shouldLog(level)) return;
-        console.log(`${this.icons.calendar}  ${message}`);
-    }
 }
 
 // Export singleton instance and utility functions
@@ -368,28 +318,6 @@ export function createSeedLogger(seedType: SeedType) {
 
         tagged: (item: string, tag: string, level?: 'quiet' | 'normal' | 'verbose') =>
             logger.tagged(item, tag, level),
-
-        // Type-specific loggers
-        equipment: (message: string, level?: 'quiet' | 'normal' | 'verbose') =>
-            logger.equipment(message, level),
-
-        subjects: (message: string, level?: 'quiet' | 'normal' | 'verbose') =>
-            logger.subjects(message, level),
-
-        music: (message: string, level?: 'quiet' | 'normal' | 'verbose') =>
-            logger.music(message, level),
-
-        locations: (message: string, level?: 'quiet' | 'normal' | 'verbose') =>
-            logger.locations(message, level),
-
-        moments: (message: string, level?: 'quiet' | 'normal' | 'verbose') =>
-            logger.moments(message, level),
-
-        coverage: (message: string, level?: 'quiet' | 'normal' | 'verbose') =>
-            logger.coverage(message, level),
-
-        calendar: (message: string, level?: 'quiet' | 'normal' | 'verbose') =>
-            logger.calendar(message, level),
 
         sectionDivider: (title?: string) => logger.sectionDivider(title)
     };

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 /**
  * InstanceScheduleEditor — editable schedule view for project/inquiry instances.
@@ -66,17 +66,20 @@ import {
     type ScheduleApi,
 } from './ScheduleApiContext';
 import ScheduleDiffView from './ScheduleDiffView';
-import { useBrand } from '@/app/providers/BrandProvider';
-import { api } from '@/lib/api';
-import { formatCurrency, getCurrencySymbol } from '@/lib/utils/formatUtils';
-import type { ServicePackage } from '@/lib/types/domains/sales';
+import { useBrand } from '@/features/platform/brand';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { equipmentApi } from '@/features/workflow/equipment/api';
+import { scheduleApi as workflowScheduleApi } from '@/features/workflow/scheduling/api';
+import { taskLibraryApi } from '@/features/catalog/task-library/api';
+import { formatCurrency } from '@/shared/utils/formatUtils';
+import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import {
     TaskAutoGenerationPreview,
     TaskAutoGenerationPreviewTask,
     PHASE_LABELS,
     ProjectPhase,
     TriggerType,
-} from '@/lib/types/task-library';
+} from '@/features/catalog/task-library/types';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -102,7 +105,7 @@ function ScheduleEditorContent({
     const router = useRouter();
     const { currentBrand } = useBrand();
     const safeBrandId = currentBrand?.id;
-    const currency = currentBrand?.currency || 'USD';
+    const currency = currentBrand?.currency ?? DEFAULT_CURRENCY;
     const {
         data,
         refData,
@@ -149,7 +152,7 @@ function ScheduleEditorContent({
     // Load unmanned equipment on mount
     useEffect(() => {
         if (!safeBrandId) return;
-        api.equipment.findUnmanned(safeBrandId)
+        equipmentApi.findUnmanned(safeBrandId)
             .then(list => setUnmannedEquipment(list || []))
             .catch(() => {});
     }, [safeBrandId]);
@@ -188,7 +191,7 @@ function ScheduleEditorContent({
         try {
             const inquiryId = owner.type === 'inquiry' ? owner.id : undefined;
             const projectId = owner.type === 'project' ? owner.id : undefined;
-            const previewData = await api.taskLibrary.previewAutoGeneration(
+            const previewData = await taskLibraryApi.previewAutoGeneration(
                 sourcePackageId,
                 safeBrandId,
                 inquiryId,
@@ -231,9 +234,9 @@ function ScheduleEditorContent({
     const handleDeleteFilm = async (filmRecordId: number) => {
         try {
             if (owner.type === 'project') {
-                await api.schedule.projectFilms.delete(filmRecordId);
+                await workflowScheduleApi.projectFilms.delete(filmRecordId);
             } else {
-                await api.schedule.inquiryFilms.delete(filmRecordId);
+                await workflowScheduleApi.inquiryFilms.delete(filmRecordId);
             }
             setFilms((prev: any[]) => prev.filter((f: any) => f.id !== filmRecordId));
         } catch (err) {
@@ -331,7 +334,7 @@ function ScheduleEditorContent({
 
             {/* ── Total Cost Summary ── */}
             <SummaryCard
-                packageDayOperators={operators}
+                PackageCrewSlots={operators}
                 taskPreview={taskPreview}
                 contents={equipmentContents as any}
                 allEquipment={allEquipment}
@@ -346,7 +349,7 @@ function ScheduleEditorContent({
                 brandId={safeBrandId ?? 0}
                 packageEventDays={eventDays}
                 setPackageEventDays={setEventDays}
-                packageDayOperators={operators}
+                PackageCrewSlots={operators}
                 cardSx={cardSx as Record<string, unknown>}
                 activeDayId={activeDayId}
                 onActiveDayChange={(dayId) => { setActiveDayId(dayId); setSelectedActivityId(null); }}
@@ -372,8 +375,8 @@ function ScheduleEditorContent({
                         setPackageSubjects={setSubjects}
                         packageLocationSlots={locationSlots}
                         setPackageLocationSlots={setLocationSlots}
-                        packageDayOperators={operators}
-                        setPackageDayOperators={setOperators}
+                        PackageCrewSlots={operators}
+                        setPackageCrewSlots={setOperators}
                         selectedActivityId={selectedActivityId}
                         onSelectedActivityChange={setSelectedActivityId}
                         onColorPreview={handleColorPreview}
@@ -410,8 +413,8 @@ function ScheduleEditorContent({
                 <Grid item xs={12} md={3.5}>
                     <CrewCard
                         packageId={null}
-                        packageDayOperators={operators}
-                        setPackageDayOperators={setOperators}
+                        PackageCrewSlots={operators}
+                        setPackageCrewSlots={setOperators}
                         packageEventDays={eventDays}
                         packageActivities={activities}
                         scheduleActiveDayId={activeDayId}
@@ -428,8 +431,8 @@ function ScheduleEditorContent({
                         safeBrandId={safeBrandId}
                         formData={syntheticFormData}
                         setFormData={setSyntheticFormData}
-                        packageDayOperators={operators}
-                        setPackageDayOperators={setOperators}
+                        PackageCrewSlots={operators}
+                        setPackageCrewSlots={setOperators}
                         packageEventDays={eventDays}
                         packageActivities={activities}
                         scheduleActiveDayId={activeDayId}
@@ -580,11 +583,11 @@ function ScheduleEditorContent({
                 externalOperators={operators}
                 activities={activities}
                 packageName={`${owner.type === 'project' ? 'Project' : 'Inquiry'} Schedule`}
-                onFilmCreated={(result) => {
+                onFilmCreated={() => {
                     // Refresh films from API to get full nested data
                     const fetchFilms = owner.type === 'project'
-                        ? api.schedule.projectFilms.getAll(owner.id)
-                        : api.schedule.inquiryFilms.getAll(owner.id);
+                        ? workflowScheduleApi.projectFilms.getAll(owner.id)
+                        : workflowScheduleApi.inquiryFilms.getAll(owner.id);
                     fetchFilms.then(fresh => setFilms(fresh)).catch(() => {});
                 }}
             />
@@ -765,7 +768,7 @@ function InstanceTaskPreviewCard({
                                     <PersonIcon sx={{ fontSize: 10 }} />Crew
                                 </Typography>
                                 <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.3 }}>
-                                    {getCurrencySymbol(currency)} Cost
+                                    Cost
                                 </Typography>
                                 <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'right' }}>Hours</Typography>
                                 <Box />
@@ -831,7 +834,7 @@ function InstanceTaskPreviewCard({
                                                     )}
                                                 </Typography>
                                                 <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#f59e0b', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                                                    {phaseCost > 0 ? formatCurrency(phaseCost, currency) : `${getCurrencySymbol(currency)}—`}
+                                                    {phaseCost > 0 ? formatCurrency(phaseCost, currency) : '—'}
                                                 </Typography>
                                                 <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                                                     {phaseHours > 0 ? `${Math.round(phaseHours * 10) / 10}h` : '0h'}

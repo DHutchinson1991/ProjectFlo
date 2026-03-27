@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Box, Typography } from "@mui/material";
-import { authService } from "@/lib/api";
+import { authApi } from "@/features/platform/auth/api";
+import { clearAuthTokens, getAuthToken } from "@/shared/api/client";
 
 export default function HomePage() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function HomePage() {
     const checkAuthAndRedirect = async () => {
       try {
         // Check if there's a stored token
-        const token = authService.getToken();
+        const token = getAuthToken();
 
         if (!token) {
           // No token, redirect to login
@@ -22,7 +23,7 @@ export default function HomePage() {
         }
 
         // Verify token is still valid by getting user profile
-        const userProfile = await authService.getProfile();
+        const userProfile = await authApi.getProfile();
 
         // Redirect based on user role
         if (
@@ -41,7 +42,7 @@ export default function HomePage() {
       } catch (error) {
         // Token invalid or other error, redirect to login
         console.log("Authentication failed:", error);
-        authService.setToken(null);
+        clearAuthTokens();
         localStorage.removeItem("userProfile");
         router.push("/login");
       } finally {

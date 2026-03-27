@@ -41,16 +41,18 @@ import {
     MarkEmailRead as MarkEmailReadIcon,
 } from "@mui/icons-material";
 
-import { api } from "@/lib/api";
-import { computeTaxBreakdown } from "@/lib/utils/pricing";
+import { clientPortalApi } from "@/features/workflow/client-portal/api";
+import { publicNeedsAssessmentApi } from "@/features/workflow/needs-assessment/api";
+import { computeTaxBreakdown, computeLineTotal } from "@/shared/utils/pricing";
 import {
     fadeInUp, fadeIn, scaleIn, shimmer, float, gradientShift, subtleFloat,
     useReveal, revealSx,
-} from "@/lib/portal/animations";
-import { getPortalDashboardColors, getThemeColors } from "@/lib/portal/themes";
-import type { PortalDashboardColors } from "@/lib/portal/themes";
-import { formatDate, formatCurrency, formatAnswerValue } from "@/lib/portal/formatting";
-import type { PortalBrand, PortalProposalSectionData } from "@/lib/types/domains/portal";
+} from "@/features/workflow/proposals/utils/portal/animations";
+import { getPortalDashboardColors, getThemeColors } from "@/features/workflow/proposals/utils/portal/themes";
+import type { PortalDashboardColors } from "@/features/workflow/proposals/utils/portal/themes";
+import { formatDate, formatCurrency, formatAnswerValue } from "@/features/workflow/proposals/utils/portal/formatting";
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import type { PortalBrand, PortalProposalSectionData } from "@/features/workflow/proposals/types/portal";
 import ProposalRenderer from "@/features/workflow/proposals/components/ProposalRenderer";
 import ProposalAcceptanceBar from "@/features/workflow/proposals/components/ProposalAcceptanceBar";
 
@@ -327,7 +329,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
     const fetchPortal = useCallback(async () => {
         try {
             setLoading(true);
-            const result = await api.clientPortal.getByToken(token);
+            const result = await clientPortalApi.getByToken(token);
             setData(result);
         } catch {
             setError("This portal could not be found or may have expired.");
@@ -354,7 +356,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
     const handleProposalAccept = useCallback(async () => {
         setProposalResponding(true);
         try {
-            await api.clientPortal.respondToProposal(token, 'Accepted');
+            await clientPortalApi.respondToProposal(token, 'Accepted');
             setProposalResponseSuccess(true);
             await fetchPortal();
         } catch {
@@ -367,7 +369,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
     const handleProposalRequestChanges = useCallback(async (message: string) => {
         setProposalResponding(true);
         try {
-            await api.clientPortal.respondToProposal(token, 'ChangesRequested', message);
+            await clientPortalApi.respondToProposal(token, 'ChangesRequested', message);
             setProposalResponseSuccess(true);
             await fetchPortal();
         } catch {
@@ -405,7 +407,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
                 }
             }
             if (Object.keys(updates).length > 0) {
-                await api.publicNeedsAssessment.updateSubmission(submissionId, updates);
+                await publicNeedsAssessmentApi.updateSubmission(submissionId, updates);
                 await fetchPortal();
             }
             setEditingQuestionnaire(false);
@@ -422,7 +424,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
         setBrowsingPackages(true);
         setLoadingPackages(true);
         try {
-            const result = await api.clientPortal.getPackageOptions(token);
+            const result = await clientPortalApi.getPackageOptions(token);
             setAvailablePackages(result.packages ?? []);
         } catch {
             setAvailablePackages([]);
@@ -434,7 +436,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
     const submitPackageRequest = async () => {
         try {
             setSubmittingPackage(true);
-            await api.clientPortal.submitPackageRequest(token, {
+            await clientPortalApi.submitPackageRequest(token, {
                 selected_package_id: selectedPkgId ?? undefined,
                 notes: packageNotes || undefined,
             });
@@ -453,7 +455,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
     const brandName = brand?.display_name || brand?.name || "";
     const brandInitial = brandName.charAt(0).toUpperCase();
     const firstName = data?.contact?.first_name || "";
-    const currency = brand?.currency || "USD";
+    const currency = brand?.currency ?? DEFAULT_CURRENCY;
 
     /* ── Loading ─────────────────────────────────────────── */
 
@@ -1040,7 +1042,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
                                 catMap.get(cat)!.push(item);
                             }
                             for (const [category, items] of catMap) {
-                                const subtotal = items.reduce((sum, it) => sum + toNum(it.quantity) * toNum(it.unit_price), 0);
+                                const subtotal = items.reduce((sum, it) => sum + computeLineTotal(it.quantity, it.unit_price), 0);
                                 groups.push({ category, items, subtotal });
                             }
 
@@ -1104,7 +1106,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
                                                                                 </Typography>
                                                                             )}
                                                                             <Typography sx={{ color: colors.text, fontSize: "0.78rem", fontWeight: 600, minWidth: 65, textAlign: "right" }}>
-                                                                                {formatCurrency(qty * price, currency)}
+                                                                                {formatCurrency(computeLineTotal(qty, price), currency)}
                                                                             </Typography>
                                                                         </Box>
                                                                     </Box>

@@ -1,10 +1,25 @@
 export { paymentBracketsApi } from './api';
-export { usePaymentBracketsApi } from './hooks/use-payment-brackets-api';
+export { paymentBracketKeys } from './hooks/queryKeys';
+export {
+	usePaymentBrackets,
+	usePaymentBracketsByRole,
+	usePaymentBracketsByJobRole,
+	usePaymentBracketDetail,
+	useCrewMemberBrackets,
+	useEffectiveRate,
+	useCreatePaymentBracket,
+	useUpdatePaymentBracket,
+	useDeletePaymentBracket,
+	useAssignBracket,
+	useUnassignBracket,
+	useToggleUnmanned,
+} from './hooks';
 export type {
 	PaymentBracket,
 	PaymentBracketsByRole,
 	EffectiveRate,
-	ContributorBracketAssignment,
+	CrewMemberBracketAssignment,
+	BracketCrewMemberAssignment,
 	CreatePaymentBracketData,
 	UpdatePaymentBracketData,
 	AssignBracketData,

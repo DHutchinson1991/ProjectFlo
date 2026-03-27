@@ -23,11 +23,12 @@ import {
     Schedule,
     CalendarToday,
 } from '@mui/icons-material';
-import { formatCurrency } from '@/lib/utils/formatUtils';
-import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
+import { formatCurrency } from '@/shared/utils/formatUtils';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
 import { inquiriesApi } from '@/features/workflow/inquiries';
 import { inquiryWizardSubmissionsApi } from '@/features/workflow/inquiry-wizard';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { useBrand } from '@/features/platform/brand';
 import { getDisplayEmail } from '../lib';
 import type { ConversionData } from '../lib';
 
@@ -59,7 +60,7 @@ export default function CommandCenterHeader({
     const { currentBrand } = useBrand();
 
     /* ---- currency ---- */
-    const currencyCode = currentBrand?.currency || 'GBP';
+    const currencyCode = currentBrand?.currency ?? DEFAULT_CURRENCY;
 
     /* ---- inquiry period ---- */
     const validityDays = currentBrand?.inquiry_validity_days ?? 14;

@@ -2,7 +2,8 @@
 
 import React from "react";
 import { useDroppable } from "@dnd-kit/core";
-import { ProjectPhase, PHASE_LABELS } from "@/lib/types";
+import { ProjectPhase, PHASE_LABELS } from "@/features/catalog/task-library/types";
+import { getPhaseConfig, hexToRgba } from "@/shared/ui/tasks";
 
 interface DroppableZoneProps {
     id: string;
@@ -16,18 +17,7 @@ export function DroppableZone({ id, children, phase }: DroppableZoneProps) {
         data: { phase },
     });
 
-    const phaseColors = {
-        'Lead': 'rgba(102, 126, 234, 0.15)',
-        'Inquiry': 'rgba(240, 147, 251, 0.15)',
-        'Booking': 'rgba(79, 172, 254, 0.15)',
-        'Creative_Development': 'rgba(67, 233, 123, 0.15)',
-        'Pre_Production': 'rgba(250, 112, 154, 0.15)',
-        'Production': 'rgba(33, 150, 243, 0.15)',
-        'Post_Production': 'rgba(156, 39, 176, 0.15)',
-        'Delivery': 'rgba(255, 235, 59, 0.15)'
-    };
-
-    const phaseColor = phaseColors[phase as keyof typeof phaseColors] || phaseColors['Lead'];
+    const phaseColor = hexToRgba(getPhaseConfig(phase).color, 0.15);
 
     return (
         <div

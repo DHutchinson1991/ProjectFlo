@@ -13,4 +13,4 @@ export { getSceneColorByType, getSceneColor, getDefaultTrackColor } from './util
 export { useTimelineStorage, useTimelineSave } from './hooks/data';
 
 // Re-export types for consumers
-export * from '@/lib/types/timeline';
+export * from './types/timeline';

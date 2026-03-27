@@ -13,8 +13,8 @@ import {
 import {
     AutoAwesome as AutoIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
-import { TaskLibrary, SkillRoleMapping } from "@/lib/types";
+import { skillRoleMappingsApi } from "@/features/workflow/crew/api";
+import { TaskLibrary, SkillRoleMapping } from "@/features/catalog/task-library/types";
 
 interface TaskRoleSkillsPanelProps {
     task: TaskLibrary;
@@ -71,7 +71,7 @@ export function TaskRoleSkillsPanel({
         let cancelled = false;
         setLoadingMappings(true);
 
-        api.skillRoleMappings
+        skillRoleMappingsApi
             .getAll({ jobRoleId: roleId })
             .then((data) => { if (!cancelled) setMappings(data); })
             .catch(() => { if (!cancelled) setMappings([]); })
@@ -113,18 +113,16 @@ export function TaskRoleSkillsPanel({
         <Collapse in={open} timeout="auto" unmountOnExit>
             <Box
                 sx={{
-                    px: 2.5,
-                    py: 1.25,
-                    mx: 2,
-                    mb: 0.5,
-                    background: "rgba(255,255,255,0.02)",
-                    borderRadius: 2,
-                    border: "1px solid rgba(255,255,255,0.06)",
+                    px: 2,
+                    py: 0.75,
                     display: "flex",
                     alignItems: "center",
                     gap: 1.5,
                     flexWrap: "wrap",
-                    minHeight: 36,
+                    minHeight: 34,
+                    bgcolor: "rgba(100,255,218,0.025)",
+                    borderBottom: "1px solid rgba(255,255,255,0.04)",
+                    borderLeft: "3px solid rgba(100,255,218,0.2)",
                 }}
             >
                 {/* Dynamic tier label — appears on skill hover */}

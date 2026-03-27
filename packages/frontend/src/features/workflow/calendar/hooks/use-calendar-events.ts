@@ -1,6 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { useBrand } from '@/features/platform/brand';
 import type { CalendarEvent } from '../types/calendar-types';
 import { calendarApi } from '../api';
 import { transformBackendEvents, transformToBackendEvent, getDateRangeForView } from '../mappers/calendar-event-mapper';

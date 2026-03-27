@@ -1,16 +1,17 @@
 import { useEffect, useMemo } from 'react';
+import { formatCurrency } from '@projectflo/shared';
 import { BUDGET_RANGES, EVENT_CONFIGS, DEFAULT_CONFIG, EVENT_LABELS, EVENT_EMOJIS, EVENT_DESCS } from '../constants/wizard-config';
 import type { AnyRecord, EventTypeConfig } from '../types';
 import type { PackageSet } from '@/features/catalog/packages/types/package-set.types';
 import type { EventType } from '@/features/catalog/event-types/types';
-import type { ServicePackage } from '@/lib/types';
+import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 
 interface WizardComputedInput {
     responses: AnyRecord;
     packageSets: PackageSet[];
     allPackages: ServicePackage[];
     eventTypes: EventType[];
-    currSym: string;
+    currency: string;
     setResponses: React.Dispatch<React.SetStateAction<AnyRecord>>;
 }
 
@@ -25,7 +26,7 @@ interface WizardComputedValues {
     budgetMax: number | null;
 }
 
-export function useWizardComputed({ responses, packageSets, allPackages, eventTypes, currSym, setResponses }: WizardComputedInput): WizardComputedValues {
+export function useWizardComputed({ responses, packageSets, allPackages, eventTypes, currency, setResponses }: WizardComputedInput): WizardComputedValues {
     const eventType = (responses.event_type || '').toLowerCase();
     const eventConfig: EventTypeConfig = EVENT_CONFIGS[eventType] || DEFAULT_CONFIG;
 
@@ -79,9 +80,9 @@ export function useWizardComputed({ responses, packageSets, allPackages, eventTy
     const budgetLabels = useMemo(() =>
         BUDGET_RANGES.map(([lo, hi]) =>
             hi === null
-                ? `${currSym}${lo.toLocaleString()}+`
-                : `${currSym}${lo.toLocaleString()} \u2013 ${currSym}${hi.toLocaleString()}`
-        ), [currSym]);
+                ? `${formatCurrency(lo, currency, 0)}+`
+                : `${formatCurrency(lo, currency, 0)} \u2013 ${formatCurrency(hi, currency, 0)}`
+        ), [currency]);
 
     const budgetMax = useMemo(() => {
         const label = responses.budget_range;

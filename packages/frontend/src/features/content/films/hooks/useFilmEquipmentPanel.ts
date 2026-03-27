@@ -1,14 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api, apiClient } from "@/lib/api";
-import { createFilmsApi } from "../api";
-import type { ApiClient } from "@/lib/api/api-client.types";
+import { equipmentApi } from "@/features/workflow/equipment/api";
+import { filmsApi } from "../api";
 import { EquipmentSummary, FilmEquipmentAssignmentsBySlot } from "@/features/content/films/types/film-equipment.types";
-
-const filmsApi = createFilmsApi(apiClient as unknown as ApiClient);
-import { Equipment, EquipmentAvailability, EquipmentCategory } from "@/lib/types";
-import { buildAssignmentsBySlot } from "@/lib/utils/equipmentAssignments";
+import { Equipment, EquipmentAvailability, EquipmentCategory } from "@/features/workflow/equipment/types/equipment.types";
+import { buildAssignmentsBySlot } from "@/features/content/films/utils/equipmentAssignments";
 import {
   buildSelectionState, buildSlotSelectionMap, checkAssignmentsComplete,
   checkAssignmentChanges, syncEquipmentAssignments,
@@ -41,7 +38,7 @@ export function useFilmEquipmentPanel(
       const [tracks, assignments, equipmentGrouped] = await Promise.all([
         filmsApi.tracks.getAll(filmId),
         filmsApi.equipmentAssignments.getAll(filmId),
-        api.equipment.getGroupedByCategory(),
+        equipmentApi.getGroupedByCategory(),
       ]);
 
       const trackList = tracks as unknown as Array<{ type?: string }>;

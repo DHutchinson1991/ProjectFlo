@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { TimelineScene, SceneGroup } from '@/lib/types/timeline';
+import { TimelineScene, SceneGroup } from '@/features/content/content-builder/types/timeline';
 
 /**
  * Hook for managing scene grouping and visual organization

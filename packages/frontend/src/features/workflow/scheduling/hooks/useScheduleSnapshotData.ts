@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 import { inquiriesApi } from '@/features/workflow/inquiries';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ export interface UseScheduleSnapshotResult {
 
 function getApi(owner: SnapshotOwner) {
   return owner.type === 'project'
-    ? api.schedule.projectPackageSnapshot
+    ? scheduleApi.projectPackageSnapshot
     : inquiriesApi.scheduleSnapshot;
 }
 

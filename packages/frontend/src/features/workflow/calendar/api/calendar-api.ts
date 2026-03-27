@@ -36,17 +36,17 @@ export function deleteEvent(id: number): Promise<void> {
 export function getEventsForDateRange(
     startDate: Date,
     endDate: Date,
-    contributorId?: number,
+    crewMemberId?: number,
 ): Promise<BackendCalendarEvent[]> {
-    return calendarApi.getEventsForDateRange(startDate, endDate, contributorId);
+    return calendarApi.getEventsForDateRange(startDate, endDate, crewMemberId);
 }
 
-export function getTodaysEvents(contributorId?: number): Promise<BackendCalendarEvent[]> {
-    return calendarApi.getTodaysEvents(contributorId);
+export function getTodaysEvents(crewMemberId?: number): Promise<BackendCalendarEvent[]> {
+    return calendarApi.getTodaysEvents(crewMemberId);
 }
 
-export function getUpcomingEvents(contributorId?: number, limit?: number): Promise<BackendCalendarEvent[]> {
-    return calendarApi.getUpcomingEvents(contributorId, limit);
+export function getUpcomingEvents(crewMemberId?: number, limit?: number): Promise<BackendCalendarEvent[]> {
+    return calendarApi.getUpcomingEvents(crewMemberId, limit);
 }
 
 export function getTags(): ReturnType<typeof calendarApi.getTags> {

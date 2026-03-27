@@ -1,0 +1,16 @@
+---
+description: Backend architecture, domain buckets, file naming, and service rules for ProjectFlo.
+globs: packages/backend/src/**
+alwaysApply: false
+---
+
+# ProjectFlo — Backend Architecture
+
+- New backend feature code must live under exactly one bucket: `platform`, `catalog`, `workflow`, `content`, or `finance`. Do not create new top-level buckets under `packages/backend/src`.
+- Treat `src/platform/logging/logger.service.ts`, `src/platform/logging/request-logger.middleware.ts`, `src/platform/prisma/prisma.service.ts`, and `src/platform/auth/` as protected infrastructure — never delete, move, or rename them without explicit user direction.
+- Use precise file naming: `feature.module.ts`, `feature.controller.ts`, `feature.service.ts`, `feature.mapper.ts`, `create-feature.dto.ts`, `update-feature.dto.ts`, etc. Avoid vague files like `utils.ts`, `helpers.ts`, or `common.ts`.
+- Keep services focused on a single responsibility; split CRUD, relationship management, mapping, and admin logic into separate services or mappers when they grow.
+- Respect size limits: services ≈250 lines, controllers ≈200, DTOs ≈120, methods target 40 lines (60 hard max); refactor before adding new logic to oversized files.
+- Avoid `any` in services, controllers, and mappers; use Prisma payload types, DTOs, or explicit local types instead.
+- Every backend module folder should have a `README.md`; read it before editing and update it when changing business rules, key files, or cross-references.
+

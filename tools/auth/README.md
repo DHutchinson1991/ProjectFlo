@@ -1,32 +1,40 @@
 # Authentication Tools
 
-This directory contains scripts and utilities for managing authentication tokens and API access.
+Scripts for fetching and managing JWT auth tokens.
 
 ## Files
 
-- `get-auth-token.js` - Main script for generating JWT tokens
-- `get-dev-token.js` - Quick development token script
-- `shared-auth.js` - Shared authentication utilities and TokenManager class
-- `AUTH-TOKEN-SCRIPT-README.md` - Detailed usage documentation
+- `get-token.js` — CLI to fetch tokens (API or frontend mode)
+- `auth-service.js` — Shared `ScriptAuthService` + `TokenManager` (internal library)
+- `get-token.test.js` — Tests
 
 ## Token Storage
 
-Tokens are now stored in the `.auth/tokens/` directory:
-- `development.txt` - Development environment tokens
-- `staging.txt` - Staging environment tokens
-- `production.txt` - Production environment tokens
+Tokens are stored in `.auth/tokens/`:
+- `development.txt`
+- `staging.txt`
+- `production.txt`
 
 ## Usage
 
 ```bash
-# Generate a development token
-node tools/auth/get-auth-token.js
+# API token (dev)
+node tools/auth/get-token.js
 
-# Generate a token for specific environment
-node tools/auth/get-auth-token.js --env staging
+# API token (staging, 24h)
+node tools/auth/get-token.js --env staging --extend
 
-# Quick development token
-node tools/auth/get-dev-token.js
+# Frontend paste instructions
+node tools/auth/get-token.js --frontend
+
+# Interactive wizard
+node tools/auth/get-token.js --interactive
+
+# Or via pnpm scripts:
+pnpm auth                  # dev API token
+pnpm auth:frontend         # dev frontend token
+pnpm auth:staging          # staging API token
+pnpm auth:interactive      # guided setup
 ```
 
 ## Security

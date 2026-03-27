@@ -7,7 +7,7 @@ import StudioSidebar from "@/features/platform/studio-layout/components/StudioSi
 import StudioHeader from "@/features/platform/studio-layout/components/StudioHeader";
 import GlobalTaskDrawer from "@/features/workflow/tasks/components/GlobalTaskDrawer";
 import { ProjectProvider } from "@/features/workflow/projects";
-import { ProtectedRoute } from "../components/auth/ProtectedRoute/ProtectedRoute";
+import { ProtectedRoute } from "@/features/platform/auth";
 
 interface StudioLayoutProps {
     children: React.ReactNode;
@@ -16,8 +16,8 @@ interface StudioLayoutProps {
 export default function StudioLayout({ children }: StudioLayoutProps) {
     const pathname = usePathname();
     const isCalendarPage = pathname.startsWith("/calendar");
-    const isInquiryPackageReviewPage = /^\/sales\/inquiries\/[^/]+\/package(?:\/|$)/.test(pathname);
-    const hideGlobalTaskDrawer = isInquiryPackageReviewPage || ["/settings", "/manager", "/resources", "/designer/packages"].some((prefix) => pathname.startsWith(prefix));
+    const isInquiryPackageReviewPage = /^\/inquiries\/[^/]+\/package(?:\/|$)/.test(pathname);
+    const hideGlobalTaskDrawer = isInquiryPackageReviewPage || ["/settings", "/packages"].some((prefix) => pathname.startsWith(prefix));
 
     return (
         <ProtectedRoute>

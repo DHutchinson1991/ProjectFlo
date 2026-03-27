@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
     Box,
     Typography,
@@ -34,8 +34,16 @@ import {
     ExpandLess as CollapseIcon,
     Star as StarIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
-import { useBrand } from "@/app/providers/BrandProvider";
+import { eventTypesApi } from "@/features/catalog/event-types/api";
+import {
+    useCreateEventType,
+    useDeleteEventType,
+    useEventTypes,
+    useUpdateEventType,
+} from "@/features/catalog/event-types/hooks";
+import { rolesApi } from "@/features/content/subjects";
+import { scheduleApi } from "@/features/workflow/scheduling/api";
+import { useBrand } from "@/features/platform/brand";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -195,16 +203,16 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
         try {
             setSaving(true);
             if (editing) {
-                await api.schedule.eventDays.update(brandId, editing.id, form);
+                await scheduleApi.eventDays.update(brandId, editing.id, form);
             } else {
                 // Create new event day and auto-link to the selected event type
-                const newDay = await api.schedule.eventDays.create(brandId, {
+                const newDay = await scheduleApi.eventDays.create(brandId, {
                     name: form.name,
                     description: form.description || undefined,
                     order_index: eventDays.length,
-                });
+                }) as unknown as EventDay;
                 if (newDay?.id) {
-                    await api.eventTypes.linkEventDay(eventTypeId, { event_day_template_id: newDay.id });
+                    await eventTypesApi.linkEventDay(eventTypeId, { event_day_template_id: newDay.id });
                 }
             }
             setDialogOpen(false);
@@ -219,7 +227,7 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
     const handleDelete = async (id: number) => {
         if (!window.confirm("Delete this event day template and all its activity presets?")) return;
         try {
-            await api.schedule.eventDays.delete(brandId, id);
+            await scheduleApi.eventDays.delete(brandId, id);
             await onReload();
         } catch {
             setError("Failed to delete event day");
@@ -259,10 +267,10 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
                 default_duration_minutes: presetForm.default_duration_minutes ? parseInt(presetForm.default_duration_minutes, 10) : undefined,
             };
             if (editingPreset) {
-                await api.schedule.activityPresets.update(editingPreset.id, data);
+                await scheduleApi.activityPresets.update(editingPreset.id, data);
             } else {
                 const existingPresets = eventDays.find(d => d.id === presetTargetId)?.activity_presets || [];
-                await api.schedule.activityPresets.create(presetTargetId, { ...data, order_index: existingPresets.length });
+                await scheduleApi.activityPresets.create(presetTargetId, { ...data, order_index: existingPresets.length });
             }
             setPresetDialogOpen(false);
             await onReload();
@@ -276,7 +284,7 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
     const handlePresetDelete = async (presetId: number) => {
         if (!window.confirm("Remove this activity preset?")) return;
         try {
-            await api.schedule.activityPresets.delete(presetId);
+            await scheduleApi.activityPresets.delete(presetId);
             await onReload();
         } catch {
             setError("Failed to delete preset");
@@ -314,11 +322,11 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
                 is_key_moment: momentForm.is_key_moment,
             };
             if (editingMoment) {
-                await api.schedule.presetMoments.update(editingMoment.id, data);
+                await scheduleApi.presetMoments.update(editingMoment.id, data);
             } else {
                 const preset = eventDays.flatMap(d => d.activity_presets || []).find(p => p.id === momentTargetPresetId);
                 const existingMoments = preset?.moments || [];
-                await api.schedule.presetMoments.create(momentTargetPresetId, { ...data, order_index: existingMoments.length });
+                await scheduleApi.presetMoments.create(momentTargetPresetId, { ...data, order_index: existingMoments.length });
             }
             setMomentDialogOpen(false);
             await onReload();
@@ -332,7 +340,7 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
     const handleMomentDelete = async (momentId: number) => {
         if (!window.confirm("Remove this moment?")) return;
         try {
-            await api.schedule.presetMoments.delete(momentId);
+            await scheduleApi.presetMoments.delete(momentId);
             await onReload();
         } catch {
             setError("Failed to delete moment");
@@ -678,9 +686,10 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
         try {
             setSaving(true);
             // Create new subject type and auto-link to the selected event type
-            const newTemplate = await api.subjects.createRole(brandId, form);
-            if (newTemplate?.id) {
-                await api.eventTypes.linkSubjectRole(eventTypeId, { subject_role_id: newTemplate.id });
+            const newTemplate = await rolesApi.createRole(brandId, form);
+            const createdTemplate = Array.isArray(newTemplate) ? newTemplate[0] : newTemplate;
+            if (createdTemplate?.id) {
+                await eventTypesApi.linkSubjectRole(eventTypeId, { subject_role_id: createdTemplate.id });
             }
             setDialogOpen(false);
             setForm({ role_name: "", description: "", category: "PEOPLE" });
@@ -695,7 +704,7 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
     const handleDeleteTemplate = async (id: number) => {
         if (!window.confirm("Delete this subject type and all its roles?")) return;
         try {
-            await api.subjects.deleteRole(id);
+            await rolesApi.deleteRole(id);
             await onReload();
         } catch {
             setError("Failed to delete template");
@@ -706,7 +715,7 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
         if (!roleForm.role_name.trim()) return;
         try {
             setSaving(true);
-            await api.subjects.createRole(brandId, roleForm);
+            await rolesApi.createRole(brandId, roleForm);
             setRoleDialogOpen(false);
             setRoleForm({ role_name: "", description: "", is_core: false });
             await onReload();
@@ -720,7 +729,7 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
     const handleDeleteRole = async (roleId: number) => {
         if (!window.confirm("Remove this role?")) return;
         try {
-            await api.subjects.deleteRole(roleId);
+            await rolesApi.deleteRole(roleId);
             await onReload();
         } catch {
             setError("Failed to remove role");
@@ -753,7 +762,7 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
                         Define subject types with roles (e.g., &quot;Couple&quot; &rarr; Bride, Groom).
                     </Typography>
                 </Box>
-                <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setForm({ name: "", description: "", category: "PEOPLE" }); setDialogOpen(true); }} disableElevation size="small" sx={{ borderRadius: 2, fontWeight: 600 }}>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setForm({ role_name: "", description: "", category: "PEOPLE" }); setDialogOpen(true); }} disableElevation size="small" sx={{ borderRadius: 2, fontWeight: 600 }}>
                     Add Subject Type
                 </Button>
             </Box>
@@ -886,8 +895,10 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
 
 export function EventTypeTemplatesScreen() {
     const { currentBrand } = useBrand();
-    const [eventTypes, setEventTypes] = useState<EventType[]>([]);
-    const [loading, setLoading] = useState(true);
+    const eventTypesQuery = useEventTypes();
+    const createEventTypeMutation = useCreateEventType();
+    const updateEventTypeMutation = useUpdateEventType();
+    const deleteEventTypeMutation = useDeleteEventType();
     const [error, setError] = useState<string | null>(null);
     const [selectedId, setSelectedId] = useState<number | null>(null);
 
@@ -896,22 +907,14 @@ export function EventTypeTemplatesScreen() {
     const [editing, setEditing] = useState<EventType | null>(null);
     const [saving, setSaving] = useState(false);
     const [form, setForm] = useState({ name: "", description: "", icon: "" });
+    const eventTypes = eventTypesQuery.data ?? [];
+    const loading = eventTypesQuery.isLoading;
 
-    // ── Load ──
-    const load = useCallback(async () => {
-        if (!currentBrand?.id) return;
-        try {
-            setLoading(true);
-            const data = await api.eventTypes.getAll();
-            setEventTypes(data || []);
-        } catch {
+    useEffect(() => {
+        if (eventTypesQuery.error) {
             setError("Failed to load event types");
-        } finally {
-            setLoading(false);
         }
-    }, [currentBrand?.id]);
-
-    useEffect(() => { load(); }, [load]);
+    }, [eventTypesQuery.error]);
 
     // Auto-select first event type when loaded
     useEffect(() => {
@@ -952,15 +955,14 @@ export function EventTypeTemplatesScreen() {
                 color: autoColor,
             };
             if (editing) {
-                await api.eventTypes.update(editing.id, data);
+                await updateEventTypeMutation.mutateAsync({ id: editing.id, data });
             } else {
-                const created = await api.eventTypes.create(data);
+                const created = await createEventTypeMutation.mutateAsync(data);
                 if (created?.id) {
                     setSelectedId(created.id);
                 }
             }
             setDialogOpen(false);
-            await load();
         } catch {
             setError("Failed to save event type");
         } finally {
@@ -971,11 +973,10 @@ export function EventTypeTemplatesScreen() {
     const handleDelete = async (id: number) => {
         if (!window.confirm("Delete this event type? Linked presets won't be deleted.")) return;
         try {
-            await api.eventTypes.remove(id);
+            await deleteEventTypeMutation.mutateAsync(id);
             if (selectedId === id) {
                 setSelectedId(null);
             }
-            await load();
         } catch {
             setError("Failed to delete event type");
         }
@@ -1134,7 +1135,7 @@ export function EventTypeTemplatesScreen() {
                         linkedDays={selectedEventType.event_days}
                         eventTypeId={selectedEventType.id}
                         brandId={currentBrand!.id}
-                        onReload={load}
+                        onReload={eventTypesQuery.refetch}
                     />
 
                     <Divider sx={{ my: 4 }} />
@@ -1143,7 +1144,7 @@ export function EventTypeTemplatesScreen() {
                         linkedSubjects={selectedEventType.subject_types}
                         eventTypeId={selectedEventType.id}
                         brandId={currentBrand!.id}
-                        onReload={load}
+                        onReload={eventTypesQuery.refetch}
                     />
                 </Box>
             ) : eventTypes.length === 0 ? (

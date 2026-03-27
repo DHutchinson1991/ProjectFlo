@@ -1,4 +1,4 @@
-// Calendar feature barrel export
+﻿// Calendar feature barrel export
 // Types
 export type {
     CalendarEvent,
@@ -64,8 +64,8 @@ export {
     useCalendarTasks,
     useFilteredEvents,
 } from './hooks/use-calendar';
-export { useContributors } from './hooks/use-contributors';
-export type { ContributorOption } from './hooks/use-contributors';
+export { useCrewMembers } from './hooks/use-contributors';
+export type { CrewMemberOption } from './hooks/use-contributors';
 
 // Mappers
 export {

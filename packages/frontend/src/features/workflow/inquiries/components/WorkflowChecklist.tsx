@@ -22,7 +22,7 @@ import {
     Info as InfoIcon,
     PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
-import { Inquiry, InquiryStatus } from '@/lib/types';
+import { Inquiry, InquiryStatus } from '@/features/workflow/inquiries/types';
 
 interface WorkflowStep {
     id: string;

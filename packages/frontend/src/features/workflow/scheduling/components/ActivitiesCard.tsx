@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
 import {
@@ -22,7 +22,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import { alpha } from '@mui/material/styles';
 
-import { api } from '@/lib/api';
+import { crewSlotsApi, scheduleApi as workflowScheduleApi } from '@/features/workflow/scheduling/api';
 import { useOptionalScheduleApi } from './ScheduleApiContext';
 import AddEditActivityDialog, { type ActivityValues, type ActivitySaveResult } from './AddActivityDialog';
 
@@ -74,9 +74,9 @@ interface ActivitiesCardProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setPackageLocationSlots?: React.Dispatch<React.SetStateAction<any[]>>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    packageDayOperators?: any[];
+    PackageCrewSlots?: any[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setPackageDayOperators?: React.Dispatch<React.SetStateAction<any[]>>;
+    setPackageCrewSlots?: React.Dispatch<React.SetStateAction<any[]>>;
     selectedActivityId?: number | null;
     onSelectedActivityChange?: (id: number | null) => void;
     /** Fired while the colour picker is open so the timeline can preview live */
@@ -140,8 +140,8 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
     setPackageSubjects,
     packageLocationSlots = [],
     setPackageLocationSlots,
-    packageDayOperators = [],
-    setPackageDayOperators,
+    PackageCrewSlots = [],
+    setPackageCrewSlots,
     selectedActivityId,
     onSelectedActivityChange,
     onColorPreview,
@@ -158,27 +158,27 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
     const hasOwner = !!contextApi || !!packageId;
 
     const activityApi = contextApi?.activities ?? {
-        create: (dayId: number, data: any) => api.schedule.packageActivities.create(packageId!, { package_event_day_id: dayId, ...data }),
-        update: (id: number, data: any) => api.schedule.packageActivities.update(id, data),
-        delete: (id: number) => api.schedule.packageActivities.delete(id),
+        create: (dayId: number, data: any) => workflowScheduleApi.packageActivities.create(packageId!, { package_event_day_id: dayId, ...data }),
+        update: (id: number, data: any) => workflowScheduleApi.packageActivities.update(id, data),
+        delete: (id: number) => workflowScheduleApi.packageActivities.delete(id),
     };
     const momentApi = contextApi?.moments ?? {
-        create: (actId: number, data: any) => api.schedule.packageActivityMoments.create(actId, data),
-        update: (id: number, data: any) => api.schedule.packageActivityMoments.update(id, data),
-        delete: (id: number) => api.schedule.packageActivityMoments.delete(id),
+        create: (actId: number, data: any) => workflowScheduleApi.packageActivityMoments.create(actId, data),
+        update: (id: number, data: any) => workflowScheduleApi.packageActivityMoments.update(id, data),
+        delete: (id: number) => workflowScheduleApi.packageActivityMoments.delete(id),
     };
     const subjectApi = contextApi?.subjects ?? {
-        create: (dayId: number, data: any) => api.schedule.packageEventDaySubjects.create(packageId!, { event_day_template_id: dayId, ...data }),
-        assignActivity: (subjectId: number, activityId: number) => api.schedule.packageEventDaySubjects.assignActivity(subjectId, activityId),
-        unassignActivity: (subjectId: number, activityId: number) => api.schedule.packageEventDaySubjects.unassignActivity(subjectId, activityId),
+        create: (dayId: number, data: any) => workflowScheduleApi.packageEventDaySubjects.create(packageId!, { event_day_template_id: dayId, ...data }),
+        assignActivity: (subjectId: number, activityId: number) => workflowScheduleApi.packageEventDaySubjects.assignActivity(subjectId, activityId),
+        unassignActivity: (subjectId: number, activityId: number) => workflowScheduleApi.packageEventDaySubjects.unassignActivity(subjectId, activityId),
     };
     const locationSlotApi = contextApi?.locationSlots ?? {
-        assignActivity: (slotId: number, actId: number) => api.schedule.packageLocationSlots.assignActivity(slotId, actId),
-        unassignActivity: (slotId: number, actId: number) => api.schedule.packageLocationSlots.unassignActivity(slotId, actId),
+        assignActivity: (slotId: number, actId: number) => workflowScheduleApi.packageLocationSlots.assignActivity(slotId, actId),
+        unassignActivity: (slotId: number, actId: number) => workflowScheduleApi.packageLocationSlots.unassignActivity(slotId, actId),
     };
     const operatorApi = contextApi?.operators ?? {
-        assignActivity: (opId: number, actId: number) => api.operators.packageDay.assignActivity(opId, actId),
-        unassignActivity: (opId: number, actId: number) => api.operators.packageDay.unassignActivity(opId, actId),
+        assignActivity: (opId: number, actId: number) => crewSlotsApi.packageDay.assignActivity(opId, actId),
+        unassignActivity: (opId: number, actId: number) => crewSlotsApi.packageDay.unassignActivity(opId, actId),
     };
 
     // ─── Accordion / moment state ────────────────────────────────
@@ -287,8 +287,8 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
     }, [packageLocationSlots, activeDayId]);
 
     const dayCrew = useMemo(() => {
-        return packageDayOperators.filter(o => o.event_day_template_id === activeDayId);
-    }, [packageDayOperators, activeDayId]);
+        return PackageCrewSlots.filter(o => o.event_day_template_id === activeDayId);
+    }, [PackageCrewSlots, activeDayId]);
 
     const handleDeleteActivity = async (id: number) => {
         try {
@@ -423,7 +423,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
         }
 
         // ── Process crew changes (M2M via activity_assignments) ──
-        if (savedActivityId && setPackageDayOperators) {
+        if (savedActivityId && setPackageCrewSlots) {
             for (const change of crewChanges) {
                 try {
                     let updatedOp;
@@ -432,7 +432,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
                     } else {
                         updatedOp = await operatorApi.unassignActivity(change.id, savedActivityId);
                     }
-                    setPackageDayOperators(prev =>
+                    setPackageCrewSlots(prev =>
                         prev.map(o =>
                             o.id === change.id
                                 ? { ...o, ...updatedOp }

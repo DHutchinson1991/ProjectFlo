@@ -5,6 +5,21 @@ applyTo: "packages/backend/src/**"
 
 # ProjectFlo — Backend Architecture Rules
 
+## Protected infrastructure — NEVER delete these
+
+The following paths are cross-module infrastructure. **Do not delete, move, or rename them without an explicit user instruction to do so.** Deleting them silently breaks every service that imports them.
+
+| Path | Provides |
+|------|----------|
+| `src/platform/logging/logger.service.ts` | `LoggerService` — used by services across all buckets |
+| `src/platform/logging/request-logger.middleware.ts` | HTTP request logging — registered in `app.module.ts` |
+| `src/platform/prisma/prisma.service.ts` | `PrismaService` — DB access for every module |
+| `src/platform/auth/` | JWT strategy, guards, decorators — used everywhere |
+
+If a task _seems_ to require removing one of these, stop and ask the user first.
+
+---
+
 ## Domain buckets
 
 All new backend feature code must live under exactly one of these top-level buckets:

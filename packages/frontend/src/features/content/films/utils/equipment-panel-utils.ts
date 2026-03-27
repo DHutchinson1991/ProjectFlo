@@ -1,10 +1,10 @@
 import { FilmEquipmentAssignmentsBySlot, EquipmentSlotKey } from "@/features/content/films/types/film-equipment.types";
-import { Equipment } from "@/lib/types";
+import { Equipment } from "@/features/workflow/equipment/types/equipment.types";
 import {
   buildEquipmentSlotKey,
   buildEquipmentSlotNote,
   formatEquipmentLabel,
-} from "@/lib/utils/equipmentAssignments";
+} from "@/features/content/films/utils/equipmentAssignments";
 import type { FilmsApi } from "../api";
 
 export const buildSelectionState = (

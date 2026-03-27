@@ -11,8 +11,8 @@ import {
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 
-import type { FilmStructureTemplateScene } from '@/lib/types/domains/film-structure-templates';
-import type { MontagePreset } from '@/lib/types/domains/montage-presets';
+import type { FilmStructureTemplateScene } from '@/features/content/films/types/film-structure-templates';
+import type { MontagePreset } from '@/features/content/films/types/montage-presets';
 import type { SceneDurationOverride } from '../FilmCreationWizard';
 
 interface DurationReviewStepProps {

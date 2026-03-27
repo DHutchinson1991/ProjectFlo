@@ -10,7 +10,7 @@ import {
     Add as AddIcon, MoreVert as MoreVertIcon, VideoLibrary as VideoLibraryIcon,
     Edit as EditIcon, Delete as DeleteIcon,
 } from "@mui/icons-material";
-import { useBrand } from "@/app/providers/BrandProvider";
+import { useBrand } from "@/features/platform/brand";
 import type { Film } from "@/features/content/films/types";
 import { useFilms } from "@/features/content/films/hooks/useFilms";
 

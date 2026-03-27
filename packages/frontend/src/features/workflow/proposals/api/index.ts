@@ -1,5 +1,5 @@
-import { apiClient } from '@/lib/api';
-import type { ApiClient, PublicApiClient } from '@/lib/api/api-client.types';
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 import type {
   CreateProposalData,
   Proposal,
@@ -82,18 +82,18 @@ export function createProposalsApi(client: ApiClient) {
   };
 }
 
-export function createPublicProposalsApi(client: PublicApiClient) {
+export function createPublicProposalsApi(client: ApiClient) {
   return {
     getByShareToken: (token: string): Promise<PublicProposal> =>
-      client.publicGet<PublicProposal>(`/api/proposals/share/${encodeURIComponent(token)}`),
+      client.get<PublicProposal>(`/api/proposals/share/${encodeURIComponent(token)}`, { skipBrandContext: true, skipAuth: true }),
 
     respond: (token: string, response: ProposalClientResponse, message?: string): Promise<PublicProposal> =>
-      client.publicPost<PublicProposal>(`/api/proposals/share/${encodeURIComponent(token)}/respond`, { response, message }),
+      client.post<PublicProposal>(`/api/proposals/share/${encodeURIComponent(token)}/respond`, { response, message }, { skipBrandContext: true, skipAuth: true }),
   };
 }
 
-export const proposalsApi = createProposalsApi(apiClient as unknown as ApiClient);
-export const publicProposalsApi = createPublicProposalsApi(apiClient as unknown as PublicApiClient);
+export const proposalsApi = createProposalsApi(apiClient);
+export const publicProposalsApi = createPublicProposalsApi(apiClient);
 
 export type ProposalsApi = ReturnType<typeof createProposalsApi>;
 export type PublicProposalsApi = ReturnType<typeof createPublicProposalsApi>;

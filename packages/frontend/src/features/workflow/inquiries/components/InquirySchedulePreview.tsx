@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import InstanceScheduleEditor from '@/features/workflow/scheduling/components/InstanceScheduleEditor';
-import api from '@/lib/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 
 interface InquirySchedulePreviewProps {
     inquiryId: number;
@@ -18,7 +18,7 @@ export default function InquirySchedulePreview({ inquiryId, sourcePackageId }: I
         if (!confirm('This will reset the schedule to match the original package. Any custom changes will be lost. Continue?')) return;
         try {
             setSyncing(true);
-            await api.schedule.syncFromPackage.inquiry(inquiryId);
+            await scheduleApi.syncFromPackage.inquiry(inquiryId);
             // Increment key to force the editor to remount and re-fetch fresh data
             setRefreshKey(k => k + 1);
         } catch (err) {

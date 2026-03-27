@@ -1,14 +1,16 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards, ValidationPipe } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { CoverageService } from './coverage.service';
 import { CreateCoverageDto } from './dto/create-coverage.dto';
 import { UpdateCoverageDto } from './dto/update-coverage.dto';
 
-@Controller('coverage')
+@Controller('api/coverage')
+@UseGuards(AuthGuard('jwt'))
 export class CoverageController {
   constructor(private readonly coverageService: CoverageService) {}
 
   @Post()
-  create(@Body() createCoverageDto: CreateCoverageDto) {
+  create(@Body(new ValidationPipe({ transform: true })) createCoverageDto: CreateCoverageDto) {
     return this.coverageService.create(createCoverageDto);
   }
 
@@ -23,7 +25,7 @@ export class CoverageController {
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateCoverageDto: UpdateCoverageDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body(new ValidationPipe({ transform: true })) updateCoverageDto: UpdateCoverageDto) {
     return this.coverageService.update(id, updateCoverageDto);
   }
 

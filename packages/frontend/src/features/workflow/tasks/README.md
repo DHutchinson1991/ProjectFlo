@@ -20,11 +20,11 @@ features/workflow/tasks/
 ├── components/
 │   ├── GroupIcons.tsx             # Icon components for group headers (project, status, person, date)
 │   ├── StatusPill.tsx            # Status badge + ColumnHeaders row
-│   ├── SummaryStrip.tsx          # Count/hours stats row
+│   ├── SummaryStrip.tsx          # Count/hours stats row (wraps shared TaskSummaryStrip)
 │   ├── AssigneeCell.tsx          # Clickable avatar + Popover picker
 │   ├── TaskRow.tsx               # Single task row with subtask expand
-│   ├── StageRow.tsx              # Collapsible stage header with progress
-│   ├── TaskGroup.tsx             # Collapsible group header + tree + footer
+│   ├── TaskGroupRow.tsx          # Collapsible task group header with progress
+│   ├── TaskGroup.tsx             # Wraps shared TaskGroupHeader + tree + footer
 │   ├── ActiveTasksToolbar.tsx    # Group mode, filters, search
 │   └── index.ts                  # Barrel
 ├── screens/
@@ -41,13 +41,18 @@ features/workflow/tasks/
 `groupTasks(filteredTasks, groupMode)` in `utils/group-tasks.tsx` returns `TaskGroupData[]`. Supports: project (default), status, person, date, phase.
 
 ### Task Tree
-`buildTaskTree(tasks)` separates stages (with `is_stage=true`) from regular tasks. Stages render as `StageRow` with children nested inside. Regular tasks render as `TaskRow`. Subtasks (`task_kind='subtask'`) are rendered nested inside their parent via `subtasksByParent` Map.
+`buildTaskTree(tasks)` separates task groups (with `is_task_group=true`) from regular tasks. Groups render as `TaskGroupRow` with children nested inside. Regular tasks render as `TaskRow`. Subtasks (`task_kind='subtask'`) are rendered nested inside their parent via `subtasksByParent` Map.
 
 ### Optimistic Updates
 Both `handleAssign` and `handleToggle` update local state immediately, then call the API. On error, `loadTasks()` refetches. Toggle also propagates completion state up to parent tasks/stages.
 
 ### Navigation
 `getNavigationUrl(task)` maps tasks back to the correct section of the inquiry or project detail page using `subtask_key` mappings and name-based keyword matching.
+
+## Related modules
+- **Shared UI**: `shared/ui/tasks/` — TaskGroupHeader, TaskSummaryStrip, TaskColumnHeaders, phaseConfig
+- **Task Library**: `features/catalog/task-library` — template definitions that generate active tasks
+- **Backend**: `packages/backend/src/workflow/tasks`
 
 ## API Notes
 - Uses feature `activeTasksApi` from `api/index.ts` for active-task operations (getAll, assign, toggle).

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   Box,
   Typography,
@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import { api } from '@/lib/api';
+import { useEventTypes } from '@/features/catalog/event-types/hooks';
 
 // ── Types matching backend deep include ──────────────────────────────
 
@@ -86,23 +86,7 @@ export default function EventTypeSelector({
   onEventTypeSelected,
   selectedEventTypeId,
 }: EventTypeSelectorProps) {
-  const [eventTypes, setEventTypes] = useState<EventTypeForWizard[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const data = await api.eventTypes.getAll();
-        setEventTypes(data || []);
-      } catch {
-        setError('Failed to load event types');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  const { data: eventTypes = [], isLoading: loading, error } = useEventTypes();
 
   if (loading) {
     return (
@@ -115,7 +99,7 @@ export default function EventTypeSelector({
   if (error) {
     return (
       <Box sx={{ textAlign: 'center', py: 4 }}>
-        <Typography sx={{ color: '#ef4444', fontSize: '0.85rem' }}>{error}</Typography>
+        <Typography sx={{ color: '#ef4444', fontSize: '0.85rem' }}>Failed to load event types</Typography>
       </Box>
     );
   }
@@ -133,7 +117,7 @@ export default function EventTypeSelector({
 
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
-      {eventTypes.map((et) => {
+      {(eventTypes as EventTypeForWizard[]).map((et) => {
         const isSelected = selectedEventTypeId === et.id;
         const color = et.color || '#f59e0b';
 

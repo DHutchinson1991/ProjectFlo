@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
     Box, Typography, CardContent, Button, Chip, List, ListItem, ListItemText,
     IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
@@ -9,10 +9,10 @@ import {
     Gavel, Edit, Send, ContentCopy, CheckCircle, Visibility, OpenInNew,
     HourglassEmpty, Close, PersonAdd, Delete,
 } from '@mui/icons-material';
-import { contractsApi } from '@/features/finance/contracts';
 import type { Contract, ContractSigner } from '@/features/finance/contracts/types';
-import type { WorkflowCardProps } from '@/app/(studio)/sales/inquiries/[id]/_detail/_lib';
-import { WorkflowCard } from '@/app/(studio)/sales/inquiries/[id]/_detail/_components/WorkflowCard';
+import type { WorkflowCardProps } from '@/features/workflow/inquiries/lib';
+import { WorkflowCard } from '@/features/workflow/inquiries/components/WorkflowCard';
+import { useInquiryContracts, useContractListMutations } from '../hooks';
 
 /* ── Status chip helper ──────────────────────────────────────────── */
 
@@ -25,15 +25,13 @@ const statusConfig: Record<string, { color: 'default' | 'info' | 'success' | 'wa
 /* ── Component ───────────────────────────────────────────────────── */
 
 const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, activeColor }) => {
-    const [contracts, setContracts] = useState<Contract[]>([]);
-    const [loading, setLoading] = useState(false);
+    const { contracts, isLoading } = useInquiryContracts(inquiry?.id);
+    const { sendContract } = useContractListMutations(inquiry?.id);
 
     // Send dialog state
     const [sendOpen, setSendOpen] = useState(false);
     const [sendContractId, setSendContractId] = useState<number | null>(null);
     const [signerRows, setSignerRows] = useState([{ name: '', email: '', role: 'client' }]);
-    const [sending, setSending] = useState(false);
-
     // Preview/signing modal state
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewContract, setPreviewContract] = useState<Contract | null>(null);
@@ -42,20 +40,6 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
     const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
         open: false, message: '', severity: 'success',
     });
-
-    /* ── Load data ──────────────────────────────────────────────────── */
-
-    const loadContracts = useCallback(async () => {
-        if (!inquiry?.id) return;
-        try {
-            const data = await contractsApi.getAllByInquiry(inquiry.id);
-            setContracts(data || []);
-        } catch (err) {
-            console.error('Error fetching contracts:', err);
-        }
-    }, [inquiry?.id]);
-
-    useEffect(() => { loadContracts(); }, [loadContracts]);
 
     /* ── Send contract ──────────────────────────────────────────────── */
 
@@ -91,19 +75,12 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
             return;
         }
         try {
-            setSending(true);
-            await contractsApi.send(inquiry.id, sendContractId, {
-                signers: validSigners,
-            });
+            await sendContract.mutateAsync({ contractId: sendContractId, data: { signers: validSigners } });
             setSendOpen(false);
-            await loadContracts();
             if (onRefresh) onRefresh();
             setSnack({ open: true, message: 'Contract sent for signing!', severity: 'success' });
-        } catch (err) {
-            console.error('Error sending contract:', err);
+        } catch {
             setSnack({ open: true, message: 'Failed to send contract', severity: 'error' });
-        } finally {
-            setSending(false);
         }
     };
 
@@ -158,8 +135,11 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                     </Box>
                 </Box>
 
-                {/* Contract list */}
-                {contracts.length === 0 ? (
+                {isLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                        <CircularProgress size={24} />
+                    </Box>
+                ) : contracts.length === 0 ? (
                     <Box sx={{ textAlign: 'center', py: 3 }}>
                         <Box sx={{ width: 44, height: 44, borderRadius: 2.5, mx: 'auto', mb: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.12)' }}>
                             <Gavel sx={{ fontSize: 22, color: '#6366f1' }} />
@@ -234,7 +214,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                             </Tooltip>
                                         )}
                                         <Tooltip title="Edit contract">
-                                            <IconButton size="small" onClick={() => window.open(`/sales/inquiries/${inquiry.id}/contracts/${contract.id}`, '_blank')}>
+                                            <IconButton size="small" onClick={() => window.open(`/inquiries/${inquiry.id}/contracts/${contract.id}`, '_blank')}>
                                                 <Edit sx={{ fontSize: 16 }} />
                                             </IconButton>
                                         </Tooltip>
@@ -289,7 +269,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                             variant="outlined"
                             size="small"
                             startIcon={<Edit />}
-                            onClick={() => previewContract && window.open(`/sales/inquiries/${inquiry.id}/contracts/${previewContract.id}`, '_blank')}
+                            onClick={() => previewContract && window.open(`/inquiries/${inquiry.id}/contracts/${previewContract.id}`, '_blank')}
                             sx={{ textTransform: 'none', borderRadius: 2, color: '#94a3b8', borderColor: 'rgba(148,163,184,0.35)' }}
                         >
                             Edit Contract
@@ -395,10 +375,10 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
                     <Button onClick={() => setSendOpen(false)} sx={{ color: '#94a3b8' }}>Cancel</Button>
-                    <Button variant="contained" disabled={sending} onClick={handleSend}
-                        startIcon={sending ? <CircularProgress size={16} /> : <Send />}
+                    <Button variant="contained" disabled={sendContract.isPending} onClick={handleSend}
+                        startIcon={sendContract.isPending ? <CircularProgress size={16} /> : <Send />}
                         sx={{ borderRadius: 2, textTransform: 'none', bgcolor: '#6366f1', '&:hover': { bgcolor: '#4f46e5' } }}>
-                        {sending ? 'Sending...' : 'Send for Signing'}
+                        {sendContract.isPending ? 'Sending...' : 'Send for Signing'}
                     </Button>
                 </DialogActions>
             </Dialog>

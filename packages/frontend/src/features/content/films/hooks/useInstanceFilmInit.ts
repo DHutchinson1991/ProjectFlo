@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { api } from '@/lib/api';
+import { filmsApi } from '@/features/content/films/api';
+import { instanceFilmsApi } from '@/features/content/films/api/instance-films.api';
 import { getSceneColorByType } from '@/features/content/content-builder';
 import { enrichScenesWithBeats } from '@/features/content/scenes/utils/enrichScenesWithBeats';
-import { transformBackendTrack } from '@/lib/utils/trackUtils';
+import { transformBackendTrack } from '@/features/content/films/utils/trackUtils';
 import { FilmType } from '../types';
 import type { Film } from '../types';
-import type { TimelineScene } from '@/lib/types/timeline';
+import type { TimelineScene } from '@/features/content/content-builder/types/timeline';
 
 interface UseInstanceFilmInitOptions {
     projectFilmId: number;
@@ -53,25 +54,25 @@ export function useInstanceFilmInit({
                 let filmData: Film | null = null;
                 if (libraryFilmId) {
                     try {
-                        filmData = await api.films.getById(libraryFilmId);
+                        filmData = await filmsApi.films.getById(libraryFilmId);
                     } catch {
                         console.warn('Could not load library film — using synthetic object');
                     }
                 }
 
                 let [instanceScenes, instanceTracks, layersData] = await Promise.all([
-                    api.instanceFilms.scenes.getAll(projectFilmId),
-                    api.instanceFilms.tracks.getAll(projectFilmId),
-                    api.timeline.getLayers().catch(() => []),
+                    instanceFilmsApi.scenes.getAll(projectFilmId),
+                    instanceFilmsApi.tracks.getAll(projectFilmId),
+                    filmsApi.timelineLayers.getAll().catch(() => []),
                 ]);
 
                 if ((!instanceScenes || instanceScenes.length === 0) && libraryFilmId) {
                     try {
-                        const cloneResult = await api.instanceFilms.cloneFromLibrary(projectFilmId);
+                        const cloneResult = await instanceFilmsApi.cloneFromLibrary(projectFilmId);
                         if (cloneResult?.cloned) {
                             [instanceScenes, instanceTracks] = await Promise.all([
-                                api.instanceFilms.scenes.getAll(projectFilmId),
-                                api.instanceFilms.tracks.getAll(projectFilmId),
+                                instanceFilmsApi.scenes.getAll(projectFilmId),
+                                instanceFilmsApi.tracks.getAll(projectFilmId),
                             ]);
                         }
                     } catch (cloneErr) {

@@ -12,7 +12,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import CheckIcon from '@mui/icons-material/Check';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import { api } from '@/lib/api';
+import { packageSetsApi, servicePackageCategoriesApi } from '@/features/catalog/packages/api';
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -154,7 +154,7 @@ export default function EditPackageSetDialog({
         }
         setAddingCategorySaving(true);
         try {
-            const created = await api.servicePackageCategories.create(brandId, { name: trimmed });
+            const created = await servicePackageCategoriesApi.create(brandId, { name: trimmed });
             setLocalCategories(prev => [...prev, { id: created.id, name: created.name }]);
             setCategoryId(created.id);
             setNewCategoryName('');
@@ -177,7 +177,7 @@ export default function EditPackageSetDialog({
         }
         setRenamingSaving(true);
         try {
-            await api.servicePackageCategories.update(brandId, catId, { name: trimmed });
+            await servicePackageCategoriesApi.update(brandId, catId, { name: trimmed });
             setLocalCategories(prev => prev.map(c => c.id === catId ? { ...c, name: trimmed } : c));
             setRenamingCategoryId(null);
             setRenameCategoryName('');
@@ -192,7 +192,7 @@ export default function EditPackageSetDialog({
 
     const handleDeleteCategory = async (catId: number) => {
         try {
-            await api.servicePackageCategories.delete(brandId, catId);
+            await servicePackageCategoriesApi.delete(brandId, catId);
             setLocalCategories(prev => prev.filter(c => c.id !== catId));
             if (categoryId === catId) setCategoryId(null);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -240,26 +240,26 @@ export default function EditPackageSetDialog({
             if (emoji !== (set.emoji || '📦')) payload.emoji = emoji;
             if (categoryId !== set.category_id && categoryId != null) payload.category_id = categoryId;
             if (Object.keys(payload).length > 0) {
-                await api.packageSets.update(brandId, set.id, payload);
+                await packageSetsApi.update(set.id, payload);
             }
 
             // 2. Handle assigned-package category action
             if (categoryChanged && categoryId !== null && catAction !== 'none') {
                 if (catAction === 'migrate') {
-                    await api.packageSets.migratePackagesCategory(brandId, set.id, categoryId);
+                    await packageSetsApi.migratePackagesCategory(set.id, categoryId);
                 } else if (catAction === 'remove-assignments') {
-                    await api.packageSets.clearAllSlotAssignments(brandId, set.id);
+                    await packageSetsApi.clearAllSlotAssignments(set.id);
                 }
             }
 
             // 3. Resize slot count
             if (slotCount > currentSlotCount) {
                 for (let i = currentSlotCount; i < slotCount; i++) {
-                    await api.packageSets.addSlot(brandId, set.id);
+                    await packageSetsApi.addSlot(set.id);
                 }
             } else if (slotCount < currentSlotCount) {
                 for (const slot of slotsToRemove) {
-                    await api.packageSets.removeSlot(brandId, slot.id);
+                    await packageSetsApi.removeSlot(slot.id);
                 }
             }
 

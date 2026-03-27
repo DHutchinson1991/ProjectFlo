@@ -18,12 +18,14 @@ import {
 import { alpha } from "@mui/material/styles";
 import { Build as MaintenanceIcon } from "@mui/icons-material";
 import { EquipmentMaintenance } from "@/features/workflow/equipment/types/equipment.types";
+import { DEFAULT_CURRENCY, formatCurrency } from "@projectflo/shared";
 
 interface EquipmentMaintenanceTabProps {
     maintenance: EquipmentMaintenance[];
+    currency: string;
 }
 
-export function EquipmentMaintenanceTab({ maintenance }: EquipmentMaintenanceTabProps) {
+export function EquipmentMaintenanceTab({ maintenance, currency }: EquipmentMaintenanceTabProps) {
     return (
         <Card
             sx={{
@@ -96,7 +98,7 @@ export function EquipmentMaintenanceTab({ maintenance }: EquipmentMaintenanceTab
                                             )}
                                         </TableCell>
                                         <TableCell sx={{ fontWeight: 600, color: record.cost ? "#ef4444" : "#6b7280" }}>
-                                            {record.cost ? `$${Number(record.cost).toFixed(2)}` : "N/A"}
+                                            {record.cost != null ? formatCurrency(Number(record.cost), currency || DEFAULT_CURRENCY) : "N/A"}
                                         </TableCell>
                                         <TableCell>
                                             <Chip

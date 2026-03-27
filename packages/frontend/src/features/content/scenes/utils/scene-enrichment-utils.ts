@@ -1,4 +1,4 @@
-import type { TimelineScene } from "@/lib/types/timeline";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
 
 const SCENE_COLORS: Record<string, string> = {
     VIDEO: '#3B82F6',

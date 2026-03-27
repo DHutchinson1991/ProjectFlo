@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { useBrand } from '@/features/platform/brand';
 import { taskLibraryApi } from '../api';
-import { PricingType } from '@/lib/types';
-import type { TaskLibrary, TaskLibraryByPhase, JobRole } from '@/lib/types';
+import { PricingType } from '@/features/catalog/task-library/types';
+import type { TaskLibrary, TaskLibraryByPhase, JobRole, UpdateTaskLibraryDto } from '@/features/catalog/task-library/types';
 
 interface Props {
     tasksByPhase: TaskLibraryByPhase;
@@ -45,6 +45,23 @@ export function useTaskLibraryMutations({ tasksByPhase, setTasksByPhase, setErro
     const cancelInlineEdit = () => { setInlineEditingTask(null); setInlineEditData({}); };
     const updateInlineEditData = (field: keyof TaskLibrary, value: unknown) =>
         setInlineEditData(prev => ({ ...prev, [field]: value }));
+
+    const updateTaskField = async (taskId: number, data: Partial<TaskLibrary>) => {
+        try {
+            await taskLibraryApi.update(taskId, data as UpdateTaskLibraryDto);
+            setTasksByPhase(prev => {
+                const next = { ...prev };
+                for (const [phase, tasks] of Object.entries(next)) {
+                    const idx = tasks.findIndex(t => t.id === taskId);
+                    if (idx !== -1) {
+                        next[phase] = [...tasks.slice(0, idx), { ...tasks[idx], ...data } as TaskLibrary, ...tasks.slice(idx + 1)];
+                        break;
+                    }
+                }
+                return next;
+            });
+        } catch (err) { setError(err instanceof Error ? err.message : 'Failed to update task'); }
+    };
 
     const saveInlineEdit = async () => {
         if (!inlineEditingTask) return;
@@ -142,7 +159,7 @@ export function useTaskLibraryMutations({ tasksByPhase, setTasksByPhase, setErro
     return {
         deleteConfirmOpen, setDeleteConfirmOpen, taskToDelete, setTaskToDelete,
         snackbarOpen, setSnackbarOpen, snackbarMessage, snackbarSeverity,
-        inlineEditingTask, inlineEditData, updateInlineEditData, startInlineEdit, cancelInlineEdit, saveInlineEdit,
+        inlineEditingTask, inlineEditData, updateInlineEditData, startInlineEdit, cancelInlineEdit, saveInlineEdit, updateTaskField,
         quickAddPhase, quickAddData, startQuickAdd, cancelQuickAdd, saveQuickAdd, updateQuickAddData,
         handleDelete,
     };

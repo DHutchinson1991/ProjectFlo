@@ -6,8 +6,8 @@ import { Box, Chip, Tooltip, Typography } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import { alpha } from "@mui/material/styles";
-import { formatTime } from "@/lib/utils/formatUtils";
-import { TimelineScene } from "@/lib/types/timeline";
+import { formatTime } from "@/shared/utils/formatUtils";
+import { TimelineScene } from "@/features/content/content-builder/types/timeline";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
 
 interface MomentsHeaderProps {

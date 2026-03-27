@@ -8,9 +8,10 @@ import {
 import {
     Assignment as TaskIcon, Timer as TimerIcon, AttachMoney as MoneyIcon, Speed as SpeedIcon,
 } from '@mui/icons-material';
-import { ProjectPhase, PricingType, PHASE_LABELS, PRICING_TYPE_LABELS } from '@/lib/types';
-import type { TaskLibrary } from '@/lib/types';
+import { ProjectPhase, PricingType, PHASE_LABELS, PRICING_TYPE_LABELS } from '@/features/catalog/task-library/types';
+import type { TaskLibrary } from '@/features/catalog/task-library/types';
 import type { TaskFormData } from '../../hooks/use-task-detail';
+import { roundMoney } from '@/shared/utils/pricing';
 
 interface Props {
     task: TaskLibrary | null;
@@ -97,7 +98,7 @@ export function TaskDetailsTab({ task, formData, isEditing, validationErrors, cu
                         )}
                         <Grid item xs={12} md={4}>
                             <TextField label={`Estimated Value (${currencyCode})`}
-                                value={(formData.pricing_type || PricingType.HOURLY) === PricingType.FIXED ? formatMoney(formData.fixed_price || 0) : formatMoney((formData.hourly_rate || 0) * (formData.effort_hours || 0))}
+                                value={(formData.pricing_type || PricingType.HOURLY) === PricingType.FIXED ? formatMoney(formData.fixed_price || 0) : formatMoney(roundMoney((formData.hourly_rate || 0) * (formData.effort_hours || 0)))}
                                 fullWidth disabled size="small" helperText="Calculated based on pricing type" />
                         </Grid>
                     </Grid>

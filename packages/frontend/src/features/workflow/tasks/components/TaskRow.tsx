@@ -12,7 +12,7 @@ import {
     ArrowForwardIos as NavigateIcon,
     Bolt as BoltIcon,
 } from '@mui/icons-material';
-import type { ActiveTask, Contributor } from '@/lib/types';
+import type { ActiveTask, CrewMember } from '@/features/workflow/tasks/types';
 import { StatusPill } from './StatusPill';
 import { AssigneeCell } from './AssigneeCell';
 import { formatDueDate, getNavigationUrl } from '../utils/task-display-utils';
@@ -21,7 +21,7 @@ import { GRID_COLS } from '../constants';
 interface TaskRowProps {
     task: ActiveTask;
     groupColor: string;
-    contributors: Contributor[];
+    crewMembers: CrewMember[];
     onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null, taskKind?: 'task' | 'subtask') => void;
     onNavigate: (task: ActiveTask) => void;
     onToggle: (task: ActiveTask) => void;
@@ -30,7 +30,7 @@ interface TaskRowProps {
     nested?: boolean;
 }
 
-export function TaskRow({ task, groupColor, contributors, onAssign, onNavigate, onToggle, isChild, subtasks = [], nested = false }: TaskRowProps) {
+export function TaskRow({ task, groupColor, crewMembers, onAssign, onNavigate, onToggle, isChild, subtasks = [], nested = false }: TaskRowProps) {
     const [hovered, setHovered] = useState(false);
     const [subtasksOpen, setSubtasksOpen] = useState(false);
     const isCompleted = task.status === 'Completed';
@@ -157,7 +157,7 @@ export function TaskRow({ task, groupColor, contributors, onAssign, onNavigate, 
                     <Box sx={{ px: 1.5, display: 'flex', alignItems: 'center' }}>
                         <Typography sx={{ fontSize: '0.75rem', color: 'rgba(253,171,61,0.4)', fontStyle: 'italic' }}>System</Typography>
                     </Box>
-                ) : <AssigneeCell task={task} contributors={contributors} onAssign={onAssign} onNavigate={onNavigate} />}
+                ) : <AssigneeCell task={task} contributors={crewMembers} onAssign={onAssign} onNavigate={onNavigate} />}
 
                 {/* Due Date */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.625, px: 1.5 }}>
@@ -191,7 +191,7 @@ export function TaskRow({ task, groupColor, contributors, onAssign, onNavigate, 
                         key={`${subtask.source}-${subtask.id}`}
                         task={subtask}
                         groupColor={groupColor}
-                        contributors={contributors}
+                        contributors={crewMembers}
                         onAssign={onAssign}
                         onNavigate={onNavigate}
                         onToggle={onToggle}

@@ -1,5 +1,5 @@
-import { apiClient, getCurrentBrandId } from '@/lib/api';
-import type { ApiClient, PublicApiClient } from '@/lib/api/api-client.types';
+import { apiClient, getBrandId } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 import type {
     InquiryWizardTemplate,
     InquiryWizardSubmission,
@@ -7,19 +7,20 @@ import type {
     IwDateConflictResult,
     IwCrewConflictResult,
 } from '../types';
-import type { PaymentScheduleTemplate, ServicePackage } from '@/lib/types';
+import type { PaymentScheduleTemplate } from '@/features/finance/payment-schedules/types';
+import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import type { PackageSet } from '@/features/catalog/packages/types/package-set.types';
 import type { EventType } from '@/features/catalog/event-types/types';
-import type { Contributor } from '@/lib/types/domains/users';
-import type { BrandSetting, WelcomeSettings } from '@/lib/types/brand';
+import type { CrewMember } from '@/shared/types/users';
+import type { BrandSetting, WelcomeSettings } from '@/features/platform/brand/types';
 import type { PriceEstimate } from '../types';
 
 function requireCurrentBrandId(): number {
-    const brandId = getCurrentBrandId();
+    const brandId = getBrandId();
     if (!brandId) {
         throw new Error('Brand context is required');
     }
-    return brandId;
+    return Number(brandId);
 }
 
 export function createInquiryWizardTemplatesApi(client: ApiClient) {
@@ -60,14 +61,14 @@ export function createInquiryWizardSubmissionsApi(client: ApiClient) {
     };
 }
 
-export function createPublicInquiryWizardApi(client: PublicApiClient) {
+export function createPublicInquiryWizardApi(client: ApiClient) {
     return {
         getByShareToken: (token: string): Promise<InquiryWizardTemplate> =>
-            client.publicGet<InquiryWizardTemplate>(`/api/inquiry-wizard/share/${encodeURIComponent(token)}`),
+            client.get<InquiryWizardTemplate>(`/api/inquiry-wizard/share/${encodeURIComponent(token)}`, { skipBrandContext: true, skipAuth: true }),
         submit: (token: string, data: Record<string, unknown>): Promise<InquiryWizardSubmission> =>
-            client.publicPost<InquiryWizardSubmission>(`/api/inquiry-wizard/share/${encodeURIComponent(token)}/submit`, data),
+            client.post<InquiryWizardSubmission>(`/api/inquiry-wizard/share/${encodeURIComponent(token)}/submit`, data, { skipBrandContext: true, skipAuth: true }),
         updateSubmission: (submissionId: number, responses: Record<string, unknown>): Promise<InquiryWizardSubmission> =>
-            client.publicPatch<InquiryWizardSubmission>(`/api/inquiry-wizard/share/submission/${submissionId}/responses`, { responses }),
+            client.patch<InquiryWizardSubmission>(`/api/inquiry-wizard/share/submission/${submissionId}/responses`, { responses }, { skipBrandContext: true, skipAuth: true }),
     };
 }
 
@@ -96,8 +97,8 @@ export function createWizardStudioDataApi(client: ApiClient) {
         getEventTypes: () =>
             client.get<EventType[]>('/api/event-types'),
         getCrew: () => {
-            const brandId = requireCurrentBrandId();
-            return client.get<Contributor[]>(`/crew/brand/${brandId}`);
+            requireCurrentBrandId();
+            return client.get<CrewMember[]>('/api/crew');
         },
         getBrandSetting: (key: string) => {
             const brandId = requireCurrentBrandId();
@@ -108,9 +109,9 @@ export function createWizardStudioDataApi(client: ApiClient) {
             return client.get<WelcomeSettings>(`/brands/${brandId}/welcome-settings`, { skipBrandContext: true });
         },
         getDiscoveryCallSlots: (date: string) => {
-            const brandId = requireCurrentBrandId();
+            requireCurrentBrandId();
             return client.get<{ date: string; duration_minutes?: number; slots: { time: string; available: boolean }[] }>(
-                `/calendar/discovery-call-slots?brandId=${brandId}&date=${date}`
+                `/api/calendar/discovery-call-slots?date=${date}`
             );
         },
         createPackageFromBuilder: (data: {

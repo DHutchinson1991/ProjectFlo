@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -8,7 +8,10 @@ import {
   Param,
   ParseIntPipe,
   Query,
+  UseGuards,
+  ValidationPipe,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ScheduleService } from './schedule.service';
 import {
   CreateEventDayDto,
@@ -52,8 +55,11 @@ import {
   CreateInstanceDayOperatorDto,
   UpdateInstanceDayOperatorDto,
 } from './dto';
+import { EventDayIdQueryDto } from './dto/event-day-id-query.dto';
+import { ResolvedScheduleQueryDto } from './dto/resolved-schedule-query.dto';
 
-@Controller('schedule')
+@Controller('api/schedule')
+@UseGuards(AuthGuard('jwt'))
 export class ScheduleController {
   constructor(private readonly scheduleService: ScheduleService) {}
 
@@ -67,7 +73,7 @@ export class ScheduleController {
   @Post('presets/brand/:brandId')
   upsertSchedulePreset(
     @Param('brandId', ParseIntPipe) brandId: number,
-    @Body() dto: UpsertSchedulePresetDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpsertSchedulePresetDto,
   ) {
     return this.scheduleService.upsertSchedulePreset(brandId, dto);
   }
@@ -76,7 +82,7 @@ export class ScheduleController {
   renameSchedulePreset(
     @Param('presetId', ParseIntPipe) presetId: number,
     @Param('brandId', ParseIntPipe) brandId: number,
-    @Body() dto: RenameSchedulePresetDto,
+    @Body(new ValidationPipe({ transform: true })) dto: RenameSchedulePresetDto,
   ) {
     return this.scheduleService.renameSchedulePreset(brandId, presetId, dto.name);
   }
@@ -99,7 +105,7 @@ export class ScheduleController {
   @Post('event-days/brand/:brandId')
   createEventDay(
     @Param('brandId', ParseIntPipe) brandId: number,
-    @Body() dto: CreateEventDayDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateEventDayDto,
   ) {
     return this.scheduleService.createEventDay(brandId, dto);
   }
@@ -108,7 +114,7 @@ export class ScheduleController {
   updateEventDay(
     @Param('id', ParseIntPipe) id: number,
     @Param('brandId', ParseIntPipe) brandId: number,
-    @Body() dto: UpdateEventDayDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateEventDayDto,
   ) {
     return this.scheduleService.updateEventDay(id, brandId, dto);
   }
@@ -133,7 +139,7 @@ export class ScheduleController {
   @Post('event-days/:eventDayId/activity-presets')
   createActivityPreset(
     @Param('eventDayId', ParseIntPipe) eventDayId: number,
-    @Body() dto: CreateEventDayActivityDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateEventDayActivityDto,
   ) {
     return this.scheduleService.createActivityPreset(eventDayId, dto);
   }
@@ -141,7 +147,7 @@ export class ScheduleController {
   @Post('event-days/:eventDayId/activity-presets/bulk')
   bulkCreateActivityPresets(
     @Param('eventDayId', ParseIntPipe) eventDayId: number,
-    @Body() body: { presets: { name: string; color?: string; order_index?: number }[] },
+    @Body(new ValidationPipe({ transform: true })) body: { presets: { name: string; color?: string; order_index?: number }[] },
   ) {
     return this.scheduleService.bulkCreateActivityPresets(eventDayId, body.presets);
   }
@@ -149,7 +155,7 @@ export class ScheduleController {
   @Patch('activity-presets/:presetId')
   updateActivityPreset(
     @Param('presetId', ParseIntPipe) presetId: number,
-    @Body() dto: UpdateEventDayActivityDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateEventDayActivityDto,
   ) {
     return this.scheduleService.updateActivityPreset(presetId, dto);
   }
@@ -173,7 +179,7 @@ export class ScheduleController {
   @Post('activity-presets/:presetId/moments')
   createPresetMoment(
     @Param('presetId', ParseIntPipe) presetId: number,
-    @Body() dto: CreatePresetMomentDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePresetMomentDto,
   ) {
     return this.scheduleService.createPresetMoment(presetId, dto);
   }
@@ -181,7 +187,7 @@ export class ScheduleController {
   @Post('activity-presets/:presetId/moments/bulk')
   bulkCreatePresetMoments(
     @Param('presetId', ParseIntPipe) presetId: number,
-    @Body() body: { moments: { name: string; duration_seconds?: number; order_index?: number; is_key_moment?: boolean }[] },
+    @Body(new ValidationPipe({ transform: true })) body: { moments: { name: string; duration_seconds?: number; order_index?: number; is_key_moment?: boolean }[] },
   ) {
     return this.scheduleService.bulkCreatePresetMoments(presetId, body.moments);
   }
@@ -189,7 +195,7 @@ export class ScheduleController {
   @Patch('preset-moments/:momentId')
   updatePresetMoment(
     @Param('momentId', ParseIntPipe) momentId: number,
-    @Body() dto: UpdatePresetMomentDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdatePresetMomentDto,
   ) {
     return this.scheduleService.updatePresetMoment(momentId, dto);
   }
@@ -211,7 +217,7 @@ export class ScheduleController {
   @Post('films/:filmId/scenes')
   upsertFilmSceneSchedule(
     @Param('filmId', ParseIntPipe) filmId: number,
-    @Body() dto: CreateFilmSceneScheduleDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateFilmSceneScheduleDto,
   ) {
     return this.scheduleService.upsertFilmSceneSchedule(filmId, dto);
   }
@@ -219,7 +225,7 @@ export class ScheduleController {
   @Post('films/:filmId/scenes/bulk')
   bulkUpsertFilmSceneSchedules(
     @Param('filmId', ParseIntPipe) filmId: number,
-    @Body() schedules: BulkUpsertFilmSceneScheduleDto[],
+    @Body(new ValidationPipe({ transform: true })) schedules: BulkUpsertFilmSceneScheduleDto[],
   ) {
     return this.scheduleService.bulkUpsertFilmSceneSchedules(filmId, schedules);
   }
@@ -227,7 +233,7 @@ export class ScheduleController {
   @Patch('films/scenes/:scheduleId')
   updateFilmSceneSchedule(
     @Param('scheduleId', ParseIntPipe) scheduleId: number,
-    @Body() dto: UpdateFilmSceneScheduleDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateFilmSceneScheduleDto,
   ) {
     return this.scheduleService.updateFilmSceneSchedule(scheduleId, dto);
   }
@@ -256,7 +262,7 @@ export class ScheduleController {
   @Post('packages/:packageId/event-days')
   addPackageEventDay(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Body() dto: AddPackageEventDayDto,
+    @Body(new ValidationPipe({ transform: true })) dto: AddPackageEventDayDto,
   ) {
     return this.scheduleService.addPackageEventDay(packageId, dto);
   }
@@ -264,7 +270,7 @@ export class ScheduleController {
   @Post('packages/:packageId/event-days/set')
   setPackageEventDays(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Body() dto: SetPackageEventDaysDto,
+    @Body(new ValidationPipe({ transform: true })) dto: SetPackageEventDaysDto,
   ) {
     return this.scheduleService.setPackageEventDays(packageId, dto);
   }
@@ -287,7 +293,7 @@ export class ScheduleController {
   @Post('packages/:packageId/films')
   createPackageFilm(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Body() dto: CreatePackageFilmDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePackageFilmDto,
   ) {
     return this.scheduleService.createPackageFilm(packageId, dto);
   }
@@ -295,7 +301,7 @@ export class ScheduleController {
   @Patch('packages/films/:packageFilmId')
   updatePackageFilm(
     @Param('packageFilmId', ParseIntPipe) packageFilmId: number,
-    @Body() dto: UpdatePackageFilmDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageFilmDto,
   ) {
     return this.scheduleService.updatePackageFilm(packageFilmId, dto);
   }
@@ -319,7 +325,7 @@ export class ScheduleController {
   @Post('packages/films/:packageFilmId/scenes')
   upsertPackageFilmSceneSchedule(
     @Param('packageFilmId', ParseIntPipe) packageFilmId: number,
-    @Body() dto: UpsertPackageFilmSceneScheduleDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpsertPackageFilmSceneScheduleDto,
   ) {
     return this.scheduleService.upsertPackageFilmSceneSchedule(packageFilmId, dto);
   }
@@ -327,7 +333,7 @@ export class ScheduleController {
   @Post('packages/films/:packageFilmId/scenes/bulk')
   bulkUpsertPackageFilmSceneSchedules(
     @Param('packageFilmId', ParseIntPipe) packageFilmId: number,
-    @Body() schedules: UpsertPackageFilmSceneScheduleDto[],
+    @Body(new ValidationPipe({ transform: true })) schedules: UpsertPackageFilmSceneScheduleDto[],
   ) {
     return this.scheduleService.bulkUpsertPackageFilmSceneSchedules(
       packageFilmId,
@@ -353,7 +359,7 @@ export class ScheduleController {
   @Post('packages/:packageId/activities')
   createPackageActivity(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Body() dto: CreatePackageActivityDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePackageActivityDto,
   ) {
     return this.scheduleService.createPackageActivity(packageId, dto);
   }
@@ -361,7 +367,7 @@ export class ScheduleController {
   @Patch('packages/activities/:activityId')
   updatePackageActivity(
     @Param('activityId', ParseIntPipe) activityId: number,
-    @Body() dto: UpdatePackageActivityDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageActivityDto,
   ) {
     return this.scheduleService.updatePackageActivity(activityId, dto);
   }
@@ -377,7 +383,7 @@ export class ScheduleController {
   reorderPackageActivities(
     @Param('packageId', ParseIntPipe) packageId: number,
     @Param('packageEventDayId', ParseIntPipe) packageEventDayId: number,
-    @Body() body: { activity_ids: number[] },
+    @Body(new ValidationPipe({ transform: true })) body: { activity_ids: number[] },
   ) {
     return this.scheduleService.reorderPackageActivities(
       packageId,
@@ -396,7 +402,7 @@ export class ScheduleController {
   @Post('packages/activities/:activityId/moments')
   createActivityMoment(
     @Param('activityId', ParseIntPipe) activityId: number,
-    @Body() dto: CreatePackageActivityMomentDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePackageActivityMomentDto,
   ) {
     return this.scheduleService.createActivityMoment(activityId, dto);
   }
@@ -404,7 +410,7 @@ export class ScheduleController {
   @Post('packages/activities/:activityId/moments/bulk')
   bulkCreateActivityMoments(
     @Param('activityId', ParseIntPipe) activityId: number,
-    @Body() dto: BulkCreatePackageActivityMomentsDto,
+    @Body(new ValidationPipe({ transform: true })) dto: BulkCreatePackageActivityMomentsDto,
   ) {
     return this.scheduleService.bulkCreateActivityMoments(activityId, dto);
   }
@@ -412,7 +418,7 @@ export class ScheduleController {
   @Patch('packages/activities/moments/:momentId')
   updateActivityMoment(
     @Param('momentId', ParseIntPipe) momentId: number,
-    @Body() dto: UpdatePackageActivityMomentDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageActivityMomentDto,
   ) {
     return this.scheduleService.updateActivityMoment(momentId, dto);
   }
@@ -425,7 +431,7 @@ export class ScheduleController {
   @Post('packages/activities/:activityId/moments/reorder')
   reorderActivityMoments(
     @Param('activityId', ParseIntPipe) activityId: number,
-    @Body() body: { moment_ids: number[] },
+    @Body(new ValidationPipe({ transform: true })) body: { moment_ids: number[] },
   ) {
     return this.scheduleService.reorderActivityMoments(activityId, body.moment_ids);
   }
@@ -443,7 +449,7 @@ export class ScheduleController {
   @Post('projects/:projectId/activities')
   createProjectActivity(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Body() dto: CreateProjectActivityDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateProjectActivityDto,
   ) {
     return this.scheduleService.createProjectActivity(projectId, dto);
   }
@@ -451,7 +457,7 @@ export class ScheduleController {
   @Patch('projects/activities/:activityId')
   updateProjectActivity(
     @Param('activityId', ParseIntPipe) activityId: number,
-    @Body() dto: UpdateProjectActivityDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateProjectActivityDto,
   ) {
     return this.scheduleService.updateProjectActivity(activityId, dto);
   }
@@ -468,18 +474,18 @@ export class ScheduleController {
   @Get('packages/:packageId/subjects')
   getPackageEventDaySubjects(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Query('eventDayId') eventDayId?: string,
+    @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto,
   ) {
     return this.scheduleService.getPackageEventDaySubjects(
       packageId,
-      eventDayId ? parseInt(eventDayId, 10) : undefined,
+      query.eventDayId,
     );
   }
 
   @Post('packages/:packageId/subjects')
   createPackageEventDaySubject(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Body() dto: CreatePackageDaySubjectDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePackageDaySubjectDto,
   ) {
     return this.scheduleService.createPackageEventDaySubject(packageId, dto);
   }
@@ -487,7 +493,7 @@ export class ScheduleController {
   @Patch('packages/subjects/:subjectId')
   updatePackageEventDaySubject(
     @Param('subjectId', ParseIntPipe) subjectId: number,
-    @Body() dto: UpdatePackageDaySubjectDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageDaySubjectDto,
   ) {
     return this.scheduleService.updatePackageEventDaySubject(subjectId, dto);
   }
@@ -522,18 +528,18 @@ export class ScheduleController {
   @Get('packages/:packageId/locations')
   getPackageEventDayLocations(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Query('eventDayId') eventDayId?: string,
+    @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto,
   ) {
     return this.scheduleService.getPackageEventDayLocations(
       packageId,
-      eventDayId ? parseInt(eventDayId, 10) : undefined,
+      query.eventDayId,
     );
   }
 
   @Post('packages/:packageId/locations')
   createPackageEventDayLocation(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Body() dto: CreatePackageEventDayLocationDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePackageEventDayLocationDto,
   ) {
     return this.scheduleService.createPackageEventDayLocation(packageId, dto);
   }
@@ -541,7 +547,7 @@ export class ScheduleController {
   @Patch('packages/locations/:locationId')
   updatePackageEventDayLocation(
     @Param('locationId', ParseIntPipe) locationId: number,
-    @Body() dto: UpdatePackageEventDayLocationDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageEventDayLocationDto,
   ) {
     return this.scheduleService.updatePackageEventDayLocation(locationId, dto);
   }
@@ -558,18 +564,18 @@ export class ScheduleController {
   @Get('packages/:packageId/location-slots')
   getPackageLocationSlots(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Query('eventDayId') eventDayId?: string,
+    @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto,
   ) {
     return this.scheduleService.getPackageLocationSlots(
       packageId,
-      eventDayId ? parseInt(eventDayId, 10) : undefined,
+      query.eventDayId,
     );
   }
 
   @Post('packages/:packageId/location-slots')
   createPackageLocationSlot(
     @Param('packageId', ParseIntPipe) packageId: number,
-    @Body() dto: CreatePackageLocationSlotDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePackageLocationSlotDto,
   ) {
     return this.scheduleService.createPackageLocationSlot(packageId, dto);
   }
@@ -607,7 +613,7 @@ export class ScheduleController {
   @Post('projects/:projectId/event-days')
   createProjectEventDay(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Body() dto: CreateProjectEventDayDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateProjectEventDayDto,
   ) {
     return this.scheduleService.createProjectEventDay(projectId, dto);
   }
@@ -615,7 +621,7 @@ export class ScheduleController {
   @Patch('projects/event-days/:eventDayId')
   updateProjectEventDay(
     @Param('eventDayId', ParseIntPipe) eventDayId: number,
-    @Body() dto: UpdateProjectEventDayDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateProjectEventDayDto,
   ) {
     return this.scheduleService.updateProjectEventDay(eventDayId, dto);
   }
@@ -637,7 +643,7 @@ export class ScheduleController {
   @Post('projects/:projectId/films')
   createProjectFilm(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Body() dto: CreateProjectFilmDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateProjectFilmDto,
   ) {
     return this.scheduleService.createProjectFilm(projectId, dto);
   }
@@ -662,7 +668,7 @@ export class ScheduleController {
   @Post('projects/films/:projectFilmId/scenes')
   upsertProjectFilmSceneSchedule(
     @Param('projectFilmId', ParseIntPipe) projectFilmId: number,
-    @Body() dto: UpsertProjectFilmSceneScheduleDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpsertProjectFilmSceneScheduleDto,
   ) {
     return this.scheduleService.upsertProjectFilmSceneSchedule(projectFilmId, dto);
   }
@@ -670,7 +676,7 @@ export class ScheduleController {
   @Post('projects/films/:projectFilmId/scenes/bulk')
   bulkUpsertProjectFilmSceneSchedules(
     @Param('projectFilmId', ParseIntPipe) projectFilmId: number,
-    @Body() schedules: UpsertProjectFilmSceneScheduleDto[],
+    @Body(new ValidationPipe({ transform: true })) schedules: UpsertProjectFilmSceneScheduleDto[],
   ) {
     return this.scheduleService.bulkUpsertProjectFilmSceneSchedules(
       projectFilmId,
@@ -683,13 +689,12 @@ export class ScheduleController {
   @Get('resolved/:filmId')
   getResolvedSchedule(
     @Param('filmId', ParseIntPipe) filmId: number,
-    @Query('packageFilmId') packageFilmId?: string,
-    @Query('projectFilmId') projectFilmId?: string,
+    @Query(new ValidationPipe({ transform: true })) query: ResolvedScheduleQueryDto,
   ) {
     return this.scheduleService.getResolvedSchedule({
       filmId,
-      packageFilmId: packageFilmId ? parseInt(packageFilmId, 10) : undefined,
-      projectFilmId: projectFilmId ? parseInt(projectFilmId, 10) : undefined,
+      packageFilmId: query.packageFilmId,
+      projectFilmId: query.projectFilmId,
     });
   }
 
@@ -709,7 +714,7 @@ export class ScheduleController {
   @Post('inquiries/:inquiryId/event-days')
   createInquiryEventDay(
     @Param('inquiryId', ParseIntPipe) inquiryId: number,
-    @Body() dto: CreateProjectEventDayDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateProjectEventDayDto,
   ) {
     return this.scheduleService.createInstanceEventDay({ inquiry_id: inquiryId }, dto);
   }
@@ -718,7 +723,7 @@ export class ScheduleController {
   @Patch('inquiries/event-days/:eventDayId')
   updateInquiryEventDay(
     @Param('eventDayId', ParseIntPipe) eventDayId: number,
-    @Body() dto: UpdateProjectEventDayDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateProjectEventDayDto,
   ) {
     return this.scheduleService.updateProjectEventDay(eventDayId, dto);
   }
@@ -750,7 +755,7 @@ export class ScheduleController {
   @Post('inquiries/:inquiryId/activities')
   createInquiryActivity(
     @Param('inquiryId', ParseIntPipe) inquiryId: number,
-    @Body() dto: CreateProjectActivityDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateProjectActivityDto,
   ) {
     return this.scheduleService.createInstanceActivity({ inquiry_id: inquiryId }, dto);
   }
@@ -758,7 +763,7 @@ export class ScheduleController {
   @Patch('inquiries/activities/:activityId')
   updateInquiryActivity(
     @Param('activityId', ParseIntPipe) activityId: number,
-    @Body() dto: UpdateProjectActivityDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateProjectActivityDto,
   ) {
     return this.scheduleService.updateProjectActivity(activityId, dto);
   }
@@ -780,7 +785,7 @@ export class ScheduleController {
   @Post('inquiries/:inquiryId/films')
   createInquiryFilm(
     @Param('inquiryId', ParseIntPipe) inquiryId: number,
-    @Body() dto: CreateProjectFilmDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateProjectFilmDto,
   ) {
     return this.scheduleService.createInstanceFilm({ inquiry_id: inquiryId }, dto);
   }
@@ -800,7 +805,7 @@ export class ScheduleController {
   @Post('projects/:projectId/activity-moments')
   createProjectActivityMoment(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Body() dto: CreateInstanceActivityMomentDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceActivityMomentDto,
   ) {
     return this.scheduleService.createInstanceActivityMoment({ project_id: projectId }, dto);
   }
@@ -808,7 +813,7 @@ export class ScheduleController {
   @Post('inquiries/:inquiryId/activity-moments')
   createInquiryActivityMoment(
     @Param('inquiryId', ParseIntPipe) inquiryId: number,
-    @Body() dto: CreateInstanceActivityMomentDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceActivityMomentDto,
   ) {
     return this.scheduleService.createInstanceActivityMoment({ inquiry_id: inquiryId }, dto);
   }
@@ -816,7 +821,7 @@ export class ScheduleController {
   @Patch('instance/moments/:momentId')
   updateInstanceActivityMoment(
     @Param('momentId', ParseIntPipe) momentId: number,
-    @Body() dto: UpdateInstanceActivityMomentDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateInstanceActivityMomentDto,
   ) {
     return this.scheduleService.updateInstanceActivityMoment(momentId, dto);
   }
@@ -831,7 +836,7 @@ export class ScheduleController {
   @Patch('instance/activities/:activityId/moments/reorder')
   reorderInstanceActivityMoments(
     @Param('activityId', ParseIntPipe) activityId: number,
-    @Body() body: { moment_ids: number[] },
+    @Body(new ValidationPipe({ transform: true })) body: { moment_ids: number[] },
   ) {
     return this.scheduleService.reorderInstanceActivityMoments(activityId, body.moment_ids);
   }
@@ -841,29 +846,29 @@ export class ScheduleController {
   @Get('projects/:projectId/subjects')
   getProjectEventDaySubjects(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Query('eventDayId') eventDayId?: string,
+    @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto,
   ) {
     return this.scheduleService.getInstanceEventDaySubjects(
       { project_id: projectId },
-      eventDayId ? parseInt(eventDayId, 10) : undefined,
+      query.eventDayId,
     );
   }
 
   @Get('inquiries/:inquiryId/subjects')
   getInquiryEventDaySubjects(
     @Param('inquiryId', ParseIntPipe) inquiryId: number,
-    @Query('eventDayId') eventDayId?: string,
+    @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto,
   ) {
     return this.scheduleService.getInstanceEventDaySubjects(
       { inquiry_id: inquiryId },
-      eventDayId ? parseInt(eventDayId, 10) : undefined,
+      query.eventDayId,
     );
   }
 
   @Post('projects/:projectId/subjects')
   createProjectEventDaySubject(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Body() dto: CreateInstanceEventDaySubjectDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceEventDaySubjectDto,
   ) {
     return this.scheduleService.createInstanceEventDaySubject({ project_id: projectId }, dto);
   }
@@ -871,7 +876,7 @@ export class ScheduleController {
   @Post('inquiries/:inquiryId/subjects')
   createInquiryEventDaySubject(
     @Param('inquiryId', ParseIntPipe) inquiryId: number,
-    @Body() dto: CreateInstanceEventDaySubjectDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceEventDaySubjectDto,
   ) {
     return this.scheduleService.createInstanceEventDaySubject({ inquiry_id: inquiryId }, dto);
   }
@@ -879,7 +884,7 @@ export class ScheduleController {
   @Patch('instance/subjects/:subjectId')
   updateInstanceEventDaySubject(
     @Param('subjectId', ParseIntPipe) subjectId: number,
-    @Body() dto: UpdateInstanceEventDaySubjectDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateInstanceEventDaySubjectDto,
   ) {
     return this.scheduleService.updateInstanceEventDaySubject(subjectId, dto);
   }
@@ -912,29 +917,29 @@ export class ScheduleController {
   @Get('projects/:projectId/location-slots')
   getProjectLocationSlots(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Query('eventDayId') eventDayId?: string,
+    @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto,
   ) {
     return this.scheduleService.getInstanceLocationSlots(
       { project_id: projectId },
-      eventDayId ? parseInt(eventDayId, 10) : undefined,
+      query.eventDayId,
     );
   }
 
   @Get('inquiries/:inquiryId/location-slots')
   getInquiryLocationSlots(
     @Param('inquiryId', ParseIntPipe) inquiryId: number,
-    @Query('eventDayId') eventDayId?: string,
+    @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto,
   ) {
     return this.scheduleService.getInstanceLocationSlots(
       { inquiry_id: inquiryId },
-      eventDayId ? parseInt(eventDayId, 10) : undefined,
+      query.eventDayId,
     );
   }
 
   @Post('projects/:projectId/location-slots')
   createProjectLocationSlot(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Body() dto: CreateInstanceLocationSlotDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceLocationSlotDto,
   ) {
     return this.scheduleService.createInstanceLocationSlot({ project_id: projectId }, dto);
   }
@@ -942,7 +947,7 @@ export class ScheduleController {
   @Post('inquiries/:inquiryId/location-slots')
   createInquiryLocationSlot(
     @Param('inquiryId', ParseIntPipe) inquiryId: number,
-    @Body() dto: CreateInstanceLocationSlotDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceLocationSlotDto,
   ) {
     return this.scheduleService.createInstanceLocationSlot({ inquiry_id: inquiryId }, dto);
   }
@@ -950,7 +955,7 @@ export class ScheduleController {
   @Patch('instance/location-slots/:slotId')
   updateInstanceLocationSlot(
     @Param('slotId', ParseIntPipe) slotId: number,
-    @Body() dto: UpdateInstanceLocationSlotDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateInstanceLocationSlotDto,
   ) {
     return this.scheduleService.updateInstanceLocationSlot(slotId, dto);
   }
@@ -980,76 +985,76 @@ export class ScheduleController {
 
   // ─── Instance Day Operators / Crew (project + inquiry) ───────────────
 
-  @Get('projects/:projectId/operators')
+  @Get('projects/:projectId/crew-slots')
   getProjectDayOperators(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Query('eventDayId') eventDayId?: string,
+    @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto,
   ) {
     return this.scheduleService.getInstanceDayOperators(
       { project_id: projectId },
-      eventDayId ? parseInt(eventDayId, 10) : undefined,
+      query.eventDayId,
     );
   }
 
-  @Get('inquiries/:inquiryId/operators')
+  @Get('inquiries/:inquiryId/crew-slots')
   getInquiryDayOperators(
     @Param('inquiryId', ParseIntPipe) inquiryId: number,
-    @Query('eventDayId') eventDayId?: string,
+    @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto,
   ) {
     return this.scheduleService.getInstanceDayOperators(
       { inquiry_id: inquiryId },
-      eventDayId ? parseInt(eventDayId, 10) : undefined,
+      query.eventDayId,
     );
   }
 
-  @Post('projects/:projectId/operators')
+  @Post('projects/:projectId/crew-slots')
   createProjectDayOperator(
     @Param('projectId', ParseIntPipe) projectId: number,
-    @Body() dto: CreateInstanceDayOperatorDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceDayOperatorDto,
   ) {
     return this.scheduleService.createInstanceDayOperator({ project_id: projectId }, dto);
   }
 
-  @Post('inquiries/:inquiryId/operators')
+  @Post('inquiries/:inquiryId/crew-slots')
   createInquiryDayOperator(
     @Param('inquiryId', ParseIntPipe) inquiryId: number,
-    @Body() dto: CreateInstanceDayOperatorDto,
+    @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceDayOperatorDto,
   ) {
     return this.scheduleService.createInstanceDayOperator({ inquiry_id: inquiryId }, dto);
   }
 
-  @Patch('instance/operators/:operatorId')
+  @Patch('instance/crew-slots/:operatorId')
   updateInstanceDayOperator(
     @Param('operatorId', ParseIntPipe) operatorId: number,
-    @Body() dto: UpdateInstanceDayOperatorDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateInstanceDayOperatorDto,
   ) {
     return this.scheduleService.updateInstanceDayOperator(operatorId, dto);
   }
 
-  @Patch('instance/operators/:operatorId/assign')
+  @Patch('instance/crew-slots/:operatorId/assign')
   assignInstanceCrewToSlot(
     @Param('operatorId', ParseIntPipe) operatorId: number,
-    @Body() dto: { contributor_id: number | null },
+    @Body(new ValidationPipe({ transform: true })) dto: { crew_member_id: number | null },
   ) {
-    return this.scheduleService.assignInstanceCrewToSlot(operatorId, dto.contributor_id);
+    return this.scheduleService.assignInstanceCrewToSlot(operatorId, dto.crew_member_id);
   }
 
-  @Delete('instance/operators/:operatorId')
+  @Delete('instance/crew-slots/:operatorId')
   removeInstanceDayOperator(
     @Param('operatorId', ParseIntPipe) operatorId: number,
   ) {
     return this.scheduleService.removeInstanceDayOperator(operatorId);
   }
 
-  @Post('instance/operators/:operatorId/equipment')
+  @Post('instance/crew-slots/:operatorId/equipment')
   setInstanceOperatorEquipment(
     @Param('operatorId', ParseIntPipe) operatorId: number,
-    @Body() dto: { equipment: { equipment_id: number; is_primary: boolean }[] },
+    @Body(new ValidationPipe({ transform: true })) dto: { equipment: { equipment_id: number; is_primary: boolean }[] },
   ) {
     return this.scheduleService.setInstanceOperatorEquipment(operatorId, dto.equipment);
   }
 
-  @Post('instance/operators/:operatorId/activities/:activityId')
+  @Post('instance/crew-slots/:operatorId/activities/:activityId')
   assignInstanceOperatorToActivity(
     @Param('operatorId', ParseIntPipe) operatorId: number,
     @Param('activityId', ParseIntPipe) activityId: number,
@@ -1057,7 +1062,7 @@ export class ScheduleController {
     return this.scheduleService.assignInstanceOperatorToActivity(operatorId, activityId);
   }
 
-  @Delete('instance/operators/:operatorId/activities/:activityId')
+  @Delete('instance/crew-slots/:operatorId/activities/:activityId')
   unassignInstanceOperatorFromActivity(
     @Param('operatorId', ParseIntPipe) operatorId: number,
     @Param('activityId', ParseIntPipe) activityId: number,

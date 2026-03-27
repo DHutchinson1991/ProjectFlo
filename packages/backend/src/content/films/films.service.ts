@@ -1,18 +1,11 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaService } from "../../prisma/prisma.service";
+﻿import { Injectable, NotFoundException, Logger } from "@nestjs/common";
+import { PrismaService } from "../../platform/prisma/prisma.service";
 import { CreateFilmDto, UpdateEquipmentDto } from "./dto/create-film.dto";
 import { UpdateFilmDto } from "./dto/update-film.dto";
 import { FilmResponseDto } from "./dto/film-response.dto";
 import { FilmEquipmentService } from "./services/film-equipment.service";
-import { FilmScenesManagementService } from "./services/film-scenes-management.service";
-import { LoggerService } from "../../common/logging/logger.service";
-import { Prisma, FilmTimelineTrack, FilmType } from "@prisma/client";
-import {
-  AssignEquipmentDto,
-  UpdateEquipmentAssignmentDto,
-  FilmEquipmentResponseDto,
-  EquipmentSummaryDto,
-} from "./dto/film-equipment-assignment.dto";
+import { FilmType } from "@prisma/client";
+import { FilmWithDetails } from "./types/film-payload.type";
 
 /**
  * Main Films Service (refactor v2)
@@ -20,12 +13,11 @@ import {
  */
 @Injectable()
 export class FilmsService {
-  private readonly logger = new LoggerService(FilmsService.name);
+  private readonly logger = new Logger(FilmsService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly equipmentService: FilmEquipmentService,
-    private readonly scenesService: FilmScenesManagementService,
   ) {}
 
   /**
@@ -52,7 +44,7 @@ export class FilmsService {
       data: {
         name: createDto.name,
         brand_id: createDto.brand_id,
-        film_type: (createDto.film_type as any) ?? 'FEATURE',
+        film_type: (createDto.film_type as FilmType) ?? FilmType.FEATURE,
         montage_preset_id: createDto.montage_preset_id ?? null,
         target_duration_min: targetMin,
         target_duration_max: targetMax,
@@ -82,6 +74,15 @@ export class FilmsService {
       include: {
         montage_preset: true,
         tracks: {
+          include: {
+            crew_member: {
+              select: {
+                id: true,
+                crew_color: true,
+                contact: { select: { first_name: true, last_name: true } },
+              },
+            },
+          },
           orderBy: { order_index: 'asc' },
         },
         subjects: true,
@@ -137,7 +138,7 @@ export class FilmsService {
           },
           orderBy: { order_index: 'asc' },
         },
-      } as any,
+      },
       orderBy: { created_at: 'desc' },
     });
 
@@ -153,6 +154,15 @@ export class FilmsService {
       include: {
         montage_preset: true,
         tracks: {
+          include: {
+            crew_member: {
+              select: {
+                id: true,
+                crew_color: true,
+                contact: { select: { first_name: true, last_name: true } },
+              },
+            },
+          },
           orderBy: { order_index: 'asc' },
         },
         subjects: true,
@@ -208,7 +218,7 @@ export class FilmsService {
           },
           orderBy: { order_index: 'asc' },
         },
-      } as any,
+      },
     });
 
     if (!film) {
@@ -256,104 +266,37 @@ export class FilmsService {
   /**
    * Regenerate tracks based on current equipment configuration
    */
-  async generateTracks(id: number): Promise<FilmTimelineTrack[]> {
+  async generateTracks(id: number) {
     this.logger.log('Regenerating tracks', { filmId: id });
 
-    // Get current equipment counts
     const equipment = await this.equipmentService.getEquipmentSummary(id);
-    const numCameras = equipment.cameras;
-    const numAudio = equipment.audio;
+    await this.equipmentService.configureEquipment(id, equipment.cameras, equipment.audio);
 
-    await this.equipmentService.configureEquipment(id, numCameras, numAudio);
-
-    // Return the new tracks
-    return this.getTracks(id, false);
-  }
-  async delete(id: number): Promise<{ message: string }> {
-    this.logger.log('Deleting film', { filmId: id });
-
-    await this.prisma.film.delete({
-      where: { id },
-    });
-
-    this.logger.log('Film deleted successfully', { filmId: id });
-
-    return { message: "Film deleted successfully" };
-  }
-
-  /**
-   * Get all timeline layers (for track organization)
-   */
-  async getTimelineLayers() {
-    this.logger.log('Fetching timeline layers');
-
-    return this.prisma.timelineLayer.findMany({
-      where: { is_active: true },
+    return this.prisma.filmTimelineTrack.findMany({
+      where: { film_id: id },
       orderBy: { order_index: 'asc' },
-    });
-  }
-
-  /**
-   * Create a new timeline layer
-   */
-  async createTimelineLayer(createDto: { name: string; order_index: number; color_hex: string; description?: string }) {
-    this.logger.log('Creating timeline layer', { name: createDto.name });
-
-    return this.prisma.timelineLayer.create({
-      data: {
-        name: createDto.name,
-        order_index: createDto.order_index,
-        color_hex: createDto.color_hex,
-        description: createDto.description,
-        is_active: true,
+      include: {
+        crew_member: {
+          select: {
+            id: true,
+            crew_color: true,
+            contact: { select: { first_name: true, last_name: true } },
+          },
+        },
       },
     });
   }
 
-  /**
-   * Update a timeline layer
-   */
-  async updateTimelineLayer(
-    id: number,
-    updateDto: { name?: string; order_index?: number; color_hex?: string; description?: string; is_active?: boolean }
-  ) {
-    this.logger.log('Updating timeline layer', { layerId: id });
-
-    const layer = await this.prisma.timelineLayer.findUnique({ where: { id } });
-    if (!layer) {
-      throw new NotFoundException(`Timeline layer with ID ${id} not found`);
-    }
-
-    return this.prisma.timelineLayer.update({
-      where: { id },
-      data: updateDto,
-    });
-  }
-
-  /**
-   * Delete a timeline layer
-   */
-  async deleteTimelineLayer(id: number): Promise<{ message: string }> {
-    this.logger.log('Deleting timeline layer', { layerId: id });
-
-    const layer = await this.prisma.timelineLayer.findUnique({ where: { id } });
-    if (!layer) {
-      throw new NotFoundException(`Timeline layer with ID ${id} not found`);
-    }
-
-    await this.prisma.timelineLayer.delete({
-      where: { id },
-    });
-
-    this.logger.log('Timeline layer deleted successfully', { layerId: id });
-
-    return { message: "Timeline layer deleted successfully" };
+  async delete(id: number): Promise<{ message: string }> {
+    this.logger.log('Deleting film', { filmId: id });
+    await this.prisma.film.delete({ where: { id } });
+    return { message: "Film deleted successfully" };
   }
 
   /**
    * Map Prisma result to FilmResponseDto
    */
-  private mapToResponseDto(film: any): FilmResponseDto {
+  private mapToResponseDto(film: FilmWithDetails): FilmResponseDto {
     return {
       id: film.id,
       name: film.name,
@@ -372,7 +315,9 @@ export class FilmsService {
             max_duration_seconds: film.montage_preset.max_duration_seconds,
           }
         : null,
-      tracks: film.tracks || [],
+      tracks: film.tracks.map((track) => ({
+        ...track,
+      })),
       subjects: film.subjects || [],
       locations: (film.locations || []).map((assignment) => ({
         id: assignment.id,
@@ -389,19 +334,19 @@ export class FilmsService {
         scene_template_id: scene.scene_template_id,
         name: scene.name,
         mode: scene.mode || 'MOMENTS',
-        shot_count: (scene as any).shot_count ?? null,
-        duration_seconds: (scene as any).duration_seconds ?? null,
+        shot_count: scene.shot_count ?? null,
+        duration_seconds: scene.duration_seconds ?? null,
         order_index: scene.order_index,
         created_at: scene.created_at,
         updated_at: scene.updated_at,
-        location_assignment: (scene as any).location_assignment
+        location_assignment: scene.location_assignment
           ? {
-              id: (scene as any).location_assignment.id,
-              scene_id: (scene as any).location_assignment.scene_id,
-              location_id: (scene as any).location_assignment.location_id,
-              created_at: (scene as any).location_assignment.created_at,
-              updated_at: (scene as any).location_assignment.updated_at,
-              location: (scene as any).location_assignment.location,
+              id: scene.location_assignment.id,
+              scene_id: scene.location_assignment.scene_id,
+              location_id: scene.location_assignment.location_id,
+              created_at: scene.location_assignment.created_at,
+              updated_at: scene.location_assignment.updated_at,
+              location: scene.location_assignment.location,
             }
           : null,
         moments: (scene.moments || []).map((moment) => ({
@@ -412,30 +357,28 @@ export class FilmsService {
           duration: moment.duration,
           created_at: moment.created_at,
           updated_at: moment.updated_at,
-          subjects: (moment as any).subjects
-            ? (moment as any).subjects.map((assignment: any) => ({
-                id: assignment.id,
-                moment_id: assignment.moment_id,
-                subject_id: assignment.subject_id,
-                priority: assignment.priority,
-                notes: assignment.notes ?? null,
-                created_at: assignment.created_at,
-                updated_at: assignment.updated_at,
-                subject: assignment.subject
-                  ? {
-                      ...assignment.subject,
-                      role: assignment.subject.role_template
-                        ? {
-                            id: assignment.subject.role_template.id,
-                            role_name: assignment.subject.role_template.role_name,
-                            description: assignment.subject.role_template.description,
-                            is_core: assignment.subject.role_template.is_core,
-                          }
-                        : null,
-                    }
-                  : null,
-              }))
-            : [],
+          subjects: (moment.subjects || []).map((assignment) => ({
+            id: assignment.id,
+            moment_id: assignment.moment_id,
+            subject_id: assignment.subject_id,
+            priority: assignment.priority,
+            notes: assignment.notes ?? null,
+            created_at: assignment.created_at,
+            updated_at: assignment.updated_at,
+            subject: assignment.subject
+              ? {
+                  ...assignment.subject,
+                  role: assignment.subject.role_template
+                    ? {
+                        id: assignment.subject.role_template.id,
+                        role_name: assignment.subject.role_template.role_name,
+                        description: assignment.subject.role_template.description,
+                        is_core: assignment.subject.role_template.is_core,
+                      }
+                    : null,
+                }
+              : null,
+          })),
           has_recording_setup: !!moment.recording_setup,
           recording_setup: moment.recording_setup
             ? {
@@ -448,21 +391,21 @@ export class FilmsService {
                   track_name: a.track?.name || String(a.track_id),
                   track_type: a.track?.type ? String(a.track.type) : undefined,
                   subject_ids: a.subject_ids,
-                  shot_type: (a as any).shot_type ?? undefined,
+                  shot_type: a.shot_type ?? undefined,
                 })),
               }
             : null,
-          moment_music: (moment as any).moment_music
+          moment_music: moment.moment_music
             ? {
-                id: (moment as any).moment_music.id,
-                moment_id: (moment as any).moment_music.moment_id,
-                music_name: (moment as any).moment_music.music_name,
-                artist: (moment as any).moment_music.artist,
-                duration: (moment as any).moment_music.duration,
-                music_type: (moment as any).moment_music.music_type,
-                overrides_scene_music: (moment as any).moment_music.overrides_scene_music,
-                created_at: (moment as any).moment_music.created_at,
-                updated_at: (moment as any).moment_music.updated_at,
+                id: moment.moment_music.id,
+                moment_id: moment.moment_music.moment_id,
+                music_name: moment.moment_music.music_name,
+                artist: moment.moment_music.artist,
+                duration: moment.moment_music.duration,
+                music_type: moment.moment_music.music_type,
+                overrides_scene_music: moment.moment_music.overrides_scene_music,
+                created_at: moment.moment_music.created_at,
+                updated_at: moment.moment_music.updated_at,
               }
             : null,
         })),
@@ -471,19 +414,19 @@ export class FilmsService {
           film_scene_id: beat.film_scene_id,
           name: beat.name,
           order_index: beat.order_index,
-          shot_count: (beat as any).shot_count ?? null,
+          shot_count: beat.shot_count ?? null,
           duration_seconds: beat.duration_seconds,
-          source_activity_id: (beat as any).source_activity_id ?? null,
-          source_moment_id: (beat as any).source_moment_id ?? null,
-          source_scene_id: (beat as any).source_scene_id ?? null,
-          recording_setup: (beat as any).recording_setup
+          source_activity_id: beat.source_activity_id ?? null,
+          source_moment_id: beat.source_moment_id ?? null,
+          source_scene_id: beat.source_scene_id ?? null,
+          recording_setup: beat.recording_setup
             ? {
-                id: (beat as any).recording_setup.id,
-                camera_track_ids: (beat as any).recording_setup.camera_track_ids,
-                audio_track_ids: (beat as any).recording_setup.audio_track_ids,
-                graphics_enabled: (beat as any).recording_setup.graphics_enabled,
-                created_at: (beat as any).recording_setup.created_at,
-                updated_at: (beat as any).recording_setup.updated_at,
+                id: beat.recording_setup.id,
+                camera_track_ids: beat.recording_setup.camera_track_ids,
+                audio_track_ids: beat.recording_setup.audio_track_ids,
+                graphics_enabled: beat.recording_setup.graphics_enabled,
+                created_at: beat.recording_setup.created_at,
+                updated_at: beat.recording_setup.updated_at,
               }
             : null,
           created_at: beat.created_at,
@@ -502,19 +445,19 @@ export class FilmsService {
               })),
             }
           : null,
-        scene_music: (scene as any).scene_music
+        scene_music: scene.scene_music
           ? {
-              id: (scene as any).scene_music.id,
-              film_scene_id: (scene as any).scene_music.film_scene_id,
-              music_name: (scene as any).scene_music.music_name,
-              artist: (scene as any).scene_music.artist,
-              duration: (scene as any).scene_music.duration,
-              music_type: (scene as any).scene_music.music_type,
-              created_at: (scene as any).scene_music.created_at,
-              updated_at: (scene as any).scene_music.updated_at,
+              id: scene.scene_music.id,
+              film_scene_id: scene.scene_music.film_scene_id,
+              music_name: scene.scene_music.music_name,
+              artist: scene.scene_music.artist,
+              duration: scene.scene_music.duration,
+              music_type: scene.scene_music.music_type,
+              created_at: scene.scene_music.created_at,
+              updated_at: scene.scene_music.updated_at,
             }
           : null,
-        audio_sources: ((scene as any).audio_sources || []).map((src: any) => ({
+        audio_sources: (scene.audio_sources || []).map((src) => ({
           id: src.id,
           scene_id: src.scene_id,
           source_type: src.source_type,
@@ -531,111 +474,5 @@ export class FilmsService {
         })),
       })),
     };
-  }
-
-  /**
-   * Get timeline tracks for a film, including operator assignments
-   */
-  async getTracks(filmId: number, activeOnly: boolean = false) {
-    const whereClause: Prisma.FilmTimelineTrackWhereInput = { film_id: filmId };
-    if (activeOnly) {
-      whereClause.is_active = true;
-    }
-
-    return this.prisma.filmTimelineTrack.findMany({
-      where: whereClause,
-      orderBy: { order_index: 'asc' },
-      include: {
-        contributor: {
-          select: {
-            id: true,
-            crew_color: true,
-            contact: { select: { first_name: true, last_name: true } },
-          },
-        },
-      },
-    });
-  }
-
-  /**
-   * Update a specific track (name, active status, crew assignment)
-   */
-  async updateTrack(
-    filmId: number,
-    trackId: number,
-    data: { name?: string; is_active?: boolean; contributor_id?: number | null; is_unmanned?: boolean },
-  ) {
-    // Verify track belongs to this film
-    const track = await this.prisma.filmTimelineTrack.findFirst({
-      where: { id: trackId, film_id: filmId },
-    });
-    if (!track) {
-      throw new NotFoundException(
-        `Track ${trackId} not found for film ${filmId}`,
-      );
-    }
-
-    return this.prisma.filmTimelineTrack.update({
-      where: { id: trackId },
-      data: {
-        ...data,
-        updated_at: new Date(),
-      },
-      include: {
-        contributor: {
-          select: {
-            id: true,
-            crew_color: true,
-            contact: { select: { first_name: true, last_name: true } },
-          },
-        },
-      },
-    });
-  }
-
-  // ============================================================================
-  // Equipment Assignment Methods (delegated to FilmEquipmentService)
-  // ============================================================================
-
-  /**
-   * Get all equipment assigned to a film
-   */
-  async getFilmEquipment(filmId: number): Promise<FilmEquipmentResponseDto[]> {
-    return this.equipmentService.getFilmEquipment(filmId);
-  }
-
-  /**
-   * Get equipment summary for a film
-   */
-  async getEquipmentSummary(filmId: number): Promise<EquipmentSummaryDto> {
-    return this.equipmentService.getEquipmentSummary(filmId);
-  }
-
-  /**
-   * Assign equipment to a film
-   */
-  async assignEquipment(
-    filmId: number,
-    dto: AssignEquipmentDto,
-  ): Promise<FilmEquipmentResponseDto> {
-    return this.equipmentService.assignEquipment(filmId, dto);
-  }
-
-  /**
-   * Update equipment assignment
-   */
-  async updateEquipmentAssignment(
-    filmId: number,
-    equipmentId: number,
-    dto: UpdateEquipmentAssignmentDto,
-  ): Promise<FilmEquipmentResponseDto> {
-    return this.equipmentService.updateEquipmentAssignment(filmId, equipmentId, dto);
-  }
-
-  /**
-   * Remove equipment assignment
-   */
-  async removeEquipmentAssignment(filmId: number, equipmentId: number): Promise<void> {
-    return this.equipmentService.removeEquipmentAssignment(filmId, equipmentId);
   }
 }

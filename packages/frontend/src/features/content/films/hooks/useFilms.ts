@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CreateFilmDto, Film, UpdateFilmDto } from "../types";
-import { apiClient } from "@/lib/api";
-import { createFilmsApi } from "../api";
-import type { ApiClient } from "@/lib/api/api-client.types";
-
-const filmsApi = createFilmsApi(apiClient as unknown as ApiClient);
+import { filmsApi } from "../api";
 
 export const useFilms = (brandId?: number) => {
   const [films, setFilms] = useState<Film[]>([]);
@@ -15,14 +11,14 @@ export const useFilms = (brandId?: number) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await filmsApi.films.getAll();
+      const data = await filmsApi.films.getAll(brandId);
       setFilms(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load films");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [brandId]);
 
   useEffect(() => {
     loadFilms();

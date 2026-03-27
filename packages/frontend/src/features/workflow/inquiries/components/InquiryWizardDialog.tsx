@@ -10,7 +10,7 @@ import {
 } from '@mui/icons-material';
 import type { InquiryWizardSubmission, IwDateConflictResult, IwCrewConflictResult } from '@/features/workflow/inquiry-wizard/types';
 import { groupNaResponses } from '../lib';
-import { apiClient } from '@/lib/api';
+import { apiClient } from '@/shared/api/client';
 import { createInquiryWizardSubmissionsApi } from '@/features/workflow/inquiry-wizard/api';
 import IwSubmissionSections from './IwSubmissionSections';
 import IwReviewPanel from './IwReviewPanel';

@@ -3,13 +3,13 @@
 import React from "react";
 import { Box } from "@mui/material";
 import { Equipment, EquipmentByCategory } from "@/features/workflow/equipment/types/equipment.types";
-import type { Contributor } from "@/lib/types";
+import type { CrewMember } from "@/shared/types/users";
 import { EquipmentAccordion } from "./EquipmentAccordion";
 
 interface EquipmentAccordionListProps {
     equipmentByCategory: EquipmentByCategory;
     onCategoryToggle: (category: string) => void;
-    contributors: Contributor[];
+    crewMembers: CrewMember[];
     inlineEditingEquipment: number | null;
     inlineEditData: Partial<Equipment>;
     updateInlineEditData: (field: keyof Equipment, value: unknown) => void;
@@ -29,7 +29,7 @@ interface EquipmentAccordionListProps {
 export function EquipmentAccordionList({
     equipmentByCategory,
     onCategoryToggle,
-    contributors,
+    crewMembers,
     inlineEditingEquipment,
     inlineEditData,
     updateInlineEditData,
@@ -54,7 +54,7 @@ export function EquipmentAccordionList({
                         key={group.category}
                         group={group}
                         onTypeToggle={onCategoryToggle}
-                        contributors={contributors}
+                        contributors={crewMembers}
                         inlineEditingEquipment={inlineEditingEquipment}
                         inlineEditData={inlineEditData}
                         updateInlineEditData={updateInlineEditData}

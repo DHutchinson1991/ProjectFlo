@@ -1,11 +1,13 @@
 import React from 'react';
 import { Box, Typography, Chip, LinearProgress } from '@mui/material';
 import { TrendingUp, AccessTime, LocalFireDepartment, EmojiEvents } from '@mui/icons-material';
+import { DEFAULT_CURRENCY, formatCurrency } from '@projectflo/shared';
 import type { ConversionData } from '../lib';
 
 interface KpiMetricsStripProps {
     dealValue: number;
     taxRate?: number;
+    currency: string;
     daysInPipeline: number;
     conversionData: ConversionData;
     completedCount: number;
@@ -15,6 +17,7 @@ interface KpiMetricsStripProps {
 const KpiMetricsStrip: React.FC<KpiMetricsStripProps> = ({
     dealValue,
     taxRate,
+    currency,
     daysInPipeline,
     conversionData,
     completedCount,
@@ -34,7 +37,7 @@ const KpiMetricsStrip: React.FC<KpiMetricsStripProps> = ({
                 <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Deal Value</Typography>
             </Box>
             <Typography sx={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981', letterSpacing: '-0.02em' }}>
-                {dealValue > 0 ? `$${dealValue.toLocaleString()}` : '\u2014'}
+                {dealValue > 0 ? formatCurrency(dealValue, currency || DEFAULT_CURRENCY) : '\u2014'}
             </Typography>
             {dealValue > 0 && (taxRate ?? 0) > 0 && (
                 <Typography sx={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 500 }}>incl. {taxRate}% tax</Typography>

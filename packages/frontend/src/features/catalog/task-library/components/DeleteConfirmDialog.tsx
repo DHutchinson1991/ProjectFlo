@@ -9,7 +9,7 @@ import {
     Button,
     Typography,
 } from "@mui/material";
-import { TaskLibrary } from "@/lib/types";
+import { TaskLibrary } from "@/features/catalog/task-library/types";
 
 interface DeleteConfirmDialogProps {
     open: boolean;

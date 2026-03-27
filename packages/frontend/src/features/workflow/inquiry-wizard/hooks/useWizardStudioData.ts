@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { wizardStudioDataApi, inquiryWizardTemplatesApi } from '../api';
 import type { InquiryWizardTemplate } from '../types';
-import type { ServicePackage } from '@/lib/types';
+import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import type { PackageSet } from '@/features/catalog/packages/types/package-set.types';
 import type { EventType } from '@/features/catalog/event-types/types';
-import type { WelcomeSettings } from '@/lib/types/brand';
-import type { Contributor } from '@/lib/types/domains/users';
-import { useBrand } from '@/app/providers/BrandProvider';
+import type { WelcomeSettings } from '@/features/platform/brand/types';
+import type { CrewMember } from '@/shared/types/users';
+import { useBrand } from '@/features/platform/brand';
 
 interface WizardStudioData {
     template: InquiryWizardTemplate | null;
@@ -51,8 +51,8 @@ export function useWizardStudioData(): WizardStudioData {
                 setAllPackages(p || []);
                 setPackageSets(s || []);
                 setEventTypes(et || []);
-                const videographerCount = (cr || []).filter((c: Contributor) =>
-                    (c.contributor_job_roles || []).some((cjr) =>
+                const videographerCount = (cr || []).filter((c: CrewMember) =>
+                    (c.job_role_assignments || []).some((cjr) =>
                         cjr.job_role?.name?.toLowerCase() === 'videographer'
                     )
                 ).length;

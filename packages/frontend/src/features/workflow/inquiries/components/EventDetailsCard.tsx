@@ -27,11 +27,13 @@ import {
     Notes,
 } from '@mui/icons-material';
 import CelebrationIcon from '@mui/icons-material/Celebration';
-import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
-import { api } from '@/lib/api';
+import { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
+import { geocodeAddress } from '@/features/workflow/locations/api/geocoding.api';
 import { inquiriesApi } from '@/features/workflow/inquiries';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { useBrand } from '@/features/platform/brand';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 import { humanize } from '../lib';
+import { useEventDetailsData } from '../hooks/useEventDetailsData';
 import AddressSearch, { type AddressSelection } from './AddressSearch';
 
 // Dynamic-import the map (Leaflet needs `window`)
@@ -72,31 +74,6 @@ function formatDistance(km: number): string {
     return `${miles.toFixed(1)} mi`;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Geocode a brand address string via Nominatim (cached / one-shot)   */
-/* ------------------------------------------------------------------ */
-const brandGeoCache = new Map<string, { lat: number; lng: number } | null>();
-
-async function geocodeBrandAddress(address: string): Promise<{ lat: number; lng: number } | null> {
-    const cached = brandGeoCache.get(address);
-    if (cached !== undefined) return cached;
-    try {
-        const params = new URLSearchParams({ q: address, format: 'json', limit: '1' });
-        const res = await fetch(
-            `https://nominatim.openstreetmap.org/search?${params}`,
-            { headers: { Accept: 'application/json', 'User-Agent': 'ProjectFlo/1.0' } },
-        );
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (data.length === 0) return null; // Don't cache empty results — address text may change
-        const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-        brandGeoCache.set(address, coords);
-        return coords;
-    } catch (_e) {
-        return null;
-    }
-}
-
 /* ================================================================== */
 /*  EventDetailsCard                                                   */
 /* ================================================================== */
@@ -110,14 +87,13 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
 }) => {
     const [isEditing, setIsEditing] = useState(false);
     const { currentBrand } = useBrand();
+    const { eventTypeOptions, ceremonySlot, slotsLoading, venueCoords: geocodedVenueCoords, brandCoords } = useEventDetailsData(
+        inquiry,
+        submission,
+        currentBrand,
+    );
 
-    // Event type options
-    const [eventTypeOptions, setEventTypeOptions] = useState<{ id: number; name: string }[]>([]);
     const [selectedEventTypeId, setSelectedEventTypeId] = useState<number | null>(inquiry.event_type_id ?? null);
-
-    useEffect(() => {
-        api.eventTypes.getAll().then((data: any[]) => setEventTypeOptions(data || [])).catch(() => {});
-    }, []);
 
     useEffect(() => {
         setSelectedEventTypeId(inquiry.event_type_id ?? null);
@@ -125,87 +101,6 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const responses = (submission?.responses ?? {}) as Record<string, any>;
-
-    // Ceremony location from package schedule location slots
-    const [slotsLoading, setSlotsLoading] = useState(true);
-    const [ceremonySlot, setCeremonySlot] = useState<{
-        id: number; name: string; address: string; lat: number | null; lng: number | null;
-        slotIndex: number; totalSlots: number; updatedAt: Date;
-        addressFields?: { address_line1?: string; address_line2?: string; city?: string; county?: string; country?: string; postcode?: string };
-    } | null>(null);
-
-    useEffect(() => {
-        if (!inquiry.id) return;
-        api.schedule.instanceLocationSlots.getForInquiry(inquiry.id)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .then(async (slots: any[]) => {
-                if (!slots || slots.length === 0) return;
-                // Check both project_activity and activity_assignments for "Ceremony"
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const isCeremony = (s: any) =>
-                    s.project_activity?.name?.toLowerCase().includes('ceremony') ||
-                    s.activity_assignments?.some((a: any) =>
-                        a.project_activity?.name?.toLowerCase().includes('ceremony'),
-                    );
-                const ceremony = slots.find(isCeremony)
-                    || slots.find(s => s.name || s.address || s.location);
-                if (!ceremony) return;
-
-                // Build name + address from slot fields AND linked LocationsLibrary
-                const loc = ceremony.location;
-                const slotName = ceremony.name || loc?.name || '';
-                const slotAddr = ceremony.address || '';
-
-                // Build a structured address from location library if available
-                let fullAddress = slotAddr;
-                let addressFields: { address_line1?: string; address_line2?: string; city?: string; county?: string; country?: string; postcode?: string } | undefined;
-                if (loc) {
-                    const parts = [
-                        loc.address_line1,
-                        loc.address_line2,
-                        loc.city,
-                        loc.state,
-                        loc.postal_code,
-                    ].filter(Boolean);
-                    if (parts.length > 0) {
-                        fullAddress = parts.join(', ');
-                    }
-                    addressFields = {
-                        address_line1: loc.address_line1 || undefined,
-                        address_line2: loc.address_line2 || undefined,
-                        city: loc.city || undefined,
-                        county: loc.state || undefined,
-                        country: loc.country || undefined,
-                        postcode: loc.postal_code || undefined,
-                    };
-                }
-
-                if (!slotName && !fullAddress) return;
-
-                let lat: number | null = null;
-                let lng: number | null = null;
-                // Geocode using the best address available
-                const addrToGeocode = fullAddress || slotName;
-                if (addrToGeocode) {
-                    const coords = await geocodeBrandAddress(addrToGeocode);
-                    if (coords) { lat = coords.lat; lng = coords.lng; }
-                }
-                const slotIndex = slots.indexOf(ceremony) + 1;
-                setCeremonySlot({
-                    id: ceremony.id,
-                    name: slotName,
-                    address: fullAddress,
-                    lat,
-                    lng,
-                    slotIndex,
-                    totalSlots: slots.length,
-                    updatedAt: new Date(ceremony.updated_at),
-                    addressFields,
-                });
-            })
-            .catch(() => { /* ignore – will fall back to venue_details */ })
-            .finally(() => setSlotsLoading(false));
-    }, [inquiry.id]);
 
     const [formData, setFormData] = useState({
         wedding_date: inquiry.event_date
@@ -216,28 +111,6 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         venue_lat: inquiry.venue_lat ?? null as number | null,
         venue_lng: inquiry.venue_lng ?? null as number | null,
     });
-
-    // Geocoded coords stored separately so sync effect can't wipe them
-    const [geocodedVenueCoords, setGeocodedVenueCoords] = useState<{ lat: number; lng: number } | null>(null);
-
-    // Auto-geocode venue text when DB coords are missing (e.g. portal wizard submissions)
-    useEffect(() => {
-        if (inquiry.venue_lat != null && inquiry.venue_lng != null) return;
-        const addrText = inquiry.venue_address
-            || inquiry.venue_details
-            || responses.ceremony_location
-            || responses.venue_details;
-        if (!addrText) return;
-        let cancelled = false;
-        geocodeBrandAddress(addrText).then((coords) => {
-            if (cancelled || !coords) return;
-            setGeocodedVenueCoords(coords);
-        });
-        return () => { cancelled = true; };
-    }, [inquiry.venue_lat, inquiry.venue_lng, inquiry.venue_address, inquiry.venue_details, responses.ceremony_location, responses.venue_details]);
-
-    // Brand geo
-    const [brandCoords, setBrandCoords] = useState<{ lat: number; lng: number } | null>(null);
 
     useEffect(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -252,21 +125,6 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
             venue_lng: inquiry.venue_lng ?? null,
         });
     }, [inquiry, submission]);
-
-    // Geocode brand address once
-    useEffect(() => {
-        if (!currentBrand) return;
-        const parts = [
-            currentBrand.address_line1,
-            currentBrand.address_line2,
-            currentBrand.city,
-            currentBrand.state,
-            currentBrand.postal_code,
-            currentBrand.country,
-        ].filter(Boolean);
-        if (parts.length === 0) return;
-        geocodeBrandAddress(parts.join(', ')).then(setBrandCoords);
-    }, [currentBrand]);
 
     const partnerName = responses.partner_name;
     const guestCount = responses.guest_count;
@@ -306,13 +164,13 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
             // Sync the ceremony location slot with the new address (venue data lives on location slots now)
             if (ceremonySlot?.id) {
                 const shortName = formData.venue_address?.split(',')[0]?.trim() || '';
-                await api.schedule.instanceLocationSlots.update(ceremonySlot.id, {
+                await scheduleApi.instanceLocationSlots.update(ceremonySlot.id, {
                     name: shortName || null,
                     address: formData.venue_address || null,
                 });
                 // Update local ceremony slot state so view mode reflects immediately
                 const coords = formData.venue_address
-                    ? await geocodeBrandAddress(formData.venue_address)
+                    ? await geocodeAddress(formData.venue_address)
                     : null;
                 setCeremonySlot(prev => prev ? {
                     ...prev,

@@ -23,7 +23,7 @@ import {
     EQUIPMENT_AVAILABILITY_COLORS,
     EQUIPMENT_CONDITION_COLORS,
 } from "@/features/workflow/equipment/types/equipment.types";
-import { formatCurrency } from "@/lib/utils/formatUtils";
+import { formatCurrency } from "@/shared/utils/formatUtils";
 
 interface EquipmentDetailHeaderProps {
     equipment: Equipment;

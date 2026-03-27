@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../platform/prisma/prisma.service';
 import { MontagePreset } from '@prisma/client';
 import { CreateMontagePresetDto } from './dto/create-montage-preset.dto';
 import { UpdateMontagePresetDto } from './dto/update-montage-preset.dto';

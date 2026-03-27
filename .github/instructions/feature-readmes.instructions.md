@@ -32,6 +32,9 @@ Bullet list of non-negotiable rules an agent must respect.
 
 - Keep READMEs under 80 lines. Link to reference docs for deep detail.
 - Update the README in the same PR as any code change that alters business rules, key files, or cross-module relationships.
+- Update the README when API routes, transport policy, or the canonical feature API files change. The README must match the real frontend binding shape after migrations.
+- **Do not duplicate structural rules from `.instructions.md` files.** READMEs own: what's here (file inventory), business invariants, and related modules. Instructions own: placement rules, naming conventions, and hard constraints.
+- If a README needs to reference a rule, add a one-line pointer: `"Rules in <file>.instructions.md § <section>"`.
 - Do not duplicate content that belongs in a root-level reference doc. Point to it instead.
 - Backend READMEs cross-reference the frontend feature that consumes the API.
 - Frontend READMEs cross-reference the backend module that provides the API.

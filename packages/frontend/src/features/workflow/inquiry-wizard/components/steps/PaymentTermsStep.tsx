@@ -2,16 +2,18 @@
 
 import React from "react";
 import { Box, Typography, CircularProgress, Stack } from "@mui/material";
-import { C } from '../constants/wizard-config';
-import { fadeInUp } from '../constants/animations';
-import { NACtx } from '../types';
-import { Q } from "./QuestionWrapper";
-import { useWizardPaymentSchedules } from "../hooks/useWizardPaymentSchedules";
-import { fmtCurrency, resolveTotal } from '../../mappers/payment-terms';
-import { PaymentScheduleCard } from "./PaymentScheduleCard";
+import { C } from '../../constants/wizard-config';
+import { fadeInUp } from '../../constants/animations';
+import { NACtx } from '../../types';
+import { Q } from "../QuestionWrapper";
+import { useWizardPaymentSchedules } from "../../hooks/useWizardPaymentSchedules";
+import { resolveTotal } from '../../mappers/payment-terms';
+import { formatCurrency, DEFAULT_CURRENCY } from '@projectflo/shared';
+import { PaymentScheduleCard } from "../PaymentScheduleCard";
 
 export default function PaymentTermsScreen({ ctx }: { ctx: NACtx }) {
-    const { responses, handleChange, currentBrand, currSym } = ctx;
+    const { responses, handleChange, currentBrand } = ctx;
+    const currency = currentBrand?.currency ?? DEFAULT_CURRENCY;
     const { data: templates = [], isLoading: loading } = useWizardPaymentSchedules();
 
     const selected: number | null = responses.payment_schedule_template_id ?? null;
@@ -69,7 +71,7 @@ export default function PaymentTermsScreen({ ctx }: { ctx: NACtx }) {
                             lineHeight: 1.1,
                         }}
                     >
-                        {fmtCurrency(currSym, totalPrice)}
+                        {formatCurrency(totalPrice, currency, 0)}
                     </Typography>
                 </Box>
             )}
@@ -81,7 +83,7 @@ export default function PaymentTermsScreen({ ctx }: { ctx: NACtx }) {
                         template={template}
                         selected={selected}
                         totalPrice={totalPrice}
-                        currSym={currSym}
+                        currency={currency}
                         onSelect={(id) => handleChange("payment_schedule_template_id", id)}
                     />
                 ))}

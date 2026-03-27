@@ -7,14 +7,14 @@ export interface BackendCalendarEvent {
     is_all_day?: boolean;
     event_type: 'PROJECT_ASSIGNMENT' | 'ABSENCE' | 'HOLIDAY' | 'EXTERNAL_SYNC' | 'PERSONAL' | 'DISCOVERY_CALL' | 'PROPOSAL_REVIEW';
     meeting_type?: 'ONLINE' | 'PHONE_CALL' | 'IN_PERSON' | 'VIDEO_CALL';
-    contributor_id: number;
+    crew_member_id: number;
     project_id?: number;
     inquiry_id?: number;
     location?: string;
     meeting_url?: string;
     outcome_notes?: string;
     is_confirmed?: boolean;
-    contributor?: {
+    crew_member?: {
         id: number;
         contact: { first_name: string; last_name: string; email: string };
     };
@@ -27,7 +27,7 @@ export interface BackendCalendarEvent {
         tag: { id: number; name: string; color: string; description?: string };
     }>;
     event_attendees?: Array<{
-        contributor: { id: number; contact: { first_name: string; last_name: string; email: string } };
+        crew_member: { id: number; contact: { first_name: string; last_name: string; email: string } };
         status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'TENTATIVE';
     }>;
     event_reminders?: Array<{ id: number; reminder_time: string; method: 'EMAIL' | 'NOTIFICATION' | 'SMS' }>;
@@ -69,7 +69,7 @@ export interface BackendCalendarTask {
 export interface CalendarApiQuery {
     start_date?: string;
     end_date?: string;
-    contributor_id?: number;
+    crew_member_id?: number;
     event_type?: string;
     limit?: number;
 }
@@ -87,7 +87,7 @@ export interface CalendarEventUpsertRequest {
     is_all_day?: boolean;
     event_type?: BackendCalendarEvent['event_type'];
     meeting_type?: BackendCalendarEvent['meeting_type'];
-    contributor_id?: number;
+    crew_member_id?: number;
     project_id?: number;
     inquiry_id?: number;
     location?: string;

@@ -3,12 +3,12 @@
 import React from "react";
 import { Box, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { C, glassSx } from '../constants/wizard-config';
-import { NACtx } from '../types';
-import { Q } from "./QuestionWrapper";
-import { BuilderActivityStep } from "./BuilderActivityStep";
-import { BuilderFilmsStep } from "./BuilderFilmsStep";
-import { BuilderCrewStep } from "./BuilderCrewStep";
+import { C, glassSx } from '../../constants/wizard-config';
+import { NACtx } from '../../types';
+import { Q } from "../QuestionWrapper";
+import { BuilderActivityStep } from "../BuilderActivityStep";
+import { BuilderFilmsStep } from "../BuilderFilmsStep";
+import { BuilderCrewStep } from "../BuilderCrewStep";
 import type { EventType, EventTypeDay, EventDayActivity } from "@/features/catalog/event-types/types";
 
 export default function BuilderScreen({ ctx }: { ctx: NACtx }) {

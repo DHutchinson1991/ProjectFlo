@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MontagePresetsService } from './montage-presets.service';
 import { MontagePresetsController } from './montage-presets.controller';
-import { PrismaModule } from '../../prisma/prisma.module';
+import { PrismaModule } from '../../platform/prisma/prisma.module';
 
 @Module({
     imports: [PrismaModule],

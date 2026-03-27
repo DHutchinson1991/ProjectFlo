@@ -1,14 +1,13 @@
 import { useCallback } from "react";
-import { createScenesApi } from "@/features/content/scenes/api";
-import { apiClient, api } from "@/lib/api";
-import type { ApiClient } from "@/lib/api/api-client.types";
-import type { TimelineScene } from "@/lib/types/timeline";
+import { beatsApi } from "@/features/content/beats/api";
+import { scenesApi as defaultScenesApi } from "@/features/content/scenes/api";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
 import type { FilmContentApi } from "@/features/content/films/components/FilmApiContext";
 
 /**
  * Hook to handle timeline save operations
  * Saves timeline scenes to the database and maintains track order
- * Uses domain API: createScenesApi from @/lib/api/scenes.api
+ * Uses domain API: scenesApi from @/features/content/scenes/api
  * 
  * Accepts an optional `filmApi` adapter — when provided, all persistence
  * routes through it (supporting library, project-instance, and inquiry-
@@ -24,7 +23,7 @@ export const useTimelineSave = (
     filmApi?: FilmContentApi | null,
 ) => {
     // Build an internal API surface that honours the adapter when present
-    const scenesApi = filmApi ? null : createScenesApi(apiClient as unknown as ApiClient);
+    const scenesApi = filmApi ? null : defaultScenesApi;
 
     // Helper: delegate to adapter or fallback
     const scenesCreate = filmApi
@@ -44,7 +43,7 @@ export const useTimelineSave = (
         : (data: any) => scenesApi!.moments.create(data);
     const beatsCreate = filmApi
         ? (sceneId: number, data: any) => filmApi.beats.create(sceneId, data)
-        : (sceneId: number, data: any) => api.beats.create(sceneId, data);
+        : (sceneId: number, data: any) => beatsApi.create(sceneId, data);
     let lastSavedIdMapping: Map<number | string, number> = new Map();
 
     const handleSave = useCallback(async (scenes: TimelineScene[], tracks?: any[]) => {

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ScenesService } from "./scenes.service";
-import { PrismaService } from "../../prisma/prisma.service";
+import { PrismaService } from "../../platform/prisma/prisma.service";
 import { MediaType } from "@prisma/client";
 import { BadRequestException } from "@nestjs/common";
 import { CreateSceneDto } from "./dto/create-scene.dto";
@@ -28,19 +28,13 @@ describe("ScenesService", () => {
     it("should create a scene with valid data", async () => {
         const dto: CreateSceneDto = {
             name: "UnitTest Scene",
-            type: MediaType.VIDEO,
-            description: "desc",
-            complexity_score: 1,
-            estimated_duration: 10,
-            default_editing_style: "Standard",
-            base_task_hours: 2,
         };
         const created = { id: 1, ...dto };
         mockPrisma.scenesLibrary.create.mockResolvedValue(created);
         const result = await service.create(dto);
         expect(result).toEqual(created);
         expect(mockPrisma.scenesLibrary.create).toHaveBeenCalledWith({
-            data: expect.objectContaining({ name: dto.name, type: dto.type }),
+            data: expect.objectContaining({ name: dto.name }),
         });
     });
 

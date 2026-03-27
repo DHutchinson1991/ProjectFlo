@@ -9,9 +9,9 @@
  * import with @/features/content/scenes/types (which imports SceneMoment from here).
  */
 
-import type { MomentRecordingSetup } from '@/lib/types/domains/recording-setup';
-import type { MomentMusic } from '@/lib/types/domains/music';
-import type { TimelineMediaComponent } from '@/lib/types/timeline';
+import type { MomentRecordingSetup } from './recording-setup';
+import type { MomentMusic } from '@/features/content/music/types';
+import type { TimelineMediaComponent } from '@/features/content/content-builder/types/timeline';
 
 /**
  * SceneMoment - A moment within a scene

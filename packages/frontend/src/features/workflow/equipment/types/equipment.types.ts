@@ -5,8 +5,14 @@
  * organized by equipment categories and status.
  */
 
-import { BaseEntity } from "@/lib/types/common";
-import type { Contributor } from "@/lib/types";
+import type { CrewMember } from "@/shared/types/users";
+
+// Shared base entity (inlined from deleted common.ts)
+interface BaseEntity {
+    id: number;
+    created_at: string;
+    updated_at: string;
+}
 
 // Enums that match backend
 export enum EquipmentCategory {
@@ -338,7 +344,7 @@ export const EQUIPMENT_CONDITION_COLORS = {
 // Hook state/action interfaces for useEquipmentList
 export interface EquipmentListState {
     equipmentByCategory: EquipmentByCategory;
-    contributors: Contributor[];
+    crewMembers: CrewMember[];
     loading: boolean;
     error: string | null;
     deleteConfirmOpen: boolean;

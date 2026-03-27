@@ -18,7 +18,7 @@ import {
     Schedule as ScheduleIcon,
     CalendarMonth as CalendarIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
+import { settingsApi } from "@/features/platform/settings/api";
 import { useBrand } from "@/features/platform/brand";
 import { SectionHeader } from "./SettingsHelpers";
 
@@ -40,7 +40,7 @@ export function MeetingsSettings() {
 
     useEffect(() => {
         if (!currentBrand?.id || loaded) return;
-        api.brands.getMeetingSettings(currentBrand.id)
+        settingsApi.getMeetingSettings(currentBrand.id)
             .then((s) => { setSettings(prev => ({ ...prev, ...s })); setLoaded(true); })
             .catch(() => setLoaded(true));
     }, [currentBrand?.id, loaded]);
@@ -58,7 +58,7 @@ export function MeetingsSettings() {
         if (!currentBrand?.id) return;
         setSaving(true);
         try {
-            await api.brands.saveMeetingSettings(currentBrand.id, settings);
+            await settingsApi.saveMeetingSettings(currentBrand.id, settings);
             setSnack('Meeting settings saved');
         } catch {
             setSnack('Failed to save settings');

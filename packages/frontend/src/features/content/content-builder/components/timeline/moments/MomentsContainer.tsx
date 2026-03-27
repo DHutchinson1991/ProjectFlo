@@ -8,8 +8,8 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
 import { alpha, lighten } from "@mui/material/styles";
 import { getDefaultTrackColor } from "../../../utils/colorUtils";
-import { TimelineScene } from "@/lib/types/timeline";
-import { isLogEnabled } from "@/lib/debug/log-flags";
+import { TimelineScene } from "@/features/content/content-builder/types/timeline";
+import { isLogEnabled } from "@/shared/debug/log-flags";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
 
 interface MomentsContainerProps {
@@ -214,31 +214,12 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                         showContent = graphicsEnabled;
                     }
 
-                    if (typeof window !== "undefined" && (window as any).__debugMomentId === moment.id) {
-                        console.info("[MOMENT] Visibility check", {
-                            momentId: moment.id,
-                            trackId,
-                            trackType: normalizedTrackType,
-                            camera_assignments: cameraAssignments.map((a) => a.track_id),
-                            audio_track_ids: audioTrackIds,
-                            graphics_enabled: graphicsEnabled,
-                            showContent,
-                        });
-                    }
+
                 } else {
                     // Default: if no recording setup exists yet, show on video/audio tracks only.
                     // Graphics tracks are excluded by default — users opt-in via recording setup.
                     showContent = ['VIDEO', 'AUDIO'].includes(normalizedTrackType);
-                    if (typeof window !== "undefined" && (window as any).__debugMomentId === moment.id) {
-                        console.info("[MOMENT] Visibility check - no setup", {
-                            momentId: moment.id,
-                            trackId,
-                            trackType: normalizedTrackType,
-                            showContent,
-                            momentRecordingSetup: (moment as any)?.recording_setup,
-                            sceneRecordingSetup: (scene as any)?.recording_setup,
-                        });
-                    }
+
                 }
                 
                 // Equipment-first: all tracks with equipment show content.
@@ -296,22 +277,7 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                         .filter(Boolean)
                     : [];
 
-                if (typeof window !== "undefined" && (window as any).__debugMomentRoles) {
-                    console.info("[MOMENT][DEBUG] Track label mapping", {
-                        sceneId: scene.id,
-                        momentId: moment.id,
-                        trackId,
-                        trackName,
-                        normalizedTrackType,
-                        assignedSubjectIds,
-                        assignedSubjectNames,
-                        subjectsCount: momentSubjects.length,
-                        firstSubject: momentSubjects[0],
-                        firstSubjectRole: momentSubjects[0]?.subject?.role,
-                        firstSubjectRoleName: momentSubjects[0]?.subject?.role?.role_name,
-                        assignmentForTrack,
-                    });
-                }
+
 
                 const subjectLabel = assignedSubjectNames.length > 0
                     ? assignedSubjectNames.join(", ")

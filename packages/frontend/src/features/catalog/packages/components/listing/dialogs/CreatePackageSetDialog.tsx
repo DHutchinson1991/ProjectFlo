@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions,
     Box, Typography, TextField, Button, Chip, CircularProgress,
     IconButton, Checkbox, FormControlLabel,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import { api } from '@/lib/api';
+import { useEventTypes } from '@/features/catalog/event-types/hooks';
+import { useCreatePackageSet } from '@/features/catalog/packages/hooks';
 
 // ─── Tier Constants ──────────────────────────────────────────────────
 
@@ -37,11 +38,12 @@ interface CreatePackageSetDialogProps {
 export default function CreatePackageSetDialog({
     open, onClose, onCreated, brandId,
 }: CreatePackageSetDialogProps) {
+    const { data: eventTypes = [] } = useEventTypes({ enabled: open });
+    const createPackageSetMutation = useCreatePackageSet(brandId);
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [emoji, setEmoji] = useState('📦');
     const [eventTypeId, setEventTypeId] = useState<number | null>(null);
-    const [eventTypes, setEventTypes] = useState<{ id: number; name: string; icon?: string }[]>([]);
     const [selectedTiers, setSelectedTiers] = useState<Set<string>>(new Set(['Basic', 'Standard', 'Premium']));
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -54,8 +56,6 @@ export default function CreatePackageSetDialog({
             setEventTypeId(null);
             setSelectedTiers(new Set(['Basic', 'Standard', 'Premium']));
             setError('');
-            // Fetch event types for this brand
-            api.eventTypes.getAll().then(setEventTypes).catch(() => {});
         }
     }, [open]);
 
@@ -86,7 +86,7 @@ export default function CreatePackageSetDialog({
                 .map(t => t.label)
                 .filter(t => selectedTiers.has(t));
 
-            await api.packageSets.create(brandId, {
+            await createPackageSetMutation.mutateAsync({
                 name: name.trim(),
                 description: description.trim() || undefined,
                 emoji,

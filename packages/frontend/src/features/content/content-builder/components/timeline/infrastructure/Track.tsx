@@ -9,10 +9,10 @@ import {
     MusicNote as MusicIcon,
 } from "@mui/icons-material";
 import { useDroppable } from "@dnd-kit/core";
-import { TimelineTrack as TimelineTrackType } from "@/lib/types/timeline";
-import { ViewState } from "@/lib/types/timeline";
+import { TimelineTrack as TimelineTrackType } from "@/features/content/content-builder/types/timeline";
+import { ViewState } from "@/features/content/content-builder/types/timeline";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
-import { getEquipmentLabelForTrackName } from "@/lib/utils/equipmentAssignments";
+import { getEquipmentLabelForTrackName } from "@/features/content/films/utils/equipmentAssignments";
 import TrackDefaultDialog from "./TrackDefaultDialog";
 
 interface TimelineTrackProps {
@@ -60,7 +60,7 @@ const Track: React.FC<TimelineTrackProps> = ({
         : "";
 
     // Operator info from track assignment
-    const operator = track.contributor;
+    const operator = track.crew_member;
     const operatorColor = operator?.crew_color || null;
     const operatorName = operator?.contact
         ? [operator.contact.first_name, operator.contact.last_name].filter(Boolean).join(" ")

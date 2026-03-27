@@ -33,10 +33,8 @@ import {
     Palette as GraphicsIcon,
     MusicNote as MusicIcon,
 } from "@mui/icons-material";
-import { createScenesApi } from "@/features/content/scenes/api";
-import { apiClient } from "@/lib/api";
-import type { ApiClient } from "@/lib/api/api-client.types";
-import type { TimelineTrack, TimelineScene } from "@/lib/types/timeline";
+import { scenesApi } from "@/features/content/scenes/api";
+import type { TimelineTrack, TimelineScene } from "@/features/content/content-builder/types/timeline";
 import type { TrackDefault } from "../../../context/ContentBuilderContext";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
 import type { ShotType } from "@/features/content/coverage/types";
@@ -114,7 +112,6 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
     onClose,
     onSaveDefault,
 }) => {
-    const scenesApi = React.useMemo(() => createScenesApi(apiClient as unknown as ApiClient), []);
     // Pull setScenes so we can update local state immediately after each API save
     const { setScenes } = useContentBuilder();
 

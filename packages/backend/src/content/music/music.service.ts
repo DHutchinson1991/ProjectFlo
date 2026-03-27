@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma, SceneMusic, MomentMusic, MusicType } from '@prisma/client';
+import { PrismaService } from '../../platform/prisma/prisma.service';
 import { CreateSceneMusicDto, CreateMomentMusicDto } from './dto/create-music.dto';
 import { UpdateSceneMusicDto, UpdateMomentMusicDto } from './dto/update-music.dto';
 
@@ -30,7 +31,7 @@ export interface MomentMusicResponseDto {
 export class MusicService {
     constructor(private prisma: PrismaService) { }
 
-    private mapSceneToResponseDto(music: any): SceneMusicResponseDto {
+    private mapSceneToResponseDto(music: SceneMusic): SceneMusicResponseDto {
         return {
             id: music.id,
             film_scene_id: music.film_scene_id,
@@ -43,7 +44,7 @@ export class MusicService {
         };
     }
 
-    private mapMomentToResponseDto(music: any): MomentMusicResponseDto {
+    private mapMomentToResponseDto(music: MomentMusic): MomentMusicResponseDto {
         return {
             id: music.id,
             moment_id: music.moment_id,
@@ -83,7 +84,7 @@ export class MusicService {
                 music_name: createDto.music_name,
                 artist: createDto.artist,
                 duration: createDto.duration,
-                music_type: (createDto.music_type as any) || 'MODERN',
+                music_type: (createDto.music_type as MusicType) || MusicType.MODERN,
             },
         });
 
@@ -113,7 +114,7 @@ export class MusicService {
 
         const updated = await this.prisma.sceneMusic.update({
             where: { id: music.id },
-            data: updateDto as any,
+            data: updateDto as Prisma.SceneMusicUpdateInput,
         });
 
         return this.mapSceneToResponseDto(updated);
@@ -161,7 +162,7 @@ export class MusicService {
                 music_name: createDto.music_name,
                 artist: createDto.artist,
                 duration: createDto.duration,
-                music_type: (createDto.music_type as any) || 'MODERN',
+                music_type: (createDto.music_type as MusicType) || MusicType.MODERN,
                 overrides_scene_music: createDto.overrides_scene_music ?? true,
             },
         });
@@ -192,7 +193,7 @@ export class MusicService {
 
         const updated = await this.prisma.momentMusic.update({
             where: { id: music.id },
-            data: updateDto as any,
+            data: updateDto as Prisma.MomentMusicUpdateInput,
         });
 
         return this.mapMomentToResponseDto(updated);

@@ -3,10 +3,10 @@
 import React from "react";
 import { Box, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { C } from '../constants/wizard-config';
-import { chipBounce, selectPulse } from '../constants/animations';
-import { NACtx } from '../types';
-import { Q } from './QuestionWrapper';
+import { C } from '../../constants/wizard-config';
+import { chipBounce, selectPulse } from '../../constants/animations';
+import { NACtx } from '../../types';
+import { Q } from '../QuestionWrapper';
 
 export default function BudgetScreen({ ctx }: { ctx: NACtx }) {
     const { responses, singleSelect, budgetLabels } = ctx;

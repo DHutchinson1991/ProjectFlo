@@ -7,7 +7,7 @@ Canonical home for scene-moment domain types, API bindings, hooks, and helpers. 
 | File | Purpose |
 |------|---------|
 | `types/index.ts` | `SceneMoment`, create/update DTOs, `MomentFormData`, timeline types, `formatDuration` |
-| `api/index.ts` | `createMomentsApi(client)` — thin wrapper over `createScenesApi().moments` |
+| `api/index.ts` | `createMomentsApi(client)` — canonical moment CRUD and recording-setup bindings |
 | `hooks/useSceneMomentInteractions.ts` | Coordinator: edit state, save, composes resize/drag/recording-setup sub-hooks |
 | `hooks/useMomentResize.ts` | Moment resize interaction (drag-to-resize) |
 | `hooks/useMomentDragReorder.ts` | Moment drag-to-reorder within a scene |
@@ -19,13 +19,13 @@ Canonical home for scene-moment domain types, API bindings, hooks, and helpers. 
 
 ## Business rules / invariants
 - Moments belong to a scene via `film_scene_id`; a scene can have 0..n moments.
-- Moment CRUD is accessed through `createScenesApi` (scenes feature), re-exported as `createMomentsApi`.
-- `MusicType` and `MUSIC_TYPE_OPTIONS` live in `@/lib/types/domains/music` — not duplicated here.
+- Moment CRUD and moment recording-setup bindings live in `createMomentsApi`; scene-level grouping APIs remain in `features/content/scenes/api`.
+- `MusicType` and `MUSIC_TYPE_OPTIONS` live in `@/features/content/music/types` — not duplicated here.
 - `formatDuration(seconds)` formats as `"Xm Ys"`, `"Xm"`, or `"Ys"`.
 - `MomentFormData` is the loose form-layer type for moment editors; `SceneMoment` is the strict domain type.
 
 ## Related modules
 - **Backend**: `packages/backend/src/content/moments/` — moments controller + service
-- **Frontend scenes**: `features/content/scenes` — `createScenesApi` exposes `moments.*` methods
+- **Frontend scenes**: `features/content/scenes` — owns scene CRUD, templates, coverage, and scene-level attachments
 - **Frontend films**: `features/content/films` — enrichment pipelines consume moment types
 - **ContentBuilder**: reads `TimelineSceneWithMoments` for timeline rendering

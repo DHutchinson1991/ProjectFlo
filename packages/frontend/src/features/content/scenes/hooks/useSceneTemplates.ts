@@ -1,10 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api";
-import type { ApiClient } from "@/lib/api/api-client.types";
-import { createScenesApi } from "../api";
+import { scenesApi } from "../api";
 import type { ScenesLibrary } from "../types";
-
-const scenesApi = createScenesApi(apiClient as unknown as ApiClient);
 
 export const sceneTemplateKeys = {
   all: ["scene-templates"] as const,

@@ -16,10 +16,10 @@ import {
   useTimelineSave,
   useTimelineStorage,
 } from '../hooks';
-import { TimelineScene, TimelineTrack, DragState, PlaybackState, ViewState } from '@/lib/types/timeline';
+import { TimelineScene, TimelineTrack, DragState, PlaybackState, ViewState } from '@/features/content/content-builder/types/timeline';
 import { SceneGroup } from '@/features/content/scenes/types';
 import type { FilmEquipmentAssignmentsBySlot } from '@/features/content/films/types/film-equipment.types';
-import { api } from '@/lib/api';
+import { scheduleApi, crewSlotsApi } from '@/features/workflow/scheduling/api';
 import { useOptionalFilmApi, type FilmContentApi } from '@/features/content/films/components/FilmApiContext';
 
 type PackageSubject = Record<string, unknown>;
@@ -51,11 +51,10 @@ interface PackageOperator {
   id: number;
   package_activity_id?: number;
   event_day_template_id?: number;
-  contributor_id?: number;
-  position_name?: string;
-  position_color?: string;
+  crew_member_id?: number;
+  label?: string;
   job_role?: { id: number; name: string; display_name?: string };
-  contributor?: { id: number; crew_color?: string };
+  crew_member?: { id: number; crew_color?: string };
   equipment?: OperatorEquipmentItem[];
   activity_assignments?: PackageOperatorAssignment[];
 }
@@ -236,7 +235,7 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
   React.useEffect(() => {
     if (!packageId) return;
     let mounted = true;
-    api.schedule.packageEventDaySubjects.getAll(packageId).then((subjects) => {
+    scheduleApi.packageEventDaySubjects.getAll(packageId).then((subjects) => {
       if (mounted) setPackageSubjects((subjects || []) as PackageSubject[]);
     }).catch(() => {});
     return () => { mounted = false; };
@@ -255,7 +254,7 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
     let mounted = true;
     // Use the numbered slot system (packageLocationSlots), which is what the
     // package designer populates. Filter only slots with activity assignments.
-    api.schedule.packageLocationSlots.getAll(packageId).then((slots) => {
+    scheduleApi.packageLocationSlots.getAll(packageId).then((slots) => {
       if (!mounted) return;
       const assigned = ((slots || []) as PackageLocation[]).filter(
         (s) => (s.activity_assignments?.length || 0) > 0
@@ -284,10 +283,10 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
     (async () => {
       try {
         const [activities, operators, packageFilms, eventDays] = await Promise.all([
-          api.schedule.packageActivities.getAll(packageId),
-          api.operators.packageDay.getAll(packageId),
-          api.schedule.packageFilms.getAll(packageId),
-          api.schedule.packageEventDays.getAll(packageId),
+          scheduleApi.packageActivities.getAll(packageId),
+          crewSlotsApi.packageDay.getAll(packageId),
+          scheduleApi.packageFilms.getAll(packageId),
+          scheduleApi.packageEventDays.getAll(packageId),
         ]);
         if (!mounted) return;
 
@@ -305,7 +304,7 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
         const matchingPF = ((packageFilms || []) as PackageFilmRef[]).find((pf) => pf.film_id === numFilmId);
         if (!matchingPF) return;
 
-        const pfData = (await api.schedule.packageFilms.getSchedule(matchingPF.id)) as PackageFilmSchedule;
+        const pfData = (await scheduleApi.packageFilms.getSchedule(matchingPF.id)) as PackageFilmSchedule;
         if (!mounted || !pfData?.scene_schedules) return;
 
         // Pre-compute crew counts per activity
@@ -321,10 +320,10 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
             if (hasNoAssignment && o.event_day_template_id === activityEventDayId) return true;
             return false;
           });
-          // Deduplicate by contributor_id
+          // Deduplicate by crew_member_id
           const seen = new Map<number, PackageOperator>();
           matched.forEach((o) => {
-            const crewId = o.contributor_id ?? o.id;
+            const crewId = o.crew_member_id ?? o.id;
             if (!seen.has(crewId)) seen.set(crewId, o);
           });
           const crew = Array.from(seen.values());

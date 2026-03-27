@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
     Box,
     Typography,
@@ -27,16 +27,21 @@ import {
     Delete as DeleteIcon,
     Category as EventTypeIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
-import { useBrand } from "@/app/providers/BrandProvider";
+import {
+    useCreateEventType,
+    useDeleteEventType,
+    useEventTypes,
+    useUpdateEventType,
+} from "@/features/catalog/event-types/hooks";
 import { PRESET_COLORS } from "../constants";
 import { EventDaySection, SubjectTypeSection } from "../components";
 import type { EventType } from "../types";
 
 export function EventTypesScreen() {
-    const { currentBrand } = useBrand();
-    const [eventTypes, setEventTypes] = useState<EventType[]>([]);
-    const [loading, setLoading] = useState(true);
+    const eventTypesQuery = useEventTypes();
+    const createEventTypeMutation = useCreateEventType();
+    const updateEventTypeMutation = useUpdateEventType();
+    const deleteEventTypeMutation = useDeleteEventType();
     const [error, setError] = useState<string | null>(null);
     const [selectedId, setSelectedId] = useState<number | null>(null);
 
@@ -45,22 +50,14 @@ export function EventTypesScreen() {
     const [editing, setEditing] = useState<EventType | null>(null);
     const [saving, setSaving] = useState(false);
     const [form, setForm] = useState({ name: "", description: "", icon: "" });
+    const eventTypes = eventTypesQuery.data ?? [];
+    const loading = eventTypesQuery.isLoading;
 
-    // ── Load ──
-    const load = useCallback(async () => {
-        if (!currentBrand?.id) return;
-        try {
-            setLoading(true);
-            const data = await api.eventTypes.getAll();
-            setEventTypes(data || []);
-        } catch {
+    useEffect(() => {
+        if (eventTypesQuery.error) {
             setError("Failed to load event types");
-        } finally {
-            setLoading(false);
         }
-    }, [currentBrand?.id]);
-
-    useEffect(() => { load(); }, [load]);
+    }, [eventTypesQuery.error]);
 
     // Auto-select first event type when loaded
     useEffect(() => {
@@ -100,15 +97,14 @@ export function EventTypesScreen() {
                 color: autoColor,
             };
             if (editing) {
-                await api.eventTypes.update(editing.id, data);
+                await updateEventTypeMutation.mutateAsync({ id: editing.id, data });
             } else {
-                const created = await api.eventTypes.create(data);
+                const created = await createEventTypeMutation.mutateAsync(data);
                 if (created?.id) {
                     setSelectedId(created.id);
                 }
             }
             setDialogOpen(false);
-            await load();
         } catch {
             setError("Failed to save event type");
         } finally {
@@ -119,11 +115,10 @@ export function EventTypesScreen() {
     const handleDelete = async (id: number) => {
         if (!window.confirm("Delete this event type? Linked presets won't be deleted.")) return;
         try {
-            await api.eventTypes.remove(id);
+            await deleteEventTypeMutation.mutateAsync(id);
             if (selectedId === id) {
                 setSelectedId(null);
             }
-            await load();
         } catch {
             setError("Failed to delete event type");
         }

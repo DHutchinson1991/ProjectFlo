@@ -3,20 +3,22 @@ import React from "react";
 import { Box, Typography, Chip, Tooltip, Collapse, Stack } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { CheckCircle as CheckCircleIcon, ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
-import type { PaymentScheduleTemplate } from "@/lib/types";
+import type { PaymentScheduleTemplate } from "@/features/finance/payment-schedules/types";
 import { C, glassSx } from '../constants/wizard-config';
 import { chipBounce, selectPulse } from '../constants/animations';
-import { MILESTONE_COLORS, timingLabel, rulePercent, fmtCurrency } from '../mappers/payment-terms';
+import { MILESTONE_COLORS, timingLabel, rulePercent } from '../mappers/payment-terms';
+import { formatCurrency } from '@projectflo/shared';
+import { roundMoney } from '@/shared/utils/pricing';
 
 interface Props {
     template: PaymentScheduleTemplate;
     selected: number | null;
     totalPrice: number | null;
-    currSym: string;
+    currency: string;
     onSelect: (id: number) => void;
 }
 
-export function PaymentScheduleCard({ template, selected, totalPrice, currSym, onSelect }: Props) {
+export function PaymentScheduleCard({ template, selected, totalPrice, currency, onSelect }: Props) {
     const isSel = selected === template.id;
     const sorted = template.rules.slice().sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
     const barTotal = sorted.reduce((s, r) => s + (rulePercent(r) || 1), 0) || 1;
@@ -25,13 +27,13 @@ export function PaymentScheduleCard({ template, selected, totalPrice, currSym, o
         const pct = rulePercent(rule);
         return {
             rule, pct,
-            amount: totalPrice && pct > 0 ? (pct / 100) * totalPrice : null,
+            amount: totalPrice && pct > 0 ? roundMoney((pct / 100) * totalPrice) : null,
             color: MILESTONE_COLORS[i % MILESTONE_COLORS.length],
             timing: timingLabel(rule),
         };
     });
 
-    const summaryText = rows.map((r) => r.amount !== null ? fmtCurrency(currSym, r.amount) : `${r.pct}%`).join("  +  ");
+    const summaryText = rows.map((r) => r.amount !== null ? formatCurrency(r.amount, currency, 0) : `${r.pct}%`).join("  +  ");
 
     return (
         <Box
@@ -62,7 +64,7 @@ export function PaymentScheduleCard({ template, selected, totalPrice, currSym, o
                 </Box>
                 <Box sx={{ display: "flex", gap: "3px", height: 5, borderRadius: 3, overflow: "hidden", bgcolor: alpha(C.border, 0.3), mb: 1 }}>
                     {rows.map((r, i) => (
-                        <Tooltip key={i} title={`${r.rule.label}: ${r.amount !== null ? fmtCurrency(currSym, r.amount) : `${r.pct || Math.round(100 / rows.length)}%`}`} arrow placement="top">
+                        <Tooltip key={i} title={`${r.rule.label}: ${r.amount !== null ? formatCurrency(r.amount, currency, 0) : `${r.pct || Math.round(100 / rows.length)}%`}`} arrow placement="top">
                             <Box sx={{ flex: (r.pct || 1) / barTotal, bgcolor: isSel ? r.color : alpha(r.color, 0.35), borderRadius: 1, minWidth: 4, transition: "flex 0.3s, background-color 0.3s" }} />
                         </Tooltip>
                     ))}
@@ -94,12 +96,12 @@ export function PaymentScheduleCard({ template, selected, totalPrice, currSym, o
                                 <Box sx={{ textAlign: "right", flexShrink: 0 }}>
                                     {r.amount !== null ? (
                                         <>
-                                            <Typography sx={{ fontSize: "0.82rem", fontWeight: 700, fontFamily: "monospace", color: r.color, lineHeight: 1.2 }}>{fmtCurrency(currSym, r.amount)}</Typography>
+                                            <Typography sx={{ fontSize: "0.82rem", fontWeight: 700, fontFamily: "monospace", color: r.color, lineHeight: 1.2 }}>{formatCurrency(r.amount, currency, 0)}</Typography>
                                             <Typography sx={{ fontSize: "0.58rem", color: alpha(C.muted, 0.7), lineHeight: 1.2 }}>({r.pct}%)</Typography>
                                         </>
                                     ) : (
                                         <Typography sx={{ fontSize: "0.82rem", fontWeight: 700, fontFamily: "monospace", color: r.color, lineHeight: 1.2 }}>
-                                            {r.pct > 0 ? `${r.pct}%` : `${currSym}${Number(r.rule.amount_value).toLocaleString()}`}
+                                            {r.pct > 0 ? `${r.pct}%` : formatCurrency(Number(r.rule.amount_value), currency, 0)}
                                         </Typography>
                                     )}
                                 </Box>

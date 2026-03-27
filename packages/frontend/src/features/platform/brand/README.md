@@ -12,8 +12,8 @@ Multi-brand context, brand switching, and brand-scoped UI for the frontend.
 
 ## Key Dependencies
 - `@/features/platform/auth` — `useAuth` (brand resolution requires authenticated user)
-- `@/lib/api` — `api` instance + `setBrandContextProvider` for header injection
-- `@/lib/types` — `Brand` and related types
+- `@/shared/api/client` — shared API transport + automatic `X-Brand-Context` header injection
+- `@/features/platform/brand/types` — `Brand` and related types
 - `@tanstack/react-query` — `userBrands` query
 
 ## File Layout

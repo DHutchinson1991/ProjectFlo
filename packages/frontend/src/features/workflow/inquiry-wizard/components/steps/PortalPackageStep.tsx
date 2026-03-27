@@ -2,6 +2,7 @@
 import React from 'react';
 import { Box, Typography, Stack } from '@mui/material';
 import { alpha } from '@mui/material/styles';
+import { DEFAULT_CURRENCY, formatCurrency } from '@projectflo/shared';
 import type { PortalColors } from '../../constants/public-wizard-theme';
 import type { PublicPackageData } from '../../types';
 
@@ -9,13 +10,14 @@ interface Props {
     packages: PublicPackageData[];
     selectedPackageId: number | null;
     onSelect: (id: number | null) => void;
-    currencySymbol: string;
+    currencyCode?: string | null;
     selectedEventType: string | null;
     colors: PortalColors;
     cardSx: object;
 }
 
-export default function PortalPackageStep({ packages, selectedPackageId, onSelect, currencySymbol, selectedEventType, colors, cardSx }: Props) {
+export default function PortalPackageStep({ packages, selectedPackageId, onSelect, currencyCode, selectedEventType, colors, cardSx }: Props) {
+    const currency = currencyCode ?? DEFAULT_CURRENCY;
     return (
         <Stack spacing={2.5}>
             {selectedEventType && (
@@ -80,7 +82,7 @@ export default function PortalPackageStep({ packages, selectedPackageId, onSelec
 
                                 {price != null && (
                                     <Typography sx={{ background: `linear-gradient(135deg, ${colors.gradient1}, ${colors.gradient2})`, backgroundClip: 'text', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: '1.35rem', fontWeight: 700, lineHeight: 1 }}>
-                                        {currencySymbol}{Number(price).toLocaleString()}
+                                        {formatCurrency(Number(price), currency)}
                                     </Typography>
                                 )}
 

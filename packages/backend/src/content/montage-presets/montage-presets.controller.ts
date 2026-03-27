@@ -10,23 +10,28 @@ import {
     HttpCode,
     HttpStatus,
     Query,
+    UseGuards,
+    ValidationPipe,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { MontagePresetsService } from './montage-presets.service';
 import { CreateMontagePresetDto } from './dto/create-montage-preset.dto';
 import { UpdateMontagePresetDto } from './dto/update-montage-preset.dto';
+import { MontagePresetsQueryDto } from './dto/montage-presets-query.dto';
 
-@Controller('montage-presets')
+@Controller('api/montage-presets')
+@UseGuards(AuthGuard('jwt'))
 export class MontagePresetsController {
     constructor(private readonly montagePresetsService: MontagePresetsService) {}
 
     @Post()
-    create(@Body() createDto: CreateMontagePresetDto) {
+    create(@Body(new ValidationPipe({ transform: true })) createDto: CreateMontagePresetDto) {
         return this.montagePresetsService.create(createDto);
     }
 
     @Get()
-    findAll(@Query('brandId', new ParseIntPipe({ optional: true })) brandId?: number) {
-        return this.montagePresetsService.findAll(brandId);
+    findAll(@Query(new ValidationPipe({ transform: true })) query: MontagePresetsQueryDto) {
+        return this.montagePresetsService.findAll(query.brandId);
     }
 
     @Get(':id')
@@ -37,7 +42,7 @@ export class MontagePresetsController {
     @Patch(':id')
     update(
         @Param('id', ParseIntPipe) id: number,
-        @Body() updateDto: UpdateMontagePresetDto,
+        @Body(new ValidationPipe({ transform: true })) updateDto: UpdateMontagePresetDto,
     ) {
         return this.montagePresetsService.update(id, updateDto);
     }

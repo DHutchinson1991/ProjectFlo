@@ -55,7 +55,7 @@ export function EquipmentDetailScreen({ equipmentId }: EquipmentDetailScreenProp
         equipment,
         rentals,
         maintenance,
-        contributors,
+        crewMembers,
         loading,
         error,
         isEditing,
@@ -143,7 +143,7 @@ export function EquipmentDetailScreen({ equipmentId }: EquipmentDetailScreenProp
                                 equipment={equipment}
                                 isEditing={isEditing}
                                 editData={editData}
-                                contributors={contributors}
+                                contributors={crewMembers}
                                 onUpdate={updateEditData}
                             />
                         </Grid>
@@ -159,11 +159,11 @@ export function EquipmentDetailScreen({ equipmentId }: EquipmentDetailScreenProp
                 </TabPanel>
 
                 <TabPanel value={tabValue} index={1}>
-                    <EquipmentRentalTab rentals={rentals} />
+                    <EquipmentRentalTab rentals={rentals} currency={currencyCode} />
                 </TabPanel>
 
                 <TabPanel value={tabValue} index={2}>
-                    <EquipmentMaintenanceTab maintenance={maintenance} />
+                    <EquipmentMaintenanceTab maintenance={maintenance} currency={currencyCode} />
                 </TabPanel>
             </Box>
 

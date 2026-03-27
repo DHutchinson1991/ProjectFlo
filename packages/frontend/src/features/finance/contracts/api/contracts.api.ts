@@ -1,5 +1,5 @@
-import type { ApiClient } from '@/lib/api/api-client.types';
-import { apiClient } from '@/lib/api';
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 import type {
     Contract,
     CreateContractData,
@@ -34,5 +34,5 @@ export const createContractsApi = (client: ApiClient) => ({
         client.post(`/api/inquiries/${inquiryId}/contracts/${contractId}/send`, data),
 });
 
-export const contractsApi = createContractsApi(apiClient as unknown as ApiClient);
+export const contractsApi = createContractsApi(apiClient);
 export type ContractsApi = ReturnType<typeof createContractsApi>;

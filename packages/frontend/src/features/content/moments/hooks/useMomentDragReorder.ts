@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import type { TimelineScene } from '@/lib/types/timeline';
+import type { TimelineScene } from '@/features/content/content-builder/types/timeline';
 import type { UpdateSceneMomentsFn } from './moment-hook.types';
 import { getSceneMoments } from './moment-hook.types';
 

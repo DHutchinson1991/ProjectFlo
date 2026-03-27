@@ -1,10 +1,8 @@
 "use client";
 
-import { useCallback, useMemo } from 'react';
-import { createMomentsApi } from '../api';
-import { apiClient } from '@/lib/api';
-import type { ApiClient } from '@/lib/api/api-client.types';
-import type { TimelineScene } from '@/lib/types/timeline';
+import { useCallback } from 'react';
+import { momentsApi } from '../api';
+import type { TimelineScene } from '@/features/content/content-builder/types/timeline';
 import type { MomentFormData } from '../types';
 
 export const useMomentOperations = (
@@ -13,8 +11,6 @@ export const useMomentOperations = (
   onClosePopover: () => void,
   onMomentsUpdate?: (updatedMoments: MomentFormData[]) => void,
 ) => {
-  const momentsApi = useMemo(() => createMomentsApi(apiClient as unknown as ApiClient), []);
-
   const handleSaveMoment = useCallback(
     async (updatedMoment: MomentFormData) => {
       if (!updatedMoment.id) return;
@@ -44,6 +40,9 @@ export const useMomentOperations = (
 
       if (oldMoment && (updatedMoment.name !== oldMoment.name || updatedMoment.duration !== oldMoment.duration)) {
         try {
+          if (!scene.id) {
+            return;
+          }
           await momentsApi.update(updatedMoment.id, {
             name: updatedMoment.name,
             duration: updatedMoment.duration,
@@ -53,7 +52,7 @@ export const useMomentOperations = (
         }
       }
     },
-    [scene, moments, onClosePopover, onMomentsUpdate, momentsApi],
+    [scene, moments, onClosePopover, onMomentsUpdate],
   );
 
   return { handleSaveMoment };

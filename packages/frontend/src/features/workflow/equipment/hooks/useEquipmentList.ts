@@ -88,7 +88,7 @@ export function useEquipmentList(): EquipmentListState & EquipmentListActions {
 
     return {
         equipmentByCategory,
-        contributors: contributorsQuery.data ?? [],
+        crewMembers: contributorsQuery.data ?? [],
         loading: equipmentQuery.isPending,
         error,
         deleteConfirmOpen,

@@ -30,7 +30,7 @@ import {
     Person as CrewIcon,
     Place as LocationIcon,
 } from '@mui/icons-material';
-import api from '@/lib/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 import type { InstanceOwner } from '../hooks/useInstanceScheduleData';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -112,8 +112,8 @@ export default function ScheduleDiffView({ open, onClose, owner }: ScheduleDiffV
         setError(null);
 
         const fetchDiff = owner.type === 'project'
-            ? api.schedule.scheduleDiff.project(owner.id)
-            : api.schedule.scheduleDiff.inquiry(owner.id);
+            ? scheduleApi.scheduleDiff.project(owner.id)
+            : scheduleApi.scheduleDiff.inquiry(owner.id);
 
         fetchDiff
             .then((res: ScheduleDiffData) => {

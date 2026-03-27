@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
     Box,
     Typography,
@@ -62,7 +62,6 @@ import {
     Person as TalentIcon,
     Place as LocationIcon,
 } from "@mui/icons-material";
-import { contractClausesApi, contractTemplatesApi } from "@/features/finance/contracts";
 import type {
     ContractClauseCategory,
     ContractClause,
@@ -71,7 +70,12 @@ import type {
     CreateContractClauseData,
     UpdateContractClauseData,
     ContractVariableCategory,
-} from "@/lib/types";
+} from "@/features/finance/contracts/types";
+import {
+    useContractClauseCategories,
+    useContractVariables,
+    useContractClauseMutations,
+} from "../hooks";
 import ContractTemplatesTab from "./ContractTemplatesTab";
 
 // ---------------------------------------------------------------------------
@@ -82,8 +86,21 @@ export default function ContractSettings() {
     // Inner tab state
     const [activeTab, setActiveTab] = useState(0);
 
-    const [categories, setCategories] = useState<ContractClauseCategory[]>([]);
-    const [loading, setLoading] = useState(true);
+    const categoriesQuery = useContractClauseCategories();
+    const variablesQuery = useContractVariables();
+    const {
+        createCategory,
+        updateCategory,
+        deleteCategory,
+        createClause,
+        updateClause,
+        deleteClause,
+        seedDefaults,
+    } = useContractClauseMutations();
+
+    const categories = categoriesQuery.data ?? [];
+    const variableCategories = variablesQuery.data ?? [];
+    const loading = categoriesQuery.isPending;
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
@@ -92,7 +109,6 @@ export default function ContractSettings() {
 
     // Variable picker state
     const [variableAnchor, setVariableAnchor] = useState<HTMLElement | null>(null);
-    const [variableCategories, setVariableCategories] = useState<ContractVariableCategory[]>([]);
     const bodyFieldRef = useRef<HTMLTextAreaElement>(null);
 
     // Category dialog state
@@ -128,29 +144,6 @@ export default function ContractSettings() {
     const [seedCountry, setSeedCountry] = useState("GB");
 
     const [submitting, setSubmitting] = useState(false);
-
-    // ── Data loading ──────────────────────────────────────────────────
-
-    const loadCategories = useCallback(async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            const [data, vars] = await Promise.all([
-                contractClausesApi.getCategories(),
-                contractTemplatesApi.getVariables(),
-            ]);
-            setCategories(data);
-            setVariableCategories(vars);
-        } catch {
-            setError("Failed to load contract clauses");
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        loadCategories();
-    }, [loadCategories]);
 
     // ── Category CRUD ─────────────────────────────────────────────────
 
@@ -191,13 +184,12 @@ export default function ContractSettings() {
                 country_code: catForm.country_code || undefined,
             };
             if (catDialogMode === "create") {
-                await contractClausesApi.createCategory(data);
+                await createCategory.mutateAsync(data);
                 setSuccess("Category created");
             } else if (editingCategory) {
-                await contractClausesApi.updateCategory(editingCategory.id, data as UpdateContractClauseCategoryData);
+                await updateCategory.mutateAsync({ id: editingCategory.id, data: data as UpdateContractClauseCategoryData });
                 setSuccess("Category updated");
             }
-            await loadCategories();
             setCatDialogOpen(false);
         } catch {
             setError(`Failed to ${catDialogMode} category`);
@@ -256,7 +248,7 @@ export default function ContractSettings() {
                     clause_type: clauseForm.clause_type,
                     country_code: clauseForm.country_code || undefined,
                 };
-                await contractClausesApi.create(data);
+                await createClause.mutateAsync(data);
                 setSuccess("Clause created");
             } else if (editingClause) {
                 const data: UpdateContractClauseData = {
@@ -265,10 +257,9 @@ export default function ContractSettings() {
                     clause_type: clauseForm.clause_type,
                     country_code: clauseForm.country_code || undefined,
                 };
-                await contractClausesApi.update(editingClause.id, data);
+                await updateClause.mutateAsync({ id: editingClause.id, data });
                 setSuccess("Clause updated");
             }
-            await loadCategories();
             setClauseDialogOpen(false);
         } catch {
             setError(`Failed to ${clauseDialogMode} clause`);
@@ -279,8 +270,7 @@ export default function ContractSettings() {
 
     const handleToggleClauseActive = async (clause: ContractClause) => {
         try {
-            await contractClausesApi.update(clause.id, { is_active: !clause.is_active });
-            await loadCategories();
+            await updateClause.mutateAsync({ id: clause.id, data: { is_active: !clause.is_active } });
             setSuccess(`Clause ${clause.is_active ? "disabled" : "enabled"}`);
         } catch {
             setError("Failed to update clause");
@@ -300,11 +290,10 @@ export default function ContractSettings() {
         try {
             setSubmitting(true);
             if (deleteTarget.type === "category") {
-                await contractClausesApi.deleteCategory(deleteTarget.id);
+                await deleteCategory.mutateAsync(deleteTarget.id);
             } else {
-                await contractClausesApi.delete(deleteTarget.id);
+                await deleteClause.mutateAsync(deleteTarget.id);
             }
-            await loadCategories();
             setDeleteDialogOpen(false);
             setDeleteTarget(null);
             setSuccess(`${deleteTarget.type === "category" ? "Category" : "Clause"} deleted`);
@@ -321,8 +310,7 @@ export default function ContractSettings() {
         try {
             setSubmitting(true);
             setError(null);
-            await contractClausesApi.seedDefaults(seedCountry);
-            await loadCategories();
+            await seedDefaults.mutateAsync(seedCountry);
             setSeedDialogOpen(false);
             setSuccess(`Default ${seedCountry} clauses loaded`);
         } catch {

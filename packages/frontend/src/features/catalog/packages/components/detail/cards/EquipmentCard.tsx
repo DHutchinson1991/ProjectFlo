@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import {
@@ -12,14 +12,15 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import Link from 'next/link';
 
-import { api } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils/formatUtils';
-import { ServicePackage, ServicePackageItem } from '@/lib/types/domains/sales';
+import { formatCurrency } from '@/shared/utils/formatUtils';
+import { ServicePackage, ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
+import { equipmentApi } from '@/features/workflow/equipment/api';
+import { crewSlotsApi } from '@/features/workflow/scheduling/api';
 import type { EventDay } from '@/features/workflow/scheduling/components';
 import { useOptionalScheduleApi } from '@/features/workflow/scheduling/components';
 
 import type {
-    PackageDayOperatorRecord,
+    PackageCrewSlotRecord,
     PackageActivityRecord,
     EquipmentRecord,
     UnmannedEquipmentRecord,
@@ -39,8 +40,8 @@ export interface EquipmentCardProps {
     safeBrandId: number | undefined;
     formData: Partial<ServicePackage>;
     setFormData: React.Dispatch<React.SetStateAction<Partial<ServicePackage>>>;
-    packageDayOperators: PackageDayOperatorRecord[];
-    setPackageDayOperators: React.Dispatch<React.SetStateAction<PackageDayOperatorRecord[]>>;
+    PackageCrewSlots: PackageCrewSlotRecord[];
+    setPackageCrewSlots: React.Dispatch<React.SetStateAction<PackageCrewSlotRecord[]>>;
     packageEventDays: EventDay[];
     packageActivities: PackageActivityRecord[];
     scheduleActiveDayId: number | null;
@@ -58,8 +59,8 @@ export function EquipmentCard({
     safeBrandId,
     formData,
     setFormData,
-    packageDayOperators,
-    setPackageDayOperators,
+    PackageCrewSlots,
+    setPackageCrewSlots,
     packageEventDays,
     packageActivities,
     scheduleActiveDayId,
@@ -83,10 +84,10 @@ export function EquipmentCard({
     const operatorEquipApi = {
         setEquipment: contextApi?.operators?.setEquipment
             ?? ((opId: number, equip: { equipment_id: number; is_primary: boolean }[]) =>
-                api.operators.packageDay.setEquipment(opId, equip)),
+                crewSlotsApi.packageDay.setEquipment(opId, equip)),
         refreshAll: contextApi?.operators?.refreshAll
             ?? (packageId
-                ? () => api.operators.packageDay.getAll(packageId)
+                ? () => crewSlotsApi.packageDay.getAll(packageId)
                 : () => Promise.resolve([])),
     };
 
@@ -105,13 +106,13 @@ export function EquipmentCard({
 
     // Fallback: derive equipment from relational operator-equipment links
     const dayOpsForEquip = activeDayTemplateId
-        ? packageDayOperators.filter(o => o.event_day_template_id === activeDayTemplateId)
-        : packageDayOperators;
+        ? PackageCrewSlots.filter(o => o.event_day_template_id === activeDayTemplateId)
+        : PackageCrewSlots;
 
     const relationalEquipment: EquipItem[] = dayOpsForEquip.flatMap((op) =>
         (op.equipment || []).map((eq) => {
             const inferredType = eq.equipment?.category === 'AUDIO' ? 'AUDIO' : 'CAMERA';
-            const parsedTrack = Number.parseInt(op.position_name.match(/\d+/)?.[0] || '', 10);
+            const parsedTrack = Number.parseInt(op.label?.match(/\d+/)?.[0] || '', 10);
             return {
                 equipment_id: eq.equipment_id,
                 slot_type: inferredType as 'CAMERA' | 'AUDIO',
@@ -197,7 +198,7 @@ export function EquipmentCard({
     const levelColor = activeLevel === 'activity' ? '#a855f7' : '#f59e0b';
 
     // Build equipment → operator map
-    const equipToOperator = new Map<number, PackageDayOperatorRecord>();
+    const equipToOperator = new Map<number, PackageCrewSlotRecord>();
     dayOpsForEquip.forEach(op => {
         (op.equipment || []).forEach(eq => {
             equipToOperator.set(eq.equipment_id, op);
@@ -209,7 +210,7 @@ export function EquipmentCard({
         return equipToOperator.get(equipmentId) || null;
     };
 
-    const isOperatorAssignedToSelectedActivity = (op: PackageDayOperatorRecord | null | undefined) => {
+    const isOperatorAssignedToSelectedActivity = (op: PackageCrewSlotRecord | null | undefined) => {
         if (!selectedActivityId || !op) return false;
         if (op.activity_assignments && op.activity_assignments.length > 0) {
             return op.activity_assignments.some(a => a.package_activity_id === selectedActivityId);
@@ -218,7 +219,7 @@ export function EquipmentCard({
         return false;
     };
 
-    const isEquipmentHighlighted = (item: EquipItem, op: PackageDayOperatorRecord | null | undefined) => {
+    const isEquipmentHighlighted = (item: EquipItem, op: PackageCrewSlotRecord | null | undefined) => {
         if (!selectedActivityId) return false;
         if (activeLevel === 'activity') return true;
         if (!item.equipment_id) return false;
@@ -243,7 +244,7 @@ export function EquipmentCard({
         try {
             await operatorEquipApi.setEquipment(operatorDayId, newEquip);
             const dayOps = await operatorEquipApi.refreshAll();
-            setPackageDayOperators(dayOps || []);
+            setPackageCrewSlots(dayOps || []);
         } catch (err) { console.warn('Failed to assign operator:', err); }
     };
 
@@ -256,20 +257,20 @@ export function EquipmentCard({
         try {
             await operatorEquipApi.setEquipment(operatorDayId, updatedEquip);
             const dayOps = await operatorEquipApi.refreshAll();
-            setPackageDayOperators(dayOps || []);
+            setPackageCrewSlots(dayOps || []);
         } catch (err) { console.warn('Failed to unassign operator:', err); }
     };
 
     const handleToggleUnmanned = async (equipmentId: number) => {
         try {
             const isCurrentlyUnmanned = unmannedEquipment.some(eq => eq.id === equipmentId);
-            await api.equipment.setUnmannedStatus(equipmentId, !isCurrentlyUnmanned);
+            await equipmentApi.setUnmannedStatus(equipmentId, !isCurrentlyUnmanned);
             if (safeBrandId) {
-                const unmannedList = await api.equipment.findUnmanned(safeBrandId);
+                const unmannedList = await equipmentApi.findUnmanned(safeBrandId);
                 setUnmannedEquipment(unmannedList || []);
             }
             const dayOps = await operatorEquipApi.refreshAll();
-            setPackageDayOperators(dayOps || []);
+            setPackageCrewSlots(dayOps || []);
         } catch (err) {
             console.error('❌ Failed to toggle unmanned status:', err);
         }
@@ -283,11 +284,11 @@ export function EquipmentCard({
         const trackNum = item.track_number;
         const trackLabel = trackNum ? (isCamera ? `Camera ${trackNum}` : `Audio ${trackNum}`) : (isCamera ? `Cam` : `Aud`);
         const op = getOperatorForEquipment(item.equipment_id);
-        const opColor = op?.position_color || op?.contributor?.crew_color || '#EC4899';
+        const opColor = op?.crew_member?.crew_color || '#EC4899';
 
         let tierName: string | null = null;
         if (op?.contributor && op?.job_role) {
-            const jobRoleMatch = op.contributor.contributor_job_roles?.find(
+            const jobRoleMatch = op.crew_member.job_role_assignments?.find(
                 (cjr) => cjr.job_role_id === op.job_role_id
             );
             tierName = jobRoleMatch?.payment_bracket?.name || null;
@@ -295,9 +296,9 @@ export function EquipmentCard({
 
         const opLabel = op?.job_role
             ? `${op.job_role.display_name || op.job_role.name}${tierName ? ` - ${tierName}` : ''}`
-            : (op?.position_name || '');
+            : (op?.label || '');
         const opName = op?.contributor
-            ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+            ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim()
             : '';
         const opInitials = (opName || opLabel) ? (opName || opLabel).split(' ').filter(Boolean).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() : '';
 
@@ -419,7 +420,7 @@ export function EquipmentCard({
                     )}
                     {/* Operator chip or assign button */}
                     {op ? (
-                        <Tooltip title={`${opLabel}${op.contributor ? ` · ${`${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()}` : ''}${isEquipUnmanned ? ' (Unmanned)' : ''} — Click to change`} arrow placement="top">
+                        <Tooltip title={`${opLabel}${op.crew_member ? ` · ${`${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim()}` : ''}${isEquipUnmanned ? ' (Unmanned)' : ''} — Click to change`} arrow placement="top">
                             <Box
                                 onClick={(e) => {
                                     setEquipAssignAnchor(e.currentTarget);
@@ -741,18 +742,18 @@ export function EquipmentCard({
                         ? dayOpsForEquip.filter(op => op.job_role?.name !== requiredRoleName)
                         : [];
 
-                    const renderOpItem = (op: PackageDayOperatorRecord, dimmed = false) => {
-                        const opC = op.position_color || op.contributor?.crew_color || '#EC4899';
+                    const renderOpItem = (op: PackageCrewSlotRecord, dimmed = false) => {
+                        const opC = op.crew_member?.crew_color || '#EC4899';
                         let opTierName: string | null = null;
-                        if (op.contributor && op.job_role) {
-                            const jrm = op.contributor.contributor_job_roles?.find(cjr => cjr.job_role_id === op.job_role_id);
+                        if (op.crew_member && op.job_role) {
+                            const jrm = op.crew_member.job_role_assignments?.find(cjr => cjr.job_role_id === op.job_role_id);
                             opTierName = jrm?.payment_bracket?.name || null;
                         }
                         const opRoleLabel = op.job_role
                             ? `${op.job_role.display_name || op.job_role.name}${opTierName ? ` - ${opTierName}` : ''}`
-                            : (op.position_name || '?');
+                            : (op.label || '?');
                         const initials = opRoleLabel.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
-                        const personName = op.contributor ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim() : null;
+                        const personName = op.crew_member ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim() : null;
                         const isCurrentlyAssigned = equipAssignTarget?.currentOpId === op.id;
                         return (
                             <MenuItem

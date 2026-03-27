@@ -1,12 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { apiClient } from "@/lib/api";
-import { createFilmsApi } from "../api";
-import type { ApiClient } from "@/lib/api/api-client.types";
+import { filmsApi } from "../api";
 import { FilmLocalScene, DurationMode, SceneDurationInfo } from "@/features/content/films/types/film-scenes.types";
-
-const filmsApi = createFilmsApi(apiClient as unknown as ApiClient);
 import {
   Card,
   CardContent,

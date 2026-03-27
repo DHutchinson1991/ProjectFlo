@@ -9,12 +9,13 @@ import {
     ListItemIcon,
     ListItemText,
     Paper,
+    alpha,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import {
     Dashboard as DashboardIcon,
     Settings as SettingsIcon,
     Inventory as PackagesIcon,
-    ManageAccounts as ManageAccountsIcon,
     Folder as ProjectIcon,
     ContactMail as InquiriesIcon,
     Category as ResourcesIcon,
@@ -32,12 +33,12 @@ const studioNavItems = [
     },
     {
         title: "Inquiries",
-        href: "/sales/inquiries",
+        href: "/inquiries",
         icon: <InquiriesIcon />,
     },
     {
         title: "Customers",
-        href: "/sales/clients",
+        href: "/clients",
         icon: <CustomersIcon />,
     },
     {
@@ -50,35 +51,31 @@ const studioNavItems = [
     },
     {
         title: "Packages",
-        href: "/designer/packages",
+        href: "/packages",
         icon: <PackagesIcon />,
         subItems: [
-            { title: "Package Library", href: "/designer/packages" },
-            { title: "All Packages", href: "/designer/packages/list" },
-            { title: "Templates", href: "/designer/templates" },
+            { title: "Package Library", href: "/packages" },
+            { title: "All Packages", href: "/packages/list" },
+            { title: "Event Type Templates", href: "/event-type-templates" },
         ],
     },
     {
-        title: "Active Tasks",
-        href: "/manager/active-tasks",
+        title: "Tasks",
+        href: "/tasks",
         icon: <TasksIcon />,
+        subItems: [
+            { title: "Active Tasks", href: "/tasks" },
+            { title: "Task Library", href: "/task-library" },
+        ],
     },
     {
-        title: "Resources",
-        href: "/resources",
+        title: "Assets",
+        href: "/crew",
         icon: <ResourcesIcon />,
         subItems: [
-            { title: "Crew", href: "/manager/crew" },
-            { title: "Locations", href: "/resources/locations" },
-            { title: "Equipment Library", href: "/manager/equipment" },
-        ],
-    },
-    {
-        title: "Manager",
-        href: "/manager",
-        icon: <ManageAccountsIcon />,
-        subItems: [
-            { title: "Task Library", href: "/manager/tasks" },
+            { title: "Crew", href: "/crew" },
+            { title: "Locations", href: "/locations" },
+            { title: "Equipment Library", href: "/equipment" },
         ],
     },
     {
@@ -90,33 +87,19 @@ const studioNavItems = [
 
 export default function StudioSidebar() {
     const pathname = usePathname();
+    const theme = useTheme();
 
-    const isActiveItem = (href: string) => {
-        if (href === "/dashboard") {
+    const isActiveItem = (item: { href: string; subItems?: { href: string }[] }) => {
+        if (item.href === "/dashboard") {
             return pathname === "/dashboard" || pathname === "/";
         }
-        if (href === "/sales/inquiries") {
-            return pathname.startsWith("/sales/inquiries");
+        if (item.href === "/packages") {
+            return pathname.startsWith("/packages") || pathname.startsWith("/event-type-templates");
         }
-        if (href === "/sales/clients") {
-            return pathname.startsWith("/sales/clients");
+        if (item.subItems) {
+            return item.subItems.some((sub) => pathname.startsWith(sub.href));
         }
-        if (href === "/projects") {
-            return pathname.startsWith("/projects");
-        }
-        if (href === "/designer") {
-            return pathname.startsWith("/designer");
-        }
-        if (href === "/manager/active-tasks") {
-            return pathname.startsWith("/manager/active-tasks");
-        }
-        if (href === "/manager") {
-            return pathname.startsWith("/manager") && !pathname.startsWith("/manager/active-tasks");
-        }
-        if (href === "/settings") {
-            return pathname.startsWith("/settings");
-        }
-        return pathname.startsWith(href);
+        return pathname.startsWith(item.href);
     };
 
     return (
@@ -152,23 +135,23 @@ export default function StudioSidebar() {
                             sx={{
                                 color: "inherit",
                                 textDecoration: "none",
-                                backgroundColor: isActiveItem(item.href)
-                                    ? "rgba(33, 150, 243, 0.12)"
+                                backgroundColor: isActiveItem(item)
+                                    ? alpha(theme.palette.primary.main, 0.12)
                                     : "transparent",
                                 borderRadius: 1,
                                 mb: 0.5,
                                 mx: 1,
                                 "&:hover": {
-                                    backgroundColor: isActiveItem(item.href)
-                                        ? "rgba(33, 150, 243, 0.16)"
-                                        : "rgba(255, 255, 255, 0.04)",
+                                    backgroundColor: isActiveItem(item)
+                                        ? alpha(theme.palette.primary.main, 0.16)
+                                        : "action.hover",
                                 },
                                 transition: "all 0.2s ease",
                             }}
                         >
                             <ListItemIcon
                                 sx={{
-                                    color: isActiveItem(item.href)
+                                    color: isActiveItem(item)
                                         ? "primary.main"
                                         : "text.secondary",
                                     minWidth: 40,
@@ -179,15 +162,15 @@ export default function StudioSidebar() {
                             <ListItemText
                                 primary={item.title}
                                 primaryTypographyProps={{
-                                    fontWeight: isActiveItem(item.href) ? 600 : 500,
-                                    color: isActiveItem(item.href)
+                                    fontWeight: isActiveItem(item) ? 600 : 500,
+                                    color: isActiveItem(item)
                                         ? "primary.main"
                                         : "text.primary",
                                     fontSize: "0.875rem",
                                 }}
                             />
                         </ListItem>
-                        {item.subItems && isActiveItem(item.href) && (
+                        {item.subItems && isActiveItem(item) && (
                             <List sx={{ pl: 3, pr: 1 }}>
                                 {item.subItems.map((subItem) => (
                                     <ListItem
@@ -199,7 +182,7 @@ export default function StudioSidebar() {
                                             textDecoration: "none",
                                             backgroundColor:
                                                 pathname === subItem.href
-                                                    ? "rgba(33, 150, 243, 0.08)"
+                                                    ? alpha(theme.palette.primary.main, 0.08)
                                                     : "transparent",
                                             borderRadius: 1,
                                             mb: 0.25,
@@ -207,8 +190,8 @@ export default function StudioSidebar() {
                                             "&:hover": {
                                                 backgroundColor:
                                                     pathname === subItem.href
-                                                        ? "rgba(33, 150, 243, 0.12)"
-                                                        : "rgba(255, 255, 255, 0.04)",
+                                                        ? alpha(theme.palette.primary.main, 0.12)
+                                                        : "action.hover",
                                             },
                                             transition: "all 0.2s ease",
                                         }}

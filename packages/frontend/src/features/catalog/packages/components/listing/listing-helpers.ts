@@ -1,4 +1,4 @@
-import type { ServicePackage } from '@/lib/types/domains/sales';
+import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import type { PackageSetSlot } from '../../types/package-set.types';
 
 // ─── Constants ───────────────────────────────────────────────────────

@@ -15,8 +15,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
-import { request } from '@/shared/utils/request';
+import { crewApi, jobRolesApi } from '@/features/workflow/crew/api';
+import { equipmentApi } from '@/features/workflow/equipment/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
+import { request } from '@/shared/api/client';
 
 // ─── Normalization Helpers ────────────────────────────────────────────
 // Add package-compatible field aliases to instance data so existing
@@ -175,23 +177,23 @@ export function useInstanceScheduleData(
       // Fetch event days first (they include nested activities, operators, etc.)
       const [days, allActivities, ops, subs, locSlots, flms] = await Promise.all([
         isProject
-          ? api.schedule.projectInstanceEventDays.getAll(id)
-          : api.schedule.inquiryEventDays.getAll(id),
+          ? scheduleApi.projectInstanceEventDays.getAll(id)
+          : scheduleApi.inquiryEventDays.getAll(id),
         isProject
-          ? api.schedule.projectAllActivities.getAll(id)
-          : api.schedule.inquiryActivities.getAll(id),
+          ? scheduleApi.projectAllActivities.getAll(id)
+          : scheduleApi.inquiryActivities.getAll(id),
         isProject
-          ? api.schedule.instanceOperators.getForProject(id)
-          : api.schedule.instanceOperators.getForInquiry(id),
+          ? scheduleApi.instanceCrewSlots.getForProject(id)
+          : scheduleApi.instanceCrewSlots.getForInquiry(id),
         isProject
-          ? api.schedule.instanceSubjects.getForProject(id)
-          : api.schedule.instanceSubjects.getForInquiry(id),
+          ? scheduleApi.instanceSubjects.getForProject(id)
+          : scheduleApi.instanceSubjects.getForInquiry(id),
         isProject
-          ? api.schedule.instanceLocationSlots.getForProject(id)
-          : api.schedule.instanceLocationSlots.getForInquiry(id),
+          ? scheduleApi.instanceLocationSlots.getForProject(id)
+          : scheduleApi.instanceLocationSlots.getForInquiry(id),
         isProject
-          ? api.schedule.projectFilms.getAll(id)
-          : api.schedule.inquiryFilms.getAll(id),
+          ? scheduleApi.projectFilms.getAll(id)
+          : scheduleApi.inquiryFilms.getAll(id),
       ]);
 
       setEventDays(normalizeArray(days, normalizeEventDay));
@@ -210,8 +212,8 @@ export function useInstanceScheduleData(
       if (brandId) {
         try {
           const [crew, roles] = await Promise.all([
-            api.crew.getByBrand(brandId),
-            api.jobRoles.getAll(),
+            crewApi.getByBrand(brandId),
+            jobRolesApi.getAll(),
           ]);
           setCrewMembers(crew || []);
           setJobRoles((roles || []).filter((r: any) => r.is_active));
@@ -231,7 +233,7 @@ export function useInstanceScheduleData(
         }
 
         try {
-          const grouped = await api.equipment.getGroupedByCategory();
+          const grouped = await equipmentApi.getGroupedByCategory();
           const flat: any[] = [];
           Object.values(grouped).forEach((group: any) => {
             if (group && Array.isArray(group.equipment)) flat.push(...group.equipment);

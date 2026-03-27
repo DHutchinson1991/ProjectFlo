@@ -1,14 +1,14 @@
 "use client";
 
 import React from "react";
-import { Box, Typography, Paper, Button, Skeleton, IconButton, Tooltip } from "@mui/material";
-import { Assignment as TaskIcon, Refresh as RefreshIcon, Sync as SyncIcon } from "@mui/icons-material";
+import { Box, Typography, Paper, Button, Skeleton, Tooltip } from "@mui/material";
+import { Assignment as TaskIcon, Sync as SyncIcon } from "@mui/icons-material";
 import { SummaryStrip, TaskGroup, ActiveTasksToolbar } from "../components";
 import { useActiveTasks } from "../hooks/use-active-tasks";
 
 export function ActiveTasksScreen() {
     const {
-        tasks, contributors, loading, syncing, error,
+        tasks, crewMembers, loading, syncing, error,
         searchQuery, statusFilter, sourceFilter, groupMode, showAuto,
         filteredTasks, groups,
         setSearchQuery, setStatusFilter, setSourceFilter, setGroupMode,
@@ -59,15 +59,6 @@ export function ActiveTasksScreen() {
                                 {syncing ? "Syncing…" : "Sync People"}
                             </Button>
                         </span>
-                    </Tooltip>
-                    <Tooltip title="Refresh" arrow>
-                        <IconButton onClick={loadTasks} size="small" sx={{
-                            width: 34, height: 34, borderRadius: 1.5,
-                            border: "1px solid rgba(255,255,255,0.1)", color: "text.secondary",
-                            "&:hover": { bgcolor: "rgba(255,255,255,0.06)", color: "text.primary" },
-                        }}>
-                            <RefreshIcon sx={{ fontSize: 17 }} />
-                        </IconButton>
                     </Tooltip>
                 </Box>
             </Box>
@@ -124,7 +115,7 @@ export function ActiveTasksScreen() {
                             <TaskGroup
                                 key={group.key} title={group.title} color={group.color}
                                 tasks={group.tasks} defaultExpanded={idx < 5}
-                                icon={group.icon} badge={group.badge} contributors={contributors}
+                                icon={group.icon} badge={group.badge} contributors={crewMembers}
                                 onAssign={handleAssign} onNavigate={handleNavigateToTask} onToggle={handleToggle}
                             />
                         ))}

@@ -41,9 +41,10 @@ import {
     Email as EmailIcon,
     LocationOn as LocationIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
+import { brandsApi } from "@/features/platform/brand/api";
 import { useBrand } from "@/features/platform/brand";
-import { Brand } from "@/lib/types/brand";
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { Brand } from "@/features/platform/brand/types";
 
 // ---------------------------------------------------------------------------
 // Brand constants
@@ -186,7 +187,7 @@ export default function CompanySettings() {
             country: normaliseCountryCode(b.country),
             postal_code: b.postal_code || '',
             timezone: b.timezone || 'America/New_York',
-            currency: b.currency || 'USD',
+            currency: b.currency || DEFAULT_CURRENCY,
             logo_url: b.logo_url || '',
             default_tax_rate: b.default_tax_rate ?? 0,
             tax_number: b.tax_number || '',
@@ -208,7 +209,7 @@ export default function CompanySettings() {
         try {
             setLoading(true);
             setLoadError(null);
-            const data = await api.brands.getById(currentBrand.id);
+            const data = await brandsApi.getById(currentBrand.id);
             setBrand(data);
             populateForm(data);
         } catch {
@@ -244,7 +245,7 @@ export default function CompanySettings() {
             setSaving(true);
             const dataToSave = { ...formData };
             if (dataToSave.logo_url?.startsWith('blob:')) dataToSave.logo_url = brand.logo_url || '';
-            const updated = await api.brands.update(brand.id, dataToSave);
+            const updated = await brandsApi.update(brand.id, dataToSave);
             setBrand(updated);
             populateForm(updated);
             await refreshBrands();
@@ -268,7 +269,7 @@ export default function CompanySettings() {
         setProvisioningType(key);
         try {
             const newTypes = [...serviceTypes, key];
-            const updated = await api.brands.update(brand.id, { service_types: newTypes } as any);
+            const updated = await brandsApi.update(brand.id, { service_types: newTypes } as any);
             setBrand(updated);
             setServiceTypes(updated.service_types ?? newTypes);
             await refreshBrands();
@@ -283,7 +284,7 @@ export default function CompanySettings() {
     const loadAllBrands = useCallback(async () => {
         try {
             setLoadingBrands(true);
-            const brands = await api.brands.getAll();
+            const brands = await brandsApi.getAll();
             setAllBrands(brands);
         } catch {
             // silent
@@ -316,7 +317,7 @@ export default function CompanySettings() {
 
         try {
             setCreating(true);
-            await api.brands.create({
+            await brandsApi.create({
                 name: newBrandData.name,
                 display_name: newBrandData.display_name || undefined,
                 description: newBrandData.description || undefined,
@@ -331,7 +332,7 @@ export default function CompanySettings() {
                 country: newBrandData.country || 'GB',
                 postal_code: newBrandData.postal_code || undefined,
                 timezone: newBrandData.timezone || 'America/New_York',
-                currency: newBrandData.currency || 'USD',
+                currency: newBrandData.currency || DEFAULT_CURRENCY,
                 logo_url: newBrandData.logo_url || undefined,
                 is_active: newBrandData.is_active,
             });
@@ -348,7 +349,7 @@ export default function CompanySettings() {
 
     const handleDeleteBrand = async (brandId: number) => {
         try {
-            await api.brands.delete(brandId);
+            await brandsApi.delete(brandId);
             await refreshBrands();
             await loadAllBrands();
             setSnackbar({ open: true, message: 'Brand deleted successfully', severity: 'success' });
@@ -667,7 +668,7 @@ export default function CompanySettings() {
                                                     {b.display_name || b.name}
                                                     {b.id === brand.id && <Chip label="Current" size="small" color="primary" variant="outlined" sx={{ ml: 1, height: 18, fontSize: "0.6rem", fontWeight: 600 }} />}
                                                 </Typography>
-                                                <Typography variant="caption" color="text.secondary" noWrap>{b.business_type || "Business"} · {b.currency || "USD"}</Typography>
+                                                <Typography variant="caption" color="text.secondary" noWrap>{b.business_type || "Business"} · {b.currency || DEFAULT_CURRENCY}</Typography>
                                             </Box>
                                             <Chip label={b.is_active ? "Active" : "Inactive"} size="small" color={b.is_active ? "success" : "default"} variant="outlined" sx={{ height: 20, fontSize: "0.6rem" }} />
                                             {b.id !== brand.id && (

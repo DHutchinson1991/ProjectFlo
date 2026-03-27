@@ -5,8 +5,10 @@ import {
     MaxLength,
     IsInt,
     Min,
-    IsBoolean,
 } from "class-validator";
+
+// Re-export for backwards compatibility
+export { UpdateEquipmentDto } from './update-equipment.dto';
 
 /**
  * DTO for creating a new film with equipment configuration
@@ -49,23 +51,4 @@ export class CreateFilmDto {
     @IsInt()
     @Min(0)
     num_audio?: number; // Auto-generates Audio 1, 2...
-}
-
-/**
- * DTO for updating equipment configuration on existing film
- */
-export class UpdateEquipmentDto {
-    @IsOptional()
-    @IsInt()
-    @Min(0)
-    num_cameras?: number;
-
-    @IsOptional()
-    @IsInt()
-    @Min(0)
-    num_audio?: number;
-
-    @IsOptional()
-    @IsBoolean()
-    allow_removal?: boolean;
 }

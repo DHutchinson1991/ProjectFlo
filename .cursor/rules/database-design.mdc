@@ -1,0 +1,21 @@
+---
+description: Database design and Prisma access rules (schema, indexes, queries, transactions).
+globs: packages/backend/**
+alwaysApply: false
+---
+
+# ProjectFlo — Database Design Rules
+
+- `packages/backend/prisma/schema.prisma` is the schema source of truth; production-bound changes must end in a committed migration (do not leave as `db push` only).
+- Model real relationships; don’t use `Json` to avoid tables/relations the app queries relationally.
+- Use enums for bounded states; use `Decimal` for money/rates/taxes/percentages.
+- Tenant scope must be explicit and enforced in schema + service queries; tenant-local uniqueness must include `brand_id`.
+- Indexing is part of feature work: add indexes for common filters/sorts (especially `brand_id`, FKs, status+time patterns, dashboard list queries).
+- Query rules:
+  - prefer `select` over broad `include`
+  - avoid unbounded deep include trees
+  - don’t return raw Prisma graphs directly; map to deliberate response shapes
+  - avoid N+1 reads inside loops
+- Transactions: use `prisma.$transaction()` for multi-write atomicity; throw to rollback; avoid mixing external side effects inside transactions unless explicitly handled.
+- Before migrating schema, identify impacted services/DTOs/mappers/frontend bindings, whether a backfill/seed update is needed, and which feature README must be updated.
+

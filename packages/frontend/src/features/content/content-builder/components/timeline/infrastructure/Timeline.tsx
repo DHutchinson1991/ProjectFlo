@@ -2,9 +2,9 @@
 
 import React from "react";
 import { Box } from "@mui/material";
-import { TimelineScene } from "@/lib/types/timeline";
-import { TimelineTrack, PlaybackState } from "@/lib/types/timeline";
-import { ViewState, DragState } from "@/lib/types/timeline";
+import { TimelineScene } from "@/features/content/content-builder/types/timeline";
+import { TimelineTrack, PlaybackState } from "@/features/content/content-builder/types/timeline";
+import { ViewState, DragState } from "@/features/content/content-builder/types/timeline";
 import { SceneGroup } from "@/features/content/scenes/types";
 import Playhead from "./Playhead";
 import SnapGrid from "./SnapGrid";

@@ -9,10 +9,14 @@ import {
   Typography,
 } from "@mui/material";
 import { CheckCircle, Email, VerifiedUser } from "@mui/icons-material";
-import { Inquiry, InquiryCrewAvailabilityRow, InquiryEquipmentAvailabilityRow, InquiryTask, NeedsAssessmentSubmission } from "@/lib/types";
+import { Inquiry, InquiryCrewAvailabilityRow, InquiryEquipmentAvailabilityRow, InquiryTask } from "@/features/workflow/inquiries/types";
+import { NeedsAssessmentSubmission } from "@/features/workflow/inquiries/types/needs-assessment";
 import { inquiriesApi } from '@/features/workflow/inquiries';
 import { inquiryWizardSubmissionsApi } from '@/features/workflow/inquiry-wizard';
-import { useBrand } from "@/app/providers/BrandProvider";
+import { computeTaxBreakdown } from '@/shared/utils/pricing';
+import { formatCurrency } from '@/shared/utils/formatUtils';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { useBrand } from "@/features/platform/brand";
 import WelcomeEmailDialog, { type WelcomeEmailDraft } from "./WelcomeEmailDialog";
 
 interface QualifyCardProps {
@@ -33,15 +37,6 @@ function formatDate(d: Date | string | null | undefined): string | null {
   const parsed = new Date(d);
   if (isNaN(parsed.getTime())) return null;
   return parsed.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-}
-
-function formatCurrency(amount: number | null | undefined, currency = "GBP"): string | null {
-  if (amount == null) return null;
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
-  } catch {
-    return `${currency} ${amount.toFixed(2)}`;
-  }
 }
 
 type DiscoveryCallData = {
@@ -116,9 +111,9 @@ function buildWelcomeDraft(
   const estimateTotal = bestEstimate
     ? (bestEstimate.total_with_tax
         ? Number(bestEstimate.total_with_tax)
-        : Math.round(Number(bestEstimate.total_amount) * (1 + Number(bestEstimate.tax_rate ?? 0) / 100) * 100) / 100)
+        : computeTaxBreakdown(Number(bestEstimate.total_amount), Number(bestEstimate.tax_rate ?? 0)).total)
     : (inquiry.primary_estimate_total ?? 0);
-  const currency = bestEstimate?.currency ?? inquiry.selected_package?.currency ?? inquiry.package_contents_snapshot?.currency ?? "GBP";
+  const currency = bestEstimate?.currency ?? inquiry.selected_package?.currency ?? inquiry.package_contents_snapshot?.currency ?? DEFAULT_CURRENCY;
   const packagePriceStr = estimateTotal > 0 ? formatCurrency(estimateTotal, currency) : null;
   if (packageName && packagePriceStr) confirmedDetails.push(`Package: ${packageName} (estimated ${packagePriceStr})`);
   else if (packageName) confirmedDetails.push(`Package: ${packageName}`);
@@ -165,14 +160,14 @@ function buildWelcomeDraft(
 
   // ── Crew confirmation block ──────────────────────────────────────
   const confirmedCrew = (crew ?? []).filter(
-    (r) => r.assigned_contributor && (r.availability_request_status === 'confirmed' || r.status === 'available'),
+    (r) => r.assigned_crew_member && (r.availability_request_status === 'confirmed' || r.status === 'available'),
   );
   if (confirmedCrew.length > 0) {
     lines.push('Your Crew:');
     lines.push('');
     confirmedCrew.forEach((r) => {
-      const role = r.job_role?.display_name ?? r.job_role?.name ?? r.position_name ?? 'Crew';
-      const name = r.assigned_contributor!.name;
+      const role = r.job_role?.display_name ?? r.job_role?.name ?? r.label ?? 'Crew';
+      const name = r.assigned_crew_member!.name;
       const confirmed = r.availability_request_status === 'confirmed' ? ' ✓ Confirmed' : '';
       lines.push(`  • ${role}: ${name}${confirmed}`);
     });

@@ -1,8 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { publicInquiryWizardApi } from '../api';
 import { DEFAULT_STEPS } from '../constants/public-wizard-theme';
 import type { PublicWizardTemplate, PublicPackageData, WizardStep } from '../types';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
 
 export function usePublicWizardTemplate(token: string) {
     const [template, setTemplate] = useState<PublicWizardTemplate | null>(null);
@@ -68,16 +69,7 @@ export function usePublicWizardTemplate(token: string) {
     const brand = template?.brand ?? null;
     const brandName = brand?.display_name || brand?.name || '';
     const brandInitial = brandName.charAt(0).toUpperCase();
-    const currencySymbol = useMemo(() => {
-        const SYMBOLS: Record<string, string> = {
-            USD: '$', GBP: '£', EUR: '€', AUD: 'A$', CAD: 'C$', NZD: 'NZ$',
-            JPY: '¥', CHF: 'CHF', SEK: 'kr', NOK: 'kr', DKK: 'kr',
-            ZAR: 'R', INR: '₹', SGD: 'S$', HKD: 'HK$', MXN: 'MX$',
-        };
-        const c = brand?.currency;
-        if (!c) return '$';
-        return SYMBOLS[c.toUpperCase()] ?? c;
-    }, [brand?.currency]);
+    const currencyCode = useMemo(() => brand?.currency ?? DEFAULT_CURRENCY, [brand?.currency]);
 
-    return { template, loading, error, steps, eventTypeOptions, packages, selectedEventType, setSelectedEventType, brand, brandName, brandInitial, currencySymbol };
+    return { template, loading, error, steps, eventTypeOptions, packages, selectedEventType, setSelectedEventType, brand, brandName, brandInitial, currencyCode };
 }

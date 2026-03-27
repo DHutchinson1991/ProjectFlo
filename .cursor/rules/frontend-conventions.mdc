@@ -1,0 +1,15 @@
+---
+description: Frontend API, component, state, and brand-context conventions.
+globs: packages/frontend/src/**
+alwaysApply: false
+---
+
+# ProjectFlo — Frontend Conventions
+
+- All HTTP calls from frontend features must go through the shared API client in `@/shared/api/client`; never add raw `fetch()` calls or use legacy client shims for new code.
+- For each feature, expose endpoints from a factory-based `api/` module (e.g. `createXApi(client: ApiClient)`) and a named instance (e.g. `xApi`); do not introduce ad-hoc object literals or wrapper hooks that simply return the API object.
+- Use MUI components for layout and inputs; keep component file names, component names, and exports in sync, and use barrel `index.ts` files for component folders.
+- Use React Query hooks (in `features/<bucket>/<feature>/hooks/`) for server state; do not manage server data with `useEffect` + `useState` in components.
+- Always import brand context from `@/features/platform/brand` and rely on the shared client to inject `X-Brand-Context`; do not add new `brandId` query params in endpoints or clients.
+- For screens, dialogs, and wizards that orchestrate multiple reads/writes, extract that logic into feature hooks instead of duplicating imperative API flows across components.
+

@@ -52,16 +52,16 @@ export function createCalendarApi(client: ApiClient) {
             client.put(`/api/calendar/events/${id}`, event),
         deleteEvent: (id: number): Promise<void> =>
             client.delete(`/api/calendar/events/${id}`),
-        getEventsForDateRange: (start: Date, end: Date, contributorId?: number): Promise<BackendCalendarEvent[]> => {
+        getEventsForDateRange: (start: Date, end: Date, crewMemberId?: number): Promise<BackendCalendarEvent[]> => {
             const q: CalendarApiQuery = { start_date: formatDateForApi(start), end_date: formatDateForApi(end) };
-            if (contributorId) q.contributor_id = contributorId;
+            if (crewMemberId) q.crew_member_id = crewMemberId;
             return client.get(`/api/calendar/events${buildQs(q as Record<string, string | number | undefined>)}`);
         },
-        getTodaysEvents: (contributorId?: number): Promise<BackendCalendarEvent[]> =>
-            client.get(`/api/calendar/events/today${contributorId ? `?contributor_id=${contributorId}` : ''}`),
-        getUpcomingEvents: (contributorId?: number, limit?: number): Promise<BackendCalendarEvent[]> => {
+        getTodaysEvents: (crewMemberId?: number): Promise<BackendCalendarEvent[]> =>
+            client.get(`/api/calendar/events/today${crewMemberId ? `?crew_member_id=${crewMemberId}` : ''}`),
+        getUpcomingEvents: (crewMemberId?: number, limit?: number): Promise<BackendCalendarEvent[]> => {
             const q: Record<string, number | undefined> = {};
-            if (contributorId) q.contributor_id = contributorId;
+            if (crewMemberId) q.crew_member_id = crewMemberId;
             if (limit) q.limit = limit;
             return client.get(`/api/calendar/events/upcoming${buildQs(q)}`);
         },
@@ -78,8 +78,17 @@ export function createCalendarApi(client: ApiClient) {
             return client.get(`/api/calendar/tasks?${params}`);
         },
         getContributors: (): Promise<BackendContributor[]> => client.get('/api/contributors'),
+        getDiscoveryCallSlots: (brandIdOrDate: number | string, maybeDate?: string): Promise<{
+            date: string;
+            duration_minutes?: number;
+            slots: { time: string; available: boolean; operator_id?: number }[];
+            unavailable_reason?: string;
+        }> => {
+            const date = typeof brandIdOrDate === 'string' ? brandIdOrDate : maybeDate;
+            return client.get(`/api/calendar/discovery-call-slots?date=${date}`);
+        },
     };
 }
 
-export const calendarApi = createCalendarApi(apiClient as unknown as ApiClient);
+export const calendarApi = createCalendarApi(apiClient);
 export type CalendarApi = ReturnType<typeof createCalendarApi>;

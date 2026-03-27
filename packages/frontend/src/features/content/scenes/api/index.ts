@@ -5,8 +5,10 @@
 
 import type { FilmScene, CreateFilmSceneDto, UpdateFilmSceneDto, ScenesLibrary } from '@/features/content/scenes/types';
 import type { SceneMoment, CreateSceneMomentDto, UpdateSceneMomentDto } from '@/features/content/moments/types';
-import type { SceneRecordingSetup, UpdateSceneRecordingSetupDto } from '@/lib/types/domains/recording-setup';
-import type { ApiClient } from '@/lib/api/api-client.types';
+import type { MomentRecordingSetup, SceneRecordingSetup, UpdateSceneRecordingSetupDto } from '@/features/content/moments/types/recording-setup';
+import type { CreateSceneMusicDto, SceneMusic, UpdateSceneMusicDto } from '@/features/content/music/types';
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 
 export const createScenesApi = (client: ApiClient) => ({
   /**
@@ -69,6 +71,29 @@ export const createScenesApi = (client: ApiClient) => ({
       delete: (sceneId: number): Promise<{ message: string }> =>
         client.delete(`/api/scenes/${sceneId}/recording-setup`),
     },
+
+    music: {
+      get: (sceneId: number): Promise<SceneMusic | null> =>
+        client.get(`/api/music/scenes/${sceneId}/music`),
+
+      create: (sceneId: number, data: CreateSceneMusicDto): Promise<SceneMusic> =>
+        client.post(`/api/music/scenes/${sceneId}/music`, {
+          film_scene_id: sceneId,
+          ...data,
+        }),
+
+      update: (sceneId: number, data: UpdateSceneMusicDto): Promise<SceneMusic> =>
+        client.patch(`/api/music/scenes/${sceneId}/music`, data),
+
+      upsert: (sceneId: number, data: CreateSceneMusicDto | UpdateSceneMusicDto): Promise<SceneMusic> =>
+        client.post(`/api/music/scenes/${sceneId}/music`, {
+          film_scene_id: sceneId,
+          ...data,
+        }),
+
+      delete: (sceneId: number): Promise<void> =>
+        client.delete(`/api/music/scenes/${sceneId}/music`),
+    },
   },
 
   /**
@@ -85,11 +110,11 @@ export const createScenesApi = (client: ApiClient) => ({
 
     /** POST /scenes/templates/from-scene */
     createFromScene: (sceneId: number, name?: string): Promise<ScenesLibrary> =>
-      client.post('/api/scenes/templates/from-scene', { scene_id: sceneId, name }),
+      client.post('/api/scenes/templates/from-scene', { scene_id: sceneId, name }, { skipBrandContext: true }),
 
     /** DELETE /scenes/templates/:id */
     delete: (id: number): Promise<{ message: string }> =>
-      client.delete(`/api/scenes/templates/${id}`),
+      client.delete(`/api/scenes/templates/${id}`, { skipBrandContext: true }),
   },
 
   /**
@@ -134,6 +159,9 @@ export const createScenesApi = (client: ApiClient) => ({
      */
     getById: (id: number): Promise<SceneMoment> =>
       client.get(`/api/moments/${id}`),
+
+    getRecordingSetup: (id: number): Promise<MomentRecordingSetup | null> =>
+      client.get(`/api/moments/${id}/recording-setup`),
 
     /**
      * Create a new moment in a scene
@@ -186,3 +214,5 @@ export const createScenesApi = (client: ApiClient) => ({
 });
 
 export type ScenesApi = ReturnType<typeof createScenesApi>;
+
+export const scenesApi = createScenesApi(apiClient);

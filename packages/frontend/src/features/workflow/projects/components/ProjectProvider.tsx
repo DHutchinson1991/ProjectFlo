@@ -1,12 +1,12 @@
 "use client";
 
 import React, { createContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { apiClient } from '@/lib/api';
-import type { ApiClient } from '@/lib/api/api-client.types';
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 import { createProjectsApi } from '../api';
 import type { Project, UpdateProjectRequest } from '../types/project.types';
 
-const projectsApi = createProjectsApi(apiClient as unknown as ApiClient);
+const projectsApi = createProjectsApi(apiClient);
 
 export interface ProjectsContextValue {
     activeProject: Project | null;

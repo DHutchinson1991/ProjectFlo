@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../platform/prisma/prisma.service';
 import { CreateBeatDto } from './dto/create-beat.dto';
 import { UpdateBeatDto } from './dto/update-beat.dto';
 
@@ -25,11 +25,13 @@ export interface BeatResponseDto {
     } | null;
 }
 
+import { BeatWithDetails } from './types/beat-payload.type';
+
 @Injectable()
 export class BeatsService {
     constructor(private prisma: PrismaService) {}
 
-    private mapToResponseDto(beat: any): BeatResponseDto {
+    private mapToResponseDto(beat: BeatWithDetails): BeatResponseDto {
         return {
             id: beat.id,
             film_scene_id: beat.film_scene_id,
@@ -65,7 +67,7 @@ export class BeatsService {
         const orderIndex = createBeatDto.order_index ??
             (await this.prisma.sceneBeat.count({ where: { film_scene_id: sceneId } }));
 
-        const beat = await this.prisma.sceneBeat.create({
+        const beat = (await this.prisma.sceneBeat.create({
             data: {
                 film_scene_id: sceneId,
                 name: createBeatDto.name,
@@ -76,7 +78,10 @@ export class BeatsService {
                 source_moment_id: createBeatDto.source_moment_id ?? null,
                 source_scene_id: createBeatDto.source_scene_id ?? null,
             },
-        });
+            include: {
+                recording_setup: true,
+            },
+        })) as BeatWithDetails;
 
         return this.mapToResponseDto(beat);
     }
@@ -87,13 +92,13 @@ export class BeatsService {
             throw new NotFoundException(`Scene with ID ${sceneId} not found`);
         }
 
-        const beats = await this.prisma.sceneBeat.findMany({
+        const beats = (await this.prisma.sceneBeat.findMany({
             where: { film_scene_id: sceneId },
             orderBy: { order_index: 'asc' },
             include: {
                 recording_setup: true,
             },
-        });
+        })) as BeatWithDetails[];
 
         return beats.map((beat) => this.mapToResponseDto(beat));
     }
@@ -135,7 +140,7 @@ export class BeatsService {
             where: { id: updated.id },
             include: { recording_setup: true },
         });
-        return this.mapToResponseDto(reloaded || updated);
+        return this.mapToResponseDto(reloaded!);
     }
 
     async getRecordingSetup(id: number) {

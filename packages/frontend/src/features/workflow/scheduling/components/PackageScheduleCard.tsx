@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
@@ -16,7 +16,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 
-import { api } from '@/lib/api';
+import { scheduleApi as workflowScheduleApi } from '@/features/workflow/scheduling/api';
 import { useOptionalScheduleApi } from './ScheduleApiContext';
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -49,13 +49,12 @@ interface ActivityRecord {
 
 interface OperatorRecord {
     id: number;
-    contributor_id?: number | null;
+    crew_member_id?: number | null;
     event_day_template_id: number;
     package_activity_id?: number | null;
-    position_name?: string;
-    position_color?: string | null;
+    label?: string | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    contributor?: any;
+    crew_member?: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     job_role?: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,7 +73,7 @@ interface PackageScheduleCardProps {
     brandId: number;
     packageEventDays: EventDay[];
     setPackageEventDays: React.Dispatch<React.SetStateAction<EventDay[]>>;
-    packageDayOperators: OperatorRecord[];
+    PackageCrewSlots: OperatorRecord[];
     dayCoverage?: Record<number, DayCoverage>;
     onDayCoverageChange?: (dayId: number, coverage: DayCoverage) => void;
     cardSx: Record<string, unknown>;
@@ -194,7 +193,7 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
     packageEventDays,
     setPackageEventDays,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    packageDayOperators,
+    PackageCrewSlots,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     dayCoverage,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -277,7 +276,7 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
         if (!packageId) return; // instance mode: activities are supplied via externalActivities
         setLoading(true);
         try {
-            const all = await api.schedule.packageActivities.getAll(packageId);
+            const all = await workflowScheduleApi.packageActivities.getAll(packageId);
             setActivities(all);
         } catch (err) {
             console.warn('Failed to load package activities:', err);
@@ -636,7 +635,7 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                                 setActiveDayId(packageEventDays.find(d => d.id !== day.id)?.id || null);
                                             }
                                             if (packageId) {
-                                                api.schedule.packageEventDays.remove(packageId, day.id).catch(() => {});
+                                                workflowScheduleApi.packageEventDays.remove(packageId, day.id).catch(() => {});
                                             } else if (contextApi) {
                                                 contextApi.eventDays.delete(day.id).catch(() => {});
                                             }
@@ -660,7 +659,7 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                         const all = await contextApi.brandEventDays.getAll(brandId);
                                         setBrandEventDays(all);
                                     } else {
-                                        const all = await api.schedule.eventDays.getAll(brandId);
+                                        const all = await workflowScheduleApi.eventDays.getAll(brandId);
                                         setBrandEventDays(all);
                                     }
                                 } catch { /* use cache */ }
@@ -755,7 +754,7 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                             onClick={async () => {
                                                 try {
                                                     if (packageId) {
-                                                        const res = await api.schedule.packageEventDays.add(packageId, bd.id);
+                                                        const res = await workflowScheduleApi.packageEventDays.add(packageId, bd.id);
                                                         setPendingDayId(bd.id);
                                                         setPendingJoinId(res._joinId ?? res.id);
                                                         setPendingDayName(bd.name);
@@ -805,8 +804,8 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                     if (e.key === 'Enter' && newDayName.trim() && (packageId || contextApi)) {
                                         try {
                                             if (packageId) {
-                                                const created = await api.schedule.eventDays.create(brandId, { name: newDayName.trim() });
-                                                const res = await api.schedule.packageEventDays.add(packageId, created.id);
+                                                const created = await workflowScheduleApi.eventDays.create(brandId, { name: newDayName.trim() });
+                                                const res = await workflowScheduleApi.packageEventDays.add(packageId, created.id);
                                                 setPendingDayId(created.id);
                                                 setPendingJoinId(res._joinId ?? res.id);
                                                 setPendingDayName(created.name);
@@ -846,8 +845,8 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                     if (!newDayName.trim() || (!packageId && !contextApi)) return;
                                     try {
                                         if (packageId) {
-                                            const created = await api.schedule.eventDays.create(brandId, { name: newDayName.trim() });
-                                            const res = await api.schedule.packageEventDays.add(packageId, created.id);
+                                            const created = await workflowScheduleApi.eventDays.create(brandId, { name: newDayName.trim() });
+                                            const res = await workflowScheduleApi.packageEventDays.add(packageId, created.id);
                                             setPendingDayId(created.id);
                                             setPendingJoinId(res._joinId ?? res.id);
                                             setPendingDayName(created.name);
@@ -980,7 +979,7 @@ export const PackageScheduleCard: React.FC<PackageScheduleCardProps> = ({
                                         for (let i = 0; i < toCreate.length; i++) {
                                             let act: ActivityRecord;
                                             if (packageId) {
-                                                act = await api.schedule.packageActivities.create(packageId, {
+                                                act = await workflowScheduleApi.packageActivities.create(packageId, {
                                                     package_event_day_id: pendingJoinId,
                                                     name: toCreate[i].name,
                                                     color: toCreate[i].color,

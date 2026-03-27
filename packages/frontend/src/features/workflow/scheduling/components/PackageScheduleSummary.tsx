@@ -22,7 +22,7 @@ import {
     Place as LocationIcon,
     CameraRoll as FilmIcon,
 } from '@mui/icons-material';
-import api from '@/lib/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -61,7 +61,7 @@ export default function PackageScheduleSummary({ packageId, compact = false }: P
         setLoading(true);
         setError(null);
 
-        api.schedule.packageSummary.get(packageId)
+        scheduleApi.packageSummary.get(packageId)
             .then((res: PackageScheduleSummaryData) => {
                 if (!cancelled) setData(res);
             })

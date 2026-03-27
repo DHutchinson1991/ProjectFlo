@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { scenesApi } from "@/features/content/scenes/api";
 import type {
   CreateMomentMusicDto,
   CreateSceneMusicDto,
@@ -6,8 +7,8 @@ import type {
   SceneMusic,
   UpdateMomentMusicDto,
   UpdateSceneMusicDto,
-} from "../../lib/types/domains/music";
-import { request } from "../utils/api";
+} from "@/features/content/music/types";
+import { momentsApi as musicMomentsApi } from "@/features/content/music/api/moments";
 
 export const useMusic = () => {
   const [sceneMusic, setSceneMusic] = useState<SceneMusic | null>(null);
@@ -19,10 +20,11 @@ export const useMusic = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await request<SceneMusic>(`/api/music/scenes/${sceneId}/music`);
+      const data = await scenesApi.scenes.music.get(sceneId);
       setSceneMusic(data);
       return data;
     } catch (err) {
+      setSceneMusic(null);
       setError(err instanceof Error ? err.message : "Failed to load scene music");
       return null;
     } finally {
@@ -34,10 +36,11 @@ export const useMusic = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await request<MomentMusic>(`/api/music/moments/${momentId}/music`);
+      const data = await musicMomentsApi.getSceneMomentMusic(momentId);
       setMomentMusic(data);
       return data;
     } catch (err) {
+      setMomentMusic(null);
       setError(err instanceof Error ? err.message : "Failed to load moment music");
       return null;
     } finally {
@@ -46,48 +49,36 @@ export const useMusic = () => {
   }, []);
 
   const createSceneMusic = useCallback(async (sceneId: number, payload: CreateSceneMusicDto) => {
-    const created = await request<SceneMusic>(`/api/music/scenes/${sceneId}/music`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    const created = await scenesApi.scenes.music.create(sceneId, payload);
     setSceneMusic(created);
     return created;
   }, []);
 
   const updateSceneMusic = useCallback(async (sceneId: number, payload: UpdateSceneMusicDto) => {
-    const updated = await request<SceneMusic>(`/api/music/scenes/${sceneId}/music`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    });
+    const updated = await scenesApi.scenes.music.update(sceneId, payload);
     setSceneMusic(updated);
     return updated;
   }, []);
 
   const removeSceneMusic = useCallback(async (sceneId: number) => {
-    await request<void>(`/api/music/scenes/${sceneId}/music`, { method: "DELETE" });
+    await scenesApi.scenes.music.delete(sceneId);
     setSceneMusic(null);
   }, []);
 
   const createMomentMusic = useCallback(async (momentId: number, payload: CreateMomentMusicDto) => {
-    const created = await request<MomentMusic>(`/api/music/moments/${momentId}/music`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    const created = await musicMomentsApi.createSceneMomentMusic(momentId, payload);
     setMomentMusic(created);
     return created;
   }, []);
 
   const updateMomentMusic = useCallback(async (momentId: number, payload: UpdateMomentMusicDto) => {
-    const updated = await request<MomentMusic>(`/api/music/moments/${momentId}/music`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    });
+    const updated = await musicMomentsApi.updateSceneMomentMusic(momentId, payload);
     setMomentMusic(updated);
     return updated;
   }, []);
 
   const removeMomentMusic = useCallback(async (momentId: number) => {
-    await request<void>(`/api/music/moments/${momentId}/music`, { method: "DELETE" });
+    await musicMomentsApi.deleteSceneMomentMusic(momentId);
     setMomentMusic(null);
   }, []);
 

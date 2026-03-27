@@ -29,7 +29,9 @@ import {
   Bolt,
   ExpandMore as ExpandMoreIcon,
 } from "@mui/icons-material";
-import { ActiveTask, InquiryTaskEvent } from "@/lib/types";
+import { ActiveTask } from "@/features/catalog/task-library/types";
+import { inquiriesApi } from "@/features/workflow/inquiries/api";
+import { InquiryTaskEvent } from "@/features/workflow/inquiries/types";
 import { useGlobalTaskDrawer, getNavUrl, isOverdue } from "../hooks/useGlobalTaskDrawer";
 
 // ── Status config ─────────────────────────────────────────────
@@ -50,14 +52,7 @@ const STATUS_TABS = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────
-function getInitials(name: string) {
-  return name.split(" ").filter(Boolean).map(n => n[0]).join("").toUpperCase().slice(0, 2);
-}
-function avatarColor(name: string) {
-  const colors = ["#0086C0", "#A25DDC", "#FF158A", "#FDAB3D", "#00C875", "#579BFC", "#FF5AC4", "#CAB641", "#7F5347", "#66CCFF"];
-  let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
-  return colors[Math.abs(h) % colors.length];
-}
+import { getInitials, avatarColor } from '@/shared/utils/avatar';
 function formatDateShort(dateStr: string | null, isCompleted: boolean): { text: string; color: string } {
   if (!dateStr) return { text: "—", color: "rgba(255,255,255,0.2)" };
   if (isCompleted) return { text: new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" }), color: "rgba(255,255,255,0.3)" };
@@ -91,7 +86,7 @@ function buildDrawerTree(tasks: ActiveTask[]): DrawerTreeItem[] {
     if (task.parent_task_id || task.subtask_parent_id || task.task_kind === 'subtask') {
       return;
     }
-    if (task.is_stage) {
+    if (task.is_task_group) {
       items.push({ type: "stage", stage: task, children: childrenByParent.get(task.id) ?? [] });
     } else {
       items.push({ type: "task", task });
@@ -101,16 +96,16 @@ function buildDrawerTree(tasks: ActiveTask[]): DrawerTreeItem[] {
 }
 
 // ══════════════════════════════════════════════════════════════
-// DrawerStageRow
+// DrawerTaskGroupRow
 // ══════════════════════════════════════════════════════════════
-function DrawerStageRow({ stage, subtasks, onNavigate, subtasksByParent }: {
+function DrawerTaskGroupRow({ stage, subtasks, onNavigate, subtasksByParent }: {
   stage: ActiveTask;
   subtasks: ActiveTask[];
   onNavigate: (task: ActiveTask) => void;
   subtasksByParent: Map<number, ActiveTask[]>;
 }) {
   const [open, setOpen] = useState(true);
-  const stageColor = stage.stage_color || "#579BFC";
+  const color = "#579BFC";
   const done = subtasks.filter(t => t.status === "Completed").length;
   const total = subtasks.length;
   const progress = total > 0 ? (done / total) * 100 : 0;
@@ -122,30 +117,30 @@ function DrawerStageRow({ stage, subtasks, onNavigate, subtasksByParent }: {
         sx={{
           display: "flex", alignItems: "center", gap: 1,
           height: 34, pl: 1.5, pr: 1.5,
-          bgcolor: `${stageColor}0e`,
-          borderLeft: `3px solid ${stageColor}`,
+          bgcolor: `${color}0e`,
+          borderLeft: `3px solid ${color}`,
           borderBottom: "1px solid rgba(255,255,255,0.035)",
           cursor: "pointer",
           transition: "background 0.15s",
-          "&:hover": { bgcolor: `${stageColor}18` },
+          "&:hover": { bgcolor: `${color}18` },
         }}
       >
         <CollapseIcon sx={{
-          fontSize: 14, color: stageColor, flexShrink: 0,
+          fontSize: 14, color: color, flexShrink: 0,
           transform: open ? "rotate(0deg)" : "rotate(-90deg)",
           transition: "transform 0.2s",
         }} />
-        <Typography sx={{ fontWeight: 700, fontSize: "0.75rem", color: stageColor }}>
+        <Typography sx={{ fontWeight: 700, fontSize: "0.75rem", color: color }}>
           {stage.name}
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Box sx={{
           display: "inline-flex", alignItems: "center",
           px: 0.625, height: 18, borderRadius: "4px",
-          bgcolor: `${stageColor}1a`, border: `1px solid ${stageColor}33`,
+          bgcolor: `${color}1a`, border: `1px solid ${color}33`,
           flexShrink: 0,
         }}>
-          <Typography sx={{ fontSize: "0.5625rem", fontWeight: 800, color: stageColor }}>
+          <Typography sx={{ fontSize: "0.5625rem", fontWeight: 800, color: color }}>
             {done}/{total}
           </Typography>
         </Box>
@@ -154,13 +149,13 @@ function DrawerStageRow({ stage, subtasks, onNavigate, subtasksByParent }: {
           sx={{
             ml: 0.75, width: 36, height: 2, borderRadius: 2, flexShrink: 0,
             bgcolor: "rgba(255,255,255,0.07)",
-            "& .MuiLinearProgress-bar": { bgcolor: stageColor, borderRadius: 2 },
+            "& .MuiLinearProgress-bar": { bgcolor: color, borderRadius: 2 },
           }}
         />
       </Box>
       <Collapse in={open}>
         {subtasks.map(task => (
-          <Box key={`${task.source}-${task.id}`} sx={{ borderLeft: `2px solid ${stageColor}33` }}>
+          <Box key={`${task.source}-${task.id}`} sx={{ borderLeft: `2px solid ${color}33` }}>
             <DrawerTaskRow task={task} subtasks={subtasksByParent.get(task.id) ?? []} onNavigate={onNavigate} />
           </Box>
         ))}
@@ -198,7 +193,7 @@ function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false }: { ta
     if (next && events === null) {
       try {
         setEventsLoading(true);
-        const data = await api.inquiryTasks.getEvents(task.inquiry_id!, task.id);
+        const data = await inquiriesApi.inquiryTasks.getEvents(task.inquiry_id!, task.id);
         setEvents(data);
       } catch { /* ignore */ } finally {
         setEventsLoading(false);
@@ -675,7 +670,7 @@ export default function GlobalTaskDrawer() {
             <Tooltip title="Open full tasks page" arrow>
               <IconButton
                 size="small"
-                onClick={() => router.push("/manager/active-tasks")}
+                onClick={() => router.push("/tasks")}
                 sx={{
                   ml: 0.25, width: 24, height: 24, borderRadius: 1,
                   border: "1px solid rgba(255,255,255,0.08)",
@@ -704,7 +699,7 @@ export default function GlobalTaskDrawer() {
               groupByStage ? (
                 buildDrawerTree(visibleTasks).map(item =>
                   item.type === "stage" ? (
-                    <DrawerStageRow
+                    <DrawerTaskGroupRow
                       key={`stage-${item.stage.source}-${item.stage.id}`}
                       stage={item.stage}
                       subtasks={item.children}
@@ -722,7 +717,7 @@ export default function GlobalTaskDrawer() {
                 )
               ) : (
                 visibleTasks
-                  .filter(t => !t.is_stage && !t.subtask_parent_id && t.task_kind !== 'subtask')
+                  .filter(t => !t.is_task_group && !t.subtask_parent_id && t.task_kind !== 'subtask')
                   .map(task => (
                     <DrawerTaskRow
                       key={`${task.source}-${task.id}`}

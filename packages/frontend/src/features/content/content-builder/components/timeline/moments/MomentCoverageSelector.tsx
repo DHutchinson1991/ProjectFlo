@@ -11,7 +11,7 @@ import {
     Divider 
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { TimelineTrack } from "@/lib/types/timeline";
+import { TimelineTrack } from "@/features/content/content-builder/types/timeline";
 import { getDefaultTrackColor } from "../../../utils/colorUtils";
 
 interface MomentCoverageSelectorProps {

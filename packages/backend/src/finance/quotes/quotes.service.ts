@@ -1,0 +1,219 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { PrismaService } from '../../platform/prisma/prisma.service';
+import { CreateQuoteDto } from './dto/create-quote.dto';
+import { UpdateQuoteDto } from './dto/update-quote.dto';
+import { Quote } from './entities/quote.entity';
+import { Decimal } from '@prisma/client/runtime/library';
+import { computeItemsTotalDecimal } from '../shared/pricing.utils';
+import { InquiryTasksService } from '../../workflow/tasks/inquiry/services/inquiry-tasks.service';
+import { QUOTE_ITEMS_INCLUDE, mapQuoteResponse } from './mappers/quote-response.mapper';
+
+@Injectable()
+export class QuotesService {
+    constructor(
+        private prisma: PrismaService,
+        private inquiryTasksService: InquiryTasksService,
+    ) { }
+
+    async create(inquiryId: number, createQuoteDto: CreateQuoteDto): Promise<Quote> {
+        // Calculate total amount from items using Decimal for precision
+        const totalAmount = computeItemsTotalDecimal(createQuoteDto.items).toNumber();
+
+        const result = await this.prisma.$transaction(async (tx) => {
+            // Resolve brand currency from inquiry → contact → brand
+            const inquiry = await tx.inquiries.findUnique({
+                where: { id: inquiryId },
+                select: { contact: { select: { brand: { select: { currency: true } } } } },
+            });
+            const currency = inquiry?.contact?.brand?.currency ?? DEFAULT_CURRENCY;
+
+            // Handle Primary Exclusivity
+            if (createQuoteDto.is_primary) {
+                await tx.quotes.updateMany({
+                    where: { inquiry_id: inquiryId, is_primary: true },
+                    data: { is_primary: false }
+                });
+            }
+
+            // Create the quote
+            const quote = await tx.quotes.create({
+                data: {
+                    inquiry_id: inquiryId,
+                    project_id: createQuoteDto.project_id || null,
+                    quote_number: createQuoteDto.quote_number,
+                    issue_date: new Date(createQuoteDto.issue_date),
+                    expiry_date: new Date(createQuoteDto.expiry_date),
+                    total_amount: new Decimal(totalAmount),
+                    consultation_notes: createQuoteDto.consultation_notes || null,
+                    status: createQuoteDto.status || 'Draft',
+                    title: createQuoteDto.title,
+                    tax_rate: createQuoteDto.tax_rate ? new Decimal(createQuoteDto.tax_rate) : new Decimal(0),
+                    deposit_required: createQuoteDto.deposit_required ? new Decimal(createQuoteDto.deposit_required) : null,
+                    notes: createQuoteDto.notes,
+                    terms: createQuoteDto.terms,
+                    payment_method: createQuoteDto.payment_method,
+                    installments: createQuoteDto.installments,
+                    is_primary: createQuoteDto.is_primary || false,
+                    currency,
+                },
+            });
+
+            // Create quote items
+            await Promise.all(
+                createQuoteDto.items.map(item =>
+                    tx.quote_items.create({
+                        data: {
+                            quote_id: quote.id,
+                            description: item.description,
+                            category: item.category,
+                            unit: item.unit,
+                            service_date: item.service_date ? new Date(item.service_date) : null,
+                            start_time: item.start_time,
+                            end_time: item.end_time,
+                            quantity: item.quantity,
+                            unit_price: new Decimal(item.unit_price),
+                        },
+                    })
+                )
+            );
+
+            // Return quote with converted total_amount for Quote interface
+            return {
+                ...quote,
+                total_amount: totalAmount,
+            } as unknown as Quote; // Cast to unknown then Quote to suppress strict checks if needed
+        });
+
+        await this.inquiryTasksService.autoCompleteByName(inquiryId, 'Generate Quote');
+
+        return result;
+    }
+
+    async findAll(inquiryId: number) {
+        const quotes = await this.prisma.quotes.findMany({
+            where: { inquiry_id: inquiryId },
+            include: QUOTE_ITEMS_INCLUDE,
+            orderBy: { created_at: 'desc' },
+        });
+
+        return quotes.map(mapQuoteResponse);
+    }
+
+    async findOne(inquiryId: number, id: number) {
+        const quote = await this.prisma.quotes.findFirst({
+            where: { id, inquiry_id: inquiryId },
+            include: QUOTE_ITEMS_INCLUDE,
+        });
+
+        if (!quote) {
+            throw new NotFoundException(`Quote with ID ${id} not found for inquiry ${inquiryId}`);
+        }
+
+        return mapQuoteResponse(quote);
+    }
+
+    async update(inquiryId: number, id: number, updateQuoteDto: UpdateQuoteDto) {
+        // First verify the quote exists and belongs to the inquiry
+        await this.findOne(inquiryId, id);
+
+        return await this.prisma.$transaction(async (tx) => {
+            // Handle Primary Exclusivity
+            if (updateQuoteDto.is_primary) {
+                await tx.quotes.updateMany({
+                    where: { inquiry_id: inquiryId, is_primary: true, id: { not: id } },
+                    data: { is_primary: false }
+                });
+            }
+
+            let totalAmount: number | undefined;
+
+            // If items are being updated, calculate new total
+            if (updateQuoteDto.items) {
+                const normalizedItems = updateQuoteDto.items.map((item) => ({
+                    ...item,
+                    quantity: item.quantity ?? 1,
+                    unit_price: item.unit_price ?? 0,
+                }));
+
+                totalAmount = computeItemsTotalDecimal(normalizedItems).toNumber();
+
+                // Delete existing items
+                await tx.quote_items.deleteMany({
+                    where: { quote_id: id },
+                });
+
+                // Create new items
+                await Promise.all(
+                    normalizedItems.map(item =>
+                        tx.quote_items.create({
+                            data: {
+                                quote_id: id,
+                                description: item.description || '',
+                                category: item.category,
+                                unit: item.unit,
+                                service_date: item.service_date ? new Date(item.service_date) : null,
+                                start_time: item.start_time,
+                                end_time: item.end_time,
+                                quantity: item.quantity,
+                                unit_price: new Decimal(item.unit_price),
+                            },
+                        })
+                    )
+                );
+            }
+
+            // Build update data
+            const updateData: Prisma.quotesUpdateInput = {};
+
+            if (updateQuoteDto.quote_number) updateData.quote_number = updateQuoteDto.quote_number;
+            if (updateQuoteDto.issue_date) updateData.issue_date = new Date(updateQuoteDto.issue_date);
+            if (updateQuoteDto.expiry_date) updateData.expiry_date = new Date(updateQuoteDto.expiry_date);
+            if (updateQuoteDto.status) updateData.status = updateQuoteDto.status;
+            if (updateQuoteDto.consultation_notes !== undefined) updateData.consultation_notes = updateQuoteDto.consultation_notes;
+            if (updateQuoteDto.project_id !== undefined) updateData.project = updateQuoteDto.project_id ? { connect: { id: updateQuoteDto.project_id } } : { disconnect: true };
+            if (totalAmount !== undefined) updateData.total_amount = new Decimal(totalAmount);
+
+            if (updateQuoteDto.title !== undefined) updateData.title = updateQuoteDto.title;
+            if (updateQuoteDto.tax_rate !== undefined) updateData.tax_rate = new Decimal(updateQuoteDto.tax_rate);
+            if (updateQuoteDto.deposit_required !== undefined) updateData.deposit_required = new Decimal(updateQuoteDto.deposit_required);
+            if (updateQuoteDto.notes !== undefined) updateData.notes = updateQuoteDto.notes;
+            if (updateQuoteDto.terms !== undefined) updateData.terms = updateQuoteDto.terms;
+            if (updateQuoteDto.payment_method !== undefined) updateData.payment_method = updateQuoteDto.payment_method;
+            if (updateQuoteDto.installments !== undefined) updateData.installments = updateQuoteDto.installments;
+            if (updateQuoteDto.is_primary !== undefined) updateData.is_primary = updateQuoteDto.is_primary;
+
+
+            const updatedQuote = await tx.quotes.update({
+                where: { id },
+                data: updateData,
+                include: QUOTE_ITEMS_INCLUDE,
+            });
+
+            return mapQuoteResponse(updatedQuote);
+        });
+    }
+
+    async remove(inquiryId: number, id: number) {
+        // First verify the quote exists and belongs to the inquiry
+        await this.findOne(inquiryId, id);
+
+        return await this.prisma.quotes.delete({
+            where: { id },
+        });
+    }
+
+    async send(inquiryId: number, id: number) {
+        // First verify the quote exists and belongs to the inquiry
+        await this.findOne(inquiryId, id);
+
+        const updatedQuote = await this.prisma.quotes.update({
+            where: { id },
+            data: { status: 'Sent' },
+            include: QUOTE_ITEMS_INCLUDE,
+        });
+
+        return mapQuoteResponse(updatedQuote);
+    }
+}

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Film Operators Tab - Shows operators assigned from the linked package
  * and which timeline tracks each operator owns
  *
@@ -13,19 +13,16 @@ import GroupsIcon from "@mui/icons-material/Groups";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import LinkOffIcon from "@mui/icons-material/LinkOff";
 import Link from "next/link";
-import { api, apiClient } from "@/lib/api";
-import { createFilmsApi } from "../../api";
-import type { ApiClient } from "@/lib/api/api-client.types";
-import { PackageDayOperator, TrackRecord, FilmOperatorsTabProps } from "../../types/operators-tab.types";
-
-const filmsApi = createFilmsApi(apiClient as unknown as ApiClient);
+import { filmsApi } from "../../api";
+import { crewSlotsApi } from "@/features/workflow/scheduling/api";
+import { PackageCrewSlot, TrackRecord, FilmOperatorsTabProps } from "../../types/operators-tab.types";
 import { OperatorRow } from "./OperatorRow";
 
 export const FilmOperatorsTab: React.FC<FilmOperatorsTabProps> = ({
   filmId,
   packageId,
 }) => {
-  const [operators, setOperators] = useState<PackageDayOperator[]>([]);
+  const [operators, setOperators] = useState<PackageCrewSlot[]>([]);
   const [tracks, setTracks] = useState<TrackRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +40,7 @@ export const FilmOperatorsTab: React.FC<FilmOperatorsTabProps> = ({
       setError(null);
       try {
         const [opData, trackData] = await Promise.all([
-          api.operators.packageDay.getAll(packageId),
+          crewSlotsApi.packageDay.getAll(packageId),
           filmsApi.tracks.getAll(filmId),
         ]);
         if (isMounted) {
@@ -94,7 +91,7 @@ export const FilmOperatorsTab: React.FC<FilmOperatorsTabProps> = ({
     );
   }
 
-  const dayMap = new Map<number, { name: string; operators: PackageDayOperator[] }>();
+  const dayMap = new Map<number, { name: string; operators: PackageCrewSlot[] }>();
   for (const op of operators) {
     const dayId = op.event_day_template_id;
     const dayName = op.event_day?.name || `Day ${dayId}`;
@@ -152,7 +149,7 @@ export const FilmOperatorsTab: React.FC<FilmOperatorsTabProps> = ({
             <Stack spacing={1}>
               {dayOps.map((op) => (
                 <OperatorRow key={op.id} operator={op}
-                  assignedTracks={tracks.filter((t) => t.contributor_id === op.contributor_id)}
+                  assignedTracks={tracks.filter((t) => t.crew_member_id === op.crew_member_id)}
                 />
               ))}
             </Stack>

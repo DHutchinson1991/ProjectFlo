@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import {
@@ -12,16 +12,17 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import RemoveIcon from '@mui/icons-material/Remove';
 import Link from 'next/link';
 
-import { api } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils/formatUtils';
+import { formatCurrency } from '@/shared/utils/formatUtils';
+import { roundMoney } from '@/shared/utils/pricing';
+import { crewSlotsApi } from '@/features/workflow/scheduling/api';
 import { useOptionalScheduleApi } from '@/features/workflow/scheduling/components';
 import type { EventDay } from '@/features/workflow/scheduling/components';
-import type { JobRole } from '@/lib/types/job-roles';
-import type { TaskAutoGenerationPreview } from '@/lib/types/task-library';
+import type { JobRole } from '@/features/catalog/task-library/types';
+import type { TaskAutoGenerationPreview } from '@/features/catalog/task-library/types';
 
 import type {
     CrewMemberOption,
-    PackageDayOperatorRecord,
+    PackageCrewSlotRecord,
     PackageActivityRecord,
 } from '../../../types';
 import {
@@ -34,8 +35,8 @@ import {
 // ─── Props ──────────────────────────────────────────────────────────
 export interface CrewCardProps {
     packageId: number | null;
-    packageDayOperators: PackageDayOperatorRecord[];
-    setPackageDayOperators: React.Dispatch<React.SetStateAction<PackageDayOperatorRecord[]>>;
+    PackageCrewSlots: PackageCrewSlotRecord[];
+    setPackageCrewSlots: React.Dispatch<React.SetStateAction<PackageCrewSlotRecord[]>>;
     packageEventDays: EventDay[];
     packageActivities: PackageActivityRecord[];
     scheduleActiveDayId: number | null;
@@ -50,8 +51,8 @@ export interface CrewCardProps {
 // ─── Component ──────────────────────────────────────────────────────
 export function CrewCard({
     packageId,
-    packageDayOperators,
-    setPackageDayOperators,
+    PackageCrewSlots,
+    setPackageCrewSlots,
     packageEventDays,
     packageActivities,
     scheduleActiveDayId,
@@ -65,11 +66,11 @@ export function CrewCard({
     // ── ScheduleApi adapter (context if available, else direct package API) ──
     const contextApi = useOptionalScheduleApi();
     const operatorApi = contextApi?.operators ?? {
-        add: (dayId: number, data: any) => api.operators.packageDay.add(packageId!, { event_day_template_id: dayId, ...data }),
-        remove: (id: number) => api.operators.packageDay.remove(id),
-        assign: (id: number, contributorId: number | null) => api.operators.packageDay.assign(id, contributorId),
-        assignActivity: (id: number, activityId: number) => api.operators.packageDay.assignActivity(id, activityId),
-        unassignActivity: (id: number, activityId: number) => api.operators.packageDay.unassignActivity(id, activityId),
+        add: (dayId: number, data: any) => crewSlotsApi.packageDay.add(packageId!, { event_day_template_id: dayId, ...data }),
+        remove: (id: number) => crewSlotsApi.packageDay.remove(id),
+        assign: (id: number, crewMemberId: number | null) => crewSlotsApi.packageDay.assign(id, crewMemberId),
+        assignActivity: (id: number, activityId: number) => crewSlotsApi.packageDay.assignActivity(id, activityId),
+        unassignActivity: (id: number, activityId: number) => crewSlotsApi.packageDay.unassignActivity(id, activityId),
     };
     const hasOwner = !!contextApi || !!packageId;
 
@@ -85,17 +86,17 @@ export function CrewCard({
 
     // ── Derived values ──
     const dayFilteredOps = scheduleActiveDayId
-        ? packageDayOperators.filter(o => o.event_day_template_id === scheduleActiveDayId)
+        ? PackageCrewSlots.filter(o => o.event_day_template_id === scheduleActiveDayId)
         : packageEventDays[0]
-            ? packageDayOperators.filter(o => o.event_day_template_id === packageEventDays[0].id)
-            : packageDayOperators;
+            ? PackageCrewSlots.filter(o => o.event_day_template_id === packageEventDays[0].id)
+            : PackageCrewSlots;
 
-    const crewDayOps = dayFilteredOps.filter(o => !!(o.contributor_id || o.job_role_id));
+    const crewDayOps = dayFilteredOps.filter(o => !!(o.crew_member_id || o.job_role_id));
     const crewActiveDay = packageEventDays.find(d => d.id === (scheduleActiveDayId || packageEventDays[0]?.id));
     const selectedActivity = selectedActivityId ? packageActivities.find(a => a.id === selectedActivityId) : null;
 
     // ── Multi-activity helpers ──
-    const isCrewExplicitlyAssigned = (op: PackageDayOperatorRecord): boolean => {
+    const isCrewExplicitlyAssigned = (op: PackageCrewSlotRecord): boolean => {
         if (!selectedActivityId) return false;
         if (op.activity_assignments && op.activity_assignments.length > 0) {
             return op.activity_assignments.some(a => a.package_activity_id === selectedActivityId);
@@ -104,7 +105,7 @@ export function CrewCard({
         return false;
     };
 
-    const isCrewAssigned = (op: PackageDayOperatorRecord) => {
+    const isCrewAssigned = (op: PackageCrewSlotRecord) => {
         if (!selectedActivityId) return true;
         if (isCrewExplicitlyAssigned(op)) return true;
         if (!op.activity_assignments || op.activity_assignments.length === 0) {
@@ -113,22 +114,22 @@ export function CrewCard({
         return false;
     };
 
-    const toggleCrewActivity = async (op: PackageDayOperatorRecord) => {
+    const toggleCrewActivity = async (op: PackageCrewSlotRecord) => {
         if (!selectedActivityId) return;
         try {
             const explicitlyAssigned = isCrewExplicitlyAssigned(op);
             const updatedOp = explicitlyAssigned
                 ? await operatorApi.unassignActivity(op.id, selectedActivityId)
                 : await operatorApi.assignActivity(op.id, selectedActivityId);
-            setPackageDayOperators(prev => prev.map(o => o.id === op.id ? { ...o, ...updatedOp } : o));
+            setPackageCrewSlots(prev => prev.map(o => o.id === op.id ? { ...o, ...updatedOp } : o));
         } catch (err) {
             console.warn('Failed to toggle crew activity:', err);
         }
     };
 
     // Roles that can be toggled per-activity: videographers / camera ops and sound / audio roles
-    const isActivatableRole = (op: PackageDayOperatorRecord): boolean => {
-        const rn = (op.job_role?.display_name || op.job_role?.name || op.position_name || '').toLowerCase();
+    const isActivatableRole = (op: PackageCrewSlotRecord): boolean => {
+        const rn = (op.job_role?.display_name || op.job_role?.name || op.label || '').toLowerCase();
         return rn.includes('videographer') || rn.includes('camera') ||
                rn.includes('sound') || rn.includes('audio') || rn.includes('mixer');
     };
@@ -139,11 +140,11 @@ export function CrewCard({
     // ── Grouped crew ──
     const grouped = new Map<string, { name: string; color: string; ops: typeof crewDayOps }>();
     for (const op of crewDayOps) {
-        const key = op.contributor_id ? `c-${op.contributor_id}` : `unassigned-${op.id}`;
-        const name = op.contributor
-            ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim() || 'Assigned'
-            : op.position_name || 'Unassigned';
-        const color = op.contributor?.crew_color || op.position_color || '#EC4899';
+        const key = op.crew_member_id ? `c-${op.crew_member_id}` : `unassigned-${op.id}`;
+        const name = op.crew_member
+            ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim() || 'Assigned'
+            : op.label || 'Unassigned';
+        const color = op.crew_member?.crew_color || '#EC4899';
         if (!grouped.has(key)) {
             grouped.set(key, { name, color, ops: [] });
         }
@@ -197,11 +198,11 @@ export function CrewCard({
                             <Box
                                 onClick={() => {
                                     const firstOp = group.ops[0];
-                                    if (firstOp?.contributor) {
+                                    if (firstOp?.crew_member) {
                                         const dayId = scheduleActiveDayId || packageEventDays[0]?.id;
                                         const existingRoleIds = dayId
-                                            ? packageDayOperators
-                                                .filter(o => o.event_day_template_id === dayId && o.contributor_id === firstOp.contributor_id && o.job_role_id)
+                                            ? PackageCrewSlots
+                                                .filter(o => o.event_day_template_id === dayId && o.crew_member_id === firstOp.crew_member_id && o.job_role_id)
                                                 .map(o => o.job_role_id!)
                                             : [];
                                         setRolePickerCrewMember(firstOp.contributor as CrewMemberOption);
@@ -239,7 +240,7 @@ export function CrewCard({
                                 const taskHours = taskKey ? (taskHoursMap.get(taskKey) || 0) : 0;
                                 const rate = dayRate ? getCrewDayRate(op) : getCrewHourlyRate(op);
                                 const hours = dayRate ? Number(op.hours || 1) : (taskHours > 0 ? taskHours : Number(op.hours || 0));
-                                const cost = rate * hours;
+                                const cost = roundMoney(rate * hours);
 
                                 // Derived activity-selection states
                                 const isLocked = !!selectedActivityId && !activatable;
@@ -268,7 +269,7 @@ export function CrewCard({
                                             }),
                                         }}
                                     >
-                                        <Box sx={{ width: 4, height: 4, borderRadius: '50%', flexShrink: 0, bgcolor: op.position_color || group.color, opacity: isActiveAssigned ? 1 : 0.5 }} />
+                                        <Box sx={{ width: 4, height: 4, borderRadius: '50%', flexShrink: 0, bgcolor: op.crew_member?.crew_color || group.color, opacity: isActiveAssigned ? 1 : 0.5 }} />
                                         <Box
                                             sx={{ flex: 1, minWidth: 0, cursor: !selectedActivityId ? 'pointer' : undefined }}
                                             onClick={(e) => {
@@ -282,14 +283,14 @@ export function CrewCard({
                                                 {(() => {
                                                     let tierName: string | null = null;
                                                     if (op?.contributor && op?.job_role) {
-                                                        const jobRoleMatch = op.contributor.contributor_job_roles?.find(
+                                                        const jobRoleMatch = op.crew_member.job_role_assignments?.find(
                                                             (cjr) => cjr.job_role_id === op.job_role_id
                                                         );
                                                         tierName = jobRoleMatch?.payment_bracket?.name || null;
                                                     }
                                                     return op.job_role
                                                         ? `${op.job_role.display_name || op.job_role.name}${tierName ? ` - ${tierName}` : ''}`
-                                                        : (op.position_name || 'Crew');
+                                                        : (op.label || 'Crew');
                                                 })()}
                                             </Typography>
                                         </Box>
@@ -329,7 +330,7 @@ export function CrewCard({
                                                         e.stopPropagation();
                                                         try {
                                                             await operatorApi.remove(op.id);
-                                                            setPackageDayOperators(prev => prev.filter(o => o.id !== op.id));
+                                                            setPackageCrewSlots(prev => prev.filter(o => o.id !== op.id));
                                                         } catch (err) {
                                                             console.warn('Failed to remove operator:', err);
                                                         }
@@ -353,8 +354,8 @@ export function CrewCard({
                         if (isCrewDayRate(op)) {
                             return sum + getCrewDayRate(op) * Number(op.hours || 1);
                         }
-                        const crewName = op.contributor
-                            ? `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim()
+                        const crewName = op.crew_member
+                            ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim()
                             : '';
                         const roleName = op.job_role ? (op.job_role.display_name || op.job_role.name) : null;
                         const taskKey = crewName && roleName ? `${crewName}|${roleName}` : null;
@@ -436,22 +437,22 @@ export function CrewCard({
                             if (!hasOwner || !operatorMenuDayId) return;
                             try {
                                 const roleName = role.display_name || role.name;
-                                const existingCount = packageDayOperators.filter(o =>
+                                const existingCount = PackageCrewSlots.filter(o =>
                                     o.event_day_template_id === operatorMenuDayId &&
                                     o.job_role_id === role.id
                                 ).length;
-                                const positionName = existingCount > 0 ? `${roleName} ${existingCount + 1}` : roleName;
+                                const label = existingCount > 0 ? `${roleName} ${existingCount + 1}` : null;
 
                                 const newOp = await operatorApi.add(operatorMenuDayId, {
-                                    position_name: positionName,
-                                    contributor_id: null,
+                                    label,
+                                    crew_member_id: null,
                                     job_role_id: role.id,
                                 });
                                 if (selectedActivityId && newOp?.id) {
                                     const assignedOp = await operatorApi.assignActivity(newOp.id, selectedActivityId);
-                                    setPackageDayOperators(prev => [...prev, { ...newOp, ...assignedOp }]);
+                                    setPackageCrewSlots(prev => [...prev, { ...newOp, ...assignedOp }]);
                                 } else {
-                                    setPackageDayOperators(prev => [...prev, newOp]);
+                                    setPackageCrewSlots(prev => [...prev, newOp]);
                                 }
                             } catch (err) {
                                 console.warn('Failed to add role slot:', err);
@@ -484,11 +485,11 @@ export function CrewCard({
                     </MenuItem>
                     {crewMembers.map(cm => {
                         const cmName = `${cm.contact.first_name || ''} ${cm.contact.last_name || ''}`.trim() || 'Unnamed';
-                        const primaryRole = (cm.contributor_job_roles ?? []).find(r => r.is_primary)?.job_role ||
-                            (cm.contributor_job_roles ?? [])[0]?.job_role;
+                        const primaryRole = (cm.job_role_assignments ?? []).find(r => r.is_primary)?.job_role ||
+                            (cm.job_role_assignments ?? [])[0]?.job_role;
                         const slotsOnDay = operatorMenuDayId
-                            ? packageDayOperators.filter(o =>
-                                o.event_day_template_id === operatorMenuDayId && o.contributor_id === cm.id
+                            ? PackageCrewSlots.filter(o =>
+                                o.event_day_template_id === operatorMenuDayId && o.crew_member_id === cm.id
                             ).length
                             : 0;
                         return (
@@ -497,8 +498,8 @@ export function CrewCard({
                                 onClick={() => {
                                     setOperatorMenuAnchor(null);
                                     const existingRoleIds = operatorMenuDayId
-                                        ? packageDayOperators
-                                            .filter(o => o.event_day_template_id === operatorMenuDayId && o.contributor_id === cm.id && o.job_role_id)
+                                        ? PackageCrewSlots
+                                            .filter(o => o.event_day_template_id === operatorMenuDayId && o.crew_member_id === cm.id && o.job_role_id)
                                             .map(o => o.job_role_id!)
                                         : [];
                                     setRolePickerCrewMember(cm);
@@ -532,14 +533,14 @@ export function CrewCard({
             PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', minWidth: 200, maxHeight: 350 } }}
         >
             {/* Unassign option */}
-            {crewAssignSlotId && packageDayOperators.find(o => o.id === crewAssignSlotId)?.contributor_id && (
+            {crewAssignSlotId && PackageCrewSlots.find(o => o.id === crewAssignSlotId)?.crew_member_id && (
                 <MenuItem
                     onClick={async () => {
                         if (!crewAssignSlotId) return;
                         try {
                             await operatorApi.assign(crewAssignSlotId, null);
-                            setPackageDayOperators(prev =>
-                                prev.map(o => o.id === crewAssignSlotId ? { ...o, contributor_id: null, contributor: null } : o)
+                            setPackageCrewSlots(prev =>
+                                prev.map(o => o.id === crewAssignSlotId ? { ...o, crew_member_id: null, contributor: null } : o)
                             );
                         } catch (err) {
                             console.warn('Failed to unassign crew:', err);
@@ -552,25 +553,25 @@ export function CrewCard({
                     <RemoveIcon sx={{ fontSize: 14, mr: 1 }} /> Unassign
                 </MenuItem>
             )}
-            {crewAssignSlotId && packageDayOperators.find(o => o.id === crewAssignSlotId)?.contributor_id && (
+            {crewAssignSlotId && PackageCrewSlots.find(o => o.id === crewAssignSlotId)?.crew_member_id && (
                 <Box sx={{ my: 0.5, borderTop: '1px solid rgba(255,255,255,0.08)' }} />
             )}
             {/* Crew member list */}
             {(() => {
-                const slot = crewAssignSlotId ? packageDayOperators.find(o => o.id === crewAssignSlotId) : null;
+                const slot = crewAssignSlotId ? PackageCrewSlots.find(o => o.id === crewAssignSlotId) : null;
                 const slotRoleId = slot?.job_role_id;
 
                 const matchingCrew = slotRoleId
-                    ? crewMembers.filter(cm => (cm.contributor_job_roles ?? []).some(r => r.job_role.id === slotRoleId))
+                    ? crewMembers.filter(cm => (cm.job_role_assignments ?? []).some(r => r.job_role.id === slotRoleId))
                     : crewMembers;
                 const otherCrew = slotRoleId
-                    ? crewMembers.filter(cm => !(cm.contributor_job_roles ?? []).some(r => r.job_role.id === slotRoleId))
+                    ? crewMembers.filter(cm => !(cm.job_role_assignments ?? []).some(r => r.job_role.id === slotRoleId))
                     : [];
 
                 const renderCrewItem = (cm: CrewMemberOption) => {
                     const cmName = `${cm.contact.first_name || ''} ${cm.contact.last_name || ''}`.trim() || 'Unnamed';
-                    const primaryRole = (cm.contributor_job_roles ?? []).find(r => r.is_primary)?.job_role || (cm.contributor_job_roles ?? [])[0]?.job_role;
-                    const isCurrentlyAssigned = slot?.contributor_id === cm.id;
+                    const primaryRole = (cm.job_role_assignments ?? []).find(r => r.is_primary)?.job_role || (cm.job_role_assignments ?? [])[0]?.job_role;
+                    const isCurrentlyAssigned = slot?.crew_member_id === cm.id;
                     return (
                         <MenuItem
                             key={cm.id}
@@ -579,7 +580,7 @@ export function CrewCard({
                                 if (!crewAssignSlotId || isCurrentlyAssigned) return;
                                 try {
                                     const updated = await operatorApi.assign(crewAssignSlotId, cm.id);
-                                    setPackageDayOperators(prev =>
+                                    setPackageCrewSlots(prev =>
                                         prev.map(o => o.id === crewAssignSlotId ? { ...o, ...updated } : o)
                                     );
                                 } catch (err) {
@@ -643,7 +644,7 @@ export function CrewCard({
                 const cmName = `${rolePickerCrewMember.contact.first_name || ''} ${rolePickerCrewMember.contact.last_name || ''}`.trim() || 'Unnamed';
                 const dayId = operatorMenuDayId || scheduleActiveDayId || packageEventDays[0]?.id;
                 const existingSlotsForPerson = dayId
-                    ? packageDayOperators.filter(o => o.event_day_template_id === dayId && o.contributor_id === rolePickerCrewMember.id)
+                    ? PackageCrewSlots.filter(o => o.event_day_template_id === dayId && o.crew_member_id === rolePickerCrewMember.id)
                     : [];
                 const existingRoleIdsOnDay = existingSlotsForPerson.filter(o => o.job_role_id).map(o => o.job_role_id!);
 
@@ -664,7 +665,7 @@ export function CrewCard({
                                     {jobRoles.map(role => {
                                         const isChecked = rolePickerSelectedIds.includes(role.id);
                                         const wasAlreadySaved = existingRoleIdsOnDay.includes(role.id);
-                                        const hasRoleInProfile = (rolePickerCrewMember.contributor_job_roles ?? []).some(r => r.job_role.id === role.id);
+                                        const hasRoleInProfile = (rolePickerCrewMember.job_role_assignments ?? []).some(r => r.job_role.id === role.id);
                                         return (
                                             <Box
                                                 key={role.id}
@@ -729,8 +730,8 @@ export function CrewCard({
                                         const cm = rolePickerCrewMember;
                                         const cmNameForSave = `${cm.contact.first_name || ''} ${cm.contact.last_name || ''}`.trim() || 'Unnamed';
 
-                                        const existingSlotsForSave = packageDayOperators.filter(
-                                            o => o.event_day_template_id === dayIdForSave && o.contributor_id === cm.id && o.job_role_id
+                                        const existingSlotsForSave = PackageCrewSlots.filter(
+                                            o => o.event_day_template_id === dayIdForSave && o.crew_member_id === cm.id && o.job_role_id
                                         );
                                         const existingRoleIds = existingSlotsForSave.map(o => o.job_role_id!);
 
@@ -741,19 +742,18 @@ export function CrewCard({
                                             await operatorApi.remove(slot.id);
                                         }
 
-                                        const newOps: PackageDayOperatorRecord[] = [];
+                                        const newOps: PackageCrewSlotRecord[] = [];
                                         for (const roleId of rolesToAdd) {
                                             const role = jobRoles.find(r => r.id === roleId);
                                             const roleName = role?.display_name || role?.name || 'Crew';
-                                            const allExistingForRole = packageDayOperators.filter(
+                                            const allExistingForRole = PackageCrewSlots.filter(
                                                 o => o.event_day_template_id === dayIdForSave && o.job_role_id === roleId
                                             ).length;
-                                            const positionName = allExistingForRole > 0 ? `${roleName} (${cmNameForSave})` : roleName;
+                                            const label = allExistingForRole > 0 ? `${roleName} (${cmNameForSave})` : null;
                                             try {
                                                 let newOp = await operatorApi.add(dayIdForSave, {
-                                                    position_name: positionName,
-                                                    position_color: cm.crew_color || null,
-                                                    contributor_id: cm.id,
+                                                    label,
+                                                    crew_member_id: cm.id,
                                                     job_role_id: roleId,
                                                 });
                                                 if (selectedActivityId && newOp?.id) {
@@ -766,7 +766,7 @@ export function CrewCard({
                                             }
                                         }
 
-                                        setPackageDayOperators(prev => {
+                                        setPackageCrewSlots(prev => {
                                             const removeIds = new Set(slotsToRemove.map(s => s.id));
                                             return [...prev.filter(o => !removeIds.has(o.id)), ...newOps];
                                         });

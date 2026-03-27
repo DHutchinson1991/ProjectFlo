@@ -8,10 +8,10 @@ import {
     MovieFilter as MovieFilterIcon,
     Tune as TuneIcon,
 } from "@mui/icons-material";
-import WelcomeSocialProof from "./WelcomeSocialProof";
-import { C } from '../constants/wizard-config';
-import { subtleFloat, fadeIn, fadeInUp } from '../constants/animations';
-import { NACtx } from '../types';
+import WelcomeSocialProof from "../WelcomeSocialProof";
+import { C } from '../../constants/wizard-config';
+import { subtleFloat, fadeIn, fadeInUp } from '../../constants/animations';
+import { NACtx } from '../../types';
 
 const glowPulse = keyframes`
     0%, 100% { opacity: 0.5; }

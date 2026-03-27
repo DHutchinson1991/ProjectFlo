@@ -1,19 +1,74 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { api, apiClient } from '@/lib/api';
-import { createScenesApi } from '@/features/content/scenes/api';
-import { buildAssignmentsBySlot, buildEquipmentSlotKey, buildEquipmentSlotNote } from '@/lib/utils/equipmentAssignments';
-import { transformBackendTrack } from '@/lib/utils/trackUtils';
+import { useEffect, useRef } from 'react';
+import { servicePackagesApi } from '@/features/catalog/packages/api';
+import { filmsApi } from '@/features/content/films/api';
+import { crewSlotsApi, scheduleApi } from '@/features/workflow/scheduling/api';
+import { locationsApi } from '@/features/workflow/locations/api';
+import { scenesApi } from '@/features/content/scenes/api';
+import { buildAssignmentsBySlot, buildEquipmentSlotKey, buildEquipmentSlotNote } from '@/features/content/films/utils/equipmentAssignments';
+import { transformBackendTrack } from '@/features/content/films/utils/trackUtils';
+import type { TimelineTrack as ContentBuilderTrack } from '@/features/content/content-builder/types/timeline';
 import type { Film } from '../types';
 import type { FilmEquipmentAssignmentsBySlot } from '../types/film-equipment.types';
-import type { ApiClient } from '@/lib/api/api-client.types';
+
+interface BackendTrackRecord {
+    id: number;
+    type?: string;
+    name?: string | null;
+    track_type?: string;
+    track_label?: string | null;
+    crew_member_id?: number | null;
+    is_unmanned?: boolean | null;
+}
+
+interface PackageOperatorEquipmentRecord {
+    equipment_id?: number | null;
+    equipment?: {
+        id?: number;
+        category?: string | null;
+        is_unmanned?: boolean | null;
+    } | null;
+}
+
+interface PackageOperatorRecord {
+    id: number;
+    crew_member_id?: number | null;
+    equipment?: PackageOperatorEquipmentRecord[];
+}
+
+interface PackageDayEquipmentRecord {
+    equipment_id?: number | null;
+    slot_type?: string | null;
+}
+
+interface PackageRecord {
+    contents?: {
+        day_equipment?: Record<string, PackageDayEquipmentRecord[] | undefined>;
+    } | null;
+}
+
+interface RecordingSetupRecord {
+    graphics_enabled?: boolean | null;
+    graphics_title?: string | null;
+}
+
+interface MomentSetupRecord {
+    id: number;
+    recording_setup?: RecordingSetupRecord | null;
+}
+
+interface SceneSetupRecord {
+    id: number;
+    recording_setup?: RecordingSetupRecord | null;
+    moments?: MomentSetupRecord[];
+}
 
 interface UsePackageTrackSyncOptions {
     filmId: number;
     film: Film | null;
     linkedPackageId: string | null;
-    setTracks: React.Dispatch<React.SetStateAction<any[]>>;
+    setTracks: React.Dispatch<React.SetStateAction<ContentBuilderTrack[]>>;
     setEquipmentAssignmentsBySlot: React.Dispatch<React.SetStateAction<FilmEquipmentAssignmentsBySlot>>;
-    createSubject: (data: { film_id: number; name: string; role_template_id?: number }) => Promise<any>;
+    createSubject: (data: { film_id: number; name: string; role_template_id: number }) => Promise<unknown>;
     loadAll: () => Promise<void>;
 }
 
@@ -33,9 +88,9 @@ export function usePackageTrackSync({
             try {
                 const pkgId = Number(linkedPackageId);
                 const [operators, currentTracks, pkgData] = await Promise.all([
-                    api.operators.packageDay.getAll(pkgId),
-                    api.films.tracks.getAll(filmId),
-                    api.servicePackages.getOne(film.brand_id, pkgId).catch(() => null),
+                    crewSlotsApi.packageDay.getAll(pkgId) as Promise<PackageOperatorRecord[]>,
+                    filmsApi.tracks.getAll(filmId) as Promise<BackendTrackRecord[]>,
+                    servicePackagesApi.getById(pkgId).catch((): null => null) as Promise<PackageRecord | null>,
                 ]);
 
                 const cameraOperators: { crewId: number | null; cameraEquipmentId: number | null; isUnmanned: boolean }[] = [];
@@ -44,10 +99,10 @@ export function usePackageTrackSync({
                 const seenAudioIds = new Set<number>();
                 const pendingUnmannedCams: { crewId: number | null; cameraEquipmentId: number; isUnmanned: boolean }[] = [];
 
-                (operators || []).forEach((op: any) => {
-                    const crewId = op.contributor_id ?? op.id;
-                    const equipment = op.equipment?.length > 0 ? op.equipment : [];
-                    equipment.forEach((eq: any) => {
+                (operators || []).forEach((op) => {
+                    const crewId = op.crew_member_id ?? op.id;
+                    const equipment = op.equipment ?? [];
+                    equipment.forEach((eq) => {
                         const cat = (eq.equipment?.category || '').toUpperCase();
                         const eqId = eq.equipment_id ?? eq.equipment?.id;
                         if (cat === 'CAMERA' && eqId && !seenCameraIds.has(eqId)) {
@@ -64,9 +119,9 @@ export function usePackageTrackSync({
                     });
                 });
 
-                const dayEquipMap = (pkgData?.contents as any)?.day_equipment || {};
-                Object.values(dayEquipMap).forEach((items: any) => {
-                    (items || []).forEach((item: any) => {
+                const dayEquipMap = pkgData?.contents?.day_equipment || {};
+                Object.values(dayEquipMap).forEach((items) => {
+                    (items || []).forEach((item) => {
                         const eqId = item.equipment_id;
                         if (item.slot_type === 'CAMERA' && eqId && !seenCameraIds.has(eqId)) {
                             seenCameraIds.add(eqId);
@@ -82,36 +137,36 @@ export function usePackageTrackSync({
 
                 const neededCameras = cameraOperators.length;
                 const neededAudio = audioEquipment.length;
-                const currentCameras = currentTracks.filter((t: any) => t.type === 'VIDEO').length;
-                const currentAudioCount = currentTracks.filter((t: any) => t.type === 'AUDIO').length;
+                const currentCameras = currentTracks.filter((t) => t.type === 'VIDEO').length;
+                const currentAudioCount = currentTracks.filter((t) => t.type === 'AUDIO').length;
 
                 if (neededCameras !== currentCameras || neededAudio !== currentAudioCount) {
-                    await api.films.equipment.update(filmId, {
+                    await filmsApi.equipment.update(filmId, {
                         num_cameras: neededCameras, num_audio: neededAudio, allow_removal: true,
                     });
                 }
 
-                const rawTracks = await api.films.tracks.getAll(filmId);
-                const videoTracks = rawTracks.filter((t: any) => t.type === 'VIDEO').sort((a: any, b: any) => {
+                const rawTracks = await filmsApi.tracks.getAll(filmId) as BackendTrackRecord[];
+                const videoTracks = rawTracks.filter((t) => t.type === 'VIDEO').sort((a, b) => {
                     const numA = parseInt(a.name?.match(/(\d+)/)?.[1] || '0', 10);
                     const numB = parseInt(b.name?.match(/(\d+)/)?.[1] || '0', 10);
                     return numA - numB;
                 });
 
-                const assignmentPromises: Promise<any>[] = [];
+                const assignmentPromises: Array<Promise<unknown>> = [];
                 for (let i = 0; i < videoTracks.length && i < cameraOperators.length; i++) {
                     const track = videoTracks[i];
                     const opData = cameraOperators[i];
-                    if (track.contributor_id !== opData.crewId || track.is_unmanned !== opData.isUnmanned) {
-                        assignmentPromises.push(api.films.tracks.update(filmId, track.id, { contributor_id: opData.crewId, is_unmanned: opData.isUnmanned }));
+                    if (track.crew_member_id !== opData.crewId || track.is_unmanned !== opData.isUnmanned) {
+                        assignmentPromises.push(filmsApi.tracks.update(filmId, track.id, { crew_member_id: opData.crewId, is_unmanned: opData.isUnmanned }));
                     }
                     if (opData.cameraEquipmentId) {
                         const slotNote = buildEquipmentSlotNote(buildEquipmentSlotKey('camera', i + 1));
-                        assignmentPromises.push(api.films.equipmentAssignments.assign(filmId, { equipment_id: opData.cameraEquipmentId, notes: slotNote }).catch(() => {}));
+                        assignmentPromises.push(filmsApi.equipmentAssignments.assign(filmId, { equipment_id: opData.cameraEquipmentId, notes: slotNote }).catch(() => undefined));
                     }
                 }
 
-                const audioTracks = rawTracks.filter((t: any) => t.type === 'AUDIO').sort((a: any, b: any) => {
+                const audioTracks = rawTracks.filter((t) => t.type === 'AUDIO').sort((a, b) => {
                     const numA = parseInt(a.name?.match(/(\d+)/)?.[1] || '0', 10);
                     const numB = parseInt(b.name?.match(/(\d+)/)?.[1] || '0', 10);
                     return numA - numB;
@@ -119,43 +174,41 @@ export function usePackageTrackSync({
                 for (let i = 0; i < audioTracks.length && i < audioEquipment.length; i++) {
                     const track = audioTracks[i];
                     const audioData = audioEquipment[i];
-                    if (track.contributor_id !== audioData.crewId) {
-                        assignmentPromises.push(api.films.tracks.update(filmId, track.id, { contributor_id: audioData.crewId }));
+                    if (track.crew_member_id !== audioData.crewId) {
+                        assignmentPromises.push(filmsApi.tracks.update(filmId, track.id, { crew_member_id: audioData.crewId }));
                     }
                     if (audioData.audioEquipmentId) {
                         const slotNote = buildEquipmentSlotNote(buildEquipmentSlotKey('audio', i + 1));
-                        assignmentPromises.push(api.films.equipmentAssignments.assign(filmId, { equipment_id: audioData.audioEquipmentId, notes: slotNote }).catch(() => {}));
+                        assignmentPromises.push(filmsApi.equipmentAssignments.assign(filmId, { equipment_id: audioData.audioEquipmentId, notes: slotNote }).catch(() => undefined));
                     }
                 }
 
                 await Promise.all(assignmentPromises);
 
-                // Sync recording setups
                 try {
-                    const scenesApiInstance = createScenesApi(apiClient as unknown as ApiClient);
-                    const videoTrackIds = rawTracks.filter((t: any) => t.type === 'VIDEO').map((t: any) => t.id);
-                    const audioTrackIds = rawTracks.filter((t: any) => t.type === 'AUDIO').map((t: any) => t.id);
+                    const videoTrackIds = rawTracks.filter((t) => t.type === 'VIDEO').map((t) => t.id);
+                    const audioTrackIds = rawTracks.filter((t) => t.type === 'AUDIO').map((t) => t.id);
 
                     if (videoTrackIds.length > 0 || audioTrackIds.length > 0) {
-                        const filmScenesForSetup = await scenesApiInstance.scenes.getByFilm(filmId);
-                        const setupPromises: Promise<any>[] = [];
+                        const filmScenesForSetup = await scenesApi.scenes.getByFilm(filmId) as unknown as SceneSetupRecord[];
+                        const setupPromises: Array<Promise<unknown>> = [];
                         for (const scene of filmScenesForSetup) {
-                            const sceneRec = (scene as any).recording_setup;
+                            const sceneRec = scene.recording_setup;
                             setupPromises.push(
-                                scenesApiInstance.scenes.recordingSetup.upsert(scene.id, {
+                                scenesApi.scenes.recordingSetup.upsert(scene.id, {
                                     camera_track_ids: videoTrackIds, audio_track_ids: audioTrackIds,
                                     graphics_enabled: sceneRec?.graphics_enabled ?? false,
-                                }).catch((err: any) => console.warn(`Failed to upsert scene ${scene.id} recording setup:`, err))
+                                }).catch((err: unknown) => console.warn(`Failed to upsert scene ${scene.id} recording setup:`, err))
                             );
-                            for (const moment of ((scene as any).moments || [])) {
+                            for (const moment of (scene.moments || [])) {
                                 setupPromises.push(
-                                    scenesApiInstance.moments.upsertRecordingSetup(moment.id, {
+                                    scenesApi.moments.upsertRecordingSetup(moment.id, {
                                         camera_track_ids: videoTrackIds,
                                         camera_assignments: videoTrackIds.map((tid: number) => ({ track_id: tid })),
                                         audio_track_ids: audioTrackIds,
                                         graphics_enabled: moment.recording_setup?.graphics_enabled ?? false,
                                         graphics_title: moment.recording_setup?.graphics_title ?? null,
-                                    }).catch((err: any) => console.warn(`Failed to upsert moment ${moment.id} recording setup:`, err))
+                                    }).catch((err: unknown) => console.warn(`Failed to upsert moment ${moment.id} recording setup:`, err))
                                 );
                             }
                         }
@@ -166,28 +219,33 @@ export function usePackageTrackSync({
                 }
 
                 const [finalTracks, finalAssignments] = await Promise.all([
-                    api.films.tracks.getAll(filmId),
-                    api.films.equipmentAssignments.getAll(filmId),
+                    filmsApi.tracks.getAll(filmId),
+                    filmsApi.equipmentAssignments.getAll(filmId),
                 ]);
-                setTracks(finalTracks.map((t: any) => transformBackendTrack(t)));
+                setTracks(finalTracks.map((t) => transformBackendTrack(t)));
                 setEquipmentAssignmentsBySlot(buildAssignmentsBySlot(finalAssignments));
 
                 // Sync subjects
                 try {
-                    const pkgSubjects = await api.schedule.packageEventDaySubjects.getAll(pkgId);
+                    const pkgSubjects = await scheduleApi.packageEventDaySubjects.getAll(pkgId) as Array<{
+                        name: string;
+                        role_template_id?: number | null;
+                    }>;
                     for (const pkgSubject of pkgSubjects) {
                         try {
-                            await createSubject({ film_id: filmId, name: pkgSubject.name, role_template_id: pkgSubject.role_template_id || undefined });
+                            await createSubject({ film_id: filmId, name: pkgSubject.name, role_template_id: pkgSubject.role_template_id ?? 0 });
                         } catch { /* duplicate */ }
                     }
                 } catch (subjectErr) { console.warn('Could not sync subjects from package:', subjectErr); }
 
                 // Sync locations
                 try {
-                    const pkgLocations = await api.schedule.packageEventDayLocations.getAll(pkgId);
+                    const pkgLocations = await scheduleApi.packageEventDayLocations.getAll(pkgId) as Array<{
+                        location_id?: number | null;
+                    }>;
                     for (const pkgLocation of pkgLocations) {
                         if (pkgLocation.location_id) {
-                            try { await api.filmLocations.addToFilm(filmId, { location_id: pkgLocation.location_id }); }
+                            try { await locationsApi.filmLocations.addToFilm(filmId, { location_id: pkgLocation.location_id }); }
                             catch { /* duplicate */ }
                         }
                     }
@@ -200,6 +258,5 @@ export function usePackageTrackSync({
         };
 
         syncTracksFromPackage();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [linkedPackageId, filmId, setTracks, film]);
+    }, [linkedPackageId, filmId, film, setTracks, setEquipmentAssignmentsBySlot, createSubject, loadAll]);
 }

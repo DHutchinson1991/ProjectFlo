@@ -3,7 +3,8 @@
 import React from "react";
 import { Box, Typography, Chip, Stack } from "@mui/material";
 import { DragIndicator as DragIndicatorIcon } from "@mui/icons-material";
-import { TaskLibrary, PRICING_TYPE_LABELS } from "@/lib/types";
+import { TaskLibrary, PRICING_TYPE_LABELS } from "@/features/catalog/task-library/types";
+import { getPhaseConfig, hexToRgba } from "@/shared/ui/tasks";
 
 interface DragOverlayTaskProps {
     task: TaskLibrary;
@@ -11,19 +12,8 @@ interface DragOverlayTaskProps {
 }
 
 export function DragOverlayTask({ task, phase }: DragOverlayTaskProps) {
-    // Get phase colors
-    const phaseColors = {
-        'Lead': { color: '#667eea', bg: 'rgba(102, 126, 234, 0.1)', hover: 'rgba(102, 126, 234, 0.2)' },
-        'Inquiry': { color: '#f093fb', bg: 'rgba(240, 147, 251, 0.1)', hover: 'rgba(240, 147, 251, 0.2)' },
-        'Booking': { color: '#4facfe', bg: 'rgba(79, 172, 254, 0.1)', hover: 'rgba(79, 172, 254, 0.2)' },
-        'Creative_Development': { color: '#43e97b', bg: 'rgba(67, 233, 123, 0.1)', hover: 'rgba(67, 233, 123, 0.2)' },
-        'Pre_Production': { color: '#fa709a', bg: 'rgba(250, 112, 154, 0.1)', hover: 'rgba(250, 112, 154, 0.2)' },
-        'Production': { color: '#2196f3', bg: 'rgba(33, 150, 243, 0.1)', hover: 'rgba(33, 150, 243, 0.2)' },
-        'Post_Production': { color: '#9c27b0', bg: 'rgba(156, 39, 176, 0.1)', hover: 'rgba(156, 39, 176, 0.2)' },
-        'Delivery': { color: '#ffeb3b', bg: 'rgba(255, 235, 59, 0.1)', hover: 'rgba(255, 235, 59, 0.2)' }
-    };
-
-    const phaseStyle = phaseColors[phase as keyof typeof phaseColors] || phaseColors['Lead'];
+    const config = getPhaseConfig(phase);
+    const phaseStyle = { color: config.color, bg: hexToRgba(config.color, 0.1), hover: hexToRgba(config.color, 0.2) };
 
     return (
         <Box

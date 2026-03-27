@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
-import type { MontagePreset } from '@/lib/types/domains/montage-presets';
+import type { MontagePreset } from '@/features/content/films/types/montage-presets';
 import { useMontagePresets } from '@/features/content/films/hooks';
 
 interface MontagePresetStepProps {

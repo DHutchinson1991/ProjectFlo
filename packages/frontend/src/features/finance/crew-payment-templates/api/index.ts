@@ -15,7 +15,7 @@ export function createCrewPaymentTemplatesApi(client: ApiClient) {
     create: (brandId: number, data: CreateCrewPaymentTemplateData) =>
       client.post<CrewPaymentTemplate>(`/api/brands/${brandId}/crew-payment-templates`, data),
     update: (brandId: number, id: number, data: UpdateCrewPaymentTemplateData) =>
-      client.patch<CrewPaymentTemplate>(`/api/brands/${brandId}/crew-payment-templates/${id}`, data),
+      client.put<CrewPaymentTemplate>(`/api/brands/${brandId}/crew-payment-templates/${id}`, data),
     delete: (brandId: number, id: number) =>
       client.delete<void>(`/api/brands/${brandId}/crew-payment-templates/${id}`),
   };

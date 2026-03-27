@@ -8,9 +8,10 @@
 import { useState, useCallback } from 'react';
 import { type AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 
-import { api } from '@/lib/api';
-import { createLinkedFilmFromTemplate } from '@/lib/utils/packageFilmLinker';
-import { ServicePackageItem } from '@/lib/types/domains/sales';
+import { servicePackagesApi } from '@/features/catalog/packages/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
+import { createLinkedFilmFromTemplate } from '@/features/catalog/packages/utils/packageFilmLinker';
+import { ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
 
 import type { FilmData, PackageFilmRecord } from '../types';
 
@@ -63,9 +64,9 @@ export function usePackageActions({
         try {
             let savedPkgId = packageId;
             if (packageId) {
-                await api.servicePackages.update(brandId, packageId, formData);
+                await servicePackagesApi.update(packageId, formData);
             } else {
-                const newPkg = await api.servicePackages.create(brandId, formData);
+                const newPkg = await servicePackagesApi.create(formData);
                 savedPkgId = newPkg.id;
                 router.replace(`/designer/packages/${newPkg.id}`);
             }
@@ -81,7 +82,7 @@ export function usePackageActions({
                     if (item.type === 'film' && item.referenceId && !item.config?.package_film_id) {
                         try {
                             const filmId = item.config?.linked_film_id ?? item.referenceId;
-                            const pf = await api.schedule.packageFilms.create(savedPkgId, {
+                            const pf = await scheduleApi.packageFilms.create(savedPkgId, {
                                 film_id: filmId,
                                 order_index: i,
                             });
@@ -100,13 +101,13 @@ export function usePackageActions({
                 // Save again if we updated items with package_film_ids
                 if (needsUpdate) {
                     const updated = { ...formData, contents: { ...formData.contents, items: updatedItems } };
-                    await api.servicePackages.update(brandId, savedPkgId, updated);
+                    await servicePackagesApi.update(savedPkgId, updated);
                     setFormData(updated);
                 }
 
                 // Auto-create a version snapshot after successful save
                 try {
-                    await api.servicePackages.versions.create(brandId, savedPkgId);
+                    await servicePackagesApi.versions.create(savedPkgId);
                 } catch (vErr) {
                     console.warn('Failed to create version snapshot:', vErr);
                 }
@@ -124,7 +125,7 @@ export function usePackageActions({
         if (!packageId || !safeBrandId) return;
         const brandId = safeBrandId;
         try {
-            const restored = await api.servicePackages.versions.restore(brandId, packageId, versionId);
+            const restored = await servicePackagesApi.versions.restore(packageId, versionId);
             setFormData(restored);
             await loadVersions();
         } catch (err) {
@@ -151,7 +152,7 @@ export function usePackageActions({
             let packageFilmId: number | null = null;
             if (packageId) {
                 try {
-                    const pf = await api.schedule.packageFilms.create(packageId, {
+                    const pf = await scheduleApi.packageFilms.create(packageId, {
                         film_id: film.id,
                         order_index: items.filter(i => i.type === 'film').length,
                     });
@@ -194,7 +195,7 @@ export function usePackageActions({
         // Delete the corresponding PackageFilm record if it exists
         if (removedItem?.config?.package_film_id) {
             try {
-                await api.schedule.packageFilms.delete(removedItem.config.package_film_id);
+                await scheduleApi.packageFilms.delete(removedItem.config.package_film_id);
                 setPackageFilms(prev => prev.filter(pf => pf.id !== removedItem.config?.package_film_id));
             } catch (pfErr) {
                 console.warn('Failed to delete package film record:', pfErr);
@@ -213,7 +214,7 @@ export function usePackageActions({
 
         const ensurePackageSaved = async (): Promise<number> => {
             if (packageId) {
-                await api.servicePackages.update(brandId, packageId, formData);
+                await servicePackagesApi.update(packageId, formData);
                 return packageId;
             }
 
@@ -221,7 +222,7 @@ export function usePackageActions({
                 throw new Error('Package save cancelled');
             }
 
-            const newPkg = await api.servicePackages.create(brandId, formData);
+            const newPkg = await servicePackagesApi.create(formData);
             setFormData(newPkg);
             router.replace(`/designer/packages/${newPkg.id}`);
             return newPkg.id;
@@ -255,7 +256,7 @@ export function usePackageActions({
             let packageFilmId = item.config?.package_film_id ?? null;
             if (!packageFilmId) {
                 try {
-                    const pf = await api.schedule.packageFilms.create(savedPackageId, {
+                    const pf = await scheduleApi.packageFilms.create(savedPackageId, {
                         film_id: newLinkedFilmId,
                         order_index: (formData.contents?.items || []).findIndex((i: ServicePackageItem) => i.id === item.id),
                     });
@@ -286,7 +287,7 @@ export function usePackageActions({
                 contents: { ...formData.contents, items: updatedItems },
             };
 
-            await api.servicePackages.update(brandId, savedPackageId, updatedPackage);
+            await servicePackagesApi.update(savedPackageId, updatedPackage);
             setFormData(updatedPackage);
 
             const activityParam2 = item.config?.activity_id ? `&activityId=${item.config.activity_id}` : '';

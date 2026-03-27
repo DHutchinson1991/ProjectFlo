@@ -1,49 +1,13 @@
-import type { ActiveTask } from '@/lib/types';
+import type { ActiveTask } from '@/features/workflow/tasks/types';
+import { buildRenderItems } from '@/shared/utils/taskTree';
 
-export function formatDueDate(dateStr: string | null, isCompleted = false) {
-    if (!dateStr) return { text: 'No date', color: '#676879', urgent: false };
-    const due = new Date(dateStr);
-    const now = new Date(); now.setHours(0, 0, 0, 0);
-    const diffDays = Math.ceil((due.getTime() - now.getTime()) / 86400000);
-    const formatted = due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    if (diffDays < 0) {
-        if (isCompleted) return { text: formatted, color: '#676879', urgent: false };
-        return { text: `Overdue · ${formatted}`, color: '#D83A52', urgent: true };
-    }
-    if (diffDays === 0) return { text: 'Today', color: isCompleted ? '#676879' : '#FDAB3D', urgent: !isCompleted };
-    if (diffDays === 1) return { text: 'Tomorrow', color: '#FDAB3D', urgent: false };
-    if (diffDays <= 7) return { text: formatted, color: '#579BFC', urgent: false };
-    return { text: formatted, color: '#676879', urgent: false };
-}
+export { formatDueDate, getDateGroup } from '@/shared/utils/taskDates';
 
-export function getDateGroup(dateStr: string | null): string {
-    if (!dateStr) return 'No Due Date';
-    const due = new Date(dateStr);
-    const now = new Date(); now.setHours(0, 0, 0, 0);
-    const diffDays = Math.ceil((due.getTime() - now.getTime()) / 86400000);
-    if (diffDays < 0) return 'Overdue';
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    if (diffDays <= 7) return 'This Week';
-    if (diffDays <= 14) return 'Next Week';
-    if (diffDays <= 30) return 'This Month';
-    return 'Later';
-}
-
-export function getInitials(name: string) {
-    return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
-}
-
-export function avatarColor(name: string) {
-    const colors = ['#0086C0', '#A25DDC', '#FF158A', '#FDAB3D', '#00C875', '#579BFC', '#FF5AC4', '#CAB641', '#7F5347', '#66CCFF'];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return colors[Math.abs(hash) % colors.length];
-}
+export { getInitials, avatarColor } from '@/shared/utils/avatar';
 
 export function getNavigationUrl(task: ActiveTask): string | null {
     if (task.source === 'inquiry' && task.inquiry_id) {
-        const base = `/sales/inquiries/${task.inquiry_id}`;
+        const base = `/inquiries/${task.inquiry_id}`;
         const subtaskSectionMap: Record<string, string> = {
             verify_contact_details: 'inquiry-wizard-section', verify_event_date: 'inquiry-wizard-section',
             confirm_package_selection: 'inquiry-wizard-section', check_crew_availability: 'availability-section',
@@ -74,23 +38,9 @@ export function getNavigationUrl(task: ActiveTask): string | null {
     return null;
 }
 
-export type TreeItem =
-    | { type: 'stage'; stage: ActiveTask; children: ActiveTask[] }
-    | { type: 'task'; task: ActiveTask };
+export type { TreeItem } from '@/shared/utils/taskTree';
 
-export function buildTaskTree(tasks: ActiveTask[]): TreeItem[] {
-    const childrenByParent = new Map<number, ActiveTask[]>();
-    tasks.forEach(task => {
-        if (task.parent_task_id && task.task_kind !== 'subtask') {
-            const arr = childrenByParent.get(task.parent_task_id) ?? [];
-            arr.push(task); childrenByParent.set(task.parent_task_id, arr);
-        }
-    });
-    const items: TreeItem[] = [];
-    tasks.forEach(task => {
-        if (task.parent_task_id || task.subtask_parent_id || task.task_kind === 'subtask') return;
-        if (task.is_stage) items.push({ type: 'stage', stage: task, children: childrenByParent.get(task.id) ?? [] });
-        else items.push({ type: 'task', task });
-    });
-    return items;
+/** @deprecated Use `buildRenderItems` from `@/shared/utils/taskTree` directly */
+export function buildTaskTree(tasks: ActiveTask[]) {
+    return buildRenderItems(tasks, { excludeSubtasks: true });
 }

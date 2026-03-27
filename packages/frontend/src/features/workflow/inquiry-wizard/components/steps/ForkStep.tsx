@@ -9,10 +9,10 @@ import {
     TuneOutlined as CustomIcon,
     ArrowForward as ArrowIcon,
 } from "@mui/icons-material";
-import { C, glassSx } from '../constants/wizard-config';
-import { checkPop, selectPulse } from '../constants/animations';
-import { NACtx } from '../types';
-import { Q } from './QuestionWrapper';
+import { C, glassSx } from '../../constants/wizard-config';
+import { checkPop, selectPulse } from '../../constants/animations';
+import { NACtx } from '../../types';
+import { Q } from '../QuestionWrapper';
 
 const shimmer = keyframes`
     0%   { background-position: -200% 0; }

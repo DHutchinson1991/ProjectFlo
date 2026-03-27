@@ -23,8 +23,8 @@ export interface TimelineTrack {
   order_index: number;
   is_active: boolean;
   is_unmanned: boolean;
-  contributor_id: number | null;
-  contributor: TrackOperator | null;
+  crew_member_id: number | null;
+  crew_member: TrackOperator | null;
   created_at: string;
   updated_at: string;
 }
@@ -38,7 +38,7 @@ export interface UpdateTrackDto {
   order_index?: number;
   is_active?: boolean;
   is_unmanned?: boolean;
-  contributor_id?: number | null;
+  crew_member_id?: number | null;
 }
 
 export interface ReorderTracksDto {

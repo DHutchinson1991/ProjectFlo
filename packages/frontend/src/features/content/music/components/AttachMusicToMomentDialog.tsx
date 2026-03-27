@@ -17,7 +17,7 @@ import {
     Chip,
     CircularProgress
 } from '@mui/material';
-import { SceneMoment, formatDuration } from '@/lib/types/moments';
+import { SceneMoment, formatDuration } from '@/features/content/music/types';
 
 interface MusicItem {
     id?: number;

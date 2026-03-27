@@ -92,7 +92,7 @@ const BeatEditor: React.FC<BeatEditorProps> = ({ open, beat, allTracks = [], sce
     });
     const seen = new Map<number, any>();
     matched.forEach((o: any) => {
-      const crewId = o.contributor_id ?? o.id;
+      const crewId = o.crew_member_id ?? o.id;
       if (!seen.has(crewId)) seen.set(crewId, o);
     });
     return Array.from(seen.values());
@@ -312,8 +312,7 @@ const BeatEditor: React.FC<BeatEditorProps> = ({ open, beat, allTracks = [], sce
                         py: 0.35,
                       }}>
                         <Typography sx={{ fontSize: 11, color: '#f9a8d4', fontWeight: 500 }}>
-                          {o.position_name || o.name || 'Crew'}
-                          {(o.job_role?.display_name || o.job_role?.name) && ` · ${o.job_role?.display_name || o.job_role?.name}`}
+                          {o.label || o.job_role?.display_name || o.job_role?.name || o.name || 'Crew'}
                         </Typography>
                       </Box>
                     ))}

@@ -41,6 +41,8 @@ import {
     useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { computeLineTotal } from '@/shared/utils/pricing';
+import { formatCurrency } from '@projectflo/shared';
 
 export interface LineItem {
     id?: number; // Database ID (optional for new items)
@@ -61,7 +63,7 @@ export interface LineItem {
 interface LineItemEditorProps {
     items: LineItem[];
     onChange: (items: LineItem[]) => void;
-    currencySymbol?: string;
+    currency: string;
     readOnly?: boolean;
 }
 
@@ -70,10 +72,10 @@ const UNIT_TYPES = ['Qty', 'Hours', 'Days', 'Flat Rate', 'Service', 'Event', 'Fi
 // Read-only row — no inputs, no drag handle, no delete
 const ReadOnlyLineItem = ({
     item,
-    currencySymbol = '$',
+    currency,
 }: {
     item: LineItem;
-    currencySymbol?: string;
+    currency: string;
 }) => {
     const isDiscount = item.unit_price < 0;
     return (
@@ -111,7 +113,7 @@ const ReadOnlyLineItem = ({
                 {item.description || <span style={{ color: '#64748b', fontStyle: 'italic' }}>No description</span>}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ minWidth: 80, textAlign: 'right' }}>
-                {currencySymbol}{Number(item.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {formatCurrency(Number(item.unit_price), currency)}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ minWidth: 70, textAlign: 'center' }}>
                 {item.quantity} {item.unit || 'Qty'}
@@ -121,7 +123,7 @@ const ReadOnlyLineItem = ({
                 fontWeight="bold"
                 sx={{ minWidth: 90, textAlign: 'right', color: isDiscount ? 'error.main' : 'text.primary' }}
             >
-                {currencySymbol}{(item.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {formatCurrency(item.total || 0, currency)}
             </Typography>
         </Paper>
     );
@@ -143,13 +145,13 @@ const SortableLineItem = ({
     index, 
     onChange, 
     onRemove,
-    currencySymbol = '$',
+    currency,
 }: { 
     item: LineItem, 
     index: number, 
     onChange: (index: number, field: keyof LineItem, value: any) => void,
     onRemove: (index: number) => void,
-    currencySymbol?: string,
+    currency: string,
 }) => {
     const {
         attributes,
@@ -230,9 +232,6 @@ const SortableLineItem = ({
                                     variant="standard"
                                     value={item.unit_price}
                                     onChange={(e) => onChange(index, 'unit_price', e.target.value)}
-                                    InputProps={{
-                                        startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                                    }}
                                     sx={{ width: 100 }}
                                 />
 
@@ -264,7 +263,7 @@ const SortableLineItem = ({
                                 <Box sx={{ minWidth: 100, textAlign: 'right', pb: 0.5 }}>
                                     <Typography variant="caption" display="block" color="text.secondary">Total</Typography>
                                     <Typography variant="subtitle1" fontWeight="bold" color={isDiscount ? 'error.main' : 'text.primary'}>
-                                        {currencySymbol}{(item.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        {formatCurrency(item.total || 0, currency)}
                                     </Typography>
                                 </Box>
 
@@ -281,7 +280,7 @@ const SortableLineItem = ({
     );
 };
 
-const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, currencySymbol = '$', readOnly = false }) => {
+const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, currency, readOnly = false }) => {
     // Sensors for DnD
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -299,11 +298,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
         }
     };
 
-    const calculateTotal = (qty: number, price: number) => {
-        const total = qty * price;
-        return isNaN(total) ? 0 : Number(total.toFixed(2));
-    };
-
     const handleItemChange = (index: number, field: keyof LineItem, value: any) => {
         const newItems = [...items];
         const item = { ...newItems[index] };
@@ -312,7 +306,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
             const numVal = parseFloat(value);
             // @ts-ignore
             item[field] = isNaN(numVal) ? 0 : numVal;
-            item.total = calculateTotal(item.quantity, item.unit_price);
+            item.total = computeLineTotal(item.quantity, item.unit_price);
         } else {
             // @ts-ignore
             item[field] = value;
@@ -402,7 +396,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
                     {item.description || <em style={{ color: '#334155' }}>No description</em>}
                 </Typography>
                 <Typography sx={{ color: '#475569', fontSize: '0.72rem', minWidth: 85, textAlign: 'right', fontFamily: 'monospace' }}>
-                    {currencySymbol}{Number(item.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {formatCurrency(Number(item.unit_price), currency)}
                 </Typography>
                 <Typography sx={{ color: '#334155', fontSize: '0.7rem', minWidth: 72, textAlign: 'center' }}>
                     × {item.quantity} {item.unit || ''}
@@ -412,7 +406,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
                     fontFamily: 'monospace',
                     color: (item.unit_price < 0) ? '#ef4444' : '#f1f5f9',
                 }}>
-                    {currencySymbol}{(item.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {formatCurrency(item.total || 0, currency)}
                 </Typography>
             </Box>
         );
@@ -446,7 +440,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
                                         Post-Production
                                     </Typography>
                                     <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color, fontFamily: 'monospace' }}>
-                                        {currencySymbol}{totalPostProd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        {formatCurrency(totalPostProd, currency)}
                                     </Typography>
                                 </Box>
 
@@ -477,7 +471,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
                                                     fontSize: '0.62rem', fontWeight: 600, color: `${color}99`,
                                                     fontFamily: 'monospace',
                                                 }}>
-                                                    {currencySymbol}{filmSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                    {formatCurrency(filmSubtotal, currency)}
                                                 </Typography>
                                             </Box>
                                             {filmItems.map(item => renderItem(item, color))}
@@ -506,7 +500,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
                                     {category}
                                 </Typography>
                                 <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color, fontFamily: 'monospace' }}>
-                                    {currencySymbol}{catSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    {formatCurrency(catSubtotal, currency)}
                                 </Typography>
                             </Box>
                             {/* Items in category */}
@@ -558,7 +552,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
                                     index={index}
                                     onChange={handleItemChange}
                                     onRemove={handleRemoveItem}
-                                    currencySymbol={currencySymbol}
+                                    currency={currency}
                                 />
                             ))
                         )}
@@ -588,7 +582,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
                 </Box>
                 
                 <Typography variant="h5" color="secondary.main" fontWeight="bold">
-                    {currencySymbol}{grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {formatCurrency(grandTotal, currency)}
                 </Typography>
             </Box>
         </Box>

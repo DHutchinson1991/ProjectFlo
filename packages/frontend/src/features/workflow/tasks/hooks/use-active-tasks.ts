@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
-import type { ActiveTask, Contributor } from '@/lib/types';
+import { crewMembersApi } from '@/features/workflow/crew/api';
+import type { ActiveTask, CrewMember } from '@/features/workflow/tasks/types';
 import { taskLibraryApi } from '@/features/catalog/task-library';
 import { activeTasksApi } from '../api';
 import { groupTasks } from '../utils/group-tasks';
@@ -13,7 +13,7 @@ import type { GroupMode } from '../constants';
 export function useActiveTasks() {
     const router = useRouter();
     const [tasks, setTasks] = useState<ActiveTask[]>([]);
-    const [contributors, setContributors] = useState<Contributor[]>([]);
+    const [crewMembers, setContributors] = useState<CrewMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -32,7 +32,7 @@ export function useActiveTasks() {
             setLoading(true);
             const [data, contribs] = await Promise.all([
                 activeTasksApi.getAll(),
-                api.contributors.getAll(), // TODO: migrate when contributors feature is created
+                crewMembersApi.getAll(), // TODO: migrate when contributors feature is created
             ]);
             setTasks(data);
             setContributors(contribs);
@@ -61,10 +61,10 @@ export function useActiveTasks() {
     const handleAssign = useCallback(async (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null, taskKind: 'task' | 'subtask' = 'task') => {
         if (taskKind === 'subtask') return;
         const contributor = assigneeId ? contributors.find(c => c.id === assigneeId) : null;
-        const newAssignee = contributor ? { id: contributor.id, name: contributor.full_name, email: contributor.email } : null;
+        const newAssignee = contributor ? { id: crewMember.id, name: contributor.full_name, email: contributor.email } : null;
         setTasks(prev => prev.map(t => t.id === taskId && t.source === source ? { ...t, assignee: newAssignee } : t));
         try { await activeTasksApi.assign(taskId, source, assigneeId, taskKind); } catch { loadTasks(); }
-    }, [contributors, loadTasks]);
+    }, [crewMembers, loadTasks]);
 
     const handleNavigateToTask = useCallback((task: ActiveTask) => {
         const url = getNavigationUrl(task);
@@ -72,7 +72,7 @@ export function useActiveTasks() {
     }, [router]);
 
     const handleToggle = useCallback(async (task: ActiveTask) => {
-        if (task.is_auto_only || task.is_stage) return;
+        if (task.is_auto_only || task.is_task_group) return;
         const newStatus = task.status === 'Completed' ? 'To_Do' : 'Completed';
         setTasks(prev => {
             let updated = prev.map(t =>
@@ -88,7 +88,7 @@ export function useActiveTasks() {
                         ? { ...t, status: allDone ? 'Completed' : 'To_Do', completed_at: allDone ? new Date().toISOString() : null } : t
                 );
             } else if (task.parent_task_id) {
-                const siblings = updated.filter(t => t.parent_task_id === task.parent_task_id && !t.is_stage && t.task_kind !== 'subtask');
+                const siblings = updated.filter(t => t.parent_task_id === task.parent_task_id && !t.is_task_group && t.task_kind !== 'subtask');
                 const allDone = siblings.every(t => t.status === 'Completed');
                 updated = updated.map(t =>
                     t.id === task.parent_task_id && t.source === task.source
@@ -126,7 +126,7 @@ export function useActiveTasks() {
     const groups = useMemo(() => groupTasks(filteredTasks, groupMode), [filteredTasks, groupMode]);
 
     return {
-        tasks, contributors, loading, syncing, error,
+        tasks, crewMembers, loading, syncing, error,
         searchQuery, statusFilter, sourceFilter, groupMode, showAuto,
         filteredTasks, groups,
         setSearchQuery, setStatusFilter, setSourceFilter, setGroupMode,

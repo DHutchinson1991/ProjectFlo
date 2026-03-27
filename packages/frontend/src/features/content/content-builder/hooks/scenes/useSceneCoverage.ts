@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { TimelineScene, TimelineTrack } from '@/lib/types/timeline';
+import { TimelineScene, TimelineTrack } from '@/features/content/content-builder/types/timeline';
 import { mapCoverageToIds, filterAvailableTracks } from '../utils/sceneCoverageUtils';
 
 /**

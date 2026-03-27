@@ -1,6 +1,12 @@
-export * from './api';
 export { crewPaymentTemplatesApi } from './api';
-export { useCrewPaymentTemplatesApi } from './hooks/use-crew-payment-templates-api';
+export { crewPaymentTemplateKeys } from './hooks/queryKeys';
+export {
+  useCrewPaymentTemplates,
+  useCrewPaymentTemplate,
+  useCreateCrewPaymentTemplate,
+  useUpdateCrewPaymentTemplate,
+  useDeleteCrewPaymentTemplate,
+} from './hooks';
 export type {
   CrewPaymentTemplate,
   CrewPaymentRule,

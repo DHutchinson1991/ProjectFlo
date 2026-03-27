@@ -28,7 +28,7 @@ import {
     EquipmentRental,
     EquipmentMaintenance,
 } from "@/features/workflow/equipment/types/equipment.types";
-import { formatCurrency } from "@/lib/utils/formatUtils";
+import { formatCurrency } from "@/shared/utils/formatUtils";
 
 interface EquipmentStatsCardProps {
     equipment: Equipment;

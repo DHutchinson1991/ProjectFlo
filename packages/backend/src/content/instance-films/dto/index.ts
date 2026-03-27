@@ -1,0 +1,11 @@
+export { CreateInstanceSceneDto } from './create-instance-scene.dto';
+export { UpdateInstanceSceneDto } from './update-instance-scene.dto';
+export { CreateInstanceMomentDto } from './create-instance-moment.dto';
+export { UpdateInstanceMomentDto } from './update-instance-moment.dto';
+export { CreateInstanceBeatDto } from './create-instance-beat.dto';
+export { UpdateInstanceBeatDto } from './update-instance-beat.dto';
+export { CreateInstanceTrackDto } from './create-instance-track.dto';
+export { UpdateInstanceTrackDto } from './update-instance-track.dto';
+export { CreateInstanceSubjectDto } from './create-instance-subject.dto';
+export { UpdateInstanceSubjectDto } from './update-instance-subject.dto';
+export { UpsertRecordingSetupDto } from './upsert-recording-setup.dto';

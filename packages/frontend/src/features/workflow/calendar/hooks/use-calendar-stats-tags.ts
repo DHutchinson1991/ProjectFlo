@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { useBrand } from '@/features/platform/brand';
 import { calendarApi } from '../api';
 import { transformBackendEvents } from '../mappers/calendar-event-mapper';
 import { calendarQueryKeys } from '../constants/query-keys';
@@ -15,22 +15,22 @@ export function useCalendarStats(userId?: number) {
     return { stats, loading, error };
 }
 
-export function useTodaysEvents(contributorId?: number) {
+export function useTodaysEvents(crewMemberId?: number) {
     const { currentBrand } = useBrand();
     const { data: events = [], isPending: loading, error: queryError } = useQuery({
-        queryKey: calendarQueryKeys.todayEvents(currentBrand?.id, contributorId),
-        queryFn: () => calendarApi.getTodaysEvents(contributorId).then(transformBackendEvents),
+        queryKey: calendarQueryKeys.todayEvents(currentBrand?.id, crewMemberId),
+        queryFn: () => calendarApi.getTodaysEvents(crewMemberId).then(transformBackendEvents),
         enabled: !!currentBrand,
     });
     const error = queryError instanceof Error ? queryError.message : queryError ? "Failed to load today's events" : null;
     return { events, loading, error };
 }
 
-export function useUpcomingEvents(contributorId?: number, limit = 10) {
+export function useUpcomingEvents(crewMemberId?: number, limit = 10) {
     const { currentBrand } = useBrand();
     const { data: events = [], isPending: loading, error: queryError } = useQuery({
-        queryKey: calendarQueryKeys.upcomingEvents(currentBrand?.id, contributorId, limit),
-        queryFn: () => calendarApi.getUpcomingEvents(contributorId, limit).then(transformBackendEvents),
+        queryKey: calendarQueryKeys.upcomingEvents(currentBrand?.id, crewMemberId, limit),
+        queryFn: () => calendarApi.getUpcomingEvents(crewMemberId, limit).then(transformBackendEvents),
         enabled: !!currentBrand,
     });
     const error = queryError instanceof Error ? queryError.message : queryError ? 'Failed to load upcoming events' : null;

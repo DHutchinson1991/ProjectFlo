@@ -121,20 +121,19 @@ ProjectFlo/
 
 Domain-driven module architecture following the NestJS pattern: `Module → Controller → Service → Prisma`.
 
-**Domain modules:**
+Modules are grouped into five domain buckets under `src/`:
 
-| Domain | Modules |
-|--------|---------|
-| **Core** | Auth, Users/Contributors, Roles, Contacts |
-| **Sales** | Inquiries, Clients, Proposals, Estimates, Quotes, Contracts, Invoices |
-| **Content** | Films, Scenes, Moments, Beats, Coverage, Music, Subjects, Locations, Schedule, Instance Films |
-| **Business** | Brands, Service Packages, Package Sets, Task Library, Workflows, Wedding Types, Event Types, Skill Role Mappings |
-| **Resources** | Equipment, Operators, Crew, Calendar, Locations Library |
-| **Platform** | Activity Logs, Payment Brackets, Job Roles, Needs Assessments |
+| Bucket | Responsibilities |
+|--------|-----------------|
+| **`platform`** | Auth, Users/Contributors, Roles, Contacts, Activity Logs, Job Roles, Needs Assessments, Payment Brackets |
+| **`catalog`** | Brands, Service Packages, Package Sets, Task Library, Skill Role Mappings, Wedding Types, Event Types |
+| **`workflow`** | Inquiries, Proposals, Estimates, Quotes, Contracts, Invoices, Projects |
+| **`content`** | Films, Scenes, Moments, Beats, Coverage, Music, Subjects, Schedule, Instance Films, Locations |
+| **`finance`** | Billing, Payment processing, Financial reporting |
 
 ### Frontend (Next.js)
 
-App Router with route groups and a centralized API client:
+App Router with route groups. Feature code lives in `src/features/<bucket>/<feature>/`; cross-domain primitives in `src/shared/`; routes in `src/app/`.
 
 | Route Group | Purpose |
 |-------------|---------|
@@ -144,13 +143,12 @@ App Router with route groups and a centralized API client:
 | `/(studio)/designer/*` | Film designer, content builder, templates |
 | `/(studio)/manager/*` | Crew, equipment, locations, tasks, workflows, sales ops |
 | `/(studio)/calendar` | Calendar & scheduling |
-| `/(studio)/resources` | Resource management |
 | `/(studio)/settings` | System configuration |
 
 ### Key Design Decisions
 
 - **Multi-tenant brand scoping** — Every request carries brand context (`X-Brand-Context` header); data is isolated per brand at the service layer
-- **Centralized API client** — All frontend API calls flow through `src/lib/api.ts` with typed methods, automatic auth token injection, and brand context
+- **Feature-bucketed frontend** — API bindings, hooks, components, and types live in `features/<bucket>/<feature>/` co-located with the code that uses them; `src/lib/api.ts` is legacy-read-only
 - **React Query for server state** — Consistent cache invalidation with brand-aware query keys
 - **Dark glassmorphism UI** — Custom design system with semi-transparent surfaces and backdrop blur
 
@@ -185,6 +183,7 @@ Create environment files in each package:
 ```env
 DATABASE_URL="postgresql://username:password@localhost:5432/projectflo_db"
 JWT_SECRET="your-secret-key-here"
+JWT_REFRESH_SECRET="your-refresh-secret-here"
 ```
 
 **Frontend** — `packages/frontend/.env.local`
@@ -192,19 +191,21 @@ JWT_SECRET="your-secret-key-here"
 NEXT_PUBLIC_API_URL="http://localhost:3002"
 ```
 
+> **Production:** Backend is hosted on [Render](https://render.com) (web service + managed PostgreSQL). Frontend is deployed to [Vercel](https://vercel.com). See `render.yaml` and `packages/frontend/vercel.json` for deployment configuration.
+
 ### Database Setup
 
-```bash
-cd packages/backend
+All database commands run from the **project root**:
 
+```bash
 # Generate Prisma client
-npx prisma generate
+pnpm db:generate
 
 # Push schema to database (creates all tables)
-npx prisma db push
+pnpm db:push
 
 # Seed with initial data
-npx prisma db seed
+pnpm db:seed
 ```
 
 ### Start Development Servers
@@ -218,7 +219,7 @@ pnpm dev
 |---------|-----|
 | **Frontend** | http://localhost:3001 |
 | **Backend API** | http://localhost:3002 |
-| **Prisma Studio** | http://localhost:5555 (run `npx prisma studio` from `packages/backend`) |
+| **Prisma Studio** | http://localhost:5555 (run `pnpm db:studio` from root) |
 
 ### Default Credentials
 
@@ -236,44 +237,33 @@ ProjectFlo/
 ├── packages/
 │   ├── backend/
 │   │   ├── prisma/
-│   │   │   ├── schema.prisma          # Database schema (4,000+ lines)
-│   │   │   ├── migrations/            # 60+ versioned migrations
-│   │   │   └── seeds/                 # Database seed scripts
+│   │   │   ├── schema.prisma          # Database schema
+│   │   │   ├── migrations/            # Versioned migration history
+│   │   │   ├── seeds/                 # Seed orchestrators & data scripts
+│   │   │   └── utils/                 # Seed logging & metrics helpers
 │   │   └── src/
-│   │       ├── core/                  # Auth, users, roles, contacts
-│   │       ├── content/               # Films, scenes, moments, schedule
-│   │       ├── business/              # Brands, packages, tasks, workflows
-│   │       ├── projects/              # Project management
-│   │       ├── inquiries/             # Lead/inquiry pipeline
-│   │       ├── proposals/             # Proposal generation
-│   │       ├── estimates/             # Cost estimation
-│   │       ├── quotes/                # Quote management
-│   │       ├── contracts/             # Contract handling
-│   │       ├── invoices/              # Invoice management
-│   │       ├── equipment/             # Equipment tracking
-│   │       ├── crew/                  # Crew management
-│   │       ├── calendar/              # Calendar & events
-│   │       ├── locations/             # Location library
-│   │       └── prisma/                # Shared Prisma service
+│   │       ├── platform/              # Auth, users, roles, activity logs
+│   │       ├── catalog/               # Brands, packages, task library, wedding types
+│   │       ├── workflow/              # Inquiries, proposals, estimates, quotes, contracts
+│   │       ├── content/               # Films, scenes, schedule, subjects, music
+│   │       └── finance/               # Billing & financial operations
 │   │
 │   └── frontend/
 │       └── src/
 │           ├── app/
-│           │   └── (studio)/          # Main app route group
-│           │       ├── dashboard/     # Business dashboard
-│           │       ├── sales/         # Inquiry pipeline & clients
-│           │       ├── projects/      # Project management
-│           │       ├── designer/      # Film designer & content builder
-│           │       ├── manager/       # Resource management
-│           │       ├── calendar/      # Calendar view
-│           │       └── settings/      # Configuration
-│           ├── components/            # Shared UI components
-│           ├── hooks/                 # Custom React hooks
-│           ├── lib/                   # API client, utilities, types
-│           └── types/                 # TypeScript type definitions
+│           │   ├── (studio)/          # Main app route group (all authenticated routes)
+│           │   └── providers/         # Auth, Brand, Theme context providers
+│           ├── features/              # Domain feature code (co-located API, hooks, components)
+│           │   ├── platform/          # Auth, users, settings
+│           │   ├── catalog/           # Packages, tasks, wedding types
+│           │   ├── workflow/          # Inquiries, proposals, estimates, quotes
+│           │   ├── content/           # Films, designer, schedule
+│           │   └── finance/           # Billing UI
+│           ├── shared/                # Cross-domain primitives (components, hooks, utils)
+│           └── lib/                   # Legacy API client & types (read-only)
 │
 ├── tools/
-│   └── auth/                          # Auth token utilities
+│   └── auth/                          # Auth token utilities for development
 ├── test/                              # Integration tests
 ├── pnpm-workspace.yaml                # Workspace configuration
 └── package.json                       # Root scripts & dependencies
@@ -285,7 +275,9 @@ ProjectFlo/
 
 ### Commands
 
-All commands run from the **project root** unless noted otherwise.
+All commands run from the **project root**.
+
+#### General
 
 | Command | Description |
 |---------|-------------|
@@ -295,30 +287,32 @@ All commands run from the **project root** unless noted otherwise.
 | `pnpm lint` | Lint all code |
 | `pnpm lint:fix` | Lint and auto-fix |
 | `pnpm format` | Format with Prettier |
+| `pnpm check` | Typecheck + lint both packages |
 
-#### Backend-specific (from `packages/backend/`)
-
-| Command | Description |
-|---------|-------------|
-| `npm run start:dev` | Start backend with hot reload |
-| `npm run start:debug` | Start with debugger attached |
-| `npm test` | Run Jest tests |
-| `npm run test:e2e` | Run end-to-end tests |
-
-#### Frontend-specific (from `packages/frontend/`)
+#### Database
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start Next.js dev server (port 3001) |
-| `npm run build` | Production build |
-| `npm run lint` | Next.js linting |
+| `pnpm db:generate` | Regenerate Prisma client after schema changes |
+| `pnpm db:push` | Push schema changes to DB (dev only, no migration file) |
+| `pnpm db:migrate` | Create and apply a named migration |
+| `pnpm db:seed` | Seed database with initial data |
+| `pnpm db:studio` | Open Prisma Studio at http://localhost:5555 |
+| `pnpm db:reset` | Force-reset DB and re-seed |
+
+#### Auth (development tokens)
+
+| Command | Description |
+|---------|-------------|
+| `pnpm auth:token` | Generate a Moonrise dev auth token |
+| `pnpm auth:refresh` | Silent refresh of stored tokens |
 
 ### Code Conventions
 
-- **Backend:** NestJS module pattern (`Module → Controller → Service → Prisma`). DTOs for request validation. PrismaService for all database access.
-- **Frontend:** API calls through `src/lib/api.ts` (never raw `fetch` in components). React Query hooks for data fetching. MUI components with the project's dark theme.
-- **Brand scoping:** Every data request must include brand context. Frontend injects via `BrandProvider`; backend filters at the service layer.
-- **TypeScript:** Strict mode. Minimize `any` usage. Shared types in `src/lib/types/` and `src/types/`.
+- **Backend:** NestJS module pattern (`Module → Controller → Service → Prisma`). DTOs for all request validation. `PrismaService` for all database access — never raw queries.
+- **Frontend:** New API bindings go in `features/<bucket>/<feature>/api/`. React Query hooks for data fetching. Never use raw `fetch` in components. `src/lib/api.ts` is legacy-read-only.
+- **Brand scoping:** Every data request must include brand context. Frontend injects via `BrandProvider`; backend filters at the service layer using `X-Brand-Context`.
+- **TypeScript:** Strict mode with `noImplicitAny`. New types go in `features/<bucket>/<feature>/types/` or `shared/types/` — not `src/lib/types/` (legacy-frozen).
 
 ---
 
@@ -326,26 +320,28 @@ All commands run from the **project root** unless noted otherwise.
 
 ### Schema Overview
 
-The Prisma schema (`packages/backend/prisma/schema.prisma`) contains **4,000+ lines** defining the complete data model across all domains.
+The Prisma schema (`packages/backend/prisma/schema.prisma`) defines the complete data model across all five domain buckets.
 
 ### Key Commands
 
-Run from `packages/backend/`:
+All run from the **project root** via the `pnpm db:*` namespace:
 
 ```bash
-npx prisma generate          # Regenerate Prisma client after schema changes
-npx prisma migrate dev       # Create and apply a new migration
-npx prisma db push           # Push schema changes (dev only, no migration)
-npx prisma db seed           # Seed database with initial data
-npx prisma studio            # Open visual database browser
-npx prisma db push --force-reset && npx prisma db seed  # Full reset
+pnpm db:generate      # Regenerate Prisma client after schema changes
+pnpm db:migrate       # Create and apply a new migration (prompts for name)
+pnpm db:push          # Push schema changes without a migration file (dev only)
+pnpm db:seed          # Seed database with initial data
+pnpm db:studio        # Open visual database browser at :5555
+pnpm db:reset         # Force-reset and re-seed (destructive — dev only)
 ```
 
-> **Important:** Always use `npx prisma` (not global `prisma`) to ensure the correct project version is used.
+### Seed System
 
-### Migration History
+Seeds are orchestrated via `prisma/seeds/index.ts`, which delegates to per-brand setup files:
+- `moonrise-complete-setup.seed.ts` — Moonrise demo brand with full sample data
+- `layer5-complete-setup.seed.ts` — Layer5 demo brand with full sample data
 
-The project has **60+ migrations** tracking the full evolution of the data model from initial setup through the current feature set.
+Admin infrastructure (`admin-system.seed.ts`, `system-infrastructure.seed.ts`, `global-job-roles.seed.ts`) is applied first before any brand data.
 
 ---
 

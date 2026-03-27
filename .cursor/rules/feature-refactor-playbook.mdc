@@ -1,0 +1,17 @@
+---
+description: Playbook for migrating legacy flat features/modules into bucketed architecture.
+alwaysApply: false
+---
+
+# ProjectFlo — Feature Refactor Playbook
+
+- Name the destination first: `features/<bucket>/<feature>` (frontend) or `<bucket>/<module>` (backend).
+- Audit the whole feature/module (README, consumers, DTOs/types, API bindings, tests) before moving anything; classify what stays, moves, rewrites, deletes, or archives.
+- Move **ownership**, not just files:
+  - frontend: UI → `components/` or `screens/`, server state → `hooks/`, endpoints → feature `api/`, types → `types/`
+  - backend: controllers thin, orchestration in services, DTOs in `dto/`, mapping in mappers
+- Split by concern while migrating; don’t recreate a flat catch-all folder in the destination.
+- Update every consumer in the same change; no re-export shims or fallback paths.
+- Delete stale duplicates; only `_archive/` code that is correct and intentionally inactive (and keep it out of barrels/imports).
+- Verify end state: destination has a clear public surface and zero references to old paths.
+

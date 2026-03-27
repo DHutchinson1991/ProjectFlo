@@ -13,7 +13,7 @@ import {
     Verified,
 } from '@mui/icons-material';
 import type { WorkflowPhase, NaCategory, PipelineTask } from './types';
-import type { InquiryTask, Inquiry } from '@/lib/types';
+import type { InquiryTask, Inquiry } from '@/features/workflow/inquiries/types';
 
 // ─── Workflow phases ─────────────────────────────────────────────────
 
@@ -154,14 +154,14 @@ export function buildPipelineTasks(
  */
 export function buildPipelineTasksFromInquiry(inquiryTasks: InquiryTask[]): PipelineTask[] {
     // Separate stage parents from child tasks
-    const stageTasks = inquiryTasks.filter(t => t.is_stage && t.is_active);
-    const childTasks = inquiryTasks.filter(t => !t.is_stage && t.is_active && (t.phase === 'Inquiry' || t.phase === 'Booking'));
+    const stageTasks = inquiryTasks.filter(t => t.is_task_group && t.is_active);
+    const childTasks = inquiryTasks.filter(t => !t.is_task_group && t.is_active && (t.phase === 'Inquiry' || t.phase === 'Booking'));
 
     // Build a sectionId from stage name for each child via its parent
     const stageMap = new Map<number, { name: string; color: string }>();
     for (const stage of stageTasks) {
         const sectionId = stage.name.toLowerCase().replace(/\s+/g, '-') + '-section';
-        stageMap.set(stage.id, { name: sectionId, color: stage.stage_color || (stage.phase === 'Inquiry' ? INQUIRY_COLOR : BOOKING_COLOR) });
+        stageMap.set(stage.id, { name: sectionId, color: stage.phase === 'Inquiry' ? INQUIRY_COLOR : BOOKING_COLOR });
     }
 
     return childTasks
@@ -197,7 +197,7 @@ export function buildPipelineTasksFromInquiry(inquiryTasks: InquiryTask[]): Pipe
 // ─── Auto-complete rules (data-driven tasks) ────────────────────────
 
 export interface AutoCompleteRule {
-    check: (inquiry: Inquiry & { activity_logs?: unknown[] }) => boolean;
+    check: (inquiry: Inquiry) => boolean;
     doneLabel: string;
     pendingLabel: string;
 }

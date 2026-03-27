@@ -21,8 +21,12 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import MovieIcon from '@mui/icons-material/Movie';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
-import { api } from '@/lib/api';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { servicePackagesApi } from '@/features/catalog/packages/api';
+import { instanceFilmsApi } from '@/features/content/films/api/instance-films.api';
+import { filmsApi } from '@/features/content/films/api';
+import { momentsApi } from '@/features/content/moments/api';
+import { crewSlotsApi, scheduleApi } from '@/features/workflow/scheduling/api';
+import { useBrand } from '@/features/platform/brand';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -145,7 +149,7 @@ export function ActivityFilmWizard({
                 const seenAudioIds = new Set<number>();
 
                 // Get operators — from props (instance mode) or API (package mode)
-                const operators = externalOperators ?? (packageId ? await api.operators.packageDay.getAll(packageId) : []);
+                const operators = externalOperators ?? (packageId ? await crewSlotsApi.packageDay.getAll(packageId) : []);
 
                 // 1. Count cameras and audio assigned to operators
                 (operators || []).forEach((op: any) => {
@@ -165,7 +169,7 @@ export function ActivityFilmWizard({
                 // 2. Count unmanned cameras/audio from day_equipment (package mode only)
                 if (packageId) {
                     try {
-                        const pkgData = await api.servicePackages.getOne(currentBrand.id, packageId);
+                        const pkgData = await servicePackagesApi.getById(packageId);
                         const dayEquipMap = (pkgData?.contents as any)?.day_equipment || {};
                         Object.values(dayEquipMap).forEach((items: any) => {
                             (items || []).forEach((item: any) => {
@@ -186,7 +190,7 @@ export function ActivityFilmWizard({
             }
 
             // 1. Create the film with correct camera + audio count
-            const newFilm = await api.films.create({
+            const newFilm = await filmsApi.films.create({
                 name,
                 brand_id: currentBrand.id,
                 num_cameras: numCameras,
@@ -197,15 +201,15 @@ export function ActivityFilmWizard({
             let ownerFilmId: number;
             if (instanceOwner) {
                 const linkApi = instanceOwner.type === 'project'
-                    ? api.schedule.projectFilms
-                    : api.schedule.inquiryFilms;
+                    ? scheduleApi.projectFilms
+                    : scheduleApi.inquiryFilms;
                 const linked = await linkApi.create(instanceOwner.id, {
                     film_id: newFilm.id,
                     order_index: 0,
                 });
                 ownerFilmId = linked.id;
             } else {
-                const packageFilm = await api.schedule.packageFilms.create(packageId!, {
+                const packageFilm = await scheduleApi.packageFilms.create(packageId!, {
                     film_id: newFilm.id,
                     order_index: 0,
                 });
@@ -219,9 +223,9 @@ export function ActivityFilmWizard({
             // Inquiry and project instance films use the same underlying instance-film scene schedule routes.
             const upsertScene = instanceOwner
                 ? (instanceOwner.type === 'project'
-                    ? api.schedule.projectFilms.upsertSceneSchedule
-                    : api.schedule.inquiryFilms.upsertSceneSchedule)
-                : api.schedule.packageFilms.upsertSceneSchedule;
+                    ? scheduleApi.projectFilms.upsertSceneSchedule
+                    : scheduleApi.inquiryFilms.upsertSceneSchedule)
+                : scheduleApi.packageFilms.upsertSceneSchedule;
             const shouldCreateMomentsManually = Boolean(instanceOwner);
 
             // Activity FK field name differs between package and instance
@@ -231,7 +235,7 @@ export function ActivityFilmWizard({
                 const activity = selectedActivities[i];
 
                 // Create scene in the film
-                const scene = await api.films.localScenes.create(newFilm.id, {
+                const scene = await filmsApi.localScenes.create(newFilm.id, {
                     name: activity.name,
                     order_index: i,
                     mode: 'MOMENTS',
@@ -249,7 +253,7 @@ export function ActivityFilmWizard({
 
                 if (shouldCreateMomentsManually) {
                     for (const [momentIndex, moment] of (activity.moments || []).entries()) {
-                        await api.moments.create(scene.id, {
+                        await momentsApi.create(scene.id, {
                             name: moment.name,
                             duration: moment.duration_seconds || 60,
                             order_index: momentIndex,
@@ -261,7 +265,7 @@ export function ActivityFilmWizard({
             }
 
             if (instanceOwner) {
-                await api.instanceFilms.cloneFromLibrary(ownerFilmId);
+                await instanceFilmsApi.cloneFromLibrary(ownerFilmId);
             }
 
             const createdResult: CreatedFilmResult = {

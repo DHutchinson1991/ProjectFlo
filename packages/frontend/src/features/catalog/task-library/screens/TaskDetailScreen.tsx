@@ -13,10 +13,10 @@ import {
     AttachMoney as MoneyIcon, Settings as SettingsIcon, Work as WorkIcon,
     Warning as WarningIcon, Analytics as AnalyticsIcon, Info as InfoIcon,
 } from '@mui/icons-material';
-import { ProjectPhase, PricingType, PHASE_LABELS, PRICING_TYPE_LABELS } from '@/lib/types';
-import { formatCurrency as formatCurrencyHelper } from '@/lib/utils/formatUtils';
+import { ProjectPhase, PricingType, PHASE_LABELS, PRICING_TYPE_LABELS } from '@/features/catalog/task-library/types';
+import { formatCurrency as formatCurrencyHelper, DEFAULT_CURRENCY } from '@projectflo/shared';
 import { useTheme } from '@/shared/theme';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { useBrand } from '@/features/platform/brand';
 import { useTaskDetail } from '../hooks/use-task-detail';
 import { TaskDetailsTab } from '../components/detail/TaskDetailsTab';
 import { TaskPerformanceTab } from '../components/detail/TaskPerformanceTab';
@@ -33,7 +33,7 @@ export function TaskDetailScreen({ taskId }: Props) {
     const router = useRouter();
     const { mode } = useTheme();
     const { currentBrand } = useBrand();
-    const currencyCode = currentBrand?.currency || 'USD';
+    const currencyCode = currentBrand?.currency ?? DEFAULT_CURRENCY;
     const formatMoney = (v: number) => formatCurrencyHelper(v, currencyCode);
 
     const {
@@ -49,17 +49,14 @@ export function TaskDetailScreen({ taskId }: Props) {
         <Box sx={{ minHeight: '100vh' }}>
             <Box sx={{ borderBottom: 1, borderColor: 'divider', p: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 2 }}>
-                    <IconButton onClick={() => router.push('/manager/tasks')}><BackIcon /></IconButton>
+                    <IconButton onClick={() => router.push('/task-library')}><BackIcon /></IconButton>
                     <Box sx={{ flexGrow: 1 }}>
                         <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>{isNewTask ? 'Create Task' : 'Task Details'}</Typography>
                         <Typography variant="body1" color="text.secondary">{isNewTask ? 'Define a new task for your workflow' : 'Manage task settings, pricing, and benchmarks'}</Typography>
                     </Box>
                 </Box>
                 <Breadcrumbs>
-                    <Link underline="hover" color="inherit" href="/manager" sx={{ display: 'flex', alignItems: 'center' }}>
-                        <SettingsIcon sx={{ mr: 0.5 }} fontSize="inherit" /> Management
-                    </Link>
-                    <Link underline="hover" color="inherit" href="/manager/tasks" sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Link underline="hover" color="inherit" href="/task-library" sx={{ display: 'flex', alignItems: 'center' }}>
                         <TaskIcon sx={{ mr: 0.5 }} fontSize="inherit" /> Tasks Library
                     </Link>
                     <Typography color="text.primary" sx={{ fontWeight: 600 }}>{task?.name || 'New Task'}</Typography>

@@ -6,7 +6,7 @@ import { Box, CircularProgress, Typography } from "@mui/material";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { C } from '../constants/wizard-config';
-import { reverseGeocode } from '../api/geocoding';
+import { reverseGeocode } from '@/features/workflow/locations/api/geocoding.api';
 
 /* ── Fix default Leaflet marker icons in Next.js ──────────────── */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

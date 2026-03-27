@@ -3,6 +3,4 @@ export class UpsertSchedulePresetDto {
   schedule_data: unknown;
 }
 
-export class RenameSchedulePresetDto {
-  name: string;
-}
+export { RenameSchedulePresetDto } from './rename-schedule-preset.dto';

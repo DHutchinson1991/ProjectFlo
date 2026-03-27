@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { TimelineScene, PlaybackScreenState, PlaybackScreenData, TimelineTrack } from '@/lib/types/timeline';
-import { formatDuration } from '@/lib/utils';
+import { TimelineScene, PlaybackScreenState, PlaybackScreenData, TimelineTrack } from '@/features/content/content-builder/types/timeline';
+import { formatDuration } from '@/shared/utils/formatUtils';
 
 interface UsePlaybackScreenProps {
     currentTimelineScene: TimelineScene | null;

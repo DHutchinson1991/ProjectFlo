@@ -18,7 +18,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import CheckIcon from '@mui/icons-material/Check';
 import PersonIcon from '@mui/icons-material/Person';
 import PlaceIcon from '@mui/icons-material/Place';
-import { api } from '@/lib/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -129,7 +129,7 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
             return;
         }
         try {
-            const apiPresets = await api.schedule.activityPresets.getAll(eventDayId);
+            const apiPresets = await scheduleApi.activityPresets.getAll(eventDayId);
             if (apiPresets && apiPresets.length > 0) {
                 setResolvedPresets(apiPresets.map((p: { name: string; color?: string }) => ({
                     name: p.name,
@@ -568,7 +568,7 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1 }}>
                                 {eventDayCrew.map((crew: CrewRecord) => {
                                     const assigned = assignedCrewIds.has(crew.id);
-                                    const crewName = crew.position_name || 'Crew';
+                                    const crewName = crew.label || crew.job_role?.display_name || crew.job_role?.name || 'Crew';
                                     const crewRole = crew.job_role?.display_name || crew.job_role?.name;
                                     return (
                                         <Chip

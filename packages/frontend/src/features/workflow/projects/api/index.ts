@@ -1,11 +1,10 @@
-import type { ApiClient } from '@/lib/api/api-client.types';
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 import type { Project, CreateProjectRequest, UpdateProjectRequest } from '../types/project.types';
 
 export const createProjectsApi = (client: ApiClient) => ({
-  getAll: (brandId?: number): Promise<Project[]> => {
-    const params = brandId ? `?brandId=${brandId}` : '';
-    return client.get(`/api/projects${params}`);
-  },
+  getAll: (_brandId?: number): Promise<Project[]> =>
+    client.get('/api/projects'),
 
   getById: (id: number): Promise<Project> =>
     client.get(`/api/projects/${id}`),
@@ -33,3 +32,5 @@ export const createProjectsApi = (client: ApiClient) => ({
 });
 
 export type ProjectsApi = ReturnType<typeof createProjectsApi>;
+
+export const projectsApi = createProjectsApi(apiClient);

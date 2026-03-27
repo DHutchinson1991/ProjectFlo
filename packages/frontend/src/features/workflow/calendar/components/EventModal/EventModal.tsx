@@ -4,7 +4,7 @@ import React from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box } from '@mui/material';
 import { Event as EventIcon } from '@mui/icons-material';
 import { CalendarEvent } from '@/features/workflow/calendar/types/calendar-types';
-import { ContributorOption } from '@/features/workflow/calendar/hooks/use-contributors';
+import { CrewMemberOption } from '@/features/workflow/calendar/hooks/use-contributors';
 import { useEventForm, EventFormData } from '../../hooks/use-event-form';
 import EventFormFields from './EventFormFields';
 
@@ -16,10 +16,10 @@ interface EventModalProps {
     mode: 'create' | 'edit';
     event?: CalendarEvent | null;
     initialData?: { start: Date; end: Date; title: string };
-    contributors: ContributorOption[];
-    currentUserContributor: ContributorOption | null;
-    contributorsLoading: boolean;
-    contributorsError: string | null;
+    crewMembers: CrewMemberOption[];
+    currentUserCrewMember: CrewMemberOption | null;
+    crewMembersLoading: boolean;
+    crewMembersError: string | null;
     onSave: (eventData: EventFormData) => void;
     onDelete?: (eventId: string) => void;
     isSaving?: boolean;
@@ -27,11 +27,11 @@ interface EventModalProps {
 
 export const EventModal: React.FC<EventModalProps> = ({
     open, onClose, mode, event, initialData,
-    contributors, currentUserContributor, contributorsLoading, contributorsError,
+    crewMembers, currentUserCrewMember, crewMembersLoading, crewMembersError,
     onSave, onDelete, isSaving = false,
 }) => {
     const { formData, setFormData, handleSave, handleDelete, handleClose } = useEventForm({
-        open, mode, event, initialData, currentUserContributor, onSave, onDelete, onClose,
+        open, mode, event, initialData, currentUserCrewMember, onSave, onDelete, onClose,
     });
 
     return (
@@ -87,8 +87,8 @@ export const EventModal: React.FC<EventModalProps> = ({
                 <EventFormFields
                     formData={formData} setFormData={setFormData}
                     mode={mode} event={event}
-                    contributors={contributors} currentUserContributor={currentUserContributor}
-                    contributorsLoading={contributorsLoading} contributorsError={contributorsError}
+                    contributors={crewMembers} currentUserCrewMember={currentUserCrewMember}
+                    crewMembersLoading={crewMembersLoading} crewMembersError={crewMembersError}
                 />
             </DialogContent>
 

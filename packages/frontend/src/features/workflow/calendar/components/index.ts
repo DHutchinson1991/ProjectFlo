@@ -6,4 +6,4 @@ export { default as DayView } from './DayView';
 export { default as AgendaView } from './AgendaView';
 export { default as EventModal } from './EventModal';
 export { default as AddEventTaskDialog } from './AddEventTaskDialog';
-export { ContributorSelector } from './ContributorSelector';
+export { CrewMemberSelector } from './CrewMemberSelector';

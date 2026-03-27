@@ -7,7 +7,7 @@ import {
     People as SubjectsIcon,
     PlaceOutlined as LocationsIcon,
 } from "@mui/icons-material";
-import { formatDuration } from "@/lib/utils/formatUtils";
+import { formatDuration } from "@/shared/utils/formatUtils";
 
 interface FilmMetaDataGridProps {
     sceneCount: number;

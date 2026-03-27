@@ -1,7 +1,9 @@
+"use client";
+
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { api } from "@/lib/api";
-import { ActiveTask } from "@/lib/types";
+import { activeTasksApi } from "@/features/workflow/tasks/api";
+import { ActiveTask } from "@/features/catalog/task-library/types";
 
 // ── Page context parsing ──────────────────────────────────────
 export type PageCtx =
@@ -22,7 +24,7 @@ export function parseContext(pathname: string): PageCtx {
 // ── Navigation URL (mirrors active-tasks page logic) ─────────
 export function getNavUrl(task: ActiveTask): string | null {
   if (task.source === "inquiry" && task.inquiry_id) {
-    const base = `/sales/inquiries/${task.inquiry_id}`;
+    const base = `/inquiries/${task.inquiry_id}`;
     const subtaskSectionMap: Record<string, string> = {
       verify_contact_details: "needs-assessment-section",
       verify_event_date: "needs-assessment-section",
@@ -122,7 +124,7 @@ export function useGlobalTaskDrawer(): GlobalTaskDrawerState {
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.activeTasks.getAll();
+      const data = await activeTasksApi.getAll();
       setTasks(data);
     } catch {
       /* silent */

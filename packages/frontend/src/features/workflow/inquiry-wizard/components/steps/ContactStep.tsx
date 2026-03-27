@@ -2,10 +2,10 @@
 
 import React from "react";
 import { Box, TextField, Stack } from "@mui/material";
-import { fieldSx } from '../constants/wizard-config';
-import { NACtx } from '../types';
-import { Q } from './QuestionWrapper';
-import { Suc } from './SuccessCheck';
+import { fieldSx } from '../../constants/wizard-config';
+import { NACtx } from '../../types';
+import { Q } from '../QuestionWrapper';
+import { Suc } from '../SuccessCheck';
 
 export default function ContactScreen({ ctx }: { ctx: NACtx }) {
     const { responses, handleChange, handleContinue } = ctx;

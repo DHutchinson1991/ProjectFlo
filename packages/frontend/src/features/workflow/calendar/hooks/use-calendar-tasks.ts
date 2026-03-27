@@ -1,6 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { useBrand } from '@/features/platform/brand';
 import type { CalendarEvent, EventType } from '../types/calendar-types';
 import { calendarApi } from '../api';
 import { transformBackendTasks } from '../mappers/calendar-task-mapper';
@@ -34,7 +34,7 @@ export function useCalendarTasks(viewDate: Date, viewType: 'month' | 'week' | 'd
 
 export function useFilteredEvents(
     events: CalendarEvent[],
-    filters: { eventTypes?: EventType[]; search?: string; contributorId?: string },
+    filters: { eventTypes?: EventType[]; search?: string; crewMemberId?: string },
 ) {
     return useMemo(() => {
         let filtered = [...events];
@@ -54,8 +54,8 @@ export function useFilteredEvents(
             );
         }
 
-        if (filters.contributorId) {
-            filtered = filtered.filter(e => e.assignee?.id === filters.contributorId);
+        if (filters.crewMemberId) {
+            filtered = filtered.filter(e => e.assignee?.id === filters.crewMemberId);
         }
 
         return filtered;

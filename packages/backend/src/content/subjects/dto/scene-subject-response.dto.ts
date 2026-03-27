@@ -13,7 +13,6 @@ export class SceneSubjectResponseDto {
         id: number;
         film_id: number;
         name: string;
-        category: string;
         role_template_id?: number | null;
         role?: {
             id: number;
@@ -22,7 +21,6 @@ export class SceneSubjectResponseDto {
             is_core: boolean;
             is_group: boolean;
         };
-        is_custom: boolean;
         created_at: Date;
         updated_at: Date;
     };

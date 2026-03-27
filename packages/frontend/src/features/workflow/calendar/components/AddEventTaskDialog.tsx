@@ -14,7 +14,7 @@ import { EventForm } from './EventForm';
 import type { EventFormData } from './EventForm';
 import { TaskForm } from './TaskForm';
 import type { TaskFormData } from './TaskForm';
-import type { ContributorOption } from '@/features/workflow/calendar/hooks/use-contributors';
+import type { CrewMemberOption } from '@/features/workflow/calendar/hooks/use-contributors';
 
 export { type EventFormData, type TaskFormData };
 
@@ -29,10 +29,10 @@ interface AddEventTaskDialogProps {
     newTask: TaskFormData;
     setNewTask: React.Dispatch<React.SetStateAction<TaskFormData>>;
     onAddTask: () => void;
-    contributors: ContributorOption[];
-    currentUserContributor: ContributorOption | null;
-    contributorsLoading: boolean;
-    contributorsError: string | null;
+    crewMembers: CrewMemberOption[];
+    currentUserCrewMember: CrewMemberOption | null;
+    crewMembersLoading: boolean;
+    crewMembersError: string | null;
 }
 
 export default function AddEventTaskDialog({
@@ -46,10 +46,10 @@ export default function AddEventTaskDialog({
     newTask,
     setNewTask,
     onAddTask,
-    contributors,
-    currentUserContributor,
-    contributorsLoading,
-    contributorsError,
+    crewMembers,
+    currentUserCrewMember,
+    crewMembersLoading,
+    crewMembersError,
 }: AddEventTaskDialogProps) {
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -65,19 +65,19 @@ export default function AddEventTaskDialog({
                     <EventForm
                         newEvent={newEvent}
                         setNewEvent={setNewEvent}
-                        contributors={contributors}
-                        currentUserContributor={currentUserContributor}
-                        contributorsLoading={contributorsLoading}
-                        contributorsError={contributorsError}
+                        contributors={crewMembers}
+                        currentUserCrewMember={currentUserCrewMember}
+                        crewMembersLoading={crewMembersLoading}
+                        crewMembersError={crewMembersError}
                     />
                 ) : (
                     <TaskForm
                         newTask={newTask}
                         setNewTask={setNewTask}
-                        contributors={contributors}
-                        currentUserContributor={currentUserContributor}
-                        contributorsLoading={contributorsLoading}
-                        contributorsError={contributorsError}
+                        contributors={crewMembers}
+                        currentUserCrewMember={currentUserCrewMember}
+                        crewMembersLoading={crewMembersLoading}
+                        crewMembersError={crewMembersError}
                     />
                 )}
             </DialogContent>

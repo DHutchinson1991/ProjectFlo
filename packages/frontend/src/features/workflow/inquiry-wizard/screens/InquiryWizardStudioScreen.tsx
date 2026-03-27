@@ -5,10 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { Box, Typography, CircularProgress } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { CheckCircle as CheckCircleIcon } from "@mui/icons-material";
-import { useBrand } from "@/app/providers/BrandProvider";
+import { useBrand } from "@/features/platform/brand";
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import { C, REQUIRED } from '../constants/wizard-config';
 import { shimmer, scaleIn, subtleFloat } from '../constants/animations';
-import { computeScreens, getCurrencySymbol } from '../selectors/wizard-navigation';
+import { computeScreens } from '../selectors/wizard-navigation';
 import type { AnyRecord, ScreenId, Direction } from '../types';
 import type { InquiryWizardSubmissionPayload } from "../types";
 import { inquiryWizardSubmissionsApi } from "../api";
@@ -46,10 +47,10 @@ export default function InquiryWizardStudioScreen() {
 
     const brandName = currentBrand?.display_name || currentBrand?.name || "";
     const brandInitial = brandName.charAt(0).toUpperCase();
-    const currSym = getCurrencySymbol(currentBrand?.currency);
+    const currency = currentBrand?.currency ?? DEFAULT_CURRENCY;
 
     const { eventType, eventConfig, selectedEventTypeId, eventTypeOptions, filteredPackages, slotLabels, budgetLabels, budgetMax } =
-        useWizardComputed({ responses, packageSets, allPackages, eventTypes, currSym, setResponses });
+        useWizardComputed({ responses, packageSets, allPackages, eventTypes, currency, setResponses });
 
     const screens = useMemo(() => computeScreens(responses, eventConfig), [responses, eventConfig]);
     const screenIdx = screens.indexOf(currentScreenId);
@@ -123,14 +124,14 @@ export default function InquiryWizardStudioScreen() {
             }
             await inquiryWizardSubmissionsApi.create(payload);
             setSubmitted(true);
-            setTimeout(() => { window.location.href = linkedInquiryId ? `/sales/inquiries/${linkedInquiryId}` : "/studio/sales"; }, 2800);
+            setTimeout(() => { window.location.href = linkedInquiryId ? `/inquiries/${linkedInquiryId}` : "/inquiries"; }, 2800);
         } catch { setError("Failed to submit. Please try again."); } finally { setSubmitting(false); }
     };
 
     const ctx = {
         responses, handleChange, singleSelect, multiToggle, autoAdvance, handleContinue, goNext, goTo,
         eventType, eventConfig, eventTypeOptions, filteredPackages, slotLabels, budgetLabels, budgetMax,
-        currSym, currentBrand, brandName, brandInitial, linkedInquiryId, template,
+        currency, currentBrand, brandName, brandInitial, linkedInquiryId, template,
         createInquiry, setCreateInquiry, eventTypes, maxVideographers, maxCamerasPerOp,
         priceEstimate, priceLoading, welcomeSettings, callSlots, callSlotsLoading, callSlotsDuration, fetchCallSlots,
     };

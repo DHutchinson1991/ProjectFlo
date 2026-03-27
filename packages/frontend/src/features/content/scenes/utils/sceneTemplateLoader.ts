@@ -1,8 +1,4 @@
-import { apiClient } from "@/lib/api";
-import type { ApiClient } from "@/lib/api/api-client.types";
-import { createScenesApi } from "../api";
-
-const scenesApi = createScenesApi(apiClient as unknown as ApiClient);
+import { scenesApi } from "../api";
 
 const templateCache = new Map<number, unknown>();
 

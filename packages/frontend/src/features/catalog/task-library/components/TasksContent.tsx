@@ -1,13 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Box, Alert, CircularProgress } from "@mui/material";
-import { DragEndEvent } from "@dnd-kit/core";
-import { TaskLibrary, TaskLibraryPhaseGroup, JobRole, SkillRoleMapping } from "@/lib/types";
+import {
+    DndContext, DragEndEvent, DragStartEvent, DragOverlay,
+    PointerSensor, useSensor, useSensors,
+} from "@dnd-kit/core";
+import { TaskLibrary, ProjectPhase, JobRole, SkillRoleMapping, CrewMember } from "@/features/catalog/task-library/types";
+import { TaskSummaryStrip } from "@/shared/ui/tasks";
+import { sumEffortHours } from "@/shared/utils/hours";
 import { TasksHeader } from "./TasksHeader";
-import { TasksSummaryCards } from "./TasksSummaryCards";
 import { PhaseCardsGrid } from "./PhaseCardsGrid";
-import { TaskAccordionList } from "./TaskAccordionList";
+import { TaskTable } from "./TaskTable";
+import { DragOverlayTask } from "./DragOverlayTask";
+import { DroppableZone } from "./DroppableZone";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { TasksSnackbar } from "./TasksSnackbar";
 
@@ -15,17 +21,14 @@ interface TasksContentProps {
     loading: boolean;
     error: string | null;
     setError: (error: string | null) => void;
-    phaseGroups: TaskLibraryPhaseGroup[];
-    onPhaseToggle: (phase: string) => void;
-    onPhaseCardClick: (phase: string) => void;
+    phaseStats: { phase: string; label: string; count: number; activeCount: number }[];
+    activePhase: string;
+    onPhaseChange: (phase: string) => void;
+    activeTasks: TaskLibrary[];
+    tasksByPhase: Record<string, TaskLibrary[]>;
     onDragStart: () => void;
     onDragEnd: (event: DragEndEvent) => void;
-    inlineEditingTask: number | null;
-    inlineEditData: Partial<TaskLibrary>;
-    updateInlineEditData: (field: keyof TaskLibrary, value: unknown) => void;
-    startInlineEdit: (task: TaskLibrary) => void;
-    cancelInlineEdit: () => void;
-    saveInlineEdit: () => void;
+    onUpdateTask: (taskId: number, data: Partial<TaskLibrary>) => Promise<void>;
     isDragging: boolean;
     deleteConfirmOpen: boolean;
     setDeleteConfirmOpen: (open: boolean) => void;
@@ -44,28 +47,25 @@ interface TasksContentProps {
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
     jobRoles: JobRole[];
     allMappings: SkillRoleMapping[];
-    contributors: { id: number; contact: { first_name?: string; last_name?: string } }[];
+    crewMembers: CrewMember[];
     expandedTaskId: number | null;
     onToggleExpand: (taskId: number) => void;
     onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
-    onUpdateContributor: (taskId: number, contributorId: number | null) => Promise<void>;
+    onUpdateContributor: (taskId: number, crewMemberId: number | null) => Promise<void>;
 }
 
 export function TasksContent({
     loading,
     error,
     setError,
-    phaseGroups,
-    onPhaseToggle,
-    onPhaseCardClick,
+    phaseStats,
+    activePhase,
+    onPhaseChange,
+    activeTasks,
+    tasksByPhase,
     onDragStart,
     onDragEnd,
-    inlineEditingTask,
-    inlineEditData,
-    updateInlineEditData,
-    startInlineEdit,
-    cancelInlineEdit,
-    saveInlineEdit,
+    onUpdateTask,
     isDragging,
     deleteConfirmOpen,
     setDeleteConfirmOpen,
@@ -84,12 +84,29 @@ export function TasksContent({
     updateQuickAddData,
     jobRoles,
     allMappings,
-    contributors,
+    crewMembers,
     expandedTaskId,
     onToggleExpand,
     onUpdateRoleSkills,
     onUpdateContributor,
 }: TasksContentProps) {
+    const [activeTask, setActiveTask] = useState<TaskLibrary | null>(null);
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    );
+
+    const handleDragStart = (event: DragStartEvent) => {
+        const task = activeTasks.find(t => t.id.toString() === event.active.id) ?? null;
+        setActiveTask(task);
+        onDragStart();
+    };
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        setActiveTask(null);
+        onDragEnd(event);
+    };
+
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -99,78 +116,77 @@ export function TasksContent({
     }
 
     // Calculate statistics
-    const totalTasks = phaseGroups.reduce((sum, group) => sum + group.tasks.length, 0);
-    const totalActive = phaseGroups.reduce((sum, group) => sum + group.tasks.filter(t => t.is_active).length, 0);
-    const phaseStats = phaseGroups.map(group => ({
-        phase: group.phase,
-        label: group.label,
-        count: group.tasks.length,
-        activeCount: group.tasks.filter(task => task.is_active).length,
-        totalHours: group.tasks.reduce((sum, t) => sum + parseFloat(String(t.effort_hours || '0')), 0),
-    }));
-
-    // Convert phase groups to tasksByPhase format for PhaseCardsGrid
-    const tasksByPhase = phaseGroups.reduce((acc, group) => {
-        acc[group.phase] = group.tasks;
-        return acc;
-    }, {} as Record<string, TaskLibrary[]>);
+    const totalTasks = phaseStats.reduce((sum, p) => sum + p.count, 0);
+    const totalActive = phaseStats.reduce((sum, p) => sum + p.activeCount, 0);
+    const totalHours = sumEffortHours(Object.values(tasksByPhase).flat());
 
     return (
         <Box sx={{ p: 3 }}>
             <TasksHeader />
 
-            <Box sx={{ mb: 3 }}>
-                <TasksSummaryCards
-                    totalTasks={totalTasks}
-                    totalActive={totalActive}
-                    phaseStats={phaseStats}
-                />
+            <TaskSummaryStrip items={[
+                { label: 'Total', value: totalTasks, color: '#579BFC' },
+                { label: 'Active', value: totalActive, color: '#00C875' },
+                { label: 'Inactive', value: totalTasks - totalActive, color: '#676879' },
+                { label: 'Phases', value: phaseStats.filter(p => p.count > 0).length, color: '#A25DDC' },
+                { label: 'Hours', value: `${totalHours.toFixed(1)}h`, color: '#FDAB3D' },
+            ]} />
 
-                <PhaseCardsGrid
-                    phaseStats={phaseStats}
-                    tasksByPhase={tasksByPhase}
-                    onPhaseCardClick={onPhaseCardClick}
-                />
-            </Box>
-
-            {/* Error Alert */}
             {error && (
-                <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
                     {error}
                 </Alert>
             )}
 
-            {/* Task Accordions */}
-            <TaskAccordionList
-                phaseGroups={phaseGroups}
-                onPhaseToggle={onPhaseToggle}
-                onDragStart={onDragStart}
-                onDragEnd={onDragEnd}
-                inlineEditingTask={inlineEditingTask}
-                inlineEditData={inlineEditData}
-                updateInlineEditData={updateInlineEditData}
-                startInlineEdit={startInlineEdit}
-                cancelInlineEdit={cancelInlineEdit}
-                saveInlineEdit={saveInlineEdit}
-                setTaskToDelete={setTaskToDelete}
-                setDeleteConfirmOpen={setDeleteConfirmOpen}
-                isDragging={isDragging}
-                quickAddPhase={quickAddPhase}
-                quickAddData={quickAddData}
-                startQuickAdd={startQuickAdd}
-                cancelQuickAdd={cancelQuickAdd}
-                saveQuickAdd={saveQuickAdd}
-                updateQuickAddData={updateQuickAddData}
-                jobRoles={jobRoles}
-                allMappings={allMappings}
-                contributors={contributors}
-                expandedTaskId={expandedTaskId}
-                onToggleExpand={onToggleExpand}
-                onUpdateRoleSkills={onUpdateRoleSkills}
-                onUpdateContributor={onUpdateContributor}
+            {/* Phase summary cards */}
+            <PhaseCardsGrid
+                phaseStats={phaseStats}
+                tasksByPhase={tasksByPhase}
+                onPhaseCardClick={onPhaseChange}
             />
 
-            {/* Delete Confirmation Dialog */}
+            {/* Table for active phase */}
+            <Box sx={{
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                bgcolor: 'rgba(255,255,255,0.01)',
+            }}>
+                <DndContext
+                    sensors={sensors}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                >
+                    <DroppableZone id={`phase-${activePhase}`} phase={activePhase as ProjectPhase}>
+                        <TaskTable
+                            tasks={activeTasks}
+                            phase={activePhase}
+                            onUpdateTask={onUpdateTask}
+                            setTaskToDelete={setTaskToDelete}
+                            setDeleteConfirmOpen={setDeleteConfirmOpen}
+                            isDragging={isDragging}
+                            quickAddPhase={quickAddPhase}
+                            quickAddData={quickAddData}
+                            startQuickAdd={startQuickAdd}
+                            cancelQuickAdd={cancelQuickAdd}
+                            saveQuickAdd={saveQuickAdd}
+                            updateQuickAddData={updateQuickAddData}
+                            jobRoles={jobRoles}
+                            allMappings={allMappings}
+                            contributors={crewMembers}
+                            expandedTaskId={expandedTaskId}
+                            onToggleExpand={onToggleExpand}
+                            onUpdateRoleSkills={onUpdateRoleSkills}
+                            onUpdateContributor={onUpdateContributor}
+                        />
+                    </DroppableZone>
+
+                    <DragOverlay>
+                        {activeTask && <DragOverlayTask task={activeTask} phase={activePhase} />}
+                    </DragOverlay>
+                </DndContext>
+            </Box>
+
             <DeleteConfirmDialog
                 open={deleteConfirmOpen}
                 onClose={() => setDeleteConfirmOpen(false)}
@@ -178,7 +194,6 @@ export function TasksContent({
                 taskToDelete={taskToDelete}
             />
 
-            {/* Snackbar */}
             <TasksSnackbar
                 open={snackbarOpen}
                 message={snackbarMessage}

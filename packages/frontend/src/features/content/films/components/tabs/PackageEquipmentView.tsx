@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Stack, CircularProgress } from "@mui/material";
 import { Videocam, Mic, LinkRounded } from "@mui/icons-material";
-import { api } from "@/lib/api";
+import { crewSlotsApi } from "@/features/workflow/scheduling/api";
 
 interface EquipmentDetail {
     id?: number;
@@ -18,12 +18,11 @@ interface EquipmentSlot {
 
 interface PackageOperator {
     id: number;
-    contributor_id?: number;
-    position_name?: string;
+    crew_member_id?: number;
+    label?: string;
     name?: string;
-    position_color?: string;
     job_role?: { display_name?: string; name?: string };
-    contributor?: { crew_color?: string };
+    crew_member?: { crew_color?: string };
     equipment?: EquipmentSlot[];
 }
 
@@ -34,7 +33,7 @@ function countPackageEquipment(operators: PackageOperator[]) {
 
     (operators || []).forEach((op) => {
         const equipment = op.equipment?.length ? op.equipment : [];
-        const opName = op.position_name || op.name || 'Crew';
+        const opName = op.label || op.name || 'Crew';
 
         equipment.forEach((eq) => {
             const cat = (eq.equipment?.category || '').toUpperCase();
@@ -59,7 +58,7 @@ function countPackageEquipment(operators: PackageOperator[]) {
 function deduplicateOperators(operators: PackageOperator[]): PackageOperator[] {
     const map = new Map<number, PackageOperator>();
     operators.forEach((op) => {
-        const crewId = op.contributor_id;
+        const crewId = op.crew_member_id;
         if (!crewId) { map.set(op.id, op); return; }
         if (!map.has(crewId)) {
             map.set(crewId, { ...op });
@@ -74,7 +73,7 @@ export function PackageEquipmentView({ packageId }: { packageId: number; filmId?
 
     useEffect(() => {
         let mounted = true;
-        api.operators.packageDay.getAll(packageId).then((ops) => {
+        crewSlotsApi.packageDay.getAll(packageId).then((ops) => {
             if (mounted) setOperators(ops || []);
         }).catch(() => {}).finally(() => {
             if (mounted) setLoading(false);
@@ -159,9 +158,9 @@ export function PackageEquipmentView({ packageId }: { packageId: number; filmId?
             ) : (
                 <Stack spacing={0.75}>
                     {uniqueOps.map((op) => {
-                        const name = op.position_name || op.name || 'Crew';
+                        const name = op.label || op.name || 'Crew';
                         const role = op.job_role?.display_name || op.job_role?.name;
-                        const color = op.position_color || op.contributor?.crew_color;
+                        const color = op.crew_member?.crew_color;
                         const equipment = op.equipment?.length ? op.equipment : [] as EquipmentSlot[];
                         return (
                             <Box key={op.id} sx={{

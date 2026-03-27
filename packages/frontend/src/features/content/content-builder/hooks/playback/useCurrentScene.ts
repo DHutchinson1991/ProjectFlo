@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { TimelineScene, PlaybackState } from '@/lib/types/timeline';
+import { TimelineScene, PlaybackState } from '@/features/content/content-builder/types/timeline';
 
 /**
  * Hook for calculating current active scene(s) from playback state

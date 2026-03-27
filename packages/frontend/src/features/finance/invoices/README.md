@@ -7,7 +7,6 @@ Owns inquiry invoice endpoint bindings and invoice-facing feature exports under 
 | File | Purpose |
 |------|---------|
 | `api/index.ts` | Typed invoice CRUD bindings |
-| `hooks/use-invoices-api.ts` | Hook wrapper for invoice API access |
 | `types/index.ts` | Invoice type exports for feature consumers |
 | `index.ts` | Public feature exports |
 

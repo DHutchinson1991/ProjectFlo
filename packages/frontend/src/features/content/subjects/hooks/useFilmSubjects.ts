@@ -27,7 +27,7 @@ export const useFilmSubjects = (filmId?: number) => {
 
   const { data: typeTemplates = [] } = useQuery({
     queryKey: filmSubjectsKeys.roles(currentBrand!.id),
-    queryFn: () => rolesApi.getRoles(),
+    queryFn: () => rolesApi.getRoles(currentBrand!.id),
     enabled: !!currentBrand?.id,
   });
 

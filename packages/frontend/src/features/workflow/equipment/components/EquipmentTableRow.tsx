@@ -20,8 +20,9 @@ import {
     EQUIPMENT_AVAILABILITY_COLORS,
     EQUIPMENT_CONDITION_COLORS,
 } from "../types/equipment.types";
-import type { Contributor } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils/formatUtils";
+import type { CrewMember } from "@/shared/types/users";
+import { formatCurrency } from "@/features/workflow/proposals/utils/portal/formatting";
+
 import { EquipmentTableRowActions } from "./EquipmentTableRowActions";
 
 interface EquipmentTableRowProps {
@@ -34,9 +35,8 @@ interface EquipmentTableRowProps {
     saveInlineEdit: () => void;
     setEquipmentToDelete: (equipment: Equipment) => void;
     setDeleteConfirmOpen: (open: boolean) => void;
-    contributors: Contributor[];
+    crewMembers: CrewMember[];
     currencyCode: string;
-    currencySymbol: string;
 }
 
 export function EquipmentTableRow({
@@ -49,9 +49,8 @@ export function EquipmentTableRow({
     saveInlineEdit,
     setEquipmentToDelete,
     setDeleteConfirmOpen,
-    contributors,
+    crewMembers,
     currencyCode,
-    currencySymbol,
 }: EquipmentTableRowProps) {
     const router = useRouter();
     const displayData = isEditing ? inlineEditData : item;
@@ -119,7 +118,7 @@ export function EquipmentTableRow({
             {/* Daily Rate */}
             <TableCell align="center" onClick={(e) => isEditing && e.stopPropagation()}>
                 {isEditing ? (
-                    <TextField type="number" value={displayData.rental_price_per_day || 0} onChange={(e) => updateInlineEditData("rental_price_per_day", parseFloat(e.target.value) || 0)} size="small" fullWidth variant="outlined" InputProps={{ startAdornment: currencySymbol }} />
+                    <TextField type="number" value={displayData.rental_price_per_day || 0} onChange={(e) => updateInlineEditData("rental_price_per_day", parseFloat(e.target.value) || 0)} size="small" fullWidth variant="outlined" />
                 ) : (
                     <Typography variant="body2" fontWeight={600}>{formatCurrency(parseFloat(String(item.rental_price_per_day || 0)), currencyCode)}</Typography>
                 )}
@@ -128,7 +127,7 @@ export function EquipmentTableRow({
             {/* Purchase Price */}
             <TableCell align="center" onClick={(e) => isEditing && e.stopPropagation()}>
                 {isEditing ? (
-                    <TextField type="number" value={displayData.purchase_price || 0} onChange={(e) => updateInlineEditData("purchase_price", parseFloat(e.target.value) || 0)} size="small" fullWidth variant="outlined" InputProps={{ startAdornment: currencySymbol }} />
+                    <TextField type="number" value={displayData.purchase_price || 0} onChange={(e) => updateInlineEditData("purchase_price", parseFloat(e.target.value) || 0)} size="small" fullWidth variant="outlined" />
                 ) : (
                     <Typography variant="body2" fontWeight={600}>{formatCurrency(parseFloat(String(item.purchase_price || 0)), currencyCode)}</Typography>
                 )}

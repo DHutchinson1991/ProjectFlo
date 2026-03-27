@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -42,15 +42,13 @@ import {
     CheckCircle as CheckCircleIcon,
     PeopleOutline as UsersIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
-import {
-    Contributor,
-    Role,
-} from "@/lib/types";
+import { rolesApi } from "@/features/platform/settings/api";
+import { crewMembersApi } from "@/features/workflow/crew/api";
+import { CrewMember, Role } from "@/shared/types/users";
 import { useAuth } from "@/features/platform/auth";
 
 export function UsersSettings() {
-    const [contributors, setContributors] = useState<Contributor[]>([]);
+    const [crewMembers, setContributors] = useState<CrewMember[]>([]);
     const [roles, setRoles] = useState<Role[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -61,7 +59,7 @@ export function UsersSettings() {
     const [inviteOpen, setInviteOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [archiveOpen, setArchiveOpen] = useState(false);
-    const [selected, setSelected] = useState<Contributor | null>(null);
+    const [selected, setSelected] = useState<CrewMember | null>(null);
 
     // Invite form
     const [inviteData, setInviteData] = useState({ email: "", first_name: "", last_name: "", password: "", role_id: 0 });
@@ -87,8 +85,8 @@ export function UsersSettings() {
             setLoading(true);
             setError(null);
             const [contribData, rolesData] = await Promise.all([
-                api.contributors.getAll(),
-                api.roles.getAll(),
+                crewMembersApi.getAll(),
+                rolesApi.getAll(),
             ]);
             setContributors(contribData);
             setRoles(rolesData);
@@ -130,7 +128,7 @@ export function UsersSettings() {
         if (!validateInvite()) return;
         try {
             setSubmitting(true); setError(null);
-            await api.contributors.create({
+            await crewMembersApi.create({
                 email: inviteData.email.trim(),
                 first_name: inviteData.first_name.trim(),
                 last_name: inviteData.last_name.trim() || undefined,
@@ -148,7 +146,7 @@ export function UsersSettings() {
     };
 
     // Edit
-    const openEdit = (c: Contributor) => {
+    const openEdit = (c: CrewMember) => {
         setSelected(c);
         setEditData({ first_name: c.first_name || "", last_name: c.last_name || "", email: c.email, role_id: c.role_id });
         setEditErrors({});
@@ -166,7 +164,7 @@ export function UsersSettings() {
         if (!selected || !validateEdit()) return;
         try {
             setSubmitting(true); setError(null);
-            await api.contributors.update(selected.id, {
+            await crewMembersApi.update(selected.id, {
                 first_name: editData.first_name.trim(),
                 last_name: editData.last_name.trim() || undefined,
                 email: editData.email.trim(),
@@ -183,7 +181,7 @@ export function UsersSettings() {
     };
 
     // Archive / Restore
-    const openArchive = (c: Contributor) => {
+    const openArchive = (c: CrewMember) => {
         setSelected(c);
         setArchiveOpen(true);
         handleMenuClose();
@@ -192,7 +190,7 @@ export function UsersSettings() {
         if (!selected) return;
         try {
             setSubmitting(true); setError(null);
-            await api.contributors.delete(selected.id);
+            await crewMembersApi.delete(selected.id);
             await loadUsers();
             setArchiveOpen(false); setSelected(null);
             setSuccess(selected.archived_at ? "User restored!" : "User archived!");

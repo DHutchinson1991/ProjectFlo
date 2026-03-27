@@ -3,9 +3,7 @@
 import React from 'react';
 import { useContentBuilder } from '../../context/ContentBuilderContext';
 import { CreateSceneDialog } from './';
-import { createScenesApi } from '@/features/content/scenes/api';
-import { apiClient } from '@/lib/api';
-import type { ApiClient } from '@/lib/api/api-client.types';
+import { scenesApi } from '@/features/content/scenes/api';
 import { enrichScenesWithBeats } from '@/features/content/scenes/utils/enrichScenesWithBeats';
 
 /**
@@ -66,15 +64,13 @@ export const ModalsContainer: React.FC = () => {
     setShowCreateSceneDialog(false);
   }, [handleSceneFromLibrary, setShowCreateSceneDialog]);
 
-  const scenesApi = React.useMemo(() => createScenesApi(apiClient as unknown as ApiClient), []);
-
   const handleSceneDelete = React.useCallback(async (scene: any) => {
     if (!scene?.id) return;
     const confirmed = window.confirm(`Remove "${scene.name}" from the library?`);
     if (!confirmed) return;
     await scenesApi.templates.delete(scene.id);
     loadAvailableScenes();
-  }, [loadAvailableScenes, scenesApi]);
+  }, [loadAvailableScenes]);
 
   return (
     <CreateSceneDialog

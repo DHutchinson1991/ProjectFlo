@@ -7,8 +7,8 @@ import {
     Pause as PauseIcon,
     Stop as StopIcon,
 } from "@mui/icons-material";
-import { PlaybackState } from "@/lib/types/timeline";
-import { formatTime } from "@/lib/utils/formatUtils";
+import { PlaybackState } from "@/features/content/content-builder/types/timeline";
+import { formatTime } from "@/shared/utils/formatUtils";
 
 interface PlaybackControlsProps {
     playbackState: PlaybackState;

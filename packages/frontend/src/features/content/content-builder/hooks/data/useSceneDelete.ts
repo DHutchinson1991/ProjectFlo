@@ -1,13 +1,11 @@
 import { useCallback } from "react";
-import { createScenesApi } from "@/features/content/scenes/api";
-import { apiClient } from "@/lib/api";
-import type { ApiClient } from "@/lib/api/api-client.types";
+import { scenesApi } from "@/features/content/scenes/api";
 import type { FilmContentApi } from "@/features/content/films/components/FilmApiContext";
 
 /**
  * Hook to handle scene deletion
  * Deletes a scene from the database and the timeline
- * Uses domain API: createScenesApi from @/lib/api/scenes.api
+ * Uses domain API: scenesApi from @/features/content/scenes/api
  *
  * Accepts an optional `filmApi` adapter — when provided, the delete
  * routes through it (supporting library / project / inquiry modes).
@@ -25,10 +23,7 @@ export const useSceneDelete = (
             // Use adapter when available, otherwise fall back to library API
             const deleteScene = filmApi
                 ? (id: number) => filmApi.scenes.delete(id)
-                : (() => {
-                    const scenesApi = createScenesApi(apiClient as unknown as ApiClient);
-                    return (id: number) => scenesApi.scenes.delete(id);
-                })();
+                : (id: number) => scenesApi.scenes.delete(id);
 
             console.log(`🗑️ [DELETE] Mode: ${filmApi ? filmApi.mode : 'library (fallback)'}`);
 

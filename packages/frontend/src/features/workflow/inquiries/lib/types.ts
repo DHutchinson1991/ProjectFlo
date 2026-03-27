@@ -1,10 +1,10 @@
 import type { ComponentType } from 'react';
-import type { Inquiry, NeedsAssessmentSubmission, InquiryTaskStatus } from '@/lib/types';
+import type { Inquiry, NeedsAssessmentSubmission, InquiryTaskStatus } from '@/features/workflow/inquiries/types';
 
 // ─── Shared prop interface for workflow card components ──────────────
 
 export interface WorkflowCardProps {
-    inquiry: Inquiry & { activity_logs?: unknown[] };
+    inquiry: Inquiry;
     onRefresh?: () => Promise<void>;
     isActive?: boolean;
     activeColor?: string;

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useMemo } from 'react';
-import { api } from '@/lib/api';
+import { scheduleApi, crewSlotsApi } from '@/features/workflow/scheduling/api';
 
 // ─── Schedule API Adapter Interface ────────────────────────────────────
 // Normalized interface for schedule CRUD operations that decouples
@@ -91,16 +91,14 @@ export interface ScheduleApi {
   // ─── Operators / Crew ──────────────────────────────────────────────
   operators: {
     add(dayId: number, data: {
-      position_name: string;
-      position_color?: string | null;
-      contributor_id?: number | null;
+      label?: string | null;
+      crew_member_id?: number | null;
       job_role_id?: number | null;
       hours?: number;
-      notes?: string;
       activity_id?: number | null; // maps to package_activity_id or project_activity_id
     }): Promise<any>;
     remove(operatorId: number): Promise<void>;
-    assign(operatorId: number, contributorId: number | null): Promise<any>;
+    assign(operatorId: number, crewMemberId: number | null): Promise<any>;
     assignActivity(operatorId: number, activityId: number): Promise<any>;
     unassignActivity(operatorId: number, activityId: number): Promise<any>;
     setEquipment(operatorId: number, equipment: { equipment_id: number; is_primary: boolean }[]): Promise<any>;
@@ -217,18 +215,16 @@ export function createPackageScheduleApi(packageId: number, brandId: number): Sc
       add: (dayId, data) =>
         api.operators.packageDay.add(packageId, {
           event_day_template_id: dayId,
-          position_name: data.position_name,
-          position_color: data.position_color,
-          contributor_id: data.contributor_id,
+          label: data.label,
+          crew_member_id: data.crew_member_id,
           job_role_id: data.job_role_id,
           hours: data.hours,
-          notes: data.notes,
           package_activity_id: data.activity_id,
         }),
       remove: (operatorId) =>
         api.operators.packageDay.remove(operatorId),
-      assign: (operatorId, contributorId) =>
-        api.operators.packageDay.assign(operatorId, contributorId),
+      assign: (operatorId, crewMemberId) =>
+        api.operators.packageDay.assign(operatorId, crewMemberId),
       assignActivity: (operatorId, activityId) =>
         api.operators.packageDay.assignActivity(operatorId, activityId),
       unassignActivity: (operatorId, activityId) =>
@@ -329,28 +325,26 @@ export function createProjectScheduleApi(projectId: number): ScheduleApi {
 
     operators: {
       add: (dayId, data) =>
-        api.schedule.instanceOperators.createForProject(projectId, {
+        api.schedule.instanceCrewSlots.createForProject(projectId, {
           project_event_day_id: dayId,
-          position_name: data.position_name,
-          position_color: data.position_color,
-          contributor_id: data.contributor_id,
+          label: data.label,
+          crew_member_id: data.crew_member_id,
           job_role_id: data.job_role_id,
           hours: data.hours,
-          notes: data.notes,
           project_activity_id: data.activity_id,
         }),
       remove: (operatorId) =>
-        api.schedule.instanceOperators.delete(operatorId),
-      assign: (operatorId, contributorId) =>
-        api.schedule.instanceOperators.assignCrew(operatorId, contributorId),
+        api.schedule.instanceCrewSlots.delete(operatorId),
+      assign: (operatorId, crewMemberId) =>
+        api.schedule.instanceCrewSlots.assignCrew(operatorId, crewMemberId),
       assignActivity: (operatorId, activityId) =>
-        api.schedule.instanceOperators.assignActivity(operatorId, activityId),
+        api.schedule.instanceCrewSlots.assignActivity(operatorId, activityId),
       unassignActivity: (operatorId, activityId) =>
-        api.schedule.instanceOperators.unassignActivity(operatorId, activityId),
+        api.schedule.instanceCrewSlots.unassignActivity(operatorId, activityId),
       setEquipment: (operatorId, equipment) =>
-        api.schedule.instanceOperators.setEquipment(operatorId, equipment),
+        api.schedule.instanceCrewSlots.setEquipment(operatorId, equipment),
       refreshAll: () =>
-        api.schedule.instanceOperators.getForProject(projectId),
+        api.schedule.instanceCrewSlots.getForProject(projectId),
     },
 
     eventDays: {
@@ -438,28 +432,26 @@ export function createInquiryScheduleApi(inquiryId: number): ScheduleApi {
 
     operators: {
       add: (dayId, data) =>
-        api.schedule.instanceOperators.createForInquiry(inquiryId, {
+        api.schedule.instanceCrewSlots.createForInquiry(inquiryId, {
           project_event_day_id: dayId,
-          position_name: data.position_name,
-          position_color: data.position_color,
-          contributor_id: data.contributor_id,
+          label: data.label,
+          crew_member_id: data.crew_member_id,
           job_role_id: data.job_role_id,
           hours: data.hours,
-          notes: data.notes,
           project_activity_id: data.activity_id,
         }),
       remove: (operatorId) =>
-        api.schedule.instanceOperators.delete(operatorId),
-      assign: (operatorId, contributorId) =>
-        api.schedule.instanceOperators.assignCrew(operatorId, contributorId),
+        api.schedule.instanceCrewSlots.delete(operatorId),
+      assign: (operatorId, crewMemberId) =>
+        api.schedule.instanceCrewSlots.assignCrew(operatorId, crewMemberId),
       assignActivity: (operatorId, activityId) =>
-        api.schedule.instanceOperators.assignActivity(operatorId, activityId),
+        api.schedule.instanceCrewSlots.assignActivity(operatorId, activityId),
       unassignActivity: (operatorId, activityId) =>
-        api.schedule.instanceOperators.unassignActivity(operatorId, activityId),
+        api.schedule.instanceCrewSlots.unassignActivity(operatorId, activityId),
       setEquipment: (operatorId, equipment) =>
-        api.schedule.instanceOperators.setEquipment(operatorId, equipment),
+        api.schedule.instanceCrewSlots.setEquipment(operatorId, equipment),
       refreshAll: () =>
-        api.schedule.instanceOperators.getForInquiry(inquiryId),
+        api.schedule.instanceCrewSlots.getForInquiry(inquiryId),
     },
 
     eventDays: {

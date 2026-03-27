@@ -20,15 +20,15 @@ import {
     EquipmentAvailability,
     EquipmentCondition,
 } from "../types/equipment.types";
-import type { Contributor } from "@/lib/types";
+import type { CrewMember } from "@/shared/types/users";
 
 interface EquipmentQuickAddRowProps {
     quickAddData: Partial<Equipment>;
     updateQuickAddData: (field: keyof Equipment, value: unknown) => void;
     cancelQuickAdd: () => void;
     saveQuickAdd: () => void;
-    contributors: Contributor[];
-    currencySymbol: string;
+    crewMembers: CrewMember[];
+    currencyCode: string;
 }
 
 export function EquipmentQuickAddRow({
@@ -36,8 +36,7 @@ export function EquipmentQuickAddRow({
     updateQuickAddData,
     cancelQuickAdd,
     saveQuickAdd,
-    contributors,
-    currencySymbol,
+    crewMembers,
 }: EquipmentQuickAddRowProps) {
     return (
         <TableRow
@@ -112,7 +111,6 @@ export function EquipmentQuickAddRow({
                     size="small"
                     fullWidth
                     variant="outlined"
-                    InputProps={{ startAdornment: currencySymbol }}
                 />
             </TableCell>
 
@@ -126,7 +124,6 @@ export function EquipmentQuickAddRow({
                     size="small"
                     fullWidth
                     variant="outlined"
-                    InputProps={{ startAdornment: currencySymbol }}
                 />
             </TableCell>
 

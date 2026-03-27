@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import EventNoteIcon from '@mui/icons-material/EventNote';
-import { api } from '@/lib/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 import {
     type ActivityRecord, type PackageEventDay,
     formatTimeDisplay, formatDuration, getActivityDuration, sortByTime,
@@ -32,8 +32,8 @@ export const FilmActivitiesTab: React.FC<FilmActivitiesTabProps> = ({ packageId 
         setError(null);
 
         Promise.all([
-            api.schedule.packageActivities.getAll(packageId),
-            api.schedule.packageEventDays.getAll(packageId),
+            scheduleApi.packageActivities.getAll(packageId),
+            scheduleApi.packageEventDays.getAll(packageId),
         ])
             .then(([acts, days]) => {
                 if (!mounted) return;

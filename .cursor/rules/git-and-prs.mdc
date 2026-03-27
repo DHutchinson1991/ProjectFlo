@@ -1,0 +1,23 @@
+---
+description: Branch, commit, and PR conventions for ProjectFlo.
+alwaysApply: false
+---
+
+# ProjectFlo — Git & PR Conventions
+
+## Branch names
+- Format: `<type>/<short-description>`
+- Types: `feature/`, `fix/`, `refactor/`, `chore/`
+- Lowercase kebab-case; keep description under ~5 words.
+
+## Commit messages
+- Format: `<type>: <description>`
+- Types: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `style`
+- Imperative mood, no trailing period, first line <72 chars; add body for complex changes.
+
+## Pull requests
+- Title matches commit format: `<type>: <description>`
+- Body should include: What changed, Why, Testing, and a checklist (build/test/lint/README/migrations as applicable).
+- Keep PRs focused (one logical change).
+- If touching pricing logic, update `PRICING_TOTALS_REFERENCE.md`.
+

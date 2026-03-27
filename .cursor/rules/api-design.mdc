@@ -1,0 +1,21 @@
+---
+description: Backend API route, controller, and response conventions.
+globs: packages/backend/src/**/*.controller.ts
+alwaysApply: false
+---
+
+# ProjectFlo — API Design
+
+- All backend routes live under `/api/*`.
+- Prefer nested resources when the child is always accessed via a parent (e.g. `/api/inquiries/:inquiryId/estimates`).
+- For state-changing actions beyond CRUD, use `POST` with a verb suffix (`/send`, `/refresh`, `/revise`); never use `GET` for mutations.
+- Parse numeric path params with `ParseIntPipe`.
+- Apply `@UseGuards(AuthGuard('jwt'))` at the controller level (not per-route).
+- Validate inputs with `ValidationPipe` on `@Body()` / `@Query()`.
+- Responses:
+  - single-resource: return the entity (no wrapper)
+  - list: return an array
+  - mutations: may return `{ id, status }` if full entity is expensive
+- Errors: keep NestJS default exception response shape; don’t override it.
+- Naming: controller/service methods follow `findAll`, `findOne`, `create`, `update`, `remove`, and action verbs for action endpoints.
+

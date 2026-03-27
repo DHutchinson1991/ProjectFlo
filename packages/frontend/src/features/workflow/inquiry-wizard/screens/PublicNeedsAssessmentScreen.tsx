@@ -28,7 +28,7 @@ import {
     Language as LanguageIcon,
     Print as PrintIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
+import { publicNeedsAssessmentApi } from "@/features/workflow/needs-assessment/api";
 import AddressAutocomplete, { type AddressResult } from "@/shared/ui/AddressAutocomplete/AddressAutocomplete";
 
 /* ------------------------------------------------------------------ */
@@ -164,19 +164,7 @@ function getColors() {
     };
 }
 
-/* ------------------------------------------------------------------ */
-/* Currency helpers                                                    */
-/* ------------------------------------------------------------------ */
-
-const CURRENCY_SYMBOLS: Record<string, string> = {
-    USD: "$", GBP: "£", EUR: "€", AUD: "A$", CAD: "C$", NZD: "NZ$",
-    JPY: "¥", CHF: "CHF", SEK: "kr", NOK: "kr", DKK: "kr",
-    ZAR: "R", INR: "₹", SGD: "S$", HKD: "HK$", MXN: "MX$",
-};
-function getCurrencySymbol(currency: string | null | undefined): string {
-    if (!currency) return "$";
-    return CURRENCY_SYMBOLS[currency.toUpperCase()] ?? currency;
-}
+import { DEFAULT_CURRENCY, formatCurrency } from '@projectflo/shared';
 
 /* ------------------------------------------------------------------ */
 /* Preferred-contact-time options                                      */
@@ -283,7 +271,7 @@ export function PublicNeedsAssessmentScreen({ token }: { token: string }) {
     const fetchTemplate = useCallback(async () => {
         try {
             setLoading(true);
-            const data = await api.publicNeedsAssessment.getByShareToken(token);
+            const data = await publicNeedsAssessmentApi.getByShareToken(token);
             setTemplate(data);
             if (data.steps_config?.length) {
                 const stepsFromConfig = data.steps_config as WizardStep[];
@@ -309,7 +297,7 @@ export function PublicNeedsAssessmentScreen({ token }: { token: string }) {
     const brand = template?.brand ?? null;
     const brandName = brand?.display_name || brand?.name || "";
     const brandInitial = brandName.charAt(0).toUpperCase();
-    const currencySymbol = getCurrencySymbol(brand?.currency);
+    const currencyCode = brand?.currency ?? DEFAULT_CURRENCY;
 
     const eventTypeOptions = useMemo(() => {
         const seen = new Set<string>();
@@ -433,7 +421,7 @@ export function PublicNeedsAssessmentScreen({ token }: { token: string }) {
         try {
             setSubmitting(true);
             setError(null);
-            const result = await api.publicNeedsAssessment.submit(token, {
+            const result = await publicNeedsAssessmentApi.submit(token, {
                 template_id: template.id,
                 responses,
                 selected_package_id: selectedPackageId,
@@ -929,7 +917,7 @@ export function PublicNeedsAssessmentScreen({ token }: { token: string }) {
                             packages={packages}
                             selectedPackageId={selectedPackageId}
                             onSelect={setSelectedPackageId}
-                            currencySymbol={currencySymbol}
+                            currencyCode={currencyCode}
                             selectedEventType={selectedEventType}
                             colors={colors}
                             cardSx={cardSx}
@@ -1432,7 +1420,7 @@ function PackageStep({
     packages,
     selectedPackageId,
     onSelect,
-    currencySymbol,
+    currencyCode,
     selectedEventType,
     colors,
     cardSx,
@@ -1440,7 +1428,7 @@ function PackageStep({
     packages: PackageData[];
     selectedPackageId: number | null;
     onSelect: (id: number | null) => void;
-    currencySymbol: string;
+    currencyCode: string;
     selectedEventType: string | null;
     colors: ReturnType<typeof getColors>;
     cardSx: object;
@@ -1532,7 +1520,7 @@ function PackageStep({
                                         backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
                                         fontSize: "1.35rem", fontWeight: 700, lineHeight: 1,
                                     }}>
-                                        {currencySymbol}{Number(price).toLocaleString()}
+                                        {formatCurrency(Number(price), currencyCode)}
                                     </Typography>
                                 )}
 

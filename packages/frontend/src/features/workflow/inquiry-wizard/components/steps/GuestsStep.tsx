@@ -7,9 +7,9 @@ import {
     Check as CheckIcon,
     PersonOutlineRounded as PersonIcon,
 } from "@mui/icons-material";
-import { C } from '../constants/wizard-config';
-import { fadeInUp } from '../constants/animations';
-import { NACtx } from '../types';
+import { C } from '../../constants/wizard-config';
+import { fadeInUp } from '../../constants/animations';
+import { NACtx } from '../../types';
 
 /* Subtle glow pulse on selected card */
 const glowPulse = keyframes`

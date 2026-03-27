@@ -16,10 +16,9 @@ import {
 import { format } from 'date-fns';
 import { calendarApi, type BackendCalendarEvent } from '@/features/workflow/calendar/api';
 import { calendarQueryKeys } from '@/features/workflow/calendar/constants/query-keys';
-import { useAuth } from '@/app/providers/AuthProvider';
-import { useBrand } from '@/app/providers/BrandProvider';
-import { api } from '@/lib/api';
-import { MeetingSettings } from '@/lib/types';
+import { useAuth } from '@/features/platform/auth';
+import { useBrand } from '@/features/platform/brand';
+import { useMeetingSettings } from '@/features/platform/settings/hooks';
 import type { WorkflowCardProps } from '../lib';
 import { WorkflowCard } from './WorkflowCard';
 
@@ -91,7 +90,7 @@ const SlotPicker: React.FC<SlotPickerProps> = ({
         setSelectedTime('');
         setUnavailableReason(null);
         try {
-            const res = await api.calendar.getDiscoveryCallSlots(brandId, date);
+            const res = await calendarApi.getDiscoveryCallSlots(brandId, date);
             setSlots(res.slots || []);
             if (res.unavailable_reason) setUnavailableReason(res.unavailable_reason);
         } catch {
@@ -291,14 +290,7 @@ const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, 
         enabled: !!currentBrand?.id && !!inquiry?.id,
     });
 
-    const { data: meetingSettings = null, isPending: meetingSettingsLoading } = useQuery<MeetingSettings | null>({
-        queryKey: ['brands', 'meeting-settings', currentBrand?.id],
-        queryFn: async () => {
-            if (!currentBrand?.id) return null;
-            return api.brands.getMeetingSettings(currentBrand.id);
-        },
-        enabled: !!currentBrand?.id,
-    });
+    const { data: meetingSettings = null, isPending: meetingSettingsLoading } = useMeetingSettings();
 
     const refreshMeetings = useCallback(async () => {
         await queryClient.invalidateQueries({ queryKey: meetingsQueryKey });
@@ -371,7 +363,7 @@ const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, 
                 meeting_url: defaultMeetingUrl,
                 description: defaultDescription,
                 inquiry_id: inquiry.id,
-                contributor_id: operatorId || user?.id || 1,
+                crew_member_id: operatorId || user?.id || 1,
                 is_confirmed: confirmed,
             });
             setRescheduleMode(false);

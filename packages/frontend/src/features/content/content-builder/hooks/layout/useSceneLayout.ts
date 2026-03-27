@@ -1,4 +1,4 @@
-import { ViewState, TimelineScene } from '@/lib/types/timeline';
+import { ViewState, TimelineScene } from '@/features/content/content-builder/types/timeline';
 
 /**
  * Hook to calculate scene layout and position

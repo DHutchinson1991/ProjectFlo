@@ -7,17 +7,10 @@ import {
     Tabs,
     Tab,
     Paper,
-    Chip,
 } from "@mui/material";
 import {
     Person as ProfileIcon,
     Business as CompanyIcon,
-    Notifications as NotificationsIcon,
-    Palette as AppearanceIcon,
-    IntegrationInstructions as IntegrationsIcon,
-    Security as SecurityIcon,
-    Receipt as BillingIcon,
-    Tune as WorkflowIcon,
     SupervisorAccount as RolesIcon,
     PeopleOutline as UsersIcon,
     Payments as PaymentsIcon,
@@ -32,14 +25,6 @@ import RolesSettings from "../components/RolesSettings";
 import { UsersSettings } from "../components/UsersSettings";
 import { PaymentScheduleSettings } from "../components/PaymentScheduleSettings";
 import { MeetingsSettings } from "../components/MeetingsSettings";
-import {
-    NotificationSettings,
-    AppearanceSettings,
-    IntegrationSettings,
-    SecuritySettings,
-    BillingSettings,
-    WorkflowSettings,
-} from "../components/PlaceholderSettings";
 import ClientPortalSettings from "../components/ClientPortalSettings";
 import SocialLinksSettings from "../components/SocialLinksSettings";
 import ContractSettings from "@/features/finance/contracts/components/ContractSettings";
@@ -49,7 +34,6 @@ interface SettingsSection {
     label: string;
     icon: React.ReactElement;
     component: React.ReactNode;
-    placeholder?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,42 +47,6 @@ const settingsSections: SettingsSection[] = [
     { label: "Meetings", icon: <ScheduleIcon />, component: <MeetingsSettings /> },
     { label: "Roles", icon: <RolesIcon />, component: <RolesSettings /> },
     { label: "Users", icon: <UsersIcon />, component: <UsersSettings /> },
-    {
-        label: "Notifications",
-        icon: <NotificationsIcon />,
-        component: <NotificationSettings />,
-        placeholder: true,
-    },
-    {
-        label: "Appearance",
-        icon: <AppearanceIcon />,
-        component: <AppearanceSettings />,
-        placeholder: true,
-    },
-    {
-        label: "Integrations",
-        icon: <IntegrationsIcon />,
-        component: <IntegrationSettings />,
-        placeholder: true,
-    },
-    {
-        label: "Security",
-        icon: <SecurityIcon />,
-        component: <SecuritySettings />,
-        placeholder: true,
-    },
-    {
-        label: "Billing & Plans",
-        icon: <BillingIcon />,
-        component: <BillingSettings />,
-        placeholder: true,
-    },
-    {
-        label: "Workflow",
-        icon: <WorkflowIcon />,
-        component: <WorkflowSettings />,
-        placeholder: true,
-    },
     {
         label: "Social Links",
         icon: <ShareIcon />,
@@ -177,23 +125,7 @@ export function SettingsScreen() {
                                 key={section.label}
                                 icon={section.icon}
                                 iconPosition="start"
-                                label={
-                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                        {section.label}
-                                        {section.placeholder && (
-                                            <Chip
-                                                label="Soon"
-                                                size="small"
-                                                variant="outlined"
-                                                sx={{
-                                                    height: 20,
-                                                    fontSize: "0.65rem",
-                                                    opacity: 0.6,
-                                                }}
-                                            />
-                                        )}
-                                    </Box>
-                                }
+                                label={section.label}
                                 id={`settings-tab-${idx}`}
                                 aria-controls={`settings-tabpanel-${idx}`}
                                 sx={{ gap: 1.5 }}

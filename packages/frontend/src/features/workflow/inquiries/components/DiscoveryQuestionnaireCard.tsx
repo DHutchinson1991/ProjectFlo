@@ -26,10 +26,10 @@ import {
     ThumbUpAlt,
     FlagOutlined,
 } from '@mui/icons-material';
-import { api } from '@/lib/api';
-import { useBrand } from '@/app/providers/BrandProvider';
-import { useAuth } from '@/app/providers/AuthProvider';
-import { DiscoveryQuestionnaireSubmission } from '@/lib/types';
+import { discoveryQuestionnaireSubmissionsApi } from '@/features/workflow/inquiries/api';
+import { useBrand } from '@/features/platform/brand';
+import { useAuth } from '@/features/platform/auth';
+import { DiscoveryQuestionnaireSubmission } from '@/features/workflow/inquiries/types';
 import { WorkflowCard } from './WorkflowCard';
 import DiscoveryQuestionnaireFormDialog from './DiscoveryQuestionnaireFormDialog';
 import type { WorkflowCardProps } from '../lib';
@@ -114,7 +114,7 @@ const DiscoveryQuestionnaireCard: React.FC<WorkflowCardProps> = ({
 
     useEffect(() => {
         if (!inquiry?.id) return;
-        api.discoveryQuestionnaireSubmissions
+        discoveryQuestionnaireSubmissionsApi
             .getByInquiryId(inquiry.id)
             .then((s) => {
                 if (s && typeof s === 'object' && 'id' in s) {

@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   /* config options here */
-  reactStrictMode: false, // Disable to prevent double-mounting/double-fetching in dev
+  reactStrictMode: true,
+  transpilePackages: ['@projectflo/shared'],
   eslint: {
     // Disable ESLint during builds since we run it from root
     ignoreDuringBuilds: true,

@@ -2,20 +2,20 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import type { CalendarEvent, EventType, TaskType, Priority, Project } from '@/features/workflow/calendar/types/calendar-types';
-import type { ContributorOption } from './use-contributors';
+import type { CrewMemberOption } from './use-contributors';
 
 interface UseCalendarAddDialogDeps {
     apiCreateEvent: (data: Partial<CalendarEvent>) => Promise<CalendarEvent>;
     refreshEvents: () => void;
     bumpRefreshKey: () => void;
-    currentUserContributor: ContributorOption | null;
+    currentUserCrewMember: CrewMemberOption | null;
 }
 
 export function useCalendarAddDialog({
     apiCreateEvent,
     refreshEvents,
     bumpRefreshKey,
-    currentUserContributor,
+    currentUserCrewMember,
 }: UseCalendarAddDialogDeps) {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [addDialogType, setAddDialogType] = useState<'event' | 'task'>('event');
@@ -29,7 +29,7 @@ export function useCalendarAddDialog({
         allDay: false,
         type: 'meeting' as EventType,
         priority: 'medium' as Priority,
-        assignee: null as ContributorOption | null,
+        assignee: null as CrewMemberOption | null,
         project: null as Project | null,
         location: '',
     });
@@ -40,22 +40,22 @@ export function useCalendarAddDialog({
         dueDate: new Date(),
         type: 'production' as TaskType,
         priority: 'medium' as Priority,
-        assignee: null as ContributorOption | null,
+        assignee: null as CrewMemberOption | null,
         project: null as Project | null,
         estimatedHours: 1,
     });
 
     useEffect(() => {
-        if (currentUserContributor && !newEvent.assignee) {
-            setNewEvent(prev => ({ ...prev, assignee: currentUserContributor }));
+        if (currentUserCrewMember && !newEvent.assignee) {
+            setNewEvent(prev => ({ ...prev, assignee: currentUserCrewMember }));
         }
-    }, [currentUserContributor, newEvent.assignee]);
+    }, [currentUserCrewMember, newEvent.assignee]);
 
     useEffect(() => {
-        if (currentUserContributor && !newTask.assignee) {
-            setNewTask(prev => ({ ...prev, assignee: currentUserContributor }));
+        if (currentUserCrewMember && !newTask.assignee) {
+            setNewTask(prev => ({ ...prev, assignee: currentUserCrewMember }));
         }
-    }, [currentUserContributor, newTask.assignee]);
+    }, [currentUserCrewMember, newTask.assignee]);
 
     const handleAddEvent = useCallback(async () => {
         try {

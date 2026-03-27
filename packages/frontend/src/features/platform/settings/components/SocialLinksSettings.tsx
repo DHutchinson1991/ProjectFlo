@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useCallback, useEffect, useState } from "react";
 import {
     Box,
@@ -19,8 +17,8 @@ import {
     Star as StarIcon,
     StarBorder as StarBorderIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
-import { WelcomeSettings, Testimonial } from "@/lib/types/brand";
+import { settingsApi } from "@/features/platform/settings/api";
+import { WelcomeSettings, Testimonial } from "@/features/platform/brand/types";
 import { useBrand } from "@/features/platform/brand";
 
 // ── Dark design tokens ──────────────────────────────────────────────────────
@@ -101,7 +99,7 @@ export default function SocialLinksSettings() {
         if (!currentBrand?.id) return;
         try {
             setLoading(true);
-            const ws = await api.brands.getWelcomeSettings(currentBrand.id).catch(() => null);
+            const ws = await settingsApi.getWelcomeSettings(currentBrand.id).catch(() => null);
             if (ws) {
                 setWelcomeSettings(ws);
                 setDraft(ws);
@@ -124,7 +122,7 @@ export default function SocialLinksSettings() {
         if (!currentBrand?.id) return;
         setSaving(true);
         try {
-            const saved = await api.brands.saveWelcomeSettings(currentBrand.id, draft);
+            const saved = await settingsApi.saveWelcomeSettings(currentBrand.id, draft);
             setWelcomeSettings(saved);
             setDraft(saved);
             setSuccess("Social settings saved");

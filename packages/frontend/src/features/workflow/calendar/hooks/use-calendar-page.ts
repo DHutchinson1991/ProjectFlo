@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useMemo } from 'react';
 import type { CalendarTask, CalendarFilters } from '@/features/workflow/calendar/types/calendar-types';
 import { useCalendarEvents, useCalendarTasks } from '@/features/workflow/calendar/hooks/use-calendar';
-import { useContributors } from '@/features/workflow/calendar/hooks/use-contributors';
+import { useCrewMembers } from '@/features/workflow/calendar/hooks/use-contributors';
 import {
     searchTasks,
     getUpcomingDeadlines,
@@ -34,8 +34,8 @@ export function useCalendarPage() {
 
     const { tasks: apiTasks } = useCalendarTasks(currentView.date, viewTypeForHook);
 
-    const { contributors, currentUserContributor, loading: contributorsLoading, error: contributorsError } =
-        useContributors();
+    const { crewMembers, currentUserCrewMember, loading: crewMembersLoading, error: crewMembersError } =
+        useCrewMembers();
 
     const eventModal = useCalendarEventModal({
         apiCreateEvent,
@@ -48,7 +48,7 @@ export function useCalendarPage() {
         apiCreateEvent,
         refreshEvents,
         bumpRefreshKey,
-        currentUserContributor,
+        currentUserCrewMember,
     });
 
     const filters: CalendarFilters = {
@@ -121,10 +121,10 @@ export function useCalendarPage() {
         eventsError,
         filteredTasks,
         stats,
-        contributors,
-        currentUserContributor,
-        contributorsLoading,
-        contributorsError,
+        crewMembers,
+        currentUserCrewMember,
+        crewMembersLoading,
+        crewMembersError,
         ...addDialog,
         ...eventModal,
         handleEventDragUpdate,

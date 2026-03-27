@@ -1,7 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { TrackType } from '@prisma/client';
-import { LoggerService } from '../../../common/logging/logger.service';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { PrismaService } from '../../../platform/prisma/prisma.service';
+import { TrackType, Prisma, FilmTimelineTrack } from '@prisma/client';
 import { AssignEquipmentDto, UpdateEquipmentAssignmentDto, FilmEquipmentResponseDto, EquipmentSummaryDto } from '../dto/film-equipment-assignment.dto';
 
 /**
@@ -12,7 +11,7 @@ import { AssignEquipmentDto, UpdateEquipmentAssignmentDto, FilmEquipmentResponse
  */
 @Injectable()
 export class FilmEquipmentService {
-  private readonly logger = new LoggerService(FilmEquipmentService.name);
+  private readonly logger = new Logger(FilmEquipmentService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -88,7 +87,6 @@ export class FilmEquipmentService {
     numAudio?: number,
     allowRemoval: boolean = false,
   ): Promise<void> {
-    // Get current configuration
     const currentTracks = await this.prisma.filmTimelineTrack.findMany({
       where: { film_id: filmId },
     });
@@ -96,158 +94,107 @@ export class FilmEquipmentService {
     const currentCameras = currentTracks.filter((t) => t.type === TrackType.VIDEO).length;
     const currentAudio = currentTracks.filter((t) => t.type === TrackType.AUDIO).length;
 
-    // Use existing counts if not provided
     const finalCameras = numCameras !== undefined ? numCameras : currentCameras;
     const finalAudio = numAudio !== undefined ? numAudio : currentAudio;
 
-    this.logger.log('Updating equipment', {
-      filmId,
-      from: { cameras: currentCameras, audio: currentAudio },
-      to: { cameras: finalCameras, audio: finalAudio },
-      allTracks: currentTracks.map(t => ({ id: t.id, name: t.name, type: t.type })),
+    const { camerasToRemove, audioToRemove } = this.identifyTracksToRemove(currentTracks, finalCameras, finalAudio);
+    const isReducing = camerasToRemove.length > 0 || audioToRemove.length > 0;
+
+    if (isReducing && !allowRemoval) {
+      throw new BadRequestException('Reducing equipment will remove existing track assignments. Pass allow_removal=true to confirm.');
+    }
+
+    if (audioToRemove.length > 0) {
+      await this.cleanupAudioTrackAssignments(filmId, audioToRemove.map(t => t.id));
+    }
+
+    if (isReducing) {
+      await this.removeTracks(filmId, [...camerasToRemove, ...audioToRemove].map(t => t.id));
+    }
+
+    await this.ensureRequiredTracks(filmId, currentTracks, finalCameras, finalAudio);
+    await this.reindexTracks(filmId);
+  }
+
+  private identifyTracksToRemove(currentTracks: FilmTimelineTrack[], finalCameras: number, finalAudio: number) {
+    const parseTrackNumber = (name: string, prefix: string) => {
+      const match = name.match(new RegExp(`^${prefix}\\s+(\\d+)$`, 'i'));
+      return match ? Number(match[1]) : null;
+    };
+
+    const camerasToRemove = currentTracks.filter(t => t.type === TrackType.VIDEO && (parseTrackNumber(t.name, 'Camera') ?? 0) > finalCameras);
+    const audioToRemove = currentTracks.filter(t => t.type === TrackType.AUDIO && (parseTrackNumber(t.name, 'Audio') ?? 0) > finalAudio);
+
+    return { camerasToRemove, audioToRemove };
+  }
+
+  private async cleanupAudioTrackAssignments(filmId: number, audioTrackIdsToRemove: number[]) {
+    const [sceneSetups, momentSetups] = await this.prisma.$transaction([
+      this.prisma.sceneRecordingSetup.findMany({
+        where: { scene: { film_id: filmId } },
+        select: { id: true, audio_track_ids: true },
+      }),
+      this.prisma.momentRecordingSetup.findMany({
+        where: { moment: { film_scene: { film_id: filmId } } },
+        select: { id: true, audio_track_ids: true },
+      }),
+    ]);
+
+    const audioIdSet = new Set(audioTrackIdsToRemove);
+    const sceneUpdates = sceneSetups.flatMap(s => {
+      const next = (s.audio_track_ids || []).filter(id => !audioIdSet.has(id));
+      return next.length === (s.audio_track_ids || []).length ? [] : [this.prisma.sceneRecordingSetup.update({ where: { id: s.id }, data: { audio_track_ids: next } })];
     });
+
+    const momentUpdates = momentSetups.flatMap(s => {
+      const next = (s.audio_track_ids || []).filter(id => !audioIdSet.has(id));
+      return next.length === (s.audio_track_ids || []).length ? [] : [this.prisma.momentRecordingSetup.update({ where: { id: s.id }, data: { audio_track_ids: next } })];
+    });
+
+    if (sceneUpdates.length || momentUpdates.length) {
+      await this.prisma.$transaction([...sceneUpdates, ...momentUpdates]);
+    }
+  }
+
+  private async removeTracks(filmId: number, trackIds: number[]) {
+    await this.prisma.filmTimelineTrack.deleteMany({
+      where: { film_id: filmId, id: { in: trackIds } },
+    });
+  }
+
+  private async ensureRequiredTracks(filmId: number, currentTracks: FilmTimelineTrack[], finalCameras: number, finalAudio: number) {
+    const ensure = async (type: TrackType, name: string) => {
+      const existing = currentTracks.find(t => t.type === type && t.name === name);
+      if (existing) return;
+      await this.prisma.filmTimelineTrack.create({
+        data: { film_id: filmId, name, type, order_index: 1, is_active: true, created_at: new Date(), updated_at: new Date() },
+      });
+    };
 
     const parseTrackNumber = (name: string, prefix: string) => {
       const match = name.match(new RegExp(`^${prefix}\\s+(\\d+)$`, 'i'));
       return match ? Number(match[1]) : null;
     };
 
-    const cameraTracksToRemove = currentTracks.filter((track) => {
-      if (track.type !== TrackType.VIDEO) return false;
-      const number = parseTrackNumber(track.name, 'Camera');
-      return number !== null && number > finalCameras;
-    });
+    await ensure(TrackType.GRAPHICS, 'Graphics');
+    await ensure(TrackType.MUSIC, 'Music');
 
-    const audioTracksToRemove = currentTracks.filter((track) => {
-      if (track.type !== TrackType.AUDIO) return false;
-      const number = parseTrackNumber(track.name, 'Audio');
-      return number !== null && number > finalAudio;
-    });
+    const hasCam = new Set(currentTracks.filter(t => t.type === TrackType.VIDEO).map(t => parseTrackNumber(t.name, 'Camera')));
+    for (let i = 1; i <= finalCameras; i++) { if (!hasCam.has(i)) await ensure(TrackType.VIDEO, `Camera ${i}`); }
 
-    this.logger.log('Tracks to remove', {
-      filmId,
-      cameraTracksToRemove: cameraTracksToRemove.map(t => ({ id: t.id, name: t.name })),
-      audioTracksToRemove: audioTracksToRemove.map(t => ({ id: t.id, name: t.name })),
-    });
+    const hasAud = new Set(currentTracks.filter(t => t.type === TrackType.AUDIO).map(t => parseTrackNumber(t.name, 'Audio')));
+    for (let i = 1; i <= finalAudio; i++) { if (!hasAud.has(i)) await ensure(TrackType.AUDIO, `Audio ${i}`); }
+  }
 
-    const isReducing = cameraTracksToRemove.length > 0 || audioTracksToRemove.length > 0;
-    if (isReducing && !allowRemoval) {
-      throw new BadRequestException(
-        'Reducing equipment will remove existing track assignments. Pass allow_removal=true to confirm.'
-      );
-    }
-
-    const audioTrackIdsToRemove = audioTracksToRemove.map((track) => track.id);
-
-    if (audioTrackIdsToRemove.length > 0) {
-      const [sceneSetups, momentSetups] = await this.prisma.$transaction([
-        this.prisma.sceneRecordingSetup.findMany({
-          where: { scene: { film_id: filmId } },
-          select: { id: true, audio_track_ids: true },
-        }),
-        this.prisma.momentRecordingSetup.findMany({
-          where: { moment: { film_scene: { film_id: filmId } } },
-          select: { id: true, audio_track_ids: true },
-        }),
-      ]);
-
-      const audioIdSet = new Set(audioTrackIdsToRemove);
-
-      const sceneUpdates = sceneSetups
-        .map((setup) => {
-          const nextAudio = (setup.audio_track_ids || []).filter((id) => !audioIdSet.has(id));
-          if (nextAudio.length === setup.audio_track_ids.length) return null;
-          return this.prisma.sceneRecordingSetup.update({
-            where: { id: setup.id },
-            data: { audio_track_ids: nextAudio },
-          });
-        })
-        .filter((update): update is ReturnType<typeof this.prisma.sceneRecordingSetup.update> => !!update);
-
-      const momentUpdates = momentSetups
-        .map((setup) => {
-          const nextAudio = (setup.audio_track_ids || []).filter((id) => !audioIdSet.has(id));
-          if (nextAudio.length === setup.audio_track_ids.length) return null;
-          return this.prisma.momentRecordingSetup.update({
-            where: { id: setup.id },
-            data: { audio_track_ids: nextAudio },
-          });
-        })
-        .filter((update): update is ReturnType<typeof this.prisma.momentRecordingSetup.update> => !!update);
-
-      if (sceneUpdates.length || momentUpdates.length) {
-        await this.prisma.$transaction([...sceneUpdates, ...momentUpdates]);
-      }
-    }
-
-    if (isReducing) {
-      const trackIdsToRemove = [
-        ...cameraTracksToRemove.map((track) => track.id),
-        ...audioTracksToRemove.map((track) => track.id),
-      ];
-
-      if (trackIdsToRemove.length) {
-        await this.prisma.filmTimelineTrack.deleteMany({
-          where: {
-            film_id: filmId,
-            id: { in: trackIdsToRemove },
-          },
-        });
-      }
-    }
-
-    const ensureTrack = async (type: TrackType, name: string) => {
-      const existing = currentTracks.find((track) => track.type === type && track.name === name);
-      if (existing) return existing;
-
-      return this.prisma.filmTimelineTrack.create({
-        data: {
-          film_id: filmId,
-          name,
-          type,
-          order_index: 1,
-          is_active: true,
-          created_at: new Date(),
-          updated_at: new Date(),
-        },
-      });
-    };
-
-    // Ensure Graphics and Music tracks exist
-    await ensureTrack(TrackType.GRAPHICS, 'Graphics');
-    await ensureTrack(TrackType.MUSIC, 'Music');
-
-    // Ensure camera tracks exist
-    const existingCameraNumbers = new Set(
-      currentTracks
-        .filter((track) => track.type === TrackType.VIDEO)
-        .map((track) => parseTrackNumber(track.name, 'Camera'))
-        .filter((value): value is number => typeof value === 'number')
-    );
-
-    for (let i = 1; i <= finalCameras; i++) {
-      if (!existingCameraNumbers.has(i)) {
-        await ensureTrack(TrackType.VIDEO, `Camera ${i}`);
-      }
-    }
-
-    // Ensure audio tracks exist
-    const existingAudioNumbers = new Set(
-      currentTracks
-        .filter((track) => track.type === TrackType.AUDIO)
-        .map((track) => parseTrackNumber(track.name, 'Audio'))
-        .filter((value): value is number => typeof value === 'number')
-    );
-
-    for (let i = 1; i <= finalAudio; i++) {
-      if (!existingAudioNumbers.has(i)) {
-        await ensureTrack(TrackType.AUDIO, `Audio ${i}`);
-      }
-    }
-
+  private async reindexTracks(filmId: number) {
     const updatedTracks = await this.prisma.filmTimelineTrack.findMany({
       where: { film_id: filmId },
     });
+
+    const parseTrackNumber = (name: string, prefix: string) => {
+      const match = name.match(new RegExp(`^${prefix}\\s+(\\d+)$`, 'i'));
+      return match ? Number(match[1]) : null;
+    };
 
     const graphicsTracks = updatedTracks.filter((track) => track.type === TrackType.GRAPHICS);
     const musicTracks = updatedTracks.filter((track) => track.type === TrackType.MUSIC);

@@ -2,9 +2,9 @@
 
 import React from "react";
 import { Box, TextField } from "@mui/material";
-import { fieldSx } from '../constants/wizard-config';
-import { NACtx } from '../types';
-import { Q } from './QuestionWrapper';
+import { fieldSx } from '../../constants/wizard-config';
+import { NACtx } from '../../types';
+import { Q } from '../QuestionWrapper';
 
 export default function SpecialScreen({ ctx }: { ctx: NACtx }) {
     const { responses, handleChange } = ctx;

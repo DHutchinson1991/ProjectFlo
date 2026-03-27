@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { useBrand } from '@/app/providers/BrandProvider';
+﻿import { useState, useEffect } from 'react';
+import { useBrand } from '@/features/platform/brand';
 import { taskLibraryApi } from '../api';
-import { api } from '@/lib/api';
-import type { TaskLibrary, TaskLibraryByPhase, JobRole, SkillRoleMapping, Contributor } from '@/lib/types';
+import { jobRolesApi, skillRoleMappingsApi, crewMembersApi } from '@/features/workflow/crew/api';
+import type { TaskLibrary, TaskLibraryByPhase, JobRole, SkillRoleMapping, CrewMember } from '@/features/catalog/task-library/types';
 
 export function useTaskLibraryData() {
     const { currentBrand } = useBrand();
@@ -11,7 +11,7 @@ export function useTaskLibraryData() {
     const [error, setError] = useState<string | null>(null);
     const [jobRoles, setJobRoles] = useState<JobRole[]>([]);
     const [allMappings, setAllMappings] = useState<SkillRoleMapping[]>([]);
-    const [contributors, setContributors] = useState<Contributor[]>([]);
+    const [crewMembers, setContributors] = useState<CrewMember[]>([]);
 
     const loadTasks = async () => {
         try {
@@ -27,7 +27,7 @@ export function useTaskLibraryData() {
 
     const loadJobRoles = async () => {
         try {
-            const roles = await api.jobRoles.getAll();
+            const roles = await jobRolesApi.getAll();
             setJobRoles(roles);
         } catch (err) {
             console.error('Failed to load job roles:', err);
@@ -36,7 +36,7 @@ export function useTaskLibraryData() {
 
     const loadAllMappings = async () => {
         try {
-            const mappings = await api.skillRoleMappings.getAll();
+            const mappings = await skillRoleMappingsApi.getAll();
             setAllMappings(mappings);
         } catch (err) {
             console.error('Failed to load skill-role mappings:', err);
@@ -45,10 +45,10 @@ export function useTaskLibraryData() {
 
     const loadContributors = async () => {
         try {
-            const data = await api.contributors.getAll();
+            const data = await crewMembersApi.getAll();
             setContributors(data);
         } catch (err) {
-            console.error('Failed to load contributors:', err);
+            console.error('Failed to load crewMembers:', err);
         }
     };
 
@@ -70,30 +70,22 @@ export function useTaskLibraryData() {
         jobRoles,
         allMappings,
         loadAllMappings,
-        contributors: contributors as Array<{ id: number; contact: { first_name?: string; last_name?: string } }>,
+        crewMembers: contributors as Array<{ id: number; contact: { first_name?: string; last_name?: string } }>,
         loadTasks,
     };
 }
 
 export function useTaskLibraryPhaseExpand() {
-    const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
+    const [activePhase, setActivePhase] = useState<string>('Inquiry');
     const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
 
-    const handlePhaseToggle = (phase: string) => {
-        setExpandedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
-    };
-
-    const handlePhaseCardClick = (phase: string) => {
-        const newExpanded: Record<string, boolean> = {};
-        ['Lead', 'Inquiry', 'Booking', 'Creative_Development', 'Pre_Production', 'Production', 'Post_Production', 'Delivery'].forEach(p => {
-            newExpanded[p] = p === phase;
-        });
-        setExpandedPhases(newExpanded);
+    const handlePhaseChange = (phase: string) => {
+        setActivePhase(phase);
     };
 
     const handleToggleExpand = (taskId: number) => {
         setExpandedTaskId(prev => (prev === taskId ? null : taskId));
     };
 
-    return { expandedPhases, expandedTaskId, handlePhaseToggle, handlePhaseCardClick, handleToggleExpand };
+    return { activePhase, expandedTaskId, handlePhaseChange, handleToggleExpand };
 }

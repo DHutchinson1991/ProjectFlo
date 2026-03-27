@@ -40,7 +40,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-import { MontageStyle } from '@/lib/types/domains/scenes';
+import { MontageStyle } from '@/features/content/scenes/types';
 import type { PackageActivityRecord, ActivitySceneConfig } from '../FilmCreationWizard';
 import { buildDefaultSceneOrder, type SceneOrderEntry } from './SceneOrderStep';
 

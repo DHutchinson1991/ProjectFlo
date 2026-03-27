@@ -2,7 +2,7 @@
 
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "../../AuthProvider";
+import { useAuth } from "../AuthProvider";
 import { UnauthorizedPage } from "../UnauthorizedPage/UnauthorizedPage";
 import { Loading } from "@/shared/ui";
 import { LoginModal } from "@/features/platform/auth/components/LoginModal";
@@ -18,12 +18,15 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({
     children,
+    requiredRole,
     requiredRoles = [],
     redirectTo = "/login",
     showUnauthorizedPage = false,
 }: ProtectedRouteProps) {
     const { user, isAuthenticated, isLoading } = useAuth();
     const router = useRouter();
+
+    const mergedRoles = requiredRole ? [...requiredRoles, requiredRole] : requiredRoles;
 
     // Only hard-redirect to /login if we're on the login page itself
     // (e.g. direct navigation). For all other pages, show the modal overlay.
@@ -52,8 +55,8 @@ export function ProtectedRoute({
     }
 
     // Check role requirements
-    if (requiredRoles.length > 0 && user) {
-        const hasRequiredRole = requiredRoles.some(
+    if (mergedRoles.length > 0 && user) {
+        const hasRequiredRole = mergedRoles.some(
             (role) => user.roles.includes(role) || user.role?.name === role,
         );
 
@@ -62,7 +65,7 @@ export function ProtectedRoute({
                 return (
                     <UnauthorizedPage
                         message="You don't have the required permissions to access this page."
-                        requiredRole={requiredRoles.join(", ")}
+                        requiredRole={mergedRoles.join(", ")}
                     />
                 );
             }

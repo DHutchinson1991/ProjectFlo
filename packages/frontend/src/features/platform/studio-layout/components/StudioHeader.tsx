@@ -97,7 +97,7 @@ export default function StudioHeader() {
                 borderColor: "divider",
                 zIndex: 1300, // Higher than sidebar
                 backdropFilter: "blur(20px)",
-                background: "rgba(18, 18, 18, 0.8)",
+                background: "background.paper",
             }}
         >
             <Toolbar sx={{ minHeight: 64 }}>
@@ -159,7 +159,7 @@ export default function StudioHeader() {
                                 alignItems: "center",
                                 justifyContent: "center",
                                 "&:hover": {
-                                    backgroundColor: "rgba(255, 255, 255, 0.05)",
+                                    backgroundColor: "action.hover",
                                     transform: "translateY(-1px)",
                                 },
                             }}

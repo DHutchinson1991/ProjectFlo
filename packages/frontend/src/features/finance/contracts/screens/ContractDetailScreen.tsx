@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     AppBar,
@@ -44,9 +44,14 @@ import {
     Download,
     Gavel,
 } from '@mui/icons-material';
-import { contractsApi, contractClausesApi, contractTemplatesApi } from '@/features/finance/contracts';
+import { contractTemplatesApi } from '@/features/finance/contracts';
 import { ContractStatus } from '@/features/finance/contracts/types';
-import type { ContractClauseCategory, ContractPreview, ContractSigner, UpdateContractData } from '@/features/finance/contracts/types';
+import type { ContractPreview, ContractSigner, UpdateContractData } from '@/features/finance/contracts/types';
+import {
+    useContract,
+    useContractClauseCategories,
+    useContractDetailMutations,
+} from '@/features/finance/contracts/hooks';
 
 type ContractSection = {
     title: string;
@@ -250,11 +255,17 @@ export default function ContractDetailPage() {
     const inquiryId = parseInt(params.id as string, 10);
     const contractId = parseInt(params.contractId as string, 10);
 
+    // ── Server state via React Query ─────────────────────────────────
+    const contractQuery = useContract(inquiryId, contractId);
+    const clauseCategoriesQuery = useContractClauseCategories();
+    const { updateContract, syncTemplate, sendContract } = useContractDetailMutations(inquiryId, contractId);
+
+    const clauseCategories = clauseCategoriesQuery.data ?? [];
+
+    // ── Local form state (initialized from server data once) ─────────
+    const initialized = useRef(false);
     const [contract, setContract] = useState<LocalContract | null>(null);
-    const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [saving, setSaving] = useState(false);
-    const [syncing, setSyncing] = useState(false);
 
     const [title, setTitle] = useState('');
     const [status, setStatus] = useState<ContractStatus>(ContractStatus.DRAFT);
@@ -263,71 +274,61 @@ export default function ContractDetailPage() {
     const [renderedBodyByTitle, setRenderedBodyByTitle] = useState<Record<string, string>>({});
     const [contractViewMode, setContractViewMode] = useState<'actual' | 'variables'>('actual');
 
-    const [clauseCategories, setClauseCategories] = useState<ContractClauseCategory[]>([]);
-
     const [previewOpen, setPreviewOpen] = useState(false);
 
     const [sendOpen, setSendOpen] = useState(false);
     const [signerRows, setSignerRows] = useState([{ name: '', email: '', role: 'client' }]);
-    const [sending, setSending] = useState(false);
 
+    const loading = contractQuery.isPending || clauseCategoriesQuery.isPending;
+    const saving = updateContract.isPending;
+    const syncing = syncTemplate.isPending;
+    const sending = sendContract.isPending;
+
+    // Initialize form state once when server data arrives
     useEffect(() => {
-        const load = async () => {
-            try {
-                setLoading(true);
-                setError('');
+        if (!contractQuery.data || initialized.current) return;
+        const data = contractQuery.data;
+        initialized.current = true;
 
-                const [data, categories] = await Promise.all([
-                    contractsApi.getById(inquiryId, contractId),
-                    contractClausesApi.getCategories(),
-                ]);
-
-                const preview = data.template_id
-                    ? await contractTemplatesApi.preview(data.template_id, inquiryId)
-                    : null;
-
-                const localContract: LocalContract = {
-                    id: data.id,
-                    title: data.title || '',
-                    content: data.content || {},
-                    status: normalizeContractStatus(data.status),
-                    template_id: data.template_id ?? null,
-                    rendered_html: data.rendered_html ?? null,
-                    signers: data.signers || [],
-                    created_at: new Date(data.created_at).toISOString(),
-                    updated_at: new Date(data.updated_at).toISOString(),
-                    inquiry_id: data.inquiry_id,
-                };
-
-                setContract(localContract);
-                setTitle(localContract.title);
-                setStatus(normalizeContractStatus(localContract.status));
-                setClauseCategories(categories || []);
-                setRenderedBodyByTitle(buildRenderedBodyMap(preview));
-
-                const contentData = (data.content || {}) as ContractContentShape;
-                if (contentData?.sections?.length) {
-                    setSections(
-                        contentData.sections.map((s) => ({
-                            title: s.title || '',
-                            body: s.body || '',
-                        })),
-                    );
-                } else if (contentData?.text) {
-                    setSections([{ title: 'Contract', body: String(contentData.text) }]);
-                } else {
-                    setSections([]);
-                }
-            } catch (err) {
-                console.error('Error loading contract:', err);
-                setError('Failed to load contract details');
-            } finally {
-                setLoading(false);
-            }
+        const localContract: LocalContract = {
+            id: data.id,
+            title: data.title || '',
+            content: data.content || {},
+            status: normalizeContractStatus(data.status),
+            template_id: data.template_id ?? null,
+            rendered_html: data.rendered_html ?? null,
+            signers: data.signers || [],
+            created_at: new Date(data.created_at).toISOString(),
+            updated_at: new Date(data.updated_at).toISOString(),
+            inquiry_id: data.inquiry_id,
         };
 
-        load();
-    }, [inquiryId, contractId]);
+        setContract(localContract);
+        setTitle(localContract.title);
+        setStatus(normalizeContractStatus(localContract.status));
+
+        const contentData = (data.content || {}) as ContractContentShape;
+        if (contentData?.sections?.length) {
+            setSections(
+                contentData.sections.map((s) => ({
+                    title: s.title || '',
+                    body: s.body || '',
+                })),
+            );
+        } else if (contentData?.text) {
+            setSections([{ title: 'Contract', body: String(contentData.text) }]);
+        } else {
+            setSections([]);
+        }
+
+        // Load template preview for variable resolution
+        if (data.template_id) {
+            contractTemplatesApi
+                .preview(data.template_id, inquiryId)
+                .then((preview) => setRenderedBodyByTitle(buildRenderedBodyMap(preview)))
+                .catch(() => {/* non-fatal - variable resolution just won't work */});
+        }
+    }, [contractQuery.data, inquiryId]);
 
     const flatClauses = useMemo(
         () =>
@@ -407,7 +408,6 @@ export default function ContractDetailPage() {
 
     const handleSave = async () => {
         try {
-            setSaving(true);
             const updateData: UpdateContractData = {
                 title,
                 status,
@@ -421,57 +421,52 @@ export default function ContractDetailPage() {
                 } as unknown as UpdateContractData['content'],
             };
 
-            await contractsApi.update(inquiryId, contractId, updateData);
-            const refreshed = await contractsApi.getById(inquiryId, contractId);
-            setContract((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          title: refreshed.title,
-                          status: refreshed.status,
-                          signers: refreshed.signers || prev.signers,
-                          updated_at: new Date(refreshed.updated_at).toISOString(),
-                      }
-                    : prev,
-            );
-            setStatus(normalizeContractStatus(refreshed.status));
-        } catch (err) {
-            console.error('Error saving contract:', err);
+            const refreshed = await updateContract.mutateAsync(updateData);
+            if (refreshed) {
+                setContract((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              title: refreshed.title,
+                              status: refreshed.status,
+                              signers: refreshed.signers || prev.signers,
+                              updated_at: new Date(refreshed.updated_at).toISOString(),
+                          }
+                        : prev,
+                );
+                setStatus(normalizeContractStatus(refreshed.status));
+            }
+        } catch {
             setError('Failed to save contract');
-        } finally {
-            setSaving(false);
         }
     };
 
     const handleSyncFromTemplate = async () => {
         try {
-            setSyncing(true);
-            await contractsApi.syncTemplate(inquiryId, contractId);
-            const refreshed = await contractsApi.getById(inquiryId, contractId);
+            const refreshed = await syncTemplate.mutateAsync();
+            if (refreshed) {
                 const contentData = (refreshed.content || {}) as ContractContentShape;
-            setSections(
-                contentData?.sections?.length
-                    ? contentData.sections.map((s) => ({ title: s.title || '', body: s.body || '' }))
-                    : [],
-            );
-            setContract((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          status: refreshed.status,
-                          signers: refreshed.signers || prev.signers,
-                          rendered_html: refreshed.rendered_html || null,
-                          updated_at: new Date(refreshed.updated_at).toISOString(),
-                      }
-                    : prev,
-            );
-            setStatus(normalizeContractStatus(refreshed.status));
-            setContractViewMode('actual');
-        } catch (err) {
-            console.error('Error syncing contract:', err);
+                setSections(
+                    contentData?.sections?.length
+                        ? contentData.sections.map((s) => ({ title: s.title || '', body: s.body || '' }))
+                        : [],
+                );
+                setContract((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              status: refreshed.status,
+                              signers: refreshed.signers || prev.signers,
+                              rendered_html: refreshed.rendered_html || null,
+                              updated_at: new Date(refreshed.updated_at).toISOString(),
+                          }
+                        : prev,
+                );
+                setStatus(normalizeContractStatus(refreshed.status));
+                setContractViewMode('actual');
+            }
+        } catch {
             setError('Failed to sync contract from template');
-        } finally {
-            setSyncing(false);
         }
     };
 
@@ -500,25 +495,22 @@ export default function ContractDetailPage() {
         }
 
         try {
-            setSending(true);
-            await contractsApi.send(inquiryId, contractId, { signers: validSigners });
+            const refreshed = await sendContract.mutateAsync({ signers: validSigners });
             setSendOpen(false);
-            const refreshed = await contractsApi.getById(inquiryId, contractId);
-            setStatus(normalizeContractStatus(refreshed.status));
-            setContract((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          status: refreshed.status,
-                          signers: refreshed.signers || [],
-                      }
-                    : prev,
-            );
-        } catch (err) {
-            console.error('Error sending contract:', err);
+            if (refreshed) {
+                setStatus(normalizeContractStatus(refreshed.status));
+                setContract((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              status: refreshed.status,
+                              signers: refreshed.signers || [],
+                          }
+                        : prev,
+                );
+            }
+        } catch {
             setError('Failed to send contract');
-        } finally {
-            setSending(false);
         }
     };
 

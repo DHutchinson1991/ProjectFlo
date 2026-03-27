@@ -1,33 +1,9 @@
-import { IsString, IsOptional, IsNumber, IsBoolean, IsArray, ValidateNested, Min } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { UpdateTemplateSceneDto } from './update-template-scene.dto';
 
-export class UpdateTemplateSceneDto {
-    @IsNumber()
-    @IsOptional()
-    id?: number; // existing scene ID for updates
-
-    @IsString()
-    @IsOptional()
-    name?: string;
-
-    @IsString()
-    @IsOptional()
-    mode?: string;
-
-    @IsNumber()
-    @IsOptional()
-    @Min(1)
-    suggested_duration_seconds?: number;
-
-    @IsNumber()
-    @IsOptional()
-    @Min(0)
-    order_index?: number;
-
-    @IsString()
-    @IsOptional()
-    notes?: string;
-}
+// Re-export for backwards compatibility
+export { UpdateTemplateSceneDto } from './update-template-scene.dto';
 
 export class UpdateFilmStructureTemplateDto {
     @IsString()

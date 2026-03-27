@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState } from "react";
 import { Box, Typography, Chip } from "@mui/material";
 import { alpha } from "@mui/material/styles";

@@ -39,20 +39,18 @@ import {
     Gavel as ContractsIcon,
     StarBorder as StarBorderIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
+import {
+    useCrewPaymentTemplates,
+    useCreateCrewPaymentTemplate,
+    useUpdateCrewPaymentTemplate,
+    useDeleteCrewPaymentTemplate,
+} from "@/features/finance/crew-payment-templates";
+import type { CrewPaymentTemplate, CrewPaymentTriggerType, CrewPaymentRoleType, CrewPaymentTerms, CrewPaymentFrequency } from "@/features/finance/crew-payment-templates";
+import { brandsApi } from "@/features/platform/brand/api";
+import { taskLibraryApi } from "@/features/catalog/task-library/api";
 import { paymentSchedulesApi } from "@/features/finance/payment-schedules";
-import type {
-    PaymentScheduleTemplate,
-    PaymentScheduleRule,
-    PaymentAmountType,
-    PaymentTriggerType,
-    CrewPaymentTemplate,
-    CrewPaymentTriggerType,
-    CrewPaymentRoleType,
-    CrewPaymentTerms,
-    CrewPaymentFrequency,
-} from "@/lib/types";
-import type { TaskLibrary } from "@/lib/types";
+import type { PaymentScheduleTemplate, PaymentScheduleRule, PaymentAmountType, PaymentTriggerType } from "@/features/finance/payment-schedules/types";
+import type { TaskLibrary } from "@/features/catalog/task-library/types";
 import { useBrand } from "@/features/platform/brand";
 
 // ---------------------------------------------------------------------------
@@ -253,7 +251,7 @@ export function PaymentScheduleSettings() {
     const loadPaymentSettings = React.useCallback(async () => {
         if (!currentBrand?.id) return;
         try {
-            const b = await api.brands.getById(currentBrand.id);
+            const b = await brandsApi.getById(currentBrand.id);
             const vals = {
                 default_tax_rate: b.default_tax_rate ?? 0,
                 tax_number: b.tax_number || '',
@@ -282,7 +280,7 @@ export function PaymentScheduleSettings() {
         if (!currentBrand?.id) return;
         setSavingSettings(true);
         try {
-            await api.brands.update(currentBrand.id, paymentSettings);
+            await brandsApi.update(currentBrand.id, paymentSettings);
             setOriginalPaymentSettings({ ...paymentSettings });
             await refreshBrands();
             setSnack('Payment settings saved');
@@ -414,7 +412,10 @@ export function PaymentScheduleSettings() {
         .reduce((s, r) => s + Number(r.amount_value), 0);
 
     // ── Crew payment templates ───────────────────────────────────────────────
-    const [crewTemplates, setCrewTemplates] = React.useState<CrewPaymentTemplate[]>([]);
+    const { data: crewTemplates = [], refetch: refetchCrewTemplates } = useCrewPaymentTemplates();
+    const createCrewMutation = useCreateCrewPaymentTemplate();
+    const updateCrewMutation = useUpdateCrewPaymentTemplate();
+    const deleteCrewMutation = useDeleteCrewPaymentTemplate();
     const [crewDialogOpen, setCrewDialogOpen] = React.useState(false);
     const [crewEditing, setCrewEditing] = React.useState<CrewPaymentTemplate | null>(null);
     const [crewDialogStep, setCrewDialogStep] = React.useState<CrewDialogStep>('preset');
@@ -426,18 +427,9 @@ export function PaymentScheduleSettings() {
     const [crewSaving, setCrewSaving] = React.useState(false);
     const [taskLibraryItems, setTaskLibraryItems] = React.useState<TaskLibrary[]>([]);
 
-    const loadCrewTemplates = React.useCallback(async () => {
-        try {
-            const res = await api.crewPaymentTemplates.getAll(brandId);
-            setCrewTemplates(res);
-        } catch { /* ignore */ }
-    }, [brandId]);
-
-    React.useEffect(() => { loadCrewTemplates(); }, [loadCrewTemplates]);
-
     React.useEffect(() => {
         if (!crewDialogOpen || crewForm.role_type !== 'off_site') return;
-        api.taskLibrary.getAll({ is_active: true }).then(setTaskLibraryItems).catch(() => {});
+        taskLibraryApi.getAll({ is_active: true }).then(setTaskLibraryItems).catch(() => {});
     }, [crewDialogOpen, crewForm.role_type]);
 
     const openNewCrew = (roleType: CrewPaymentRoleType = 'on_site') => {
@@ -516,13 +508,12 @@ export function PaymentScheduleSettings() {
         try {
             const payload = { ...crewForm, name: finalName, rules: crewForm.rules.map((r, i) => ({ ...r, order_index: i })) };
             if (crewEditing) {
-                await api.crewPaymentTemplates.update(brandId, crewEditing.id, payload);
+                await updateCrewMutation.mutateAsync({ id: crewEditing.id, data: payload });
             } else {
-                await api.crewPaymentTemplates.create(brandId, payload);
+                await createCrewMutation.mutateAsync(payload);
             }
             setSnack(crewEditing ? 'Crew terms updated' : 'Crew terms created');
             setCrewDialogOpen(false);
-            loadCrewTemplates();
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : '';
             setSnack(msg.includes('already exists') ? 'A template with that name already exists' : 'Failed to save crew terms');
@@ -531,17 +522,15 @@ export function PaymentScheduleSettings() {
 
     const handleDeleteCrew = async (id: number) => {
         try {
-            await api.crewPaymentTemplates.delete(brandId, id);
+            await deleteCrewMutation.mutateAsync(id);
             setSnack('Crew terms deleted');
-            loadCrewTemplates();
         } catch { setSnack('Failed to delete crew terms'); }
     };
 
     const handleSetDefaultCrew = async (t: CrewPaymentTemplate) => {
         try {
-            await api.crewPaymentTemplates.update(brandId, t.id, { is_default: true });
+            await updateCrewMutation.mutateAsync({ id: t.id, data: { is_default: true } });
             setSnack(`"${t.name}" is now the default for ${t.role_type === 'on_site' ? 'on-site' : 'off-site'} roles`);
-            loadCrewTemplates();
         } catch { setSnack('Failed to update default'); }
     };
 
@@ -685,7 +674,7 @@ export function PaymentScheduleSettings() {
                                     </Grid>
                                     <Grid item xs={12}>
                                         <Typography variant="caption" color="text.disabled">
-                                            VAT rates based on HMRC guidelines. Register for VAT if your taxable turnover exceeds £90,000.
+                                            VAT rates based on HMRC guidelines. Register for VAT if your taxable turnover exceeds 90,000.
                                         </Typography>
                                     </Grid>
                                 </Grid>
@@ -1316,7 +1305,7 @@ export function PaymentScheduleSettings() {
                                                                     updateCrewRule(i, { task_library_id: taskId || null, label: task ? `On: ${task.name}` : 'Task Milestone' });
                                                                 }}
                                                                 sx={{ borderRadius: 2 }}>
-                                                                {taskLibraryItems.filter(t => !t.is_stage).map(t => (
+                                                                {taskLibraryItems.filter(t => !t.is_task_group).map(t => (
                                                                     <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>
                                                                 ))}
                                                             </Select>

@@ -2,7 +2,8 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import { Box, Typography, alpha, Stack, Fade } from "@mui/material";
-import type { PaymentBracket, SkillRoleMapping } from "@/lib/types";
+import type { PaymentBracket } from "@/features/finance/payment-brackets/types";
+import type { SkillRoleMapping } from "@/features/catalog/task-library/types";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -142,7 +143,7 @@ function buildLayout(
 
   sorted.forEach((br, idx) => {
     const accent = tierColor(br.level, br.color);
-    const members = br.contributor_job_roles ?? [];
+    const members = br.job_role_assignments ?? [];
     const crewCount = members.length;
     const locked = crewCount === 0;
 
@@ -158,9 +159,9 @@ function buildLayout(
     const rateLabel = rateStr ? `${rateStr}/hr` : "";
 
     const crewNames = members.map((m) => {
-      const f = m.contributor?.contact?.first_name ?? "";
-      const l = m.contributor?.contact?.last_name ?? "";
-      return `${f} ${l}`.trim() || m.contributor?.contact?.email || "Unknown";
+      const f = m.crew_member?.contact?.first_name ?? "";
+      const l = m.crew_member?.contact?.last_name ?? "";
+      return `${f} ${l}`.trim() || m.crew_member?.contact?.email || "Unknown";
     });
 
     nodes.push({

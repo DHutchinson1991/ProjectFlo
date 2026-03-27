@@ -85,3 +85,5 @@ export interface EventType {
     event_days: EventTypeDay[];
     subject_types: EventTypeSubject[];
 }
+
+export * from './api.types';

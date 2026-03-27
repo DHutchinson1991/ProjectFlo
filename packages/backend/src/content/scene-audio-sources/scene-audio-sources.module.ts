@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SceneAudioSourcesService } from './scene-audio-sources.service';
 import { SceneAudioSourcesController } from './scene-audio-sources.controller';
-import { PrismaModule } from '../../prisma/prisma.module';
+import { PrismaModule } from '../../platform/prisma/prisma.module';
 
 @Module({
     imports: [PrismaModule],

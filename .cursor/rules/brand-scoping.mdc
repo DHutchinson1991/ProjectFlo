@@ -1,0 +1,24 @@
+---
+description: Multi-tenant brand scoping and X-Brand-Context transport rules.
+alwaysApply: false
+---
+
+# ProjectFlo — Brand Scoping
+
+- Canonical transport header is **`X-Brand-Context`**. Never introduce `X-Brand-Id` or other variants.
+- `brandId` query params are legacy compatibility only; do not add them to new endpoints or new client code.
+
+## Frontend
+- Brand context comes from the canonical `@/features/platform/brand` API (provider/hook).
+- Shared API client injects `X-Brand-Context` automatically; React Query keys must include brand context so cache invalidates on brand switch.
+
+## Backend
+- Controllers must resolve brand ID consistently using the shared pattern (no per-controller reimplementations).
+- Services must apply brand filters on all tenant-scoped queries; list endpoints should fail fast when brand scope is missing unless explicitly documented.
+
+## Pre-merge checklist
+- No new `brandId` query params.
+- Header name is exactly `X-Brand-Context`.
+- Backend service queries include brand filters.
+- React Query cache keys/invalidation are brand-scoped.
+

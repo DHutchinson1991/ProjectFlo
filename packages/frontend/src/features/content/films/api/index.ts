@@ -2,8 +2,9 @@
  * Films API - Film management, equipment, tracks, scenes, and timeline layers
  */
 
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 import type { Film, CreateFilmDto, UpdateFilmDto, TimelineLayer, CreateTimelineLayerDto, UpdateTimelineLayerDto } from '../types';
-import type { ApiClient } from '@/lib/api/api-client.types';
 import type {
   FilmEquipment,
   SetEquipmentDto,
@@ -45,7 +46,7 @@ export const createFilmsApi = (client: ApiClient) => ({
   equipment: {
     set: (filmId: number, data: SetEquipmentDto): Promise<FilmEquipment> =>
       client.post(`/api/films/${filmId}/equipment`, data),
-    update: (filmId: number, data: { num_cameras?: number; num_audio?: number; allow_removal?: boolean }): Promise<any> =>
+    update: (filmId: number, data: { num_cameras?: number; num_audio?: number; allow_removal?: boolean }): Promise<unknown> =>
       client.patch(`/api/films/${filmId}/equipment`, data),
     getAll: (filmId: number): Promise<FilmEquipment[]> =>
       client.get(`/api/films/${filmId}/equipment`),
@@ -102,7 +103,7 @@ export const createFilmsApi = (client: ApiClient) => ({
       client.get(`/api/films/${filmId}/scenes/durations`),
     create: (filmId: number, data: { name: string; scene_template_id?: number; order_index?: number; shot_count?: number | null; duration_seconds?: number | null; mode?: 'MOMENTS' | 'MONTAGE'; montage_style?: string; montage_bpm?: number }): Promise<FilmLocalScene> =>
       client.post(`/api/scenes/films/${filmId}/scenes`, data),
-    reorder: (filmId: number, sceneOrderings: Array<{ id: number; order_index: number }>): Promise<any> =>
+    reorder: (filmId: number, sceneOrderings: Array<{ id: number; order_index: number }>): Promise<unknown> =>
       client.post(`/api/scenes/${filmId}/reorder`, sceneOrderings),
   },
 
@@ -118,4 +119,5 @@ export const createFilmsApi = (client: ApiClient) => ({
   },
 });
 
+export const filmsApi = createFilmsApi(apiClient);
 export type FilmsApi = ReturnType<typeof createFilmsApi>;

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box } from '@mui/material';
-import { TimelineScene } from '@/lib/types/timeline';
+import { TimelineScene } from '@/features/content/content-builder/types/timeline';
 import { useContentBuilder } from '../../context/ContentBuilderContext';
 import { Timeline } from './infrastructure';
 import { TIMELINE_CONFIG } from '../../constants/constants';

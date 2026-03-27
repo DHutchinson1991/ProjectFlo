@@ -26,7 +26,7 @@ import {
     Download as DownloadIcon,
     Email as EmailIcon,
 } from '@mui/icons-material';
-import { Inquiry } from '@/lib/types';
+import { Inquiry } from '@/features/workflow/inquiries/types';
 
 interface DocumentManagementProps {
     inquiry: Inquiry;

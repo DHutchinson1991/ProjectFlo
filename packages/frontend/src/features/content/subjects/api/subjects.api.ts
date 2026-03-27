@@ -1,6 +1,11 @@
-import type { ApiClient } from '@/lib/api/api-client.types';
-import { apiClient } from '@/lib/api';
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 import type { FilmSubject, CreateFilmSubjectDto, UpdateFilmSubjectDto, SubjectTemplate, SceneSubjectAssignment, SubjectPriority } from '../types';
+
+type UpdateSubjectAssignmentDto = {
+  priority?: SubjectPriority;
+  notes?: string | null;
+};
 
 export const createSubjectsApi = (client: ApiClient) => ({
   // Film subjects
@@ -30,6 +35,13 @@ export const createSubjectsApi = (client: ApiClient) => ({
   assignToScene: (sceneId: number, subjectId: number, priority: SubjectPriority): Promise<SceneSubjectAssignment> =>
     client.post(`/api/subjects/scenes/${sceneId}/assign`, { subject_id: subjectId, priority }),
 
+  updateSceneAssignment: (
+    sceneId: number,
+    subjectId: number,
+    dto: UpdateSubjectAssignmentDto,
+  ): Promise<SceneSubjectAssignment> =>
+    client.patch(`/api/subjects/scenes/${sceneId}/subjects/${subjectId}`, dto),
+
   removeFromScene: (sceneId: number, subjectId: number): Promise<void> =>
     client.delete(`/api/subjects/scenes/${sceneId}/subjects/${subjectId}`),
 
@@ -40,9 +52,16 @@ export const createSubjectsApi = (client: ApiClient) => ({
   assignToMoment: (momentId: number, subjectId: number, priority: SubjectPriority): Promise<SceneSubjectAssignment> =>
     client.post(`/api/subjects/moments/${momentId}/assign`, { subject_id: subjectId, priority }),
 
+  updateMomentAssignment: (
+    momentId: number,
+    subjectId: number,
+    dto: UpdateSubjectAssignmentDto,
+  ): Promise<SceneSubjectAssignment> =>
+    client.patch(`/api/subjects/moments/${momentId}/subjects/${subjectId}`, dto),
+
   removeFromMoment: (momentId: number, subjectId: number): Promise<void> =>
     client.delete(`/api/subjects/moments/${momentId}/subjects/${subjectId}`),
 });
 
-export const subjectsApi = createSubjectsApi(apiClient as unknown as ApiClient);
+export const subjectsApi = createSubjectsApi(apiClient);
 export type SubjectsApi = ReturnType<typeof createSubjectsApi>;

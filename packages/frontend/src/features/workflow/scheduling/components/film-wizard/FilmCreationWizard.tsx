@@ -21,13 +21,19 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import MovieIcon from '@mui/icons-material/Movie';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
-import { api } from '@/lib/api';
-import { useBrand } from '@/app/providers/BrandProvider';
-import { FilmType } from '@/lib/types/domains/film';
-import { MontageStyle } from '@/lib/types/domains/scenes';
-import type { MontagePreset } from '@/lib/types/domains/montage-presets';
-import type { FilmStructureTemplate, FilmStructureTemplateScene } from '@/lib/types/domains/film-structure-templates';
-import { AudioSourceType, AudioTrackType } from '@/lib/types/domains/audio-sources';
+import { servicePackagesApi } from '@/features/catalog/packages/api';
+import { instanceFilmsApi } from '@/features/content/films/api/instance-films.api';
+import { filmsApi } from '@/features/content/films/api';
+import { momentsApi } from '@/features/content/moments/api';
+import { beatsApi } from '@/features/content/beats/api';
+import { sceneAudioSourcesApi } from '@/features/content/scene-audio-sources/api';
+import { crewSlotsApi, scheduleApi } from '@/features/workflow/scheduling/api';
+import { useBrand } from '@/features/platform/brand';
+import { FilmType } from '@/features/content/films/types';
+import { MontageStyle } from '@/features/content/scenes/types';
+import type { MontagePreset } from '@/features/content/films/types/montage-presets';
+import type { FilmStructureTemplate, FilmStructureTemplateScene } from '@/features/content/films/types/film-structure-templates';
+import { AudioSourceType, AudioTrackType } from '@/features/content/scenes/types/audio-sources';
 
 import { FilmTypeStep } from './steps/FilmTypeStep';
 import { MontagePresetStep } from './steps/MontagePresetStep';
@@ -290,7 +296,7 @@ export function FilmCreationWizard({
       try {
         const seenCameraIds = new Set<number>();
         const seenAudioIds = new Set<number>();
-        const operators = externalOperators ?? (packageId ? await api.operators.packageDay.getAll(packageId) : []);
+        const operators = externalOperators ?? (packageId ? await crewSlotsApi.packageDay.getAll(packageId) : []);
         (operators || []).forEach((op: Record<string, unknown>) => {
           ((op.equipment as Record<string, unknown>[]) || []).forEach((eq: Record<string, unknown>) => {
             const eqInner = eq.equipment as Record<string, unknown> | undefined;
@@ -302,7 +308,7 @@ export function FilmCreationWizard({
         });
         if (packageId) {
           try {
-            const pkgData = await api.servicePackages.getOne(currentBrand.id, packageId);
+            const pkgData = await servicePackagesApi.getById(packageId);
             const dayEquipMap = ((pkgData?.contents as Record<string, unknown>)?.day_equipment || {}) as Record<string, unknown[]>;
             Object.values(dayEquipMap).forEach((items) => {
               (items || []).forEach((item: unknown) => {
@@ -319,7 +325,7 @@ export function FilmCreationWizard({
       }
 
       // 1. Create the film
-      const newFilm = await api.films.create({
+      const newFilm = await filmsApi.films.create({
         name,
         brand_id: currentBrand.id,
         film_type: filmType,
@@ -334,15 +340,15 @@ export function FilmCreationWizard({
       let ownerFilmId: number;
       if (instanceOwner) {
         const linkApi = instanceOwner.type === 'project'
-          ? api.schedule.projectFilms
-          : api.schedule.inquiryFilms;
+          ? scheduleApi.projectFilms
+          : scheduleApi.inquiryFilms;
         const linked = await linkApi.create(instanceOwner.id, {
           film_id: newFilm.id,
           order_index: 0,
         });
         ownerFilmId = linked.id;
       } else {
-        const packageFilm = await api.schedule.packageFilms.create(packageId!, {
+        const packageFilm = await scheduleApi.packageFilms.create(packageId!, {
           film_id: newFilm.id,
           order_index: 0,
         });
@@ -363,9 +369,9 @@ export function FilmCreationWizard({
 
       const upsertScene = instanceOwner
         ? (instanceOwner.type === 'project'
-          ? api.schedule.projectFilms.upsertSceneSchedule
-          : api.schedule.inquiryFilms.upsertSceneSchedule)
-        : api.schedule.packageFilms.upsertSceneSchedule;
+          ? scheduleApi.projectFilms.upsertSceneSchedule
+          : scheduleApi.inquiryFilms.upsertSceneSchedule)
+        : scheduleApi.packageFilms.upsertSceneSchedule;
       const shouldCreateMomentsManually = Boolean(instanceOwner);
       const activityFkField = instanceOwner ? 'project_activity_id' : 'package_activity_id';
 
@@ -376,7 +382,7 @@ export function FilmCreationWizard({
           const override = durationOverrides.find(d => d.sceneIndex === i);
           const duration = override?.durationSeconds ?? tplScene.suggested_duration_seconds ?? undefined;
 
-          const scene = await api.films.localScenes.create(newFilm.id, {
+          const scene = await filmsApi.localScenes.create(newFilm.id, {
             name: tplScene.name,
             order_index: i,
             mode: tplScene.mode as 'MOMENTS' | 'MONTAGE',
@@ -394,7 +400,7 @@ export function FilmCreationWizard({
                 // Cherry-picked moments — one beat per moment
                 for (const momId of momentIds) {
                   const moment = activity?.moments?.find(m => m.id === momId);
-                  await api.beats.create(scene.id, {
+                  await beatsApi.create(scene.id, {
                     name: moment?.name || `Beat ${beatIndex + 1}`,
                     duration_seconds: moment?.duration_seconds || 10,
                     order_index: beatIndex,
@@ -403,7 +409,7 @@ export function FilmCreationWizard({
                 }
               } else {
                 // Entire activity as single beat
-                await api.beats.create(scene.id, {
+                await beatsApi.create(scene.id, {
                   name: activity?.name || `Beat ${beatIndex + 1}`,
                   duration_seconds: 30,
                   order_index: beatIndex,
@@ -416,7 +422,7 @@ export function FilmCreationWizard({
           // Create audio sources if configured
           const audioConfig = audioConfigs.find(a => a.sceneIndex === i);
           if (audioConfig && audioConfig.sourceType) {
-            await api.sceneAudioSources.create(scene.id, {
+            await sceneAudioSourcesApi.create(scene.id, {
               source_type: audioConfig.sourceType as AudioSourceType,
               source_activity_id: audioConfig.sourceActivityId,
               source_moment_id: audioConfig.sourceMomentId,
@@ -506,7 +512,7 @@ export function FilmCreationWizard({
 
           if (entry.isCombined) {
             // Combined montage scene
-            const scene = await api.films.localScenes.create(newFilm.id, {
+            const scene = await filmsApi.localScenes.create(newFilm.id, {
               name: entry.label,
               order_index: sceneIndex,
               mode: 'MONTAGE',
@@ -538,7 +544,7 @@ export function FilmCreationWizard({
 
             const scaled = scaleMoments(allSourceMoments, combinedMontageDuration);
             for (const moment of scaled) {
-              await api.moments.create(scene.id, {
+              await momentsApi.create(scene.id, {
                 name: moment.name,
                 duration: moment.duration,
                 order_index: moment.order_index,
@@ -553,7 +559,7 @@ export function FilmCreationWizard({
             if (!activity) continue;
             const durationSec = activity.duration_minutes ? activity.duration_minutes * 60 : undefined;
 
-            const scene = await api.films.localScenes.create(newFilm.id, {
+            const scene = await filmsApi.localScenes.create(newFilm.id, {
               name: activity.name,
               order_index: sceneIndex,
               mode: 'MOMENTS',
@@ -570,7 +576,7 @@ export function FilmCreationWizard({
 
             if (shouldCreateMomentsManually) {
               for (const [momentIndex, moment] of (activity.moments || []).entries()) {
-                await api.moments.create(scene.id, {
+                await momentsApi.create(scene.id, {
                   name: moment.name,
                   duration: moment.duration_seconds || 60,
                   order_index: momentIndex,
@@ -586,7 +592,7 @@ export function FilmCreationWizard({
             const config = sceneConfigs[activity.id] ?? { mode: 'MONTAGE' as const };
             const targetDuration = config.montageDurationSeconds ?? 60;
 
-            const scene = await api.films.localScenes.create(newFilm.id, {
+            const scene = await filmsApi.localScenes.create(newFilm.id, {
               name: activity.name,
               order_index: sceneIndex,
               mode: 'MONTAGE',
@@ -610,7 +616,7 @@ export function FilmCreationWizard({
 
             const scaled = scaleMoments(sourceMoments, targetDuration);
             for (const moment of scaled) {
-              await api.moments.create(scene.id, {
+              await momentsApi.create(scene.id, {
                 name: moment.name,
                 duration: moment.duration,
                 order_index: moment.order_index,
@@ -626,7 +632,7 @@ export function FilmCreationWizard({
         for (let i = 0; i < selectedActivities.length; i++) {
           const activity = selectedActivities[i];
 
-          const scene = await api.films.localScenes.create(newFilm.id, {
+          const scene = await filmsApi.localScenes.create(newFilm.id, {
             name: activity.name,
             order_index: i,
             mode: 'MOMENTS',
@@ -643,7 +649,7 @@ export function FilmCreationWizard({
 
           if (shouldCreateMomentsManually) {
             for (const [momentIndex, moment] of (activity.moments || []).entries()) {
-              await api.moments.create(scene.id, {
+              await momentsApi.create(scene.id, {
                 name: moment.name,
                 duration: moment.duration_seconds || 60,
                 order_index: momentIndex,
@@ -657,7 +663,7 @@ export function FilmCreationWizard({
       }
 
       if (instanceOwner) {
-        await api.instanceFilms.cloneFromLibrary(ownerFilmId);
+        await instanceFilmsApi.cloneFromLibrary(ownerFilmId);
       }
 
       const createdResult: CreatedFilmResult = {

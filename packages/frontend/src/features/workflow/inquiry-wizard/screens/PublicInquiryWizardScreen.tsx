@@ -48,7 +48,7 @@ export default function PublicInquiryWizardScreen() {
     const heroReveal = useReveal();
     const footerReveal = useReveal();
 
-    const { template, loading, error: templateError, steps, eventTypeOptions, packages, selectedEventType, setSelectedEventType, brand, brandName, brandInitial, currencySymbol } = usePublicWizardTemplate(token);
+    const { template, loading, error: templateError, steps, eventTypeOptions, packages, selectedEventType, setSelectedEventType, brand, brandName, brandInitial, currencyCode } = usePublicWizardTemplate(token);
     const { currentStepIdx, setCurrentStepIdx, responses, selectedPackageId, setSelectedPackageId, fieldErrors, submitting, submitted, portalToken, submitError, currentStep, currentQuestions, isLastStep, handleNext, handleBack, handleChange, handleSubmit, stepAnsweredCount, stepComplete } = usePublicWizardForm({ template, steps, token });
 
     const fieldSx = {
@@ -132,7 +132,7 @@ export default function PublicInquiryWizardScreen() {
                     {currentStep?.type === 'discovery_call' ? (
                         <PortalDiscoveryCallStep responses={responses} onChange={handleChange} colors={colors} fieldSx={fieldSx} cardSx={cardSx} />
                     ) : currentStep?.type === 'package_select' ? (
-                        <PortalPackageStep packages={packages} selectedPackageId={selectedPackageId} onSelect={setSelectedPackageId} currencySymbol={currencySymbol} selectedEventType={selectedEventType} colors={colors} cardSx={cardSx} />
+                        <PortalPackageStep packages={packages} selectedPackageId={selectedPackageId} onSelect={setSelectedPackageId} currencyCode={currencyCode} selectedEventType={selectedEventType} colors={colors} cardSx={cardSx} />
                     ) : (
                         <Stack spacing={2.5}>
                             {currentStep?.key === 'event' && eventTypeOptions.length > 0 && (

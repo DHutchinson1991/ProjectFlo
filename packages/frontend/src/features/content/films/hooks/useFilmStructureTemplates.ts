@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { FilmStructureTemplate } from '@/lib/types/domains/film-structure-templates';
+import type { FilmStructureTemplate } from '@/features/content/films/types/film-structure-templates';
 import type { FilmType } from '@/features/content/films/types';
-import { api } from '@/lib/api';
+import { filmStructureTemplatesApi } from '@/features/content/film-structure-templates/api';
 
 export const useFilmStructureTemplates = (brandId?: number, filmType?: FilmType) => {
   const [templates, setTemplates] = useState<FilmStructureTemplate[]>([]);
@@ -12,7 +12,7 @@ export const useFilmStructureTemplates = (brandId?: number, filmType?: FilmType)
     setIsLoading(true);
     setError(null);
     try {
-      const data = await api.filmStructureTemplates.getAll(brandId, filmType);
+      const data = await filmStructureTemplatesApi.getAll(brandId, filmType);
       setTemplates(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load film structure templates');

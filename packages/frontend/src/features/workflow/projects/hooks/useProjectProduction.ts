@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { apiClient } from '@/lib/api';
-import type { ApiClient } from '@/lib/api/api-client.types';
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 import { createProjectsApi } from '../api';
 import { useProjects } from './useProjects';
 import type { Project } from '../types/project.types';
@@ -8,7 +8,7 @@ import type { Project } from '../types/project.types';
 type ProjectEventDay = { id: number; name?: string; order_index?: number };
 type ProjectFilmRecord = { id: number; film_id: number; order_index?: number; film?: { id: number; name?: string } };
 
-const projectsApi = createProjectsApi(apiClient as unknown as ApiClient);
+const projectsApi = createProjectsApi(apiClient);
 
 export function useProjectProduction(project: Project) {
     const { syncScheduleFromPackage } = useProjects();

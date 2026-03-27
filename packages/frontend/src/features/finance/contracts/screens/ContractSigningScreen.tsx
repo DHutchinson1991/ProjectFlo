@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
     Box,
@@ -20,8 +20,7 @@ import {
     HourglassEmpty,
     Visibility,
 } from '@mui/icons-material';
-import { contractSigningApi } from '@/features/finance/contracts';
-import type { SigningContractView } from '@/features/finance/contracts/types';
+import { useSigningContract, useSubmitSignature } from '@/features/finance/contracts/hooks';
 
 /* ── Animations ──────────────────────────────────────────────────── */
 
@@ -36,45 +35,25 @@ export default function ContractSigningPage() {
     const params = useParams();
     const token = params.token as string;
 
-    const [data, setData] = useState<SigningContractView | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const { data, isPending: loading, error: queryError } = useSigningContract(token);
+    const submitSignature = useSubmitSignature(token);
 
     // Signing form state
     const [signatureText, setSignatureText] = useState('');
     const [agreed, setAgreed] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
     const [signed, setSigned] = useState(false);
+    const [submitError, setSubmitError] = useState('');
 
-    useEffect(() => {
-        if (!token) return;
-        contractSigningApi
-            .getContract(token)
-            .then((result) => {
-                setData(result);
-                if (result.signer.status === 'signed') {
-                    setSigned(true);
-                    setSignatureText(result.signer.signed_at ? 'Signed' : '');
-                }
-            })
-            .catch((err) => {
-                console.error('Signing error:', err);
-                setError('This signing link is invalid or has expired.');
-            })
-            .finally(() => setLoading(false));
-    }, [token]);
+    const error = queryError instanceof Error ? 'This signing link is invalid or has expired.' : submitError;
+    const isSigned = signed || data?.signer?.status === 'signed';
 
     const handleSign = async () => {
         if (!signatureText.trim() || !agreed) return;
         try {
-            setSubmitting(true);
-            await contractSigningApi.submitSignature(token, signatureText.trim());
+            await submitSignature.mutateAsync(signatureText.trim());
             setSigned(true);
-        } catch (err) {
-            console.error('Signature error:', err);
-            setError('Failed to submit signature. Please try again.');
-        } finally {
-            setSubmitting(false);
+        } catch {
+            setSubmitError('Failed to submit signature. Please try again.');
         }
     };
 
@@ -106,7 +85,7 @@ export default function ContractSigningPage() {
 
     /* ── Success state ───────────────────────────────────────────── */
 
-    if (signed) {
+    if (isSigned) {
         return (
             <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#0f172a', p: 3 }}>
                 <Box sx={{
@@ -287,9 +266,9 @@ export default function ContractSigningPage() {
                         fullWidth
                         variant="contained"
                         size="large"
-                        disabled={!signatureText.trim() || !agreed || submitting}
+                        disabled={!signatureText.trim() || !agreed || submitSignature.isPending}
                         onClick={handleSign}
-                        startIcon={submitting ? <CircularProgress size={20} /> : <CheckCircle />}
+                        startIcon={submitSignature.isPending ? <CircularProgress size={20} /> : <CheckCircle />}
                         sx={{
                             py: 1.5,
                             borderRadius: 3,
@@ -301,7 +280,7 @@ export default function ContractSigningPage() {
                             '&.Mui-disabled': { bgcolor: alpha('#6366f1', 0.3), color: alpha('#f1f5f9', 0.4) },
                         }}
                     >
-                        {submitting ? 'Signing...' : 'Sign Contract'}
+                        {submitSignature.isPending ? 'Signing...' : 'Sign Contract'}
                     </Button>
 
                     <Typography sx={{ color: '#475569', fontSize: '0.72rem', textAlign: 'center', mt: 2 }}>

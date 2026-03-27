@@ -1,4 +1,4 @@
-import { TimelineTrack } from "@/lib/types/timeline";
+import { TimelineTrack } from "@/features/content/content-builder/types/timeline";
 
 /**
  * Deep compares two coverage objects to determine if they are equal

@@ -11,10 +11,10 @@
  * 
  * NOTE: Scene creation from library items is handled in sceneConversionUtils.ts
  */
-import { TimelineScene, TimelineTrack } from "@/lib/types/timeline";
+import { TimelineScene, TimelineTrack } from "@/features/content/content-builder/types/timeline";
 import { ScenesLibrary } from "@/features/content/scenes/types";
-import { MediaType, SceneMediaComponent } from "@/lib/types/timeline";
-import { findAvailableSpaceOnTrack } from "@/lib/utils/timelineUtils";
+import { MediaType, SceneMediaComponent } from "@/features/content/content-builder/types/timeline";
+import { findAvailableSpaceOnTrack } from "@/features/content/content-builder/utils/timelineUtils";
 import { getSceneColorByType, getDefaultTrackColor } from "./colorUtils";
 import { createTimelineScenesFromLibraryScene } from "./sceneConversionUtils";
 

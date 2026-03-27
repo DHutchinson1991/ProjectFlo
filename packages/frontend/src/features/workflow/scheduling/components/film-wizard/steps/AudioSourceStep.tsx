@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
 
-import type { FilmStructureTemplateScene } from '@/lib/types/domains/film-structure-templates';
+import type { FilmStructureTemplateScene } from '@/features/content/films/types/film-structure-templates';
 import type { PackageActivityRecord, SceneAudioConfig } from '../FilmCreationWizard';
 
 interface AudioSourceStepProps {

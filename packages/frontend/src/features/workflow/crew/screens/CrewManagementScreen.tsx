@@ -1,23 +1,19 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SkillTreeView from "../components/SkillTreeView";
 import { useBrand } from "@/features/platform/brand";
-import { formatCurrency } from "@/lib/utils/formatUtils";
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { useCrewManagementData, useCrewManagementMutations } from "../hooks";
+import { formatCurrency } from "@/shared/utils/formatUtils";
+import { roundMoney } from "@/shared/utils/pricing";
 import {
   Box,
   Typography,
   Button,
   Card,
   CardContent,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Chip,
   IconButton,
   Dialog,
@@ -42,11 +38,15 @@ import {
   Grid,
   Autocomplete,
 } from "@mui/material";
+import { StudioTable, type StudioColumn } from '@/shared/ui';
+import { sectionColors } from '@/shared/theme/tokens';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Groups as CrewIcon,
+  Person as PersonIcon,
+  Badge as BadgeIcon,
   AttachMoney as MoneyIcon,
   Star as StarIcon,
   ArrowUpward as ArrowUpIcon,
@@ -61,18 +61,10 @@ import {
   Close as CloseIcon,
   AccountTree as SkillTreeIcon,
 } from "@mui/icons-material";
-import type { Contributor, UpdateContributorDto } from "@/lib/types/domains/users";
-import { api } from "@/lib/api";
-import { paymentBracketsApi } from "@/features/finance/payment-brackets";
-import type {
-  PaymentBracket,
-  CreatePaymentBracketData,
-  UpdatePaymentBracketData,
-  AssignBracketData,
-  BracketContributorAssignment,
-  BrandSetting,
-  SkillRoleMapping,
-} from "@/lib/types";
+import type { CrewMember, UpdateCrewMemberDto } from "@/shared/types/users";
+import type { PaymentBracket, CreatePaymentBracketData, UpdatePaymentBracketData, AssignBracketData, BracketCrewMemberAssignment } from "@/features/finance/payment-brackets";
+import type { BrandSetting } from "@/features/platform/brand/types";
+import type { SkillRoleMapping } from "@/features/catalog/task-library/types";
 
 // ─── Bracket Form ───────────────────────────────────────────────────────────
 
@@ -124,7 +116,7 @@ function initials(first?: string | null, last?: string | null): string {
   return `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase() || "?";
 }
 
-function contribName(c: BracketContributorAssignment["contributor"]): string {
+function crewMemberName(c: BracketCrewMemberAssignment["contributor"]): string {
   const f = c.contact?.first_name ?? "";
   const l = c.contact?.last_name ?? "";
   return `${f} ${l}`.trim() || c.contact?.email || "Unknown";
@@ -152,9 +144,8 @@ function tierAccent(level: number, color?: string | null): string {
 
 export default function CrewManagementScreen() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { currentBrand } = useBrand();
-  const currencyCode = currentBrand?.currency || "USD";
+  const currencyCode = currentBrand?.currency ?? DEFAULT_CURRENCY;
 
   // Top-level tab: 0 = Crew List, 1 = Payment Brackets
   const [mainTab, setMainTab] = useState(0);
@@ -177,7 +168,7 @@ export default function CrewManagementScreen() {
   // Assign bracket to contributor dialog
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<{
-    contributorId: number;
+    crewMemberId: number;
     jobRoleId: number;
     name: string;
     roleName: string;
@@ -191,7 +182,6 @@ export default function CrewManagementScreen() {
     first_name: "",
     last_name: "",
     password: "",
-    contributor_type: "Internal",
   });
   const [crewFormErrors, setCrewFormErrors] = useState<{ [key: string]: string }>({});
 
@@ -227,12 +217,11 @@ export default function CrewManagementScreen() {
 
   // Edit crew member dialog (includes role management)
   const [editCrewDialogOpen, setEditCrewDialogOpen] = useState(false);
-  const [editCrewMember, setEditCrewMember] = useState<Contributor | null>(null);
+  const [editCrewMember, setEditCrewMember] = useState<CrewMember | null>(null);
   const [editCrewForm, setEditCrewForm] = useState({
     first_name: "",
     last_name: "",
     email: "",
-    contributor_type: "Internal",
     crew_color: "" as string,
   });
   const [editCrewFormErrors, setEditCrewFormErrors] = useState<{ [key: string]: string }>({});
@@ -247,73 +236,26 @@ export default function CrewManagementScreen() {
   // ─── Data ─────────────────────────────────────────────────────────────────
 
   const {
-    data: contributors = [],
-    isLoading: loadContrib,
-  } = useQuery({
-    queryKey: ["contributors", currentBrand?.id],
-    queryFn: () => api.contributors.getAll(),
-    enabled: !!currentBrand,
-  });
+    contributorsQuery,
+    jobRolesQuery,
+    paymentBracketsQuery,
+    paymentBracketsByRoleQuery,
+    overtimeSettingQuery,
+    skillRoleMappingsQuery,
+    availableSkillsQuery,
+  } = useCrewManagementData();
 
-  const {
-    data: jobRoles = [],
-    isLoading: loadRoles,
-  } = useQuery({
-    queryKey: ["jobRoles"],
-    queryFn: () => api.jobRoles.getAll(),
-  });
-
-  const {
-    data: allBrackets = [],
-    isLoading: loadBrackets,
-  } = useQuery({
-    queryKey: ["paymentBrackets"],
-    queryFn: () => paymentBracketsApi.getAll(true),
-  });
-
-  const {
-    data: bracketsByRole,
-    isLoading: loadGrouped,
-  } = useQuery({
-    queryKey: ["paymentBracketsByRole", currentBrand?.id],
-    queryFn: () => paymentBracketsApi.getByRole(currentBrand?.id),
-    enabled: !!currentBrand,
-  });
-
-  // Fetch brand-level overtime multiplier setting
-  const { data: otSetting } = useQuery<BrandSetting | null>({
-    queryKey: ["brandSetting", "overtime_multiplier", currentBrand?.id],
-    queryFn: async () => {
-      if (!currentBrand?.id) return null;
-      try {
-        return await api.brands.getSetting(currentBrand.id, "overtime_multiplier");
-      } catch {
-        // Setting doesn't exist yet — will use default
-        return null;
-      }
-    },
-    enabled: !!currentBrand?.id,
-  });
+  const contributors = contributorsQuery.data ?? [];
+  const jobRoles = jobRolesQuery.data ?? [];
+  const allBrackets = paymentBracketsQuery.data ?? [];
+  const bracketsByRole = paymentBracketsByRoleQuery.data;
+  const otSetting = overtimeSettingQuery.data;
 
   const otMultiplier = otSetting?.value ? parseFloat(otSetting.value) : DEFAULT_OT_MULTIPLIER;
 
   // Fetch all skill-role mappings for display on bracket cards
-  const {
-    data: allSkillMappings = [],
-  } = useQuery({
-    queryKey: ["skillRoleMappings", currentBrand?.id],
-    queryFn: () => api.skillRoleMappings.getAll({ brandId: currentBrand?.id }),
-    enabled: !!currentBrand,
-  });
-
-  // Fetch available skills for autocomplete
-  const {
-    data: availableSkills = [],
-  } = useQuery({
-    queryKey: ["availableSkills", currentBrand?.id],
-    queryFn: () => api.skillRoleMappings.getAvailableSkills(currentBrand?.id),
-    enabled: !!currentBrand,
-  });
+  const allSkillMappings = skillRoleMappingsQuery.data ?? [];
+  const availableSkills = availableSkillsQuery.data ?? [];
 
   // Add skill mapping state
   const [addSkillAnchor, setAddSkillAnchor] = useState<{ roleId: number; bracketLevel: number } | null>(null);
@@ -322,7 +264,7 @@ export default function CrewManagementScreen() {
   // ─── Derived ──────────────────────────────────────────────────────────────
 
   const crewMembers = useMemo(
-    () => contributors.filter((c) => c.is_crew && !c.archived_at),
+    () => contributors.filter((c) => c.job_role_assignments?.length && !c.archived_at),
     [contributors],
   );
 
@@ -352,7 +294,7 @@ export default function CrewManagementScreen() {
     return group?.brackets?.sort((a: PaymentBracket, b: PaymentBracket) => a.level - b.level) ?? [];
   };
 
-  const isLoading = loadContrib || loadRoles || loadBrackets || loadGrouped;
+  const isLoading = contributorsQuery.isLoading || jobRolesQuery.isLoading || paymentBracketsQuery.isLoading || paymentBracketsByRoleQuery.isLoading;
 
   // ─── Skill Mapping Helpers ────────────────────────────────────────────────
 
@@ -371,147 +313,52 @@ export default function CrewManagementScreen() {
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
-  const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ["paymentBrackets"] });
-    queryClient.invalidateQueries({ queryKey: ["paymentBracketsByRole"] });
-    queryClient.invalidateQueries({ queryKey: ["contributors"] });
-  };
-
-  const invalidateSkills = () => {
-    queryClient.invalidateQueries({ queryKey: ["skillRoleMappings"] });
-    queryClient.invalidateQueries({ queryKey: ["availableSkills"] });
-  };
-
-  // Skill mapping mutations
-  const addSkillMut = useMutation({
-    mutationFn: (data: { skill_name: string; job_role_id: number; payment_bracket_id: number; priority?: number }) =>
-      api.skillRoleMappings.create(data),
-    onSuccess: () => { invalidateSkills(); setNewSkillName(""); setAddSkillAnchor(null); toast("Skill mapped"); },
-    onError: (e: Error) => toast(e.message || "Failed to map skill", "error"),
-  });
-
-  const removeSkillMut = useMutation({
-    mutationFn: (id: number) => api.skillRoleMappings.delete(id),
-    onSuccess: () => { invalidateSkills(); toast("Skill removed"); },
-    onError: (e: Error) => toast(e.message || "Failed to remove skill", "error"),
-  });
-
-  const createMut = useMutation({
-    mutationFn: (data: CreatePaymentBracketData) => paymentBracketsApi.create(data),
-    onSuccess: () => { invalidateAll(); closeBracketDialog(); toast("Bracket created"); },
-    onError: (e: Error) => toast(e.message || "Failed to create bracket", "error"),
-  });
-  const updateMut = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: UpdatePaymentBracketData }) => paymentBracketsApi.update(id, data),
-    onSuccess: () => { invalidateAll(); closeBracketDialog(); toast("Bracket updated"); },
-    onError: (e: Error) => toast(e.message || "Failed to update bracket", "error"),
-  });
-  const deleteMut = useMutation({
-    mutationFn: (id: number) => paymentBracketsApi.delete(id),
-    onSuccess: () => { invalidateAll(); toast("Bracket deactivated"); },
-    onError: (e: Error) => toast(e.message || "Failed to delete bracket", "error"),
-  });
-  const assignMut = useMutation({
-    mutationFn: (data: AssignBracketData) => paymentBracketsApi.assign(data),
-    onSuccess: () => { invalidateAll(); setAssignDialogOpen(false); setAssignTarget(null); toast("Bracket assigned"); },
-    onError: (e: Error) => toast(e.message || "Failed to assign bracket", "error"),
-  });
-  const unassignMut = useMutation({
-    mutationFn: ({ cId, rId }: { cId: number; rId: number }) => paymentBracketsApi.unassign(cId, rId),
-    onSuccess: () => { invalidateAll(); toast("Bracket removed"); },
-    onError: (e: Error) => toast(e.message || "Failed to remove bracket", "error"),
-  });
-
-  const createCrewMut = useMutation({
-    mutationFn: (data: any) => api.contributors.create(data),
-    onSuccess: () => { invalidateAll(); closeAddCrewDialog(); toast("Crew member added"); },
-    onError: (e: Error) => toast(e.message || "Failed to add crew member", "error"),
-  });
-
-  const createRoleMut = useMutation({
-    mutationFn: (data: any) => api.jobRoles.create(data),
-    onSuccess: (newRole) => {
+  const {
+    addSkillMutation: addSkillMut,
+    removeSkillMutation: removeSkillMut,
+    createBracketMutation: createMut,
+    updateBracketMutation: updateMut,
+    deleteBracketMutation: deleteMut,
+    assignBracketMutation: assignMut,
+    unassignBracketMutation: unassignMut,
+    createContributorMutation: createCrewMut,
+    createRoleMutation: createRoleMut,
+    updateRoleMutation: updateRoleMut,
+    deleteRoleMutation: deleteRoleMut,
+    updateContributorMutation: updateContributorMut,
+    addJobRoleMutation: addJobRoleMut,
+    removeJobRoleMutation: removeJobRoleMut,
+    setPrimaryJobRoleMutation: setPrimaryJobRoleMut,
+    updateCrewProfileMutation: updateCrewProfileMut,
+  } = useCrewManagementMutations({
+    onSuccess: (message) => {
+      if (message === 'Skill mapped') {
+        setNewSkillName('');
+        setAddSkillAnchor(null);
+      }
+      if (message === 'Role added') {
+        setAddRoleId('');
+      }
+      toast(message);
+    },
+    onError: (message) => toast(message, 'error'),
+    closeBracketDialog,
+    closeAssignDialog: () => {
+      setAssignDialogOpen(false);
+      setAssignTarget(null);
+    },
+    closeAddCrewDialog,
+    afterCreateRole: (newRole) => {
       setNewRoleId(newRole.id);
       setWizardStep(2);
-      toast("Role created!");
     },
-    onError: (e: Error) => toast(e.message || "Failed to create role", "error"),
-  });
-
-  const updateRoleMut = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => api.jobRoles.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["jobRoles"] });
+    afterUpdateRole: () => {
       setEditRoleDialogOpen(false);
       setEditingRole(null);
-      toast("Role updated successfully");
     },
-    onError: (e: Error) => toast(e.message || "Failed to update role", "error"),
-  });
-
-  const deleteRoleMut = useMutation({
-    mutationFn: (id: number) => api.jobRoles.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["jobRoles"] });
-      queryClient.invalidateQueries({ queryKey: ["paymentBrackets"] });
-      queryClient.invalidateQueries({ queryKey: ["paymentBracketsByRole"] });
+    afterDeleteRole: () => {
       setActiveTab(0);
-      toast("Role deleted successfully");
     },
-    onError: (e: Error) => toast(e.message || "Failed to delete role", "error"),
-  });
-
-  // ─── Crew Edit Mutations ──────────────────────────────────────────────────
-
-  const updateContributorMut = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: UpdateContributorDto }) =>
-      api.contributors.update(id, data),
-    onSuccess: () => {
-      invalidateAll();
-      toast("Crew member updated");
-    },
-    onError: (e: Error) => toast(e.message || "Failed to update crew member", "error"),
-  });
-
-  const addJobRoleMut = useMutation({
-    mutationFn: ({ contributorId, jobRoleId }: { contributorId: number; jobRoleId: number }) =>
-      api.contributors.addJobRole(contributorId, jobRoleId),
-    onSuccess: () => {
-      invalidateAll();
-      setAddRoleId("");
-      toast("Role added");
-    },
-    onError: (e: Error) => toast(e.message || "Failed to add role", "error"),
-  });
-
-  const removeJobRoleMut = useMutation({
-    mutationFn: ({ contributorId, jobRoleId }: { contributorId: number; jobRoleId: number }) =>
-      api.contributors.removeJobRole(contributorId, jobRoleId),
-    onSuccess: () => {
-      invalidateAll();
-      toast("Role removed");
-    },
-    onError: (e: Error) => toast(e.message || "Failed to remove role", "error"),
-  });
-
-  const setPrimaryJobRoleMut = useMutation({
-    mutationFn: ({ contributorId, jobRoleId }: { contributorId: number; jobRoleId: number }) =>
-      api.contributors.setPrimaryJobRole(contributorId, jobRoleId),
-    onSuccess: () => {
-      invalidateAll();
-      toast("Primary role updated");
-    },
-    onError: (e: Error) => toast(e.message || "Failed to set primary role", "error"),
-  });
-
-  const updateCrewProfileMut = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { crew_color?: string | null; bio?: string | null } }) =>
-      api.crew.updateProfile(id, data),
-    onSuccess: () => {
-      invalidateAll();
-      toast("Profile updated");
-    },
-    onError: (e: Error) => toast(e.message || "Failed to update profile", "error"),
   });
 
 
@@ -557,8 +404,8 @@ export default function CrewManagementScreen() {
 
   function handleSaveBracket() {
     if (!selectedJobRoleId) return;
-    const dayRate = bracketForm.day_rate || bracketForm.hourly_rate * STANDARD_DAY_HOURS;
-    const overtimeRate = parseFloat((bracketForm.hourly_rate * otMultiplier).toFixed(2));
+    const dayRate = bracketForm.day_rate || roundMoney(bracketForm.hourly_rate * STANDARD_DAY_HOURS);
+    const overtimeRate = roundMoney(bracketForm.hourly_rate * otMultiplier);
     const payload = {
       name: bracketForm.name,
       display_name: bracketForm.display_name || undefined,
@@ -583,7 +430,6 @@ export default function CrewManagementScreen() {
       first_name: "",
       last_name: "",
       password: "",
-      contributor_type: "Internal",
     });
     setCrewFormErrors({});
   }
@@ -624,8 +470,6 @@ export default function CrewManagementScreen() {
       last_name: crewForm.last_name,
       password: crewForm.password,
       role_id: sortedRoles[0]?.id || 1, // Default to first role
-      contributor_type: crewForm.contributor_type,
-      is_crew: true,
     };
 
     createCrewMut.mutate(newCrewData);
@@ -744,13 +588,12 @@ export default function CrewManagementScreen() {
 
   // ─── Edit Crew dialog helpers ─────────────────────────────────────────────
 
-  function openEditCrewDialog(member: Contributor) {
+  function openEditCrewDialog(member: CrewMember) {
     setEditCrewMember(member);
     setEditCrewForm({
       first_name: member.first_name || member.contact?.first_name || "",
       last_name: member.last_name || member.contact?.last_name || "",
       email: member.email || member.contact?.email || "",
-      contributor_type: member.contributor_type || "Internal",
       crew_color: member.crew_color || "",
     });
     setEditCrewFormErrors({});
@@ -780,11 +623,10 @@ export default function CrewManagementScreen() {
 
   function handleSaveCrewMember() {
     if (!editCrewMember || !validateEditCrewForm()) return;
-    const data: UpdateContributorDto = {
+    const data: UpdateCrewMemberDto = {
       first_name: editCrewForm.first_name,
       last_name: editCrewForm.last_name,
       email: editCrewForm.email,
-      contributor_type: editCrewForm.contributor_type,
     };
     updateContributorMut.mutate({ id: editCrewMember.id, data });
     // Also update crew_color via crew profile endpoint if changed
@@ -798,8 +640,8 @@ export default function CrewManagementScreen() {
   }
 
   // Get the roles NOT yet assigned to this contributor for the add dropdown
-  function unassignedRolesFor(member: Contributor): typeof sortedRoles {
-    const assignedIds = new Set((member.contributor_job_roles ?? []).map(jr => jr.job_role_id));
+  function unassignedRolesFor(member: CrewMember): typeof sortedRoles {
+    const assignedIds = new Set((member.job_role_assignments ?? []).map(jr => jr.job_role_id));
     return sortedRoles.filter(r => !assignedIds.has(r.id));
   }
 
@@ -853,8 +695,8 @@ export default function CrewManagementScreen() {
 
     // Create all brackets — compute OT from brand multiplier, ensure day rate
     bracketForms.forEach((bracket) => {
-      const dayRate = bracket.day_rate || bracket.hourly_rate * STANDARD_DAY_HOURS;
-      const overtimeRate = parseFloat((bracket.hourly_rate * otMultiplier).toFixed(2));
+      const dayRate = bracket.day_rate || roundMoney(bracket.hourly_rate * STANDARD_DAY_HOURS);
+      const overtimeRate = roundMoney(bracket.hourly_rate * otMultiplier);
       const payload = {
         name: bracket.name,
         display_name: bracket.display_name || undefined,
@@ -956,96 +798,89 @@ export default function CrewManagementScreen() {
               </CardContent>
             </Card>
           ) : (
-            <TableContainer component={Card} elevation={1}>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ "& .MuiTableCell-head": { fontWeight: 600, fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: 0.5, color: "text.secondary" } }}>
-                    <TableCell>Crew Member</TableCell>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Roles</TableCell>
-                    <TableCell align="center" sx={{ width: 60 }}></TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {crewMembers.map((m) => {
-                    const roles = m.contributor_job_roles ?? [];
-                    return (
-                      <TableRow
-                        key={m.id}
-                        hover
-                        onClick={() => openEditCrewDialog(m)}
-                        sx={{ cursor: "pointer", "&:last-child td": { borderBottom: 0 } }}
+            <StudioTable
+              sectionColor={sectionColors.crew}
+              columns={[
+                {
+                  key: 'member',
+                  label: 'Crew Member',
+                  flex: 2,
+                  headerIcon: <PersonIcon />,
+                  render: (m) => (
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <Avatar
+                        sx={{
+                          bgcolor: m.crew_color || "primary.main",
+                          width: 36,
+                          height: 36,
+                          fontSize: 14,
+                          fontWeight: 600,
+                        }}
                       >
-                        <TableCell>
-                          <Stack direction="row" spacing={2} alignItems="center">
-                            <Avatar
-                              sx={{
-                                bgcolor: m.crew_color || "primary.main",
-                                width: 40,
-                                height: 40,
-                                fontSize: 15,
-                                fontWeight: 600,
-                              }}
-                            >
-                              {initials(m.contact?.first_name, m.contact?.last_name)}
-                            </Avatar>
-                            <Box>
-                              <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.3 }}>
-                                {m.full_name}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {m.email}
-                              </Typography>
-                            </Box>
-                          </Stack>
-                        </TableCell>
-                        <TableCell>
+                        {initials(m.contact?.first_name, m.contact?.last_name)}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.3 }}>
+                          {m.full_name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {m.email}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  ),
+                },
+                {
+                  key: 'roles',
+                  label: 'Roles',
+                  flex: 3,
+                  headerIcon: <RoleIcon />,
+                  render: (m) => {
+                    const roles = m.job_role_assignments ?? [];
+                    return roles.length > 0 ? (
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                        {roles.map((jr) => (
                           <Chip
-                            label={m.contributor_type || "Internal"}
+                            key={jr.id}
+                            label={jr.job_role?.display_name || jr.job_role?.name}
                             size="small"
-                            variant="outlined"
-                            color={m.contributor_type === "External" ? "warning" : "default"}
-                            sx={{ borderRadius: 1, fontSize: "0.75rem" }}
+                            icon={jr.is_primary ? <StarIcon sx={{ fontSize: 12 }} /> : undefined}
+                            color={jr.is_primary ? "primary" : "default"}
+                            variant={jr.is_primary ? "filled" : "outlined"}
+                            sx={{ fontSize: "0.75rem", borderRadius: 1 }}
                           />
-                        </TableCell>
-                        <TableCell>
-                          {roles.length > 0 ? (
-                            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                              {roles.map((jr) => (
-                                <Chip
-                                  key={jr.id}
-                                  label={jr.job_role?.display_name || jr.job_role?.name}
-                                  size="small"
-                                  icon={jr.is_primary ? <StarIcon sx={{ fontSize: 12 }} /> : undefined}
-                                  color={jr.is_primary ? "primary" : "default"}
-                                  variant={jr.is_primary ? "filled" : "outlined"}
-                                  sx={{ fontSize: "0.75rem", borderRadius: 1 }}
-                                />
-                              ))}
-                            </Stack>
-                          ) : (
-                            <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                              No roles
-                            </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="Edit">
-                            <IconButton
-                              size="small"
-                              onClick={(e) => { e.stopPropagation(); openEditCrewDialog(m); }}
-                              color="primary"
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                        No roles
+                      </Typography>
                     );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  },
+                },
+                {
+                  key: 'actions',
+                  label: '',
+                  width: 60,
+                  align: 'center',
+                  render: (m) => (
+                    <Tooltip title="Edit">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => { e.stopPropagation(); openEditCrewDialog(m); }}
+                        color="primary"
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  ),
+                },
+              ] as StudioColumn<typeof crewMembers[number]>[]}
+              rows={crewMembers}
+              getRowKey={(m) => m.id}
+              onRowClick={(m) => openEditCrewDialog(m)}
+              emptyMessage="No crew members yet"
+            />
           )}
         </Box>
       )}
@@ -1182,7 +1017,7 @@ export default function CrewManagementScreen() {
                   {/* Render tiers from HIGHEST to LOWEST (top of page = highest rank) */}
                   {[...selectedBrackets].reverse().map((bracket, idx) => {
                 const accent = tierAccent(bracket.level, bracket.color);
-                const members = bracket.contributor_job_roles ?? [];
+                const members = bracket.job_role_assignments ?? [];
                 const isTopTier = idx === 0;
 
                 return (
@@ -1307,27 +1142,27 @@ export default function CrewManagementScreen() {
                         ) : (
                           <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
                             {members.map((m) => (
-                              <Tooltip key={m.id} title={m.contributor?.contact?.email ?? ""}>
+                              <Tooltip key={m.id} title={m.crew_member?.contact?.email ?? ""}>
                                 <Chip
                                   avatar={
                                     <Avatar
                                       sx={{
-                                        bgcolor: m.contributor?.crew_color || accent,
+                                        bgcolor: m.crew_member?.crew_color || accent,
                                         width: 28,
                                         height: 28,
                                         fontSize: 12,
                                       }}
                                     >
                                       {initials(
-                                        m.contributor?.contact?.first_name,
-                                        m.contributor?.contact?.last_name,
+                                        m.crew_member?.contact?.first_name,
+                                        m.crew_member?.contact?.last_name,
                                       )}
                                     </Avatar>
                                   }
-                                  label={contribName(m.contributor)}
+                                  label={crewMemberName(m.crew_member)}
                                   variant="outlined"
-                                  onClick={() => router.push(`/manager/users/${m.contributor_id}`)}
-                                  onDelete={() => unassignMut.mutate({ cId: m.contributor_id, rId: m.job_role_id })}
+                                  onClick={() => router.push(`/manager/users/${m.crew_member_id}`)}
+                                  onDelete={() => unassignMut.mutate({ cId: m.crew_member_id, rId: m.job_role_id })}
                                   deleteIcon={
                                     <Tooltip title="Remove from this tier">
                                       <DeleteIcon sx={{ fontSize: 16 }} />
@@ -1352,7 +1187,7 @@ export default function CrewManagementScreen() {
                             // Open assign dialog defaulting to this bracket
                             setAssignBracketId(bracket.id);
                             setAssignTarget({
-                              contributorId: 0, // will be picked in dialog
+                              crewMemberId: 0, // will be picked in dialog
                               jobRoleId: selectedRole.id,
                               name: "",
                               roleName: selectedRole.display_name ?? selectedRole.name,
@@ -1592,21 +1427,21 @@ export default function CrewManagementScreen() {
           {assignTarget && (
             <Stack spacing={2.5} sx={{ mt: 1 }}>
               {/* Pick contributor (if not pre-selected) */}
-              {assignTarget.contributorId === 0 && (
+              {assignTarget.crewMemberId === 0 && (
                 <FormControl fullWidth>
                   <InputLabel>Crew Member</InputLabel>
                   <Select
-                    value={assignTarget.contributorId || ""}
+                    value={assignTarget.crewMemberId || ""}
                     label="Crew Member"
                     onChange={(e) =>
                       setAssignTarget((prev) =>
-                        prev ? { ...prev, contributorId: Number(e.target.value) } : prev,
+                        prev ? { ...prev, crewMemberId: Number(e.target.value) } : prev,
                       )
                     }
                   >
                     {crewMembers
                       .filter((c) =>
-                        c.contributor_job_roles?.some(
+                        c.job_role_assignments?.some(
                           (jr) => jr.job_role_id === assignTarget.jobRoleId,
                         ),
                       )
@@ -1619,7 +1454,7 @@ export default function CrewManagementScreen() {
                     {crewMembers
                       .filter(
                         (c) =>
-                          !c.contributor_job_roles?.some(
+                          !c.job_role_assignments?.some(
                             (jr) => jr.job_role_id === assignTarget.jobRoleId,
                           ),
                       )
@@ -1672,14 +1507,14 @@ export default function CrewManagementScreen() {
             variant="contained"
             disabled={
               !assignTarget ||
-              assignTarget.contributorId === 0 ||
+              assignTarget.crewMemberId === 0 ||
               assignBracketId === "" ||
               assignMut.isPending
             }
             onClick={() => {
               if (!assignTarget || assignBracketId === "") return;
               assignMut.mutate({
-                contributor_id: assignTarget.contributorId,
+                crew_member_id: assignTarget.crewMemberId,
                 job_role_id: assignTarget.jobRoleId,
                 payment_bracket_id: assignBracketId as number,
               });
@@ -1750,22 +1585,6 @@ export default function CrewManagementScreen() {
                 required
                 fullWidth
               />
-              <FormControl fullWidth>
-                <InputLabel>Type</InputLabel>
-                <Select
-                  value={crewForm.contributor_type}
-                  onChange={(e) =>
-                    setCrewForm({
-                      ...crewForm,
-                      contributor_type: e.target.value,
-                    })
-                  }
-                  label="Type"
-                >
-                  <MenuItem value="Internal">Internal</MenuItem>
-                  <MenuItem value="External">External</MenuItem>
-                </Select>
-              </FormControl>
             </Stack>
           </Box>
         </DialogContent>
@@ -1842,7 +1661,7 @@ export default function CrewManagementScreen() {
                   setBracketForm((f) => ({
                     ...f,
                     hourly_rate: hourly,
-                    ...(!dayRateManualBracket ? { day_rate: parseFloat((hourly * STANDARD_DAY_HOURS).toFixed(2)) } : {}),
+                    ...(!dayRateManualBracket ? { day_rate: roundMoney(hourly * STANDARD_DAY_HOURS) } : {}),
                   }));
                 }}
                 required
@@ -1869,7 +1688,7 @@ export default function CrewManagementScreen() {
                 </Typography>
                 <Typography variant="body1" fontWeight={600}>
                   {bracketForm.hourly_rate
-                    ? formatCurrency(parseFloat((bracketForm.hourly_rate * otMultiplier).toFixed(2)), currencyCode)
+                    ? formatCurrency(roundMoney(bracketForm.hourly_rate * otMultiplier), currencyCode)
                     : "—"}/hr
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -2333,7 +2152,7 @@ export default function CrewManagementScreen() {
                                   newForms[idx] = {
                                     ...newForms[idx],
                                     hourly_rate: hourly,
-                                    ...(!isManual ? { day_rate: parseFloat((hourly * STANDARD_DAY_HOURS).toFixed(2)) } : {}),
+                                    ...(!isManual ? { day_rate: roundMoney(hourly * STANDARD_DAY_HOURS) } : {}),
                                   };
                                   setBracketForms(newForms);
                                 }}
@@ -2379,7 +2198,7 @@ export default function CrewManagementScreen() {
                               </Typography>
                               <Typography variant="caption" fontWeight={700}>
                                 {bracket.hourly_rate
-                                  ? formatCurrency(parseFloat((bracket.hourly_rate * otMultiplier).toFixed(2)), currencyCode)
+                                  ? formatCurrency(roundMoney(bracket.hourly_rate * otMultiplier), currencyCode)
                                   : "—"}/hr
                               </Typography>
                             </Box>
@@ -2612,17 +2431,6 @@ export default function CrewManagementScreen() {
                       fullWidth
                       size="small"
                     />
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Type</InputLabel>
-                      <Select
-                        value={editCrewForm.contributor_type}
-                        onChange={(e) => setEditCrewForm((f) => ({ ...f, contributor_type: e.target.value }))}
-                        label="Type"
-                      >
-                        <MenuItem value="Internal">Internal</MenuItem>
-                        <MenuItem value="External">External</MenuItem>
-                      </Select>
-                    </FormControl>
                     <Box>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                         Crew Color
@@ -2658,7 +2466,7 @@ export default function CrewManagementScreen() {
                   <Typography variant="overline" color="text.secondary" fontWeight={700} sx={{ letterSpacing: 1, mb: 1.5, display: "block" }}>
                     Assigned Roles
                   </Typography>
-                  {(liveEditMember.contributor_job_roles ?? []).length === 0 ? (
+                  {(liveEditMember.job_role_assignments ?? []).length === 0 ? (
                     <Box
                       sx={{
                         py: 2.5,
@@ -2675,7 +2483,7 @@ export default function CrewManagementScreen() {
                     </Box>
                   ) : (
                     <Stack spacing={0.75}>
-                      {(liveEditMember.contributor_job_roles ?? []).map((jr) => (
+                      {(liveEditMember.job_role_assignments ?? []).map((jr) => (
                         <Box
                           key={jr.id}
                           sx={{
@@ -2708,7 +2516,7 @@ export default function CrewManagementScreen() {
                                   color="primary"
                                   onClick={() =>
                                     setPrimaryJobRoleMut.mutate({
-                                      contributorId: liveEditMember.id,
+                                      crewMemberId: liveEditMember.id,
                                       jobRoleId: jr.job_role_id,
                                     })
                                   }
@@ -2725,7 +2533,7 @@ export default function CrewManagementScreen() {
                                 color="error"
                                 onClick={() =>
                                   removeJobRoleMut.mutate({
-                                    contributorId: liveEditMember.id,
+                                    crewMemberId: liveEditMember.id,
                                     jobRoleId: jr.job_role_id,
                                   })
                                 }
@@ -2765,7 +2573,7 @@ export default function CrewManagementScreen() {
                         onClick={() => {
                           if (addRoleId !== "") {
                             addJobRoleMut.mutate({
-                              contributorId: liveEditMember.id,
+                              crewMemberId: liveEditMember.id,
                               jobRoleId: addRoleId as number,
                             });
                           }

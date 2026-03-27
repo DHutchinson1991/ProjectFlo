@@ -1,10 +1,10 @@
 import React from 'react';
-import type { ActiveTask } from '@/lib/types';
+import type { ActiveTask } from '@/features/workflow/tasks/types';
 import {
     STATUS_CONFIG, STATUS_ORDER, PHASE_COLORS, PHASE_LABELS, PHASE_ORDER,
     DATE_GROUP_ORDER, DATE_GROUP_COLORS, type GroupMode,
 } from '../constants';
-import { getDateGroup, avatarColor } from './helpers';
+import { getDateGroup, avatarColor } from './task-display-utils';
 import {
     ProjectGroupIcon, StatusGroupIcon, PersonGroupIcon, DateGroupIcon,
 } from '../components/GroupIcons';

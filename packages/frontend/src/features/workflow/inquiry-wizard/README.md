@@ -42,7 +42,7 @@ Manages the full needs-assessment / inquiry wizard flow for ProjectFlo. Provides
 ## Related modules
 
 - **Backend**: `packages/backend/src/workflow/inquiry-wizard/` — templates, submissions, conflict checks, public wizard endpoint
-- **Frontend types**: `@/lib/types` — `Brand`, `ServicePackage`; `@/lib/types/brand` — `WelcomeSettings`
+- **Frontend types**: `@/lib/types` — `Brand`, `ServicePackage`; `@/features/platform/brand/types` — `WelcomeSettings`
 - **Catalog**: `features/catalog/event-types/` — `EventType`; `features/catalog/packages/` — `PackageSet`
 
 ## Ownership

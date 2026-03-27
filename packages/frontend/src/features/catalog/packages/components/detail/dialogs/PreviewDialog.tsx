@@ -10,7 +10,8 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import CloseIcon from '@mui/icons-material/Close';
 
 import type { EventDay } from '@/features/workflow/scheduling/components';
-import type { ServicePackageItem } from '@/lib/types/domains/sales';
+import type { ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
+import { roundMoney } from '@/shared/utils/pricing';
 
 // ─── Props ───────────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ export interface PreviewDialogProps {
 
 export function PreviewDialog({ open, onClose, formData, packageEventDays }: PreviewDialogProps) {
     const items = formData.contents?.items || [];
-    const total = items.reduce((sum, item) => sum + (item.price || 0), 0) + Number(formData.base_price || 0);
+    const total = roundMoney(items.reduce((sum, item) => sum + (item.price || 0), 0) + Number(formData.base_price || 0));
 
     return (
         <Dialog

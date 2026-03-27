@@ -10,7 +10,7 @@ import React, { useState, useEffect } from "react";
 import { Box, Typography, Chip, CircularProgress, Alert } from "@mui/material";
 import PeopleIcon from "@mui/icons-material/People";
 import { type FilmSubject, type SubjectTemplate, rolesApi, SubjectsCard } from '@/features/content/subjects';
-import { api } from '@/lib/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 
 interface PackageSubject {
     id: number;
@@ -57,8 +57,8 @@ export const FilmSubjectsTab: React.FC<FilmSubjectsTabProps> = ({
         if (!packageId) return;
         setLoading(true);
         const fetches: Promise<unknown>[] = [
-            api.schedule.packageEventDaySubjects.getAll(packageId),
-            api.schedule.packageEventDays.getAll(packageId),
+            scheduleApi.packageEventDaySubjects.getAll(packageId),
+            scheduleApi.packageEventDays.getAll(packageId),
         ];
         if (brandId) {
             fetches.push(

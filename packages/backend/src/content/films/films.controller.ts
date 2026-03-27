@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -10,214 +10,145 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  UseGuards,
+  ValidationPipe,
 } from "@nestjs/common";
+import { AuthGuard } from "@nestjs/passport";
 import { FilmsService } from "./films.service";
+import { FilmTimelineLayersService } from "./services/film-timeline-layers.service";
+import { FilmTimelineTracksService } from "./services/film-timeline-tracks.service";
+import { FilmEquipmentAssignmentsService } from "./services/film-equipment-assignments.service";
 import { CreateFilmDto, UpdateEquipmentDto } from "./dto/create-film.dto";
 import { UpdateFilmDto } from "./dto/update-film.dto";
 import {
   AssignEquipmentDto,
   UpdateEquipmentAssignmentDto,
 } from "./dto/film-equipment-assignment.dto";
+import { FilmsQueryDto } from './dto/films-query.dto';
 
-/**
- * Films Controller (refactor v2)
- * Handles HTTP endpoints for film CRUD and equipment management
- */
-@Controller("films")
+@Controller("api/films")
+@UseGuards(AuthGuard("jwt"))
 export class FilmsController {
-  constructor(private readonly filmsService: FilmsService) {}
+  constructor(
+    private readonly filmsService: FilmsService,
+    private readonly layersService: FilmTimelineLayersService,
+    private readonly tracksService: FilmTimelineTracksService,
+    private readonly equipAssignService: FilmEquipmentAssignmentsService,
+  ) {}
 
-  /**
-   * Create a new film with optional equipment configuration
-   * POST /films
-   */
   @Post()
-  create(@Body() createFilmDto: CreateFilmDto) {
+  create(@Body(new ValidationPipe({ transform: true })) createFilmDto: CreateFilmDto) {
     return this.filmsService.create(createFilmDto);
   }
 
-  /**
-   * Create a new timeline layer
-   * POST /films/timeline-layers
-   */
   @Post("timeline-layers")
-  createTimelineLayer(@Body() createDto: { name: string; order_index: number; color_hex: string; description?: string }) {
-    return this.filmsService.createTimelineLayer(createDto);
+  createTimelineLayer(@Body(new ValidationPipe({ transform: true })) createDto: { name: string; order_index: number; color_hex: string; description?: string }) {
+    return this.layersService.create(createDto);
   }
 
-  /**
-   * Get all timeline layers (for track organization)
-   * GET /films/timeline-layers
-   */
   @Get("timeline-layers")
   getTimelineLayers() {
-    return this.filmsService.getTimelineLayers();
+    return this.layersService.findAll();
   }
 
-  /**
-   * Get all films, optionally filtered by brand
-   * GET /films?brandId=1
-   */
   @Get()
-  findAll(@Query('brandId', new ParseIntPipe({ optional: true })) brandId?: number) {
-    return this.filmsService.findAll(brandId);
+  findAll(@Query(new ValidationPipe({ transform: true })) query: FilmsQueryDto) {
+    return this.filmsService.findAll(query.brandId);
   }
 
-  /**
-   * Get a single film with all nested data
-   * GET /films/:id
-   */
   @Get(":id")
   findOne(@Param("id", ParseIntPipe) id: number) {
     return this.filmsService.findOne(id);
   }
 
-  /**
-   * Update film basic information
-   * PATCH /films/:id
-   */
   @Patch(":id")
   update(
     @Param("id", ParseIntPipe) id: number,
-    @Body() updateFilmDto: UpdateFilmDto,
+    @Body(new ValidationPipe({ transform: true })) updateFilmDto: UpdateFilmDto,
   ) {
     return this.filmsService.update(id, updateFilmDto);
   }
 
-  /**
-   * Update a timeline layer
-   * PATCH /films/timeline-layers/:id
-   */
   @Patch("timeline-layers/:id")
   updateTimelineLayer(
     @Param("id", ParseIntPipe) id: number,
-    @Body() updateDto: { name?: string; order_index?: number; color_hex?: string; description?: string; is_active?: boolean }
+    @Body(new ValidationPipe({ transform: true })) updateDto: { name?: string; order_index?: number; color_hex?: string; description?: string; is_active?: boolean }
   ) {
-    return this.filmsService.updateTimelineLayer(id, updateDto);
+    return this.layersService.update(id, updateDto);
   }
 
-  /**
-   * Update film equipment (add/remove cameras and audio tracks)
-   * PATCH /films/:id/equipment
-   */
   @Patch(":id/equipment")
   updateEquipment(
     @Param("id", ParseIntPipe) id: number,
-    @Body() equipmentDto: UpdateEquipmentDto,
+    @Body(new ValidationPipe({ transform: true })) equipmentDto: UpdateEquipmentDto,
   ) {
     return this.filmsService.updateEquipment(id, equipmentDto);
   }
 
-  // ============================================================================
-  // Equipment Assignment Endpoints (Film <-> Equipment Library)
-  // ============================================================================
-
-  /**
-   * Get all equipment assigned to a film
-   * GET /films/:id/equipment-assignments
-   */
   @Get(":id/equipment-assignments")
   getFilmEquipment(@Param("id", ParseIntPipe) id: number) {
-    return this.filmsService.getFilmEquipment(id);
+    return this.equipAssignService.getFilmEquipment(id);
   }
 
-  /**
-   * Get equipment summary for a film (counts by type)
-   * GET /films/:id/equipment-summary
-   */
   @Get(":id/equipment-summary")
   getEquipmentSummary(@Param("id", ParseIntPipe) id: number) {
-    return this.filmsService.getEquipmentSummary(id);
+    return this.equipAssignService.getEquipmentSummary(id);
   }
 
-  /**
-   * Assign equipment to a film
-   * POST /films/:id/equipment-assignments
-   */
   @Post(":id/equipment-assignments")
   assignEquipment(
     @Param("id", ParseIntPipe) id: number,
-    @Body() dto: AssignEquipmentDto,
+    @Body(new ValidationPipe({ transform: true })) dto: AssignEquipmentDto,
   ) {
-    return this.filmsService.assignEquipment(id, dto);
+    return this.equipAssignService.assignEquipment(id, dto);
   }
 
-  /**
-   * Update equipment assignment
-   * PATCH /films/:id/equipment-assignments/:equipmentId
-   */
   @Patch(":id/equipment-assignments/:equipmentId")
   updateEquipmentAssignment(
     @Param("id", ParseIntPipe) id: number,
     @Param("equipmentId", ParseIntPipe) equipmentId: number,
-    @Body() dto: UpdateEquipmentAssignmentDto,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateEquipmentAssignmentDto,
   ) {
-    return this.filmsService.updateEquipmentAssignment(id, equipmentId, dto);
+    return this.equipAssignService.updateEquipmentAssignment(id, equipmentId, dto);
   }
 
-  /**
-   * Remove equipment assignment
-   * DELETE /films/:id/equipment-assignments/:equipmentId
-   */
   @Delete(":id/equipment-assignments/:equipmentId")
   @HttpCode(HttpStatus.NO_CONTENT)
   removeEquipmentAssignment(
     @Param("id", ParseIntPipe) id: number,
     @Param("equipmentId", ParseIntPipe) equipmentId: number,
   ) {
-    return this.filmsService.removeEquipmentAssignment(id, equipmentId);
+    return this.equipAssignService.removeEquipmentAssignment(id, equipmentId);
   }
 
-
-  /**
-   * Delete a timeline layer
-   * DELETE /films/timeline-layers/:id
-   */
   @Delete("timeline-layers/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
   removeTimelineLayer(@Param("id", ParseIntPipe) id: number) {
-    return this.filmsService.deleteTimelineLayer(id);
+    return this.layersService.remove(id);
   }
 
-  /**
-   * Get all timeline tracks for a film
-   * GET /films/:id/tracks
-   */
   @Get(":id/tracks")
   getTracks(
     @Param("id", ParseIntPipe) id: number,
-    @Query('activeOnly') activeOnly?: string
+    @Query(new ValidationPipe({ transform: true })) query: FilmsQueryDto,
   ) {
-    const activeOnlyBool = activeOnly === 'true';
-    return this.filmsService.getTracks(id, activeOnlyBool);
+    return this.tracksService.getTracks(id, query.activeOnly === 'true');
   }
 
-  /**
-   * Regenerate tracks based on current equipment configuration
-   * POST /films/:id/tracks/generate
-   */
   @Post(":id/tracks/generate")
-  generateTracks(@Param("id", ParseIntPipe) id: number, @Body() body?: { overwrite?: boolean }) {
+  generateTracks(@Param("id", ParseIntPipe) id: number, @Body(new ValidationPipe({ transform: true })) body?: { overwrite?: boolean }) {
     return this.filmsService.generateTracks(id);
   }
 
-  /**
-   * Update a specific track (name, active status, operator assignment)
-   * PATCH /films/:id/tracks/:trackId
-   */
   @Patch(":id/tracks/:trackId")
   updateTrack(
     @Param("id", ParseIntPipe) id: number,
     @Param("trackId", ParseIntPipe) trackId: number,
-    @Body() body: { name?: string; is_active?: boolean; contributor_id?: number | null; is_unmanned?: boolean },
+    @Body(new ValidationPipe({ transform: true })) body: { name?: string; is_active?: boolean; crew_member_id?: number | null; is_unmanned?: boolean },
   ) {
-    return this.filmsService.updateTrack(id, trackId, body);
+    return this.tracksService.updateTrack(id, trackId, body);
   }
 
-  /**
-   * Delete a film
-   * DELETE /films/:id
-   */
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param("id", ParseIntPipe) id: number) {

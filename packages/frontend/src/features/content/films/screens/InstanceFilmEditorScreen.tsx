@@ -10,17 +10,17 @@ import { FilmRightPanel } from "../components";
 import { useFilmEquipment } from "../hooks";
 import { useTimelineStorage, useTimelineSave } from "@/features/content/content-builder/hooks/data";
 import { useFilmSubjects } from "@/features/content/subjects/hooks/useFilmSubjects";
-import { SubjectCategory } from "@/lib/types/domains/subjects";
-import { FilmType } from "@/lib/types/domains/film";
-import type { Film } from "@/lib/types/domains/film";
-import { useBrand } from "@/app/providers/BrandProvider";
+import { FilmType } from "@/features/content/films/types";
+import type { Film } from "@/features/content/films/types";
+import { useBrand } from "@/features/platform/brand";
 import type { FilmEquipmentAssignmentsBySlot } from "../types/film-equipment.types";
-import { api } from "@/lib/api";
-import { buildAssignmentsBySlot } from "@/lib/utils/equipmentAssignments";
-import { transformBackendTrack } from "@/lib/utils/trackUtils";
+import { filmsApi } from "@/features/content/films/api";
+import { instanceFilmsApi } from "@/features/content/films/api/instance-films.api";
+import { buildAssignmentsBySlot } from "@/features/content/films/utils/equipmentAssignments";
+import { transformBackendTrack } from "@/features/content/films/utils/trackUtils";
 import { getSceneColorByType } from "@/features/content/content-builder";
 import { enrichScenesWithBeats } from "@/features/content/scenes/utils";
-import type { TimelineScene } from "@/lib/types/timeline";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
 
 /**
  * Instance Film Editor Screen
@@ -90,7 +90,7 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
         createSubject,
         deleteSubject,
         loadTemplates,
-    } = useFilmSubjects(filmIdForLibrary, currentBrand?.id);
+    } = useFilmSubjects(filmIdForLibrary);
 
     // ── Equipment management (operates on library film via right panel) ─
     const { handleEquipmentChange } = useFilmEquipment(
@@ -111,7 +111,7 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
     const handleSaveFilm = useCallback(async (newName: string) => {
         if (!film) return;
         try {
-            const updated = await api.films.update(film.id, { name: newName });
+            const updated = await filmsApi.films.update(film.id, { name: newName });
             setFilm({ ...film, name: updated.name });
         } catch (err) {
             console.error("Failed to update film name:", err);
@@ -120,13 +120,12 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
     }, [film, setFilm]);
 
     // ── Subject handlers ────────────────────────────────────────────
-    const handleAddSubject = useCallback(async (name: string, category: SubjectCategory) => {
+    const handleAddSubject = useCallback(async (name: string, roleTemplateId?: number) => {
         try {
             await createSubject({
                 film_id: filmIdForLibrary,
                 name,
-                category,
-                is_custom: true,
+                role_template_id: roleTemplateId ?? 0,
             });
         } catch (err) {
             console.error("Failed to create subject:", err);
@@ -163,7 +162,7 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
                 let filmData: Film | null = null;
                 if (libraryFilmId) {
                     try {
-                        filmData = await api.films.getById(libraryFilmId);
+                        filmData = await filmsApi.films.getById(libraryFilmId) as Film;
                     } catch {
                         console.warn("Could not load library film — using synthetic object");
                     }
@@ -171,9 +170,9 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
 
                 // 2. Load instance scenes & tracks in parallel with layers & templates
                 let [instanceScenes, instanceTracks, layersData] = await Promise.all([
-                    api.instanceFilms.scenes.getAll(projectFilmId),
-                    api.instanceFilms.tracks.getAll(projectFilmId),
-                    api.timeline.getLayers().catch(() => []),
+                    instanceFilmsApi.scenes.getAll(projectFilmId),
+                    instanceFilmsApi.tracks.getAll(projectFilmId),
+                    filmsApi.timelineLayers.getAll().catch(() => []),
                 ]);
 
                 // 2b. Auto-clone: if instance tables are empty but a library film
@@ -183,12 +182,12 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
                     libraryFilmId
                 ) {
                     try {
-                        const cloneResult = await api.instanceFilms.cloneFromLibrary(projectFilmId);
+                        const cloneResult = await instanceFilmsApi.cloneFromLibrary(projectFilmId);
                         if (cloneResult?.cloned) {
                             // Reload instance data after clone
                             [instanceScenes, instanceTracks] = await Promise.all([
-                                api.instanceFilms.scenes.getAll(projectFilmId),
-                                api.instanceFilms.tracks.getAll(projectFilmId),
+                                instanceFilmsApi.scenes.getAll(projectFilmId),
+                                instanceFilmsApi.tracks.getAll(projectFilmId),
                             ]);
                         }
                     } catch (cloneErr) {
@@ -289,7 +288,7 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
         let isMounted = true;
         const loadAssignments = async () => {
             try {
-                const assignments = await api.films.equipmentAssignments.getAll(libraryFilmId);
+                const assignments = await filmsApi.equipmentAssignments.getAll(libraryFilmId);
                 if (isMounted) {
                     setEquipmentAssignmentsBySlot(buildAssignmentsBySlot(assignments));
                 }

@@ -1,0 +1,24 @@
+---
+description: Backend and frontend error-handling conventions and response shapes.
+alwaysApply: false
+---
+
+# ProjectFlo — Error Handling
+
+## Backend (NestJS)
+- Use built-in NestJS exceptions:
+  - not found → `NotFoundException`
+  - invalid input / business rule → `BadRequestException`
+  - unauthorized → `UnauthorizedException`
+  - forbidden → `ForbiddenException`
+  - conflict/duplicate → `ConflictException`
+- Throw in **services**, not controllers; include a human-readable message with entity name and ID; fail fast.
+- In transactions, throw to trigger rollback; do not catch-and-swallow inside `prisma.$transaction()`.
+- Do not override NestJS default error response shape (frontend expects it):
+  - `{ "statusCode": 400, "message": "...", "error": "Bad Request" }`
+
+## Frontend
+- Handle API errors with try/catch and show user-facing feedback (MUI `Alert` or snackbar); never show raw error objects.
+- Use error boundaries for unexpected render errors, not for expected validation/API 400s.
+- Don’t use `console.error` as the only error handling; surface errors to users.
+

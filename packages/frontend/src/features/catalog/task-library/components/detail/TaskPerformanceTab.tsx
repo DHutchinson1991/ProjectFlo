@@ -7,7 +7,7 @@ import {
 import {
     TrendingUp as TrendingUpIcon, Group as GroupIcon, Analytics as AnalyticsIcon, Star as StarIcon,
 } from '@mui/icons-material';
-import type { TaskLibrary } from '@/lib/types';
+import type { TaskLibrary } from '@/features/catalog/task-library/types';
 import type { TaskFormData } from '../../hooks/use-task-detail';
 
 interface Props {

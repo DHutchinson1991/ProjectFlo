@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../platform/prisma/prisma.service';
 import { FilmStructureTemplate, FilmStructureTemplateScene, FilmType, SceneType, Prisma } from '@prisma/client';
 import { CreateFilmStructureTemplateDto } from './dto/create-film-structure-template.dto';
 import { UpdateFilmStructureTemplateDto } from './dto/update-film-structure-template.dto';

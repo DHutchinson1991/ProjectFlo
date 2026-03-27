@@ -22,3 +22,9 @@ export { VenueMap } from "./VenueMap";
 export { AddressAutocomplete } from "./AddressAutocomplete";
 export type { AddressResult, AddressAutocompleteColors, NominatimResult } from "./AddressAutocomplete";
 export { default as VenueMapDefault } from "./VenueMap";
+
+export { StudioTable } from "./StudioTable";
+export type { StudioTableProps, StudioColumn } from "./StudioTable";
+
+// Task display primitives (shared by catalog/task-library and workflow/tasks)
+export * from "./tasks";

@@ -1,12 +1,10 @@
 "use client";
 
 import React from "react";
-import { createScenesApi } from "@/features/content/scenes/api";
-import { apiClient } from "@/lib/api";
-import type { ApiClient } from "@/lib/api/api-client.types";
-import type { TimelineScene } from "@/lib/types/timeline";
-import type { TimelineSceneMoment } from "@/lib/types/domains/moments";
-import type { MomentRecordingSetupWithAssignments } from "@/lib/types/domains/recording-setup";
+import { scenesApi } from "@/features/content/scenes/api";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
+import type { TimelineSceneMoment } from "@/features/content/moments/types";
+import type { MomentRecordingSetupWithAssignments } from "@/features/content/moments/types/recording-setup";
 import type { ShotType } from "@/features/content/coverage/types";
 
 interface UseSceneMomentInteractionsProps {
@@ -40,8 +38,6 @@ export const useSceneMomentInteractions = ({
     zoomLevel,
     onUpdateScene,
 }: UseSceneMomentInteractionsProps) => {
-    const scenesApi = React.useMemo(() => createScenesApi(apiClient as unknown as ApiClient), []);
-
     const [editingMoment, setEditingMoment] = React.useState<MomentEditorMoment | null>(null);
     const [activeSceneForEdit, setActiveSceneForEdit] = React.useState<TimelineScene | null>(null);
 
@@ -311,25 +307,6 @@ export const useSceneMomentInteractions = ({
                 ),
             };
         });
-
-        if (typeof window !== "undefined" && (window as Window & { __debugMomentRoles?: boolean }).__debugMomentRoles) {
-            console.info("[MOMENT][DEBUG] Refreshed scene data", {
-                sceneId: activeSceneForEdit.id,
-                refreshedMomentCount: refreshedMoments.length,
-                mergedMomentCount: mergedMoments.length,
-            });
-            const focus = mergedMoments.find((m) => m.id === momentId);
-            const focusWithSubjects = focus as (SceneMomentWithSetup & {
-                subjects?: Array<{ subject?: { role?: { role_name?: string } } }>;
-            }) | undefined;
-            console.info("[MOMENT][DEBUG] Focus moment after refresh", {
-                momentId,
-                subjects: focusWithSubjects?.subjects || [],
-                firstSubject: focusWithSubjects?.subjects?.[0],
-                firstSubjectRole: focusWithSubjects?.subjects?.[0]?.subject?.role,
-                firstSubjectRoleName: focusWithSubjects?.subjects?.[0]?.subject?.role?.role_name,
-            });
-        }
 
         console.log('[handleMomentRecordingSetupSave] mergedMoments before updateSceneMoments:', mergedMoments.map((m) => ({
             id: m.id,

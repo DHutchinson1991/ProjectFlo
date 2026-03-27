@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ViewState, TimelineScene } from '@/lib/types/timeline';
+import { ViewState, TimelineScene } from '@/features/content/content-builder/types/timeline';
 import { TIMELINE_CONFIG } from "../../constants/constants";
 
 /**

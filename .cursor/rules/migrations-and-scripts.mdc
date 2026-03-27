@@ -1,0 +1,23 @@
+---
+description: Prisma migrations and backfill script conventions.
+globs: packages/backend/**
+alwaysApply: false
+---
+
+# ProjectFlo — Migrations & Backfill Scripts
+
+## Prisma migrations
+- Workflow: edit `prisma/schema.prisma` → `npx prisma migrate dev --name "kebab-case"` → `npx prisma generate` → test → commit schema + migration folder together.
+- Migration names: lowercase kebab-case verb-noun (no `fix`, `changes`, `update`).
+- Never hand-edit a migration SQL after it’s been applied to any shared DB.
+- One logical change per migration; destructive changes require a two-step deprecate-then-remove flow.
+
+## Squashing migrations (baseline)
+- If creating a `0_baseline`, follow the documented diff/resolve process and update `render.yaml` build command to include a safe `prisma migrate resolve --applied 0_baseline || true` before `migrate deploy`.
+
+## Backfill scripts (`packages/backend/scripts/`)
+- Naming prefixes: `backfill-*`, `migrate-*`, `seed-*`, `check-*`, `cleanup-*`, `update-*` (match intent).
+- All scripts must be idempotent (guard per-record, `upsert` when possible) and log processed vs skipped counts.
+- Use raw `PrismaClient` (not NestJS app context).
+- Destructive scripts must support a dry-run mode.
+

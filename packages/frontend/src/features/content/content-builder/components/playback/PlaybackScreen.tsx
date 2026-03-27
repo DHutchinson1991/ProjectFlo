@@ -1,12 +1,12 @@
 import React, { useMemo } from 'react';
-import { PlaybackScreenProps } from '@/lib/types/timeline';
+import { PlaybackScreenProps } from '@/features/content/content-builder/types/timeline';
 import { Box, Typography, Divider } from '@mui/material';
 import CameraAltOutlinedIcon from "@mui/icons-material/CameraAltOutlined";
 import MicOutlinedIcon from "@mui/icons-material/MicOutlined";
 import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
 import MusicNoteOutlinedIcon from "@mui/icons-material/MusicNoteOutlined";
 import { useContentBuilder } from "../../context/ContentBuilderContext";
-import { getEquipmentShortLabelForTrackName } from "@/lib/utils/equipmentAssignments";
+import { getEquipmentShortLabelForTrackName } from "@/features/content/films/utils/equipmentAssignments";
 
 /**
  * PlaybackScreen Component

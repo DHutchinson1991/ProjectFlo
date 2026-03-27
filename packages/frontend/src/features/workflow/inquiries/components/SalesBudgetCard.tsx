@@ -21,7 +21,7 @@ import {
     CheckCircle,
     Schedule,
 } from '@mui/icons-material';
-import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
+import { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
 import { inquiriesApi } from '@/features/workflow/inquiries';
 
 interface SalesBudgetCardProps {

@@ -2,8 +2,8 @@
 
 import React from "react";
 import { Box } from "@mui/material";
-import { PlaybackState } from "@/lib/types/timeline";
-import { ViewState } from "@/lib/types/timeline";
+import { PlaybackState } from "@/features/content/content-builder/types/timeline";
+import { ViewState } from "@/features/content/content-builder/types/timeline";
 
 interface TimelinePlayheadProps {
     playbackState: PlaybackState;

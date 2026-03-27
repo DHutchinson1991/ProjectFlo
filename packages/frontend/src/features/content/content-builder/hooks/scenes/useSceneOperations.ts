@@ -1,8 +1,8 @@
 import { useCallback } from "react";
-import { TimelineScene, TimelineTrack } from '@/lib/types/timeline';
-import { calculateTimelineDuration } from "@/lib/utils";
+import { TimelineScene, TimelineTrack } from '@/features/content/content-builder/types/timeline';
+import { calculateTimelineDuration } from "@/features/content/content-builder/utils/timelineUtils";
 import { createTimelineScenesFromLibraryScene } from "../../utils/dragDropUtils";
-import { api } from "@/lib/api";
+import { filmsApi } from "@/features/content/films/api";
 
 /**
  * Hook for managing scene operations
@@ -118,7 +118,7 @@ export const useSceneOperations = ({
         });
 
         if (filmId && reorderPayload.length > 0) {
-            api.films.localScenes.reorder(filmId, reorderPayload).catch((error) => {
+            filmsApi.localScenes.reorder(filmId, reorderPayload).catch((error) => {
                 console.warn("⚠️ [SCENE-OPS] Failed to sync scene order:", error);
             });
         }

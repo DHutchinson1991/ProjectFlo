@@ -27,10 +27,13 @@ import CheckIcon from "@mui/icons-material/Check";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import MovieFilterIcon from "@mui/icons-material/MovieFilter";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
-import { MediaType } from "@/lib/types/timeline";
-import { api } from "@/lib/api";
+import { MediaType } from "@/features/content/content-builder/types/timeline";
+import { filmsApi } from "@/features/content/films/api";
+import { momentsApi } from "@/features/content/moments/api";
+import { beatsApi } from "@/features/content/beats/api";
+import { scheduleApi } from "@/features/workflow/scheduling/api";
 import { SceneType } from "@/features/content/scenes/types";
-import { formatTime } from "@/lib/utils/formatUtils";
+import { formatTime } from "@/shared/utils/formatUtils";
 
 interface Moment {
     id?: string;
@@ -139,18 +142,18 @@ const CreateSceneDialog: React.FC<CreateSceneDialogProps> = ({
         let request: Promise<[any[], any[]]>;
         if (instanceOwnerType === "project" && instanceOwnerId) {
             request = Promise.all([
-                api.schedule.projectAllActivities.getAll(instanceOwnerId),
-                api.schedule.projectInstanceEventDays.getAll(instanceOwnerId),
+                scheduleApi.projectAllActivities.getAll(instanceOwnerId),
+                scheduleApi.projectInstanceEventDays.getAll(instanceOwnerId),
             ]);
         } else if (instanceOwnerType === "inquiry" && instanceOwnerId) {
             request = Promise.all([
-                api.schedule.inquiryActivities.getAll(instanceOwnerId),
-                api.schedule.inquiryEventDays.getAll(instanceOwnerId),
+                scheduleApi.inquiryActivities.getAll(instanceOwnerId),
+                scheduleApi.inquiryEventDays.getAll(instanceOwnerId),
             ]);
         } else if (packageId) {
             request = Promise.all([
-                api.schedule.packageActivities.getAll(packageId),
-                api.schedule.packageEventDays.getAll(packageId),
+                scheduleApi.packageActivities.getAll(packageId),
+                scheduleApi.packageEventDays.getAll(packageId),
             ]);
         } else {
             setPkgActivities([]);
@@ -397,7 +400,7 @@ const CreateSceneDialog: React.FC<CreateSceneDialogProps> = ({
             const sceneDuration = isMomentsScene ? totalMomentsDuration : totalBeatsDuration;
 
             // Create film scene via API
-            const newScene = await api.films.localScenes.create(filmId, {
+            const newScene = await filmsApi.localScenes.create(filmId, {
                 name: formData.name,
                 shot_count: null,
                 duration_seconds: sceneDuration,
@@ -436,7 +439,7 @@ const CreateSceneDialog: React.FC<CreateSceneDialogProps> = ({
                 for (let i = 0; i < moments.length; i++) {
                     const moment = moments[i];
                     try {
-                        const created = await api.moments.create(newScene.id, {
+                        const created = await momentsApi.create(newScene.id, {
                             name: moment.name,
                             duration: moment.duration,
                             order_index: i,
@@ -455,7 +458,7 @@ const CreateSceneDialog: React.FC<CreateSceneDialogProps> = ({
                 for (let i = 0; i < beats.length; i++) {
                     const beat = beats[i];
                     try {
-                        const created = await api.beats.create(newScene.id, {
+                        const created = await beatsApi.create(newScene.id, {
                             name: beat.name,
                             duration_seconds: beat.duration_seconds,
                             order_index: i,
@@ -490,10 +493,10 @@ const CreateSceneDialog: React.FC<CreateSceneDialogProps> = ({
                 try {
                     const primaryActivity = pkgActivities.find(a => a.id === selectedActivityIds[0]);
                     const upsertSceneSchedule = instanceOwnerType === "project"
-                        ? api.schedule.projectFilms.upsertSceneSchedule
+                        ? scheduleApi.projectFilms.upsertSceneSchedule
                         : instanceOwnerType === "inquiry"
-                            ? api.schedule.inquiryFilms.upsertSceneSchedule
-                            : api.schedule.film.upsertScene;
+                            ? scheduleApi.inquiryFilms.upsertSceneSchedule
+                            : scheduleApi.film.upsertScene;
                     const eventDayId = primaryActivity
                         ? (pkgEventDays.find(d => d._joinId === primaryActivity.package_event_day_id)?.id ?? null)
                         : null;

@@ -31,7 +31,8 @@ import {
     ExpandLess as CollapseIcon,
     Star as StarIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
+import { eventTypesApi } from "@/features/catalog/event-types/api";
+import { scheduleApi } from "@/features/workflow/scheduling/api";
 import { PRESET_COLORS } from "../constants";
 import type { EventTypeDay, EventDay, EventDayActivity, PresetMoment } from "../types";
 
@@ -88,15 +89,15 @@ export function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: 
         try {
             setSaving(true);
             if (editing) {
-                await api.schedule.eventDays.update(brandId, editing.id, form);
+                await scheduleApi.eventDays.update(brandId, editing.id, form);
             } else {
-                const newDay = await api.schedule.eventDays.create(brandId, {
+                const newDay = await scheduleApi.eventDays.create(brandId, {
                     name: form.name,
                     description: form.description || undefined,
                     order_index: eventDays.length,
                 });
                 if (newDay?.id) {
-                    await api.eventTypes.linkEventDay(eventTypeId, { event_day_template_id: newDay.id });
+                    await eventTypesApi.linkEventDay(eventTypeId, { event_day_template_id: newDay.id });
                 }
             }
             setDialogOpen(false);
@@ -111,7 +112,7 @@ export function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: 
     const handleDelete = async (id: number) => {
         if (!window.confirm("Delete this event day template and all its activity presets?")) return;
         try {
-            await api.schedule.eventDays.delete(brandId, id);
+            await scheduleApi.eventDays.delete(brandId, id);
             await onReload();
         } catch {
             setError("Failed to delete event day");

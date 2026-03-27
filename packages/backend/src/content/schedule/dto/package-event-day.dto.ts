@@ -1,5 +1,7 @@
 import { IsInt, IsOptional, IsArray } from 'class-validator';
 
+export { SetPackageEventDaysDto } from './set-package-event-days.dto';
+
 export class AddPackageEventDayDto {
   @IsInt()
   event_day_template_id: number;
@@ -9,8 +11,3 @@ export class AddPackageEventDayDto {
   order_index?: number;
 }
 
-export class SetPackageEventDaysDto {
-  @IsArray()
-  @IsInt({ each: true })
-  event_day_template_ids: number[];
-}

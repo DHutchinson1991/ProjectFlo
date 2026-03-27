@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { TimelineScene, PlaybackState } from '@/lib/types/timeline';
-import { calculateTimelineDuration } from "@/lib/utils";
+import { TimelineScene, PlaybackState } from '@/features/content/content-builder/types/timeline';
+import { calculateTimelineDuration } from "@/features/content/content-builder/utils/timelineUtils";
 
 export const usePlaybackControls = (scenes: TimelineScene[] = []) => {
     const [playbackState, setPlaybackState] = useState<PlaybackState>({

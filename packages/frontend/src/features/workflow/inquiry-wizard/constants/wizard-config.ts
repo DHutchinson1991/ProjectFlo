@@ -214,9 +214,4 @@ export const SEASONS = [
     { label: "Winter", months: [11, 0, 1] as const, emoji: "❄️" },
 ] as const;
 
-export const CURRENCY_SYMBOLS: Record<string, string> = {
-    USD: "$", GBP: "£", EUR: "€", AUD: "A$", CAD: "C$", NZD: "NZ$",
-    JPY: "¥", CHF: "CHF", ZAR: "R", INR: "₹", SGD: "S$",
-};
-
 export const REQUIRED: Set<ScreenId> = new Set(["event_type", "date", "fork", "contact"]);

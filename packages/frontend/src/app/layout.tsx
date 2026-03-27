@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "@/shared/theme/globals.css";
-import Providers from "./providers";
+import AppProviders from "@/features/platform/providers/AppProviders";
 import { ErrorBoundary } from "@/shared/ui";
 
 export const metadata: Metadata = {
@@ -17,11 +17,11 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="dark" style={{ colorScheme: 'dark' }} suppressHydrationWarning>
       <body>
-        <ErrorBoundary>
-          <Providers>
+        <AppProviders>
+          <ErrorBoundary>
             {children}
-          </Providers>
-        </ErrorBoundary>
+          </ErrorBoundary>
+        </AppProviders>
       </body>
     </html>
   );

@@ -69,6 +69,38 @@ export const fieldSx = {
   "& .MuiInputLabel-root.Mui-focused": { color: colors.accent },
 } as const;
 
+/* ── Section colours ──────────────────────────────────────── */
+
+/**
+ * Canonical section/resource → colour mapping.
+ * Used for ambient glows, accent tints, and header colours on tables.
+ *
+ * Grouped by how the studio sidebar organises them:
+ *   Pipeline:  inquiries, clients, projects
+ *   Resources: crew, locations, equipment
+ *   Catalog:   packages, tasks
+ *   Finance:   estimates, contracts
+ */
+export const sectionColors = {
+  // Pipeline
+  inquiries: "#f59e0b",   // amber
+  clients: "#8b5cf6",     // violet
+  projects: "#3b82f6",    // blue
+
+  // Resources
+  crew: "#06b6d4",        // cyan
+  locations: "#10b981",   // emerald
+  equipment: "#f97316",   // orange
+
+  // Catalog
+  packages: "#ec4899",    // pink
+  tasks: "#579BFC",       // sky
+
+  // Finance
+  estimates: "#6366f1",   // indigo
+  contracts: "#14b8a6",   // teal
+} as const;
+
 /* ── Status colour map ───────────────────────────────────────── */
 
 /**

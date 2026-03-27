@@ -11,7 +11,8 @@ import {
 import { Equipment } from "@/features/workflow/equipment/types/equipment.types";
 import { getCategoryIcon, getCategoryColor } from "../constants/categoryConfig";
 import { useBrand } from "@/features/platform/brand";
-import { formatCurrency } from "@/lib/utils/formatUtils";
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { formatCurrency } from "@/shared/utils/formatUtils";
 
 interface CategoryCardsGridProps {
     categoryStats: Array<{
@@ -30,7 +31,7 @@ export const CategoryCardsGrid: React.FC<CategoryCardsGridProps> = ({
     onCategoryCardClick,
 }) => {
     const { currentBrand } = useBrand();
-    const currencyCode = currentBrand?.currency || 'USD';
+    const currencyCode = currentBrand?.currency ?? DEFAULT_CURRENCY;
 
     return (
         <Box sx={{

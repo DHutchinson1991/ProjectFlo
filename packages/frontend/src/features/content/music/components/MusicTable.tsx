@@ -23,7 +23,7 @@ import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import EditIcon from '@mui/icons-material/Edit';
 import ClearIcon from '@mui/icons-material/Clear';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
-import { MusicType, formatDuration } from "@/lib/types/moments";
+import { MusicType, formatDuration } from "@/features/content/moments/types/moments-legacy";
 import {
     useSensor,
     useSensors,

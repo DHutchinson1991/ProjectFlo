@@ -3,6 +3,27 @@
  * Canonical types for film subjects, scene/moment assignments, roles, and templates.
  */
 
+export enum SubjectCategory {
+  PEOPLE = 'PEOPLE',
+  OBJECTS = 'OBJECTS',
+  LOCATIONS = 'LOCATIONS',
+}
+
+export const SUBJECT_CATEGORY_LABELS: Record<SubjectCategory, string> = {
+  [SubjectCategory.PEOPLE]: 'People',
+  [SubjectCategory.OBJECTS]: 'Objects',
+  [SubjectCategory.LOCATIONS]: 'Locations',
+};
+
+export const getSubjectCategoryIcon = (category: SubjectCategory): string => {
+  const icons: Record<SubjectCategory, string> = {
+    [SubjectCategory.PEOPLE]: '👥',
+    [SubjectCategory.OBJECTS]: '🎁',
+    [SubjectCategory.LOCATIONS]: '📍',
+  };
+  return icons[category];
+};
+
 export enum SubjectPriority {
   PRIMARY = 'PRIMARY',
   SECONDARY = 'SECONDARY',

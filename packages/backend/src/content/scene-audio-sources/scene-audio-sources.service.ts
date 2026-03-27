@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../platform/prisma/prisma.service';
 import { SceneAudioSource, AudioSourceType, AudioTrackType } from '@prisma/client';
 import { CreateSceneAudioSourceDto } from './dto/create-scene-audio-source.dto';
 import { UpdateSceneAudioSourceDto } from './dto/update-scene-audio-source.dto';

@@ -11,12 +11,6 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     Alert,
     Snackbar,
     Chip,
@@ -29,8 +23,9 @@ import {
     MenuItem,
     Select,
     FormControl,
-    InputLabel,
 } from '@mui/material';
+import { StudioTable, type StudioColumn } from '@/shared/ui';
+import { sectionColors } from '@/shared/theme/tokens';
 import {
     Add as AddIcon,
     Email as EmailIcon,
@@ -44,12 +39,17 @@ import {
     CalendarToday,
     AttachMoney,
     AccessTime,
+    Person as PersonIcon,
+    Timeline as PipelineIcon,
+    Event as EventIcon,
+    Inventory2 as PackageIcon,
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
 import { inquiriesApi } from '@/features/workflow/inquiries';
-import { Inquiry, CreateInquiryData, InquiryStatus } from '@/lib/types';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { Inquiry, CreateInquiryData, InquiryStatus } from '@/features/workflow/inquiries/types';
+import { useBrand } from '@/features/platform/brand';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { formatCurrency } from '@/shared/utils/formatUtils';
 
 /* ------------------------------------------------------------------ */
 /*  Pipeline stage definitions                                         */
@@ -66,7 +66,7 @@ const LEGACY_PIPELINE_STAGES = [
 ] as const;
 
 /** Convert a hex color to an RGBA bg/border pair for chips. */
-function hexToStageConfig(key: string, hex: string | null) {
+function hexToStageConfig(key: string, hex?: string | null) {
     const color = hex || '#94a3b8';
     return {
         key,
@@ -83,7 +83,7 @@ function buildPipelineStages(inquiries: Inquiry[]) {
     if (withStages?.pipeline_stages) {
         return withStages.pipeline_stages
             .sort((a, b) => a.order_index - b.order_index)
-            .map(s => hexToStageConfig(s.name, s.color));
+            .map(s => hexToStageConfig(s.name));
     }
     // Fallback to legacy hardcoded stages
     return [...LEGACY_PIPELINE_STAGES];
@@ -119,10 +119,7 @@ export default function InquiriesListScreen() {
     /* ---- notification state ---- */
     const [notification, setNotification] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
 
-    /* ---- create dialog state ---- */
-    const [createDialogOpen, setCreateDialogOpen] = useState(false);
-    const [newInquiryEventTypeId, setNewInquiryEventTypeId] = useState<number | ''>('');
-    const [eventTypeOptions, setEventTypeOptions] = useState<{ id: number; name: string }[]>([]);
+    /* ---- create state ---- */
     const [isCreating, setIsCreating] = useState(false);
 
     /* ---- delete dialog state ---- */
@@ -137,7 +134,7 @@ export default function InquiriesListScreen() {
     /* ---- handlers ---- */
 
     const handleInquiryClick = (inquiryId: number) => {
-        router.push(`/sales/inquiries/${inquiryId}`);
+        router.push(`/inquiries/${inquiryId}`);
     };
 
     const handleDeleteClick = (e: React.MouseEvent, inquiry: Inquiry) => {
@@ -168,12 +165,7 @@ export default function InquiriesListScreen() {
         setInquiryToDelete(null);
     };
 
-    const handleCreate = () => {
-        setNewInquiryEventTypeId('');
-        setCreateDialogOpen(true);
-    };
-
-    const handleCreateConfirm = async () => {
+    const handleCreate = async () => {
         setIsCreating(true);
         try {
             const newInquiryData: CreateInquiryData = {
@@ -186,12 +178,10 @@ export default function InquiriesListScreen() {
                 notes: '',
                 lead_source: '',
                 lead_source_details: '',
-                event_type_id: newInquiryEventTypeId !== '' ? Number(newInquiryEventTypeId) : null,
+                event_type_id: null,
             };
             const newInquiry = await inquiriesApi.create(newInquiryData);
-            setCreateDialogOpen(false);
-            showNotification('New inquiry created. Redirecting...', 'success');
-            router.push(`/sales/inquiries/${newInquiry.id}`);
+            window.open(`/inquiry-wizard/preview?inquiry=${newInquiry.id}`, '_blank');
         } catch (error) {
             console.error('Failed to create inquiry:', error);
             showNotification('Failed to create inquiry', 'error');
@@ -205,12 +195,8 @@ export default function InquiriesListScreen() {
     const loadInquiries = async () => {
         try {
             setIsLoading(true);
-            const [data, types] = await Promise.all([
-                inquiriesApi.getAll(),
-                api.eventTypes.getAll().catch(() => []),
-            ]);
+            const data = await inquiriesApi.getAll();
             setInquiries(data);
-            setEventTypeOptions(types || []);
         } catch (error) {
             console.error('Failed to load inquiries:', error);
             showNotification('Failed to load inquiries', 'error');
@@ -298,20 +284,8 @@ export default function InquiriesListScreen() {
 
     /* ---- helpers ---- */
 
-    const formatCurrency = (price: number | null | undefined) => {
-        if (price == null) return null;
-        const currency = currentBrand?.currency || 'GBP';
-        return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(price);
-    };
-
-    const formatCurrencyWithCode = (price: number | null | undefined, _currencyCode?: string | null) => {
-        if (price == null) return null;
-        const currency = currentBrand?.currency || 'GBP';
-        return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(price);
-    };
-
     const getInquiryPrice = (inquiry: Inquiry) => {
-        const currency = currentBrand?.currency || 'GBP';
+        const currency = currentBrand?.currency ?? DEFAULT_CURRENCY;
         // Prefer quote total (already includes tax from backend)
         if (inquiry.primary_quote_total != null) {
             return { amount: inquiry.primary_quote_total, currency };
@@ -479,114 +453,141 @@ export default function InquiriesListScreen() {
                 /* ============================================ */
                 /*  TABLE VIEW                                   */
                 /* ============================================ */
-                <Card>
-                    <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-                        <TableContainer>
-                            <Table>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>Contact</TableCell>
-                                        <TableCell>Pipeline Stage</TableCell>
-                                        <TableCell>Event Date</TableCell>
-                                        <TableCell>Package</TableCell>
-                                        <TableCell>Price</TableCell>
-                                        <TableCell>Venue</TableCell>
-                                        <TableCell>Date of Inquiry</TableCell>
-                                        <TableCell align="right">Actions</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {filteredInquiries.map((inquiry) => {
-                                        const stageConfig = getStageConfig(inquiry.pipeline_stage, pipelineStages);
-                                        const packagePrice = getInquiryPrice(inquiry);
-                                        return (
-                                            <TableRow
-                                                key={inquiry.id}
-                                                onClick={() => handleInquiryClick(inquiry.id)}
-                                                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
-                                            >
-                                                <TableCell>
-                                                    <Box>
-                                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                            {inquiry.contact.full_name}
-                                                        </Typography>
-                                                        {inquiry.contact.email && (
-                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                                                <EmailIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                                                <Typography variant="caption" color="text.secondary">{inquiry.contact.email}</Typography>
-                                                            </Box>
-                                                        )}
-                                                        {inquiry.contact.phone_number && (
-                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                                                <PhoneIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                                                <Typography variant="caption" color="text.secondary">{inquiry.contact.phone_number}</Typography>
-                                                            </Box>
-                                                        )}
-                                                        {inquiry.contact.company_name && (
-                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                                                <BusinessIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                                                <Typography variant="caption" color="text.secondary">{inquiry.contact.company_name}</Typography>
-                                                            </Box>
-                                                        )}
-                                                    </Box>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Chip
-                                                        label={inquiry.pipeline_stage || 'New Lead'}
-                                                        size="small"
-                                                        sx={{
-                                                            bgcolor: stageConfig.bg, color: stageConfig.color,
-                                                            border: `1px solid ${stageConfig.border}`,
-                                                            fontWeight: 600, fontSize: '0.7rem',
-                                                        }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    {inquiry.event_date ? inquiry.event_date.toLocaleDateString() : '-'}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Typography variant="body2" color={inquiry.selected_package || inquiry.package_contents_snapshot?.package_name ? 'text.primary' : 'text.secondary'}>
-                                                        {inquiry.selected_package?.name || inquiry.package_contents_snapshot?.package_name || '-'}
-                                                    </Typography>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Typography variant="body2" color={packagePrice ? 'text.primary' : 'text.secondary'}>
-                                                        {formatCurrencyWithCode(packagePrice?.amount, packagePrice?.currency) || '-'}
-                                                    </Typography>
-                                                </TableCell>
-                                                <TableCell>
-                                                    {inquiry.venue_details ? (
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                            <PlaceIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                                            <Typography variant="body2">{inquiry.venue_details}</Typography>
-                                                        </Box>
-                                                    ) : (
-                                                        <Typography variant="body2" color="text.secondary">-</Typography>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>{inquiry.created_at.toLocaleDateString()}</TableCell>
-                                                <TableCell align="right" onClick={e => e.stopPropagation()}>
-                                                    <Tooltip title="Delete inquiry">
-                                                        <IconButton size="small" color="error" onClick={(e) => handleDeleteClick(e, inquiry)}>
-                                                            <DeleteIcon fontSize="small" />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                    {filteredInquiries.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                                                <Typography color="text.secondary">No inquiries match your filters</Typography>
-                                            </TableCell>
-                                        </TableRow>
+                <StudioTable
+                    sectionColor={sectionColors.inquiries}
+                    columns={[
+                        {
+                            key: 'contact',
+                            label: 'Contact',
+                            flex: 2,
+                            headerIcon: <PersonIcon />,
+                            render: (inquiry) => (
+                                <Box>
+                                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                        {inquiry.contact.full_name}
+                                    </Typography>
+                                    {inquiry.contact.email && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                                            <EmailIcon sx={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }} />
+                                            <Typography variant="caption" color="text.secondary">{inquiry.contact.email}</Typography>
+                                        </Box>
                                     )}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    </CardContent>
-                </Card>
+                                    {inquiry.contact.phone_number && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                                            <PhoneIcon sx={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }} />
+                                            <Typography variant="caption" color="text.secondary">{inquiry.contact.phone_number}</Typography>
+                                        </Box>
+                                    )}
+                                    {inquiry.contact.company_name && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                                            <BusinessIcon sx={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }} />
+                                            <Typography variant="caption" color="text.secondary">{inquiry.contact.company_name}</Typography>
+                                        </Box>
+                                    )}
+                                </Box>
+                            ),
+                        },
+                        {
+                            key: 'pipeline_stage',
+                            label: 'Pipeline Stage',
+                            width: 150,
+                            headerIcon: <PipelineIcon />,
+                            render: (inquiry) => {
+                                const stageConfig = getStageConfig(inquiry.pipeline_stage, pipelineStages);
+                                return (
+                                    <Chip
+                                        label={inquiry.pipeline_stage || 'New Lead'}
+                                        size="small"
+                                        sx={{
+                                            bgcolor: stageConfig.bg, color: stageConfig.color,
+                                            border: `1px solid ${stageConfig.border}`,
+                                            fontWeight: 600, fontSize: '0.7rem',
+                                        }}
+                                    />
+                                );
+                            },
+                        },
+                        {
+                            key: 'event_date',
+                            label: 'Event Date',
+                            width: 120,
+                            headerIcon: <EventIcon />,
+                            render: (inquiry) => (
+                                <Typography variant="body2" color={inquiry.event_date ? 'text.primary' : 'text.secondary'}>
+                                    {inquiry.event_date ? new Date(inquiry.event_date).toLocaleDateString() : '-'}
+                                </Typography>
+                            ),
+                        },
+                        {
+                            key: 'package',
+                            label: 'Package',
+                            flex: 1,
+                            headerIcon: <PackageIcon />,
+                            render: (inquiry) => (
+                                <Typography variant="body2" color={inquiry.selected_package || inquiry.package_contents_snapshot?.package_name ? 'text.primary' : 'text.secondary'}>
+                                    {inquiry.selected_package?.name || inquiry.package_contents_snapshot?.package_name || '-'}
+                                </Typography>
+                            ),
+                        },
+                        {
+                            key: 'price',
+                            label: 'Price',
+                            width: 110,
+                            headerIcon: <AttachMoney />,
+                            render: (inquiry) => {
+                                const packagePrice = getInquiryPrice(inquiry);
+                                return (
+                                    <Typography variant="body2" color={packagePrice ? 'text.primary' : 'text.secondary'}>
+                                        {formatCurrency(packagePrice?.amount, packagePrice?.currency) || '-'}
+                                    </Typography>
+                                );
+                            },
+                        },
+                        {
+                            key: 'venue',
+                            label: 'Venue',
+                            flex: 1,
+                            headerIcon: <PlaceIcon />,
+                            render: (inquiry) =>
+                                inquiry.venue_details ? (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <PlaceIcon sx={{ fontSize: 14, color: 'rgba(255,255,255,0.3)' }} />
+                                        <Typography variant="body2">{inquiry.venue_details}</Typography>
+                                    </Box>
+                                ) : (
+                                    <Typography variant="body2" color="text.secondary">-</Typography>
+                                ),
+                        },
+                        {
+                            key: 'created_at',
+                            label: 'Date of Inquiry',
+                            width: 120,
+                            headerIcon: <AccessTime />,
+                            render: (inquiry) => (
+                                <Typography variant="body2">{new Date(inquiry.created_at).toLocaleDateString()}</Typography>
+                            ),
+                        },
+                        {
+                            key: 'actions',
+                            label: '',
+                            width: 60,
+                            align: 'right',
+                            render: (inquiry) => (
+                                <Box onClick={e => e.stopPropagation()}>
+                                    <Tooltip title="Delete inquiry">
+                                        <IconButton size="small" color="error" onClick={(e) => handleDeleteClick(e, inquiry)}>
+                                            <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Box>
+                            ),
+                        },
+                    ] as StudioColumn<typeof filteredInquiries[number]>[]}
+                    rows={filteredInquiries}
+                    getRowKey={(inq) => inq.id}
+                    onRowClick={(inq) => handleInquiryClick(inq.id)}
+                    emptyMessage="No inquiries match your filters"
+                />
             ) : (
                 /* ============================================ */
                 /*  KANBAN BOARD VIEW                            */
@@ -673,7 +674,7 @@ export default function InquiriesListScreen() {
                                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                                         <CalendarToday sx={{ fontSize: 11, color: '#64748b' }} />
                                                         <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8' }}>
-                                                            {inquiry.event_date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                                            {new Date(inquiry.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                                                         </Typography>
                                                     </Box>
                                                 )}
@@ -681,7 +682,7 @@ export default function InquiriesListScreen() {
                                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                                         <AttachMoney sx={{ fontSize: 11, color: '#10b981' }} />
                                                         <Typography sx={{ fontSize: '0.65rem', color: '#34d399', fontWeight: 700 }}>
-                                                            {formatCurrency(inquiry.primary_quote_total ?? inquiry.primary_estimate_total)}
+                                                            {formatCurrency(inquiry.primary_quote_total ?? inquiry.primary_estimate_total, currentBrand?.currency)}
                                                         </Typography>
                                                     </Box>
                                                 )}
@@ -701,34 +702,7 @@ export default function InquiriesListScreen() {
                 </Box>
             )}
 
-            {/* Create Inquiry Dialog */}
-            <Dialog open={createDialogOpen} onClose={() => !isCreating && setCreateDialogOpen(false)} maxWidth="xs" fullWidth>
-                <DialogTitle>New Inquiry</DialogTitle>
-                <DialogContent sx={{ pt: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Select an event type to get started. You can fill in the rest of the details on the next screen.
-                    </Typography>
-                    <FormControl fullWidth size="small">
-                        <InputLabel>Event Type</InputLabel>
-                        <Select
-                            label="Event Type"
-                            value={newInquiryEventTypeId}
-                            onChange={(e) => setNewInquiryEventTypeId(e.target.value as number | '')}
-                        >
-                            <MenuItem value=""><em>Not set</em></MenuItem>
-                            {eventTypeOptions.map((et) => (
-                                <MenuItem key={et.id} value={et.id}>{et.name}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setCreateDialogOpen(false)} disabled={isCreating}>Cancel</Button>
-                    <Button onClick={handleCreateConfirm} variant="contained" disabled={isCreating}>
-                        {isCreating ? 'Creating...' : 'Create Inquiry'}
-                    </Button>
-                </DialogActions>
-            </Dialog>
+
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={deleteDialogOpen} onClose={handleDeleteCancel} maxWidth="xs" fullWidth>

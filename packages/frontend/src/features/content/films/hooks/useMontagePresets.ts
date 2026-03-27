@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { MontagePreset } from '@/lib/types/domains/montage-presets';
-import { api } from '@/lib/api';
+import type { MontagePreset } from '@/features/content/films/types/montage-presets';
+import { montagePresetsApi } from '@/features/content/montage-presets/api';
 
 export const useMontagePresets = (brandId?: number) => {
   const [presets, setPresets] = useState<MontagePreset[]>([]);
@@ -11,7 +11,7 @@ export const useMontagePresets = (brandId?: number) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await api.montagePresets.getAll(brandId);
+      const data = await montagePresetsApi.getAll(brandId);
       setPresets(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load montage presets');

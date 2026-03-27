@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
     Box,
     Typography,
@@ -43,29 +43,34 @@ import {
     Article as TemplateIcon,
     Close as CloseIcon,
 } from "@mui/icons-material";
-import { contractClausesApi, contractTemplatesApi } from "@/features/finance/contracts";
-import { paymentSchedulesApi } from "@/features/finance/payment-schedules";
-import { useBrand } from "@/app/providers/BrandProvider";
-import type {
-    ContractClauseCategory,
-    ContractTemplate,
-    CreateContractTemplateData,
-    UpdateContractTemplateData,
-    TemplateClauseInput,
-    ContractPreview,
-    ContractVariableCategory,
-    PaymentScheduleTemplate,
-} from "@/lib/types";
+import { useBrand } from "@/features/platform/brand";
+import type { ContractClauseCategory, ContractTemplate, CreateContractTemplateData, UpdateContractTemplateData, TemplateClauseInput, ContractPreview, ContractVariableCategory } from "@/features/finance/contracts/types";
+import type { PaymentScheduleTemplate } from "@/features/finance/payment-schedules/types";
+import { usePaymentScheduleTemplates } from "@/features/finance/payment-schedules/hooks";
+import {
+    useContractTemplates,
+    useContractClauseCategories,
+    useContractVariables,
+    useContractTemplateMutations,
+} from "../hooks";
 
 // ---------------------------------------------------------------------------
 
 export default function ContractTemplatesTab() {
     const { currentBrand } = useBrand();
 
-    const [templates, setTemplates] = useState<ContractTemplate[]>([]);
-    const [categories, setCategories] = useState<ContractClauseCategory[]>([]);
-    const [paymentSchedules, setPaymentSchedules] = useState<PaymentScheduleTemplate[]>([]);
-    const [loading, setLoading] = useState(true);
+    const templatesQuery = useContractTemplates();
+    const categoriesQuery = useContractClauseCategories();
+    const variablesQuery = useContractVariables();
+    const paymentSchedulesQuery = usePaymentScheduleTemplates();
+    const { createTemplate, updateTemplate, deleteTemplate, previewTemplate } = useContractTemplateMutations();
+
+    const templates = templatesQuery.data ?? [];
+    const categories = categoriesQuery.data ?? [];
+    const variableCategories = variablesQuery.data ?? [];
+    const paymentSchedules = (paymentSchedulesQuery.data ?? []) as PaymentScheduleTemplate[];
+
+    const loading = templatesQuery.isPending || categoriesQuery.isPending;
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
@@ -83,7 +88,7 @@ export default function ContractTemplatesTab() {
     const [previewLoading, setPreviewLoading] = useState(false);
 
     // Variables reference
-    const [variableCategories, setVariableCategories] = useState<ContractVariableCategory[]>([]);
+    // (variableCategories sourced from useContractVariables query above)
 
     // Delete
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -91,41 +96,6 @@ export default function ContractTemplatesTab() {
 
     // DnD state for clause ordering within template
     const [dragIdx, setDragIdx] = useState<number | null>(null);
-
-    // ── Load data ─────────────────────────────────────────────────────
-
-    const loadData = useCallback(async () => {
-        if (!currentBrand?.id) {
-            setTemplates([]);
-            setCategories([]);
-            setVariableCategories([]);
-            setPaymentSchedules([]);
-            setLoading(false);
-            return;
-        }
-        try {
-            setLoading(true);
-            setError(null);
-            const [tData, cData, vData, psData] = await Promise.all([
-                contractTemplatesApi.getAll(),
-                contractClausesApi.getCategories(),
-                contractTemplatesApi.getVariables(),
-                paymentSchedulesApi.getAll(),
-            ]);
-            setTemplates(tData);
-            setCategories(cData);
-            setVariableCategories(vData);
-            setPaymentSchedules(psData);
-        } catch {
-            setError("Failed to load data");
-        } finally {
-            setLoading(false);
-        }
-    }, [currentBrand?.id]);
-
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
 
     // ── Builder ───────────────────────────────────────────────────────
 
@@ -178,7 +148,7 @@ export default function ContractTemplatesTab() {
                     payment_schedule_template_id: templateForm.payment_schedule_template_id ?? undefined,
                     clauses,
                 };
-                await contractTemplatesApi.create(data);
+                await createTemplate.mutateAsync(data);
                 setSuccess("Template created");
             } else if (editingTemplate) {
                 const data: UpdateContractTemplateData = {
@@ -187,10 +157,9 @@ export default function ContractTemplatesTab() {
                     payment_schedule_template_id: templateForm.payment_schedule_template_id,
                     clauses,
                 };
-                await contractTemplatesApi.update(editingTemplate.id, data);
+                await updateTemplate.mutateAsync({ id: editingTemplate.id, data });
                 setSuccess("Template updated");
             }
-            await loadData();
             setBuilderOpen(false);
         } catch {
             setError(`Failed to ${builderMode} template`);
@@ -205,7 +174,7 @@ export default function ContractTemplatesTab() {
         try {
             setPreviewLoading(true);
             setPreviewOpen(true);
-            const data = await contractTemplatesApi.preview(tmpl.id);
+            const data = await previewTemplate.mutateAsync({ id: tmpl.id });
             setPreview(data);
         } catch {
             setError("Failed to generate preview");
@@ -221,8 +190,7 @@ export default function ContractTemplatesTab() {
         if (!deleteTarget) return;
         try {
             setSubmitting(true);
-            await contractTemplatesApi.delete(deleteTarget.id);
-            await loadData();
+            await deleteTemplate.mutateAsync(deleteTarget.id);
             setDeleteDialogOpen(false);
             setDeleteTarget(null);
             setSuccess("Template deleted");

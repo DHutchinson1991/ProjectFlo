@@ -9,7 +9,7 @@ import {
     AccessTime,
     CalendarMonth,
 } from '@mui/icons-material';
-import type { Inquiry } from '@/lib/types';
+import type { Inquiry } from '@/features/workflow/inquiries/types';
 import { WORKFLOW_PHASES, getTempColor, TASK_AUTO_COMPLETE, computeActiveIndex } from '../lib';
 import type { PipelineTask, WorkflowPhase } from '../lib';
 
@@ -1032,7 +1032,7 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1, justifyContent: 'center' }}>
                             <TrendingUp sx={{ fontSize: 13, color: '#22c55e' }} />
                             <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: '#4ade80' }}>
-                                {completedStages} {completedStages === 1 ? 'stage' : 'stages'} completed
+                                {completedStages} {completedStages === 1 ? 'group' : 'groups'} completed
                             </Typography>
                             <Typography sx={{ fontSize: '0.68rem', color: '#475569' }}>
                                 · {totalStages - completedStages} remaining

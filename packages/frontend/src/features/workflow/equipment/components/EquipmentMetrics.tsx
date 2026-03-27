@@ -14,7 +14,9 @@ import {
 } from "@mui/icons-material";
 import { EquipmentByCategory } from "@/features/workflow/equipment/types/equipment.types";
 import { useBrand } from "@/features/platform/brand";
-import { formatCurrency } from "@/lib/utils/formatUtils";
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { formatCurrency } from "@/shared/utils/formatUtils";
+import { roundMoney } from '@/shared/utils/pricing';
 
 interface EquipmentMetricsProps {
     equipmentByCategory: EquipmentByCategory;
@@ -24,17 +26,17 @@ export const EquipmentMetrics: React.FC<EquipmentMetricsProps> = ({
     equipmentByCategory,
 }) => {
     const { currentBrand } = useBrand();
-    const currencyCode = currentBrand?.currency || 'USD';
+    const currencyCode = currentBrand?.currency ?? DEFAULT_CURRENCY;
 
     // Calculate summary statistics
     const allEquipment = Object.values(equipmentByCategory).flatMap(group => group.equipment || []);
 
     const totalItems = allEquipment.reduce((sum, item) => sum + (item.quantity || 1), 0);
     const totalValue = allEquipment.reduce((sum, item) =>
-        sum + (parseFloat(String(item.purchase_price || 0)) * (item.quantity || 1)), 0
+        sum + roundMoney(parseFloat(String(item.purchase_price || 0)) * (item.quantity || 1)), 0
     );
     const dailyRentalValue = allEquipment.reduce((sum, item) =>
-        sum + (parseFloat(String(item.rental_price_per_day || 0)) * (item.quantity || 1)), 0
+        sum + roundMoney(parseFloat(String(item.rental_price_per_day || 0)) * (item.quantity || 1)), 0
     );
     const maintenanceNeeded = allEquipment.filter(item => {
         if (!item.next_maintenance_due) return false;

@@ -1,24 +1,31 @@
 # Estimates
 
 ## What this module does
-Owns inquiry estimate endpoint bindings and estimate-facing feature exports for inquiry pricing workflows.
+Owns inquiry estimate endpoint bindings, UI components, and feature exports for inquiry pricing workflows.
 
 ## Key files
 | File | Purpose |
 |------|---------|
 | `api/index.ts` | Typed estimate CRUD, send, revise, refresh, and snapshot bindings |
-| `hooks/use-estimates-api.ts` | Hook wrapper for estimate API access |
-| `types/index.ts` | Estimate type exports for feature consumers |
-| `index.ts` | Public feature exports |
+| `hooks/use-estimates-api.ts` | React Query hooks for estimate operations |
+| `hooks/useEstimateAutoGen.ts` | Auto-generates initial line items from inquiry package |
+| `components/EstimatesCard.tsx` | Thin shell — accordion list orchestrator (~220 lines) |
+| `components/EstimateListItem.tsx` | Single estimate row with expand/collapse, category bar, actions |
+| `components/EstimateBuilderDialog.tsx` | Full-screen dialog for create/edit with line-item editor |
+| `components/EstimateVersionPopover.tsx` | Snapshot version history popover |
+| `types/index.ts` | Estimate, EstimateSnapshot, CreateEstimateData, UpdateEstimateData |
+| `index.ts` | Public barrel exports |
 
 ## Business rules / invariants
 - Estimates are always inquiry-scoped under `/api/inquiries/:inquiryId/estimates/*`.
-- Refresh, revise, send, and snapshot history are part of the same estimate lifecycle and stay in one feature-owned API.
+- Refresh, revise, send, and snapshot history are part of the same estimate lifecycle.
 - Consumers must import from this feature, not `estimatesService` or `api.estimates`.
-- Estimate totals and milestone application remain behavior-compatible during migration.
+- UI components use shared primitives from `features/finance/shared/`.
 
 ## Related modules
 - **Backend**: `packages/backend/src/finance/estimates`
+- **Shared UI**: `features/finance/shared` — FinanceSummarySidebar, CategoryBreakdownBar, ExpandedCategoryItems, PaymentScheduleRows
+- **Shared utils**: `shared/utils/pricing.ts` (computeTaxBreakdown), `shared/utils/formatUtils.ts` (getCurrencySymbol)
 - **Frontend**: `features/finance/payment-schedules` for milestone application and status updates
 - **Workflow**: `features/workflow/inquiries` for the parent inquiry surface
 - **Reference docs**: `PRICING_TOTALS_REFERENCE.md`

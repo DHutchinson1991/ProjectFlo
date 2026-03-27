@@ -31,12 +31,14 @@ import MicIcon from '@mui/icons-material/Mic';
 import EventIcon from '@mui/icons-material/Event';
 import PlaceIcon from '@mui/icons-material/Place';
 import PeopleIcon from '@mui/icons-material/People';
-import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
-import { api } from '@/lib/api';
+import { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
+import { packageSetsApi, servicePackagesApi } from '@/features/catalog/packages/api';
 import { inquiriesApi } from '@/features/workflow/inquiries';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
+import { useBrand } from '@/features/platform/brand';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import { getPackageStats, getCategoryColor, getTierColor } from '@/features/catalog/packages/components/listing/listing-helpers';
-import { formatCurrency } from '@/lib/utils/formatUtils';
+import { formatCurrency } from '@/features/workflow/proposals/utils/portal/formatting';
 
 /** Metadata about which set/tier a package belongs to */
 interface PackageSetInfo {
@@ -75,7 +77,7 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     onPackageDetailsClick,
 }) => {
     const { currentBrand } = useBrand();
-    const currencyCode = currentBrand?.currency || 'GBP';
+    const currencyCode = currentBrand?.currency ?? DEFAULT_CURRENCY;
 
     // NA response data
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -107,15 +109,15 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     // Fetch both service packages and package sets
     useEffect(() => {
         if (inquiry.brand_id) {
-            api.servicePackages.getAll(inquiry.brand_id).then(setAvailablePackages).catch(console.error);
-            api.packageSets.getAll(inquiry.brand_id).then(setPackageSets).catch(console.error);
+            servicePackagesApi.getAll().then(setAvailablePackages).catch(console.error);
+            packageSetsApi.getAll().then(setPackageSets).catch(console.error);
         }
     }, [inquiry.brand_id]);
 
     useEffect(() => {
         let cancelled = false;
 
-        api.schedule.inquiryFilms.getAll(inquiry.id)
+        scheduleApi.inquiryFilms.getAll(inquiry.id)
             .then((films) => {
                 if (cancelled) return;
                 setLiveFilms(films || []);
@@ -145,7 +147,7 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
         if (!inquiry.selected_package_id || !currentBrand?.id) return;
         let cancelled = false;
 
-        api.servicePackages.estimateInquiryPrice(currentBrand.id, inquiry.id)
+        servicePackagesApi.estimateInquiryPrice(currentBrand.id, inquiry.id)
             .then((pricing) => {
                 if (cancelled) return;
                 setInquiryPricing(pricing);

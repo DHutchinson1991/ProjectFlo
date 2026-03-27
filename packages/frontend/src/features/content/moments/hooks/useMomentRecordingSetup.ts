@@ -1,8 +1,8 @@
 "use client";
 
 import React from 'react';
-import type { TimelineScene } from '@/lib/types/timeline';
-import type { MomentRecordingSetupWithAssignments } from '@/lib/types/domains/recording-setup';
+import type { TimelineScene } from '@/features/content/content-builder/types/timeline';
+import type { MomentRecordingSetupWithAssignments } from '@/features/content/moments/types/recording-setup';
 import type { ShotType } from '@/features/content/coverage/types';
 import type { ScenesApi } from '@/features/content/scenes/api';
 import type { SceneMomentWithSetup, UpdateSceneMomentsFn } from './moment-hook.types';

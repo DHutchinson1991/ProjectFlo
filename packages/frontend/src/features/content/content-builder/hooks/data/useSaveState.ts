@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { TimelineScene, SaveState } from '@/lib/types/timeline';
+import { TimelineScene, SaveState } from '@/features/content/content-builder/types/timeline';
 
 /**
  * Hook for managing save state and unsaved changes detection

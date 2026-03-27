@@ -5,14 +5,14 @@ import { Box, Typography } from "@mui/material";
 import { alpha, keyframes } from "@mui/material/styles";
 import { CheckCircle as CheckCircleIcon, EditLocationAlt as ChangeIcon, Public as GlobeIcon } from "@mui/icons-material";
 import dynamic from "next/dynamic";
-import { C } from '../constants/wizard-config';
-import { fadeInUp } from '../constants/animations';
-import { NACtx, NominatimResult } from '../types';
-import { searchNominatim, formatShortAddress } from '../selectors/wizard-navigation';
-import { VenueSelectedView } from "./VenueSelectedView";
-import { VenueSearchMode } from "./VenueSearchMode";
+import { C } from '../../constants/wizard-config';
+import { fadeInUp } from '../../constants/animations';
+import { NACtx, NominatimResult } from '../../types';
+import { searchNominatim, formatShortAddress } from '../../selectors/wizard-navigation';
+import { VenueSelectedView } from "../VenueSelectedView";
+import { VenueSearchMode } from "../VenueSearchMode";
 
-const UKRegionMap = dynamic(() => import("./UKRegionMap"), { ssr: false });
+const UKRegionMap = dynamic(() => import("../UKRegionMap"), { ssr: false });
 
 const mapFadeIn = keyframes`
     from { opacity: 0; transform: scale(0.97); }

@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, CardContent, Button, Stack } from '@mui/material';
 import { CheckCircle, EmojiEvents } from '@mui/icons-material';
 import { inquiriesApi } from '@/features/workflow/inquiries';
-import { InquiryStatus } from '@/lib/types';
+import { InquiryStatus } from '@/features/workflow/inquiries/types';
 import type { WorkflowCardProps } from '../lib';
 import { WorkflowCard } from './WorkflowCard';
 

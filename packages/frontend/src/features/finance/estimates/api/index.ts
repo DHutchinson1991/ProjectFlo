@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/api/client';
 import type { ApiClient } from '@/shared/api/client';
-import type { CreateEstimateData, Estimate, UpdateEstimateData } from '../types';
+import type { CreateEstimateData, Estimate, EstimateSnapshot, UpdateEstimateData } from '../types';
 
 export function createEstimatesApi(client: ApiClient) {
     return {
@@ -21,7 +21,7 @@ export function createEstimatesApi(client: ApiClient) {
         revise: (inquiryId: number, estimateId: number) =>
             client.post<Estimate>(`/api/inquiries/${inquiryId}/estimates/${estimateId}/revise`, {}),
         getSnapshots: (inquiryId: number, estimateId: number) =>
-            client.get<unknown[]>(`/api/inquiries/${inquiryId}/estimates/${estimateId}/snapshots`),
+            client.get<EstimateSnapshot[]>(`/api/inquiries/${inquiryId}/estimates/${estimateId}/snapshots`),
     };
 }
 

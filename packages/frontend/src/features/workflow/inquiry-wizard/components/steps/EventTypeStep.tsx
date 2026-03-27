@@ -4,9 +4,9 @@ import React from "react";
 import { Box, Typography } from "@mui/material";
 import { alpha, keyframes, lighten, darken } from "@mui/material/styles";
 import { Check as CheckIcon } from "@mui/icons-material";
-import { C } from '../constants/wizard-config';
-import { fadeInUp } from '../constants/animations';
-import { NACtx } from '../types';
+import { C } from '../../constants/wizard-config';
+import { fadeInUp } from '../../constants/animations';
+import { NACtx } from '../../types';
 
 /* warm / cool palette per card position — used as fallback when DB color is absent */
 const CARD_THEMES = [

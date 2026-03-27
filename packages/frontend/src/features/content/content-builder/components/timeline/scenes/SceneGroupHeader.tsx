@@ -21,10 +21,10 @@ import MovieFilterIcon from "@mui/icons-material/MovieFilter";
 import MomentsHeader from "../moments/MomentsHeader";
 import BeatsHeader from "../beats/BeatsHeader";
 import type { SceneHeaderGroup } from "../../../hooks/scenes/useSceneHeaderGroups";
-import type { TimelineScene } from "@/lib/types/timeline";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
 import type { TimelineSceneMoment } from "@/features/content/moments/types";
-import type { SceneBeat } from "@/lib/types/domains/beats";
-import type { ViewState } from "@/lib/types/timeline";
+import type { SceneBeat } from "@/features/content/scenes/types/beats";
+import type { ViewState } from "@/features/content/content-builder/types/timeline";
 
 interface SceneGroupHeaderProps {
     group: SceneHeaderGroup;

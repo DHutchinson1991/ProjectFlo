@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { useBrand } from '@/features/platform/brand';
 import {
     Box,
     Typography,
@@ -15,12 +15,12 @@ import {
     Tab,
 } from '@mui/material';
 import { Assignment } from '@mui/icons-material';
-import { Inquiry, InquiryTask, NeedsAssessmentSubmission } from '@/lib/types';
+import { Inquiry, InquiryTask, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
 import { inquiriesApi } from '@/features/workflow/inquiries';
 import { taskLibraryApi } from '@/features/catalog/task-library';
 import { inquiryWizardSubmissionsApi } from '@/features/workflow/inquiry-wizard';
 import { calendarApi, type BackendContributor } from '@/features/workflow/calendar/api';
-import { computeTaxBreakdown } from '@/lib/utils/pricing';
+import { computeTaxBreakdown } from '@/shared/utils/pricing';
 
 import {
     getConversionScore,
@@ -76,9 +76,8 @@ export default function InquiryDetailScreen() {
     const [pipelineTasks, setPipelineTasks] = useState<PipelineTask[]>([]);
     const [inquiryTasksData, setInquiryTasksData] = useState<InquiryTask[]>([]);
     const [hasRealTasks, setHasRealTasks] = useState(false);
-    const [contributors, setContributors] = useState<BackendContributor[]>([]);
+    const [crewMembers, setContributors] = useState<BackendContributor[]>([]);
     const [needsAssessmentDialogOpen, setNeedsAssessmentDialogOpen] = useState(false);
-    const [estimateRefreshKey, setEstimateRefreshKey] = useState(0);
 
     /* ---- data loading ---- */
     useEffect(() => {
@@ -121,7 +120,7 @@ export default function InquiryDetailScreen() {
             const data = await calendarApi.getContributors();
             setContributors(data);
         } catch (err) {
-            console.error('Error loading contributors:', err);
+            console.error('Error loading crewMembers:', err);
         }
     };
 
@@ -170,7 +169,6 @@ export default function InquiryDetailScreen() {
 
     const handleRefresh = async () => {
         await Promise.all([loadInquiry(false), loadPipelineTasks()]);
-        setEstimateRefreshKey((k) => k + 1);
     };
 
     const handleCloseNeedsAssessmentDialog = () => {
@@ -178,7 +176,7 @@ export default function InquiryDetailScreen() {
         const params = new URLSearchParams(searchParams.toString());
         params.delete('open');
         const query = params.toString();
-        router.replace(query ? `/sales/inquiries/${inquiryId}?${query}` : `/sales/inquiries/${inquiryId}`);
+        router.replace(query ? `/inquiries/${inquiryId}?${query}` : `/inquiries/${inquiryId}`);
     };
 
     /* ---- loading / error guards ---- */
@@ -202,7 +200,7 @@ export default function InquiryDetailScreen() {
     if (!inquiry) return <Box sx={{ width: '100%', px: 3, py: 4 }}><Alert severity="warning">Inquiry not found</Alert></Box>;
 
     /* ---- computed values ---- */
-    const currentPhase = getActivePhaseFromTasks(pipelineTasks, inquiry as Inquiry & { activity_logs?: unknown[] });
+    const currentPhase = getActivePhaseFromTasks(pipelineTasks, inquiry);
 
     const conversionData = getConversionScore(inquiry);
     const daysInPipeline = getDaysInPipeline(inquiry);
@@ -304,7 +302,7 @@ export default function InquiryDetailScreen() {
                                         inquiryTasks={inquiryTasksData}
                                         isActive={currentPhase === 'needs-assessment'}
                                         activeColor={phaseColor('needs-assessment')}
-                                        onTasksChanged={() => { loadPipelineTasks(); setEstimateRefreshKey(k => k + 1); }}
+                                        onTasksChanged={() => { loadPipelineTasks(); }}
                                         WorkflowCard={WorkflowCard}
                                     />
                                 </div>
@@ -327,7 +325,7 @@ export default function InquiryDetailScreen() {
                             </Box>
 
                             <div id="estimates-section">
-                                <EstimatesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'estimates'} activeColor={phaseColor('estimates')} refreshKey={estimateRefreshKey} />
+                                <EstimatesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'estimates'} activeColor={phaseColor('estimates')} />
                             </div>
                         </Stack>
                     </Grid>

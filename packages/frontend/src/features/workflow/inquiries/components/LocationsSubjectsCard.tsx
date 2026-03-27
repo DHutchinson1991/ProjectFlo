@@ -9,8 +9,8 @@ import {
 } from '@mui/material';
 import PlaceIcon from '@mui/icons-material/Place';
 import PersonIcon from '@mui/icons-material/Person';
-import { Inquiry } from '@/lib/types';
-import { api } from '@/lib/api';
+import { Inquiry } from '@/features/workflow/inquiries/types';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 
 const PURPLE = '#a855f7';
 
@@ -45,8 +45,8 @@ const LocationsSubjectsCard: React.FC<LocationsSubjectsCardProps> = ({ inquiry, 
     const load = useCallback(() => {
         if (!inquiry.source_package_id && !inquiry.selected_package_id) return;
         Promise.all([
-            api.schedule.instanceLocationSlots.getForInquiry(inquiry.id),
-            api.schedule.instanceSubjects.getForInquiry(inquiry.id),
+            scheduleApi.instanceLocationSlots.getForInquiry(inquiry.id),
+            scheduleApi.instanceSubjects.getForInquiry(inquiry.id),
         ])
             .then(([slots, subs]) => {
                 setLocationSlots(slots ?? []);

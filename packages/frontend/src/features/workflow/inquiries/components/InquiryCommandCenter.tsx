@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Box, Typography, Card, CardContent } from '@mui/material';
-import { Inquiry } from '@/lib/types';
+import { Inquiry } from '@/features/workflow/inquiries/types';
 import WorkflowChecklist from './WorkflowChecklist';
 import DocumentManagement from './DocumentManagement';
 

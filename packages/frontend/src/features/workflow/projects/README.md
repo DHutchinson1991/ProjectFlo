@@ -28,10 +28,10 @@ Manages studio projects (films/events) — CRUD, phase tracking, and the studio-
 ## API factory
 ```ts
 import { createProjectsApi } from '@/features/workflow/projects';
-import { apiClient } from '@/lib/api';
-import type { ApiClient } from '@/lib/api/api-client.types';
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 
-const projectsApi = createProjectsApi(apiClient as unknown as ApiClient);
+const projectsApi = createProjectsApi(apiClient as ApiClient);
 ```
 
 ## Related modules

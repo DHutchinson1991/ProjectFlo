@@ -6,82 +6,92 @@ import {
     Patch,
     Param,
     Delete,
-    ParseIntPipe
+    ParseIntPipe,
+    UseGuards,
+    ValidationPipe,
 } from '@nestjs/common';
-import { SubjectsService } from './subjects.service';
+import { AuthGuard } from '@nestjs/passport';
+import { SubjectsCrudService } from './subjects-crud.service';
+import { SubjectSceneAssignmentsService } from './subject-scene-assignments.service';
+import { SubjectMomentAssignmentsService } from './subject-moment-assignments.service';
+import { SubjectRolesService } from './subject-roles.service';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { CreateSceneSubjectDto } from './dto/create-scene-subject.dto';
 import { UpdateSceneSubjectDto } from './dto/update-scene-subject.dto';
 import { CreateSubjectRolesDto } from './dto/create-subject-role.dto';
 import { UpdateSubjectRoleDto } from './dto/update-subject-role.dto';
-import { BrandId } from '../../core/auth/decorators/brand-id.decorator';
+import { BrandId } from '../../platform/auth/decorators/brand-id.decorator';
 
-@Controller('subjects')
+@Controller('api/subjects')
+@UseGuards(AuthGuard('jwt'))
 export class SubjectsController {
-    constructor(private readonly subjectsService: SubjectsService) { }
+    constructor(
+        private readonly crudService: SubjectsCrudService,
+        private readonly sceneAssignments: SubjectSceneAssignmentsService,
+        private readonly momentAssignments: SubjectMomentAssignmentsService,
+        private readonly rolesService: SubjectRolesService,
+    ) { }
 
     // Film-scoped subject management
     @Post('films/:filmId/subjects')
     create(
         @Param('filmId', ParseIntPipe) filmId: number,
-        @Body() createSubjectDto: CreateSubjectDto
+        @Body(ValidationPipe) createSubjectDto: CreateSubjectDto
     ) {
-        // Override film_id from URL parameter
         createSubjectDto.film_id = filmId;
-        return this.subjectsService.create(createSubjectDto);
+        return this.crudService.create(createSubjectDto);
     }
 
     @Get('films/:filmId/subjects')
     findAll(@Param('filmId', ParseIntPipe) filmId: number) {
-        return this.subjectsService.findAll(filmId);
+        return this.crudService.findAll(filmId);
     }
 
     @Get(':id')
     findOne(@Param('id', ParseIntPipe) id: number) {
-        return this.subjectsService.findOne(id);
+        return this.crudService.findOne(id);
     }
 
     @Patch(':id')
     update(
         @Param('id', ParseIntPipe) id: number,
-        @Body() updateSubjectDto: UpdateSubjectDto
+        @Body(ValidationPipe) updateSubjectDto: UpdateSubjectDto
     ) {
-        return this.subjectsService.update(id, updateSubjectDto);
+        return this.crudService.update(id, updateSubjectDto);
     }
 
     @Delete(':id')
     remove(@Param('id', ParseIntPipe) id: number) {
-        return this.subjectsService.remove(id);
+        return this.crudService.remove(id);
     }
 
-    // Utility endpoints
     @Get('templates/library')
     getSubjectTemplates(@BrandId() brandId?: number) {
-        return this.subjectsService.getSubjectTemplates(brandId);
+        return this.crudService.getSubjectTemplates(brandId);
     }
 
     // Scene subject assignments
     @Get('scenes/:sceneId')
     getByScene(@Param('sceneId', ParseIntPipe) sceneId: number) {
-        return this.subjectsService.getSceneSubjects(sceneId);
+        return this.sceneAssignments.getSceneSubjects(sceneId);
     }
 
     @Post('scenes/:sceneId/assign')
     assignToScene(
         @Param('sceneId', ParseIntPipe) sceneId: number,
-        @Body() dto: CreateSceneSubjectDto,
+        @Body(ValidationPipe) dto: CreateSceneSubjectDto,
     ) {
-        return this.subjectsService.assignSubjectToScene(sceneId, dto);
+        return this.sceneAssignments.assignSubjectToScene(sceneId, dto);
     }
 
     @Patch('scenes/:sceneId/subjects/:subjectId')
     updateSceneAssignment(
         @Param('sceneId', ParseIntPipe) sceneId: number,
         @Param('subjectId', ParseIntPipe) subjectId: number,
-        @Body() dto: UpdateSceneSubjectDto,
+        @Body(ValidationPipe) dto: UpdateSceneSubjectDto,
     ) {
-        return this.subjectsService.updateSceneSubject(sceneId, subjectId, dto);
+        return this.sceneAssignments.updateSceneSubject(sceneId, subjectId, dto);
     }
 
     @Delete('scenes/:sceneId/subjects/:subjectId')
@@ -89,30 +99,30 @@ export class SubjectsController {
         @Param('sceneId', ParseIntPipe) sceneId: number,
         @Param('subjectId', ParseIntPipe) subjectId: number,
     ) {
-        return this.subjectsService.removeSubjectFromScene(sceneId, subjectId);
+        return this.sceneAssignments.removeSubjectFromScene(sceneId, subjectId);
     }
 
     // Moment subject assignments
     @Get('moments/:momentId')
     getByMoment(@Param('momentId', ParseIntPipe) momentId: number) {
-        return this.subjectsService.getMomentSubjects(momentId);
+        return this.momentAssignments.getMomentSubjects(momentId);
     }
 
     @Post('moments/:momentId/assign')
     assignToMoment(
         @Param('momentId', ParseIntPipe) momentId: number,
-        @Body() dto: CreateSceneSubjectDto,
+        @Body(ValidationPipe) dto: CreateSceneSubjectDto,
     ) {
-        return this.subjectsService.assignSubjectToMoment(momentId, dto);
+        return this.momentAssignments.assignSubjectToMoment(momentId, dto);
     }
 
     @Patch('moments/:momentId/subjects/:subjectId')
     updateMomentAssignment(
         @Param('momentId', ParseIntPipe) momentId: number,
         @Param('subjectId', ParseIntPipe) subjectId: number,
-        @Body() dto: UpdateSceneSubjectDto,
+        @Body(ValidationPipe) dto: UpdateSceneSubjectDto,
     ) {
-        return this.subjectsService.updateMomentSubject(momentId, subjectId, dto);
+        return this.momentAssignments.updateMomentSubject(momentId, subjectId, dto);
     }
 
     @Delete('moments/:momentId/subjects/:subjectId')
@@ -120,7 +130,7 @@ export class SubjectsController {
         @Param('momentId', ParseIntPipe) momentId: number,
         @Param('subjectId', ParseIntPipe) subjectId: number,
     ) {
-        return this.subjectsService.removeSubjectFromMoment(momentId, subjectId);
+        return this.momentAssignments.removeSubjectFromMoment(momentId, subjectId);
     }
 
     // ===== Subject Role Management (Brand-specific) =====
@@ -129,29 +139,29 @@ export class SubjectsController {
     getSubjectRoles(
         @Param('brandId', ParseIntPipe) brandId: number,
     ) {
-        return this.subjectsService.getSubjectRoles(brandId);
+        return this.rolesService.getSubjectRoles(brandId);
     }
 
     @Post('roles/brand/:brandId')
     createSubjectRoles(
         @Param('brandId', ParseIntPipe) brandId: number,
-        @Body() dto: CreateSubjectRolesDto,
+        @Body(ValidationPipe) dto: CreateSubjectRolesDto,
     ) {
-        return this.subjectsService.createSubjectRoles(brandId, dto);
+        return this.rolesService.createSubjectRoles(brandId, dto);
     }
 
     @Patch('roles/:roleId')
     updateSubjectRole(
         @Param('roleId', ParseIntPipe) roleId: number,
-        @Body() dto: UpdateSubjectRoleDto,
+        @Body(ValidationPipe) dto: UpdateSubjectRoleDto,
     ) {
-        return this.subjectsService.updateSubjectRole(roleId, dto);
+        return this.rolesService.updateSubjectRole(roleId, dto);
     }
 
     @Delete('roles/:roleId')
     deleteSubjectRole(
         @Param('roleId', ParseIntPipe) roleId: number,
     ) {
-        return this.subjectsService.deleteSubjectRole(roleId);
+        return this.rolesService.deleteSubjectRole(roleId);
     }
 }

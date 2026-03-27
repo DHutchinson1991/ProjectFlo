@@ -11,7 +11,7 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-import { api } from '@/lib/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 import { useOptionalScheduleApi } from '@/features/workflow/scheduling/components';
 import type { EventDay } from '@/features/workflow/scheduling/components';
 import type {
@@ -54,11 +54,11 @@ export function SubjectsCard({
     // ─── ScheduleApi adapter (use context if available, else direct package API) ──
     const contextApi = useOptionalScheduleApi();
     const subjectApi = contextApi?.subjects ?? {
-        create: (dayId: number, data: any) => api.schedule.packageEventDaySubjects.create(packageId!, { event_day_template_id: dayId, ...data }),
-        update: (id: number, data: any) => api.schedule.packageEventDaySubjects.update(id, data),
-        delete: (id: number) => api.schedule.packageEventDaySubjects.delete(id),
-        assignActivity: (subjectId: number, activityId: number) => api.schedule.packageEventDaySubjects.assignActivity(subjectId, activityId),
-        unassignActivity: (subjectId: number, activityId: number) => api.schedule.packageEventDaySubjects.unassignActivity(subjectId, activityId),
+        create: (dayId: number, data: any) => scheduleApi.packageEventDaySubjects.create(packageId!, { event_day_template_id: dayId, ...data }),
+        update: (id: number, data: any) => scheduleApi.packageEventDaySubjects.update(id, data),
+        delete: (id: number) => scheduleApi.packageEventDaySubjects.delete(id),
+        assignActivity: (subjectId: number, activityId: number) => scheduleApi.packageEventDaySubjects.assignActivity(subjectId, activityId),
+        unassignActivity: (subjectId: number, activityId: number) => scheduleApi.packageEventDaySubjects.unassignActivity(subjectId, activityId),
     };
     // When using ScheduleApi, we always have a valid owner, so packageId check can be relaxed
     const hasOwner = !!contextApi || !!packageId;

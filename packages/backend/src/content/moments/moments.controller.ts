@@ -7,54 +7,61 @@ import {
     Param,
     Delete,
     ParseIntPipe,
+    UseGuards,
+    ValidationPipe,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ShotType } from '@prisma/client';
-import { MomentsService } from './moments.service';
+import { MomentsCrudService } from './moments-crud.service';
+import { MomentRecordingSetupService } from './moment-recording-setup.service';
 import { CreateMomentDto } from './dto/create-moment.dto';
 import { UpdateMomentDto } from './dto/update-moment.dto';
 
-@Controller('moments')
+@Controller('api/moments')
+@UseGuards(AuthGuard('jwt'))
 export class MomentsController {
-    constructor(private readonly momentsService: MomentsService) { }
+    constructor(
+        private readonly crudService: MomentsCrudService,
+        private readonly recordingService: MomentRecordingSetupService,
+    ) { }
 
     // Scene-scoped moment management
     @Post('scenes/:sceneId/moments')
     create(
         @Param('sceneId', ParseIntPipe) sceneId: number,
-        @Body() createMomentDto: CreateMomentDto
+        @Body(new ValidationPipe({ transform: true })) createMomentDto: CreateMomentDto
     ) {
-        // Override scene_id from URL parameter
         createMomentDto.film_scene_id = sceneId;
-        return this.momentsService.create(createMomentDto);
+        return this.crudService.create(createMomentDto);
     }
 
     @Get('scenes/:sceneId/moments')
     findAll(@Param('sceneId', ParseIntPipe) sceneId: number) {
-        return this.momentsService.findAll(sceneId);
+        return this.crudService.findAll(sceneId);
     }
 
     @Get(':id')
     findOne(@Param('id', ParseIntPipe) id: number) {
-        return this.momentsService.findOne(id);
+        return this.crudService.findOne(id);
     }
 
     @Get(':id/recording-setup')
     getRecordingSetup(@Param('id', ParseIntPipe) id: number) {
-        return this.momentsService.getRecordingSetup(id);
+        return this.recordingService.getRecordingSetup(id);
     }
 
     @Patch(':id')
     update(
         @Param('id', ParseIntPipe) id: number,
-        @Body() updateMomentDto: UpdateMomentDto
+        @Body(new ValidationPipe({ transform: true })) updateMomentDto: UpdateMomentDto
     ) {
-        return this.momentsService.update(id, updateMomentDto);
+        return this.crudService.update(id, updateMomentDto);
     }
 
     @Patch(':id/recording-setup')
     upsertRecordingSetup(
         @Param('id', ParseIntPipe) id: number,
-        @Body() data: {
+        @Body(new ValidationPipe({ transform: true })) data: {
             camera_track_ids?: number[];
             camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: ShotType | null }>;
             audio_track_ids?: number[];
@@ -62,25 +69,25 @@ export class MomentsController {
             graphics_title?: string | null;
         }
     ) {
-        return this.momentsService.upsertRecordingSetup(id, data);
+        return this.recordingService.upsertRecordingSetup(id, data);
     }
 
     @Delete(':id')
     remove(@Param('id', ParseIntPipe) id: number) {
-        return this.momentsService.remove(id);
+        return this.crudService.remove(id);
     }
 
     @Delete(':id/recording-setup')
     deleteRecordingSetup(@Param('id', ParseIntPipe) id: number) {
-        return this.momentsService.deleteRecordingSetup(id);
+        return this.recordingService.deleteRecordingSetup(id);
     }
 
     // Utility endpoints
     @Post('scenes/:sceneId/reorder')
     reorderMoments(
         @Param('sceneId', ParseIntPipe) sceneId: number,
-        @Body() momentOrderings: Array<{ id: number; order_index: number }>
+        @Body(new ValidationPipe({ transform: true })) momentOrderings: Array<{ id: number; order_index: number }>
     ) {
-        return this.momentsService.reorderMoments(sceneId, momentOrderings);
+        return this.crudService.reorderMoments(sceneId, momentOrderings);
     }
 }

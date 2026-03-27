@@ -20,8 +20,8 @@ import {
     Schedule as ActivityIcon,
     AccessTime as TimeIcon,
 } from '@mui/icons-material';
-import api from '@/lib/api';
 import { inquiriesApi } from '@/features/workflow/inquiries';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -118,7 +118,7 @@ export default function ProposalSchedulePreview({
         setError(null);
 
         const fetchFn = ownerType === 'project'
-            ? api.schedule.projectPackageSnapshot.getEventDays(ownerId)
+            ? scheduleApi.projectPackageSnapshot.getEventDays(ownerId)
             : inquiriesApi.scheduleSnapshot.getEventDays(ownerId);
 
         fetchFn

@@ -1,10 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from 'react';
-import EditorJS, { OutputData } from '@editorjs/editorjs';
-import Header from '@editorjs/header';
-import List from '@editorjs/list';
-import Paragraph from '@editorjs/paragraph';
+import type { OutputData } from '@editorjs/editorjs';
 import { Box } from '@mui/material';
 
 interface EditorBlockProps {
@@ -15,37 +12,57 @@ interface EditorBlockProps {
 }
 
 const EditorBlock: React.FC<EditorBlockProps> = ({ data, onChange, readOnly = false, holderId }) => {
-    const editorInstance = useRef<EditorJS | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const editorInstance = useRef<any>(null);
 
     useEffect(() => {
         if (editorInstance.current) return;
 
-        const editor = new EditorJS({
-            holder: holderId,
-            data: data,
-            readOnly: readOnly,
-            placeholder: 'Type your story here...',
-            tools: {
-                header: Header,
-                list: List,
-                paragraph: Paragraph,
-            },
-            onChange: async () => {
-                const savedData = await editor.save();
-                onChange(savedData);
-            },
-        });
+        let isMounted = true;
 
-        editorInstance.current = editor;
+        const initEditor = async () => {
+            // Dynamically import EditorJS and plugins so they are never evaluated
+            // during SSR (they reference browser-only globals like `Element`).
+            const [{ default: EditorJS }, { default: Header }, { default: List }, { default: Paragraph }] =
+                await Promise.all([
+                    import('@editorjs/editorjs'),
+                    import('@editorjs/header'),
+                    import('@editorjs/list'),
+                    import('@editorjs/paragraph'),
+                ]);
+
+            if (!isMounted) return;
+
+            const editor = new EditorJS({
+                holder: holderId,
+                data: data,
+                readOnly: readOnly,
+                placeholder: 'Type your story here...',
+                tools: {
+                    header: Header,
+                    list: List,
+                    paragraph: Paragraph,
+                },
+                onChange: async () => {
+                    const savedData = await editor.save();
+                    onChange(savedData);
+                },
+            });
+
+            editorInstance.current = editor;
+        };
+
+        initEditor();
 
         return () => {
+            isMounted = false;
             if (editorInstance.current && editorInstance.current.destroy) {
                 editorInstance.current.destroy();
                 editorInstance.current = null;
             }
         };
-    }, []); // Empty dependency array to init once. 
-    // Note: Handling updates to `data` prop from outside needs care to avoid loops/resets. 
+    }, []); // Empty dependency array to init once.
+    // Note: Handling updates to `data` prop from outside needs care to avoid loops/resets.
     // For now, we assume initial load only, or we need a way to key the component to force re-init.
 
     return (

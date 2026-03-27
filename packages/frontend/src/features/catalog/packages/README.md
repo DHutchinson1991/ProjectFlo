@@ -7,14 +7,16 @@ Manages service package sets and individual packages (tiers) available to client
 - Individual package CRUD with day coverage, location slots, equipment, and crew
 - Package picker dialog (used in inquiry wizard)
 - Package stats aggregation and tier color resolution
+- React Query list/mutation hooks for package library and slot assignment flows
 
 ## Folder Shape
 ```
-api/         — Typed API bindings (package-sets, service-packages endpoints)
+api/         — Typed API bindings split by resource (`service-packages.api.ts`, `package-sets.api.ts`, `package-categories.api.ts`)
+constants/   — Query keys for package library, package sets, and package detail invalidation
 components/  — listing/ (PackageSetCard, PackagePickerDialog), detail/ (CrewCard, PackageContentsCard, SummaryCard)
-hooks/       — usePackageSets, useServicePackages
+hooks/       — package detail hooks plus React Query hooks for package library/set mutations
 screens/     — PackagesScreen, PackageDetailScreen
-types/       — PackageSet, PackageSetSlot, package edit types
+types/       — PackageSet, PackageSetSlot, service package models, and API DTOs
 utils/       — package-helpers.ts (film stats, slot computations)
 ```
 
@@ -26,3 +28,7 @@ utils/       — package-helpers.ts (film stats, slot computations)
 - `GET /api/brands/:brandId/package-sets`
 - `POST /api/brands/:brandId/package-sets`
 - `GET /api/brands/:brandId/service-packages`
+
+## Notes
+- Package library screens should use feature hooks from `hooks/` instead of calling `servicePackagesApi` and `packageSetsApi` directly inside components.
+- Package set assignment, slot edits, and deletion should invalidate `constants/query-keys.ts` rather than manually reloading local screen state.

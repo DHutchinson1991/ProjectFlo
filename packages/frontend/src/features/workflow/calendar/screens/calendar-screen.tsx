@@ -26,10 +26,10 @@ export function CalendarScreen() {
         eventsError,
         filteredTasks,
         stats,
-        contributors,
-        currentUserContributor,
-        contributorsLoading,
-        contributorsError,
+        crewMembers,
+        currentUserCrewMember,
+        crewMembersLoading,
+        crewMembersError,
         isAddDialogOpen,
         setIsAddDialogOpen,
         addDialogType,
@@ -178,10 +178,10 @@ export function CalendarScreen() {
                 newTask={newTask}
                 setNewTask={setNewTask}
                 onAddTask={handleAddTask}
-                contributors={contributors}
-                currentUserContributor={currentUserContributor}
-                contributorsLoading={contributorsLoading}
-                contributorsError={contributorsError}
+                contributors={crewMembers}
+                currentUserCrewMember={currentUserCrewMember}
+                crewMembersLoading={crewMembersLoading}
+                crewMembersError={crewMembersError}
             />
 
             <EventModal
@@ -190,10 +190,10 @@ export function CalendarScreen() {
                 mode={eventModalMode}
                 event={selectedEvent}
                 initialData={eventInitialData}
-                contributors={contributors}
-                currentUserContributor={currentUserContributor}
-                contributorsLoading={contributorsLoading}
-                contributorsError={contributorsError}
+                contributors={crewMembers}
+                currentUserCrewMember={currentUserCrewMember}
+                crewMembersLoading={crewMembersLoading}
+                crewMembersError={crewMembersError}
                 onSave={handleEventSave}
                 onDelete={handleEventDelete}
                 isSaving={isCreatingEvent}

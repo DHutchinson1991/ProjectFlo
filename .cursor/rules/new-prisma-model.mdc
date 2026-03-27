@@ -1,0 +1,24 @@
+---
+description: End-to-end checklist for adding a new Prisma model (schema → migration → API → frontend).
+globs: packages/backend/**
+alwaysApply: false
+---
+
+# New Prisma Model — Workflow (ProjectFlo)
+
+- Design schema in `packages/backend/prisma/schema.prisma`:
+  - snake_case tables/columns
+  - tenant scoping via a relation path to `brands` (or document intentional global scope)
+  - `created_at` + `updated_at` on all models
+  - indexes on FKs and expected query filters/sorts
+  - use `Decimal` for money/percentages
+- Generate client: `pnpm db:generate`.
+- Create migration for production-bound models (don’t rely on `db:push` as final state).
+- Implement backend module under the correct bucket (`platform|catalog|workflow|content|finance`) with controller/service/DTOs/README; filter by brand in services, not controllers.
+- DTOs use `class-validator`; apply `ValidationPipe`.
+- Routes start with `/api/*`, guarded with JWT.
+- Add seed data only if needed; follow seed conventions and register in orchestrators.
+- Add frontend feature API bindings in `features/<bucket>/<feature>/api/` using the shared `ApiClient`; add types under the feature `types/` (never `src/lib/types`).
+- Add React Query hooks + query keys for server state consumers; brand-scope query keys and invalidation.
+- Write/update the feature/module `README.md` to document the new source of truth.
+

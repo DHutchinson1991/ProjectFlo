@@ -1,13 +1,25 @@
-import type { ApiClient } from '@/lib/api/api-client.types';
-import { apiClient } from '@/lib/api';
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 import type { SubjectRole, CreateSubjectRoleDto } from '../types';
 
-export const createRolesApi = (client: ApiClient) => ({
-  getRoles: (): Promise<SubjectRole[]> =>
-    client.get('/api/subjects/roles'),
+export interface SubjectRoleTemplate {
+  id: number;
+  category?: string;
+  roles: Array<{
+    id: number;
+    role_name: string;
+  }>;
+}
 
-  createRole: (dto: CreateSubjectRoleDto): Promise<SubjectRole | SubjectRole[]> =>
-    client.post('/api/subjects/roles', dto),
+export const createRolesApi = (client: ApiClient) => ({
+  getRoles: (brandId: number): Promise<SubjectRole[]> =>
+    client.get(`/api/subjects/roles/brand/${brandId}`),
+
+  getRoleTemplates: (brandId: number): Promise<SubjectRoleTemplate[]> =>
+    client.get(`/api/subjects/roles/brand/${brandId}`),
+
+  createRole: (brandId: number, dto: CreateSubjectRoleDto): Promise<SubjectRole | SubjectRole[]> =>
+    client.post(`/api/subjects/roles/brand/${brandId}`, dto),
 
   updateRole: (roleId: number, dto: { role_name?: string; description?: string; is_core?: boolean }): Promise<SubjectRole> =>
     client.patch(`/api/subjects/roles/${roleId}`, dto),
@@ -16,5 +28,5 @@ export const createRolesApi = (client: ApiClient) => ({
     client.delete(`/api/subjects/roles/${roleId}`),
 });
 
-export const rolesApi = createRolesApi(apiClient as unknown as ApiClient);
+export const rolesApi = createRolesApi(apiClient);
 export type RolesApi = ReturnType<typeof createRolesApi>;

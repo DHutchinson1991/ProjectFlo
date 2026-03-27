@@ -18,12 +18,15 @@ import {
 import { alpha } from "@mui/material/styles";
 import { Assignment as RentalIcon } from "@mui/icons-material";
 import { EquipmentRental } from "@/features/workflow/equipment/types/equipment.types";
+import { DEFAULT_CURRENCY, formatCurrency } from "@projectflo/shared";
 
 interface EquipmentRentalTabProps {
     rentals: EquipmentRental[];
+    currency: string;
 }
 
-export function EquipmentRentalTab({ rentals }: EquipmentRentalTabProps) {
+export function EquipmentRentalTab({ rentals, currency }: EquipmentRentalTabProps) {
+    const currencyCode = currency ?? DEFAULT_CURRENCY;
     return (
         <Card
             sx={{
@@ -88,8 +91,8 @@ export function EquipmentRentalTab({ rentals }: EquipmentRentalTabProps) {
                                         <TableCell sx={{ fontWeight: 600, color: "#f3f4f6" }}>{rental.renter_name}</TableCell>
                                         <TableCell sx={{ color: "#9ca3af" }}>{new Date(rental.start_date).toLocaleDateString()}</TableCell>
                                         <TableCell sx={{ color: "#9ca3af" }}>{new Date(rental.end_date).toLocaleDateString()}</TableCell>
-                                        <TableCell sx={{ fontWeight: 600, color: "#10b981" }}>${Number(rental.daily_rate).toFixed(2)}</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, color: "#60a5fa" }}>${Number(rental.total_cost).toFixed(2)}</TableCell>
+                                        <TableCell sx={{ fontWeight: 600, color: "#10b981" }}>{formatCurrency(Number(rental.daily_rate), currencyCode)}</TableCell>
+                                        <TableCell sx={{ fontWeight: 700, color: "#60a5fa" }}>{formatCurrency(Number(rental.total_cost), currencyCode)}</TableCell>
                                         <TableCell>
                                             <Chip
                                                 label={rental.status}

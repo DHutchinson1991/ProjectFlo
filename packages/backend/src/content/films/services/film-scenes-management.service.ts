@@ -1,6 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { LoggerService } from '../../../common/logging/logger.service';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { PrismaService } from '../../../platform/prisma/prisma.service';
 
 /**
  * Service for managing film scenes (refactor v2)
@@ -9,7 +8,7 @@ import { LoggerService } from '../../../common/logging/logger.service';
  */
 @Injectable()
 export class FilmScenesManagementService {
-  private readonly logger = new LoggerService(FilmScenesManagementService.name);
+  private readonly logger = new Logger(FilmScenesManagementService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 

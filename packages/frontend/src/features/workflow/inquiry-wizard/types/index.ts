@@ -1,5 +1,6 @@
-import { Brand, ServicePackage } from '@/lib/types';
-import { WelcomeSettings } from '@/lib/types/brand';
+import type { Brand } from '@/features/platform/brand/types';
+import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
+import { WelcomeSettings } from '@/features/platform/brand/types';
 import { EventType } from '@/features/catalog/event-types/types';
 
 export interface WizardStep {
@@ -63,7 +64,7 @@ export interface IwDateConflictResult {
 }
 
 export interface IwCrewConflictResult {
-    conflicts: { contributor_id: number; name: string; role: string; event_type: string; event_title: string }[];
+    conflicts: { crew_member_id: number; name: string; role: string; event_type: string; event_title: string }[];
 }
 
 // Portal / public wizard types
@@ -219,7 +220,7 @@ export interface NACtx {
     slotLabels: Map<number, string>;
     budgetLabels: string[];
     budgetMax: number | null;
-    currSym: string;
+    currency: string;
 
     // Brand
     currentBrand: Brand | null;

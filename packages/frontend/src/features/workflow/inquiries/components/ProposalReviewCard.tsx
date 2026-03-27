@@ -6,8 +6,8 @@ import { Handshake } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { calendarApi, type BackendCalendarEvent } from '@/features/workflow/calendar/api';
 import { calendarQueryKeys } from '@/features/workflow/calendar/constants/query-keys';
-import { useAuth } from '@/app/providers/AuthProvider';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { useAuth } from '@/features/platform/auth';
+import { useBrand } from '@/features/platform/brand';
 import MeetingScheduler, { MeetingFormData } from './MeetingScheduler';
 import type { WorkflowCardProps } from '../lib';
 import { WorkflowCard } from './WorkflowCard';
@@ -43,7 +43,7 @@ const ProposalReviewCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, i
                 ...meetingData,
                 event_type: 'PROPOSAL_REVIEW',
                 inquiry_id: inquiry.id,
-                contributor_id: user?.id || 1,
+                crew_member_id: user?.id || 1,
             }),
         onSuccess: invalidateMeetings,
     });

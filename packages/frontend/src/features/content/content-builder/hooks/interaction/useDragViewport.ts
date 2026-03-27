@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { ViewState } from '@/lib/types/timeline';
+import { ViewState } from '@/features/content/content-builder/types/timeline';
 
 /**
  * Hook for managing timeline viewport state and navigation

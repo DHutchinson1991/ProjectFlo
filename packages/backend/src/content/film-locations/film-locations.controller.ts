@@ -1,9 +1,11 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UseGuards, ValidationPipe } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { FilmLocationsService } from './film-locations.service';
 import { AssignFilmLocationDto } from './dto/assign-film-location.dto';
 import { SetSceneLocationDto } from './dto/set-scene-location.dto';
 
-@Controller('film-locations')
+@Controller('api/film-locations')
+@UseGuards(AuthGuard('jwt'))
 export class FilmLocationsController {
     constructor(private readonly filmLocationsService: FilmLocationsService) { }
 
@@ -15,7 +17,7 @@ export class FilmLocationsController {
     @Post('films/:filmId/locations')
     addFilmLocation(
         @Param('filmId', ParseIntPipe) filmId: number,
-        @Body() dto: AssignFilmLocationDto,
+        @Body(new ValidationPipe({ transform: true })) dto: AssignFilmLocationDto,
     ) {
         return this.filmLocationsService.addFilmLocation(filmId, dto);
     }
@@ -36,7 +38,7 @@ export class FilmLocationsController {
     @Put('scenes/:sceneId/location')
     setSceneLocation(
         @Param('sceneId', ParseIntPipe) sceneId: number,
-        @Body() dto: SetSceneLocationDto,
+        @Body(new ValidationPipe({ transform: true })) dto: SetSceneLocationDto,
     ) {
         return this.filmLocationsService.setSceneLocation(sceneId, dto);
     }

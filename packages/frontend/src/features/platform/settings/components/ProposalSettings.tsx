@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect, useCallback } from "react";
 import {
     Box,
@@ -39,7 +37,7 @@ import {
     CameraRoll as EquipmentIcon,
     Groups as CrewIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
+import { settingsApi } from "@/features/platform/settings/api";
 import { useBrand } from "@/features/platform/brand";
 
 /* ------------------------------------------------------------------ */
@@ -185,7 +183,7 @@ export default function ProposalSettings() {
 
     const loadDefaults = useCallback(async () => {
         try {
-            const setting = await api.brands.getSetting(brandId, "proposal_defaults");
+            const setting = await settingsApi.getByKey(brandId, "proposal_defaults");
             if (setting?.value) {
                 const parsed = JSON.parse(setting.value) as Partial<ProposalDefaults>;
                 setDefaults((prev) => ({ ...prev, ...parsed }));
@@ -225,9 +223,9 @@ export default function ProposalSettings() {
         try {
             const payload = { value: JSON.stringify(defaults), data_type: "json" };
             try {
-                await api.brands.updateSetting(brandId, "proposal_defaults", payload);
+                await settingsApi.update(brandId, "proposal_defaults", payload);
             } catch {
-                await api.brands.createSetting(brandId, { key: "proposal_defaults", value: JSON.stringify(defaults), data_type: "json", category: "proposals" });
+                await settingsApi.create(brandId, { key: "proposal_defaults", value: JSON.stringify(defaults), data_type: "json", category: "proposals" });
             }
             setNotification({ message: "Proposal defaults saved!", severity: "success" });
         } catch {

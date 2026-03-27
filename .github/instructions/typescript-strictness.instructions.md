@@ -31,6 +31,7 @@ Regardless of the current tsconfig relaxations, all **new code** must follow str
 - Do not add `@ts-ignore` or `@ts-expect-error` without a comment explaining why.
 - Prefer explicit return types on exported functions and hooks.
 - Use MUI's generic type parameters: `TextField<string>`, `Autocomplete<Option>`.
+- **No new types in `lib/types/`** — it is legacy-frozen. New types go in `features/<bucket>/<feature>/types/` or `shared/types/`.
 
 ## Type assertion rules
 

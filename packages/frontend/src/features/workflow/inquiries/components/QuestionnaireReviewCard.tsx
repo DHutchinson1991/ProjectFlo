@@ -22,7 +22,7 @@ import {
     Close,
     EditNote,
 } from '@mui/icons-material';
-import { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
+import { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
 
 interface QuestionnaireReviewCardProps {
     inquiry: Inquiry & { activity_logs?: unknown[] };

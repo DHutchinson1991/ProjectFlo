@@ -10,13 +10,13 @@ import {
     useSensor, useSensors, DragEndEvent, DragOverlay, DragStartEvent,
 } from '@dnd-kit/core';
 
-import type { ServicePackage } from '@/lib/types/domains/sales';
+import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 
-import type { PackageSet } from '../lib/types';
+import type { PackageSet } from '../../types/package-set.types';
 import {
     MAX_SLOTS, TIER_LABELS,
     resolveSlotTiers,
-} from '../lib/helpers';
+} from '../listing-helpers';
 import { DroppableSlotWrapper, DraggableFilledSlot } from './DndSlotWrappers';
 import { EmptySlot } from './EmptySlot';
 import { FilledSlot } from './FilledSlot';

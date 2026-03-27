@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../platform/prisma/prisma.service';
 import type { FilmLocation, FilmSceneLocation, LocationsLibrary } from '@prisma/client';
 import { AssignFilmLocationDto } from './dto/assign-film-location.dto';
 import { SetSceneLocationDto } from './dto/set-scene-location.dto';

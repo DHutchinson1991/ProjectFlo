@@ -1,4 +1,4 @@
-import type { ServicePackage } from '@/lib/types/domains/sales';
+import type { ServicePackage } from './service-package.types';
 
 // ─── Types ───────────────────────────────────────────────────────────
 

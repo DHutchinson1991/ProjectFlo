@@ -37,15 +37,20 @@ import {
     VisibilityOffOutlined,
     FiberManualRecord,
 } from '@mui/icons-material';
-import { api } from '@/lib/api';
+import { useMeetingSettings } from '@/features/platform/settings/hooks';
 import { inquiriesApi } from '@/features/workflow/inquiries';
+import {
+    discoveryQuestionnaireSubmissionsApi,
+    discoveryQuestionnaireTemplatesApi,
+} from '@/features/workflow/inquiries/api';
 import { paymentSchedulesApi } from '@/features/finance/payment-schedules';
 import {
     DiscoveryQuestionnaireTemplate,
     DiscoveryQuestionnaireSubmission,
     DiscoveryQuestion,
-} from '@/lib/types';
-import type { PaymentScheduleTemplate, PaymentScheduleRule } from '@/lib/types/domains/sales';
+} from '@/features/workflow/inquiries/types';
+import type { PaymentScheduleTemplate, PaymentScheduleRule } from '@/features/finance/payment-schedules/types';
+import { DEFAULT_CURRENCY, formatCurrency } from '@projectflo/shared';
 
 // ─── Section colours ───────────────────────────────────────────────────────────
 const SECTION_COLORS: Record<string, string> = {
@@ -354,7 +359,10 @@ function QuestionField({ question, value, onChange, activities = [], paymentSche
             };
             const rules = paymentSchedule?.rules ?? [];
             const formatRule = (r: PaymentScheduleRule) => {
-                const amt = r.amount_type === 'PERCENT' ? `${r.amount_value}%` : `£${r.amount_value.toFixed(2)}`;
+                const scheduleCurrency = (paymentSchedule as unknown as { currency?: string | null })?.currency || DEFAULT_CURRENCY;
+                const amt = r.amount_type === 'PERCENT'
+                    ? `${r.amount_value}%`
+                    : formatCurrency(r.amount_value, scheduleCurrency);
                 const trigger = TRIGGER_LABELS[r.trigger_type] ?? r.trigger_type;
                 const days = r.trigger_days && r.trigger_days > 0 ? ` (${r.trigger_days} days ${r.trigger_type === 'BEFORE_EVENT' ? 'before' : 'after'})` : '';
                 return `${r.label}: ${amt} ${trigger}${days}`;
@@ -539,6 +547,7 @@ export default function DiscoveryQuestionnaireFormDialog({
     existingSubmission,
     onSubmitted,
 }: DiscoveryQuestionnaireFormDialogProps) {
+    const { data: meetingSettings } = useMeetingSettings();
     const [template, setTemplate] = useState<DiscoveryQuestionnaireTemplate | null>(null);
     const [activities, setActivities] = useState<SnapshotActivity[]>([]);
     const [callDuration, setCallDuration] = useState<number>(20);
@@ -562,6 +571,11 @@ export default function DiscoveryQuestionnaireFormDialog({
             .replace(/\{\{brand_name\}\}/g, brandName || '[brand name]')
             .replace(/\{\{call_duration\}\}/g, String(callDuration));
 
+    useEffect(() => {
+        if (!open) return;
+        setCallDuration(meetingSettings?.duration_minutes ?? 20);
+    }, [meetingSettings?.duration_minutes, open]);
+
     // Load template
     useEffect(() => {
         if (!open) return;
@@ -569,9 +583,8 @@ export default function DiscoveryQuestionnaireFormDialog({
         setLoading(true);
         setError(null);
         Promise.all([
-            api.discoveryQuestionnaireTemplates.getActive(),
+            discoveryQuestionnaireTemplatesApi.getActive(),
             inquiriesApi.scheduleSnapshot.getActivities(inquiryId).catch(() => [] as SnapshotActivity[]),
-            brandId > 0 ? api.brands.getMeetingSettings(brandId).catch(() => null) : Promise.resolve(null),
             brandId > 0
                 ? inquiriesApi.getById(inquiryId)
                     .then((inq) => inq.preferred_payment_schedule_template_id
@@ -580,10 +593,9 @@ export default function DiscoveryQuestionnaireFormDialog({
                     .catch(() => null)
                 : Promise.resolve(null),
         ])
-            .then(([t, acts, meetingSettings, schedule]) => {
+            .then(([t, acts, schedule]) => {
                 setTemplate(t);
                 setActivities(acts ?? []);
-                if (meetingSettings?.duration_minutes) setCallDuration(meetingSettings.duration_minutes);
                 if (schedule) setPaymentSchedule(schedule);
                 if (existingSubmission?.responses) {
                     setResponses(existingSubmission.responses as Record<string, string | string[]>);
@@ -610,7 +622,7 @@ export default function DiscoveryQuestionnaireFormDialog({
             })
             .catch(() => setError('Failed to load questionnaire template.'))
             .finally(() => setLoading(false));
-    }, [open, existingSubmission, inquiryId]);
+            }, [open, existingSubmission, inquiryId, brandId]);
 
     // Group questions by section
     const sections = React.useMemo(() => {
@@ -649,7 +661,7 @@ export default function DiscoveryQuestionnaireFormDialog({
         try {
             let submission: DiscoveryQuestionnaireSubmission;
             if (existingSubmission?.id) {
-                submission = await api.discoveryQuestionnaireSubmissions.update(existingSubmission.id, {
+                submission = await discoveryQuestionnaireSubmissionsApi.update(existingSubmission.id, {
                     responses,
                     call_notes: callNotes || undefined,
                     transcript: transcript || undefined,
@@ -657,7 +669,7 @@ export default function DiscoveryQuestionnaireFormDialog({
                     call_duration_seconds: elapsed,
                 });
             } else {
-                submission = await api.discoveryQuestionnaireSubmissions.create({
+                submission = await discoveryQuestionnaireSubmissionsApi.create({
                     template_id: template.id,
                     inquiry_id: inquiryId,
                     responses,

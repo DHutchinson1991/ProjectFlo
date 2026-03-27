@@ -18,8 +18,8 @@ import {
     Grid
 } from '@mui/material';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
-import { MusicType, MUSIC_TYPE_OPTIONS } from '@/lib/types/moments';
-import { MusicLibraryItem } from '@/lib/api/music';
+import { MusicType, MUSIC_TYPE_OPTIONS } from '@/features/content/music/types';
+import type { MusicLibraryItem } from '@/features/content/music/types';
 import MusicTemplateDialog from './MusicTemplateDialog';
 
 interface MusicItem {

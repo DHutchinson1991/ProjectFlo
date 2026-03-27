@@ -2,10 +2,10 @@
 
 import React from "react";
 import { TextField } from "@mui/material";
-import { fieldSx } from '../constants/wizard-config';
-import { NACtx } from '../types';
-import { Q } from './QuestionWrapper';
-import { Suc } from './SuccessCheck';
+import { fieldSx } from '../../constants/wizard-config';
+import { NACtx } from '../../types';
+import { Q } from '../QuestionWrapper';
+import { Suc } from '../SuccessCheck';
 
 export default function PartnerScreen({ ctx }: { ctx: NACtx }) {
     const { eventConfig, responses, handleChange, handleContinue } = ctx;

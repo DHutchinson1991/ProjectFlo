@@ -1,6 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { LoggerService } from '../../../common/logging/logger.service';
+﻿import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { PrismaService } from '../../../platform/prisma/prisma.service';
 
 /**
  * Service for managing film timeline tracks
@@ -8,19 +7,19 @@ import { LoggerService } from '../../../common/logging/logger.service';
  */
 @Injectable()
 export class FilmTimelineTracksService {
-  private readonly logger = new LoggerService(FilmTimelineTracksService.name);
+  private readonly logger = new Logger(FilmTimelineTracksService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Get all tracks for a film, including crew assignment
    */
-  async getTracks(filmId: number) {
+  async getTracks(filmId: number, activeOnly = false) {
     return this.prisma.filmTimelineTrack.findMany({
-      where: { film_id: filmId },
+      where: { film_id: filmId, ...(activeOnly ? { is_active: true } : {}) },
       orderBy: { order_index: 'asc' },
       include: {
-        contributor: {
+        crew_member: {
           select: {
             id: true,
             crew_color: true,
@@ -38,7 +37,7 @@ export class FilmTimelineTracksService {
     const track = await this.prisma.filmTimelineTrack.findUnique({
       where: { id: trackId },
       include: {
-        contributor: {
+        crew_member: {
           select: {
             id: true,
             crew_color: true,
@@ -59,9 +58,17 @@ export class FilmTimelineTracksService {
    * Update track (name, active status, crew assignment, etc.)
    */
   async updateTrack(
+    filmId: number,
     trackId: number,
-    data: { name?: string; is_active?: boolean; contributor_id?: number | null },
+    data: { name?: string; is_active?: boolean; crew_member_id?: number | null; is_unmanned?: boolean },
   ) {
+    const track = await this.prisma.filmTimelineTrack.findFirst({
+      where: { id: trackId, film_id: filmId },
+    });
+    if (!track) {
+      throw new NotFoundException(`Track ${trackId} not found for film ${filmId}`);
+    }
+
     return this.prisma.filmTimelineTrack.update({
       where: { id: trackId },
       data: {
@@ -69,7 +76,7 @@ export class FilmTimelineTracksService {
         updated_at: new Date(),
       },
       include: {
-        contributor: {
+        crew_member: {
           select: {
             id: true,
             crew_color: true,
@@ -85,6 +92,6 @@ export class FilmTimelineTracksService {
    */
   async toggleTrackActive(trackId: number) {
     const track = await this.getTrack(trackId);
-    return this.updateTrack(trackId, { is_active: !track.is_active });
+    return this.updateTrack(track.film_id, trackId, { is_active: !track.is_active });
   }
 }

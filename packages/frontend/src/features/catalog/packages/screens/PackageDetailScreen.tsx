@@ -1,11 +1,13 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Box, Grid, Stack, CircularProgress, Alert } from '@mui/material';
 
-import { api } from '@/lib/api';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { filmsApi } from '@/features/content/films/api';
+import { useBrand } from '@/features/platform/brand';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 import { PackageScheduleCard } from '@/features/workflow/scheduling/components';
 import { ActivitiesCard } from '@/features/workflow/scheduling/components';
 import { FilmCreationWizard } from '@/features/workflow/scheduling/components/film-wizard';
@@ -38,7 +40,7 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
         setPackageFilms,
         packageEventDays, setPackageEventDays,
         packageActivities, setPackageActivities,
-        packageDayOperators, setPackageDayOperators,
+        PackageCrewSlots, setPackageCrewSlots,
         taskPreview,
         packageSubjects, setPackageSubjects,
         packageLocationSlots, setPackageLocationSlots,
@@ -97,11 +99,11 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
                 onNewPackage={() => setPackageCreationWizardOpen(true)}
             />
             <SummaryCard
-                packageDayOperators={packageDayOperators}
+                PackageCrewSlots={PackageCrewSlots}
                 taskPreview={taskPreview}
                 contents={formData.contents}
                 allEquipment={allEquipment}
-                currency={currentBrand?.currency || 'USD'}
+                currency={currentBrand?.currency || DEFAULT_CURRENCY}
                 taxRate={Number(currentBrand?.default_tax_rate ?? 0)}
                 cardSx={cardSx}
             />
@@ -109,7 +111,7 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
                 <PackageScheduleCard
                     packageId={packageId} brandId={safeBrandId ?? 0}
                     packageEventDays={packageEventDays} setPackageEventDays={setPackageEventDays}
-                    packageDayOperators={packageDayOperators}
+                    PackageCrewSlots={PackageCrewSlots}
                     dayCoverage={formData.contents?.day_coverage}
                     onDayCoverageChange={(dayId, cov) => {
                         setFormData((prev: typeof formData) => ({
@@ -128,7 +130,7 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
                     onSelectedActivityChange={setSelectedActivityId}
                     onActivityTimeChange={async (activityId, startTime, endTime) => {
                         try {
-                            await api.schedule.packageActivities.update(activityId, { start_time: startTime, end_time: endTime });
+                            await scheduleApi.packageActivities.update(activityId, { start_time: startTime, end_time: endTime });
                             setPackageActivities(prev => prev.map(a => a.id === activityId ? { ...a, start_time: startTime, end_time: endTime } : a));
                         } catch (err) { console.error('Failed to update activity time:', err); }
                     }}
@@ -143,7 +145,7 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
                         activeDayId={scheduleActiveDayId} cardSx={cardSx}
                         packageSubjects={packageSubjects} setPackageSubjects={setPackageSubjects}
                         packageLocationSlots={packageLocationSlots} setPackageLocationSlots={setPackageLocationSlots}
-                        packageDayOperators={packageDayOperators} setPackageDayOperators={setPackageDayOperators}
+                        PackageCrewSlots={PackageCrewSlots} setPackageCrewSlots={setPackageCrewSlots}
                         selectedActivityId={selectedActivityId} onSelectedActivityChange={setSelectedActivityId}
                         onColorPreview={(activityId, color) => {
                             if (activityId == null || color == null) setActivityColorOverrides({});
@@ -177,8 +179,8 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
                                 },
                             });
                             setFormData({ ...formData, contents: { ...formData.contents, items } });
-                            api.films.getById(result.filmId).then(newFilm => setFilms(prev => [...prev, newFilm])).catch(() => {});
-                            api.schedule.packageFilms.getAll(packageId).then(pfs => setPackageFilms(pfs)).catch(() => {});
+                            filmsApi.films.getById(result.filmId).then(newFilm => setFilms(prev => [...prev, newFilm])).catch(() => {});
+                            scheduleApi.packageFilms.getAll(packageId).then(pfs => setPackageFilms(pfs)).catch(() => {});
                         }}
                     />
                 )}
@@ -204,23 +206,23 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
                 <Grid item xs={12} md={3.5}>
                     <Stack spacing={2}>
                         <CrewCard
-                            packageId={packageId} packageDayOperators={packageDayOperators}
-                            setPackageDayOperators={setPackageDayOperators}
+                            packageId={packageId} PackageCrewSlots={PackageCrewSlots}
+                            setPackageCrewSlots={setPackageCrewSlots}
                             packageEventDays={packageEventDays} packageActivities={packageActivities}
                             scheduleActiveDayId={scheduleActiveDayId} selectedActivityId={selectedActivityId}
                             crewMembers={crewMembers} jobRoles={jobRoles}
-                            taskPreview={taskPreview} currency={currentBrand?.currency || 'USD'}
+                            taskPreview={taskPreview} currency={currentBrand?.currency || DEFAULT_CURRENCY}
                             cardSx={cardSx}
                         />
                         <EquipmentCard
                             packageId={packageId} safeBrandId={safeBrandId}
                             formData={formData} setFormData={setFormData}
-                            packageDayOperators={packageDayOperators} setPackageDayOperators={setPackageDayOperators}
+                            PackageCrewSlots={PackageCrewSlots} setPackageCrewSlots={setPackageCrewSlots}
                             packageEventDays={packageEventDays} packageActivities={packageActivities}
                             scheduleActiveDayId={scheduleActiveDayId} selectedActivityId={selectedActivityId}
                             allEquipment={allEquipment}
                             unmannedEquipment={unmannedEquipment} setUnmannedEquipment={setUnmannedEquipment}
-                            currency={currentBrand?.currency || 'USD'} cardSx={cardSx}
+                            currency={currentBrand?.currency || DEFAULT_CURRENCY} cardSx={cardSx}
                         />
                     </Stack>
                 </Grid>

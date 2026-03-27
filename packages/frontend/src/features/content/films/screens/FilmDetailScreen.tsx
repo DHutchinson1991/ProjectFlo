@@ -9,14 +9,15 @@ import { FilmRightPanel } from "../components";
 import { useFilmData, useFilmEquipment } from "../hooks";
 import { useTimelineStorage, useTimelineSave } from "@/features/content/content-builder/hooks/data";
 import { useFilmSubjects } from "@/features/content/subjects/hooks/useFilmSubjects";
-import { SubjectCategory } from "@/lib/types/domains/subjects";
-import { useBrand } from "@/app/providers/BrandProvider";
+import { useBrand } from "@/features/platform/brand";
 import type { FilmEquipmentAssignmentsBySlot } from "../types/film-equipment.types";
-import { api, apiClient } from "@/lib/api";
-import { createScenesApi } from "@/lib/api/scenes.api";
-import type { ApiClient } from "@/lib/api/api-client.types";
-import { buildAssignmentsBySlot, buildEquipmentSlotKey, buildEquipmentSlotNote } from "@/lib/utils/equipmentAssignments";
-import { transformBackendTrack } from "@/lib/utils/trackUtils";
+import { servicePackagesApi } from "@/features/catalog/packages/api";
+import { filmsApi } from "@/features/content/films/api";
+import { crewSlotsApi, scheduleApi } from "@/features/workflow/scheduling/api";
+import { locationsApi } from "@/features/workflow/locations/api";
+import { scenesApi } from "@/features/content/scenes/api";
+import { buildAssignmentsBySlot, buildEquipmentSlotKey, buildEquipmentSlotNote } from "@/features/content/films/utils/equipmentAssignments";
+import { transformBackendTrack } from "@/features/content/films/utils/trackUtils";
 
 interface FilmDetailScreenProps {
     filmId: number;
@@ -58,7 +59,7 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
         createSubject,
         deleteSubject,
         loadTemplates,
-    } = useFilmSubjects(filmId, currentBrand?.id);
+    } = useFilmSubjects(filmId);
 
     // Equipment management hook
     const { handleEquipmentChange } = useFilmEquipment(
@@ -78,9 +79,7 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
     const handleSaveFilm = useCallback(async (newName: string) => {
         if (!film) return;
         try {
-            const updated = await import("@/lib/api").then(({ api }) =>
-                api.films.update(film.id, { name: newName })
-            );
+            const updated = await filmsApi.films.update(film.id, { name: newName });
             // Merge the updated data with existing film data to maintain all fields
             setFilm({ ...film, name: updated.name });
         } catch (err) {
@@ -90,13 +89,12 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
     }, [film, setFilm]);
 
     // Handle subject creation
-    const handleAddSubject = useCallback(async (name: string, category: SubjectCategory) => {
+    const handleAddSubject = useCallback(async (name: string, roleTemplateId?: number) => {
         try {
             await createSubject({
                 film_id: filmId,
                 name,
-                category,
-                is_custom: true,
+                role_template_id: roleTemplateId ?? 0,
             });
         } catch (err) {
             console.error("Failed to create subject:", err);
@@ -148,7 +146,7 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
         let isMounted = true;
         const loadAssignments = async () => {
             try {
-                const assignments = await api.films.equipmentAssignments.getAll(filmId);
+                const assignments = await filmsApi.equipmentAssignments.getAll(filmId);
                 if (isMounted) {
                     setEquipmentAssignmentsBySlot(buildAssignmentsBySlot(assignments));
                 }
@@ -174,9 +172,9 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
             try {
                 const pkgId = Number(linkedPackageId);
                 const [operators, currentTracks, pkgData] = await Promise.all([
-                    api.operators.packageDay.getAll(pkgId),
-                    api.films.tracks.getAll(filmId),
-                    api.servicePackages.getOne(film.brand_id, pkgId).catch(() => null),
+                    crewSlotsApi.packageDay.getAll(pkgId),
+                    filmsApi.tracks.getAll(filmId),
+                    servicePackagesApi.getById(pkgId).catch(() => null),
                 ]);
 
                 // Build ordered list of operators-with-camera and audio equipment.
@@ -189,7 +187,7 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
                 const pendingUnmannedCams: { crewId: number | null; cameraEquipmentId: number; isUnmanned: boolean }[] = [];
 
                 (operators || []).forEach((op: any) => {
-                    const crewId = op.contributor_id ?? op.id;
+                    const crewId = op.crew_member_id ?? op.id;
                     const equipment = op.equipment?.length > 0 ? op.equipment : [];
 
                     equipment.forEach((eq: any) => {
@@ -249,7 +247,7 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
 
                 // Reconcile camera and audio track counts
                 if (neededCameras !== currentCameras || neededAudio !== currentAudio) {
-                    await api.films.equipment.update(filmId, {
+                    await filmsApi.equipment.update(filmId, {
                         num_cameras: neededCameras,
                         num_audio: neededAudio,
                         allow_removal: true,
@@ -257,9 +255,9 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
                 }
 
                 // Reload tracks to get their IDs
-                const rawTracks = await api.films.tracks.getAll(filmId);
+                const rawTracks = await filmsApi.tracks.getAll(filmId);
 
-                // Assign contributor_id to camera tracks and create equipment assignments
+                // Assign crew_member_id to camera tracks and create equipment assignments
                 const videoTracks = rawTracks.filter((t: any) => t.type === 'VIDEO').sort((a: any, b: any) => {
                     const numA = parseInt(a.name?.match(/(\d+)/)?.[1] || '0', 10);
                     const numB = parseInt(b.name?.match(/(\d+)/)?.[1] || '0', 10);
@@ -273,14 +271,14 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
                 for (let i = 0; i < videoTracks.length && i < cameraOperators.length; i++) {
                     const track = videoTracks[i];
                     const opData = cameraOperators[i];
-                    const needsCrewUpdate = track.contributor_id !== opData.crewId;
+                    const needsCrewUpdate = track.crew_member_id !== opData.crewId;
                     const needsUnmannedUpdate = track.is_unmanned !== opData.isUnmanned;
                     console.log(`[syncTracksFromPackage] Track ${i}: crewId=${opData.crewId}, isUnmanned=${opData.isUnmanned}, eqId=${opData.cameraEquipmentId}, needsCrewUpdate=${needsCrewUpdate}, needsUnmannedUpdate=${needsUnmannedUpdate}`);
                     
                     if (needsCrewUpdate || needsUnmannedUpdate) {
                         assignmentPromises.push(
-                            api.films.tracks.update(filmId, track.id, {
-                                contributor_id: opData.crewId,
+                            filmsApi.tracks.update(filmId, track.id, {
+                                crew_member_id: opData.crewId,
                                 is_unmanned: opData.isUnmanned,
                             })
                         );
@@ -288,7 +286,7 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
                     if (opData.cameraEquipmentId) {
                         const slotNote = buildEquipmentSlotNote(buildEquipmentSlotKey('camera', i + 1));
                         assignmentPromises.push(
-                            api.films.equipmentAssignments.assign(filmId, {
+                            filmsApi.equipmentAssignments.assign(filmId, {
                                 equipment_id: opData.cameraEquipmentId,
                                 notes: slotNote,
                             }).catch(() => {/* ignore if already assigned */})
@@ -307,20 +305,20 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
                 for (let i = 0; i < audioTracks.length && i < audioEquipment.length; i++) {
                     const track = audioTracks[i];
                     const audioData = audioEquipment[i];
-                    const needsCrewUpdate = track.contributor_id !== audioData.crewId;
+                    const needsCrewUpdate = track.crew_member_id !== audioData.crewId;
                     console.log(`[syncTracksFromPackage] Audio Track ${i}: crewId=${audioData.crewId}, eqId=${audioData.audioEquipmentId}, needsCrewUpdate=${needsCrewUpdate}`);
 
                     if (needsCrewUpdate) {
                         assignmentPromises.push(
-                            api.films.tracks.update(filmId, track.id, {
-                                contributor_id: audioData.crewId,
+                            filmsApi.tracks.update(filmId, track.id, {
+                                crew_member_id: audioData.crewId,
                             })
                         );
                     }
                     if (audioData.audioEquipmentId) {
                         const slotNote = buildEquipmentSlotNote(buildEquipmentSlotKey('audio', i + 1));
                         assignmentPromises.push(
-                            api.films.equipmentAssignments.assign(filmId, {
+                            filmsApi.equipmentAssignments.assign(filmId, {
                                 equipment_id: audioData.audioEquipmentId,
                                 notes: slotNote,
                             }).catch(() => {/* ignore if already assigned */})
@@ -333,22 +331,20 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
                 // Wait for all track updates and equipment assignments to complete
                 await Promise.all(assignmentPromises);
 
-                // ── Sync recording setups so all scenes show on all synced tracks ──
                 try {
-                    const scenesApiInstance = createScenesApi(apiClient as unknown as ApiClient);
                     const videoTrackIds = rawTracks.filter((t: any) => t.type === 'VIDEO').map((t: any) => t.id);
                     const audioTrackIds = rawTracks.filter((t: any) => t.type === 'AUDIO').map((t: any) => t.id);
 
                     // Only proceed if we have tracks to update
                     if (videoTrackIds.length > 0 || audioTrackIds.length > 0) {
-                        const filmScenesForSetup = await scenesApiInstance.scenes.getByFilm(filmId);
+                        const filmScenesForSetup = await scenesApi.scenes.getByFilm(filmId);
                         const setupPromises: Promise<any>[] = [];
 
                         for (const scene of filmScenesForSetup) {
                             const sceneRec = (scene as any).recording_setup;
                             // Upsert recording_setup for ALL scenes (create if missing, update if exists)
                             setupPromises.push(
-                                scenesApiInstance.scenes.recordingSetup.upsert(scene.id, {
+                                scenesApi.scenes.recordingSetup.upsert(scene.id, {
                                     camera_track_ids: videoTrackIds,
                                     audio_track_ids: audioTrackIds,
                                     graphics_enabled: sceneRec?.graphics_enabled ?? false,
@@ -359,7 +355,7 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
                             const moments = (scene as any).moments || [];
                             for (const moment of moments) {
                                 setupPromises.push(
-                                    scenesApiInstance.moments.upsertRecordingSetup(moment.id, {
+                                    scenesApi.moments.upsertRecordingSetup(moment.id, {
                                         camera_track_ids: videoTrackIds,
                                         camera_assignments: videoTrackIds.map((tid: number) => ({ track_id: tid })),
                                         audio_track_ids: audioTrackIds,
@@ -381,8 +377,8 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
 
                 // Final reload of tracks + equipment assignments
                 const [finalTracks, finalAssignments] = await Promise.all([
-                    api.films.tracks.getAll(filmId),
-                    api.films.equipmentAssignments.getAll(filmId),
+                    filmsApi.tracks.getAll(filmId),
+                    filmsApi.equipmentAssignments.getAll(filmId),
                 ]);
                 const transformedFinal = finalTracks.map((t: any) => transformBackendTrack(t));
                 setTracks(transformedFinal);
@@ -390,15 +386,16 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
 
                 // ── Sync subjects from package ──────────────────────────────
                 try {
-                    const pkgSubjects = await api.schedule.packageEventDaySubjects.getAll(pkgId);
+                    const pkgSubjects = await scheduleApi.packageEventDaySubjects.getAll(pkgId) as Array<{
+                        name: string;
+                        role_template_id?: number | null;
+                    }>;
                     for (const pkgSubject of pkgSubjects) {
                         try {
                             await createSubject({
                                 film_id: filmId,
                                 name: pkgSubject.name,
-                                category: pkgSubject.category || 'PEOPLE',
-                                role_template_id: pkgSubject.role_template_id || undefined,
-                                is_custom: false,
+                                role_template_id: pkgSubject.role_template_id ?? 0,
                             });
                         } catch {
                             // Ignore 400 duplicate — subject already exists on this film
@@ -410,11 +407,13 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
 
                 // ── Sync locations from package ─────────────────────────────
                 try {
-                    const pkgLocations = await api.schedule.packageEventDayLocations.getAll(pkgId);
+                    const pkgLocations = await scheduleApi.packageEventDayLocations.getAll(pkgId) as Array<{
+                        location_id?: number | null;
+                    }>;
                     for (const pkgLocation of pkgLocations) {
                         if (pkgLocation.location_id) {
                             try {
-                                await api.filmLocations.addToFilm(filmId, { location_id: pkgLocation.location_id });
+                                await locationsApi.filmLocations.addToFilm(filmId, { location_id: pkgLocation.location_id });
                             } catch {
                                 // Ignore duplicate — location already linked to this film
                             }

@@ -1,5 +1,7 @@
 import { IsString, IsOptional, IsInt, IsBoolean } from 'class-validator';
 
+export { UpdateEventDayDto } from './update-event-day.dto';
+
 export class CreateEventDayDto {
   @IsString()
   name: string;
@@ -13,20 +15,3 @@ export class CreateEventDayDto {
   order_index?: number;
 }
 
-export class UpdateEventDayDto {
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @IsOptional()
-  @IsInt()
-  order_index?: number;
-
-  @IsOptional()
-  @IsBoolean()
-  is_active?: boolean;
-}

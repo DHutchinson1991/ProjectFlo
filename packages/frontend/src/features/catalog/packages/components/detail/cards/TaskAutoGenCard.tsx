@@ -23,16 +23,17 @@ import PersonIcon from '@mui/icons-material/Person';
 import WorkIcon from '@mui/icons-material/Work';
 import FolderIcon from '@mui/icons-material/Folder';
 
-import { useBrand } from '@/app/providers/BrandProvider';
-import { api } from '@/lib/api';
-import { formatCurrency, getCurrencySymbol } from '@/lib/utils/formatUtils';
+import { useBrand } from '@/features/platform/brand';
+import { taskLibraryApi } from '@/features/catalog/task-library/api';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { formatCurrency } from '@/shared/utils/formatUtils';
 import {
     TaskAutoGenerationPreview,
     TaskAutoGenerationPreviewTask,
     PHASE_LABELS,
     ProjectPhase,
     TriggerType,
-} from '@/lib/types/task-library';
+} from '@/features/catalog/task-library/types';
 
 // ─── Trigger type icon helper ──────────────────────────────────────
 function triggerIcon(type: TriggerType) {
@@ -71,7 +72,7 @@ interface TaskAutoGenCardProps {
 
 export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGenCardProps) {
     const { currentBrand } = useBrand();
-    const currency = currentBrand?.currency || 'USD';
+    const currency = currentBrand?.currency || DEFAULT_CURRENCY;
     const [preview, setPreview] = useState<TaskAutoGenerationPreview | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -83,7 +84,7 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
         setLoading(true);
         setError(null);
         try {
-            const data = await api.taskLibrary.previewAutoGeneration(packageId, brandId);
+            const data = await taskLibraryApi.previewAutoGeneration(packageId, brandId);
             setPreview(data);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load task preview');
@@ -240,7 +241,7 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                                         <PersonIcon sx={{ fontSize: 10 }} />Crew
                                     </Typography>
                                     <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.3 }}>
-                                        {getCurrencySymbol(currency)} Cost
+                                        Cost
                                     </Typography>
                                     <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'right' }}>
                                         Hours
@@ -315,7 +316,7 @@ export function TaskAutoGenCard({ packageId, brandId, cardSx = {} }: TaskAutoGen
                                                     </Typography>
                                                     {/* Col 5: Phase cost */}
                                                     <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#f59e0b', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                                                        {phaseCost > 0 ? formatCurrency(phaseCost, currency) : `${getCurrencySymbol(currency)}—`}
+                                                        {phaseCost > 0 ? formatCurrency(phaseCost, currency) : '—'}
                                                     </Typography>
                                                     {/* Col 6: Phase hours */}
                                                     <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>

@@ -7,9 +7,9 @@
  * - Traditional coverage-split scene creation
  * - Track assignment and media component mapping
  */
-import { TimelineScene, TimelineTrack } from "@/lib/types/timeline";
+import { TimelineScene, TimelineTrack } from "@/features/content/content-builder/types/timeline";
 import { ScenesLibrary } from "@/features/content/scenes/types";
-import { SceneMediaComponent } from "@/lib/types/timeline";
+import { SceneMediaComponent } from "@/features/content/content-builder/types/timeline";
 import { getSceneColorByType } from "./colorUtils";
 
 export const createTimelineScenesFromLibraryScene = (

@@ -1,7 +1,7 @@
-import type { ApiClient } from "@/lib/api/api-client.types";
-import type { ContributorApiResponse } from "@/lib/types/api/users";
-import { mapContributorResponse } from "@/lib/types/mappers/users";
-import type { Contributor } from "@/lib/types";
+﻿import type { ApiClient } from "@/shared/api/client";
+import type { CrewMemberApiResponse } from "@/shared/types/user-api";
+import { mapCrewMemberResponse } from "@/shared/types/user-mappers";
+import type { CrewMember } from "@/shared/types/users";
 import type {
     Equipment,
     EquipmentRental,
@@ -15,6 +15,20 @@ import type {
     EquipmentByCategory,
     EquipmentStats,
 } from "../types/equipment.types";
+
+export interface EquipmentTemplateItem {
+    id: number;
+    slot_type: "CAMERA" | "AUDIO";
+    slot_index: number;
+    equipment_id: number;
+}
+
+export interface EquipmentTemplate {
+    id: number;
+    name: string;
+    description?: string | null;
+    items: EquipmentTemplateItem[];
+}
 
 export const createEquipmentApi = (client: ApiClient) => ({
     // Main equipment CRUD
@@ -65,6 +79,20 @@ export const createEquipmentApi = (client: ApiClient) => ({
         return client.get<Equipment[]>(`/equipment/available${queryString ? `?${queryString}` : ""}`);
     },
 
+    getAvailability: (equipmentId: number, query: { start_date: string; end_date: string; status?: string }) => {
+        const params = new URLSearchParams({
+            start_date: query.start_date,
+            end_date: query.end_date,
+        });
+        if (query.status) {
+            params.append('status', query.status);
+        }
+        return client.get<unknown[]>(`/equipment/${equipmentId}/availability?${params}`);
+    },
+
+    getTemplatesByBrand: (brandId: number): Promise<EquipmentTemplate[]> =>
+        client.get<EquipmentTemplate[]>(`/equipment/templates/brand/${brandId}`, { skipBrandContext: true }),
+
     // Equipment unmanned status
     findUnmanned: (brandId: number): Promise<Equipment[]> =>
         client.get<Equipment[]>(`/equipment/unmanned/${brandId}`),
@@ -73,9 +101,9 @@ export const createEquipmentApi = (client: ApiClient) => ({
         client.patch<Equipment>(`/equipment/${equipmentId}/unmanned`, { isUnmanned }),
 
     // Contributors (used to populate owner dropdowns)
-    getContributors: async (): Promise<Contributor[]> => {
-        const apiResponse = await client.get<ContributorApiResponse[]>("/contributors");
-        return apiResponse.map(mapContributorResponse);
+    getContributors: async (): Promise<CrewMember[]> => {
+        const apiResponse = await client.get<CrewMemberApiResponse[]>("/contributors");
+        return apiResponse.map(mapCrewMemberResponse);
     },
 
     // Equipment rental methods

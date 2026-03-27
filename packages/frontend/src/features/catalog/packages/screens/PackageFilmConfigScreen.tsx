@@ -3,10 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Box, CircularProgress, Alert, Typography } from '@mui/material';
-import { api } from '@/lib/api';
-import { createLinkedFilmFromTemplate, applyEquipmentTemplateToFilm } from '@/lib/utils/packageFilmLinker';
-import { useBrand } from '@/app/providers/BrandProvider';
-import { ServicePackageItem } from '@/lib/types/domains/sales';
+import { servicePackagesApi } from '@/features/catalog/packages/api';
+import { createLinkedFilmFromTemplate, applyEquipmentTemplateToFilm } from '@/features/catalog/packages/utils/packageFilmLinker';
+import { useBrand } from '@/features/platform/brand';
+import { ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
 
 interface PackageFilmConfigScreenProps {
     packageId: number;
@@ -24,8 +24,7 @@ export function PackageFilmConfigScreen({ packageId, itemId }: PackageFilmConfig
     useEffect(() => {
         const linkAndRedirect = async () => {
             try {
-                const allPkgs = await api.servicePackages.getAll(safeBrandId);
-                const pkg = allPkgs.find((p) => p.id === packageId);
+                const pkg = await servicePackagesApi.getById(packageId);
                 if (!pkg) throw new Error('Package not found');
 
                 const item = pkg.contents?.items?.find((i: ServicePackageItem) => i.id === itemId);
@@ -69,7 +68,7 @@ export function PackageFilmConfigScreen({ packageId, itemId }: PackageFilmConfig
                         : existingItem
                 );
 
-                await api.servicePackages.update(safeBrandId, packageId, {
+                await servicePackagesApi.update(packageId, {
                     ...pkg,
                     contents: { items: updatedItems },
                 });

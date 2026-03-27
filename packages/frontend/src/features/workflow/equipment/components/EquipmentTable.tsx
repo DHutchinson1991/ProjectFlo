@@ -12,16 +12,16 @@ import {
 } from "@mui/material";
 import { AttachMoney as MoneyIcon } from "@mui/icons-material";
 import { Equipment } from "@/features/workflow/equipment/types/equipment.types";
-import type { Contributor } from "@/lib/types";
+import type { CrewMember } from "@/shared/types/users";
 import { useBrand } from "@/features/platform/brand";
-import { getCurrencySymbol } from "@/lib/utils/formatUtils";
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import { EquipmentTableRow } from "./EquipmentTableRow";
 import { EquipmentQuickAddRow } from "./EquipmentQuickAddRow";
 
 interface EquipmentTableProps {
     equipment: Equipment[];
     type: string;
-    contributors: Contributor[];
+    crewMembers: CrewMember[];
     inlineEditingEquipment: number | null;
     inlineEditData: Partial<Equipment>;
     updateInlineEditData: (field: keyof Equipment, value: unknown) => void;
@@ -40,7 +40,7 @@ interface EquipmentTableProps {
 export function EquipmentTable({
     equipment,
     type,
-    contributors,
+    crewMembers,
     inlineEditingEquipment,
     inlineEditData,
     updateInlineEditData,
@@ -56,8 +56,7 @@ export function EquipmentTable({
     updateQuickAddData,
 }: EquipmentTableProps) {
     const { currentBrand } = useBrand();
-    const currencyCode = currentBrand?.currency || "USD";
-    const currencySymbol = getCurrencySymbol(currencyCode);
+    const currencyCode = currentBrand?.currency ?? DEFAULT_CURRENCY;
 
     return (
         <TableContainer
@@ -74,7 +73,7 @@ export function EquipmentTable({
                         <TableCell sx={{ fontWeight: 600, minWidth: 100 }}>Condition</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 600, minWidth: 120 }}>
                             <MoneyIcon fontSize="small" sx={{ verticalAlign: "middle", mr: 0.75 }} />
-                            {currencySymbol} Daily Rate
+                            Daily Rate
                         </TableCell>
                         <TableCell align="center" sx={{ fontWeight: 600, minWidth: 130 }}>Purchase Price</TableCell>
                         <TableCell sx={{ fontWeight: 600, minWidth: 120 }}>Location</TableCell>
@@ -95,9 +94,8 @@ export function EquipmentTable({
                             saveInlineEdit={saveInlineEdit}
                             setEquipmentToDelete={setEquipmentToDelete}
                             setDeleteConfirmOpen={setDeleteConfirmOpen}
-                            contributors={contributors}
+                            contributors={crewMembers}
                             currencyCode={currencyCode}
-                            currencySymbol={currencySymbol}
                         />
                     ))}
                     {quickAddType === type && (
@@ -106,8 +104,8 @@ export function EquipmentTable({
                             updateQuickAddData={updateQuickAddData}
                             cancelQuickAdd={cancelQuickAdd}
                             saveQuickAdd={saveQuickAdd}
-                            contributors={contributors}
-                            currencySymbol={currencySymbol}
+                            contributors={crewMembers}
+                            currencyCode={currencyCode}
                         />
                     )}
                 </TableBody>

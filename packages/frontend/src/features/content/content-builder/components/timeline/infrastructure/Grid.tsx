@@ -2,8 +2,8 @@
 
 import React from "react";
 import { Box, Typography, Select, MenuItem, FormControl } from "@mui/material";
-import { formatTime } from "@/lib/utils/formatUtils";
-import { TimelineScene } from "@/lib/types/timeline";
+import { formatTime } from "@/shared/utils/formatUtils";
+import { TimelineScene } from "@/features/content/content-builder/types/timeline";
 
 interface GridProps {
     scenes: TimelineScene[];

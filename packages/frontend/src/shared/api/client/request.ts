@@ -1,4 +1,11 @@
-import { getAuthToken } from "./token-provider";
+import {
+  clearAuthTokens,
+  getAuthToken,
+  getRefreshToken,
+  notifyUnauthorized,
+  setAuthToken,
+  setRefreshToken,
+} from "./token-provider";
 import type { ApiClientOptions } from "./types";
 
 const BRAND_STORAGE_KEY = "projectflo_current_brand";
@@ -21,7 +28,7 @@ export const buildAuthHeaders = (
   }
 
   const token = getAuthToken();
-  if (token) {
+  if (token && !options?.skipAuth) {
     headers.append("Authorization", `Bearer ${token}`);
   }
 
@@ -33,10 +40,59 @@ export const buildAuthHeaders = (
   return headers;
 };
 
+const parseResponse = async <T>(response: Response): Promise<T> => {
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("Authentication failed. Please log in again.");
+    }
+
+    const text = await response.text();
+    throw new Error(text || `HTTP ${response.status}`);
+  }
+
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  return {} as T;
+};
+
+const refreshAccessToken = async (baseUrl: string): Promise<boolean> => {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = await response.json() as {
+      access_token: string;
+      refresh_token: string;
+    };
+
+    setAuthToken(data.access_token);
+    setRefreshToken(data.refresh_token);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export const request = async <T>(
   endpoint: string,
   init: RequestInit = {},
   options?: ApiClientOptions,
+  hasRetried = false,
 ): Promise<T> => {
   const baseUrl = getApiBaseUrl();
 
@@ -54,14 +110,43 @@ export const request = async <T>(
     headers,
   });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `HTTP ${response.status}`);
+  if (response.status === 401 && !options?.skipAuth && !hasRetried) {
+    const refreshed = await refreshAccessToken(baseUrl);
+    if (refreshed) {
+      return request<T>(endpoint, init, options, true);
+    }
+
+    clearAuthTokens();
+    notifyUnauthorized();
   }
 
-  const contentType = response.headers.get("content-type");
-  if (contentType && contentType.includes("application/json")) {
-    return response.json();
-  }
-  return {} as T;
+  return parseResponse<T>(response);
+};
+
+export const requestExternal = async <T>(
+  url: string,
+  init: RequestInit = {},
+): Promise<T> => {
+  const response = await fetch(url, init);
+  return parseResponse<T>(response);
+};
+
+export const uploadFile = async <T = { url: string; filename: string }>(
+  file: File,
+  endpoint = "/upload",
+  options?: ApiClientOptions,
+): Promise<T> => {
+  const baseUrl = getApiBaseUrl();
+  const headers = buildAuthHeaders(false, options);
+  const formData = new FormData();
+
+  formData.append("file", file);
+
+  const response = await fetch(`${baseUrl}${endpoint}`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  return parseResponse<T>(response);
 };

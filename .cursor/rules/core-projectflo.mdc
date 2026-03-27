@@ -1,0 +1,14 @@
+---
+description: Core ProjectFlo standards, domain buckets, and high-level process rules for Cursor agents.
+alwaysApply: true
+---
+
+# ProjectFlo — Core Rules for Cursor
+
+- Read relevant `.github/instructions/*.instructions.md` files before asking questions they answer.
+- Treat this repo as a monorepo with `packages/backend` (NestJS + Prisma) and `packages/frontend` (Next.js + React Query + MUI).
+- All new feature work on backend and frontend must live under one of the standard domain buckets: `platform`, `catalog`, `workflow`, `content`, or `finance` — do not invent new top-level buckets like `core`, `helpers`, or `misc`.
+- Do not delete or move shared infrastructure such as `PrismaService`, logging, or auth modules without an explicit user instruction.
+- Keep feature-specific code in the owning feature folder, and update the feature `README.md` when changing business rules, key files, or cross-module relationships.
+- Prefer refactors that move code toward the target architecture described in the existing `.github/instructions/*` docs instead of expanding legacy locations.
+

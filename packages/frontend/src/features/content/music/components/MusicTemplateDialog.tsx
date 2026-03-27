@@ -19,8 +19,8 @@ import {
 } from '@mui/material';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import CloseIcon from '@mui/icons-material/Close';
-import { MusicType } from '@/lib/types/moments';
-import { musicApi, MusicLibraryItem } from '@/lib/api/music';
+import { MusicLibraryItem, MusicType } from '@/features/content/music/types';
+import { musicApi } from '@/features/content/music/api/music';
 
 interface MusicTemplateDialogProps {
     open: boolean;

@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { api } from '@/lib/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 import { Box } from '@mui/material';
 import { TimelinePanel, PlaybackPanel, DetailsPanel, MomentPanel, ModalsContainer } from './';
 import { useContentBuilder } from '../context/ContentBuilderContext';
@@ -49,7 +49,7 @@ export const ContentBuilderContainer: React.FC<ContentBuilderContainerProps> = (
       setActivityLocationCount(null);
       return;
     }
-    api.schedule.packageLocationSlots
+    scheduleApi.packageLocationSlots
       .getAll(packageId)
       .then((slots: any[]) => {
         const count = (slots || []).filter((s: any) =>

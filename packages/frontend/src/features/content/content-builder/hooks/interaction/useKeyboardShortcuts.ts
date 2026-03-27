@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { TimelineScene, ViewState } from '@/lib/types/timeline';
+import { TimelineScene, ViewState } from '@/features/content/content-builder/types/timeline';
 
 /**
  * Hook for handling keyboard shortcuts in the ContentBuilder

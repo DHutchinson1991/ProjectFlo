@@ -1,4 +1,5 @@
-import type { PaymentScheduleTemplate, ServicePackage } from "@/lib/types";
+import type { PaymentScheduleTemplate } from "@/features/finance/payment-schedules/types";
+import type { ServicePackage } from "@/features/catalog/packages/types/service-package.types";
 import type { NACtx } from '../types';
 
 type EnrichedPackage = ServicePackage & {
@@ -29,10 +30,6 @@ export function timingLabel(rule: PaymentScheduleTemplate["rules"][number]): str
 
 export function rulePercent(rule: PaymentScheduleTemplate["rules"][number]): number {
     return rule.amount_type === "PERCENT" ? Number(rule.amount_value) : 0;
-}
-
-export function fmtCurrency(sym: string, value: number): string {
-    return `${sym}${Math.round(value).toLocaleString()}`;
 }
 
 export function resolveTotal(ctx: NACtx): number | null {

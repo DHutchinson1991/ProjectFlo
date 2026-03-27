@@ -11,7 +11,7 @@ import LinkIcon from '@mui/icons-material/Link';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-import type { ServicePackageItem } from '@/lib/types/domains/sales';
+import type { ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
 import { getFilmStats } from '../../../utils/package-helpers';
 import type { FilmData, PackageActivityRecord } from '../../../types';
 

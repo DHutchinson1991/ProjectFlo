@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { TimelineScene } from "@/lib/types/timeline";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
 
 interface UseSceneNameEditingProps {
     scenes: TimelineScene[];

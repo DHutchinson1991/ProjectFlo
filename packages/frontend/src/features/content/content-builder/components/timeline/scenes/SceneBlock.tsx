@@ -3,9 +3,9 @@
 import React from "react";
 import { Box, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Button, Stack, Chip } from "@mui/material";
 import { alpha, lighten } from "@mui/material/styles";
-import { TimelineScene } from "@/lib/types/timeline";
-import { ViewState } from "@/lib/types/timeline";
-import { formatTime } from "@/lib/utils/formatUtils";
+import { TimelineScene } from "@/features/content/content-builder/types/timeline";
+import { ViewState } from "@/features/content/content-builder/types/timeline";
+import { formatTime } from "@/shared/utils/formatUtils";
 import { getSceneColorByType } from "../../../utils/colorUtils";
 import MomentEditor from "../moments/MomentEditor";
 import { useSceneLayout } from "../../../hooks";
@@ -15,13 +15,10 @@ import { MomentsContainer } from "../moments/MomentsContainer";
 import { BeatsContainer } from "../beats/BeatsContainer";
 import { SceneActions } from "./SceneActions";
 import type { SceneMoment, MomentFormData } from "@/features/content/moments/types";
-import { createScenesApi } from "@/features/content/scenes/api";
-import { apiClient } from "@/lib/api";
-import type { ApiClient } from "@/lib/api/api-client.types";
-import { TimelineTrack } from "@/lib/types/timeline";
-import { isLogEnabled } from "@/lib/debug/log-flags";
-import { createRecordingSetupApi } from "@/lib/api/recording-setup.api";
-import type { MomentRecordingSetup, SceneRecordingSetup } from "@/lib/types/domains/recording-setup";
+import { scenesApi } from "@/features/content/scenes/api";
+import { TimelineTrack } from "@/features/content/content-builder/types/timeline";
+import { isLogEnabled } from "@/shared/debug/log-flags";
+import type { MomentRecordingSetup, SceneRecordingSetup } from "@/features/content/moments/types/recording-setup";
 
 type MomentWithSetup = Omit<SceneMoment, "recording_setup"> & {
     recording_setup?: unknown;
@@ -56,8 +53,6 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
     readOnly = false,
     hoveredMomentId,
 }) => {
-    const scenesApi = React.useMemo(() => createScenesApi(apiClient as unknown as ApiClient), []);
-    const recordingSetupApi = React.useMemo(() => createRecordingSetupApi(apiClient as unknown as ApiClient), []);
     const { setScenes } = useContentBuilder();
     // 1. Scene Layout Hook
     const { width: sceneWidth, left: sceneLeft, showText } = useSceneLayout(scene, viewState);
@@ -167,8 +162,8 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
             });
         }
 
-        recordingSetupApi.recordingSetup
-            .getByMoment(infoMoment.id)
+        scenesApi.moments
+            .getRecordingSetup(infoMoment.id)
             .then((setup) => {
                 if (!isActive) return;
                 const normalizedSetup = setup && Object.keys(setup).length > 0 ? setup : null;
@@ -266,7 +261,7 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
         return () => {
             isActive = false;
         };
-    }, [infoOpen, infoMoment, recordingSetupApi, scenesApi, scene.id, shouldLog, trackId, trackName, trackType]);
+    }, [infoOpen, infoMoment, scene.id, shouldLog, trackId, trackName, trackType]);
 
     const handleMomentRecordingSetupSave = async (momentId: number, data: { camera_track_ids?: number[]; camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null }>; audio_track_ids?: number[]; graphics_enabled?: boolean; graphics_title?: string | null }) => {
         console.info("[MOMENT] Upsert recording setup request", {

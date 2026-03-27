@@ -6,12 +6,6 @@ import {
     Typography,
     Card,
     CardContent,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     IconButton,
     Alert,
     Snackbar,
@@ -28,6 +22,8 @@ import {
     Tab,
     Link,
 } from '@mui/material';
+import { StudioTable, type StudioColumn } from '@/shared/ui';
+import { sectionColors } from '@/shared/theme/tokens';
 import {
     Visibility as ViewIcon,
     Email as EmailIcon,
@@ -36,10 +32,14 @@ import {
     Edit as EditIcon,
     Delete as DeleteIcon,
     Add as AddIcon,
+    Person as PersonIcon,
+    Folder as ProjectIcon,
+    Numbers as CountIcon,
+    Settings as ActionsIcon,
 } from '@mui/icons-material';
-import { api } from '@/lib/api';
-import { Client, ClientListItem, CreateClientData, UpdateClientData } from '@/lib/types';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { clientsApi } from '@/features/workflow/clients/api';
+import type { Client, ClientListItem, CreateClientData, UpdateClientData } from '@/features/workflow/clients/types';
+import { useBrand } from '@/features/platform/brand';
 
 export function ClientsListScreen() {
     // Brand context
@@ -82,7 +82,7 @@ export function ClientsListScreen() {
     const loadClients = async () => {
         try {
             setIsLoading(true);
-            const data = await api.clients.getAll();
+            const data = await clientsApi.getAll();
             setClients(data);
         } catch (error) {
             console.error('Failed to load clients:', error);
@@ -153,7 +153,7 @@ export function ClientsListScreen() {
 
     const openViewDialog = async (clientId: number) => {
         try {
-            const client = await api.clients.getById(clientId);
+            const client = await clientsApi.getById(clientId);
             setSelectedClient(client);
             setViewDialogOpen(true);
         } catch (error) {
@@ -174,10 +174,10 @@ export function ClientsListScreen() {
         setIsSubmitting(true);
         try {
             if (editingClient) {
-                await api.clients.update(editingClient.id, formData);
+                await clientsApi.update(editingClient.id, formData);
                 showNotification('Client updated successfully', 'success');
             } else {
-                await api.clients.create(formData);
+                await clientsApi.create(formData);
                 showNotification('Client created successfully', 'success');
             }
 
@@ -198,7 +198,7 @@ export function ClientsListScreen() {
         if (!deletingClient) return;
 
         try {
-            await api.clients.delete(deletingClient.id);
+            await clientsApi.delete(deletingClient.id);
             showNotification('Client archived successfully', 'success');
             setDeleteDialogOpen(false);
             setDeletingClient(null);
@@ -269,108 +269,121 @@ export function ClientsListScreen() {
                             </Typography>
                         </Box>
                     ) : (
-                        <TableContainer>
-                            <Table>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>Contact</TableCell>
-                                        <TableCell>Latest Project</TableCell>
-                                        <TableCell>Total Projects</TableCell>
-                                        <TableCell>Actions</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {clients.map((client) => (
-                                        <TableRow key={client.id}>
-                                            <TableCell>
-                                                <Box>
-                                                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                        {client.contact.full_name}
+                        <StudioTable
+                            sectionColor={sectionColors.clients}
+                            columns={[
+                                {
+                                    key: 'contact',
+                                    label: 'Contact',
+                                    flex: 3,
+                                    headerIcon: <PersonIcon />,
+                                    render: (client) => (
+                                        <Box>
+                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                                {client.contact.full_name}
+                                            </Typography>
+                                            {client.contact.email && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                                                    <EmailIcon sx={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }} />
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {client.contact.email}
                                                     </Typography>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                                                        {client.contact.email && (
-                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                                <EmailIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                                                <Typography variant="caption" color="text.secondary">
-                                                                    {client.contact.email}
-                                                                </Typography>
-                                                            </Box>
-                                                        )}
-                                                    </Box>
-                                                    {client.contact.phone_number && (
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                                            <PhoneIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                                            <Typography variant="caption" color="text.secondary">
-                                                                {client.contact.phone_number}
-                                                            </Typography>
-                                                        </Box>
-                                                    )}
-                                                    {client.contact.company_name && (
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                                            <BusinessIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                                            <Typography variant="caption" color="text.secondary">
-                                                                {client.contact.company_name}
-                                                            </Typography>
-                                                        </Box>
-                                                    )}
                                                 </Box>
-                                            </TableCell>
-                                            <TableCell>
-                                                {client.latest_project_name ? (
-                                                    <Box>
-                                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                            {client.latest_project_name}
-                                                        </Typography>
-                                                        {client.latest_wedding_date && (
-                                                            <Typography variant="caption" color="text.secondary">
-                                                                {client.latest_wedding_date.toLocaleDateString()}
-                                                            </Typography>
-                                                        )}
-                                                    </Box>
-                                                ) : (
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        No projects
+                                            )}
+                                            {client.contact.phone_number && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                                                    <PhoneIcon sx={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }} />
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {client.contact.phone_number}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+                                            {client.contact.company_name && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                                                    <BusinessIcon sx={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }} />
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {client.contact.company_name}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+                                        </Box>
+                                    ),
+                                },
+                                {
+                                    key: 'latest_project',
+                                    label: 'Latest Project',
+                                    flex: 2,
+                                    headerIcon: <ProjectIcon />,
+                                    render: (client) =>
+                                        client.latest_project_name ? (
+                                            <Box>
+                                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                                    {client.latest_project_name}
+                                                </Typography>
+                                                {client.latest_wedding_date && (
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {client.latest_wedding_date.toLocaleDateString()}
                                                     </Typography>
                                                 )}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Typography variant="body2" color="text.secondary">
-                                                    View Details
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                                    <IconButton
-                                                        onClick={() => openViewDialog(client.id)}
-                                                        size="small"
-                                                        color="primary"
-                                                        title="View Details"
-                                                    >
-                                                        <ViewIcon fontSize="small" />
-                                                    </IconButton>
-                                                    <IconButton
-                                                        onClick={() => openEditDialog(client)}
-                                                        size="small"
-                                                        color="secondary"
-                                                        title="Edit Client"
-                                                    >
-                                                        <EditIcon fontSize="small" />
-                                                    </IconButton>
-                                                    <IconButton
-                                                        onClick={() => openDeleteDialog(client)}
-                                                        size="small"
-                                                        color="error"
-                                                        title="Archive Client"
-                                                    >
-                                                        <DeleteIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Box>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
+                                            </Box>
+                                        ) : (
+                                            <Typography variant="body2" color="text.secondary">
+                                                No projects
+                                            </Typography>
+                                        ),
+                                },
+                                {
+                                    key: 'total_projects',
+                                    label: 'Total Projects',
+                                    width: 130,
+                                    headerIcon: <CountIcon />,
+                                    align: 'center',
+                                    render: () => (
+                                        <Typography variant="body2" color="text.secondary">
+                                            View Details
+                                        </Typography>
+                                    ),
+                                },
+                                {
+                                    key: 'actions',
+                                    label: 'Actions',
+                                    width: 140,
+                                    align: 'center',
+                                    render: (client) => (
+                                        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                            <IconButton
+                                                onClick={() => openViewDialog(client.id)}
+                                                size="small"
+                                                color="primary"
+                                                title="View Details"
+                                            >
+                                                <ViewIcon fontSize="small" />
+                                            </IconButton>
+                                            <IconButton
+                                                onClick={() => openEditDialog(client)}
+                                                size="small"
+                                                color="secondary"
+                                                title="Edit Client"
+                                            >
+                                                <EditIcon fontSize="small" />
+                                            </IconButton>
+                                            <IconButton
+                                                onClick={() => openDeleteDialog(client)}
+                                                size="small"
+                                                color="error"
+                                                title="Archive Client"
+                                            >
+                                                <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                        </Box>
+                                    ),
+                                },
+                            ] as StudioColumn<ClientListItem>[]}
+                            rows={clients}
+                            getRowKey={(c) => c.id}
+                            onRowClick={(c) => openViewDialog(c.id)}
+                            emptyMessage="No clients found"
+                        />
                     )}
                 </CardContent>
             </Card>

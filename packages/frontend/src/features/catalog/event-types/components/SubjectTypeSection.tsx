@@ -29,7 +29,7 @@ import {
     ExpandMore as ExpandIcon,
     ExpandLess as CollapseIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
+import { eventTypesApi } from "@/features/catalog/event-types/api";
 import { rolesApi } from "@/features/content/subjects";
 import type { EventTypeSubject } from "../types";
 
@@ -63,9 +63,9 @@ export function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onRel
         if (!form.role_name.trim()) return;
         try {
             setSaving(true);
-            const newTemplate = await rolesApi.createRole(form);
+            const newTemplate = await rolesApi.createRole(brandId, form);
             if (newTemplate && !Array.isArray(newTemplate) && newTemplate.id) {
-                await api.eventTypes.linkSubjectRole(eventTypeId, { subject_role_id: newTemplate.id });
+                await eventTypesApi.linkSubjectRole(eventTypeId, { subject_role_id: newTemplate.id });
             }
             setDialogOpen(false);
             setForm({ role_name: "", description: "", category: "PEOPLE" });
@@ -91,7 +91,7 @@ export function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onRel
         if (!roleForm.role_name.trim()) return;
         try {
             setSaving(true);
-            await rolesApi.createRole(roleForm);
+            await rolesApi.createRole(brandId, roleForm);
             setRoleDialogOpen(false);
             setRoleForm({ role_name: "", description: "", is_core: false });
             await onReload();

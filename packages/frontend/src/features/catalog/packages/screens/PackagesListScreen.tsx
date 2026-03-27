@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     Box, Typography, CircularProgress, IconButton, Chip, Tooltip,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -15,10 +15,11 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import LinkIcon from '@mui/icons-material/Link';
 import { useRouter } from 'next/navigation';
 
-import { api } from '@/lib/api';
-import { ServicePackage } from '@/lib/types/domains/sales';
-import { useBrand } from '@/app/providers/BrandProvider';
-import { formatCurrency } from '@/lib/utils/formatUtils';
+import { useDeleteServicePackage, usePackageLibraryData } from '@/features/catalog/packages/hooks';
+import { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
+import { useBrand } from '@/features/platform/brand';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { formatCurrency } from '@/shared/utils/formatUtils';
 import { type PackageSet, CATEGORY_COLORS, getCategoryEmoji } from '../components/listing';
 
 function getCategoryColor(cat: string | null): string {
@@ -35,34 +36,16 @@ type SortDir = 'asc' | 'desc';
 export function PackagesListScreen() {
     const router = useRouter();
     const { currentBrand } = useBrand();
-    const safeBrandId = currentBrand?.id || 1;
-    const currencyCode = currentBrand?.currency || 'USD';
-
-    const [packages, setPackages] = useState<ServicePackage[]>([]);
-    const [sets, setSets] = useState<PackageSet[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const currencyCode = currentBrand?.currency ?? DEFAULT_CURRENCY;
     const [search, setSearch] = useState('');
     const [sortKey, setSortKey] = useState<SortKey>('name');
     const [sortDir, setSortDir] = useState<SortDir>('asc');
     const [deleteTarget, setDeleteTarget] = useState<ServicePackage | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
-
-    const loadData = useCallback(async () => {
-        try {
-            const [pkgs, setsData] = await Promise.all([
-                api.servicePackages.getAll(safeBrandId),
-                api.packageSets.getAll(safeBrandId),
-            ]);
-            setPackages(pkgs);
-            setSets(setsData);
-        } catch (err) {
-            console.error('Failed to load packages', err);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [safeBrandId]);
-
-    useEffect(() => { loadData(); }, [loadData]);
+    const packageLibraryQuery = usePackageLibraryData(currentBrand?.id);
+    const deletePackageMutation = useDeleteServicePackage(currentBrand?.id);
+    const packages = packageLibraryQuery.data?.packages ?? [];
+    const sets = packageLibraryQuery.data?.packageSets ?? [];
+    const isLoading = packageLibraryQuery.isLoading;
 
     const packageSetMap = useMemo(() => {
         const map = new Map<number, { setName: string; slotLabel: string; emoji: string }[]>();
@@ -129,15 +112,11 @@ export function PackagesListScreen() {
 
     const handleDelete = async () => {
         if (!deleteTarget) return;
-        setIsDeleting(true);
         try {
-            await api.servicePackages.delete(safeBrandId, deleteTarget.id);
+            await deletePackageMutation.mutateAsync(deleteTarget.id);
             setDeleteTarget(null);
-            await loadData();
         } catch (err) {
             console.error('Failed to delete package', err);
-        } finally {
-            setIsDeleting(false);
         }
     };
 
@@ -303,7 +282,7 @@ export function PackagesListScreen() {
                 </Table>
             </TableContainer>
 
-            <Dialog open={deleteTarget !== null} onClose={() => !isDeleting && setDeleteTarget(null)} PaperProps={{ sx: { bgcolor: 'rgba(15, 20, 25, 0.97)', backgroundImage: 'none', border: '1px solid rgba(148, 163, 184, 0.15)', borderRadius: 2.5 } }}>
+            <Dialog open={deleteTarget !== null} onClose={() => !deletePackageMutation.isPending && setDeleteTarget(null)} PaperProps={{ sx: { bgcolor: 'rgba(15, 20, 25, 0.97)', backgroundImage: 'none', border: '1px solid rgba(148, 163, 184, 0.15)', borderRadius: 2.5 } }}>
                 <DialogTitle sx={{ color: '#f1f5f9', fontWeight: 700 }}>Delete Package</DialogTitle>
                 <DialogContent>
                     <DialogContentText sx={{ color: '#94a3b8', fontSize: '0.85rem' }}>
@@ -316,9 +295,9 @@ export function PackagesListScreen() {
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setDeleteTarget(null)} disabled={isDeleting} sx={{ color: '#64748b', textTransform: 'none' }}>Cancel</Button>
-                    <Button onClick={handleDelete} disabled={isDeleting} variant="contained" sx={{ bgcolor: '#ef4444', textTransform: 'none', fontWeight: 700, '&:hover': { bgcolor: '#dc2626' } }}>
-                        {isDeleting ? 'Deleting…' : 'Delete'}
+                    <Button onClick={() => setDeleteTarget(null)} disabled={deletePackageMutation.isPending} sx={{ color: '#64748b', textTransform: 'none' }}>Cancel</Button>
+                    <Button onClick={handleDelete} disabled={deletePackageMutation.isPending} variant="contained" sx={{ bgcolor: '#ef4444', textTransform: 'none', fontWeight: 700, '&:hover': { bgcolor: '#dc2626' } }}>
+                        {deletePackageMutation.isPending ? 'Deleting…' : 'Delete'}
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -5,7 +5,7 @@ import { DndContext, useSensors, useSensor, PointerSensor, KeyboardSensor } from
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 
 // Import types
-import { ContentBuilderProps, TimelineScene } from '@/lib/types/timeline';
+import { ContentBuilderProps, TimelineScene } from '@/features/content/content-builder/types/timeline';
 import { ScenesLibrary } from '@/features/content/scenes/types';
 
 // Import new provider and container

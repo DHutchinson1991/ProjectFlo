@@ -1,13 +1,8 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api';
-import { createFilmsApi } from '@/features/content/films/api';
-import { createScenesApi } from '../api';
-import type { ApiClient } from '@/lib/api/api-client.types';
+import { filmsApi } from '@/features/content/films/api';
+import { scenesApi } from '../api';
 import type { ScenesLibrary } from '../types';
 import type { DurationMode, SceneType } from '@/features/content/films/types/film-scenes.types';
-
-const filmsApi = createFilmsApi(apiClient as unknown as ApiClient);
-const scenesApi = createScenesApi(apiClient as unknown as ApiClient);
 
 export function useSceneCreation(filmId: number, onSceneCreated?: () => void) {
     const [open, setOpen] = useState(false);

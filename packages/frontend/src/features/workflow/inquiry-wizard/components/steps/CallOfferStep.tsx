@@ -8,10 +8,10 @@ import {
     PhoneInTalk as PhoneInTalkIcon,
     Schedule as ScheduleIcon,
 } from "@mui/icons-material";
-import { C, glassSx } from '../constants/wizard-config';
-import { fadeInUp, checkPop, selectPulse, pulseRing } from '../constants/animations';
-import { NACtx } from '../types';
-import { Q } from './QuestionWrapper';
+import { C, glassSx } from '../../constants/wizard-config';
+import { fadeInUp, checkPop, selectPulse, pulseRing } from '../../constants/animations';
+import { NACtx } from '../../types';
+import { Q } from '../QuestionWrapper';
 
 export default function CallOfferScreen({ ctx }: { ctx: NACtx }) {
     const { responses, singleSelect, callSlotsDuration } = ctx;

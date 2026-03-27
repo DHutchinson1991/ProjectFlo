@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
-import { FilmType } from '@/lib/types/domains/film';
+import { FilmType } from '@/features/content/films/types';
 import type { PackageActivityRecord } from '../FilmCreationWizard';
 
 interface ActivitySelectionStepProps {

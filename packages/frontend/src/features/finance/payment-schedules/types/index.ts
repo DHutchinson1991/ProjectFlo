@@ -70,16 +70,14 @@ export interface UpdatePaymentScheduleTemplateData {
     rules?: PaymentScheduleRule[];
 }
 
-export interface ApplyScheduleToEstimateData {
+export interface ApplyScheduleData {
     template_id: number;
     booking_date: string;
     event_date: string;
     total_amount: number;
 }
 
-export interface ApplyScheduleToQuoteData {
-    template_id: number;
-    booking_date: string;
-    event_date: string;
-    total_amount: number;
-}
+/** @deprecated Use ApplyScheduleData instead */
+export type ApplyScheduleToEstimateData = ApplyScheduleData;
+/** @deprecated Use ApplyScheduleData instead */
+export type ApplyScheduleToQuoteData = ApplyScheduleData;

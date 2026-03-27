@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Stack } from "@mui/material";
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { TaskLibrary, TaskLibraryPhaseGroup, ProjectPhase, JobRole, SkillRoleMapping } from "@/lib/types";
+import { TaskLibrary, TaskLibraryPhaseGroup, ProjectPhase, JobRole, SkillRoleMapping } from "@/features/catalog/task-library/types";
 import { DroppableZone } from "./DroppableZone";
 import { TaskAccordion } from "./TaskAccordion";
 import { DragOverlayTask } from "./DragOverlayTask";
@@ -30,11 +30,11 @@ interface TaskAccordionListProps {
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
     jobRoles: JobRole[];
     allMappings: SkillRoleMapping[];
-    contributors: { id: number; contact: { first_name?: string; last_name?: string } }[];
+    crewMembers: { id: number; contact: { first_name?: string; last_name?: string } }[];
     expandedTaskId: number | null;
     onToggleExpand: (taskId: number) => void;
     onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
-    onUpdateContributor: (taskId: number, contributorId: number | null) => Promise<void>;
+    onUpdateContributor: (taskId: number, crewMemberId: number | null) => Promise<void>;
 }
 
 export function TaskAccordionList({
@@ -59,7 +59,7 @@ export function TaskAccordionList({
     updateQuickAddData,
     jobRoles,
     allMappings,
-    contributors,
+    crewMembers,
     expandedTaskId,
     onToggleExpand,
     onUpdateRoleSkills,
@@ -136,7 +136,7 @@ export function TaskAccordionList({
                             updateQuickAddData={updateQuickAddData}
                             jobRoles={jobRoles}
                             allMappings={allMappings}
-                            contributors={contributors}
+                            contributors={crewMembers}
                             expandedTaskId={expandedTaskId}
                             onToggleExpand={onToggleExpand}
                             onUpdateRoleSkills={onUpdateRoleSkills}

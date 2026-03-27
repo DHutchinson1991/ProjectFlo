@@ -7,12 +7,16 @@ import {
     Param,
     Delete,
     ParseIntPipe,
+    UseGuards,
+    ValidationPipe,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { MusicService } from './music.service';
 import { CreateSceneMusicDto, CreateMomentMusicDto } from './dto/create-music.dto';
 import { UpdateSceneMusicDto, UpdateMomentMusicDto } from './dto/update-music.dto';
 
-@Controller('music')
+@Controller('api/music')
+@UseGuards(AuthGuard('jwt'))
 export class MusicController {
     constructor(private readonly musicService: MusicService) { }
 
@@ -20,7 +24,7 @@ export class MusicController {
     @Post('scenes/:sceneId/music')
     createSceneMusic(
         @Param('sceneId', ParseIntPipe) sceneId: number,
-        @Body() createDto: CreateSceneMusicDto
+        @Body(new ValidationPipe({ transform: true })) createDto: CreateSceneMusicDto
     ) {
         createDto.film_scene_id = sceneId;
         return this.musicService.createSceneMusic(createDto);
@@ -34,7 +38,7 @@ export class MusicController {
     @Patch('scenes/:sceneId/music')
     updateSceneMusic(
         @Param('sceneId', ParseIntPipe) sceneId: number,
-        @Body() updateDto: UpdateSceneMusicDto
+        @Body(new ValidationPipe({ transform: true })) updateDto: UpdateSceneMusicDto
     ) {
         return this.musicService.updateSceneMusic(sceneId, updateDto);
     }
@@ -48,7 +52,7 @@ export class MusicController {
     @Post('moments/:momentId/music')
     createMomentMusic(
         @Param('momentId', ParseIntPipe) momentId: number,
-        @Body() createDto: CreateMomentMusicDto
+        @Body(new ValidationPipe({ transform: true })) createDto: CreateMomentMusicDto
     ) {
         createDto.moment_id = momentId;
         return this.musicService.createMomentMusic(createDto);
@@ -62,7 +66,7 @@ export class MusicController {
     @Patch('moments/:momentId/music')
     updateMomentMusic(
         @Param('momentId', ParseIntPipe) momentId: number,
-        @Body() updateDto: UpdateMomentMusicDto
+        @Body(new ValidationPipe({ transform: true })) updateDto: UpdateMomentMusicDto
     ) {
         return this.musicService.updateMomentMusic(momentId, updateDto);
     }

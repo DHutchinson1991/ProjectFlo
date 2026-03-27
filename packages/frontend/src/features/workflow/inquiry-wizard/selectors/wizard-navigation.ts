@@ -1,7 +1,7 @@
 import { format as fnsFormat, parseISO } from "date-fns";
 import { AnyRecord, EventTypeConfig, NominatimResult, ScreenId } from "../types";
-import { CURRENCY_SYMBOLS } from "../constants/wizard-config";
-import { searchVenues } from "../api/geocoding";
+import { getCurrencySymbol } from '@/shared/utils/formatUtils';
+import { searchVenues } from "@/features/workflow/locations/api/geocoding.api";
 
 /** @deprecated Use searchVenues from api/geocoding directly */
 export const searchNominatim = searchVenues;
@@ -28,9 +28,7 @@ export function formatNiceDate(dateStr: string | null | undefined): string | nul
     }
 }
 
-export function getCurrencySymbol(c: string | null | undefined) {
-    return c ? CURRENCY_SYMBOLS[c.toUpperCase()] ?? c : "$";
-}
+export { getCurrencySymbol };
 
 /* ── Screen list builder ────────────────────────────────────── */
 export function computeScreens(r: AnyRecord, cfg: EventTypeConfig): ScreenId[] {

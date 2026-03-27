@@ -1,4 +1,4 @@
-// ─── Package Edit Page – Shared Type Definitions ─────────────────────
+﻿// ─── Package Edit Page – Shared Type Definitions ─────────────────────
 //
 // Extracted from page.tsx to keep the page component focused on
 // orchestration, and to enable reuse + independent testing.
@@ -38,30 +38,27 @@ export interface CrewMemberOption {
     };
     crew_color?: string | null;
     /** Optional to accommodate contributor objects loaded via operator records */
-    contributor_job_roles?: Array<{
+    job_role_assignments?: Array<{
         is_primary: boolean;
         job_role: { id: number; name: string; display_name?: string | null };
     }>;
 }
 
-export interface PackageDayOperatorRecord {
+export interface PackageCrewSlotRecord {
     id: number;
     package_id: number;
     event_day_template_id: number;
-    contributor_id?: number | null;
+    crew_member_id?: number | null;
     package_activity_id?: number | null;
-    position_name: string;
-    position_color?: string | null;
+    label?: string | null;
     job_role_id?: number | null;
     hours: number;
-    notes?: string | null;
     order_index: number;
-    contributor?: {
+    crew_member?: {
         id: number;
         crew_color?: string | null;
-        default_hourly_rate?: number | string | null;
         contact: { id: number; first_name?: string | null; last_name?: string | null; email: string };
-        contributor_job_roles?: Array<{
+        job_role_assignments?: Array<{
             is_primary: boolean;
             is_unmanned?: boolean;
             job_role_id?: number;
@@ -95,7 +92,7 @@ export interface PackageDayOperatorRecord {
 // ─── Local state-shape interfaces ────────────────────────────────────
 
 /** Contributor job-role assignment (subset used throughout this page). */
-export type ContributorJobRoleEntry = {
+export type CrewMemberJobRoleEntry = {
     is_primary: boolean;
     is_unmanned?: boolean;
     job_role_id?: number;
@@ -200,3 +197,5 @@ export interface FilmData {
         moments?: Array<{ duration?: number }>;
     }>;
 }
+
+export * from './api.types';

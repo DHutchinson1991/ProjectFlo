@@ -1,10 +1,10 @@
-import type { Inquiry, NeedsAssessmentSubmission } from '@/lib/types';
+import type { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
 import type { ConversionData, NextActionData, PipelineTask } from './types';
 import { NA_CATEGORIES, NA_HIDDEN_KEYS, TASK_AUTO_COMPLETE, WORKFLOW_PHASES } from './constants';
 
 // ─── Deal intelligence ───────────────────────────────────────────────
 
-export const getConversionScore = (inq: Inquiry & { activity_logs?: unknown[] }): ConversionData => {
+export const getConversionScore = (inq: Inquiry): ConversionData => {
     let score = 0;
     if (inq.contact?.email && !inq.contact.email.startsWith('pending_')) score += 10;
     if (inq.contact?.phone_number) score += 10;
@@ -14,7 +14,6 @@ export const getConversionScore = (inq: Inquiry & { activity_logs?: unknown[] })
     if (inq.proposals && inq.proposals.length > 0) score += 15;
     if (inq.quotes && inq.quotes.length > 0) score += 10;
     if (inq.contracts && inq.contracts.length > 0) score += 10;
-    if (inq.activity_logs && inq.activity_logs.length > 0) score += 5;
     if (score >= 80) return { score, label: 'Hot', color: '#ef4444' };
     if (score >= 50) return { score, label: 'Warm', color: '#f59e0b' };
     if (score >= 25) return { score, label: 'Cool', color: '#3b82f6' };
@@ -37,7 +36,7 @@ export const getDaysInPipeline = (inq: Inquiry): number => {
 
 // ─── Workflow progress ───────────────────────────────────────────────
 
-export const calculateWorkflowProgress = (inquiry: Inquiry & { activity_logs?: unknown[] }) => {
+export const calculateWorkflowProgress = (inquiry: Inquiry) => {
     if (!inquiry?.workflow_status) return 0;
     const status = inquiry.workflow_status;
     let completedSteps = 0;
@@ -51,7 +50,6 @@ export const calculateWorkflowProgress = (inquiry: Inquiry & { activity_logs?: u
     if (inquiry.proposals && inquiry.proposals.length > 0) completedSteps++;
     if (inquiry.quotes && inquiry.quotes.length > 0) completedSteps++;
     if (inquiry.contracts && inquiry.contracts.length > 0) completedSteps++;
-    if (inquiry.activity_logs && inquiry.activity_logs.length > 0) completedSteps++;
     return Math.round((completedSteps / totalSteps) * 100);
 };
 
@@ -60,7 +58,7 @@ export const calculateWorkflowProgress = (inquiry: Inquiry & { activity_logs?: u
 /** Compute the index of the currently-active pipeline task. */
 export function computeActiveIndex(
     tasks: PipelineTask[],
-    inquiry: Inquiry & { activity_logs?: unknown[] },
+    inquiry: Inquiry,
 ): number {
     if (tasks.length === 0) return 0;
 
@@ -89,7 +87,6 @@ export function computeActiveIndex(
     if (inquiry.proposals && inquiry.proposals.length > 0) completedSteps++;
     if (inquiry.quotes && inquiry.quotes.length > 0) completedSteps++;
     if (inquiry.contracts && inquiry.contracts.length > 0) completedSteps++;
-    if (inquiry.activity_logs && inquiry.activity_logs.length > 0) completedSteps++;
 
     const pct = completedSteps / 8;
     return Math.min(Math.floor(pct * tasks.length), tasks.length - 1);
@@ -109,7 +106,7 @@ function sectionToPhaseId(sectionId: string): string {
  */
 export function getActivePhaseFromTasks(
     tasks: PipelineTask[],
-    inquiry: Inquiry & { activity_logs?: unknown[] },
+    inquiry: Inquiry,
 ): string {
     if (tasks.length > 0) {
         const idx = computeActiveIndex(tasks, inquiry);

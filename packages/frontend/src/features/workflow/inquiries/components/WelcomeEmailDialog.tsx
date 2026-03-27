@@ -3,7 +3,7 @@
 import React from "react";
 import { Box, TextField, Typography } from "@mui/material";
 import { Email } from "@mui/icons-material";
-import InquiryActionDialog from "../../components/InquiryActionDialog";
+import InquiryActionDialog from "./InquiryActionDialog";
 
 export interface WelcomeEmailDraft {
   recipientEmail: string;

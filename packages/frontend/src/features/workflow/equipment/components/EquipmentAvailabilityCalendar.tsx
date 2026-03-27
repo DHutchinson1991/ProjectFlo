@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     Box,
     Card,
@@ -21,51 +21,7 @@ import {
     NavigateBefore as PrevIcon,
     NavigateNext as NextIcon,
 } from '@mui/icons-material';
-
-interface EquipmentAvailabilitySlot {
-    id: number;
-    equipment_id: number;
-    start_date: string;
-    end_date: string;
-    all_day: boolean;
-    status: 'AVAILABLE' | 'BOOKED' | 'IN_USE' | 'UNAVAILABLE' | 'TENTATIVE';
-    title?: string;
-    description?: string;
-    project_id?: number;
-    booked_by_id?: number;
-    client_id?: number;
-    booking_notes?: string;
-    internal_notes?: string;
-    created_at: string;
-    updated_at: string;
-    equipment?: {
-        id: number;
-        item_name: string;
-        item_code: string;
-        category: string;
-        type: string;
-    };
-    project?: {
-        id: number;
-        project_name: string;
-        wedding_date: string;
-    } | null;
-    booked_by?: {
-        contact: {
-            first_name: string;
-            last_name: string;
-            email: string;
-        };
-    } | null;
-    client?: {
-        contact: {
-            first_name: string;
-            last_name: string;
-            email: string;
-            company_name?: string;
-        };
-    } | null;
-}
+import { useEquipmentAvailability, type EquipmentAvailabilitySlot } from '../hooks';
 
 interface EquipmentAvailabilityCalendarProps {
     equipmentId: number;
@@ -89,48 +45,9 @@ const STATUS_LABELS = {
 };
 
 export default function EquipmentAvailabilityCalendar({ equipmentId, equipmentName }: EquipmentAvailabilityCalendarProps) {
-    const [availabilitySlots, setAvailabilitySlots] = useState<EquipmentAvailabilitySlot[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [statusFilter, setStatusFilter] = useState<string>('ALL');
-
-    // Fetch availability data
-    const fetchAvailability = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            // Calculate date range for current month
-            const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-            const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-
-            const params = new URLSearchParams({
-                start_date: startOfMonth.toISOString(),
-                end_date: endOfMonth.toISOString(),
-            });
-
-            if (statusFilter !== 'ALL') {
-                params.append('status', statusFilter);
-            }
-
-            const response = await fetch(`http://localhost:3002/equipment/${equipmentId}/availability?${params}`);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch availability: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            setAvailabilitySlots(data);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch availability data');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchAvailability();
-    }, [equipmentId, currentDate, statusFilter]);
+    const { availabilitySlots, loading, error } = useEquipmentAvailability(equipmentId, currentDate, statusFilter);
 
     // Navigation handlers
     const goToPreviousMonth = () => {

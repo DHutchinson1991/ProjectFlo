@@ -28,13 +28,13 @@ import CloseIcon from "@mui/icons-material/Close";
 import { useMomentForm } from "@/features/content/moments/hooks";
 import type { MomentFormData } from "@/features/content/moments/types";
 import { MomentEditorFields } from "./MomentEditorFields";
-import { TimelineTrack } from "@/lib/types/timeline";
-import { isLogEnabled } from "@/lib/debug/log-flags";
+import { TimelineTrack } from "@/features/content/content-builder/types/timeline";
+import { isLogEnabled } from "@/shared/debug/log-flags";
 import { useMusic } from "@/features/content/music/hooks";
-import { MusicType, MUSIC_TYPE_LABELS } from "@/lib/types/domains/music";
+import { MusicType, MUSIC_TYPE_LABELS } from "@/features/content/music/types";
 import type { ShotType } from "@/features/content/coverage/types";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
-import { getEquipmentLabelForTrackName } from "@/lib/utils/equipmentAssignments";
+import { getEquipmentLabelForTrackName } from "@/features/content/films/utils/equipmentAssignments";
 
 interface MomentEditorProps {
     open: boolean;
@@ -175,7 +175,7 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
         });
         const seen = new Map<number, any>();
         matched.forEach((o: any) => {
-            const crewId = o.contributor_id ?? o.id;
+            const crewId = o.crew_member_id ?? o.id;
             if (!seen.has(crewId)) seen.set(crewId, o);
         });
         return Array.from(seen.values());
@@ -1105,12 +1105,7 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
                                                 py: 0.5,
                                             }}>
                                                 <Typography sx={{ fontSize: 12, color: '#f9a8d4', fontWeight: 500 }}>
-                                                    {o.position_name || o.name || 'Crew'}
-                                                    {(o.job_role?.display_name || o.job_role?.name) && (
-                                                        <Typography component="span" sx={{ fontSize: 11, color: 'rgba(236,72,153,0.5)', ml: 0.5 }}>
-                                                            · {o.job_role?.display_name || o.job_role?.name}
-                                                        </Typography>
-                                                    )}
+                                                    {o.label || o.job_role?.display_name || o.job_role?.name || o.name || 'Crew'}
                                                 </Typography>
                                             </Box>
                                         ))}

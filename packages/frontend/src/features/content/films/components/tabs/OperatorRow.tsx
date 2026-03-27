@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
   Box, Typography, Stack, Chip, Avatar, Paper, alpha, useTheme,
 } from "@mui/material";
@@ -7,7 +7,7 @@ import VideocamIcon from "@mui/icons-material/Videocam";
 import MicIcon from "@mui/icons-material/Mic";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import PaletteIcon from "@mui/icons-material/Palette";
-import { PackageDayOperator, TrackRecord, EquipmentRecord } from "../../types/operators-tab.types";
+import { PackageCrewSlot, TrackRecord, EquipmentRecord } from "../../types/operators-tab.types";
 
 function GearChip({
   name, model, isPrimary, icon, accentColor,
@@ -46,11 +46,11 @@ function categorizeGear(gear: EquipmentRecord[]) {
   return { cameras, audio, other };
 }
 
-export function OperatorRow({ operator, assignedTracks }: { operator: PackageDayOperator; assignedTracks: TrackRecord[] }) {
+export function OperatorRow({ operator, assignedTracks }: { operator: PackageCrewSlot; assignedTracks: TrackRecord[] }) {
   const theme = useTheme();
   const gear = operator.equipment || [];
-  const color = operator.position_color || operator.contributor?.crew_color || "#EC4899";
-  const displayName = operator.position_name || "Crew";
+  const color = operator.crew_member?.crew_color || "#EC4899";
+  const displayName = operator.label || operator.job_role?.display_name || operator.job_role?.name || "Crew";
   const displayRole = operator.job_role?.display_name || operator.job_role?.name || null;
   const { cameras, audio, other } = categorizeGear(gear);
 

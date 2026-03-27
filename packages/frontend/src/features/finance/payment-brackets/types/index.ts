@@ -19,22 +19,21 @@ export interface PaymentBracket {
         category?: string | null;
     };
     _count?: {
-        contributor_job_roles: number;
+        job_role_assignments: number;
     };
     /** Populated when fetching brackets by-role (includes assigned crew) */
-    contributor_job_roles?: BracketContributorAssignment[];
+    job_role_assignments?: BracketCrewMemberAssignment[];
 }
 
 /** A contributor assigned to a specific payment bracket (returned within bracket data) */
-export interface BracketContributorAssignment {
+export interface BracketCrewMemberAssignment {
     id: number;
-    contributor_id: number;
+    crew_member_id: number;
     job_role_id: number;
     is_primary: boolean;
     is_unmanned: boolean;
-    contributor: {
+    crew_member: {
         id: number;
-        is_crew?: boolean;
         crew_color?: string | null;
         contact: {
             first_name?: string | null;
@@ -57,7 +56,7 @@ export interface PaymentBracketsByRole {
 }
 
 export interface EffectiveRate {
-    contributor_id: number;
+    crew_member_id: number;
     job_role: {
         id: number;
         name: string;
@@ -65,12 +64,12 @@ export interface EffectiveRate {
     };
     payment_bracket: PaymentBracket | null;
     effective_hourly_rate: number | null;
-    rate_source: "payment_bracket" | "default_hourly_rate";
+    rate_source: "payment_bracket" | "none";
 }
 
-export interface ContributorBracketAssignment {
+export interface CrewMemberBracketAssignment {
     id: number;
-    contributor_id: number;
+    crew_member_id: number;
     job_role_id: number;
     is_primary: boolean;
     payment_bracket_id: number | null;
@@ -109,7 +108,7 @@ export interface UpdatePaymentBracketData {
 }
 
 export interface AssignBracketData {
-    contributor_id: number;
+    crew_member_id: number;
     job_role_id: number;
     payment_bracket_id: number;
 }

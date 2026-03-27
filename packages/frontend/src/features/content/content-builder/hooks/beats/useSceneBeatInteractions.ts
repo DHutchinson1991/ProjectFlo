@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { api } from "@/lib/api";
-import type { TimelineScene } from "@/lib/types/timeline";
-import type { SceneBeat } from "@/lib/types/domains/beats";
+import { beatsApi } from "@/features/content/beats/api";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
+import type { SceneBeat } from "@/features/content/scenes/types/beats";
 
 interface UseSceneBeatInteractionsProps {
     onUpdateScene?: (scene: TimelineScene) => void;
@@ -50,7 +50,7 @@ export const useSceneBeatInteractions = ({ onUpdateScene }: UseSceneBeatInteract
     const syncBeatOrder = React.useCallback(async (sceneId: number, beats: SceneBeat[]) => {
         if (!sceneId || beats.length === 0) return;
         const ordering = beats.map((beat) => ({ id: beat.id, order_index: beat.order_index }));
-        await api.beats.reorder(sceneId, ordering);
+        await beatsApi.reorder(sceneId, ordering);
     }, []);
 
     const handleBeatClick = React.useCallback((e: React.MouseEvent, beat: SceneBeat, scene: TimelineScene) => {
@@ -129,7 +129,7 @@ export const useSceneBeatInteractions = ({ onUpdateScene }: UseSceneBeatInteract
         const beats = getSceneBeats(activeSceneForEdit);
 
         if (updatedBeat.id) {
-            const response = await api.beats.update(updatedBeat.id, {
+            const response = await beatsApi.update(updatedBeat.id, {
                 name: updatedBeat.name,
                 duration_seconds: updatedBeat.duration_seconds,
                 order_index: updatedBeat.order_index,
@@ -137,7 +137,7 @@ export const useSceneBeatInteractions = ({ onUpdateScene }: UseSceneBeatInteract
             });
 
             if (updatedBeat.recording_setup) {
-                const setup = await api.beats.recordingSetup.upsert(updatedBeat.id, updatedBeat.recording_setup);
+                const setup = await beatsApi.recordingSetup.upsert(updatedBeat.id, updatedBeat.recording_setup);
                 (response as any).recording_setup = setup;
             }
 
@@ -149,7 +149,7 @@ export const useSceneBeatInteractions = ({ onUpdateScene }: UseSceneBeatInteract
             updateSceneBeats(activeSceneForEdit, updatedBeats);
             await syncBeatOrder(sceneId, updatedBeats);
         } else {
-            const response = await api.beats.create(sceneId, {
+            const response = await beatsApi.create(sceneId, {
                 name: updatedBeat.name,
                 duration_seconds: updatedBeat.duration_seconds,
                 order_index: updatedBeat.order_index ?? beats.length,
@@ -157,7 +157,7 @@ export const useSceneBeatInteractions = ({ onUpdateScene }: UseSceneBeatInteract
             });
 
             if (updatedBeat.recording_setup) {
-                const setup = await api.beats.recordingSetup.upsert(response.id, updatedBeat.recording_setup);
+                const setup = await beatsApi.recordingSetup.upsert(response.id, updatedBeat.recording_setup);
                 (response as any).recording_setup = setup;
             }
             const updatedBeats = [...beats, response as SceneBeat].sort((a, b) => a.order_index - b.order_index);
@@ -170,7 +170,7 @@ export const useSceneBeatInteractions = ({ onUpdateScene }: UseSceneBeatInteract
 
     const handleBeatDelete = React.useCallback(async (beatId?: number) => {
         if (!activeSceneForEdit || !beatId) return;
-        await api.beats.delete(beatId);
+        await beatsApi.delete(beatId);
         const beats = getSceneBeats(activeSceneForEdit);
         const updatedBeats = beats.filter((beat) => beat.id !== beatId).map((beat, index) => ({
             ...beat,

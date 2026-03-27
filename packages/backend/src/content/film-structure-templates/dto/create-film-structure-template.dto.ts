@@ -1,28 +1,9 @@
-import { IsString, IsOptional, IsNumber, IsNotEmpty, IsBoolean, IsEnum, IsArray, ValidateNested, Min } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsNotEmpty, IsBoolean, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { CreateTemplateSceneDto } from './create-template-scene.dto';
 
-export class CreateTemplateSceneDto {
-    @IsString()
-    @IsNotEmpty()
-    name: string;
-
-    @IsString()
-    @IsOptional()
-    mode?: string; // SceneType enum value
-
-    @IsNumber()
-    @IsOptional()
-    @Min(1)
-    suggested_duration_seconds?: number;
-
-    @IsNumber()
-    @Min(0)
-    order_index: number;
-
-    @IsString()
-    @IsOptional()
-    notes?: string;
-}
+// Re-export for backwards compatibility
+export { CreateTemplateSceneDto } from './create-template-scene.dto';
 
 export class CreateFilmStructureTemplateDto {
     @IsNumber()

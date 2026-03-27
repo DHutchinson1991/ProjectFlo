@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useState } from 'react';
-import { ProjectPhase, PHASE_LABELS } from '@/lib/types';
-import type { TaskLibraryPhaseGroup } from '@/lib/types';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { ProjectPhase, PHASE_LABELS } from '@/features/catalog/task-library/types';
+import { useBrand } from '@/features/platform/brand';
 import { useTaskLibraryData, useTaskLibraryPhaseExpand } from '../hooks/use-task-library-data';
 import { useTaskLibraryMutations } from '../hooks/use-task-library-mutations';
 import { useTaskLibraryDnd } from '../hooks/use-task-library-dnd';
@@ -15,12 +14,12 @@ export function TaskLibraryScreen() {
 
     const {
         tasksByPhase, setTasksByPhase, loading, error, setError,
-        jobRoles, allMappings, loadAllMappings, contributors, loadTasks,
+        jobRoles, allMappings, loadAllMappings, crewMembers, loadTasks,
     } = useTaskLibraryData();
 
     const {
-        expandedPhases, expandedTaskId,
-        handlePhaseToggle, handlePhaseCardClick, handleToggleExpand,
+        activePhase, expandedTaskId,
+        handlePhaseChange, handleToggleExpand,
     } = useTaskLibraryPhaseExpand();
 
     const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -45,29 +44,29 @@ export function TaskLibraryScreen() {
         setTasksByPhase, setError, jobRoles, loadAllMappings,
     });
 
-    const phaseGroups: TaskLibraryPhaseGroup[] = Object.values(ProjectPhase).map(phase => ({
+    const phaseStats = Object.values(ProjectPhase).map(phase => ({
         phase,
         label: PHASE_LABELS[phase],
-        tasks: tasksByPhase[phase] || [],
-        expanded: expandedPhases[phase] || false,
+        count: (tasksByPhase[phase] || []).length,
+        activeCount: (tasksByPhase[phase] || []).filter(t => t.is_active).length,
     }));
+
+    const activePhaseKey = activePhase as ProjectPhase;
+    const activeTasks = tasksByPhase[activePhaseKey] || [];
 
     return (
         <TasksContent
             loading={loading}
             error={error}
             setError={setError}
-            phaseGroups={phaseGroups}
-            onPhaseToggle={handlePhaseToggle}
-            onPhaseCardClick={handlePhaseCardClick}
+            phaseStats={phaseStats}
+            activePhase={activePhase}
+            onPhaseChange={handlePhaseChange}
+            activeTasks={activeTasks}
+            tasksByPhase={tasksByPhase}
             onDragStart={dnd.handleDragStart}
             onDragEnd={dnd.handleDragEnd}
-            inlineEditingTask={mutations.inlineEditingTask}
-            inlineEditData={mutations.inlineEditData}
-            updateInlineEditData={mutations.updateInlineEditData}
-            startInlineEdit={mutations.startInlineEdit}
-            cancelInlineEdit={mutations.cancelInlineEdit}
-            saveInlineEdit={mutations.saveInlineEdit}
+            onUpdateTask={mutations.updateTaskField}
             isDragging={dnd.isDragging}
             deleteConfirmOpen={mutations.deleteConfirmOpen}
             setDeleteConfirmOpen={mutations.setDeleteConfirmOpen}
@@ -86,7 +85,7 @@ export function TaskLibraryScreen() {
             updateQuickAddData={mutations.updateQuickAddData}
             jobRoles={jobRoles}
             allMappings={allMappings}
-            contributors={contributors}
+            contributors={crewMembers}
             expandedTaskId={expandedTaskId}
             onToggleExpand={handleToggleExpand}
             onUpdateRoleSkills={roleSkills.handleUpdateRoleSkills}

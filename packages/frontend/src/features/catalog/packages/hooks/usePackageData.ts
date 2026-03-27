@@ -1,18 +1,23 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 
-import { api } from '@/lib/api';
+import { servicePackageCategoriesApi, servicePackagesApi } from '@/features/catalog/packages/api';
+import { filmsApi } from '@/features/content/films/api';
+import { crewApi, jobRolesApi } from '@/features/workflow/crew/api';
+import { equipmentApi } from '@/features/workflow/equipment/api';
+import { crewSlotsApi, scheduleApi } from '@/features/workflow/scheduling/api';
+import { taskLibraryApi } from '@/features/catalog/task-library/api';
 import { rolesApi } from '@/features/content/subjects/api/roles.api';
 import { type EventDay } from '@/features/workflow/scheduling/components';
-import { ServicePackage } from '@/lib/types/domains/sales';
-import type { JobRole } from '@/lib/types/job-roles';
-import type { TaskAutoGenerationPreview } from '@/lib/types/task-library';
+import { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
+import type { JobRole } from '@/features/catalog/task-library/types';
+import type { TaskAutoGenerationPreview } from '@/features/catalog/task-library/types';
 
 import type {
     SubjectType,
     CrewMemberOption,
-    PackageDayOperatorRecord,
+    PackageCrewSlotRecord,
     PackageFilmRecord,
     PackageActivityRecord,
     PackageEventDaySubjectRecord,
@@ -62,8 +67,8 @@ export interface UsePackageDataReturn {
     setPackageEventDays: React.Dispatch<React.SetStateAction<EventDay[]>>;
     packageActivities: PackageActivityRecord[];
     setPackageActivities: React.Dispatch<React.SetStateAction<PackageActivityRecord[]>>;
-    packageDayOperators: PackageDayOperatorRecord[];
-    setPackageDayOperators: React.Dispatch<React.SetStateAction<PackageDayOperatorRecord[]>>;
+    PackageCrewSlots: PackageCrewSlotRecord[];
+    setPackageCrewSlots: React.Dispatch<React.SetStateAction<PackageCrewSlotRecord[]>>;
     taskPreview: TaskAutoGenerationPreview | null;
     setTaskPreview: React.Dispatch<React.SetStateAction<TaskAutoGenerationPreview | null>>;
     packageSubjects: PackageEventDaySubjectRecord[];
@@ -114,7 +119,7 @@ export function usePackageData({
     // Crew & Operator Data
     const [crewMembers, setCrewMembers] = useState<CrewMemberOption[]>([]);
     const [jobRoles, setJobRoles] = useState<JobRole[]>([]);
-    const [packageDayOperators, setPackageDayOperators] = useState<PackageDayOperatorRecord[]>([]);
+    const [PackageCrewSlots, setPackageCrewSlots] = useState<PackageCrewSlotRecord[]>([]);
 
     // Equipment Data
     const [unmannedEquipment, setUnmannedEquipment] = useState<UnmannedEquipmentRecord[]>([]);
@@ -139,19 +144,19 @@ export function usePackageData({
         setError(null);
         try {
             const [allCats, allFilms] = await Promise.all([
-                api.servicePackageCategories.getAll(brandId),
-                api.films.getAll(),
+                servicePackageCategoriesApi.getAll(brandId),
+                filmsApi.films.getAll(),
             ]);
             setCategories(allCats);
 
             // Fetch full film details with scenes for each film
             const filmsWithDetails = await Promise.all(
-                allFilms.map(film => api.films.getById(film.id).catch(() => film)),
+                allFilms.map(film => filmsApi.films.getById(film.id).catch(() => film)),
             );
             setFilms(filmsWithDetails);
 
             try {
-                const templates = await rolesApi.getRoles() as unknown as SubjectType[];
+                const templates = await rolesApi.getRoles(brandId) as unknown as SubjectType[];
                 setSubjectTemplates(templates || []);
             } catch (templateError) {
                 console.warn('Failed to load subject templates:', templateError);
@@ -159,7 +164,7 @@ export function usePackageData({
 
             // Fetch full equipment inventory for inline addition
             try {
-                const grouped = await api.equipment.getGroupedByCategory();
+                const grouped = await equipmentApi.getGroupedByCategory();
                 const flat: EquipmentRecord[] = [];
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 Object.values(grouped).forEach((group: any) => {
@@ -174,7 +179,7 @@ export function usePackageData({
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 let pkg: any = null;
                 try {
-                    pkg = await api.servicePackages.getOne(brandId, packageId);
+                    pkg = await servicePackagesApi.getById(packageId);
                     setFormData(pkg);
                 } catch {
                     setError('Package not found');
@@ -182,7 +187,7 @@ export function usePackageData({
 
                 // Load PackageFilm join table records
                 try {
-                    const pFilms = await api.schedule.packageFilms.getAll(packageId);
+                    const pFilms = await scheduleApi.packageFilms.getAll(packageId) as unknown as PackageFilmRecord[];
                     setPackageFilms(pFilms);
                 } catch (pfError) {
                     console.warn('Failed to load package films:', pfError);
@@ -190,7 +195,7 @@ export function usePackageData({
 
                 // Load Package Event Days
                 try {
-                    let days = await api.schedule.packageEventDays.getAll(packageId);
+                    let days = await scheduleApi.packageEventDays.getAll(packageId) as unknown as EventDay[];
 
                     // Auto-sync: if day_coverage JSON has entries but join table is empty,
                     // create PackageEventDay records from the day_coverage keys
@@ -199,7 +204,7 @@ export function usePackageData({
                         if (dayCoverageKeys.length > 0) {
                             console.log('🔄 Syncing PackageEventDay records from day_coverage:', dayCoverageKeys);
                             try {
-                                days = await api.schedule.packageEventDays.set(packageId, dayCoverageKeys);
+                                days = await scheduleApi.packageEventDays.set(packageId, dayCoverageKeys) as unknown as EventDay[];
                             } catch (syncErr) {
                                 console.warn('Failed to sync package event days:', syncErr);
                             }
@@ -214,10 +219,10 @@ export function usePackageData({
                 // Load Crew Members (brand-level) and Job Roles in parallel
                 try {
                     const [crew, roles] = await Promise.all([
-                        api.crew.getByBrand(brandId),
-                        api.jobRoles.getAll(),
+                        crewApi.getByBrand(brandId),
+                        jobRolesApi.getAll(),
                     ]);
-                    setCrewMembers(crew || []);
+                    setCrewMembers((crew || []) as unknown as CrewMemberOption[]);
                     setJobRoles((roles || []).filter(r => r.is_active));
                 } catch (crewError) {
                     console.warn('Failed to load crew members / job roles:', crewError);
@@ -225,7 +230,7 @@ export function usePackageData({
 
                 // Load Unmanned Equipment (brand-level)
                 try {
-                    const unmanned = await api.equipment.findUnmanned(brandId!) as unknown as UnmannedEquipmentRecord[];
+                    const unmanned = await equipmentApi.findUnmanned(brandId!) as unknown as UnmannedEquipmentRecord[];
                     setUnmannedEquipment(unmanned || []);
                 } catch (unmannedError) {
                     console.warn('Failed to load unmanned equipment:', unmannedError);
@@ -233,23 +238,23 @@ export function usePackageData({
 
                 // Load Package Day Operators
                 try {
-                    const dayOps = await api.operators.packageDay.getAll(packageId);
+                    const dayOps = await crewSlotsApi.packageDay.getAll(packageId) as unknown as PackageCrewSlotRecord[];
 
                     // Auto-cleanup: delete orphan "equipment-as-operator" placeholder records
                     const orphanOps = (dayOps || []).filter(
-                        (o: PackageDayOperatorRecord) => !o.contributor_id && !o.job_role_id,
+                        (o: PackageCrewSlotRecord) => !o.crew_member_id && !o.job_role_id,
                     );
                     if (orphanOps.length > 0) {
                         await Promise.allSettled(
-                            orphanOps.map((o: PackageDayOperatorRecord) =>
-                                api.operators.packageDay.remove(o.id).catch(() => {/* ignore */}),
+                            orphanOps.map((o: PackageCrewSlotRecord) =>
+                                crewSlotsApi.packageDay.remove(o.id).catch(() => {/* ignore */}),
                             ),
                         );
-                        setPackageDayOperators(
-                            (dayOps || []).filter((o: PackageDayOperatorRecord) => !!(o.contributor_id || o.job_role_id)),
+                        setPackageCrewSlots(
+                            (dayOps || []).filter((o: PackageCrewSlotRecord) => !!(o.crew_member_id || o.job_role_id)),
                         );
                     } else {
-                        setPackageDayOperators(dayOps || []);
+                        setPackageCrewSlots(dayOps || []);
                     }
                 } catch (doError) {
                     console.warn('Failed to load package day operators:', doError);
@@ -257,7 +262,7 @@ export function usePackageData({
 
                 // Load Package Activities
                 try {
-                    const acts = await api.schedule.packageActivities.getAll(packageId);
+                    const acts = await scheduleApi.packageActivities.getAll(packageId) as unknown as PackageActivityRecord[];
                     setPackageActivities(acts || []);
                 } catch (actError) {
                     console.warn('Failed to load package activities:', actError);
@@ -265,7 +270,7 @@ export function usePackageData({
 
                 // Load Package Subjects
                 try {
-                    const subs = await api.schedule.packageEventDaySubjects.getAll(packageId);
+                    const subs = await scheduleApi.packageEventDaySubjects.getAll(packageId) as unknown as PackageEventDaySubjectRecord[];
                     setPackageSubjects(subs || []);
                 } catch (subError) {
                     console.warn('Failed to load package subjects:', subError);
@@ -273,7 +278,7 @@ export function usePackageData({
 
                 // Load Package Location Slots
                 try {
-                    const slots = await api.schedule.packageLocationSlots.getAll(packageId);
+                    const slots = await scheduleApi.packageLocationSlots.getAll(packageId) as unknown as PackageLocationSlotRecord[];
                     setPackageLocationSlots(slots || []);
                 } catch (slotError) {
                     console.warn('Failed to load package location slots:', slotError);
@@ -281,7 +286,7 @@ export function usePackageData({
 
                 // Load Task Auto-Generation Preview
                 try {
-                    const preview = await api.taskLibrary.previewAutoGeneration(packageId, brandId);
+                    const preview = await taskLibraryApi.previewAutoGeneration(packageId, brandId);
                     setTaskPreview(preview);
                 } catch (previewError) {
                     console.warn('Failed to load task preview:', previewError);
@@ -299,10 +304,10 @@ export function usePackageData({
                 // Still load crew members and job roles for new packages
                 try {
                     const [crew, roles] = await Promise.all([
-                        api.crew.getByBrand(brandId),
-                        api.jobRoles.getAll(),
+                        crewApi.getByBrand(brandId),
+                        jobRolesApi.getAll(),
                     ]);
-                    setCrewMembers(crew || []);
+                    setCrewMembers((crew || []) as unknown as CrewMemberOption[]);
                     setJobRoles((roles || []).filter(r => r.is_active));
                 } catch {
                     // ignore
@@ -321,7 +326,7 @@ export function usePackageData({
         if (!packageId || !brandId) return;
         setVersionsLoading(true);
         try {
-            const versions = await api.servicePackages.versions.getAll(brandId, packageId);
+            const versions = await servicePackagesApi.versions.getAll(packageId);
             setPackageVersions(versions);
         } catch (err) {
             console.warn('Failed to load versions:', err);
@@ -366,8 +371,8 @@ export function usePackageData({
         setPackageEventDays,
         packageActivities,
         setPackageActivities,
-        packageDayOperators,
-        setPackageDayOperators,
+        PackageCrewSlots,
+        setPackageCrewSlots,
         taskPreview,
         setTaskPreview,
         packageSubjects,

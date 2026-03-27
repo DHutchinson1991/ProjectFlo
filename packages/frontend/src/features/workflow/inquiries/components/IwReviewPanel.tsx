@@ -93,7 +93,7 @@ export default function IwReviewPanel({ dateConflicts, crewConflicts, loadingCon
                     ) : (
                         <Stack spacing={0.5}>
                             {crewConflicts.conflicts.map((c) => (
-                                <Box key={c.contributor_id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box key={c.crew_member_id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <Warning sx={{ fontSize: 14, color: '#ef4444' }} />
                                     <Typography sx={{ fontSize: '0.78rem', color: '#fca5a5' }}><strong>{c.name}</strong> — {c.conflicting_inquiries.length} conflicting inquiry{c.conflicting_inquiries.length !== 1 ? 's' : ''}</Typography>
                                 </Box>

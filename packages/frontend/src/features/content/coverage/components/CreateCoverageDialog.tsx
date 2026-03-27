@@ -48,7 +48,7 @@ interface CreateCoverageForm {
   aperture: string;
   audio_pattern: string;
   frequency_response: string;
-  contributor_id: number | null;
+  crew_member_id: number | null;
   video_style_type: VideoStyleType | null;
   shot_type: ShotType | undefined;
   camera_movement: CameraMovement | undefined;

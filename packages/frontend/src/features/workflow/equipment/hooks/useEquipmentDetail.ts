@@ -2,19 +2,20 @@ import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { equipmentApi } from "../api";
 import { useBrand } from "@/features/platform/brand";
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import {
     Equipment,
     EquipmentRental,
     EquipmentMaintenance,
     UpdateEquipmentDto,
 } from "@/features/workflow/equipment/types/equipment.types";
-import type { Contributor } from "@/lib/types";
+import type { CrewMember } from "@/shared/types/users";
 
 export interface EquipmentDetailState {
     equipment: Equipment | null;
     rentals: EquipmentRental[];
     maintenance: EquipmentMaintenance[];
-    contributors: Contributor[];
+    crewMembers: CrewMember[];
     loading: boolean;
     error: string | null;
     isEditing: boolean;
@@ -38,7 +39,7 @@ export interface EquipmentDetailActions {
 export function useEquipmentDetail(equipmentId: number): EquipmentDetailState & EquipmentDetailActions {
     const { currentBrand } = useBrand();
     const brandId = currentBrand?.id;
-    const currencyCode = currentBrand?.currency || "USD";
+    const currencyCode = currentBrand?.currency ?? DEFAULT_CURRENCY;
     const queryClient = useQueryClient();
 
     // UI-only state
@@ -131,7 +132,7 @@ export function useEquipmentDetail(equipmentId: number): EquipmentDetailState & 
         equipment,
         rentals,
         maintenance,
-        contributors: contributorsQuery.data ?? [],
+        crewMembers: contributorsQuery.data ?? [],
         loading: equipmentQuery.isPending,
         error: equipmentQuery.isError ? "Failed to load equipment. Please try again." : null,
         isEditing,

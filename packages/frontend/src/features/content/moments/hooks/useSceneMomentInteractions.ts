@@ -1,10 +1,8 @@
 "use client";
 
 import React from 'react';
-import { createScenesApi } from '@/features/content/scenes/api';
-import { apiClient } from '@/lib/api';
-import type { ApiClient } from '@/lib/api/api-client.types';
-import type { TimelineScene } from '@/lib/types/timeline';
+import { scenesApi } from '@/features/content/scenes/api';
+import type { TimelineScene } from '@/features/content/content-builder/types/timeline';
 import type { MomentFormData } from '../types';
 import type { SceneMomentWithSetup } from './moment-hook.types';
 import { getSceneMoments } from './moment-hook.types';
@@ -21,8 +19,6 @@ export const useSceneMomentInteractions = ({
   zoomLevel,
   onUpdateScene,
 }: UseSceneMomentInteractionsProps) => {
-  const scenesApi = React.useMemo(() => createScenesApi(apiClient as unknown as ApiClient), []);
-
   const [editingMoment, setEditingMoment] = React.useState<MomentFormData | null>(null);
   const [activeSceneForEdit, setActiveSceneForEdit] = React.useState<TimelineScene | null>(null);
 

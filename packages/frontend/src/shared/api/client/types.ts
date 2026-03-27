@@ -1,5 +1,6 @@
 export interface ApiClientOptions {
   skipBrandContext?: boolean;
+  skipAuth?: boolean;
   headers?: Record<string, string>;
 }
 

@@ -10,9 +10,9 @@ import {
 import MusicTable from './MusicTable';
 import CreateMusicDialog from './CreateMusicDialog';
 import AttachMusicToMomentDialog from './AttachMusicToMomentDialog';
-import { musicApi, MusicLibraryItem, CreateMusicLibraryItemDto, UpdateMusicLibraryItemDto } from '@/lib/api/music';
-import { momentsApi } from '@/lib/api/moments';
-import { SceneMoment, MusicType } from '@/lib/types/moments';
+import { musicApi } from '@/features/content/music/api/music';
+import { momentsApi } from '@/features/content/music/api/moments';
+import { CreateMusicLibraryItemDto, MusicLibraryItem, SceneMoment, MusicType, UpdateMusicLibraryItemDto } from '@/features/content/music/types';
 
 interface MusicItem {
     id?: number;

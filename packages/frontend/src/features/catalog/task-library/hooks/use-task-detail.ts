@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { useBrand } from '@/features/platform/brand';
 import { taskLibraryApi } from '../api';
-import { ProjectPhase, PricingType, TriggerType } from '@/lib/types';
-import type { TaskLibrary } from '@/lib/types';
+import { ProjectPhase, PricingType, TriggerType } from '@/features/catalog/task-library/types';
+import type { TaskLibrary } from '@/features/catalog/task-library/types';
 
 interface ValidationErrors { [key: string]: string; }
 
@@ -100,7 +100,7 @@ export function useTaskDetail(taskId: string) {
                 if (!currentBrand?.id) { setSnackbar({ open: true, message: 'No brand selected', severity: 'error' }); return; }
                 const created = await taskLibraryApi.create({ ...formData, brand_id: currentBrand.id });
                 setSnackbar({ open: true, message: 'Task created successfully', severity: 'success' });
-                router.push(`/manager/tasks/${created.id}`);
+                router.push(`/tasks/${created.id}`);
             } else {
                 const updated = await taskLibraryApi.update(parseInt(taskId), formData);
                 setTask(updated);
@@ -112,7 +112,7 @@ export function useTaskDetail(taskId: string) {
     };
 
     const handleCancel = () => {
-        if (isNewTask) { router.push('/manager/tasks'); return; }
+        if (isNewTask) { router.push('/task-library'); return; }
         setIsEditing(false);
         if (task) setFormData(taskToForm(task));
         setHasUnsavedChanges(false);

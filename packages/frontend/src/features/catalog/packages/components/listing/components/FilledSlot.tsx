@@ -16,10 +16,11 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import CloseIcon from '@mui/icons-material/Close';
 
-import type { ServicePackage } from '@/lib/types/domains/sales';
-import { formatCurrency } from '@/lib/utils/formatUtils';
+import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
+import { formatCurrency } from '@/shared/utils/formatUtils';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
 
-import { getTierColor, getCategoryColor, getPackageStats } from '../lib/helpers';
+import { getTierColor, getCategoryColor, getPackageStats } from '../listing-helpers';
 
 // ═══════════════════════════════════════════════════════════════════════
 // ── Filled Slot Component
@@ -118,7 +119,7 @@ export function FilledSlot({
                     <Typography sx={{
                         fontWeight: 800, color: '#f59e0b', fontSize: '1.1rem', fontFamily: 'monospace',
                     }}>
-                        {formatCurrency(displayCost, currencyCode || 'USD')}
+                        {formatCurrency(displayCost, currencyCode ?? DEFAULT_CURRENCY)}
                     </Typography>
                 </Box>
 

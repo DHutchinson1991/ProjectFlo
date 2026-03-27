@@ -1,9 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useMemo } from 'react';
-import { api, apiClient } from '@/lib/api';
-import { createScenesApi } from '@/features/content/scenes/api';
-import type { ApiClient } from '@/lib/api/api-client.types';
+import { instanceFilmsApi } from '@/features/content/films/api/instance-films.api';
+import { scenesApi } from '@/features/content/scenes/api';
+import { beatsApi } from '@/features/content/beats/api';
 import type { CreateSceneMomentDto, UpdateSceneMomentDto } from '@/features/content/moments/types';
 import type { CreateFilmSceneDto } from '@/features/content/scenes/types';
 import type { FilmContentApi, FilmApiMode } from '@/features/content/films/types/film-api.types';
@@ -32,8 +32,6 @@ export function useOptionalFilmApi(): FilmContentApi | null {
 // film content in the component library.
 
 export function createLibraryFilmApi(filmId: number): FilmContentApi {
-  const scenesApi = createScenesApi(apiClient as unknown as ApiClient);
-
   return {
     mode: 'library',
     filmId,
@@ -73,14 +71,14 @@ export function createLibraryFilmApi(filmId: number): FilmContentApi {
     },
 
     beats: {
-      create: (sceneId, data) => api.beats.create(sceneId, data),
-      update: (beatId, data) => api.beats.update(beatId, data),
-      delete: (beatId) => api.beats.delete(beatId),
+      create: (sceneId, data) => beatsApi.create(sceneId, data),
+      update: (beatId, data) => beatsApi.update(beatId, data),
+      delete: (beatId) => beatsApi.delete(beatId),
 
       recordingSetup: {
-        get: (beatId) => api.beats.recordingSetup.get(beatId),
-        upsert: (beatId, data) => api.beats.recordingSetup.upsert(beatId, data),
-        delete: (beatId) => api.beats.recordingSetup.delete(beatId),
+        get: (beatId) => beatsApi.recordingSetup.get(beatId),
+        upsert: (beatId, data) => beatsApi.recordingSetup.upsert(beatId, data),
+        delete: (beatId) => beatsApi.recordingSetup.delete(beatId),
       },
     },
   };
@@ -96,10 +94,10 @@ export function createProjectFilmApi(projectFilmId: number): FilmContentApi {
     filmId: projectFilmId,
 
     scenes: {
-      getByFilm: () => api.instanceFilms.scenes.getAll(projectFilmId),
-      getById: (id) => api.instanceFilms.scenes.getById(id),
+      getByFilm: () => instanceFilmsApi.scenes.getAll(projectFilmId),
+      getById: (id) => instanceFilmsApi.scenes.getById(id),
       create: (data) =>
-        api.instanceFilms.scenes.create(projectFilmId, {
+        instanceFilmsApi.scenes.create(projectFilmId, {
           name: data.name,
           mode: data.mode,
           order_index: data.order_index,
@@ -107,43 +105,43 @@ export function createProjectFilmApi(projectFilmId: number): FilmContentApi {
           source_scene_id: data.source_scene_id ?? data.scene_template_id,
           scene_template_id: data.scene_template_id,
         }),
-      update: (id, data) => api.instanceFilms.scenes.update(id, data),
-      delete: (id) => api.instanceFilms.scenes.delete(id),
+      update: (id, data) => instanceFilmsApi.scenes.update(id, data),
+      delete: (id) => instanceFilmsApi.scenes.delete(id),
 
       recordingSetup: {
-        get: (sceneId) => api.instanceFilms.scenes.recordingSetup.get(sceneId),
-        upsert: (sceneId, data) => api.instanceFilms.scenes.recordingSetup.upsert(sceneId, data),
-        delete: (sceneId) => api.instanceFilms.scenes.recordingSetup.delete(sceneId),
+        get: (sceneId) => instanceFilmsApi.scenes.recordingSetup.get(sceneId),
+        upsert: (sceneId, data) => instanceFilmsApi.scenes.recordingSetup.upsert(sceneId, data),
+        delete: (sceneId) => instanceFilmsApi.scenes.recordingSetup.delete(sceneId),
       },
     },
 
     moments: {
-      getByScene: (sceneId) => api.instanceFilms.moments.getByScene(sceneId),
-      getById: (id) => api.instanceFilms.moments.getById(id),
+      getByScene: (sceneId) => instanceFilmsApi.moments.getByScene(sceneId),
+      getById: (id) => instanceFilmsApi.moments.getById(id),
       create: (data) => {
         const sceneId = data.film_scene_id;
         if (!sceneId) throw new Error('film_scene_id is required for moment creation');
-        return api.instanceFilms.moments.create(sceneId, {
+        return instanceFilmsApi.moments.create(sceneId, {
           name: data.name,
           order_index: data.order_index,
           duration: data.duration,
         });
       },
-      update: (id, data) => api.instanceFilms.moments.update(id, data),
-      delete: (id) => api.instanceFilms.moments.delete(id),
-      clearRecordingSetup: (id) => api.instanceFilms.moments.recordingSetup.delete(id),
-      upsertRecordingSetup: (id, data) => api.instanceFilms.moments.recordingSetup.upsert(id, data),
+      update: (id, data) => instanceFilmsApi.moments.update(id, data),
+      delete: (id) => instanceFilmsApi.moments.delete(id),
+      clearRecordingSetup: (id) => instanceFilmsApi.moments.recordingSetup.delete(id),
+      upsertRecordingSetup: (id, data) => instanceFilmsApi.moments.recordingSetup.upsert(id, data),
     },
 
     beats: {
-      create: (sceneId, data) => api.instanceFilms.beats.create(sceneId, data),
-      update: (beatId, data) => api.instanceFilms.beats.update(beatId, data),
-      delete: (beatId) => api.instanceFilms.beats.delete(beatId),
+      create: (sceneId, data) => instanceFilmsApi.beats.create(sceneId, data),
+      update: (beatId, data) => instanceFilmsApi.beats.update(beatId, data),
+      delete: (beatId) => instanceFilmsApi.beats.delete(beatId),
 
       recordingSetup: {
-        get: (beatId) => api.instanceFilms.beats.recordingSetup.get(beatId),
-        upsert: (beatId, data) => api.instanceFilms.beats.recordingSetup.upsert(beatId, data),
-        delete: (beatId) => api.instanceFilms.beats.recordingSetup.delete(beatId),
+        get: (beatId) => instanceFilmsApi.beats.recordingSetup.get(beatId),
+        upsert: (beatId, data) => instanceFilmsApi.beats.recordingSetup.upsert(beatId, data),
+        delete: (beatId) => instanceFilmsApi.beats.recordingSetup.delete(beatId),
       },
     },
   };

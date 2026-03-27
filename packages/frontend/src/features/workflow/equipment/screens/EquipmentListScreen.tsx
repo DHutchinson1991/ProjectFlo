@@ -19,7 +19,7 @@ import { DeleteConfirmDialog } from "@/features/workflow/equipment/components/De
 export function EquipmentListScreen() {
     const {
         equipmentByCategory,
-        contributors,
+        crewMembers,
         loading,
         error,
         deleteConfirmOpen,
@@ -101,7 +101,7 @@ export function EquipmentListScreen() {
             <EquipmentAccordionList
                 equipmentByCategory={equipmentByCategory}
                 onCategoryToggle={toggleCategoryExpansion}
-                contributors={contributors}
+                contributors={crewMembers}
                 inlineEditingEquipment={inlineEditingEquipment}
                 inlineEditData={inlineEditData}
                 updateInlineEditData={updateInlineEditData}

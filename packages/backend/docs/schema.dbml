@@ -51,16 +51,16 @@ Table brands {
   floor_plan_objects floor_plan_objects [not null]
   locations locations_library [not null]
   projects projects [not null]
-  roles roles [not null]
+  system_roles system_roles [not null]
   task_library task_library [not null]
-  user_brands user_brands [not null]
+  brand_members brand_members [not null]
   service_packages service_packages [not null]
   service_package_categories service_package_categories [not null]
   films films [not null]
   montage_presets montage_presets [not null]
   film_structure_templates film_structure_templates [not null]
-  needs_assessment_templates needs_assessment_templates [not null]
-  needs_assessment_submissions needs_assessment_submissions [not null]
+  inquiry_wizard_templates needs_assessment_templates [not null]
+  inquiry_wizard_submissions needs_assessment_submissions [not null]
   discovery_questionnaire_templates discovery_questionnaire_templates [not null]
   discovery_questionnaire_submissions discovery_questionnaire_submissions [not null]
   subject_roles subject_roles [not null]
@@ -99,18 +99,17 @@ Table brand_settings {
   }
 }
 
-Table user_brands {
+Table brand_members {
   id Int [pk, increment]
-  user_id Int [not null]
+  crew_member_id Int [not null]
   brand_id Int [not null]
-  role String [not null, default: 'Member']
   is_active Boolean [not null, default: true]
   joined_at DateTime [default: `now()`, not null]
   brand brands [not null]
-  user contributors [not null]
+  crew_member crew_members [not null]
 
   indexes {
-    (user_id, brand_id) [unique]
+    (crew_member_id, brand_id) [unique]
   }
 }
 
@@ -128,10 +127,10 @@ Table contacts {
   client clients
   communications_log communications_log [not null]
   brand brands
-  contributor contributors
+  contributor crew_members
   event_attendees event_attendees [not null]
   inquiries inquiries [not null]
-  needs_assessment_submissions needs_assessment_submissions [not null]
+  inquiry_wizard_submissions needs_assessment_submissions [not null]
   project_day_subjects project_day_subjects [not null]
 }
 
@@ -153,18 +152,17 @@ Table coverage {
   audio_pattern String
   frequency_response String
   equipment_assignments Json
-  operator_id Int
+  crew_member_id Int
   job_role_id Int
   is_template Boolean [not null, default: false]
   video_style_type VideoStyleType
   resource_requirements Json
   build_coverage_assignments build_coverage_assignments [not null]
   build_scenes build_scenes [not null]
-  operator contributors
+  crew_member crew_members
   job_role job_roles
   workflow_template workflow_templates
   project_assets project_assets [not null]
-  task_generation_rules task_generation_rules [not null]
 }
 
 Table film_categories {
@@ -274,7 +272,7 @@ Table film_versions {
   created_at DateTime [default: `now()`, not null]
   scenes_snapshot Json [not null]
   pricing_snapshot Json [not null]
-  changed_by contributors [not null]
+  changed_by crew_members [not null]
   film film_library [not null]
 }
 
@@ -286,7 +284,7 @@ Table film_change_logs {
   new_value Json
   changed_by_id Int [not null]
   created_at DateTime [default: `now()`, not null]
-  changed_by contributors [not null]
+  changed_by crew_members [not null]
   film film_library [not null]
 }
 
@@ -311,29 +309,12 @@ Table billable_items {
   editing_style_requirements editing_style_requirements [not null]
 }
 
-Table task_templates {
-  id Int [pk, increment]
-  name String [unique, not null]
-  phase String
-  effort_hours Decimal
-  effort_calculation_rules Json
-  pricing_type pricing_type_options [not null, default: 'Hourly']
-  fixed_price Decimal
-  average_duration_hours Decimal
-  contributor_skill_rates contributor_skill_rates [not null]
-  contributor_task_benchmarks contributor_task_benchmarks [not null]
-  entity_default_tasks entity_default_tasks [not null]
-  task_generation_rules task_generation_rules [not null]
-  tasks tasks [not null]
-}
-
-Table roles {
+Table system_roles {
   id Int [pk, increment]
   name String [unique, not null]
   description String
   brand_id Int
-  contributors contributors [not null]
-  project_assignments project_assignments [not null]
+  crew_members crew_members [not null]
   role_permissions role_permissions [not null]
   brand brands
 }
@@ -349,7 +330,7 @@ Table role_permissions {
   role_id Int [not null]
   permission_id Int [not null]
   permission permissions [not null]
-  role roles [not null]
+  system_role system_roles [not null]
 
   indexes {
     (role_id, permission_id) [pk]
@@ -378,7 +359,6 @@ Table inquiries {
   source_package_for_inquiry service_packages
   event_type event_types
   activities activities [not null]
-  activity_logs activity_logs [not null]
   build builds
   calendar_events calendar_events [not null]
   client clients
@@ -389,16 +369,15 @@ Table inquiries {
   invoices invoices [not null]
   proposals proposals [not null]
   quotes quotes [not null]
-  needs_assessment_submissions needs_assessment_submissions [not null]
+  inquiry_wizard_submissions needs_assessment_submissions [not null]
   discovery_questionnaire_submissions discovery_questionnaire_submissions [not null]
   inquiry_tasks inquiry_tasks [not null]
-  availability_requests inquiry_availability_requests [not null]
   equipment_reservations inquiry_equipment_reservations [not null]
   equipment_availability_blocks equipment_availability [not null]
   schedule_event_days project_event_days [not null]
   schedule_activities project_activities [not null]
   schedule_films project_films [not null]
-  schedule_day_operators project_day_operators [not null]
+  schedule_day_operators project_crew_slots [not null]
   schedule_subjects project_day_subjects [not null]
   schedule_location_slots project_location_slots [not null]
   schedule_activity_moments project_activity_moments [not null]
@@ -520,16 +499,6 @@ Table discovery_questionnaire_submissions {
   inquiry inquiries
 }
 
-Table activity_logs {
-  id Int [pk, increment]
-  inquiry_id Int [not null]
-  type String [not null]
-  description String [not null]
-  metadata Json
-  created_at DateTime [default: `now()`, not null]
-  inquiry inquiries [not null]
-}
-
 Table clients {
   id Int [pk, increment]
   contact_id Int [unique, not null]
@@ -577,10 +546,8 @@ Table projects {
   equipment_rentals equipment_rentals [not null]
   estimates estimates [not null]
   floor_plans floor_plans [not null]
-  generated_task_logs generated_task_log [not null]
   invoices invoices [not null]
   project_assets project_assets [not null]
-  project_assignments project_assignments [not null]
   project_expenses project_expenses [not null]
   brand brands
   client clients [not null]
@@ -588,12 +555,11 @@ Table projects {
   workflow_template workflow_templates
   proposals proposals [not null]
   quotes quotes [not null]
-  tasks tasks [not null]
   project_tasks project_tasks [not null]
   project_event_days project_event_days [not null]
   project_films project_films [not null]
   project_activities project_activities [not null]
-  project_day_operators project_day_operators [not null]
+  project_crew_slots project_crew_slots [not null]
   project_subjects project_day_subjects [not null]
   project_location_slots project_location_slots [not null]
   project_activity_moments project_activity_moments [not null]
@@ -610,30 +576,23 @@ Table projects {
   }
 }
 
-Table contributors {
+Table crew_members {
   id Int [pk, increment]
   contact_id Int [unique, not null]
-  role_id Int
-  contributor_type contributors_type
+  system_role_id Int
   password_hash String [not null]
   archived_at DateTime
-  default_hourly_rate Decimal [not null, default: 0]
-  is_crew Boolean [not null, default: false]
   crew_color String
   bio String
-  default_camera_id Int
-  default_camera equipment
   activities_assigned activities [not null]
   audit_logs audit_log [not null]
   calendar_events calendar_events [not null]
   calendar_settings calendar_settings
   calendar_sync_token calendar_sync_tokens
-  job_roles_assigned contributor_job_roles [not null]
-  contributor_job_roles contributor_job_roles [not null]
-  contributor_skill_rates contributor_skill_rates [not null]
-  contributor_task_benchmarks contributor_task_benchmarks [not null]
+  job_roles_assigned crew_member_job_roles [not null]
+  job_role_assignments crew_member_job_roles [not null]
   contact contacts [not null]
-  role roles
+  system_role system_roles
   coverage_assignments coverage [not null]
   equipment_created equipment [not null]
   equipment_owned equipment [not null]
@@ -647,35 +606,18 @@ Table contributors {
   floor_plans_created floor_plans [not null]
   venue_floor_plans_updated locations_library [not null]
   notifications_received notifications [not null]
-  package_crew_assignments package_day_operators [not null]
-  project_crew_assignments project_day_operators [not null]
-  project_assignments project_assignments [not null]
-  task_comments_made task_comments [not null]
+  package_crew_assignments package_crew_slots [not null]
+  project_crew_assignments project_crew_slots [not null]
   task_library_benchmarks task_library_benchmarks [not null]
-  task_library_defaults task_library [not null]
-  tasks_assigned tasks [not null]
+  default_task_library_entries task_library [not null]
   project_tasks_assigned project_tasks [not null]
   inquiry_tasks_completed inquiry_tasks [not null]
   inquiry_task_subtasks_completed inquiry_task_subtasks [not null]
   inquiry_tasks_assigned inquiry_tasks [not null]
-  availability_requests_sent inquiry_availability_requests [not null]
   timeline_sessions timeline_editing_sessions [not null]
   timeline_tracks film_timeline_tracks_v2 [not null]
   project_film_timeline_tracks project_film_timeline_tracks [not null]
-  user_brands user_brands [not null]
-}
-
-Table contributor_skill_rates {
-  id Int [pk, increment]
-  contributor_id Int [not null]
-  task_template_id Int [not null]
-  rate Decimal [not null]
-  contributor contributors [not null]
-  task_template task_templates [not null]
-
-  indexes {
-    (contributor_id, task_template_id) [unique]
-  }
+  brand_memberships brand_members [not null]
 }
 
 Table job_roles {
@@ -688,10 +630,10 @@ Table job_roles {
   is_active Boolean [not null, default: true]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  contributor_job_roles contributor_job_roles [not null]
+  crew_member_job_roles crew_member_job_roles [not null]
   coverage_roles coverage [not null]
-  package_crew_slots package_day_operators [not null]
-  project_day_operators project_day_operators [not null]
+  package_crew_slots package_crew_slots [not null]
+  project_crew_slots project_crew_slots [not null]
   payment_brackets payment_brackets [not null]
   skill_role_mappings skill_role_mappings [not null]
   resolved_project_tasks project_tasks [not null]
@@ -715,7 +657,7 @@ Table payment_brackets {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   job_role job_roles [not null]
-  contributor_job_roles contributor_job_roles [not null]
+  crew_member_job_roles crew_member_job_roles [not null]
   resolved_project_tasks project_tasks [not null]
   skill_role_mappings skill_role_mappings [not null]
 
@@ -725,36 +667,22 @@ Table payment_brackets {
   }
 }
 
-Table contributor_job_roles {
+Table crew_member_job_roles {
   id Int [pk, increment]
-  contributor_id Int [not null]
+  crew_member_id Int [not null]
   job_role_id Int [not null]
   payment_bracket_id Int
   is_primary Boolean [not null, default: false]
   is_unmanned Boolean [not null, default: false]
   assigned_at DateTime [default: `now()`, not null]
   assigned_by Int
-  assigned_by_user contributors
-  contributor contributors [not null]
+  assigned_by_user crew_members
+  crew_member crew_members [not null]
   job_role job_roles [not null]
   payment_bracket payment_brackets
 
   indexes {
-    (contributor_id, job_role_id) [unique]
-  }
-}
-
-Table project_assignments {
-  id Int [pk, increment]
-  project_id Int [not null]
-  contributor_id Int [not null]
-  role_id Int [not null]
-  contributor contributors [not null]
-  project projects [not null]
-  role roles [not null]
-
-  indexes {
-    (project_id, contributor_id) [unique]
+    (crew_member_id, job_role_id) [unique]
   }
 }
 
@@ -824,7 +752,6 @@ Table build_scenes {
   build_film build_films [not null]
   coverage coverage [not null]
   editing_style editing_styles [not null]
-  tasks tasks [not null]
 }
 
 Table build_billable_items {
@@ -865,31 +792,9 @@ Table build_snapshots {
   change_order build_change_orders [not null]
 }
 
-Table tasks {
-  id Int [pk, increment]
-  project_id Int [not null]
-  build_scene_id Int [not null]
-  task_template_id Int [not null]
-  planned_duration_hours Decimal
-  actual_duration_hours Decimal
-  status tasks_status [not null, default: 'To_Do']
-  due_date DateTime
-  assigned_to_contributor_id Int
-  is_client_visible Boolean [default: false]
-  rate_at_time_of_assignment Decimal [not null, default: 0]
-  generated_task_logs generated_task_log [not null]
-  task_comments task_comments [not null]
-  task_dependencies_blocking task_dependencies [not null]
-  task_dependencies_dependent task_dependencies [not null]
-  assigned_to_contributor contributors
-  build_scene build_scenes [not null]
-  project projects [not null]
-  task_template task_templates [not null]
-}
-
 Table calendar_events {
   id Int [pk, increment]
-  contributor_id Int [not null]
+  crew_member_id Int [not null]
   project_id Int
   title String [not null]
   start_time DateTime [not null]
@@ -905,7 +810,7 @@ Table calendar_events {
   meeting_url String
   outcome_notes String
   is_confirmed Boolean [not null, default: false]
-  contributor contributors [not null]
+  crew_member crew_members [not null]
   inquiry inquiries
   project projects
   event_attendees event_attendees [not null]
@@ -938,18 +843,18 @@ Table event_tags {
 Table event_attendees {
   id Int [pk, increment]
   event_id Int [not null]
-  contributor_id Int
+  crew_member_id Int
   contact_id Int
   email String
   name String
   status event_attendee_status [not null, default: 'PENDING']
   created_at DateTime [default: `now()`, not null]
   contact contacts
-  contributor contributors
+  crew_member crew_members
   event calendar_events [not null]
 
   indexes {
-    (event_id, contributor_id) [unique]
+    (event_id, crew_member_id) [unique]
     (event_id, contact_id) [unique]
     (event_id, email) [unique]
   }
@@ -967,7 +872,7 @@ Table event_reminders {
 
 Table calendar_settings {
   id Int [pk, increment]
-  contributor_id Int [unique, not null]
+  crew_member_id Int [unique, not null]
   default_view String [not null, default: 'WEEK']
   working_hours_start String [not null, default: '09:00']
   working_hours_end String [not null, default: '17:00']
@@ -977,7 +882,7 @@ Table calendar_settings {
   default_event_duration Int [not null, default: 60]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  contributor contributors [not null]
+  crew_member crew_members [not null]
 }
 
 Table project_assets {
@@ -989,24 +894,6 @@ Table project_assets {
   asset_type project_asset_type
   coverage coverage
   project projects [not null]
-}
-
-Table contributor_task_benchmarks {
-  id Int [pk, increment]
-  contributor_id Int [not null]
-  task_template_id Int [not null]
-  contributor_default_hours Decimal
-  contributor_average_hours Decimal
-  contributor_best_hours Decimal
-  completed_count Int [not null, default: 0]
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  contributor contributors [not null]
-  task_template task_templates [not null]
-
-  indexes {
-    (task_template_id, contributor_id) [unique]
-  }
 }
 
 Table invoices {
@@ -1175,34 +1062,26 @@ Table quote_payment_milestones {
 
 Table audit_log {
   id Int [pk, increment]
-  contributor_id Int
+  crew_member_id Int
   action String [not null]
   timestamp DateTime [default: `now()`, not null]
   details Json
-  contributor contributors
+  crew_member crew_members
 }
 
 Table notifications {
   id Int [pk, increment]
-  recipient_contributor_id Int [not null]
+  recipient_crew_member_id Int [not null]
   message String [not null]
   is_read Boolean [not null, default: false]
   created_at DateTime [default: `now()`]
   link_url String
-  recipient_contributor contributors [not null]
-}
-
-Table task_dependencies {
-  id Int [pk, increment]
-  blocking_task_id Int [not null]
-  dependent_task_id Int [not null]
-  blocking_task tasks [not null]
-  dependent_task tasks [not null]
+  recipient_crew_member crew_members [not null]
 }
 
 Table activities {
   id Int [pk, increment]
-  assigned_to_contributor_id Int [not null]
+  assigned_to_crew_member_id Int [not null]
   contact_id Int
   inquiry_id Int
   project_id Int
@@ -1211,7 +1090,7 @@ Table activities {
   title String [not null]
   notes String
   status activity_status [not null, default: 'Pending']
-  assigned_to_contributor contributors [not null]
+  assigned_to_crew_member crew_members [not null]
   contact contacts
   inquiry inquiries
   project projects
@@ -1307,23 +1186,12 @@ Table client_feedback_surveys {
   project projects [not null]
 }
 
-Table task_comments {
-  id Int [pk, increment]
-  task_id Int [not null]
-  contributor_id Int
-  comment_text String [not null]
-  created_at DateTime [default: `now()`]
-  visibility task_comment_visibility
-  contributor contributors
-  task tasks [not null]
-}
-
 Table calendar_sync_tokens {
   id Int [pk, increment]
-  contributor_id Int [unique, not null]
+  crew_member_id Int [unique, not null]
   provider calendar_sync_provider [not null]
   refresh_token String [not null]
-  contributor contributors [not null]
+  crew_member crew_members [not null]
 }
 
 Table timeline_layers {
@@ -1340,16 +1208,16 @@ Table timeline_layers {
 Table timeline_editing_sessions {
   id Int [pk, increment]
   film_id Int [not null]
-  user_id Int [not null]
+  crew_member_id Int [not null]
   session_start DateTime [default: `now()`, not null]
   session_end DateTime
   last_activity DateTime [default: `now()`, not null]
   is_active Boolean [not null, default: true]
   film film_library [not null]
-  user contributors [not null]
+  crew_member crew_members [not null]
 
   indexes {
-    (film_id, user_id, session_start) [unique]
+    (film_id, crew_member_id, session_start) [unique]
   }
 }
 
@@ -1367,46 +1235,12 @@ Table workflow_templates {
   editing_styles editing_styles [not null]
   filmLibrary film_library [not null]
   projects projects [not null]
-  stages workflow_stages [not null]
   service_packages service_packages [not null]
   workflow_template_tasks workflow_template_tasks [not null]
 
   indexes {
     (brand_id, name) [unique]
   }
-}
-
-Table workflow_stages {
-  id Int [pk, increment]
-  workflow_template_id Int [not null]
-  name String [not null]
-  description String
-  order_index Int [not null]
-  is_active Boolean [not null, default: true]
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  task_generation_rules task_generation_rules [not null]
-  workflow_template workflow_templates [not null]
-
-  indexes {
-    (workflow_template_id, order_index) [unique]
-  }
-}
-
-Table task_generation_rules {
-  id Int [pk, increment]
-  workflow_stage_id Int [not null]
-  task_template_id Int [not null]
-  scene_type MediaType
-  coverage_id Int
-  is_required Boolean [not null, default: true]
-  auto_assign_to_role String
-  conditions Json
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  coverage coverage
-  task_template task_templates [not null]
-  workflow_stage workflow_stages [not null]
 }
 
 Table workflow_template_tasks {
@@ -1426,33 +1260,6 @@ Table workflow_template_tasks {
 
   indexes {
     (workflow_template_id, task_library_id) [unique]
-  }
-}
-
-Table generated_task_log {
-  id Int [pk, increment]
-  project_id Int [not null]
-  task_generation_rule_id Int [not null]
-  task_id Int [not null]
-  generated_at DateTime [default: `now()`, not null]
-  project projects [not null]
-  task tasks [not null]
-}
-
-Table entity_default_tasks {
-  id Int [pk, increment]
-  entity_type String [not null]
-  entity_id Int [not null]
-  task_template_id Int
-  task_name String [not null]
-  estimated_hours Decimal [not null, default: 0]
-  order_index Int [not null]
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  task_template task_templates
-
-  indexes {
-    (entity_type, entity_id, order_index) [unique]
   }
 }
 
@@ -1495,15 +1302,14 @@ Table task_library {
   trigger_type task_trigger_type [not null, default: 'always']
   due_date_offset_days Int
   parent_task_id Int
-  is_stage Boolean [not null, default: false]
+  is_task_group Boolean [not null, default: false]
   is_auto_only Boolean [not null, default: false]
-  stage_color String
-  default_contributor_id Int
+  default_crew_member_id Int
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   brand brands [not null]
   default_job_role job_roles
-  default_contributor contributors
+  default_crew_member crew_members
   parent_task task_library
   children task_library [not null]
   task_library_benchmarks task_library_benchmarks [not null]
@@ -1518,18 +1324,18 @@ Table task_library {
 Table task_library_benchmarks {
   id Int [pk, increment]
   task_library_id Int [not null]
-  contributor_id Int [not null]
+  crew_member_id Int [not null]
   contributor_default_hours Decimal
   contributor_average_hours Decimal
   contributor_best_hours Decimal
   completed_count Int [not null, default: 0]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  contributor contributors [not null]
+  contributor crew_members [not null]
   task_library task_library [not null]
 
   indexes {
-    (task_library_id, contributor_id) [unique]
+    (task_library_id, crew_member_id) [unique]
   }
 }
 
@@ -1593,7 +1399,7 @@ Table project_tasks {
   project projects [not null]
   task_library task_library
   package service_packages
-  assigned_to contributors
+  assigned_to crew_members
   resolved_job_role job_roles
   resolved_bracket payment_brackets
 }
@@ -1616,14 +1422,13 @@ Table inquiry_tasks {
   assigned_to_id Int
   job_role_id Int
   is_active Boolean [not null, default: true]
-  is_stage Boolean [not null, default: false]
-  stage_color String
+  is_task_group Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   inquiry inquiries [not null]
   task_library task_library
-  completed_by contributors
-  assigned_to contributors
+  completed_by crew_members
+  assigned_to crew_members
   job_role job_roles
   parent_inquiry_task inquiry_tasks
   children inquiry_tasks [not null]
@@ -1645,7 +1450,7 @@ Table inquiry_task_subtasks {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   inquiry_task inquiry_tasks [not null]
-  completed_by contributors
+  completed_by crew_members
   job_role job_roles
 
   indexes {
@@ -1661,25 +1466,6 @@ Table inquiry_task_events {
   description String [not null]
   occurred_at DateTime [default: `now()`, not null]
   inquiry_task inquiry_tasks [not null]
-}
-
-Table inquiry_availability_requests {
-  id Int [pk, increment]
-  inquiry_id Int [not null]
-  contributor_id Int [not null]
-  project_day_operator_id Int
-  status inquiry_availability_request_status [not null, default: 'pending']
-  sent_at DateTime [default: `now()`, not null]
-  responded_at DateTime
-  notes String
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  inquiry inquiries [not null]
-  contributor contributors [not null]
-
-  indexes {
-    (inquiry_id, contributor_id) [unique]
-  }
 }
 
 Table equipment {
@@ -1717,18 +1503,17 @@ Table equipment {
   created_by_id Int
   owner_id Int
   brand brands
-  created_by contributors
-  owner contributors
+  created_by crew_members
+  owner crew_members
   availability_slots equipment_availability [not null]
   maintenance_logs equipment_maintenance [not null]
   rental_bookings equipment_rentals [not null]
   film_assignments film_equipment_assignments [not null]
   equipment_template_items equipment_template_items [not null]
-  package_day_operator_equipment package_day_operator_equipment [not null]
-  project_day_operator_equipment project_day_operator_equipment [not null]
+  package_crew_slot_equipment package_crew_slot_equipment [not null]
+  project_crew_slot_equipment project_crew_slot_equipment [not null]
   project_film_equipment_assignments project_film_equipment_assignments [not null]
   inquiry_equipment_reservations inquiry_equipment_reservations [not null]
-  contributor_default_camera contributors [not null]
 }
 
 Table equipment_rentals {
@@ -1750,7 +1535,7 @@ Table equipment_rentals {
   client clients
   equipment equipment [not null]
   project projects
-  rented_by contributors
+  rented_by crew_members
 }
 
 Table equipment_maintenance {
@@ -1765,7 +1550,7 @@ Table equipment_maintenance {
   notes String
   created_at DateTime [default: `now()`, not null]
   created_by_id Int
-  created_by contributors
+  created_by crew_members
   equipment equipment [not null]
 }
 
@@ -1788,9 +1573,9 @@ Table equipment_availability {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   created_by_id Int
-  booked_by contributors
+  booked_by crew_members
   client clients
-  created_by contributors
+  created_by crew_members
   equipment equipment [not null]
   project projects
   inquiry_id Int
@@ -1830,7 +1615,7 @@ Table locations_library {
   project_film_locations project_film_locations [not null]
   project_film_scene_locations project_film_scene_locations [not null]
   brand brands
-  venue_floor_plan_updater contributors
+  venue_floor_plan_updater crew_members
 }
 
 Table location_spaces {
@@ -1864,7 +1649,7 @@ Table floor_plans {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   created_by_id Int
-  created_by contributors
+  created_by crew_members
   project projects
   space location_spaces [not null]
 
@@ -1965,11 +1750,11 @@ Table film_timeline_tracks_v2 {
   order_index Int [not null]
   is_active Boolean [not null, default: true]
   is_unmanned Boolean [not null, default: false]
-  contributor_id Int
+  crew_member_id Int
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   film films [not null]
-  contributor contributors
+  contributor crew_members
   camera_assignments camera_subject_assignments [not null]
   scene_camera_assignments scene_camera_assignments [not null]
   project_instances project_film_timeline_tracks [not null]
@@ -1983,7 +1768,6 @@ Table subject_templates {
   id Int [pk, increment]
   brand_id Int
   name String [not null]
-  category SubjectCategory [not null]
   is_system Boolean [not null, default: true]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
@@ -2024,9 +1808,7 @@ Table film_subjects {
   id Int [pk, increment]
   film_id Int [not null]
   name String [not null]
-  category SubjectCategory [not null]
   role_template_id Int
-  is_custom Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   film films [not null]
@@ -2401,7 +2183,7 @@ Table service_packages {
   workflow_template_id Int
   package_films package_films [not null]
   package_event_days package_event_days [not null]
-  package_day_operators package_day_operators [not null]
+  package_crew_slots package_crew_slots [not null]
   package_activities package_activities [not null]
   package_day_subjects package_day_subjects [not null]
   package_event_day_locations package_event_day_locations [not null]
@@ -2530,7 +2312,7 @@ Table event_days {
   package_scene_schedules package_film_scene_schedules [not null]
   project_event_days project_event_days [not null]
   package_event_days package_event_days [not null]
-  package_day_operators package_day_operators [not null]
+  package_crew_slots package_crew_slots [not null]
   package_day_subjects package_day_subjects [not null]
   package_event_day_locations package_event_day_locations [not null]
   package_location_slots package_location_slots [not null]
@@ -2777,10 +2559,10 @@ Table package_activities {
   package service_packages [not null]
   package_event_day package_event_days [not null]
   scene_schedules package_film_scene_schedules [not null]
-  operators package_day_operators [not null]
+  operators package_crew_slots [not null]
   locations package_event_day_locations [not null]
   project_activities project_activities [not null]
-  operator_assignments operator_activity_assignments [not null]
+  operator_assignments package_crew_slot_activities [not null]
   subject_assignments package_day_subject_activities [not null]
   location_assignments location_activity_assignments [not null]
   moments package_activity_moments [not null]
@@ -2807,44 +2589,42 @@ Table package_activity_moments {
   }
 }
 
-Table package_day_operators {
+Table package_crew_slots {
   id Int [pk, increment]
   package_id Int [not null]
   event_day_template_id Int [not null]
-  contributor_id Int
+  crew_member_id Int
   package_activity_id Int
-  position_name String [not null]
-  position_color String
-  job_role_id Int
+  job_role_id Int [not null]
   hours Decimal [not null, default: 8]
-  notes String
+  label String
   order_index Int [not null, default: 0]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   package service_packages [not null]
   event_day event_days [not null]
-  contributor contributors
+  contributor crew_members
   package_activity package_activities
-  job_role job_roles
-  equipment package_day_operator_equipment [not null]
-  activity_assignments operator_activity_assignments [not null]
+  job_role job_roles [not null]
+  equipment package_crew_slot_equipment [not null]
+  activity_assignments package_crew_slot_activities [not null]
 
   indexes {
-    (package_id, event_day_template_id, position_name) [unique]
+    (package_id, event_day_template_id, job_role_id, order_index) [unique]
   }
 }
 
-Table package_day_operator_equipment {
+Table package_crew_slot_equipment {
   id Int [pk, increment]
-  package_day_operator_id Int [not null]
+  package_crew_slot_id Int [not null]
   equipment_id Int [not null]
   is_primary Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
-  package_day_operator package_day_operators [not null]
+  package_crew_slot package_crew_slots [not null]
   equipment equipment [not null]
 
   indexes {
-    (package_day_operator_id, equipment_id) [unique]
+    (package_crew_slot_id, equipment_id) [unique]
   }
 }
 
@@ -2855,7 +2635,6 @@ Table package_day_subjects {
   role_template_id Int
   name String [not null]
   count Int
-  category SubjectCategory [not null, default: 'PEOPLE']
   notes String
   order_index Int [not null, default: 0]
   created_at DateTime [default: `now()`, not null]
@@ -2950,7 +2729,7 @@ Table project_event_days {
   event_day_template event_days
   scene_schedules project_film_scene_schedules [not null]
   activities project_activities [not null]
-  day_operators project_day_operators [not null]
+  day_operators project_crew_slots [not null]
   subjects project_day_subjects [not null]
   location_slots project_location_slots [not null]
 }
@@ -2979,8 +2758,8 @@ Table project_activities {
   package_activity package_activities
   scene_schedules project_film_scene_schedules [not null]
   moments project_activity_moments [not null]
-  operators project_day_operators [not null]
-  operator_assignments project_operator_activity_assignments [not null]
+  operators project_crew_slots [not null]
+  operator_assignments project_crew_slot_activities [not null]
   subject_assignments project_day_subject_activities [not null]
   location_assignments project_location_activity_assignments [not null]
 }
@@ -3047,14 +2826,14 @@ Table project_film_timeline_tracks {
   order_index Int [not null]
   is_active Boolean [not null, default: true]
   is_unmanned Boolean [not null, default: false]
-  contributor_id Int
+  crew_member_id Int
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   project projects
   inquiry inquiries
   project_film project_films [not null]
   source_track film_timeline_tracks_v2
-  contributor contributors
+  contributor crew_members
   camera_assignments project_camera_subject_assignments [not null]
   scene_camera_assignments project_scene_camera_assignments [not null]
 }
@@ -3066,9 +2845,7 @@ Table project_film_subjects {
   project_film_id Int [not null]
   source_subject_id Int
   name String [not null]
-  category SubjectCategory [not null]
   role_template_id Int
-  is_custom Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   project projects
@@ -3320,7 +3097,6 @@ Table project_day_subjects {
   real_name String
   count Int
   member_names Json
-  category SubjectCategory [not null, default: 'PEOPLE']
   notes String
   order_index Int [not null, default: 0]
   created_at DateTime [default: `now()`, not null]
@@ -3354,19 +3130,17 @@ Table project_location_slots {
   activity_assignments project_location_activity_assignments [not null]
 }
 
-Table project_day_operators {
+Table project_crew_slots {
   id Int [pk, increment]
   project_id Int
   inquiry_id Int
   project_event_day_id Int [not null]
   project_activity_id Int
-  source_package_operator_id Int
-  contributor_id Int
-  position_name String [not null]
-  position_color String
-  job_role_id Int
+  source_slot_id Int
+  crew_member_id Int
+  job_role_id Int [not null]
   hours Decimal [not null, default: 8]
-  notes String
+  label String
   order_index Int [not null, default: 0]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
@@ -3374,36 +3148,36 @@ Table project_day_operators {
   inquiry inquiries
   project_event_day project_event_days [not null]
   project_activity project_activities
-  contributor contributors
-  job_role job_roles
-  equipment project_day_operator_equipment [not null]
-  activity_assignments project_operator_activity_assignments [not null]
+  contributor crew_members
+  job_role job_roles [not null]
+  equipment project_crew_slot_equipment [not null]
+  activity_assignments project_crew_slot_activities [not null]
 }
 
-Table project_day_operator_equipment {
+Table project_crew_slot_equipment {
   id Int [pk, increment]
-  project_day_operator_id Int [not null]
+  project_crew_slot_id Int [not null]
   equipment_id Int [not null]
   is_primary Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
-  project_day_operator project_day_operators [not null]
+  project_crew_slot project_crew_slots [not null]
   equipment equipment [not null]
 
   indexes {
-    (project_day_operator_id, equipment_id) [unique]
+    (project_crew_slot_id, equipment_id) [unique]
   }
 }
 
-Table project_operator_activity_assignments {
+Table project_crew_slot_activities {
   id Int [pk, increment]
-  project_day_operator_id Int [not null]
+  project_crew_slot_id Int [not null]
   project_activity_id Int [not null]
   created_at DateTime [default: `now()`, not null]
-  project_day_operator project_day_operators [not null]
+  project_crew_slot project_crew_slots [not null]
   project_activity project_activities [not null]
 
   indexes {
-    (project_day_operator_id, project_activity_id) [unique]
+    (project_crew_slot_id, project_activity_id) [unique]
   }
 }
 
@@ -3433,16 +3207,16 @@ Table project_location_activity_assignments {
   }
 }
 
-Table operator_activity_assignments {
+Table package_crew_slot_activities {
   id Int [pk, increment]
-  package_day_operator_id Int [not null]
+  package_crew_slot_id Int [not null]
   package_activity_id Int [not null]
   created_at DateTime [default: `now()`, not null]
-  package_day_operator package_day_operators [not null]
+  package_crew_slot package_crew_slots [not null]
   package_activity package_activities [not null]
 
   indexes {
-    (package_day_operator_id, package_activity_id) [unique]
+    (package_crew_slot_id, package_activity_id) [unique]
   }
 }
 
@@ -3717,7 +3491,7 @@ Table inquiry_equipment_reservations {
   id Int [pk, increment]
   inquiry_id Int [not null]
   equipment_id Int [not null]
-  project_day_operator_equipment_id Int [not null]
+  project_crew_slot_equipment_id Int [not null]
   equipment_availability_id Int
   status inquiry_equipment_reservation_status [not null, default: 'reserved']
   reserved_at DateTime [default: `now()`, not null]
@@ -3727,7 +3501,7 @@ Table inquiry_equipment_reservations {
   equipment equipment [not null]
 
   indexes {
-    (inquiry_id, project_day_operator_equipment_id) [unique]
+    (inquiry_id, project_crew_slot_equipment_id) [unique]
   }
 }
 
@@ -3845,12 +3619,6 @@ Enum inquiries_status {
   Closed_Lost
 }
 
-Enum contributors_type {
-  Internal
-  External
-  Freelance
-}
-
 Enum builds_status {
   Inquiry
   Proposal_Sent
@@ -3934,11 +3702,6 @@ Enum document_status {
   Archived
 }
 
-Enum task_comment_visibility {
-  Internal
-  Client_Visible
-}
-
 Enum calendar_sync_provider {
   Google
 }
@@ -3979,12 +3742,6 @@ Enum TrackType {
   AUDIO
   GRAPHICS
   MUSIC
-}
-
-Enum SubjectCategory {
-  PEOPLE
-  OBJECTS
-  LOCATIONS
 }
 
 Enum SceneType {
@@ -4147,13 +3904,6 @@ Enum equipment_availability_status {
   TENTATIVE
 }
 
-Enum inquiry_availability_request_status {
-  pending
-  confirmed
-  declined
-  cancelled
-}
-
 Enum inquiry_equipment_reservation_status {
   reserved
   confirmed
@@ -4162,13 +3912,13 @@ Enum inquiry_equipment_reservation_status {
 
 Ref: brand_settings.brand_id > brands.id [delete: Cascade]
 
-Ref: user_brands.brand_id > brands.id [delete: Cascade]
+Ref: brand_members.brand_id > brands.id [delete: Cascade]
 
-Ref: user_brands.user_id > contributors.id [delete: Cascade]
+Ref: brand_members.crew_member_id > crew_members.id [delete: Cascade]
 
 Ref: contacts.brand_id > brands.id
 
-Ref: coverage.operator_id > contributors.id
+Ref: coverage.crew_member_id > crew_members.id
 
 Ref: coverage.job_role_id > job_roles.id
 
@@ -4186,19 +3936,19 @@ Ref: film_equipment.film_id > film_library.id [delete: Cascade]
 
 Ref: film_timeline_tracks.film_id > film_library.id [delete: Cascade]
 
-Ref: film_versions.changed_by_id > contributors.id
+Ref: film_versions.changed_by_id > crew_members.id
 
 Ref: film_versions.film_id > film_library.id [delete: Cascade]
 
-Ref: film_change_logs.changed_by_id > contributors.id
+Ref: film_change_logs.changed_by_id > crew_members.id
 
 Ref: film_change_logs.film_id > film_library.id [delete: Cascade]
 
-Ref: roles.brand_id > brands.id
+Ref: system_roles.brand_id > brands.id
 
 Ref: role_permissions.permission_id > permissions.id [delete: Cascade]
 
-Ref: role_permissions.role_id > roles.id [delete: Cascade]
+Ref: role_permissions.role_id > system_roles.id [delete: Cascade]
 
 Ref: inquiries.selected_package_id > service_packages.id
 
@@ -4232,8 +3982,6 @@ Ref: discovery_questionnaire_submissions.brand_id > brands.id [delete: Cascade]
 
 Ref: discovery_questionnaire_submissions.inquiry_id > inquiries.id
 
-Ref: activity_logs.inquiry_id > inquiries.id [delete: Cascade]
-
 Ref: clients.contact_id - contacts.id [delete: Cascade]
 
 Ref: clients.inquiry_id - inquiries.id
@@ -4248,31 +3996,19 @@ Ref: projects.source_package_id > service_packages.id [delete: Set Null]
 
 Ref: projects.workflow_template_id > workflow_templates.id
 
-Ref: contributors.default_camera_id - equipment.id [delete: Set Null]
+Ref: crew_members.contact_id - contacts.id [delete: Cascade]
 
-Ref: contributors.contact_id - contacts.id [delete: Cascade]
-
-Ref: contributors.role_id > roles.id [delete: Restrict]
-
-Ref: contributor_skill_rates.contributor_id > contributors.id [delete: Cascade]
-
-Ref: contributor_skill_rates.task_template_id > task_templates.id [delete: Cascade]
+Ref: crew_members.system_role_id > system_roles.id [delete: Restrict]
 
 Ref: payment_brackets.job_role_id > job_roles.id [delete: Cascade]
 
-Ref: contributor_job_roles.assigned_by > contributors.id
+Ref: crew_member_job_roles.assigned_by > crew_members.id
 
-Ref: contributor_job_roles.contributor_id > contributors.id
+Ref: crew_member_job_roles.crew_member_id > crew_members.id
 
-Ref: contributor_job_roles.job_role_id > job_roles.id [delete: Cascade]
+Ref: crew_member_job_roles.job_role_id > job_roles.id [delete: Cascade]
 
-Ref: contributor_job_roles.payment_bracket_id > payment_brackets.id [delete: Set Null]
-
-Ref: project_assignments.contributor_id > contributors.id [delete: Cascade]
-
-Ref: project_assignments.project_id > projects.id [delete: Cascade]
-
-Ref: project_assignments.role_id > roles.id
+Ref: crew_member_job_roles.payment_bracket_id > payment_brackets.id [delete: Set Null]
 
 Ref: editing_style_requirements.billable_item_id > billable_items.id [delete: Cascade]
 
@@ -4310,15 +4046,7 @@ Ref: build_snapshots.build_id > builds.id [delete: Cascade]
 
 Ref: build_snapshots.change_order_id > build_change_orders.id [delete: Cascade]
 
-Ref: tasks.assigned_to_contributor_id > contributors.id
-
-Ref: tasks.build_scene_id > build_scenes.id [delete: Cascade]
-
-Ref: tasks.project_id > projects.id [delete: Cascade]
-
-Ref: tasks.task_template_id > task_templates.id
-
-Ref: calendar_events.contributor_id > contributors.id [delete: Cascade]
+Ref: calendar_events.crew_member_id > crew_members.id [delete: Cascade]
 
 Ref: calendar_events.inquiry_id > inquiries.id [delete: Cascade]
 
@@ -4330,21 +4058,17 @@ Ref: event_tags.tag_id > tags.id [delete: Cascade]
 
 Ref: event_attendees.contact_id > contacts.id [delete: Cascade]
 
-Ref: event_attendees.contributor_id > contributors.id [delete: Cascade]
+Ref: event_attendees.crew_member_id > crew_members.id [delete: Cascade]
 
 Ref: event_attendees.event_id > calendar_events.id [delete: Cascade]
 
 Ref: event_reminders.event_id > calendar_events.id [delete: Cascade]
 
-Ref: calendar_settings.contributor_id - contributors.id [delete: Cascade]
+Ref: calendar_settings.crew_member_id - crew_members.id [delete: Cascade]
 
 Ref: project_assets.coverage_id > coverage.id
 
 Ref: project_assets.project_id > projects.id [delete: Cascade]
-
-Ref: contributor_task_benchmarks.contributor_id > contributors.id [delete: Cascade]
-
-Ref: contributor_task_benchmarks.task_template_id > task_templates.id [delete: Cascade]
 
 Ref: invoices.inquiry_id > inquiries.id [delete: Cascade]
 
@@ -4380,15 +4104,11 @@ Ref: quote_items.quote_id > quotes.id [delete: Cascade]
 
 Ref: quote_payment_milestones.quote_id > quotes.id [delete: Cascade]
 
-Ref: audit_log.contributor_id > contributors.id
+Ref: audit_log.crew_member_id > crew_members.id
 
-Ref: notifications.recipient_contributor_id > contributors.id [delete: Cascade]
+Ref: notifications.recipient_crew_member_id > crew_members.id [delete: Cascade]
 
-Ref: task_dependencies.blocking_task_id > tasks.id [delete: Cascade]
-
-Ref: task_dependencies.dependent_task_id > tasks.id [delete: Cascade]
-
-Ref: activities.assigned_to_contributor_id > contributors.id [delete: Cascade]
+Ref: activities.assigned_to_crew_member_id > crew_members.id [delete: Cascade]
 
 Ref: activities.contact_id > contacts.id [delete: Cascade]
 
@@ -4416,35 +4136,17 @@ Ref: contract_signers.contract_id > contracts.id [delete: Cascade]
 
 Ref: client_feedback_surveys.project_id > projects.id [delete: Cascade]
 
-Ref: task_comments.contributor_id > contributors.id
-
-Ref: task_comments.task_id > tasks.id [delete: Cascade]
-
-Ref: calendar_sync_tokens.contributor_id - contributors.id [delete: Cascade]
+Ref: calendar_sync_tokens.crew_member_id - crew_members.id [delete: Cascade]
 
 Ref: timeline_editing_sessions.film_id > film_library.id [delete: Cascade]
 
-Ref: timeline_editing_sessions.user_id > contributors.id [delete: Cascade]
+Ref: timeline_editing_sessions.crew_member_id > crew_members.id [delete: Cascade]
 
 Ref: workflow_templates.brand_id > brands.id [delete: Cascade]
-
-Ref: workflow_stages.workflow_template_id > workflow_templates.id [delete: Cascade]
-
-Ref: task_generation_rules.coverage_id > coverage.id
-
-Ref: task_generation_rules.task_template_id > task_templates.id [delete: Cascade]
-
-Ref: task_generation_rules.workflow_stage_id > workflow_stages.id [delete: Cascade]
 
 Ref: workflow_template_tasks.workflow_template_id > workflow_templates.id [delete: Cascade]
 
 Ref: workflow_template_tasks.task_library_id > task_library.id [delete: Cascade]
-
-Ref: generated_task_log.project_id > projects.id [delete: Cascade]
-
-Ref: generated_task_log.task_id > tasks.id [delete: Cascade]
-
-Ref: entity_default_tasks.task_template_id > task_templates.id
 
 Ref: skill_role_mappings.job_role_id > job_roles.id [delete: Cascade]
 
@@ -4456,11 +4158,11 @@ Ref: task_library.brand_id > brands.id [delete: Cascade]
 
 Ref: task_library.default_job_role_id > job_roles.id [delete: Set Null]
 
-Ref: task_library.default_contributor_id > contributors.id [delete: Set Null]
+Ref: task_library.default_crew_member_id > crew_members.id [delete: Set Null]
 
 Ref: task_library.parent_task_id - task_library.id [delete: Set Null]
 
-Ref: task_library_benchmarks.contributor_id > contributors.id [delete: Cascade]
+Ref: task_library_benchmarks.crew_member_id > crew_members.id [delete: Cascade]
 
 Ref: task_library_benchmarks.task_library_id > task_library.id [delete: Cascade]
 
@@ -4474,7 +4176,7 @@ Ref: project_tasks.task_library_id > task_library.id [delete: Set Null]
 
 Ref: project_tasks.package_id > service_packages.id [delete: Set Null]
 
-Ref: project_tasks.assigned_to_id > contributors.id [delete: Set Null]
+Ref: project_tasks.assigned_to_id > crew_members.id [delete: Set Null]
 
 Ref: project_tasks.resolved_job_role_id > job_roles.id [delete: Set Null]
 
@@ -4484,9 +4186,9 @@ Ref: inquiry_tasks.inquiry_id > inquiries.id [delete: Cascade]
 
 Ref: inquiry_tasks.task_library_id > task_library.id [delete: Set Null]
 
-Ref: inquiry_tasks.completed_by_id > contributors.id [delete: Set Null]
+Ref: inquiry_tasks.completed_by_id > crew_members.id [delete: Set Null]
 
-Ref: inquiry_tasks.assigned_to_id > contributors.id [delete: Set Null]
+Ref: inquiry_tasks.assigned_to_id > crew_members.id [delete: Set Null]
 
 Ref: inquiry_tasks.job_role_id > job_roles.id [delete: Set Null]
 
@@ -4494,21 +4196,17 @@ Ref: inquiry_tasks.parent_inquiry_task_id - inquiry_tasks.id [delete: Cascade]
 
 Ref: inquiry_task_subtasks.inquiry_task_id > inquiry_tasks.id [delete: Cascade]
 
-Ref: inquiry_task_subtasks.completed_by_id > contributors.id [delete: Set Null]
+Ref: inquiry_task_subtasks.completed_by_id > crew_members.id [delete: Set Null]
 
 Ref: inquiry_task_subtasks.job_role_id > job_roles.id [delete: Set Null]
 
 Ref: inquiry_task_events.task_id > inquiry_tasks.id [delete: Cascade]
 
-Ref: inquiry_availability_requests.inquiry_id > inquiries.id [delete: Cascade]
-
-Ref: inquiry_availability_requests.contributor_id > contributors.id [delete: Cascade]
-
 Ref: equipment.brand_id > brands.id
 
-Ref: equipment.created_by_id - contributors.id
+Ref: equipment.created_by_id > crew_members.id
 
-Ref: equipment.owner_id - contributors.id
+Ref: equipment.owner_id > crew_members.id
 
 Ref: equipment_rentals.client_id > clients.id
 
@@ -4516,17 +4214,17 @@ Ref: equipment_rentals.equipment_id > equipment.id
 
 Ref: equipment_rentals.project_id > projects.id
 
-Ref: equipment_rentals.rented_by_id > contributors.id
+Ref: equipment_rentals.rented_by_id > crew_members.id
 
-Ref: equipment_maintenance.created_by_id > contributors.id
+Ref: equipment_maintenance.created_by_id > crew_members.id
 
 Ref: equipment_maintenance.equipment_id > equipment.id
 
-Ref: equipment_availability.booked_by_id > contributors.id
+Ref: equipment_availability.booked_by_id > crew_members.id
 
 Ref: equipment_availability.client_id > clients.id
 
-Ref: equipment_availability.created_by_id > contributors.id
+Ref: equipment_availability.created_by_id > crew_members.id
 
 Ref: equipment_availability.equipment_id > equipment.id [delete: Cascade]
 
@@ -4536,11 +4234,11 @@ Ref: equipment_availability.inquiry_id > inquiries.id [delete: Set Null]
 
 Ref: locations_library.brand_id > brands.id
 
-Ref: locations_library.venue_floor_plan_updated_by > contributors.id
+Ref: locations_library.venue_floor_plan_updated_by > crew_members.id
 
 Ref: location_spaces.location_id > locations_library.id [delete: Cascade]
 
-Ref: floor_plans.created_by_id > contributors.id
+Ref: floor_plans.created_by_id > crew_members.id
 
 Ref: floor_plans.project_id > projects.id [delete: Cascade]
 
@@ -4564,7 +4262,7 @@ Ref: equipment_template_items.equipment_id > equipment.id [delete: Cascade]
 
 Ref: film_timeline_tracks_v2.film_id > films.id [delete: Cascade]
 
-Ref: film_timeline_tracks_v2.contributor_id > contributors.id [delete: Set Null]
+Ref: film_timeline_tracks_v2.crew_member_id > crew_members.id [delete: Set Null]
 
 Ref: subject_templates.brand_id > brands.id [delete: Cascade]
 
@@ -4718,19 +4416,19 @@ Ref: package_activities.package_event_day_id > package_event_days.id [delete: Ca
 
 Ref: package_activity_moments.package_activity_id > package_activities.id [delete: Cascade]
 
-Ref: package_day_operators.package_id > service_packages.id [delete: Cascade]
+Ref: package_crew_slots.package_id > service_packages.id [delete: Cascade]
 
-Ref: package_day_operators.event_day_template_id > event_days.id [delete: Cascade]
+Ref: package_crew_slots.event_day_template_id > event_days.id [delete: Cascade]
 
-Ref: package_day_operators.contributor_id > contributors.id [delete: Set Null]
+Ref: package_crew_slots.crew_member_id > crew_members.id [delete: Set Null]
 
-Ref: package_day_operators.package_activity_id > package_activities.id [delete: Set Null]
+Ref: package_crew_slots.package_activity_id > package_activities.id [delete: Set Null]
 
-Ref: package_day_operators.job_role_id > job_roles.id [delete: Set Null]
+Ref: package_crew_slots.job_role_id > job_roles.id [delete: Restrict]
 
-Ref: package_day_operator_equipment.package_day_operator_id > package_day_operators.id [delete: Cascade]
+Ref: package_crew_slot_equipment.package_crew_slot_id > package_crew_slots.id [delete: Cascade]
 
-Ref: package_day_operator_equipment.equipment_id > equipment.id [delete: Cascade]
+Ref: package_crew_slot_equipment.equipment_id > equipment.id [delete: Cascade]
 
 Ref: package_day_subjects.package_id > service_packages.id [delete: Cascade]
 
@@ -4796,7 +4494,7 @@ Ref: project_film_timeline_tracks.project_film_id > project_films.id [delete: Ca
 
 Ref: project_film_timeline_tracks.source_track_id > film_timeline_tracks_v2.id [delete: Set Null]
 
-Ref: project_film_timeline_tracks.contributor_id > contributors.id [delete: Set Null]
+Ref: project_film_timeline_tracks.crew_member_id > crew_members.id [delete: Set Null]
 
 Ref: project_film_subjects.project_id > projects.id [delete: Cascade]
 
@@ -4906,25 +4604,25 @@ Ref: project_location_slots.project_event_day_id > project_event_days.id [delete
 
 Ref: project_location_slots.location_id > locations_library.id [delete: Set Null]
 
-Ref: project_day_operators.project_id > projects.id [delete: Cascade]
+Ref: project_crew_slots.project_id > projects.id [delete: Cascade]
 
-Ref: project_day_operators.inquiry_id > inquiries.id [delete: Cascade]
+Ref: project_crew_slots.inquiry_id > inquiries.id [delete: Cascade]
 
-Ref: project_day_operators.project_event_day_id > project_event_days.id [delete: Cascade]
+Ref: project_crew_slots.project_event_day_id > project_event_days.id [delete: Cascade]
 
-Ref: project_day_operators.project_activity_id > project_activities.id [delete: Set Null]
+Ref: project_crew_slots.project_activity_id > project_activities.id [delete: Set Null]
 
-Ref: project_day_operators.contributor_id > contributors.id [delete: Set Null]
+Ref: project_crew_slots.crew_member_id > crew_members.id [delete: Set Null]
 
-Ref: project_day_operators.job_role_id > job_roles.id [delete: Set Null]
+Ref: project_crew_slots.job_role_id > job_roles.id [delete: Restrict]
 
-Ref: project_day_operator_equipment.project_day_operator_id > project_day_operators.id [delete: Cascade]
+Ref: project_crew_slot_equipment.project_crew_slot_id > project_crew_slots.id [delete: Cascade]
 
-Ref: project_day_operator_equipment.equipment_id > equipment.id [delete: Cascade]
+Ref: project_crew_slot_equipment.equipment_id > equipment.id [delete: Cascade]
 
-Ref: project_operator_activity_assignments.project_day_operator_id > project_day_operators.id [delete: Cascade]
+Ref: project_crew_slot_activities.project_crew_slot_id > project_crew_slots.id [delete: Cascade]
 
-Ref: project_operator_activity_assignments.project_activity_id > project_activities.id [delete: Cascade]
+Ref: project_crew_slot_activities.project_activity_id > project_activities.id [delete: Cascade]
 
 Ref: project_day_subject_activities.project_day_subject_id > project_day_subjects.id [delete: Cascade]
 
@@ -4934,9 +4632,9 @@ Ref: project_location_activity_assignments.project_location_slot_id > project_lo
 
 Ref: project_location_activity_assignments.project_activity_id > project_activities.id [delete: Cascade]
 
-Ref: operator_activity_assignments.package_day_operator_id > package_day_operators.id [delete: Cascade]
+Ref: package_crew_slot_activities.package_crew_slot_id > package_crew_slots.id [delete: Cascade]
 
-Ref: operator_activity_assignments.package_activity_id > package_activities.id [delete: Cascade]
+Ref: package_crew_slot_activities.package_activity_id > package_activities.id [delete: Cascade]
 
 Ref: package_day_subject_activities.package_day_subject_id > package_day_subjects.id [delete: Cascade]
 

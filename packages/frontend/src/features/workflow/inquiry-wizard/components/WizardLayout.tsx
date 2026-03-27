@@ -11,7 +11,7 @@ import {
 import { C, STEP_AMBIENCE, DEFAULT_AMB } from '../constants/wizard-config';
 import { fadeIn, shimmer, slideInRight, slideInLeft, glowPulse, drift1, drift2, drift3 } from '../constants/animations';
 import type { ScreenId, Direction, AnyRecord } from '../types';
-import type { Brand } from "@/lib/types";
+import type { Brand } from "@/features/platform/brand/types";
 
 interface WizardLayoutProps {
     currentScreenId: ScreenId;

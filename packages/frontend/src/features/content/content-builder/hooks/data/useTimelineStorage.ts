@@ -1,6 +1,6 @@
 import { useCallback } from "react";
-import type { TimelineScene } from "@/lib/types/timeline";
-import { sortTracksForTimeline, normalizeTracksForTimeline } from "@/lib/utils/trackSortingUtils";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
+import { sortTracksForTimeline, normalizeTracksForTimeline } from "@/features/content/content-builder/utils/trackSortingUtils";
 
 interface TimelineState {
     scenes: TimelineScene[];

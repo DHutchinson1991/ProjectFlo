@@ -3,7 +3,9 @@
 import React from "react";
 import { Box, Chip, Stack, TextField, Typography } from "@mui/material";
 import { CalendarToday, Send, WorkOutline } from "@mui/icons-material";
-import type { InquiryCrewAvailabilityRow, TaskAutoGenerationPreviewTask } from "@/lib/types";
+import type { InquiryCrewAvailabilityRow } from "@/features/workflow/inquiries/types";
+import type { TaskAutoGenerationPreviewTask } from "@/features/catalog/task-library/types";
+import { formatCurrency } from "@projectflo/shared";
 import InquiryActionDialog from "./InquiryActionDialog";
 
 type RequestStatus = "pending" | "confirmed" | "declined" | "cancelled";
@@ -39,7 +41,7 @@ function buildTaskSummary(
 ): { before: number; onday: number; after: number; totalCost: number } | null {
   const roleNames = new Set(
     rows
-      .flatMap((r) => [r.job_role?.display_name, r.job_role?.name, r.position_name])
+      .flatMap((r) => [r.job_role?.display_name, r.job_role?.name, r.label])
       .filter((n): n is string => Boolean(n)),
   );
   const normName = contributorName.trim().toLowerCase();
@@ -101,7 +103,6 @@ export default function CrewAvailabilityRequestDialog({
   }
 
   const fmtHours = (h: number) => (h > 0 ? `${h}h` : null);
-  const fmtCost = (n: number) => `£${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
   return (
     <InquiryActionDialog
@@ -184,7 +185,7 @@ export default function CrewAvailabilityRequestDialog({
               <Stack spacing={0.5}>
                 {/* On-site rows — use inquiry event_date for canonical event date */}
                 {onSiteRows.map((row) => {
-                  const role = row.position_name || row.job_role?.display_name || row.job_role?.name || "Role";
+                  const role = row.label || row.job_role?.display_name || row.job_role?.name || "Role";
                   const date = eventDate
                     ? new Date(eventDate).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
                     : row.event_day?.date
@@ -193,7 +194,7 @@ export default function CrewAvailabilityRequestDialog({
                   const time = row.event_day?.start_time
                     ? new Date(row.event_day.start_time).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true })
                     : null;
-                  const roleKey = row.job_role?.display_name || row.job_role?.name || row.position_name;
+                  const roleKey = row.job_role?.display_name || row.job_role?.name || row.label;
                   const roleCost = roleKey ? costByRole.get(roleKey) : undefined;
                   return (
                     <Box key={row.id} sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
@@ -202,7 +203,7 @@ export default function CrewAvailabilityRequestDialog({
                         <Typography sx={{ fontSize: "0.78rem", color: "#cbd5e1" }}>
                           {role} — on site{date ? ` · ${date}` : ""}
                           {time ? ` from ${time}` : ""}
-                          {roleCost ? <span style={{ color: "#34d399", marginLeft: 6 }}>{fmtCost(roleCost)}</span> : null}
+                          {roleCost ? <span style={{ color: "#34d399", marginLeft: 6 }}>{formatCurrency(roleCost)}</span> : null}
                         </Typography>
                         {venueDetails && (
                           <Typography sx={{ fontSize: "0.72rem", color: "#64748b", mt: 0.1 }}>
@@ -216,15 +217,15 @@ export default function CrewAvailabilityRequestDialog({
 
                 {/* Off-site / project-level rows */}
                 {offSiteRows.map((row) => {
-                  const role = row.position_name || row.job_role?.display_name || row.job_role?.name || "Role";
-                  const roleKey = row.job_role?.display_name || row.job_role?.name || row.position_name;
+                  const role = row.label || row.job_role?.display_name || row.job_role?.name || "Role";
+                  const roleKey = row.job_role?.display_name || row.job_role?.name || row.label;
                   const roleCost = roleKey ? costByRole.get(roleKey) : undefined;
                   return (
                     <Box key={row.id} sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
                       <WorkOutline sx={{ fontSize: 12, color: "#64748b", flexShrink: 0 }} />
                       <Typography sx={{ fontSize: "0.78rem", color: "#94a3b8" }}>
                         {role} — remote / project work
-                        {roleCost ? <span style={{ color: "#34d399", marginLeft: 6 }}>{fmtCost(roleCost)}</span> : null}
+                        {roleCost ? <span style={{ color: "#34d399", marginLeft: 6 }}>{formatCurrency(roleCost)}</span> : null}
                       </Typography>
                     </Box>
                   );
@@ -254,7 +255,7 @@ export default function CrewAvailabilityRequestDialog({
                       )}
                       {taskSummary.totalCost > 0 && (
                         <Typography sx={{ fontSize: "0.74rem", color: "#94a3b8" }}>
-                          Est. <strong style={{ color: "#34d399" }}>{fmtCost(taskSummary.totalCost)}</strong>
+                          Est. <strong style={{ color: "#34d399" }}>{formatCurrency(taskSummary.totalCost)}</strong>
                         </Typography>
                       )}
                     </Stack>

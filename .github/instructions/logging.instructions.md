@@ -9,7 +9,7 @@ description: "Use when adding log statements, debugging with logs, or reviewing 
 ### Use LoggerService, not console.log
 
 ```ts
-import { LoggerService } from '../common/logging/logger.service';
+import { LoggerService } from '../platform/logging/logger.service';
 
 @Injectable()
 export class FeatureService {
@@ -23,7 +23,7 @@ export class FeatureService {
 }
 ```
 
-- Service located at `packages/backend/src/common/logging/logger.service.ts`.
+- Service located at `packages/backend/src/platform/logging/logger.service.ts`.
 - Accepts structured context as the last argument.
 - Auto-formats: coloured console in dev, JSON in production.
 

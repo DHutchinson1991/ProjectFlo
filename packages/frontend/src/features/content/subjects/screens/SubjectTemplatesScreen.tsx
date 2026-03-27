@@ -36,7 +36,7 @@ import {
   ArrowBack as BackIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
-import { useBrand } from "@/app/providers/BrandProvider";
+import { useBrand } from "@/features/platform/brand";
 import { rolesApi } from "../api/roles.api";
 import type { SubjectRole } from "../types";
 
@@ -76,7 +76,7 @@ export function SubjectTemplatesScreen() {
     try {
       setLoading(true);
       setError(null);
-      const data = await rolesApi.getRoles();
+      const data = await rolesApi.getRoles(currentBrand.id);
       setTemplates(data as unknown as SubjectType[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load templates");
@@ -145,7 +145,7 @@ export function SubjectTemplatesScreen() {
           description: formData.description,
         });
       } else {
-        await rolesApi.createRole({
+        await rolesApi.createRole(currentBrand.id, {
           role_name: formData.name,
           description: formData.description,
           roles: validRoles.map((r, idx) => ({

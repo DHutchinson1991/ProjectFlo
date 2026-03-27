@@ -10,8 +10,8 @@ import {
 } from '@mui/material';
 import ViewListIcon from '@mui/icons-material/ViewList';
 
-import { FilmType } from '@/lib/types/domains/film';
-import type { FilmStructureTemplate } from '@/lib/types/domains/film-structure-templates';
+import { FilmType } from '@/features/content/films/types';
+import type { FilmStructureTemplate } from '@/features/content/films/types/film-structure-templates';
 import { useFilmStructureTemplates } from '@/features/content/films/hooks';
 
 interface StructureTemplateStepProps {

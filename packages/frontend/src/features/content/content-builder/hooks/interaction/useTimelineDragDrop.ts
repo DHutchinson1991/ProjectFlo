@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { TimelineScene, TimelineTrack, DragState } from '@/lib/types/timeline';
+import { TimelineScene, TimelineTrack, DragState } from '@/features/content/content-builder/types/timeline';
 import { ScenesLibrary } from '@/features/content/scenes/types';
 import { createTimelineScenesFromLibraryScene } from "../../utils/dragDropUtils";
 

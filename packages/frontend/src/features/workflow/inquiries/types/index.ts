@@ -1,3 +1,42 @@
+// ─── Inquiry types (canonical source: ./inquiry.ts) ────────────────────────
+export type {
+    Inquiry,
+    InquiryTask,
+    InquiryTaskStatus,
+    CreateInquiryData,
+    UpdateInquiryData,
+    InquiryCrewAvailabilityRow,
+    InquiryEquipmentAvailabilityRow,
+    InquiryAvailabilityResponse,
+    InquiryTaskSubtask,
+    InquiryTaskEvent,
+    InquiryAvailabilityConflict,
+    InquiryAvailabilityAlternativeContributor,
+    InquiryEquipmentAvailabilityAlternative,
+} from './inquiry';
+export { InquiryStatus, InquirySource } from './inquiry';
+
+// Needs-assessment domain
+export type {
+    NeedsAssessmentSubmission,
+    NaDateConflictResult,
+    NaCrewConflictResult,
+} from './needs-assessment';
+
+// Discovery questionnaire domain
+export type {
+    DiscoveryQuestion,
+    DiscoveryQuestionnaireTemplate,
+    DiscoveryQuestionnaireSubmission,
+} from './discovery-questionnaire';
+
+// Brand (MeetingSettings for CallsCard)
+export type { MeetingSettings } from '@/features/platform/brand/types';
+
+// Task-library (TaskAutoGenerationPreviewTask for AvailabilityCard)
+export type { TaskAutoGenerationPreviewTask } from '@/features/catalog/task-library/types';
+
+// ─── Feature-owned types ─────────────────────────────────────────────
 export interface InquiryScheduleSnapshotSummary {
     owner_id: number;
     owner_type: string;

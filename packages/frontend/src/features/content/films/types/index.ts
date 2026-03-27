@@ -5,9 +5,9 @@
 
 import type { FilmScene } from '@/features/content/scenes/types';
 import type { FilmSubject } from '@/features/content/subjects/types';
-import type { FilmTimelineTrack } from '@/lib/types/domains/equipment';
+import type { FilmTimelineTrack } from './tracks';
 import type { FilmLocationAssignment } from '@/features/workflow/locations/types';
-import type { MontagePreset } from '@/lib/types/domains/montage-presets';
+import type { MontagePreset } from './montage-presets';
 
 /**
  * FilmType Enum - Types of wedding films

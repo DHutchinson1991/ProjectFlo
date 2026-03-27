@@ -8,8 +8,8 @@ import {
     CenterFocusStrong as FitIcon,
     Grid3x3 as GridIcon,
 } from "@mui/icons-material";
-import { ViewState } from "@/lib/types/timeline";
-import { formatTime } from "@/lib/utils/formatUtils";
+import { ViewState } from "@/features/content/content-builder/types/timeline";
+import { formatTime } from "@/shared/utils/formatUtils";
 import { TIMELINE_CONFIG } from "../../../constants/constants";
 
 interface TimelineBottomControlsProps {

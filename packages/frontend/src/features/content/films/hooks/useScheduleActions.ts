@@ -1,13 +1,10 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { api, apiClient } from "@/lib/api";
-import { createFilmsApi } from "../api";
-import type { ApiClient } from "@/lib/api/api-client.types";
+import { filmsApi } from "../api";
+import { scheduleApi } from "@/features/workflow/scheduling/api";
 import type { SceneSchedule, ScheduleScene, ActivityOption, UseScheduleActionsParams } from "../types/schedule-panel.types";
 import { calculateEndTime, parseTimeToMinutes, addMinutesToTime } from "../utils/schedule-helpers";
-
-const filmsApi = createFilmsApi(apiClient as unknown as ApiClient);
 
 export function useScheduleActions({
   filmId, mode, contextId, orderedScenes, scheduleMap, setScheduleMap,
@@ -87,9 +84,9 @@ export function useScheduleActions({
         notes: s.notes ?? null,
         package_activity_id: s.package_activity_id ?? null,
       }));
-      if (mode === "film") await api.schedule.film.bulkUpsertScenes(filmId, schedules);
-      else if (mode === "package" && contextId) await api.schedule.packageFilms.bulkUpsertSceneSchedules(contextId, schedules);
-      else if (mode === "project" && contextId) await api.schedule.projectFilms.bulkUpsertSceneSchedules(contextId, schedules);
+      if (mode === "film") await scheduleApi.film.bulkUpsertScenes(filmId, schedules);
+      else if (mode === "package" && contextId) await scheduleApi.packageFilms.bulkUpsertSceneSchedules(contextId, schedules);
+      else if (mode === "project" && contextId) await scheduleApi.projectFilms.bulkUpsertSceneSchedules(contextId, schedules);
       setDirty(false);
       onScheduleChange?.();
     } catch (err: unknown) {
@@ -112,7 +109,7 @@ export function useScheduleActions({
         package_activity_id: activity.id, scheduled_start_time: activity.start_time ?? null,
         scheduled_duration_minutes: dur, moment_schedules: null, beat_schedules: null, notes: null,
       };
-      await api.schedule.packageFilms.upsertSceneSchedule(contextId, payload);
+      await scheduleApi.packageFilms.upsertSceneSchedule(contextId, payload);
       /* eslint-disable @typescript-eslint/no-explicit-any -- API response includes mode/duration_seconds not in FilmLocalScene type */
       const sceneEntry: ScheduleScene = {
         id: newScene.id, name: newScene.name,

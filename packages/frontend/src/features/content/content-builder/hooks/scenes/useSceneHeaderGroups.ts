@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import type { TimelineScene } from "@/lib/types/timeline";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
 import type { TimelineSceneMoment } from "@/features/content/moments/types";
-import type { SceneBeat } from "@/lib/types/domains/beats";
+import type { SceneBeat } from "@/features/content/scenes/types/beats";
 
 export interface SceneHeaderGroup {
     name: string;

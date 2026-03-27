@@ -4,16 +4,25 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBrand } from '@/features/platform/brand';
 import { estimatesApi } from '../api';
 import type { CreateEstimateData, UpdateEstimateData, Estimate } from '../types';
+import { estimateKeys } from './queryKeys';
 
-export const estimateKeys = {
-    all: ['estimates'] as const,
-    byInquiry: (brandId: number | null, inquiryId: number | null) =>
-        ['estimates', 'inquiry', brandId, inquiryId] as const,
-    detail: (brandId: number | null, inquiryId: number | null, estimateId: number | null) =>
-        ['estimates', 'detail', brandId, inquiryId, estimateId] as const,
-    snapshots: (brandId: number | null, inquiryId: number | null, estimateId: number | null) =>
-        ['estimates', 'snapshots', brandId, inquiryId, estimateId] as const,
-};
+export { estimateKeys };
+
+// ─── Shared setup ─────────────────────────────────────────────────────────────
+
+function useEstimateContext(inquiryId: number | null | undefined) {
+    const { currentBrand } = useBrand();
+    const queryClient = useQueryClient();
+    const brandId = currentBrand?.id ?? null;
+    const nInquiryId = inquiryId ?? null;
+    const invalidate = () =>
+        nInquiryId
+            ? queryClient.invalidateQueries({ queryKey: estimateKeys.byInquiry(brandId, nInquiryId) })
+            : Promise.resolve();
+    return { brandId, nInquiryId, invalidate };
+}
+
+// ─── Queries ──────────────────────────────────────────────────────────────────
 
 export function useInquiryEstimates(inquiryId: number | null | undefined) {
     const { currentBrand } = useBrand();
@@ -62,58 +71,53 @@ export function useEstimateDetail(inquiryId: number | null | undefined, estimate
     };
 }
 
-export function useEstimateMutations(inquiryId: number | null | undefined) {
-    const { currentBrand } = useBrand();
-    const queryClient = useQueryClient();
-    const brandId = currentBrand?.id ?? null;
-    const nInquiryId = inquiryId ?? null;
+// ─── Mutations ────────────────────────────────────────────────────────────────
 
-    const invalidateList = () =>
-        nInquiryId
-            ? queryClient.invalidateQueries({ queryKey: estimateKeys.byInquiry(brandId, nInquiryId) })
-            : Promise.resolve();
-
-    const createMutation = useMutation({
+export function useCreateEstimate(inquiryId: number | null | undefined) {
+    const { nInquiryId, invalidate } = useEstimateContext(inquiryId);
+    return useMutation({
         mutationFn: (data: CreateEstimateData) => estimatesApi.create(nInquiryId!, data),
-        onSuccess: invalidateList,
+        onSuccess: invalidate,
     });
+}
 
-    const updateMutation = useMutation({
+export function useUpdateEstimate(inquiryId: number | null | undefined) {
+    const { nInquiryId, invalidate } = useEstimateContext(inquiryId);
+    return useMutation({
         mutationFn: ({ estimateId, data }: { estimateId: number; data: UpdateEstimateData }) =>
             estimatesApi.update(nInquiryId!, estimateId, data),
-        onSuccess: invalidateList,
+        onSuccess: invalidate,
     });
+}
 
-    const deleteMutation = useMutation({
+export function useDeleteEstimate(inquiryId: number | null | undefined) {
+    const { nInquiryId, invalidate } = useEstimateContext(inquiryId);
+    return useMutation({
         mutationFn: (estimateId: number) => estimatesApi.delete(nInquiryId!, estimateId),
-        onSuccess: invalidateList,
+        onSuccess: invalidate,
     });
+}
 
-    const sendMutation = useMutation({
+export function useSendEstimate(inquiryId: number | null | undefined) {
+    const { nInquiryId, invalidate } = useEstimateContext(inquiryId);
+    return useMutation({
         mutationFn: (estimateId: number) => estimatesApi.send(nInquiryId!, estimateId),
-        onSuccess: invalidateList,
+        onSuccess: invalidate,
     });
+}
 
-    const refreshMutation = useMutation({
+export function useRefreshEstimateCosts(inquiryId: number | null | undefined) {
+    const { nInquiryId, invalidate } = useEstimateContext(inquiryId);
+    return useMutation({
         mutationFn: (estimateId: number) => estimatesApi.refresh(nInquiryId!, estimateId),
-        onSuccess: invalidateList,
+        onSuccess: invalidate,
     });
+}
 
-    const reviseMutation = useMutation({
+export function useReviseEstimate(inquiryId: number | null | undefined) {
+    const { nInquiryId, invalidate } = useEstimateContext(inquiryId);
+    return useMutation({
         mutationFn: (estimateId: number) => estimatesApi.revise(nInquiryId!, estimateId),
-        onSuccess: invalidateList,
+        onSuccess: invalidate,
     });
-
-    return {
-        createEstimate: createMutation.mutateAsync,
-        updateEstimate: (estimateId: number, data: UpdateEstimateData) =>
-            updateMutation.mutateAsync({ estimateId, data }),
-        deleteEstimate: deleteMutation.mutateAsync,
-        sendEstimate: sendMutation.mutateAsync,
-        refreshEstimate: refreshMutation.mutateAsync,
-        reviseEstimate: reviseMutation.mutateAsync,
-        isCreating: createMutation.isPending,
-        isUpdating: updateMutation.isPending,
-        isDeleting: deleteMutation.isPending,
-    };
 }

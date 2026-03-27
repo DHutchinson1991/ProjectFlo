@@ -15,8 +15,8 @@ import {
     Edit as EditIcon,
     Close as CloseIcon,
 } from "@mui/icons-material";
-import { fadeInUp, pulseGlow, revealSx, useReveal } from "@/lib/portal/animations";
-import type { PortalThemeColors } from "@/lib/portal/themes";
+import { fadeInUp, pulseGlow, revealSx, useReveal } from "@/features/workflow/proposals/utils/portal/animations";
+import type { PortalThemeColors } from "@/features/workflow/proposals/utils/portal/themes";
 
 /* ------------------------------------------------------------------ */
 /* Props                                                               */

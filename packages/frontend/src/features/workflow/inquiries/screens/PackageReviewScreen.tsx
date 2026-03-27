@@ -31,11 +31,13 @@ import {
     CheckCircle,
     WarningAmber,
 } from '@mui/icons-material';
-import { Inquiry } from '@/lib/types';
-import { api } from '@/lib/api';
+import { Inquiry } from '@/features/workflow/inquiries/types';
+import { packageSetsApi, servicePackagesApi } from '@/features/catalog/packages/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 import { inquiriesApi } from '@/features/workflow/inquiries';
 import { getPackageStats } from '@/features/catalog/packages/components/listing/listing-helpers';
-import { formatCurrency } from '@/lib/utils/formatUtils';
+import { formatCurrency } from '@/features/workflow/proposals/utils/portal/formatting';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import { InquirySchedulePreview } from '../components';
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -98,8 +100,8 @@ export default function PackageReviewScreen() {
 
     useEffect(() => {
         if (inquiry?.brand_id) {
-            api.servicePackages.getAll(inquiry.brand_id).then(setAvailablePackages).catch(console.error);
-            api.packageSets.getAll(inquiry.brand_id).then(setPackageSets).catch(console.error);
+            servicePackagesApi.getAll().then(setAvailablePackages).catch(console.error);
+            packageSetsApi.getAll().then(setPackageSets).catch(console.error);
         }
     }, [inquiry?.brand_id]);
 
@@ -110,7 +112,7 @@ export default function PackageReviewScreen() {
             return;
         }
         setSummaryLoading(true);
-        api.schedule.packageSummary.get(Number(selectedPackageId))
+        scheduleApi.packageSummary.get(Number(selectedPackageId))
             .then(setPackageSummary)
             .catch(() => setPackageSummary(null))
             .finally(() => setSummaryLoading(false));
@@ -227,7 +229,7 @@ export default function PackageReviewScreen() {
             {/* ── Header (matches designer packages page pattern) ── */}
             <Box sx={{ mb: 3 }}>
                 <Breadcrumbs sx={{ mb: 1.5, '& .MuiBreadcrumbs-separator': { color: '#475569' } }}>
-                    <Link underline="hover" sx={{ color: '#64748b' }} href={`/sales/inquiries/${inquiry.id}`}>
+                    <Link underline="hover" sx={{ color: '#64748b' }} href={`/inquiries/${inquiry.id}`}>
                         Inquiry
                     </Link>
                     <Typography sx={{ color: '#94a3b8' }}>Package Review</Typography>
@@ -235,7 +237,7 @@ export default function PackageReviewScreen() {
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <IconButton
-                        onClick={() => router.push(`/sales/inquiries/${inquiry.id}`)}
+                        onClick={() => router.push(`/inquiries/${inquiry.id}`)}
                         sx={{ color: '#94a3b8' }}
                     >
                         <ArrowBack />
@@ -267,7 +269,7 @@ export default function PackageReviewScreen() {
                             return (
                                 <Typography sx={{ fontSize: '0.85rem', color: '#64748b', mt: 0.25 }}>
                                     {selectedPkg.name}
-                                    {price > 0 && ` · ${formatCurrency(price, selectedPkg.currency || 'GBP')}`}
+                                    {price > 0 && ` · ${formatCurrency(price, selectedPkg.currency || DEFAULT_CURRENCY)}`}
                                 </Typography>
                             );
                         })()}
@@ -339,7 +341,7 @@ export default function PackageReviewScreen() {
                                                         )}
                                                         {pkgPrice > 0 && (
                                                             <Typography sx={{ fontSize: '0.7rem', color: '#64748b', fontFamily: 'monospace', ml: 0.5 }}>
-                                                                {formatCurrency(pkgPrice, pkg.currency || 'GBP')}
+                                                                {formatCurrency(pkgPrice, pkg.currency || DEFAULT_CURRENCY)}
                                                             </Typography>
                                                         )}
                                                     </Box>

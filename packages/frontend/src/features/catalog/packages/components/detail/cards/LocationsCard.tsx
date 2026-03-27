@@ -10,7 +10,7 @@ import PlaceIcon from '@mui/icons-material/Place';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-import { api } from '@/lib/api';
+import { scheduleApi } from '@/features/workflow/scheduling/api';
 import { useOptionalScheduleApi } from '@/features/workflow/scheduling/components';
 import type { EventDay } from '@/features/workflow/scheduling/components';
 import type {
@@ -50,11 +50,11 @@ export function LocationsCard({
     // ─── ScheduleApi adapter (context if available, else direct package API) ──
     const contextApi = useOptionalScheduleApi();
     const locationApi = contextApi?.locationSlots ?? {
-        create: (dayId: number, data?: any) => api.schedule.packageLocationSlots.create(packageId!, { event_day_template_id: dayId, ...data }),
+        create: (dayId: number, data?: any) => scheduleApi.packageLocationSlots.create(packageId!, { event_day_template_id: dayId, ...data }),
         update: () => Promise.resolve(null) as Promise<any>,
-        delete: (id: number) => api.schedule.packageLocationSlots.delete(id),
-        assignActivity: (slotId: number, activityId: number) => api.schedule.packageLocationSlots.assignActivity(slotId, activityId),
-        unassignActivity: (slotId: number, activityId: number) => api.schedule.packageLocationSlots.unassignActivity(slotId, activityId),
+        delete: (id: number) => scheduleApi.packageLocationSlots.delete(id),
+        assignActivity: (slotId: number, activityId: number) => scheduleApi.packageLocationSlots.assignActivity(slotId, activityId),
+        unassignActivity: (slotId: number, activityId: number) => scheduleApi.packageLocationSlots.unassignActivity(slotId, activityId),
     };
     const hasOwner = !!contextApi || !!packageId;
     const isInstanceMode = !!contextApi && contextApi.mode !== 'package';

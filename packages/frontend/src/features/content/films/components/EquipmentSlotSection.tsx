@@ -1,6 +1,6 @@
 "use client";
 
-import { Equipment } from "@/lib/types";
+import { Equipment } from "@/features/workflow/equipment/types/equipment.types";
 import { getSelectedIds, formatOptionLabel } from "../utils/equipment-panel-utils";
 import {
   Box, Typography, FormControl, InputLabel, Select, MenuItem, FormHelperText,

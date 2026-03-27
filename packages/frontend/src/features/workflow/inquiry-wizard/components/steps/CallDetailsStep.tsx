@@ -10,11 +10,11 @@ import {
     AccessTime as AccessTimeIcon,
 } from "@mui/icons-material";
 import { format as fnsFormat, parseISO } from "date-fns";
-import { C } from '../constants/wizard-config';
-import { chipBounce, fadeInUp } from '../constants/animations';
-import { NACtx } from '../types';
-import { Q } from './QuestionWrapper';
-import { DateCal } from './InlineCalendar';
+import { C } from '../../constants/wizard-config';
+import { chipBounce, fadeInUp } from '../../constants/animations';
+import { NACtx } from '../../types';
+import { Q } from '../QuestionWrapper';
+import { DateCal } from '../InlineCalendar';
 
 export default function CallDetailsScreen({ ctx }: { ctx: NACtx }) {
     const { responses, handleChange, callSlots, callSlotsLoading, callSlotsDuration, fetchCallSlots } = ctx;

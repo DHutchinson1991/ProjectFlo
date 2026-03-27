@@ -5,7 +5,7 @@ import { Box, Typography, Card, CardContent, Button, Alert, TextField, Stack } f
 import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useBrand } from "@/app/providers/BrandProvider";
+import { useBrand } from "@/features/platform/brand";
 import { useFilms } from "@/features/content/films/hooks/useFilms";
 
 export function NewFilmScreen() {

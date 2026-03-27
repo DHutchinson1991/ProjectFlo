@@ -1,5 +1,5 @@
-import type { ApiClient } from '@/lib/api/api-client.types';
-import { apiClient } from '@/lib/api';
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 import type {
     ContractClause,
     ContractClauseCategory,
@@ -54,5 +54,5 @@ export const createContractClausesApi = (client: ApiClient) => ({
         client.post('/api/contract-clauses/seed-defaults', { countryCode }),
 });
 
-export const contractClausesApi = createContractClausesApi(apiClient as unknown as ApiClient);
+export const contractClausesApi = createContractClausesApi(apiClient);
 export type ContractClausesApi = ReturnType<typeof createContractClausesApi>;

@@ -1,12 +1,8 @@
 import { useCallback, useRef } from "react";
-import { apiClient } from "@/lib/api";
-import { createFilmsApi } from "../api";
-import type { ApiClient } from "@/lib/api/api-client.types";
-import { transformBackendTrack } from "@/lib/utils/trackUtils";
-
-const filmsApi = createFilmsApi(apiClient as unknown as ApiClient);
-import type { TimelineTrack } from "@/lib/types/timeline";
-import type { FilmTimelineTrack } from "@/lib/types/domains/equipment";
+import { filmsApi } from "../api";
+import { transformBackendTrack } from "@/features/content/films/utils/trackUtils";
+import type { TimelineTrack } from "@/features/content/content-builder/types/timeline";
+import type { FilmTimelineTrack } from "@/features/content/films/types/tracks";
 
 interface EquipmentSummary {
     tracks?: FilmTimelineTrack[];

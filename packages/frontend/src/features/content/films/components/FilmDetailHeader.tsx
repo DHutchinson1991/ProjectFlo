@@ -17,7 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import type { Film } from "@/features/content/films/types";
 import { FilmMetaDataGrid } from "./FilmMetaDataGrid";
-import type { SaveState } from "@/lib/types/timeline";
+import type { SaveState } from "@/features/content/content-builder/types/timeline";
 import { SaveStateButton } from "./SaveStateButton";
 
 interface FilmDetailHeaderProps {

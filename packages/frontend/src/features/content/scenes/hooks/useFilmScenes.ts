@@ -1,14 +1,10 @@
 import { useState, useCallback, useRef } from "react";
-import { apiClient } from "@/lib/api";
-import { createScenesApi } from "../api";
-import type { ApiClient } from "@/lib/api/api-client.types";
+import { scenesApi } from "../api";
 import type { Film } from "@/features/content/films/types";
-import type { TimelineScene } from "@/lib/types/timeline";
+import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
 import { enrichScenesWithBeats } from "@/features/content/scenes/utils/enrichScenesWithBeats";
 import { mergeApiScenesIntoLocal, deduplicateScenes } from "@/features/content/scenes/utils/merge-film-scenes";
-import { isLogEnabled } from "@/lib/debug/log-flags";
-
-const scenesApi = createScenesApi(apiClient as unknown as ApiClient);
+import { isLogEnabled } from "@/shared/debug/log-flags";
 
 export function useFilmScenes(filmId: number) {
   const shouldLog = isLogEnabled("film");

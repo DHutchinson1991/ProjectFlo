@@ -1,15 +1,17 @@
-import { apiClient } from '@/lib/api';
-import type { ApiClient } from '@/lib/api/api-client.types';
+import { apiClient } from '@/shared/api/client';
+import type { ApiClient } from '@/shared/api/client';
 import type {
     CreateInquiryData,
     Inquiry,
+    InquiryTaskEvent,
+    InquiryTaskStatus,
     InquiryTask,
     InquiryTaskSubtask,
     InquiryAvailabilityResponse,
     InquiryCrewAvailabilityRow,
     InquiryEquipmentAvailabilityRow,
     UpdateInquiryData,
-} from '@/lib/types';
+} from '@/features/workflow/inquiries/types';
 import type {
     InquiryAvailabilityRequestStatus,
     InquiryEquipmentReservationStatus,
@@ -17,6 +19,11 @@ import type {
     InquiryScheduleSnapshotSummary,
     InquiryScheduleSyncResult,
 } from '../types';
+import type {
+    DiscoveryQuestionnaireTemplate,
+    DiscoveryQuestionnaireSubmission,
+    CreateDiscoverySubmissionPayload,
+} from '../types/discovery-questionnaire';
 
 function createInquiryScheduleSnapshotApi(client: ApiClient) {
     return {
@@ -69,7 +76,7 @@ export function createInquiriesApi(client: ApiClient) {
             client.get<InquiryAvailabilityResponse<InquiryEquipmentAvailabilityRow>>(
                 `/api/inquiries/${inquiryId}/equipment-availability`
             ),
-        sendAvailabilityRequest: (inquiryId: number, data: { contributor_id: number; project_day_operator_id?: number }) =>
+        sendAvailabilityRequest: (inquiryId: number, data: { crew_member_id: number; project_crew_slot_id?: number }) =>
             client.post<{ id: number; status: string }>(`/api/inquiries/${inquiryId}/availability-requests`, data),
         updateAvailabilityRequest: (
             inquiryId: number,
@@ -96,6 +103,21 @@ export function createInquiriesApi(client: ApiClient) {
         inquiryTasks: {
             getAll: (inquiryId: number) =>
                 client.get<InquiryTask[]>(`/api/inquiries/${inquiryId}/tasks`),
+            update: (
+                inquiryId: number,
+                taskId: number,
+                data: {
+                    status?: InquiryTaskStatus;
+                    due_date?: string;
+                    order_index?: number;
+                    assigned_to_id?: number | null;
+                },
+            ) => client.patch<InquiryTask>(`/api/inquiries/${inquiryId}/tasks/${taskId}`, data),
+            toggle: (inquiryId: number, taskId: number, completedById?: number) =>
+                client.patch<InquiryTask>(
+                    `/api/inquiries/${inquiryId}/tasks/${taskId}/toggle`,
+                    completedById ? { completed_by_id: completedById } : {}
+                ),
             generate: (inquiryId: number) =>
                 client.post<InquiryTask[]>(`/api/inquiries/${inquiryId}/tasks/generate`),
             toggleSubtask: (inquiryId: number, subtaskId: number, completedById?: number) =>
@@ -103,6 +125,8 @@ export function createInquiriesApi(client: ApiClient) {
                     `/api/inquiries/${inquiryId}/subtasks/${subtaskId}/toggle`,
                     completedById ? { completed_by_id: completedById } : {}
                 ),
+            getEvents: (inquiryId: number, taskId: number) =>
+                client.get<InquiryTaskEvent[]>(`/api/inquiries/${inquiryId}/tasks/${taskId}/events`),
         },
         scheduleSnapshot: createInquiryScheduleSnapshotApi(client),
     };
@@ -117,8 +141,42 @@ export function createInquiryScheduleApi(client: ApiClient) {
     };
 }
 
-export const inquiriesApi = createInquiriesApi(apiClient as unknown as ApiClient);
-export const inquiryScheduleApi = createInquiryScheduleApi(apiClient as unknown as ApiClient);
+// ─── Discovery Questionnaire Templates ───────────────────────────────────────
+
+export function createDiscoveryQuestionnaireTemplatesApi(client: ApiClient) {
+    return {
+        getActive: (): Promise<DiscoveryQuestionnaireTemplate> =>
+            client.get('/api/discovery-questionnaire/templates/active'),
+        getAll: (): Promise<DiscoveryQuestionnaireTemplate[]> =>
+            client.get('/api/discovery-questionnaire/templates'),
+        getById: (id: number): Promise<DiscoveryQuestionnaireTemplate> =>
+            client.get(`/api/discovery-questionnaire/templates/${id}`),
+        update: (id: number, data: Partial<DiscoveryQuestionnaireTemplate>): Promise<DiscoveryQuestionnaireTemplate> =>
+            client.put(`/api/discovery-questionnaire/templates/${id}`, data),
+    };
+}
+
+// ─── Discovery Questionnaire Submissions ─────────────────────────────────────
+
+export function createDiscoveryQuestionnaireSubmissionsApi(client: ApiClient) {
+    return {
+        getByInquiryId: (inquiryId: number): Promise<DiscoveryQuestionnaireSubmission | null> =>
+            client.get(`/api/discovery-questionnaire/submissions/by-inquiry/${inquiryId}`),
+        getById: (id: number): Promise<DiscoveryQuestionnaireSubmission> =>
+            client.get(`/api/discovery-questionnaire/submissions/${id}`),
+        create: (data: CreateDiscoverySubmissionPayload): Promise<DiscoveryQuestionnaireSubmission> =>
+            client.post('/api/discovery-questionnaire/submissions', data),
+        update: (id: number, data: Partial<CreateDiscoverySubmissionPayload>): Promise<DiscoveryQuestionnaireSubmission> =>
+            client.patch(`/api/discovery-questionnaire/submissions/${id}`, data),
+    };
+}
+
+export const inquiriesApi = createInquiriesApi(apiClient);
+export const inquiryScheduleApi = createInquiryScheduleApi(apiClient);
+export const discoveryQuestionnaireTemplatesApi = createDiscoveryQuestionnaireTemplatesApi(apiClient);
+export const discoveryQuestionnaireSubmissionsApi = createDiscoveryQuestionnaireSubmissionsApi(apiClient);
 
 export type InquiriesApi = ReturnType<typeof createInquiriesApi>;
 export type InquiryScheduleApi = ReturnType<typeof createInquiryScheduleApi>;
+export type DiscoveryQuestionnaireTemplatesApi = ReturnType<typeof createDiscoveryQuestionnaireTemplatesApi>;
+export type DiscoveryQuestionnaireSubmissionsApi = ReturnType<typeof createDiscoveryQuestionnaireSubmissionsApi>;

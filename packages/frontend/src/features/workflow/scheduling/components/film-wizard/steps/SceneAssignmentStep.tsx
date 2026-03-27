@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
-import type { FilmStructureTemplateScene } from '@/lib/types/domains/film-structure-templates';
+import type { FilmStructureTemplateScene } from '@/features/content/films/types/film-structure-templates';
 import type { PackageActivityRecord, SceneSourceAssignment } from '../FilmCreationWizard';
 
 interface SceneAssignmentStepProps {

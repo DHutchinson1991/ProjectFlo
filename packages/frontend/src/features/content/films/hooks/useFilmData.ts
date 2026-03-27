@@ -1,13 +1,9 @@
 import { useState, useCallback, useEffect } from "react";
-import { api, apiClient } from "@/lib/api";
-import { createFilmsApi } from "../api";
-import type { ApiClient } from "@/lib/api/api-client.types";
+import { filmsApi } from "../api";
 import type { Film } from "@/features/content/films/types";
-import type { TimelineTrack } from "@/lib/types/timeline";
-
-const filmsApi = createFilmsApi(apiClient as unknown as ApiClient);
-import { transformBackendTrack } from "@/lib/utils/trackUtils";
-import { isLogEnabled } from "@/lib/debug/log-flags";
+import type { TimelineTrack } from "@/features/content/content-builder/types/timeline";
+import { transformBackendTrack } from "@/features/content/films/utils/trackUtils";
+import { isLogEnabled } from "@/shared/debug/log-flags";
 import { useFilmScenes } from "@/features/content/scenes/hooks/useFilmScenes";
 
 /**
@@ -66,7 +62,7 @@ export const useFilmData = (filmId: number) => {
 
     const fetchLayers = useCallback(async () => {
         try {
-            const layersData = await api.timeline.getLayers();
+            const layersData = await filmsApi.timelineLayers.getAll();
             setLayers(layersData || []);
             return layersData;
         } catch (err) {

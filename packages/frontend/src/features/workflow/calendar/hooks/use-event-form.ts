@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CalendarEvent, EventType, Priority, Project } from '@/features/workflow/calendar/types/calendar-types';
-import { ContributorOption } from '@/features/workflow/calendar/hooks/use-contributors';
+import { CrewMemberOption } from '@/features/workflow/calendar/hooks/use-contributors';
 
 export interface EventFormData {
     title: string;
@@ -24,7 +24,7 @@ interface FormState {
     allDay: boolean;
     type: EventType;
     priority: Priority;
-    assignee: ContributorOption | null;
+    assignee: CrewMemberOption | null;
     project: Project | null;
     location: string;
 }
@@ -49,14 +49,14 @@ interface UseEventFormOptions {
     mode: 'create' | 'edit';
     event?: CalendarEvent | null;
     initialData?: { start: Date; end: Date; title: string };
-    currentUserContributor: ContributorOption | null;
+    currentUserCrewMember: CrewMemberOption | null;
     onSave: (data: EventFormData) => void;
     onDelete?: (id: string) => void;
     onClose: () => void;
 }
 
 export function useEventForm({
-    open, mode, event, initialData, currentUserContributor, onSave, onDelete, onClose,
+    open, mode, event, initialData, currentUserCrewMember, onSave, onDelete, onClose,
 }: UseEventFormOptions) {
     const [formData, setFormData] = useState<FormState>({ ...defaultForm });
     const [isFormInitialized, setIsFormInitialized] = useState(false);
@@ -72,7 +72,7 @@ export function useEventForm({
                     assignee: event.assignee ? {
                         id: event.assignee.id, name: event.assignee.name, email: event.assignee.email,
                         initials: event.assignee.name.split(' ').map(n => n[0]).join('').toUpperCase(),
-                        isCurrentUser: event.assignee.id === currentUserContributor?.id,
+                        isCurrentUser: event.assignee.id === currentUserCrewMember?.id,
                     } : null,
                     project: event.project || null, location: event.location || '',
                 });
@@ -80,11 +80,11 @@ export function useEventForm({
                 setFormData({
                     ...defaultForm, title: initialData.title,
                     start: initialData.start, end: initialData.end,
-                    assignee: currentUserContributor,
+                    assignee: currentUserCrewMember,
                 });
             }
         }
-    }, [open, mode, event, initialData, currentUserContributor, isFormInitialized]);
+    }, [open, mode, event, initialData, currentUserCrewMember, isFormInitialized]);
 
     useEffect(() => { if (!open) setIsFormInitialized(false); }, [open]);
 

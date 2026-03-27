@@ -1,14 +1,22 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import { useRouter } from 'next/navigation';
 
-import { api } from '@/lib/api';
-import { ServicePackage } from '@/lib/types/domains/sales';
-import { useBrand } from '@/app/providers/BrandProvider';
+import {
+    useAddPackageSetSlot,
+    useAssignPackageSetSlot,
+    useClearPackageSetSlot,
+    usePackageLibraryData,
+    useRemovePackageSetSlot,
+    useUpdatePackageSetSlot,
+} from '@/features/catalog/packages/hooks';
+import { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
+import { useBrand } from '@/features/platform/brand';
+import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import PackageCreationWizard from '../components/creation/PackageCreationWizard';
 import {
     type PackageSet,
@@ -21,12 +29,7 @@ import {
 export function PackageSetsScreen() {
     const router = useRouter();
     const { currentBrand } = useBrand();
-    const currencyCode = currentBrand?.currency || 'USD';
-    const safeBrandId = currentBrand?.id || 1;
-
-    const [sets, setSets] = useState<PackageSet[]>([]);
-    const [allPackages, setAllPackages] = useState<ServicePackage[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const currencyCode = currentBrand?.currency ?? DEFAULT_CURRENCY;
     const [isCreateSetOpen, setIsCreateSetOpen] = useState(false);
     const [pickerSlotId, setPickerSlotId] = useState<number | null>(null);
     const [pickerSetCategory, setPickerSetCategory] = useState<string | null>(null);
@@ -35,33 +38,25 @@ export function PackageSetsScreen() {
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [wizardEventTypeName, setWizardEventTypeName] = useState<string | null>(null);
     const [wizardSlotId, setWizardSlotId] = useState<number | null>(null);
+    const packageLibraryQuery = usePackageLibraryData(currentBrand?.id);
+    const assignPackageMutation = useAssignPackageSetSlot(currentBrand?.id);
+    const clearSlotMutation = useClearPackageSetSlot(currentBrand?.id);
+    const addSlotMutation = useAddPackageSetSlot(currentBrand?.id);
+    const removeSlotMutation = useRemovePackageSetSlot(currentBrand?.id);
+    const updateSlotMutation = useUpdatePackageSetSlot(currentBrand?.id);
+    const sets = packageLibraryQuery.data?.packageSets ?? [];
+    const allPackages = packageLibraryQuery.data?.packages ?? [];
+    const isLoading = packageLibraryQuery.isLoading;
 
-    const loadData = useCallback(async () => {
-        try {
-            const [setsData, pkgs] = await Promise.all([
-                api.packageSets.getAll(safeBrandId),
-                api.servicePackages.getAll(safeBrandId),
-            ]);
-            setSets(setsData);
-            setAllPackages(pkgs);
-        } catch (err) {
-            console.error('Failed to load data', err);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [safeBrandId]);
-
-    useEffect(() => { loadData(); }, [loadData]);
-
-    const assignedIds = sets.flatMap(s => s.slots)
-        .filter(slot => slot.service_package_id !== null)
-        .map(slot => slot.service_package_id!);
+    const assignedIds = useMemo(
+        () => sets.flatMap(s => s.slots).filter(slot => slot.service_package_id !== null).map(slot => slot.service_package_id!),
+        [sets],
+    );
 
     const handleSelectPackage = async (pkg: ServicePackage) => {
         if (pickerSlotId === null) return;
         try {
-            await api.packageSets.assignPackage(safeBrandId, pickerSlotId, pkg.id);
-            await loadData();
+            await assignPackageMutation.mutateAsync({ slotId: pickerSlotId, servicePackageId: pkg.id });
         } catch (err) {
             console.error('Failed to assign package', err);
         }
@@ -77,8 +72,7 @@ export function PackageSetsScreen() {
 
     const handleClearSlot = async (slotId: number) => {
         try {
-            await api.packageSets.clearSlot(safeBrandId, slotId);
-            await loadData();
+            await clearSlotMutation.mutateAsync(slotId);
         } catch (err) {
             console.error('Failed to clear slot', err);
         }
@@ -90,8 +84,7 @@ export function PackageSetsScreen() {
             const existingLabels = set?.slots.map(s => s.slot_label) || [];
             const nextTier = TIER_LABELS.find(t => !existingLabels.includes(t));
             if (!nextTier) return;
-            await api.packageSets.addSlot(safeBrandId, setId, nextTier);
-            await loadData();
+            await addSlotMutation.mutateAsync({ setId, slotLabel: nextTier });
         } catch (err) {
             console.error('Failed to add slot', err);
         }
@@ -99,8 +92,7 @@ export function PackageSetsScreen() {
 
     const handleRemoveSlot = async (slotId: number) => {
         try {
-            await api.packageSets.removeSlot(safeBrandId, slotId);
-            await loadData();
+            await removeSlotMutation.mutateAsync(slotId);
         } catch (err) {
             console.error('Failed to remove slot', err);
         }
@@ -115,22 +107,14 @@ export function PackageSetsScreen() {
                 if (sl.id === targetSlotId) targetPkgId = sl.service_package_id;
             }
         }
-        setSets(prev => prev.map(s => ({
-            ...s,
-            slots: s.slots.map(sl => {
-                if (sl.id === sourceSlotId) return { ...sl, service_package_id: targetPkgId, service_package: s.slots.find(x => x.id === targetSlotId)?.service_package ?? null };
-                if (sl.id === targetSlotId) return { ...sl, service_package_id: sourcePkgId, service_package: s.slots.find(x => x.id === sourceSlotId)?.service_package ?? null };
-                return sl;
-            }),
-        })));
         try {
             await Promise.all([
-                api.packageSets.updateSlot(safeBrandId, sourceSlotId, { service_package_id: targetPkgId }),
-                api.packageSets.updateSlot(safeBrandId, targetSlotId, { service_package_id: sourcePkgId }),
+                updateSlotMutation.mutateAsync({ slotId: sourceSlotId, data: { service_package_id: targetPkgId } }),
+                updateSlotMutation.mutateAsync({ slotId: targetSlotId, data: { service_package_id: sourcePkgId } }),
             ]);
         } catch (err) {
             console.error('Failed to swap packages', err);
-            await loadData();
+            await packageLibraryQuery.refetch();
         }
     };
 
@@ -265,7 +249,7 @@ export function PackageSetsScreen() {
                 onPackageCreated={async (packageId) => {
                     if (wizardSlotId) {
                         try {
-                            await api.packageSets.assignPackage(safeBrandId, wizardSlotId, packageId);
+                            await assignPackageMutation.mutateAsync({ slotId: wizardSlotId, servicePackageId: packageId });
                         } catch (err) {
                             console.warn('Failed to assign package to slot:', err);
                         }
@@ -273,7 +257,6 @@ export function PackageSetsScreen() {
                     setIsWizardOpen(false);
                     setWizardEventTypeName(null);
                     setWizardSlotId(null);
-                    await loadData();
                     router.push(`/designer/packages/${packageId}`);
                 }}
             />
@@ -281,8 +264,8 @@ export function PackageSetsScreen() {
             <CreatePackageSetDialog
                 open={isCreateSetOpen}
                 onClose={() => setIsCreateSetOpen(false)}
-                onCreated={loadData}
-                brandId={safeBrandId}
+                onCreated={() => packageLibraryQuery.refetch().then(() => undefined)}
+                brandId={currentBrand?.id ?? 0}
             />
         </Box>
     );

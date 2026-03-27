@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -40,8 +40,9 @@ import {
     CheckCircle as CheckCircleIcon,
     SupervisorAccount as RolesIcon,
 } from "@mui/icons-material";
-import { api } from "@/lib/api";
-import { Role } from "@/lib/types";
+import { rolesApi } from "@/features/platform/settings/api";
+import { crewMembersApi } from "@/features/workflow/crew/api";
+import { Role } from "@/shared/types/users";
 
 interface RoleWithUserCount extends Role {
     userCount?: number;
@@ -70,7 +71,7 @@ export default function RolesSettings() {
     const loadRoles = async () => {
         try {
             setLoading(true); setError(null);
-            const [rolesData, contributorsData] = await Promise.all([api.roles.getAll(), api.contributors.getAll()]);
+            const [rolesData, contributorsData] = await Promise.all([rolesApi.getAll(), crewMembersApi.getAll()]);
             const rolesWithCount = rolesData.map((role) => ({ ...role, userCount: contributorsData.filter((c) => c.role_id === role.id).length }));
             setRoles(rolesWithCount);
         } catch { setError("Failed to load roles data"); }
@@ -95,19 +96,19 @@ export default function RolesSettings() {
 
     const handleSubmitCreate = async () => {
         if (!validateRoleForm()) return;
-        try { setSubmitting(true); setError(null); await api.roles.create({ name: roleFormData.name.trim(), description: roleFormData.description.trim() || undefined }); await loadRoles(); setCreateDialogOpen(false); setSuccess("Role created successfully!"); }
+        try { setSubmitting(true); setError(null); await rolesApi.create({ name: roleFormData.name.trim(), description: roleFormData.description.trim() || undefined }); await loadRoles(); setCreateDialogOpen(false); setSuccess("Role created successfully!"); }
         catch { setError("Failed to create role"); } finally { setSubmitting(false); }
     };
 
     const handleSubmitEdit = async () => {
         if (!selectedRole || !validateRoleForm()) return;
-        try { setSubmitting(true); setError(null); await api.roles.update(selectedRole.id, { name: roleFormData.name.trim(), description: roleFormData.description.trim() || undefined }); await loadRoles(); setEditDialogOpen(false); setSelectedRole(null); setSuccess("Role updated successfully!"); }
+        try { setSubmitting(true); setError(null); await rolesApi.update(selectedRole.id, { name: roleFormData.name.trim(), description: roleFormData.description.trim() || undefined }); await loadRoles(); setEditDialogOpen(false); setSelectedRole(null); setSuccess("Role updated successfully!"); }
         catch { setError("Failed to update role"); } finally { setSubmitting(false); }
     };
 
     const handleSubmitDelete = async () => {
         if (!selectedRole) return;
-        try { setSubmitting(true); setError(null); await api.roles.delete(selectedRole.id); await loadRoles(); setDeleteDialogOpen(false); setSelectedRole(null); setSuccess("Role deleted successfully!"); }
+        try { setSubmitting(true); setError(null); await rolesApi.delete(selectedRole.id); await loadRoles(); setDeleteDialogOpen(false); setSelectedRole(null); setSuccess("Role deleted successfully!"); }
         catch { setError("Failed to delete role"); } finally { setSubmitting(false); }
     };
 

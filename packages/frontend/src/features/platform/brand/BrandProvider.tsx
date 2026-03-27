@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, {
     createContext,
@@ -12,12 +12,12 @@ import React, {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/platform/auth";
-import { api, setBrandContextProvider } from "@/lib/api";
+import { brandsApi } from "@/features/platform/brand/api";
 import {
     Brand,
-    UserBrand,
+    BrandMember,
     BrandContextType,
-} from "@/lib/types";
+} from "@/features/platform/brand/types";
 
 const BrandContext = createContext<BrandContextType | undefined>(undefined);
 
@@ -67,22 +67,14 @@ export function BrandProvider({ children }: BrandProviderProps) {
         }
     }, []);
 
-    // Set up a SINGLE brand context provider that reads from the ref.
-    // This never needs to be recreated — the ref is always up-to-date.
-    useEffect(() => {
-        setBrandContextProvider({
-            getCurrentBrandId: () => brandRef.current?.id || getStoredBrandId() || null,
-        });
-    }, []); // intentionally run once
-
     // Query for user's available brands
     const {
-        data: userBrands = [],
+        data: BrandMembers = [],
         isLoading: brandsLoading,
         error: brandsError,
-    } = useQuery<UserBrand[]>({
-        queryKey: ["userBrands", user?.id],
-        queryFn: () => api.brands.getUserBrands(user!.id),
+    } = useQuery<BrandMember[]>({
+        queryKey: ["BrandMembers", user?.id],
+        queryFn: () => brandsApi.getBrandMembers(user!.id),
         enabled: !!user?.id && isAuthenticated,
         staleTime: 5 * 60 * 1000, // 5 minutes
         refetchOnWindowFocus: false, // prevent unnecessary refetches that trigger brand resolution
@@ -97,9 +89,8 @@ export function BrandProvider({ children }: BrandProviderProps) {
 
     // Memoize so a new array ref is only created when the underlying IDs change
     const availableBrands = useMemo(
-        () => userBrands.map((ub) => ub.brand),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [userBrands.map((ub) => ub.brand?.id).join(',')]
+        () => BrandMembers.map((ub) => ub.brand),
+        [BrandMembers.map((ub) => ub.brand?.id).join(',')]
     );
 
     // Track whether we have already resolved the initial brand
@@ -187,7 +178,7 @@ export function BrandProvider({ children }: BrandProviderProps) {
     const refreshBrands = useCallback(async () => {
         if (!user) return;
 
-        await queryClient.invalidateQueries({ queryKey: ["userBrands", user.id] });
+        await queryClient.invalidateQueries({ queryKey: ["BrandMembers", user.id] });
     }, [user, queryClient]);
 
     // Computed properties

@@ -1,21 +1,21 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import { Box, Typography, SxProps, Theme } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
 import VideocamIcon from '@mui/icons-material/Videocam';
 
-import { formatCurrency } from '@/lib/utils/formatUtils';
-import { computeTaxBreakdown } from '@/lib/utils/pricing';
-import type { TaskAutoGenerationPreview } from '@/lib/types/task-library';
-import type { ServicePackage } from '@/lib/types/domains/sales';
+import { formatCurrency } from '@/shared/utils/formatUtils';
+import { computeTaxBreakdown } from '@/shared/utils/pricing';
+import type { TaskAutoGenerationPreview } from '@/features/catalog/task-library/types';
+import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 
-import type { PackageDayOperatorRecord, EquipmentRecord } from '../../../types';
+import type { PackageCrewSlotRecord, EquipmentRecord } from '../../../types';
 import { computeCrewCost, computeEquipmentCost } from '../../../utils/selectors';
 
 // ─── Props ──────────────────────────────────────────────────────────
 export interface SummaryCardProps {
-    packageDayOperators: PackageDayOperatorRecord[];
+    PackageCrewSlots: PackageCrewSlotRecord[];
     taskPreview: TaskAutoGenerationPreview | null;
     contents: Partial<ServicePackage>['contents'];
     allEquipment: EquipmentRecord[];
@@ -26,7 +26,7 @@ export interface SummaryCardProps {
 
 // ─── Component ──────────────────────────────────────────────────────
 export function SummaryCard({
-    packageDayOperators,
+    PackageCrewSlots,
     taskPreview,
     contents,
     allEquipment,
@@ -34,8 +34,8 @@ export function SummaryCard({
     taxRate,
     cardSx,
 }: SummaryCardProps) {
-    const totalCrewCost = computeCrewCost(packageDayOperators, taskPreview);
-    const totalEquipCost = computeEquipmentCost(contents, packageDayOperators, allEquipment);
+    const totalCrewCost = computeCrewCost(PackageCrewSlots, taskPreview);
+    const totalEquipCost = computeEquipmentCost(contents, PackageCrewSlots, allEquipment);
     const subtotal = totalCrewCost + totalEquipCost;
     const tax = computeTaxBreakdown(subtotal, taxRate ?? 0);
 

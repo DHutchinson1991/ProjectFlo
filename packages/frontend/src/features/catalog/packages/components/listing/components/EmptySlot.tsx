@@ -7,7 +7,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 
-import { getTierColor } from '../lib/helpers';
+import { getTierColor } from '../listing-helpers';
 
 // ═══════════════════════════════════════════════════════════════════════
 // ── Empty Slot Component

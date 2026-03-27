@@ -1,17 +1,19 @@
-// ─── Package Edit Page – Derived Data Selectors ─────────────────────
+﻿// ─── Package Edit Page – Derived Data Selectors ─────────────────────
 //
 // Pure selector functions that compute derived values from page state.
 // Centralises logic that was previously duplicated across multiple
 // IIFEs inside the JSX render tree.
 // ─────────────────────────────────────────────────────────────────────
 
-import type { TaskAutoGenerationPreview } from '@/lib/types/task-library';
-import type { PackageDayOperatorRecord, EquipmentRecord } from '../types';
+import type { TaskAutoGenerationPreview } from '@/features/catalog/task-library/types';
+import type { PackageCrewSlotRecord, EquipmentRecord } from '../types';
 import {
     getCrewHourlyRate,
     isCrewDayRate,
     getCrewDayRate,
-} from './helpers';
+} from './package-helpers';
+import { NON_DELIVERY_PHASES } from '@/shared/utils/rates';
+import { roundMoney } from '@/shared/utils/pricing';
 
 // ─── Active day resolution ──────────────────────────────────────────
 
@@ -29,8 +31,6 @@ export function getActiveDayId(
 
 // ─── Crew cost computation ──────────────────────────────────────────
 
-const CREW_COST_EXCLUDED_PHASES = new Set(['Lead', 'Inquiry', 'Booking']);
-
 /**
  * Compute the total crew cost from a list of operators and an optional
  * task-auto-generation preview.
@@ -45,33 +45,33 @@ const CREW_COST_EXCLUDED_PHASES = new Set(['Lead', 'Inquiry', 'Booking']);
  * When no preview exists we fall back to operator-level rate × hours.
  */
 export function computeCrewCost(
-    operators: PackageDayOperatorRecord[],
+    operators: PackageCrewSlotRecord[],
     taskPreview: TaskAutoGenerationPreview | null,
 ): number {
     if (taskPreview?.tasks) {
         // Sum estimated_cost from all non-sales-pipeline task rows
         const taskCost = taskPreview.tasks
-            .filter(t => !CREW_COST_EXCLUDED_PHASES.has(t.phase) && t.estimated_cost != null)
+            .filter(t => !NON_DELIVERY_PHASES.has(t.phase) && t.estimated_cost != null)
             .reduce((sum, t) => sum + (t.estimated_cost ?? 0), 0);
 
         // Day-rate crew have hourly_rate=0 in the preview so estimated_cost=0;
         // add their actual day-rate cost separately.
         const dayRateCost = operators
             .filter(op => isCrewDayRate(op))
-            .reduce((sum, op) => sum + getCrewDayRate(op) * Number(op.hours || 1), 0);
+            .reduce((sum, op) => sum + roundMoney(getCrewDayRate(op) * Number(op.hours || 1)), 0);
 
-        return taskCost + dayRateCost;
+        return roundMoney(taskCost + dayRateCost);
     }
 
     // Fallback: no preview available — compute directly from operator rates
     return operators.reduce((sum, op) => {
-        if (!op.contributor_id && !op.job_role_id) return sum;
+        if (!op.crew_member_id && !op.job_role_id) return sum;
         if (isCrewDayRate(op)) {
-            return sum + getCrewDayRate(op) * Number(op.hours || 1);
+            return sum + roundMoney(getCrewDayRate(op) * Number(op.hours || 1));
         }
         const rate = getCrewHourlyRate(op);
         const hours = Number(op.hours || 0);
-        return sum + rate * hours;
+        return sum + roundMoney(rate * hours);
     }, 0);
 }
 
@@ -94,7 +94,7 @@ interface EquipContentsForCost {
  */
 export function computeEquipmentCost(
     _contents: EquipContentsForCost | undefined | null,
-    operators: PackageDayOperatorRecord[],
+    operators: PackageCrewSlotRecord[],
     allEquipment: EquipmentRecord[],
 ): number {
     const allEquipIds = new Set<number>();

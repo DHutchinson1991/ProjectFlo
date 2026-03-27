@@ -32,7 +32,7 @@ import {
     Warning,
 } from "@mui/icons-material";
 import { inquiryWizardSubmissionsApi } from '@/features/workflow/inquiry-wizard';
-import { NeedsAssessmentSubmission, NaDateConflictResult, NaCrewConflictResult } from "@/lib/types";
+import { NeedsAssessmentSubmission, NaDateConflictResult, NaCrewConflictResult } from "@/features/workflow/inquiries/types/needs-assessment";
 
 const MANUAL_CHECKLIST = [
     { key: 'venue_feasibility', label: 'Venue feasibility checked' },
@@ -352,7 +352,7 @@ export default function NeedsAssessmentReviewScreen() {
                                             ) : (
                                                 <Stack spacing={0.5}>
                                                     {crewConflicts.conflicts.map((c) => (
-                                                        <Box key={c.contributor_id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <Box key={c.crew_member_id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                             <Warning sx={{ fontSize: 16, color: 'error.main' }} />
                                                             <Typography variant="body2" color="error.main">
                                                                 <strong>{c.name}</strong> ({c.role}) — {c.event_title}

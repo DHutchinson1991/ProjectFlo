@@ -3,8 +3,9 @@
 import React from "react";
 import { Box, Stack, TextField, Typography } from "@mui/material";
 import { EventAvailable } from "@mui/icons-material";
-import type { InquiryEquipmentAvailabilityRow } from "@/lib/types";
+import type { InquiryEquipmentAvailabilityRow } from "@/features/workflow/inquiries/types";
 import InquiryActionDialog from "./InquiryActionDialog";
+import { formatCurrency } from "@projectflo/shared";
 
 type ReservationStatus = "reserved" | "cancelled";
 
@@ -91,7 +92,6 @@ export default function EquipmentReservationDialog({
               <Stack spacing={0.65}>
                 {rows.map((row) => {
                   const rentalPrice = row.equipment.rental_price_per_day;
-                  const fmtPrice = (n: number) => `£${Number.isInteger(n) ? n : n.toFixed(2)}`;
                   return (
                     <Box
                       key={row.id}
@@ -115,7 +115,7 @@ export default function EquipmentReservationDialog({
                         ) : null}
                         {rentalPrice != null && (
                           <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, color: "#34d399" }}>
-                            {fmtPrice(rentalPrice)} / day
+                            {formatCurrency(rentalPrice)} / day
                           </Typography>
                         )}
                       </Stack>

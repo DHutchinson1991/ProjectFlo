@@ -7,10 +7,11 @@ import CameraAltOutlinedIcon from "@mui/icons-material/CameraAltOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
 import MicNoneOutlinedIcon from "@mui/icons-material/MicNoneOutlined";
-import { C, glassSx } from '../constants/wizard-config';
-import { NACtx, ScreenId } from '../types';
-import { Q } from './QuestionWrapper';
-import type { ServicePackage, ServicePackageItem } from '@/lib/types/domains/sales';
+import { C, glassSx } from '../../constants/wizard-config';
+import { NACtx, ScreenId } from '../../types';
+import { Q } from '../QuestionWrapper';
+import type { ServicePackage, ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
+import { formatCurrency } from '@projectflo/shared';
 
 // Backend may inject pricing fields at runtime
 type EnrichedPackage = ServicePackage & {
@@ -33,7 +34,7 @@ function StatChip({ icon, label, active }: { icon: React.ReactNode; label: strin
 }
 
 export default function PackagesScreen({ ctx }: { ctx: NACtx }) {
-    const { responses, handleChange, filteredPackages, budgetMax, slotLabels, currSym, maxCamerasPerOp } = ctx;
+    const { responses, handleChange, filteredPackages, budgetMax, slotLabels, currency, maxCamerasPerOp } = ctx;
     const selectedPkg = responses.selected_package;
 
     return (
@@ -191,7 +192,7 @@ export default function PackagesScreen({ ctx }: { ctx: NACtx }) {
                                             fontSize: "1.7rem", fontWeight: 700, lineHeight: 1,
                                             background: `linear-gradient(135deg, ${C.gradient1}, ${C.gradient2})`,
                                             backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-                                        }}>{currSym}{Number(price).toLocaleString()}</Typography>
+                                        }}>{formatCurrency(Number(price), currency, 0)}</Typography>
                                     </Box>
                                 </Box>
                             </Box>

@@ -9,7 +9,7 @@ import {
     DeleteOutline as DeleteOutlineIcon,
 } from "@mui/icons-material";
 import { ScenesLibrary, SceneType } from "@/features/content/scenes/types";
-import { formatTime } from "@/lib/utils/formatUtils";
+import { formatTime } from "@/shared/utils/formatUtils";
 import { getSceneColor } from "../../../utils/colorUtils";
 import { getScenePrimaryMediaType } from "@/features/content/scenes/utils/scene-data-utils";
 

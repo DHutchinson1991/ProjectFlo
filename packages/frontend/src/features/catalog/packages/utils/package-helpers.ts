@@ -1,76 +1,33 @@
-// ─── Package Edit Page – Pure Helper Functions ──────────────────────
+﻿// ─── Package Edit Page – Pure Helper Functions ──────────────────────
 //
 // Stateless, side-effect-free business logic extracted from page.tsx.
 // Every function here is independently testable.
 // ─────────────────────────────────────────────────────────────────────
 
-import type { TaskAutoGenerationPreview } from '@/lib/types/task-library';
-import type { PackageDayOperatorRecord, FilmData } from '../types';
+import type { TaskAutoGenerationPreview } from '@/features/catalog/task-library/types';
+import type { PackageCrewSlotRecord, FilmData } from '../types';
+import {
+    resolveHourlyRate,
+    resolveDayRate,
+    usesDayRate,
+    NON_DELIVERY_PHASES,
+} from '@/shared/utils/rates';
 
-// ─── Crew rate helpers ───────────────────────────────────────────────
+// ─── Crew rate helpers (delegates to @projectflo/shared) ─────────────
 
-/**
- * Resolve the effective hourly rate for a crew operator:
- *  1. Payment bracket rate matching the operator's job_role (best)
- *  2. Any payment bracket rate on the contributor (fallback)
- *  3. Contributor's default_hourly_rate
- *  Returns 0 if nothing is set.
- */
-export function getCrewHourlyRate(op: PackageDayOperatorRecord): number {
-    const c = op.contributor;
-    if (!c) return 0;
-    const roles = c.contributor_job_roles || [];
-    // Try to find the bracket matching the operator's assigned job_role first
-    if (op.job_role_id) {
-        const match = roles.find(r => r.job_role_id === op.job_role_id && r.payment_bracket?.hourly_rate);
-        if (match?.payment_bracket?.hourly_rate) return Number(match.payment_bracket.hourly_rate);
-    }
-    // Fallback: primary role bracket
-    const primary = roles.find(r => r.is_primary && r.payment_bracket?.hourly_rate);
-    if (primary?.payment_bracket?.hourly_rate) return Number(primary.payment_bracket.hourly_rate);
-    // Fallback: any bracket
-    const anyRole = roles.find(r => r.payment_bracket?.hourly_rate);
-    if (anyRole?.payment_bracket?.hourly_rate) return Number(anyRole.payment_bracket.hourly_rate);
-    // Fallback: contributor default
-    if (c.default_hourly_rate) return Number(c.default_hourly_rate);
-    return 0;
+/** Resolve the effective hourly rate for a crew operator. */
+export function getCrewHourlyRate(op: PackageCrewSlotRecord): number {
+    return resolveHourlyRate(op);
 }
 
-/**
- * Check if an operator is a day-rate role (has day_rate but no hourly_rate
- * on the matching bracket). These roles (e.g. Production) are costed per day,
- * not per hour.
- */
-export function isCrewDayRate(op: PackageDayOperatorRecord): boolean {
-    const c = op.contributor;
-    if (!c) return false;
-    const roles = c.contributor_job_roles || [];
-    if (op.job_role_id) {
-        const match = roles.find((r) => r.job_role_id === op.job_role_id);
-        if (match?.payment_bracket) {
-            const dayRate = Number(match.payment_bracket.day_rate || 0);
-            const hourlyRate = Number(match.payment_bracket.hourly_rate || 0);
-            return dayRate > 0 && hourlyRate === 0;
-        }
-    }
-    return false;
+/** Check if an operator is a day-rate role. */
+export function isCrewDayRate(op: PackageCrewSlotRecord): boolean {
+    return usesDayRate(op);
 }
 
-/**
- * Get the day rate for a day-rate operator. Returns 0 if not found.
- */
-export function getCrewDayRate(op: PackageDayOperatorRecord): number {
-    const c = op.contributor;
-    if (!c) return 0;
-    const roles = c.contributor_job_roles || [];
-    if (op.job_role_id) {
-        const match = roles.find((r) => r.job_role_id === op.job_role_id && r.payment_bracket?.day_rate);
-        if (match?.payment_bracket?.day_rate) return Number(match.payment_bracket.day_rate);
-    }
-    // Fallback: primary role bracket
-    const primary = roles.find((r) => r.is_primary && r.payment_bracket?.day_rate);
-    if (primary?.payment_bracket?.day_rate) return Number(primary.payment_bracket.day_rate);
-    return 0;
+/** Get the day rate for a day-rate operator. Returns 0 if not found. */
+export function getCrewDayRate(op: PackageCrewSlotRecord): number {
+    return resolveDayRate(op);
 }
 
 // ─── Task hours helpers ──────────────────────────────────────────────
@@ -83,14 +40,12 @@ export function getCrewDayRate(op: PackageDayOperatorRecord): number {
  * Excludes sales-pipeline phases (Lead, Inquiry, Booking) so crew costs
  * reflect only project-delivery work.
  */
-const EXCLUDED_PHASES = new Set(['Lead', 'Inquiry', 'Booking']);
-
 export function buildTaskHoursMap(preview: TaskAutoGenerationPreview | null): Map<string, number> {
     const map = new Map<string, number>();
     if (!preview?.tasks) return map;
     for (const task of preview.tasks) {
         if (!task.assigned_to_name || !task.role_name) continue;
-        if (EXCLUDED_PHASES.has(task.phase)) continue;
+        if (NON_DELIVERY_PHASES.has(task.phase)) continue;
         const key = `${task.assigned_to_name}|${task.role_name}`;
         map.set(key, (map.get(key) || 0) + task.total_hours);
     }
@@ -149,16 +104,16 @@ export function getFilmStats(films: FilmData[], filmId: number): FilmStats {
  * Get the display name for a crew operator from their contributor contact.
  * Returns empty string if no contributor.
  */
-export function getOperatorCrewName(op: PackageDayOperatorRecord): string {
-    if (!op.contributor) return '';
-    return `${op.contributor.contact?.first_name || ''} ${op.contributor.contact?.last_name || ''}`.trim();
+export function getOperatorCrewName(op: PackageCrewSlotRecord): string {
+    if (!op.crew_member) return '';
+    return `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim();
 }
 
 /**
  * Get the display name for an operator's job role.
  * Returns null if no job role is set.
  */
-export function getOperatorRoleName(op: PackageDayOperatorRecord): string | null {
+export function getOperatorRoleName(op: PackageCrewSlotRecord): string | null {
     if (!op.job_role) return null;
     return op.job_role.display_name || op.job_role.name;
 }
@@ -167,7 +122,7 @@ export function getOperatorRoleName(op: PackageDayOperatorRecord): string | null
  * Build the task hours map key for a given operator.
  * Returns null if either crew name or role name is missing.
  */
-export function getOperatorTaskKey(op: PackageDayOperatorRecord): string | null {
+export function getOperatorTaskKey(op: PackageCrewSlotRecord): string | null {
     const crewName = getOperatorCrewName(op);
     const roleName = getOperatorRoleName(op);
     return crewName && roleName ? `${crewName}|${roleName}` : null;
@@ -176,9 +131,9 @@ export function getOperatorTaskKey(op: PackageDayOperatorRecord): string | null 
 /**
  * Get the tier/payment-bracket name for an operator, if available.
  */
-export function getOperatorTierName(op: PackageDayOperatorRecord): string | null {
-    if (!op.contributor || !op.job_role) return null;
-    const jobRoleMatch = op.contributor.contributor_job_roles?.find(
+export function getOperatorTierName(op: PackageCrewSlotRecord): string | null {
+    if (!op.crew_member || !op.job_role) return null;
+    const jobRoleMatch = op.crew_member.job_role_assignments?.find(
         (cjr) => cjr.job_role_id === op.job_role_id,
     );
     return jobRoleMatch?.payment_bracket?.name || null;

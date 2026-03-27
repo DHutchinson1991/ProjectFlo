@@ -2,9 +2,9 @@
 
 import React from "react";
 import { Box } from "@mui/material";
-import { TimelineTrack } from "@/lib/types/timeline";
-import { TimelineScene } from "@/lib/types/timeline";
-import { DragState, ViewState } from "@/lib/types/timeline";
+import { TimelineTrack } from "@/features/content/content-builder/types/timeline";
+import { TimelineScene } from "@/features/content/content-builder/types/timeline";
+import { DragState, ViewState } from "@/features/content/content-builder/types/timeline";
 import TimelineTrackComponent from "./Track";
 import SceneBlockComponent from "../scenes/SceneBlock";
 

@@ -1,0 +1,15 @@
+---
+description: Frontend design system, shared UI components, and token usage.
+globs: packages/frontend/src/**
+alwaysApply: false
+---
+
+# ProjectFlo — Frontend Design System
+
+- Use shared design tokens from `@/lib/theme/tokens` (`colors`, `gradients`, `glassSx`, `fieldSx`, `statusColors`) instead of hard-coded hex values or duplicated `sx` snippets.
+- Prefer MUI theme variants like `<Card variant="glass">` and `<Chip variant="status">` over hand-rolled glass or badge styling.
+- Before building new UI, check existing shared components in `@/shared/ui` (`StatusChip`, `EmptyState`, `FormDialog`, `PageHeader`, `Loading`, `ErrorBoundary`, etc.) and reuse them when they match the UX.
+- Import shared UI exclusively from `@/shared/ui`; do not introduce new imports from legacy paths such as `@/app/components` for new work.
+- If a component will be reused across 2+ unrelated domain buckets, implement it under `shared/ui` from the start; otherwise keep it in the owning feature and extract later when reuse is real.
+- When adding new status values or visual variants, extend the central tokens (e.g. `statusColors`) and shared components instead of inlining one-off styling.
+

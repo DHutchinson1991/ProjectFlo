@@ -6,7 +6,7 @@ import {
     Close as CloseIcon, 
     DragIndicator as DragIcon
 } from "@mui/icons-material";
-import { TimelineScene } from "@/lib/types/timeline";
+import { TimelineScene } from "@/features/content/content-builder/types/timeline";
 
 interface SceneActionsProps {
     scene: TimelineScene;

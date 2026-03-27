@@ -1,46 +1,22 @@
 'use client';
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     Box,
-    TextField,
     Typography,
     InputAdornment,
-    CircularProgress,
     Button,
     ClickAwayListener,
+    CircularProgress,
+    TextField,
 } from '@mui/material';
 import { Search, LocationOff, EditOutlined } from '@mui/icons-material';
+import { useAddressSearch } from '../hooks/useAddressSearch';
+import type { NominatimResult } from '@/features/workflow/locations/api/geocoding.api';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
-export interface NominatimResult {
-    place_id: number;
-    display_name: string;
-    lat: string;
-    lon: string;
-    address?: {
-        road?: string;
-        house_number?: string;
-        city?: string;
-        town?: string;
-        village?: string;
-        state?: string;
-        postcode?: string;
-        country?: string;
-        county?: string;
-        amenity?: string;
-        building?: string;
-        leisure?: string;
-        tourism?: string;
-        historic?: string;
-        shop?: string;
-        office?: string;
-        [key: string]: string | undefined;
-    };
-}
-
 export interface AddressSelection {
     display_name: string;
     lat: number;
@@ -121,27 +97,6 @@ function parseAddressString(raw: string): AddressParts {
     return parts;
 }
 
-async function searchNominatim(query: string): Promise<NominatimResult[]> {
-    if (!query || query.length < 3) return [];
-    const params = new URLSearchParams({
-        q: query,
-        format: 'json',
-        addressdetails: '1',
-        limit: '5',
-    });
-    const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?${params}`,
-        {
-            headers: {
-                'Accept': 'application/json',
-                'User-Agent': 'ProjectFlo/1.0',
-            },
-        },
-    );
-    if (!res.ok) return [];
-    return res.json();
-}
-
 /* ------------------------------------------------------------------ */
 /*  Structured address row                                             */
 /* ------------------------------------------------------------------ */
@@ -168,12 +123,10 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
     placeholder = 'Search for venue address…',
 }) => {
     const [query, setQuery] = useState('');
-    const [results, setResults] = useState<NominatimResult[]>([]);
-    const [loading, setLoading] = useState(false);
     const [open, setOpen] = useState(false);
     const [searching, setSearching] = useState(!value);
     const [parts, setParts] = useState<AddressParts | null>(null);
-    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { results, loading } = useAddressSearch(query);
 
     // If value exists but no parts (loaded from DB), parse a simple fallback
     useEffect(() => {
@@ -185,34 +138,21 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
         }
     }, [value, parts]);
 
+    useEffect(() => {
+        setOpen(results.length > 0 && query.trim().length >= 3);
+    }, [query, results]);
+
     const handleSearch = useCallback((text: string) => {
         setQuery(text);
-        if (debounceRef.current) clearTimeout(debounceRef.current);
 
         if (text.length < 3) {
-            setResults([]);
             setOpen(false);
-            return;
         }
-
-        debounceRef.current = setTimeout(async () => {
-            setLoading(true);
-            try {
-                const data = await searchNominatim(text);
-                setResults(data);
-                setOpen(data.length > 0);
-            } catch {
-                setResults([]);
-            } finally {
-                setLoading(false);
-            }
-        }, 600);
     }, []);
 
     const handleSelect = (result: NominatimResult) => {
         setQuery('');
         setOpen(false);
-        setResults([]);
         setSearching(false);
         setParts(extractParts(result.address));
         onSelect({
@@ -225,7 +165,6 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
     const handleSetUnknown = () => {
         setQuery('');
         setOpen(false);
-        setResults([]);
         setParts(null);
         setSearching(true);
         onSelect(null);

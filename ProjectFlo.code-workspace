@@ -5,12 +5,74 @@
 		}
 	],
 	"settings": {
-		"googleSheetPusher.sheetId": "1F5hdM7qxdfCpQIDWSd5i76Bno5qHg1BOnrnsZREdK5A",
-		"googleSheetPusher.sheetName": "Sheet1",
-		"continue.enableConsole": true,
 		"chat.tools.terminal.autoApprove": {
 			"npx prisma": true
 		},
+
+		"terminal.integrated.enablePersistentSessions": false,
+		"terminal.integrated.persistentSessionReviveProcess": "never",
+		"terminal.integrated.shellIntegration.enabled": true,
+
+		"files.watcherExclude": {
+			"**/node_modules/**": true,
+			"**/.git/objects/**": true,
+			"**/.git/subtree-cache/**": true,
+			"**/dist/**": true,
+			"**/.next/**": true,
+			"**/.prisma/**": true,
+			"**/coverage/**": true
+		},
+		"search.exclude": {
+			"**/node_modules": true,
+			"**/dist": true,
+			"**/.next": true,
+			"**/pnpm-lock.yaml": true,
+			"**/coverage": true
+		},
+		"typescript.tsserver.maxTsServerMemory": 1536,
+		"typescript.tsserver.nodePath": "node",
+		"git.autorefresh": false,
+		"git.decorations.enabled": false,
+		"git.enabled": true,
+		"git.path": null,
+		"editor.linkedEditing": true,
+		"editor.minimap.enabled": false,
+		"editor.bracketPairColorization.independentColorPoolPerBracketType": false,
+		"editor.semanticHighlighting.enabled": false,
+		"editor.codeLens": false,
+		"editor.inlayHints.enabled": "off",
+		"editor.occurrencesHighlight": "off",
+		"editor.renderWhitespace": "none",
+		"editor.hover.delay": 500,
+		"typescript.preferences.includePackageJsonAutoImports": "off",
+		"typescript.workspaceSymbols.scope": "currentProject",
+		"breadcrumbs.enabled": false,
+		"workbench.tips.enabled": false,
+		"extensions.autoUpdate": false,
+		"telemetry.telemetryLevel": "off",
+		"npm.enableScriptExplorer": false,
+		"chat.editing.autoOpenFileOnApply": "never",
+		"workbench.editor.limit.enabled": true,
+		"workbench.editor.limit.value": 8,
+		"workbench.editor.limit.perEditorGroup": true,
+		"workbench.editor.closeOnFileDelete": true,
+		"explorer.autoReveal": false,
+		"explorer.compactFolders": true,
+		"files.exclude": {
+			"**/.git": true,
+			"**/.next": true,
+			"**/dist": true,
+			"**/coverage": true,
+			"**/*.tsbuildinfo": true
+		},
+		"outline.showVariables": false,
+		"outline.showProperties": false,
+		"workbench.editor.enablePreview": true,
+		"timeline.enabled": false,
+		"output.smartScroll.enabled": false,
+		"debug.console.wordWrap": false,
+		"workbench.panel.defaultLocation": "bottom",
+		"workbench.panel.opensMaximized": "never",
 
 		"workbench.colorCustomizations": {
     "titleBar.activeBackground": "#3b3d9e",

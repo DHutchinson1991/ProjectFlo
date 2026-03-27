@@ -195,7 +195,7 @@ export function InquiryProposalsScreen() {
                 </Box>
 
                 <Stack direction="row" spacing={0.5}>
-                  <IconButton onClick={() => router.push(`/sales/inquiries/${inquiryId}/proposals/${proposal.id}`)} sx={{ color: '#94a3b8' }}>
+                  <IconButton onClick={() => router.push(`/inquiries/${inquiryId}/proposals/${proposal.id}`)} sx={{ color: '#94a3b8' }}>
                     <PreviewIcon />
                   </IconButton>
                   <IconButton onClick={() => void handleCopyLink(proposal)} sx={{ color: '#94a3b8' }}>

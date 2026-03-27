@@ -11,7 +11,7 @@ import TheatersIcon from '@mui/icons-material/Theaters';
 import AutoAwesomeMotionIcon from '@mui/icons-material/AutoAwesomeMotion';
 import VideocamIcon from '@mui/icons-material/Videocam';
 
-import { FilmType } from '@/lib/types/domains/film';
+import { FilmType } from '@/features/content/films/types';
 
 interface FilmTypeStepProps {
   filmType: FilmType;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { api } from "@/lib/api";
+import { scheduleApi } from "@/features/workflow/scheduling/api";
 import type {
   EventDay,
   SceneSchedule,
@@ -44,16 +44,16 @@ export function useScheduleData({
       setError(null);
       try {
         if (packageId) {
-          const days = await api.schedule.packageEventDays.getAll(packageId);
+          const days = await scheduleApi.packageEventDays.getAll(packageId);
           if (isMounted) setEventDays(days);
         } else if (brandId) {
-          const days = await api.schedule.eventDays.getAll(brandId);
+          const days = await scheduleApi.eventDays.getAll(brandId);
           if (isMounted) setEventDays(days);
         }
 
         if (mode === "package" && packageId) {
           try {
-            const acts = await api.schedule.packageActivities.getAll(packageId);
+            const acts = await scheduleApi.packageActivities.getAll(packageId);
             if (isMounted) setActivities(acts as ActivityOption[]);
           } catch {
             if (isMounted) setActivities([]);
@@ -61,7 +61,7 @@ export function useScheduleData({
         }
 
         if (mode === "film") {
-          const filmData = await api.schedule.film.get(filmId);
+          const filmData = await scheduleApi.film.get(filmId);
           if (isMounted && filmData?.scenes) {
             setFilmScenes(filmData.scenes as ScheduleScene[]);
             const map = new Map<number, SceneSchedule>();
@@ -75,7 +75,7 @@ export function useScheduleData({
             setFuture([]);
           }
         } else if (mode === "package" && contextId) {
-          const pfData = await api.schedule.packageFilms.getSchedule(contextId);
+          const pfData = await scheduleApi.packageFilms.getSchedule(contextId);
           if (isMounted && pfData?.film?.scenes) {
             setFilmScenes(pfData.film.scenes as ScheduleScene[]);
             const map = new Map<number, SceneSchedule>();

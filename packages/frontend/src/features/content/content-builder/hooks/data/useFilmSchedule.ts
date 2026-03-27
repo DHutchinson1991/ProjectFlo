@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { api } from "@/lib/api";
+import { scheduleApi } from "@/features/workflow/scheduling/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -79,18 +79,18 @@ export function useFilmSchedule(
       try {
         // Load event day templates
         if (brandId) {
-          const days = await api.schedule.eventDays.getAll(brandId);
+          const days = await scheduleApi.eventDays.getAll(brandId);
           if (mounted) setEventDays(days);
         }
 
         // When a packageId is provided, load the package-specific scene schedules
         // (PackageFilmSceneSchedule supports package_activity_id)
         if (packageId) {
-          const packageFilms = await api.schedule.packageFilms.getAll(packageId);
+          const packageFilms = await scheduleApi.packageFilms.getAll(packageId);
           const matchingPF = (packageFilms || []).find((pf: any) => pf.film_id === filmId);
           if (matchingPF) {
             packageFilmIdRef.current = matchingPF.id;
-            const pfData = await api.schedule.packageFilms.getSchedule(matchingPF.id);
+            const pfData = await scheduleApi.packageFilms.getSchedule(matchingPF.id);
             if (mounted && pfData?.scene_schedules) {
               const map = new Map<number, SceneScheduleData>();
               for (const sched of pfData.scene_schedules) {
@@ -104,7 +104,7 @@ export function useFilmSchedule(
         }
 
         // Fallback: load base film schedule (no package_activity_id)
-        const filmData = await api.schedule.film.get(filmId);
+        const filmData = await scheduleApi.film.get(filmId);
         if (mounted && filmData?.scenes) {
           const map = new Map<number, SceneScheduleData>();
           for (const scene of filmData.scenes) {

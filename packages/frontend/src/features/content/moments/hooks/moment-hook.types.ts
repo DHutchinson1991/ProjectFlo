@@ -1,6 +1,6 @@
-import type { TimelineScene } from '@/lib/types/timeline';
+import type { TimelineScene } from '@/features/content/content-builder/types/timeline';
 import type { TimelineSceneMoment } from '../types';
-import type { MomentRecordingSetupWithAssignments } from '@/lib/types/domains/recording-setup';
+import type { MomentRecordingSetupWithAssignments } from '@/features/content/moments/types/recording-setup';
 
 export type SceneMomentWithSetup = TimelineSceneMoment & {
   duration_seconds?: number;

@@ -1,11 +1,9 @@
 "use client";
 
 import React from "react";
-import { createScenesApi } from "@/features/content/scenes/api";
-import { apiClient } from "@/lib/api";
-import type { ApiClient } from "@/lib/api/api-client.types";
-import { MusicType } from "@/lib/types/domains/music";
-import type { TimelineScene, TimelineTrack } from "@/lib/types/timeline";
+import { scenesApi } from "@/features/content/scenes/api";
+import { MusicType } from "@/features/content/music/types";
+import type { TimelineScene, TimelineTrack } from "@/features/content/content-builder/types/timeline";
 
 interface UseSceneRecordingSetupProps {
     scenes: TimelineScene[];
@@ -18,8 +16,6 @@ export const useSceneRecordingSetup = ({
     tracks,
     onUpdateScene,
 }: UseSceneRecordingSetupProps) => {
-    const scenesApi = React.useMemo(() => createScenesApi(apiClient as unknown as ApiClient), []);
-
     const [recordingSetupOpen, setRecordingSetupOpen] = React.useState(false);
     const [recordingSetupSceneName, setRecordingSetupSceneName] = React.useState<string | null>(null);
     const [recordingSetupSceneLabel, setRecordingSetupSceneLabel] = React.useState<string | null>(null);
@@ -149,14 +145,12 @@ export const useSceneRecordingSetup = ({
             const sceneMusicResults = await Promise.all(
                 recordingSetupSceneIds.map(async (sceneId) => {
                     if (sceneMusicEnabled) {
-                        const client = apiClient as unknown as ApiClient;
-                        const response = await client.post(`/music/scenes/${sceneId}/music`, { film_scene_id: sceneId, ...musicPayload });
+                        const response = await scenesApi.scenes.music.upsert(sceneId, musicPayload);
                         return { sceneId, sceneMusic: response };
                     }
 
                     try {
-                        const client = apiClient as unknown as ApiClient;
-                        await client.delete(`/music/scenes/${sceneId}/music`);
+                        await scenesApi.scenes.music.delete(sceneId);
                     } catch {
                         // Ignore if there was no scene music to remove
                     }

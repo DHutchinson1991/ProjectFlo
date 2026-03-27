@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { api } from "@/lib/api";
+import { scheduleApi } from "@/features/workflow/scheduling/api";
 import type { SceneSchedule, SchedulePreset } from "../types/schedule-panel.types";
 
 interface UseSchedulePresetActionsParams {
@@ -27,7 +27,7 @@ export function useSchedulePresetActions({
       if (!brandId) { setError("Brand is required to save shared presets."); return; }
       const name = presetNameDraft.trim();
       if (!name) { setError("Enter a preset name first."); return; }
-      const saved = await api.schedule.presets.upsert(brandId, { name, schedule_data: Array.from(scheduleMap.values()) });
+      const saved = await scheduleApi.presets.upsert(brandId, { name, schedule_data: Array.from(scheduleMap.values()) });
       await loadPresets();
       setSelectedPresetId(saved.id);
       setPresetNameDraft(saved.name);
@@ -53,7 +53,7 @@ export function useSchedulePresetActions({
       if (!selectedPresetId) { setError("Select a preset to rename."); return; }
       const newName = presetNameDraft.trim();
       if (!newName) { setError("Enter a new preset name."); return; }
-      const renamed = await api.schedule.presets.rename(brandId, selectedPresetId, newName);
+      const renamed = await scheduleApi.presets.rename(brandId, selectedPresetId, newName);
       await loadPresets();
       setSelectedPresetId(renamed.id);
       setPresetNameDraft(renamed.name);
@@ -68,7 +68,7 @@ export function useSchedulePresetActions({
       if (!selectedPresetId) { setError("Select a preset to delete."); return; }
       const selected = presetList.find((p) => p.id === selectedPresetId);
       if (typeof window !== "undefined" && !window.confirm(`Delete preset "${selected?.name ?? "this preset"}"?`)) return;
-      await api.schedule.presets.delete(brandId, selectedPresetId);
+      await scheduleApi.presets.delete(brandId, selectedPresetId);
       await loadPresets();
       setError(null);
     };

@@ -3,18 +3,18 @@
 import React from "react";
 import { Box, IconButton, Tooltip, Typography } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import { TimelineScene } from "@/lib/types/timeline";
-import { TimelineTrack } from "@/lib/types/timeline";
-import { ViewState } from "@/lib/types/timeline";
+import { TimelineScene } from "@/features/content/content-builder/types/timeline";
+import { TimelineTrack } from "@/features/content/content-builder/types/timeline";
+import { ViewState } from "@/features/content/content-builder/types/timeline";
 import MomentEditor from "../moments/MomentEditor";
 import BeatEditor from "../beats/BeatEditor";
 import { useSceneRecordingSetup, useSceneHeaderGroups, useSceneNameEditing } from "../../../hooks/scenes";
 import { useSceneMomentInteractions } from "@/features/content/moments/hooks";
 import { useSceneBeatInteractions } from "../../../hooks/beats";
 import { useFilmSchedule } from "../../../hooks/data";
-import { useBrand } from "@/app/providers/BrandProvider";
+import { useBrand } from "@/features/platform/brand";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
-import { api } from "@/lib/api";
+import { crewSlotsApi, scheduleApi } from "@/features/workflow/scheduling/api";
 import SceneRecordingSetupModal from "./SceneRecordingSetupModal";
 import SceneGroupHeader from "./SceneGroupHeader";
 
@@ -140,10 +140,10 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
         if (!packageId) return;
         let mounted = true;
         Promise.all([
-            api.schedule.packageActivities.getAll(packageId),
-            api.schedule.packageEventDays.getAll(packageId),
-            api.schedule.packageEventDaySubjects.getAll(packageId),
-            api.operators.packageDay.getAll(packageId),
+            scheduleApi.packageActivities.getAll(packageId),
+            scheduleApi.packageEventDays.getAll(packageId),
+            scheduleApi.packageEventDaySubjects.getAll(packageId),
+            crewSlotsApi.packageDay.getAll(packageId),
         ]).then(([acts, days, subjects, operators]) => {
             if (!mounted) return;
             const dayNameMap = new Map<number, string>();

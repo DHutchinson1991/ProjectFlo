@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useCallback, useEffect, useState } from "react";
 import {
     Box,
@@ -13,11 +11,14 @@ import {
     Tooltip,
 } from "@mui/material";
 import { OpenInNew } from "@mui/icons-material";
-import { api } from "@/lib/api";
 import {
     NeedsAssessmentTemplate,
     NeedsAssessmentSubmission,
-} from "@/lib/types";
+} from "@/features/workflow/inquiries/types/needs-assessment";
+import {
+    needsAssessmentSubmissionsApi,
+    needsAssessmentTemplatesApi,
+} from "@/features/workflow/needs-assessment/api";
 import { useBrand } from "@/features/platform/brand";
 
 // ── Dark design tokens ──────────────────────────────────────────────────────
@@ -56,8 +57,8 @@ export function FormsSettings() {
         try {
             setLoading(true);
             const [activeTemplate, submissionData] = await Promise.all([
-                api.needsAssessmentTemplates.getActive(),
-                api.needsAssessmentSubmissions.getAll(),
+                needsAssessmentTemplatesApi.getActive(),
+                needsAssessmentSubmissionsApi.getAll(),
             ]);
             setTemplate(activeTemplate);
             setSubmissions(submissionData || []);
@@ -72,7 +73,7 @@ export function FormsSettings() {
 
     const handleConvertSubmission = async (submissionId: number) => {
         try {
-            await api.needsAssessmentSubmissions.convert(submissionId);
+            await needsAssessmentSubmissionsApi.convert(submissionId);
             await loadData();
         } catch { setError("Failed to convert submission."); }
     };
@@ -147,7 +148,7 @@ export function FormsSettings() {
                                 <Chip label={s.status} size="small" sx={{ height: 20, fontSize: "0.62rem", bgcolor: s.status === "converted" ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.06)", color: s.status === "converted" ? "#4ade80" : muted, border: "none" }} />
                                 {s.inquiry_id ? (
                                     <Tooltip title="View inquiry">
-                                        <IconButton size="small" onClick={() => window.open(`/sales/inquiries/${s.inquiry_id}`, "_blank")}
+                                        <IconButton size="small" onClick={() => window.open(`/inquiries/${s.inquiry_id}`, "_blank")}
                                             sx={{ color: muted, "&:hover": { color: body } }}>
                                             <OpenInNew sx={{ fontSize: "0.85rem" }} />
                                         </IconButton>

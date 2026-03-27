@@ -9,24 +9,28 @@
     "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
+    "noImplicitAny": true,
     "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@platform/*": ["./src/platform/*"],
+      "@workflow/*": ["./src/workflow/*"],
+      "@finance/*": ["./src/finance/*"],
+      "@catalog/*": ["./src/catalog/*"],
+      "@content/*": ["./src/content/*"]
+    }
   },
   "include": [
     "src/**/*",
     "test/**/*",
-    "prisma/**/*",
-    "verify-seeding.ts"
+    "prisma/**/*"
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "src/locations/_backup/**"
+    "dist"
   ]
 }

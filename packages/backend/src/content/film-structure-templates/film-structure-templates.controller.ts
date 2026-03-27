@@ -10,26 +10,28 @@ import {
     HttpCode,
     HttpStatus,
     Query,
+    UseGuards,
+    ValidationPipe,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { FilmStructureTemplatesService } from './film-structure-templates.service';
 import { CreateFilmStructureTemplateDto } from './dto/create-film-structure-template.dto';
 import { UpdateFilmStructureTemplateDto } from './dto/update-film-structure-template.dto';
+import { FilmStructureTemplatesQueryDto } from './dto/film-structure-templates-query.dto';
 
-@Controller('film-structure-templates')
+@Controller('api/film-structure-templates')
+@UseGuards(AuthGuard('jwt'))
 export class FilmStructureTemplatesController {
     constructor(private readonly templatesService: FilmStructureTemplatesService) {}
 
     @Post()
-    create(@Body() createDto: CreateFilmStructureTemplateDto) {
+    create(@Body(new ValidationPipe({ transform: true })) createDto: CreateFilmStructureTemplateDto) {
         return this.templatesService.create(createDto);
     }
 
     @Get()
-    findAll(
-        @Query('brandId', new ParseIntPipe({ optional: true })) brandId?: number,
-        @Query('filmType') filmType?: string,
-    ) {
-        return this.templatesService.findAll(brandId, filmType);
+    findAll(@Query(new ValidationPipe({ transform: true })) query: FilmStructureTemplatesQueryDto) {
+        return this.templatesService.findAll(query.brandId, query.filmType);
     }
 
     @Get(':id')
@@ -40,7 +42,7 @@ export class FilmStructureTemplatesController {
     @Patch(':id')
     update(
         @Param('id', ParseIntPipe) id: number,
-        @Body() updateDto: UpdateFilmStructureTemplateDto,
+        @Body(new ValidationPipe({ transform: true })) updateDto: UpdateFilmStructureTemplateDto,
     ) {
         return this.templatesService.update(id, updateDto);
     }

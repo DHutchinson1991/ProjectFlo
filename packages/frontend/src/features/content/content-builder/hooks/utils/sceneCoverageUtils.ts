@@ -1,4 +1,4 @@
-import { TimelineTrack } from '@/lib/types/timeline';
+import { TimelineTrack } from '@/features/content/content-builder/types/timeline';
 
 /**
  * Maps coverage assignments to their database IDs.

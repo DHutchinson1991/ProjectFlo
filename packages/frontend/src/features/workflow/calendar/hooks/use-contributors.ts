@@ -1,12 +1,12 @@
-// Hook for managing contributors data for calendar assignee selection
+﻿// Hook for managing contributors data for calendar assignee selection
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/app/providers/AuthProvider';
-import { useBrand } from '@/app/providers/BrandProvider';
+import { useAuth } from '@/features/platform/auth';
+import { useBrand } from '@/features/platform/brand';
 import { calendarApi, type BackendContributor } from '../api';
 import { calendarQueryKeys } from '../constants/query-keys';
 
-export interface ContributorOption {
+export interface CrewMemberOption {
     id: string;
     name: string;
     email: string;
@@ -25,7 +25,7 @@ function toInitials(c: BackendContributor): string {
         : c.contact.email[0].toUpperCase();
 }
 
-export function useContributors() {
+export function useCrewMembers() {
     const { user } = useAuth();
     const { currentBrand } = useBrand();
 
@@ -37,7 +37,7 @@ export function useContributors() {
 
     const error = queryError instanceof Error ? queryError.message : queryError ? 'Failed to load contributors' : null;
 
-    const contributorOptions = useMemo<ContributorOption[]>(
+    const crewMemberOptions = useMemo<CrewMemberOption[]>(
         () => raw.map(c => ({
             id: c.id.toString(),
             name: toName(c),
@@ -48,23 +48,23 @@ export function useContributors() {
         [raw, user],
     );
 
-    const currentUserContributor = useMemo(
-        () => contributorOptions.find(o => o.isCurrentUser) ?? null,
-        [contributorOptions],
+    const currentUserCrewMember = useMemo(
+        () => crewMemberOptions.find(o => o.isCurrentUser) ?? null,
+        [crewMemberOptions],
     );
 
     const otherContributors = useMemo(
-        () => contributorOptions.filter(o => !o.isCurrentUser),
-        [contributorOptions],
+        () => crewMemberOptions.filter(o => !o.isCurrentUser),
+        [crewMemberOptions],
     );
 
     return {
-        contributors: contributorOptions,
-        currentUserContributor,
+        crewMembers: crewMemberOptions,
+        currentUserCrewMember,
         otherContributors,
         loading,
         error,
-        getContributorById: (id: string) => contributorOptions.find(c => c.id === id) ?? null,
+        getCrewMemberById: (id: string) => crewMemberOptions.find(c => c.id === id) ?? null,
     };
 }
 
