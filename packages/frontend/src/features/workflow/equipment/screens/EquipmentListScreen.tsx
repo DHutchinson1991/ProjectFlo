@@ -1,25 +1,39 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Box, Alert, CircularProgress } from "@mui/material";
 import {
-    Equipment,
-    EquipmentByCategory,
     EquipmentCategory,
     EQUIPMENT_CATEGORY_LABELS,
+    Equipment,
 } from "@/features/workflow/equipment/types/equipment.types";
 import { useEquipmentList } from "@/features/workflow/equipment/hooks/useEquipmentList";
 import { EquipmentListHeader } from "@/features/workflow/equipment/components/EquipmentListHeader";
-import { EquipmentSummaryCards } from "@/features/workflow/equipment/components/EquipmentSummaryCards";
 import { CategoryCardsGrid } from "@/features/workflow/equipment/components/CategoryCardsGrid";
-import { EquipmentAccordionList } from "@/features/workflow/equipment/components/EquipmentAccordionList";
+import { EquipmentFilterToolbar } from "@/features/workflow/equipment/components/EquipmentFilterToolbar";
+import { EquipmentTable } from "@/features/workflow/equipment/components/EquipmentTable";
+import { EquipmentDetailPanel } from "@/features/workflow/equipment/components/EquipmentDetailPanel";
 import { EquipmentSnackbar } from "@/features/workflow/equipment/components/EquipmentSnackbar";
 import { DeleteConfirmDialog } from "@/features/workflow/equipment/components/DeleteConfirmDialog";
 
 export function EquipmentListScreen() {
+    const [hoveredEquipment, setHoveredEquipment] = useState<Equipment | null>(null);
+
     const {
         equipmentByCategory,
-        crewMembers,
+        flatEquipment,
+        filteredEquipment,
+        searchTerm,
+        categoryFilter,
+        statusFilter,
+        conditionFilter,
+        selectedEquipment,
+        setSearchTerm,
+        setCategoryFilter,
+        setStatusFilter,
+        setConditionFilter,
+        setSelectedEquipment,
+        crew,
         loading,
         error,
         deleteConfirmOpen,
@@ -34,8 +48,6 @@ export function EquipmentListScreen() {
         setEquipmentToDelete,
         setDeleteConfirmOpen,
         setSnackbarOpen,
-        toggleCategoryExpansion,
-        handleCategoryCardClick,
         startInlineEdit,
         cancelInlineEdit,
         updateInlineEditData,
@@ -45,6 +57,7 @@ export function EquipmentListScreen() {
         updateQuickAddData,
         saveQuickAdd,
         handleDeleteConfirm,
+        updateEquipment,
     } = useEquipmentList();
 
     if (loading) {
@@ -55,68 +68,97 @@ export function EquipmentListScreen() {
         );
     }
 
-    const totalEquipment = Object.values(equipmentByCategory).reduce((sum, g) => sum + g.count, 0);
-    const totalAvailable = Object.values(equipmentByCategory).reduce(
-        (sum, g) => sum + g.equipment.filter((e) => e.availability_status === "AVAILABLE").length,
-        0,
-    );
+    const totalEquipment = flatEquipment.length;
     const categoryStats = Object.entries(equipmentByCategory).map(([category, group]) => ({
         category,
         label: EQUIPMENT_CATEGORY_LABELS[category as EquipmentCategory] || category,
         count: group.count,
-        availableCount: group.equipment.filter((e) => e.availability_status === "AVAILABLE").length,
         totalValue: group.equipment.reduce((sum, e) => sum + parseFloat(String(e.purchase_price || "0")), 0),
     }));
-    const equipmentArraysByCategory = Object.entries(equipmentByCategory).reduce(
-        (acc, [category, group]) => {
-            acc[category] = group.equipment;
-            return acc;
-        },
-        {} as Record<string, Equipment[]>,
-    );
+
+    const handleAdd = () => {
+        const target = categoryFilter !== "all" ? categoryFilter : EquipmentCategory.CAMERA;
+        startQuickAdd(target);
+    };
+
+    const editingBase = inlineEditingEquipment
+        ? flatEquipment.find((e) => e.id === inlineEditingEquipment) ?? null
+        : null;
+    const detailEquipment = editingBase
+        ? ({ ...editingBase, ...inlineEditData } as Equipment)
+        : selectedEquipment ?? hoveredEquipment;
+
+    const handleSelectEquipment = (equipment: Equipment) => {
+        setSelectedEquipment(equipment);
+    };
 
     return (
         <Box sx={{ p: 3 }}>
-            <EquipmentListHeader />
+            <EquipmentListHeader onAdd={handleAdd} />
 
-            <Box sx={{ mb: 3 }}>
-                <EquipmentSummaryCards
-                    totalEquipment={totalEquipment}
-                    totalAvailable={totalAvailable}
-                    categoryStats={categoryStats}
-                />
-                <CategoryCardsGrid
-                    categoryStats={categoryStats}
-                    equipmentByCategory={equipmentArraysByCategory}
-                    onCategoryCardClick={handleCategoryCardClick}
-                />
-            </Box>
+            <CategoryCardsGrid
+                categoryStats={categoryStats}
+                selectedCategory={categoryFilter}
+                totalCount={totalEquipment}
+                onSelect={setCategoryFilter}
+            />
+
+            <EquipmentFilterToolbar
+                searchTerm={searchTerm}
+                statusFilter={statusFilter}
+                conditionFilter={conditionFilter}
+                filteredCount={filteredEquipment.length}
+                totalCount={totalEquipment}
+                onSearchChange={setSearchTerm}
+                onStatusFilterChange={setStatusFilter}
+                onConditionFilterChange={setConditionFilter}
+            />
 
             {error && (
-                <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
                     {error}
                 </Alert>
             )}
 
-            <EquipmentAccordionList
-                equipmentByCategory={equipmentByCategory}
-                onCategoryToggle={toggleCategoryExpansion}
-                contributors={crewMembers}
-                inlineEditingEquipment={inlineEditingEquipment}
-                inlineEditData={inlineEditData}
-                updateInlineEditData={updateInlineEditData}
-                startInlineEdit={startInlineEdit}
-                cancelInlineEdit={cancelInlineEdit}
-                saveInlineEdit={saveInlineEdit}
-                setEquipmentToDelete={setEquipmentToDelete}
-                setDeleteConfirmOpen={setDeleteConfirmOpen}
-                quickAddCategory={quickAddCategory}
-                quickAddData={quickAddData}
-                startQuickAdd={startQuickAdd}
-                cancelQuickAdd={cancelQuickAdd}
-                saveQuickAdd={saveQuickAdd}
-                updateQuickAddData={updateQuickAddData}
-            />
+            {/* Two-column layout: table + detail panel */}
+            <Box sx={{
+                display: "grid",
+                gridTemplateColumns: "1fr 560px",
+                gap: 2,
+                alignItems: "start",
+            }}>
+                <EquipmentTable
+                    equipment={filteredEquipment}
+                    crew={crew}
+                    selectedEquipmentId={selectedEquipment?.id ?? null}
+                    inlineEditingEquipment={inlineEditingEquipment}
+                    inlineEditData={inlineEditData}
+                    updateInlineEditData={updateInlineEditData}
+                    startInlineEdit={startInlineEdit}
+                    cancelInlineEdit={cancelInlineEdit}
+                    saveInlineEdit={saveInlineEdit}
+                    quickAddCategory={quickAddCategory}
+                    quickAddData={quickAddData}
+                    cancelQuickAdd={cancelQuickAdd}
+                    saveQuickAdd={saveQuickAdd}
+                    updateQuickAddData={updateQuickAddData}
+                    onSelectEquipment={handleSelectEquipment}
+                    onHoverEquipment={setHoveredEquipment}
+                />
+
+                <EquipmentDetailPanel
+                    equipment={detailEquipment}
+                    onClose={() => {
+                        setSelectedEquipment(null);
+                        setHoveredEquipment(null);
+                    }}
+                    onUpdate={updateEquipment}
+                    onDelete={selectedEquipment ? () => {
+                        setEquipmentToDelete(selectedEquipment);
+                        setDeleteConfirmOpen(true);
+                    } : undefined}
+                />
+            </Box>
 
             <DeleteConfirmDialog
                 open={deleteConfirmOpen}

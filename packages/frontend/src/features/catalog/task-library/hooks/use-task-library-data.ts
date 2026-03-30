@@ -1,8 +1,8 @@
 ﻿import { useState, useEffect } from 'react';
 import { useBrand } from '@/features/platform/brand';
 import { taskLibraryApi } from '../api';
-import { jobRolesApi, skillRoleMappingsApi, crewMembersApi } from '@/features/workflow/crew/api';
-import type { TaskLibrary, TaskLibraryByPhase, JobRole, SkillRoleMapping, CrewMember } from '@/features/catalog/task-library/types';
+import { jobRolesApi, skillRoleMappingsApi, userAccountsApi } from '@/features/workflow/crew/api';
+import type { TaskLibrary, TaskLibraryByPhase, JobRole, SkillRoleMapping, Crew } from '@/features/catalog/task-library/types';
 
 export function useTaskLibraryData() {
     const { currentBrand } = useBrand();
@@ -11,7 +11,7 @@ export function useTaskLibraryData() {
     const [error, setError] = useState<string | null>(null);
     const [jobRoles, setJobRoles] = useState<JobRole[]>([]);
     const [allMappings, setAllMappings] = useState<SkillRoleMapping[]>([]);
-    const [crewMembers, setContributors] = useState<CrewMember[]>([]);
+    const [crew, setCrew] = useState<Crew[]>([]);
 
     const loadTasks = async () => {
         try {
@@ -43,12 +43,12 @@ export function useTaskLibraryData() {
         }
     };
 
-    const loadContributors = async () => {
+    const loadCrew = async () => {
         try {
-            const data = await crewMembersApi.getAll();
-            setContributors(data);
+            const data = await userAccountsApi.getAll();
+            setCrew(data);
         } catch (err) {
-            console.error('Failed to load crewMembers:', err);
+            console.error('Failed to load crew:', err);
         }
     };
 
@@ -57,7 +57,7 @@ export function useTaskLibraryData() {
             loadTasks();
             loadJobRoles();
             loadAllMappings();
-            loadContributors();
+            loadCrew();
         }
     }, [currentBrand]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -70,7 +70,7 @@ export function useTaskLibraryData() {
         jobRoles,
         allMappings,
         loadAllMappings,
-        crewMembers: contributors as Array<{ id: number; contact: { first_name?: string; last_name?: string } }>,
+        crew: crew as Array<{ id: number; contact: { first_name?: string; last_name?: string } }>,
         loadTasks,
     };
 }

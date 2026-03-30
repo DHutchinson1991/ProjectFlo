@@ -181,7 +181,7 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
     const [momentForm, setMomentForm] = useState({ name: "", duration_seconds: "60", is_key_moment: false, description: "" });
 
     // Derive flat event days from linked junction data
-    const eventDays = linkedDays
+    const eventDays = [...linkedDays]
         .sort((a, b) => a.order_index - b.order_index)
         .map(link => link.event_day_template);
 
@@ -436,7 +436,7 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
                                             </Box>
                                         ) : (
                                             <Stack spacing={0.5}>
-                                                {presets.sort((a, b) => a.order_index - b.order_index).map((preset) => {
+                                                {[...presets].sort((a, b) => a.order_index - b.order_index).map((preset) => {
                                                     const moments = preset.moments || [];
                                                     const isMomentExpanded = expandedPresetId === preset.id;
                                                     return (
@@ -487,7 +487,7 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
                                                                     <Typography variant="caption" color="text.disabled" sx={{ display: "block", py: 0.5 }}>No moments yet</Typography>
                                                                 ) : (
                                                                     <Stack spacing={0.25}>
-                                                                        {moments.sort((a, b) => a.order_index - b.order_index).map((m) => (
+                                                                        {[...moments].sort((a, b) => a.order_index - b.order_index).map((m) => (
                                                                             <Box key={m.id} sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.25, px: 1, borderRadius: 1, "&:hover": { bgcolor: (theme) => alpha(theme.palette.action.hover, 0.06) } }}>
                                                                                 {m.is_key_moment && <StarIcon sx={{ fontSize: 12, color: "#f59e0b" }} />}
                                                                                 <Typography variant="caption" sx={{ flex: 1, fontWeight: m.is_key_moment ? 600 : 400 }}>{m.name}</Typography>
@@ -657,8 +657,8 @@ function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: {
 // Subject Type Section (within selected event type)
 // ---------------------------------------------------------------------------
 
-function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: {
-    linkedSubjects: EventTypeSubject[];
+function SubjectTypeSection({ linkedSubjects = [], eventTypeId, brandId, onReload }: {
+    linkedSubjects?: EventTypeSubject[];
     eventTypeId: number;
     brandId: number;
     onReload: () => Promise<void>;
@@ -677,7 +677,7 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
     const [roleForm, setRoleForm] = useState({ role_name: "", description: "", is_core: false });
 
     // Derive flat subject type templates from linked junction data
-    const templates = linkedSubjects
+    const templates = [...linkedSubjects]
         .sort((a, b) => a.order_index - b.order_index)
         .map(link => link.subject_type_template);
 
@@ -811,7 +811,7 @@ function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onReload }: 
                                         <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic" }}>No roles defined yet</Typography>
                                     ) : (
                                         <Stack spacing={0.5}>
-                                            {tpl.roles.sort((a, b) => a.order_index - b.order_index).map((role) => (
+                                            {[...tpl.roles].sort((a, b) => a.order_index - b.order_index).map((role) => (
                                                 <Box key={role.id} sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.5, py: 0.75, borderRadius: 1.5, bgcolor: (theme) => alpha(theme.palette.background.default, 0.5) }}>
                                                     <Typography variant="body2" fontWeight={600} sx={{ flex: 1 }}>{role.role_name}</Typography>
                                                     {role.is_core && <Chip label="Core" size="small" color="primary" variant="outlined" sx={{ height: 18, fontSize: "0.6rem" }} />}
@@ -1014,7 +1014,7 @@ export function EventTypeTemplatesScreen() {
                     "&::-webkit-scrollbar-thumb": { bgcolor: "divider", borderRadius: 3 },
                 }}
             >
-                {eventTypes.sort((a, b) => a.order_index - b.order_index).map(et => {
+                {[...eventTypes].sort((a, b) => a.order_index - b.order_index).map(et => {
                     const isSelected = selectedId === et.id;
                     const dayCount = et.event_days?.length || 0;
                     const subjectCount = et.subject_types?.length || 0;

@@ -7,7 +7,6 @@ import {
     Phone as PhoneIcon,
     Email as EmailIcon,
     People as PeopleIcon,
-    Apartment as SpaceIcon,
     OpenInNew as OpenIcon,
 } from '@mui/icons-material';
 import type { LocationsLibrary } from '../types';
@@ -79,7 +78,6 @@ export function LocationDetailPanel({ location, onNavigate }: LocationDetailPane
                 {location.contact_phone && <DetailRow icon={<PhoneIcon />} label="Phone" value={location.contact_phone} />}
                 {location.contact_email && <DetailRow icon={<EmailIcon />} label="Email" value={location.contact_email} />}
                 {location.capacity && <DetailRow icon={<PeopleIcon />} label="Capacity" value={location.capacity} />}
-                <DetailRow icon={<SpaceIcon />} label="Spaces" value={location._count?.spaces ?? 0} />
             </Box>
         </Box>
     );

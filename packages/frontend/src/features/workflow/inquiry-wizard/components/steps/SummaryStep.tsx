@@ -90,7 +90,7 @@ export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
         const backendTax = epkg._tax;
         const t = backendTax?.totalWithTax ?? Number(epkg._totalCost ?? 0);
         const it = (selectedPkg.contents?.items ?? []).reduce((s: number, i: ServicePackageItem) => s + (i.price ?? 0), 0);
-        return t > 0 ? t : (Number(selectedPkg.base_price) || it || 0);
+        return t > 0 ? t : (it || 0);
     };
 
     return (
@@ -117,7 +117,7 @@ export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
                         <Val label="Budget" value={responses.budget_range} />
                         <Val label="Package" value={
                             selectedPkg
-                                ? `${selectedPkg.name} \u2014 ${formatCurrency(pkgPrice(), currency, 0)}`
+                                ? `${selectedPkg.name} \u2014 ${formatCurrency(pkgPrice(), currency)}`
                                 : responses.selected_package === "none" ? "Decide later" : undefined
                         } />
                     </Section>
@@ -143,16 +143,16 @@ export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
                                     Estimated Investment
                                 </Typography>
                                 {priceEstimate.summary.equipmentCost > 0 && (
-                                    <Val label="Equipment" value={formatCurrency(priceEstimate.summary.equipmentCost, currency, 0)} />
+                                    <Val label="Equipment" value={formatCurrency(priceEstimate.summary.equipmentCost, currency)} />
                                 )}
                                 {priceEstimate.summary.crewCost > 0 && (
-                                    <Val label="Crew" value={formatCurrency(priceEstimate.summary.crewCost, currency, 0)} />
+                                    <Val label="Crew" value={formatCurrency(priceEstimate.summary.crewCost, currency)} />
                                 )}
 
                                 <Box sx={{ display: "flex", justifyContent: "space-between", pt: 1, mt: 0.5, borderTop: `1px solid ${alpha(C.accent, 0.2)}` }}>
                                     <Typography sx={{ color: C.text, fontSize: "0.85rem", fontWeight: 700 }}>Estimated Total</Typography>
                                     <Typography sx={{ color: C.accent, fontSize: "0.85rem", fontWeight: 700 }}>
-                                        {formatCurrency(priceEstimate.summary.subtotal, currency, 0)}
+                                        {formatCurrency(priceEstimate.summary.subtotal, currency)}
                                     </Typography>
                                 </Box>
                             </Box>

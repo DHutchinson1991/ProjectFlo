@@ -15,22 +15,22 @@ export function useCalendarStats(userId?: number) {
     return { stats, loading, error };
 }
 
-export function useTodaysEvents(crewMemberId?: number) {
+export function useTodaysEvents(crewId?: number) {
     const { currentBrand } = useBrand();
     const { data: events = [], isPending: loading, error: queryError } = useQuery({
-        queryKey: calendarQueryKeys.todayEvents(currentBrand?.id, crewMemberId),
-        queryFn: () => calendarApi.getTodaysEvents(crewMemberId).then(transformBackendEvents),
+        queryKey: calendarQueryKeys.todayEvents(currentBrand?.id, crewId),
+        queryFn: () => calendarApi.getTodaysEvents(crewId).then(transformBackendEvents),
         enabled: !!currentBrand,
     });
     const error = queryError instanceof Error ? queryError.message : queryError ? "Failed to load today's events" : null;
     return { events, loading, error };
 }
 
-export function useUpcomingEvents(crewMemberId?: number, limit = 10) {
+export function useUpcomingEvents(crewId?: number, limit = 10) {
     const { currentBrand } = useBrand();
     const { data: events = [], isPending: loading, error: queryError } = useQuery({
-        queryKey: calendarQueryKeys.upcomingEvents(currentBrand?.id, crewMemberId, limit),
-        queryFn: () => calendarApi.getUpcomingEvents(crewMemberId, limit).then(transformBackendEvents),
+        queryKey: calendarQueryKeys.upcomingEvents(currentBrand?.id, crewId, limit),
+        queryFn: () => calendarApi.getUpcomingEvents(crewId, limit).then(transformBackendEvents),
         enabled: !!currentBrand,
     });
     const error = queryError instanceof Error ? queryError.message : queryError ? 'Failed to load upcoming events' : null;

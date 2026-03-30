@@ -6,6 +6,7 @@ import { PaymentSchedulesModule } from './payment-schedules/payment-schedules.mo
 import { InvoicesModule } from './invoices/invoices.module';
 import { EstimatesModule } from './estimates/estimates.module';
 import { ContractsModule } from './contracts/contracts.module';
+import { BrandFinanceSettingsModule } from './brand-finance-settings/brand-finance-settings.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ContractsModule } from './contracts/contracts.module';
     InvoicesModule,
     EstimatesModule,
     ContractsModule,
+    BrandFinanceSettingsModule,
   ],
   exports: [
     CrewPaymentTemplatesModule,
@@ -25,6 +27,7 @@ import { ContractsModule } from './contracts/contracts.module';
     InvoicesModule,
     EstimatesModule,
     ContractsModule,
+    BrandFinanceSettingsModule,
   ],
 })
 export class FinanceModule {}

@@ -39,6 +39,7 @@ import Link from "next/link";
 import { useBrand } from "@/features/platform/brand";
 import { rolesApi } from "../api/roles.api";
 import type { SubjectRole } from "../types";
+import { useSubjectTemplateForm } from "../hooks/useSubjectTemplateForm";
 
 interface SubjectType {
   id: number;
@@ -54,22 +55,6 @@ export function SubjectTemplatesScreen() {
   const [templates, setTemplates] = useState<SubjectType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<SubjectType | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    category: "PEOPLE",
-  });
-  const [roles, setRoles] = useState<Partial<SubjectRole>[]>([
-    { role_name: "", is_core: false, is_group: false, order_index: 0 },
-  ]);
-
-  useEffect(() => {
-    if (currentBrand?.id) {
-      loadTemplates();
-    }
-  }, [currentBrand?.id]);
 
   const loadTemplates = async () => {
     if (!currentBrand?.id) return;
@@ -85,91 +70,16 @@ export function SubjectTemplatesScreen() {
     }
   };
 
-  const handleOpenDialog = (template?: SubjectType) => {
-    if (template) {
-      setEditingTemplate(template);
-      setFormData({
-        name: template.name,
-        description: template.description || "",
-        category: template.category,
-      });
-      setRoles(template.roles);
-    } else {
-      setEditingTemplate(null);
-      setFormData({ name: "", description: "", category: "PEOPLE" });
-      setRoles([{ role_name: "", is_core: false, is_group: false, order_index: 0 }]);
+  const form = useSubjectTemplateForm(loadTemplates);
+
+  useEffect(() => {
+    if (currentBrand?.id) {
+      loadTemplates();
     }
-    setOpenDialog(true);
-  };
-
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-    setEditingTemplate(null);
-    setFormData({ name: "", description: "", category: "PEOPLE" });
-    setRoles([{ role_name: "", is_core: false, is_group: false, order_index: 0 }]);
-  };
-
-  const handleAddRole = () => {
-    setRoles([...roles, { role_name: "", is_core: false, is_group: false, order_index: roles.length }]);
-  };
-
-  const handleRemoveRole = (index: number) => {
-    setRoles(roles.filter((_, i) => i !== index));
-  };
-
-  const handleRoleChange = (index: number, field: string, value: string | boolean | number) => {
-    const newRoles = [...roles];
-    newRoles[index] = { ...newRoles[index], [field]: value };
-    setRoles(newRoles);
-  };
-
-  const handleSave = async () => {
-    if (!currentBrand?.id || !formData.name.trim()) {
-      setError("Template name is required");
-      return;
-    }
-
-    const validRoles = roles.filter((r) => r.role_name?.trim());
-    if (validRoles.length === 0) {
-      setError("At least one role is required");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (editingTemplate) {
-        await rolesApi.updateRole(editingTemplate.id, {
-          role_name: formData.name,
-          description: formData.description,
-        });
-      } else {
-        await rolesApi.createRole(currentBrand.id, {
-          role_name: formData.name,
-          description: formData.description,
-          roles: validRoles.map((r, idx) => ({
-            role_name: r.role_name!,
-            description: r.description,
-            is_core: r.is_core,
-            is_group: r.is_group,
-            order_index: idx,
-          })),
-        });
-      }
-
-      await loadTemplates();
-      handleCloseDialog();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save template");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [currentBrand?.id]);
 
   const handleDelete = async (templateId: number) => {
     if (!window.confirm("Delete this template? This cannot be undone.")) return;
-
     try {
       setLoading(true);
       await rolesApi.deleteRole(templateId);
@@ -211,7 +121,7 @@ export function SubjectTemplatesScreen() {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog()}
+          onClick={() => form.openCreate()}
           sx={{ bgcolor: "#9c27b0", "&:hover": { bgcolor: "#7b1fa2" } }}
         >
           Create Template
@@ -231,7 +141,7 @@ export function SubjectTemplatesScreen() {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => handleOpenDialog()}
+            onClick={() => form.openCreate()}
             sx={{ bgcolor: "#9c27b0", "&:hover": { bgcolor: "#7b1fa2" } }}
           >
             Create Your First Template
@@ -280,7 +190,7 @@ export function SubjectTemplatesScreen() {
                     <Tooltip title="Edit">
                       <IconButton
                         size="small"
-                        onClick={() => handleOpenDialog(template)}
+                        onClick={() => form.openEdit(template)}
                         sx={{ color: "primary.main" }}
                       >
                         <EditIcon fontSize="small" />
@@ -304,22 +214,22 @@ export function SubjectTemplatesScreen() {
       )}
 
       {/* Create/Edit Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+      <Dialog open={form.openDialog} onClose={form.close} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {editingTemplate ? `Edit: ${editingTemplate.name}` : "Create New Template"}
+          {form.editingTemplate ? `Edit: ${form.editingTemplate.name}` : "Create New Template"}
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
-          {error && (
+          {form.formError && (
             <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
+              {form.formError}
             </Alert>
           )}
 
           <Stack spacing={2}>
             <TextField
               label="Template Name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              value={form.formData.name}
+              onChange={(e) => form.setFormData({ ...form.formData, name: e.target.value })}
               fullWidth
               placeholder="e.g., Wedding, Birthday, Corporate Event"
               autoFocus
@@ -327,9 +237,9 @@ export function SubjectTemplatesScreen() {
 
             <TextField
               label="Description"
-              value={formData.description}
+              value={form.formData.description}
               onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
+                form.setFormData({ ...form.formData, description: e.target.value })
               }
               fullWidth
               multiline
@@ -346,7 +256,7 @@ export function SubjectTemplatesScreen() {
                 Mark roles as "Default" to auto-select them when adding subjects to films.
               </Typography>
               <List sx={{ p: 0 }}>
-                {roles.map((role, idx) => (
+                {form.roles.map((role, idx) => (
                   <React.Fragment key={idx}>
                     <ListItem
                       sx={{
@@ -361,7 +271,7 @@ export function SubjectTemplatesScreen() {
                           label="Role Name"
                           value={role.role_name || ""}
                           onChange={(e) =>
-                            handleRoleChange(idx, "role_name", e.target.value)
+                            form.changeRole(idx, "role_name", e.target.value)
                           }
                           size="small"
                           fullWidth
@@ -370,7 +280,7 @@ export function SubjectTemplatesScreen() {
                         <Tooltip title="Remove role">
                           <IconButton
                             size="small"
-                            onClick={() => handleRemoveRole(idx)}
+                            onClick={() => form.removeRole(idx)}
                             sx={{ color: "error.main" }}
                           >
                             <DeleteIcon fontSize="small" />
@@ -383,7 +293,7 @@ export function SubjectTemplatesScreen() {
                             <Checkbox
                               checked={role.is_core || false}
                               onChange={(e) =>
-                                handleRoleChange(idx, "is_core", e.target.checked)
+                                form.changeRole(idx, "is_core", e.target.checked)
                               }
                               size="small"
                             />
@@ -396,7 +306,7 @@ export function SubjectTemplatesScreen() {
                             <Checkbox
                               checked={role.is_group || false}
                               onChange={(e) =>
-                                handleRoleChange(idx, "is_group", e.target.checked)
+                                form.changeRole(idx, "is_group", e.target.checked)
                               }
                               size="small"
                             />
@@ -406,14 +316,14 @@ export function SubjectTemplatesScreen() {
                         />
                       </Box>
                     </ListItem>
-                    {idx < roles.length - 1 && <Divider />}
+                    {idx < form.roles.length - 1 && <Divider />}
                   </React.Fragment>
                 ))}
               </List>
               <Button
                 size="small"
                 startIcon={<AddIcon />}
-                onClick={handleAddRole}
+                onClick={form.addRole}
                 sx={{ mt: 2 }}
               >
                 Add Another Role
@@ -422,18 +332,18 @@ export function SubjectTemplatesScreen() {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={handleCloseDialog} disabled={loading}>
+          <Button onClick={form.close} disabled={form.saving}>
             Cancel
           </Button>
           <Button
-            onClick={handleSave}
+            onClick={() => currentBrand?.id && form.save(currentBrand.id)}
             variant="contained"
-            disabled={loading}
+            disabled={form.saving}
             sx={{ bgcolor: "#9c27b0", "&:hover": { bgcolor: "#7b1fa2" } }}
           >
-            {loading ? (
+            {form.saving ? (
               <CircularProgress size={20} sx={{ mr: 1 }} />
-            ) : editingTemplate ? (
+            ) : form.editingTemplate ? (
               "Update Template"
             ) : (
               "Create Template"

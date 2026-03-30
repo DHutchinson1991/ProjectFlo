@@ -12,12 +12,13 @@ export interface TaskFormData {
     phase: ProjectPhase; pricing_type: PricingType;
     fixed_price: number; hourly_rate: number;
     is_active: boolean; trigger_type: TriggerType;
+    is_on_site: boolean;
 }
 
 const DEFAULT_FORM: TaskFormData = {
     name: '', description: '', effort_hours: 0, phase: ProjectPhase.LEAD,
     pricing_type: PricingType.HOURLY, fixed_price: 0, hourly_rate: 0,
-    is_active: true, trigger_type: TriggerType.ALWAYS,
+    is_active: true, trigger_type: TriggerType.ALWAYS, is_on_site: false,
 };
 
 function taskToForm(t: TaskLibrary): TaskFormData {
@@ -26,6 +27,7 @@ function taskToForm(t: TaskLibrary): TaskFormData {
         phase: t.phase, pricing_type: t.pricing_type, fixed_price: t.fixed_price || 0,
         hourly_rate: t.hourly_rate || 0, is_active: t.is_active,
         trigger_type: t.trigger_type || TriggerType.ALWAYS,
+        is_on_site: t.is_on_site ?? false,
     };
 }
 

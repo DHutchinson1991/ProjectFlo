@@ -9,6 +9,7 @@ export { SceneDurationPanel } from './SceneDurationPanel';
 export { FilmDetailHeader } from './FilmDetailHeader';
 export { FilmDetailStates } from './FilmDetailStates';
 export { FilmSchedulePanel } from './FilmSchedulePanel';
+export { FilmEditorShell } from './FilmEditorShell';
 export * from './tabs';
 
 // Film API Context (adapter pattern for library / project / inquiry modes)

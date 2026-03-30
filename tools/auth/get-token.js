@@ -364,10 +364,10 @@ function printApiInstructions(token, baseURL) {
     console.log(token);
     console.log('');
     console.log('📋 Usage Examples:');
-    console.log(`curl -H "Authorization: Bearer ${token}" ${baseURL}/contributors`);
+    console.log(`curl -H "Authorization: Bearer ${token}" ${baseURL}/crew`);
     console.log('');
     console.log('export AUTH_TOKEN=$(cat .auth/tokens/development.txt)');
-    console.log(`curl -H "Authorization: Bearer $AUTH_TOKEN" ${baseURL}/contributors`);
+    console.log(`curl -H "Authorization: Bearer $AUTH_TOKEN" ${baseURL}/crew`);
 }
 
 function printFrontendInstructions(token) {

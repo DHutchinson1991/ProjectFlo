@@ -16,7 +16,7 @@ import { ProjectsService } from './projects.service';
 import { ProjectQueryService } from './project-query.service';
 import { ProjectPackageSnapshotService } from './project-package-snapshot.service';
 import { ProjectPackageCloneService } from './project-package-clone.service';
-import { ScheduleService } from '../../content/schedule/schedule.service';
+import { ScheduleDiffService } from '../../content/schedule/services';
 import { CreateProjectDto, UpdateProjectDto } from './dto/projects.dto';
 
 @Controller('api/projects')
@@ -27,7 +27,7 @@ export class ProjectsController {
         private readonly projectQueryService: ProjectQueryService,
         private readonly snapshotService: ProjectPackageSnapshotService,
         private readonly cloneService: ProjectPackageCloneService,
-        private readonly scheduleService: ScheduleService,
+        private readonly scheduleService: ScheduleDiffService,
     ) { }
 
     @Get()
@@ -85,7 +85,7 @@ export class ProjectsController {
         return this.snapshotService.getSnapshotSummary({ projectId: id });
     }
 
-    /** Get all project event days with activities, operators, subjects, locations */
+    /** Get all project event days with activities, crew slots, subjects, locations */
     @Get(':id/package-snapshot/event-days')
     async getPackageSnapshotEventDays(
         @Param('id', ParseIntPipe) id: number,
@@ -105,14 +105,14 @@ export class ProjectsController {
         return this.snapshotService.getActivities({ projectId: id });
     }
 
-    /** Get all project operators (crew slots) */
-    @Get(':id/package-snapshot/operators')
-    async getPackageSnapshotOperators(
+    /** Get all project crew slots */
+    @Get(':id/package-snapshot/crew-slots')
+    async getPackageSnapshotCrewSlots(
         @Param('id', ParseIntPipe) id: number,
         @Headers('x-brand-context') brandId?: string,
     ) {
         const parsedBrandId = brandId ? parseInt(brandId) : undefined;
-        return this.snapshotService.getOperators({ projectId: id });
+        return this.snapshotService.getCrewSlots({ projectId: id });
     }
 
     /** Get all project subjects */

@@ -34,9 +34,10 @@ import PeopleIcon from '@mui/icons-material/People';
 import { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
 import { packageSetsApi, servicePackagesApi } from '@/features/catalog/packages/api';
 import { inquiriesApi } from '@/features/workflow/inquiries';
-import { scheduleApi } from '@/features/workflow/scheduling/api';
+import { scheduleApi } from '@/features/workflow/scheduling/instance';
 import { useBrand } from '@/features/platform/brand';
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { computeTaxBreakdown } from '@/shared/utils/pricing';
 import { getPackageStats, getCategoryColor, getTierColor } from '@/features/catalog/packages/components/listing/listing-helpers';
 import { formatCurrency } from '@/features/workflow/proposals/utils/portal/formatting';
 
@@ -86,7 +87,7 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     const budgetRange = responses.budget_range as string | undefined;
     const builderActivities = responses.builder_activities as number[] | undefined;
     const builderFilms = responses.builder_films as { type: string; activityName?: string }[] | undefined;
-    const naOperatorCount = responses.operator_count as number | undefined;
+    const naCrewCount = responses.operator_count as number | undefined;
     const naCameraCount = responses.camera_count as number | undefined;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,12 +96,6 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     const [packageSets, setPackageSets] = useState<any[]>([]);
     const [liveFilms, setLiveFilms] = useState<InquiryFilmRecord[]>([]);
     const [hasLoadedLiveFilms, setHasLoadedLiveFilms] = useState(false);
-    // Backend-computed pricing for this inquiry (uses real instance operators)
-    const [inquiryPricing, setInquiryPricing] = useState<{
-        summary: { equipmentCost: number; crewCost: number; subtotal: number };
-        tax: { rate: number; amount: number; totalWithTax: number };
-    } | null>(null);
-    const [pricingLoaded, setPricingLoaded] = useState(false);
 
     // Inline package assignment / swap
     const [assignPackageId, setAssignPackageId] = useState<number | ''>('');
@@ -142,24 +137,6 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
         };
     }, [inquiry.id]);
 
-    // Fetch accurate pricing from backend (uses real inquiry instance operators)
-    useEffect(() => {
-        if (!inquiry.selected_package_id || !currentBrand?.id) return;
-        let cancelled = false;
-
-        servicePackagesApi.estimateInquiryPrice(currentBrand.id, inquiry.id)
-            .then((pricing) => {
-                if (cancelled) return;
-                setInquiryPricing(pricing);
-                setPricingLoaded(true);
-            })
-            .catch((_err) => {
-                console.warn('Failed to load inquiry pricing:', _err);
-            });
-
-        return () => { cancelled = true; };
-    }, [inquiry.id, inquiry.selected_package_id, currentBrand?.id]);
-
     // Build a map of packageId → set/tier info
     const packageSetInfoMap = useMemo(() => {
         const infoMap = new Map<number, PackageSetInfo>();
@@ -188,19 +165,30 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
     // Package stats (matches the FilledSlot card layout)
     const stats = selectedPkg ? getPackageStats(selectedPkg) : null;
 
-    // Use backend-computed pricing (accurate, uses real instance operators + 4-tier rate fallback)
-    // Pre-tax subtotal from backend, with tax-inclusive total available
-    const displayCost = pricingLoaded && inquiryPricing
-        ? inquiryPricing.tax.totalWithTax
-        : (stats && stats.totalCost > 0 ? stats.totalCost : Number(selectedPkg?.base_price ?? 0));
-    const displaySubtotal = pricingLoaded && inquiryPricing ? inquiryPricing.summary.subtotal : null;
-    const displayTax = pricingLoaded && inquiryPricing ? inquiryPricing.tax : null;
+    // Pricing — computeTaxBreakdown from @/shared/utils/pricing
+    const est = inquiry.estimates?.find(e => e.is_primary) ?? inquiry.estimates?.[0];
+    const subtotal = Number(est?.total_amount ?? 0);
+    const brandTaxRate = Number(currentBrand?.default_tax_rate ?? 0);
+    const pricing = subtotal > 0 ? computeTaxBreakdown(subtotal, brandTaxRate) : null;
+    const displayCost = pricing?.total ?? 0;
+    const displaySubtotal: number | null = subtotal > 0 ? subtotal : null;
+    const displayTax = pricing && brandTaxRate > 0 ? { rate: pricing.taxRate, amount: pricing.taxAmount, totalWithTax: pricing.total } : null;
 
     const catColor = selectedPkg ? getCategoryColor(selectedPkg.category) : '#64748b';
     const tierColor = selectedSetInfo ? getTierColor(selectedSetInfo.tierLabel) : '#648CFF';
     const packageFilmItems = selectedPkg
         ? ((selectedPkg.contents?.items || []).filter((i: { type: string }) => i.type === 'film'))
         : [];
+
+    // ── Stale estimate indicator: compare estimate total vs live package cost ──
+    const livePackageCost = selectedPkg ? Number(selectedPkg._totalCost ?? 0) : 0;
+    const livePricingWithTax = livePackageCost > 0
+        ? computeTaxBreakdown(livePackageCost, brandTaxRate).total
+        : 0;
+    const estimateBelowLive = displayCost > 0 && livePricingWithTax > 0 && displayCost < livePricingWithTax;
+    const estimateDiffPct = estimateBelowLive
+        ? Math.round(((livePricingWithTax - displayCost) / livePricingWithTax) * 100)
+        : 0;
     const displayFilms = hasLoadedLiveFilms
         ? liveFilms.map((filmRecord) => ({
             id: filmRecord.id,
@@ -208,15 +196,8 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
         }))
         : packageFilmItems;
 
-    // ── Effective price helper (tax-inclusive, matching package listing page) ──
-    const getEffectivePrice = (pkg: { base_price?: number | null }) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const d = pkg as any;
-        const tax = d._tax as { totalWithTax: number } | null | undefined;
-        if (tax?.totalWithTax) return tax.totalWithTax;
-        const s = getPackageStats(d);
-        return s.totalCost > 0 ? s.totalCost : Number(pkg.base_price ?? 0);
-    };
+    // ── Picker price helper: use live computed cost ──
+    const getEffectivePrice = (pkg: { _totalCost?: number | string | null }) => Number(pkg._totalCost ?? 0);
 
     // ── Active packages grouped by set (for selector dropdown) ──
     const { activePackageIds, groupedBySet } = useMemo(() => {
@@ -439,7 +420,7 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                 )}
 
                 {/* Builder summary (custom build path) */}
-                {packagePath === 'build' && (builderActivities?.length || builderFilms?.length || naOperatorCount) && (
+                {packagePath === 'build' && (builderActivities?.length || builderFilms?.length || naCrewCount) && (
                     <Box sx={{
                         px: 2.5, py: 1, display: 'flex', gap: 1.5, flexWrap: 'wrap',
                         borderBottom: '1px solid rgba(52, 58, 68, 0.2)',
@@ -454,9 +435,9 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                                 {builderFilms.length} films
                             </Typography>
                         )}
-                        {naOperatorCount && (
+                        {naCrewCount && (
                             <Typography sx={{ fontSize: '0.7rem', color: '#94a3b8' }}>
-                                {naOperatorCount} operators
+                                {naCrewCount} crew slots
                             </Typography>
                         )}
                         {naCameraCount && (
@@ -626,6 +607,15 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
                                 {displayTax && displayTax.rate > 0 && (
                                     <Typography sx={{ fontSize: '0.55rem', color: '#64748b', fontWeight: 500, mt: -0.25 }}>
                                         incl. {displayTax.rate}% tax
+                                    </Typography>
+                                )}
+                                {estimateBelowLive && estimateDiffPct > 0 && (
+                                    <Typography sx={{
+                                        fontSize: '0.6rem', color: '#f59e0b', fontWeight: 600, mt: 0.25,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.4,
+                                    }}>
+                                        <ErrorOutline sx={{ fontSize: 12 }} />
+                                        {estimateDiffPct}% below current package cost
                                     </Typography>
                                 )}
                             </Box>

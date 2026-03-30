@@ -1,8 +1,9 @@
 ﻿import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBrand } from '@/features/platform/brand';
-import { crewApi, crewMembersApi } from '../api';
+import { crewApi, userAccountsApi, jobRolesApi } from '../api';
 import { crewKeys } from '../constants/query-keys';
-import type { SetCrewStatusData, UpdateCrewProfileData, NewCrewMemberData, UpdateCrewMemberDto } from '../types';
+import type { SetCrewStatusData, UpdateCrewProfileData } from '../types';
+import type { NewCrewData, UpdateCrewDto } from '@/shared/types/users';
 
 export function useSetCrewStatus() {
   const { currentBrand } = useBrand();
@@ -39,13 +40,13 @@ export function useUpdateCrewProfile() {
   });
 }
 
-export function useCreateContributor() {
+export function useCreateUserAccount() {
   const { currentBrand } = useBrand();
   const brandId = currentBrand?.id;
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: NewCrewMemberData) => crewMembersApi.create(data),
+    mutationFn: (data: NewCrewData) => userAccountsApi.create(data),
     onSuccess: () => {
       if (brandId) {
         queryClient.invalidateQueries({ queryKey: crewKeys.all(brandId) });
@@ -54,14 +55,14 @@ export function useCreateContributor() {
   });
 }
 
-export function useUpdateContributor() {
+export function useUpdateUserAccount() {
   const { currentBrand } = useBrand();
   const brandId = currentBrand?.id;
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: UpdateCrewMemberDto }) =>
-      crewMembersApi.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: UpdateCrewDto }) =>
+      userAccountsApi.update(id, data),
     onSuccess: () => {
       if (brandId) {
         queryClient.invalidateQueries({ queryKey: crewKeys.all(brandId) });
@@ -70,13 +71,13 @@ export function useUpdateContributor() {
   });
 }
 
-export function useDeleteContributor() {
+export function useDeleteUserAccount() {
   const { currentBrand } = useBrand();
   const brandId = currentBrand?.id;
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: number) => crewMembersApi.delete(id),
+    mutationFn: (id: number) => userAccountsApi.delete(id),
     onSuccess: () => {
       if (brandId) {
         queryClient.invalidateQueries({ queryKey: crewKeys.all(brandId) });
@@ -85,7 +86,7 @@ export function useDeleteContributor() {
   });
 }
 
-export function useUpdateCrewMemberJobRoles() {
+export function useUpdateCrewJobRoles() {
   const { currentBrand } = useBrand();
   const brandId = currentBrand?.id;
   const queryClient = useQueryClient();
@@ -107,18 +108,18 @@ export function useUpdateCrewMemberJobRoles() {
 
       for (const jobRoleId of currentIds) {
         if (!nextIds.has(jobRoleId)) {
-          await crewMembersApi.removeJobRole(id, jobRoleId);
+          await jobRolesApi.removeJobRoleFromMember(id, jobRoleId);
         }
       }
 
       for (const jobRoleId of nextIds) {
         if (!currentIds.has(jobRoleId)) {
-          await crewMembersApi.addJobRole(id, jobRoleId);
+          await jobRolesApi.addJobRoleToMember(id, jobRoleId);
         }
       }
 
       if (primaryJobRoleId && nextIds.has(primaryJobRoleId)) {
-        await crewMembersApi.setPrimaryJobRole(id, primaryJobRoleId);
+        await jobRolesApi.setPrimaryJobRole(id, primaryJobRoleId);
       }
     },
     onSuccess: () => {

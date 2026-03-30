@@ -1,14 +1,14 @@
 ﻿import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
-import { AssignJobRoleDto, UpdateJobRoleAssignmentDto } from '../dto/contributor-job-role.dto';
+import { AssignJobRoleDto, UpdateJobRoleAssignmentDto } from '../dto/crew-job-role.dto';
 
 @Injectable()
 export class JobRoleAssignmentsService {
     constructor(private prisma: PrismaService) {}
 
-    async getContributorJobRoles(contributorId: number) {
-        return this.prisma.crewMemberJobRole.findMany({
-            where: { crew_member_id: contributorId },
+    async getCrewJobRoles(crewId: number) {
+        return this.prisma.crewJobRole.findMany({
+            where: { crew_id: crewId },
             include: {
                 job_role: true,
                 payment_bracket: true,
@@ -28,28 +28,28 @@ export class JobRoleAssignmentsService {
     }
 
     async assignJobRole(assignJobRoleDto: AssignJobRoleDto) {
-        const { crew_member_id, job_role_id, is_primary, assigned_by } = assignJobRoleDto;
+        const { crew_id, job_role_id, is_primary, assigned_by } = assignJobRoleDto;
 
-        const existingAssignment = await this.prisma.crewMemberJobRole.findUnique({
+        const existingAssignment = await this.prisma.crewJobRole.findUnique({
             where: {
-                crew_member_id_job_role_id: { crew_member_id: crew_member_id, job_role_id },
+                crew_id_job_role_id: { crew_id: crew_id, job_role_id },
             },
         });
 
         if (existingAssignment) {
-            throw new ConflictException('Contributor already has this job role assigned');
+            throw new ConflictException('Crew already has this job role assigned');
         }
 
         if (is_primary) {
-            await this.prisma.crewMemberJobRole.updateMany({
-                where: { crew_member_id: crew_member_id, is_primary: true },
+            await this.prisma.crewJobRole.updateMany({
+                where: { crew_id: crew_id, is_primary: true },
                 data: { is_primary: false },
             });
         }
 
-        return this.prisma.crewMemberJobRole.create({
+        return this.prisma.crewJobRole.create({
             data: {
-                crew_member_id: crew_member_id,
+                crew_id: crew_id,
                 job_role_id,
                 is_primary: is_primary || false,
                 assigned_by,
@@ -58,7 +58,7 @@ export class JobRoleAssignmentsService {
             include: {
                 job_role: true,
                 payment_bracket: true,
-                crew_member: {
+                crew: {
                     include: {
                         contact: {
                             select: {
@@ -74,14 +74,14 @@ export class JobRoleAssignmentsService {
     }
 
     async updateJobRoleAssignment(
-        contributorId: number,
+        crewId: number,
         jobRoleId: number,
         updateDto: UpdateJobRoleAssignmentDto,
     ) {
-        const assignment = await this.prisma.crewMemberJobRole.findUnique({
+        const assignment = await this.prisma.crewJobRole.findUnique({
             where: {
-                crew_member_id_job_role_id: {
-                    crew_member_id: contributorId,
+                crew_id_job_role_id: {
+                    crew_id: crewId,
                     job_role_id: jobRoleId,
                 },
             },
@@ -92,9 +92,9 @@ export class JobRoleAssignmentsService {
         }
 
         if (updateDto.is_primary) {
-            await this.prisma.crewMemberJobRole.updateMany({
+            await this.prisma.crewJobRole.updateMany({
                 where: {
-                    crew_member_id: contributorId,
+                    crew_id: crewId,
                     is_primary: true,
                     job_role_id: { not: jobRoleId },
                 },
@@ -102,10 +102,10 @@ export class JobRoleAssignmentsService {
             });
         }
 
-        return this.prisma.crewMemberJobRole.update({
+        return this.prisma.crewJobRole.update({
             where: {
-                crew_member_id_job_role_id: {
-                    crew_member_id: contributorId,
+                crew_id_job_role_id: {
+                    crew_id: crewId,
                     job_role_id: jobRoleId,
                 },
             },
@@ -113,7 +113,7 @@ export class JobRoleAssignmentsService {
             include: {
                 job_role: true,
                 payment_bracket: true,
-                crew_member: {
+                crew: {
                     include: {
                         contact: {
                             select: {
@@ -128,12 +128,12 @@ export class JobRoleAssignmentsService {
         });
     }
 
-    async removeJobRoleAssignment(contributorId: number, jobRoleId: number) {
+    async removeJobRoleAssignment(crewId: number, jobRoleId: number) {
         try {
-            return await this.prisma.crewMemberJobRole.delete({
+            return await this.prisma.crewJobRole.delete({
                 where: {
-                    crew_member_id_job_role_id: {
-                        crew_member_id: contributorId,
+                    crew_id_job_role_id: {
+                        crew_id: crewId,
                         job_role_id: jobRoleId,
                     },
                 },
@@ -146,11 +146,11 @@ export class JobRoleAssignmentsService {
         }
     }
 
-    async getContributorsByJobRole(jobRoleId: number) {
-        return this.prisma.crewMemberJobRole.findMany({
+    async getCrewByJobRole(jobRoleId: number) {
+        return this.prisma.crewJobRole.findMany({
             where: { job_role_id: jobRoleId },
             include: {
-                crew_member: {
+                crew: {
                     include: {
                         contact: {
                             select: {

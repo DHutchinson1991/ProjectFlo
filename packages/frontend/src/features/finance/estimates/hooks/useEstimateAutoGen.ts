@@ -43,9 +43,9 @@ export function useEstimateAutoGen(inquiry: Inquiry) {
             const packageId = inquiry.selected_package_id;
             const brandId = currentBrand?.id;
 
-            const [scheduleFilms, operators, taskPreview] = await Promise.all([
+            const [scheduleFilms, crewSlots, taskPreview] = await Promise.all([
                 inquiriesApi.scheduleSnapshot.getFilms(inquiry.id).catch(() => [] as any[]),
-                inquiriesApi.scheduleSnapshot.getOperators(inquiry.id) as Promise<any[]>,
+                inquiriesApi.scheduleSnapshot.getCrewSlots(inquiry.id) as Promise<any[]>,
                 packageId && brandId
                     ? activeTasksApi.previewAutoGeneration(packageId, brandId, inquiry.id).catch(() => null)
                     : Promise.resolve(null),
@@ -59,11 +59,11 @@ export function useEstimateAutoGen(inquiry: Inquiry) {
             const coverageCrew = new Map<string, CrewAccum>();
             const postProdCrew = new Map<string, CrewAccum>();
 
-            for (const op of operators) {
-                if (!op.crew_member_id && !op.job_role_id) continue;
-                const key = `${op.crew_member_id ?? 0}|${op.job_role_id ?? 0}`;
-                const name = op.crew_member
-                    ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim()
+            for (const op of crewSlots) {
+                if (!op.crew_id && !op.job_role_id) continue;
+                const key = `${op.crew_id ?? 0}|${op.job_role_id ?? 0}`;
+                const name = op.crew
+                    ? `${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim()
                     : (op.job_role?.display_name || op.job_role?.name || 'TBC');
                 const role = op.job_role?.display_name || op.job_role?.name || '';
                 const hours = Number(op.hours || 0);
@@ -113,9 +113,9 @@ export function useEstimateAutoGen(inquiry: Inquiry) {
                             else { ex.ppFilmCosts.set(fk, { hours: task.total_hours, cost }); }
                         }
                     } else {
-                        const op = operators.find((o: any) => {
-                            const n = o.crew_member
-                                ? `${o.crew_member.contact?.first_name || ''} ${o.crew_member.contact?.last_name || ''}`.trim()
+                        const op = crewSlots.find((o: any) => {
+                            const n = o.crew
+                                ? `${o.crew.contact?.first_name || ''} ${o.crew.contact?.last_name || ''}`.trim()
                                 : '';
                             return n === task.assigned_to_name &&
                                 (o.job_role?.display_name === task.role_name || o.job_role?.name === task.role_name);
@@ -195,7 +195,7 @@ export function useEstimateAutoGen(inquiry: Inquiry) {
                     }
                 }
             } else {
-                // Fallback: no task preview — use operator rate × hours
+                // Fallback: no task preview — use crew slot rate × hours
                 const pushFallback = (crew: Map<string, CrewAccum>, categoryLabel: string) => {
                     for (const c of crew.values()) {
                         const description = c.role ? `${c.name} — ${c.role}` : c.name;
@@ -213,7 +213,7 @@ export function useEstimateAutoGen(inquiry: Inquiry) {
 
             // Equipment — deduplicate by equipment_id
             const equipmentSeen = new Set<number>();
-            for (const op of operators) {
+            for (const op of crewSlots) {
                 for (const eq of (op.equipment || [])) {
                     const eqId = eq.equipment_id ?? eq.equipment?.id;
                     if (!eqId || equipmentSeen.has(eqId)) continue;
@@ -232,7 +232,7 @@ export function useEstimateAutoGen(inquiry: Inquiry) {
                 }
             }
         } catch (err) {
-            console.error('Failed to load operators for estimate:', err);
+            console.error('Failed to load crew slots for estimate:', err);
         }
 
         if (initialItems.length === 0) {

@@ -97,7 +97,6 @@ export class ClientPortalSectionsService {
                       data: {
                           id: inquiry.selected_package.id,
                           name: inquiry.selected_package.name,
-                          base_price: inquiry.selected_package.base_price,
                           currency: inquiry.selected_package.currency,
                           description: inquiry.selected_package.description,
                           films: packageFilms,

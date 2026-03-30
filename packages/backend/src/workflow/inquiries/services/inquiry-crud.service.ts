@@ -112,10 +112,10 @@ export class InquiryCrudService {
                 try {
                     const existing = await this.prisma.calendar_events.findFirst({ where: { inquiry_id: id, event_type: 'WEDDING_DAY' } });
                     if (!existing) {
-                        const contributor = await this.prisma.crewMember.findFirst({ where: { contact: { brand_id: existingInquiry.contact.brand_id } }, select: { id: true } });
-                        if (contributor) {
+                        const crew = await this.prisma.crew.findFirst({ where: { contact: { brand_id: existingInquiry.contact.brand_id } }, select: { id: true } });
+                        if (crew) {
                             await this.prisma.calendar_events.create({
-                                data: { inquiry_id: id, crew_member_id: contributor.id, event_type: 'WEDDING_DAY', title: 'Wedding Day', start_time: updatedInquiry.wedding_date, end_time: updatedInquiry.wedding_date, is_all_day: true },
+                                data: { inquiry_id: id, crew_id: crew.id, event_type: 'WEDDING_DAY', title: 'Wedding Day', start_time: updatedInquiry.wedding_date, end_time: updatedInquiry.wedding_date, is_all_day: true },
                             });
                         }
                     }

@@ -48,7 +48,7 @@ interface CreateCoverageForm {
   aperture: string;
   audio_pattern: string;
   frequency_response: string;
-  crew_member_id: number | null;
+  crew_id: number | null;
   video_style_type: VideoStyleType | null;
   shot_type: ShotType | undefined;
   camera_movement: CameraMovement | undefined;
@@ -77,7 +77,7 @@ interface CreateCoverageDialogProps {
         context_role: string;
     }
   }>;
-  availableContributors?: Array<{
+  availableCrew?: Array<{
     id: number;
     contact: {
         first_name: string;
@@ -97,7 +97,7 @@ export default function CreateCoverageDialog({
   onCreate,
   jobRoles = [],
   availableSubjects = [],
-  availableContributors = [],
+  availableCrew = [],
   availableEquipment = [],
   selectedEquipment = [],
   setSelectedEquipment,

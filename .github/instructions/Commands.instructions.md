@@ -117,6 +117,111 @@ pnpm --filter backend add <package>       # Add to backend
 pnpm --filter frontend add <package>      # Add to frontend
 ```
 
+## Search & CLI Tools
+
+Three tools are available system-wide for fast codebase search and data processing. **Prefer VS Code tools** (`grep_search`, `file_search`, `read_file`, `get_errors`) over these when possible — they cost zero Node processes. Use these CLI tools when VS Code tools are insufficient (e.g., complex regex, JSON transformation, glob-based file discovery).
+
+### ripgrep (`rg`) — fast text search
+```bash
+# Search for a pattern across backend and frontend
+rg "CrewMember" packages/backend/src packages/frontend/src
+
+# Case-insensitive, show only matching text
+rg -o -i "crewmember" packages/
+
+# Search specific file types only
+rg "TODO" --type ts
+
+# Count matches per file
+rg -c "useState" packages/frontend/src/features/
+
+# Fixed string (no regex interpretation)
+rg -F "X-Brand-Context" packages/backend/src
+```
+
+### fd — fast file finder
+```bash
+# Find files by name pattern
+fd "schema" packages/backend/
+
+# Find all TypeScript files under a feature
+fd -e ts -e tsx packages/frontend/src/features/catalog/
+
+# Find directories only
+fd -t d "hooks" packages/frontend/src/
+
+# Find and delete (use with caution)
+fd -e js.map packages/backend/dist --exec rm {}
+```
+
+### jq — JSON processor
+```bash
+# Pretty-print a JSON file
+cat tsconfig.json | jq .
+
+# Extract a specific field from package.json
+jq '.scripts' packages/backend/package.json
+
+# Filter an array from JSON output
+jq '.dependencies | keys' packages/frontend/package.json
+```
+
+### bat — syntax-highlighted file preview (replaces `cat`)
+```bash
+# View a file with syntax highlighting and line numbers
+bat packages/backend/src/main.ts
+
+# Show only a range of lines
+bat -r 10:30 packages/frontend/src/app/layout.tsx
+
+# Plain output (no decorations) — useful when piping
+bat -pp packages/backend/prisma/schema.prisma
+```
+
+### sd — find-and-replace (replaces `sed`)
+```bash
+# Simple string replacement in a file
+sd 'oldName' 'newName' packages/backend/src/catalog/services/example.service.ts
+
+# Regex replacement
+sd 'CrewMember(\w+)' 'StaffMember$1' packages/frontend/src/features/catalog/packages/types.ts
+
+# Preview changes without writing (pipe through sd)
+cat file.ts | sd 'old' 'new'
+
+# Bulk rename across files (combine with fd + xargs)
+fd -e ts packages/backend/src/catalog/ --exec sd 'OldTerm' 'NewTerm' {}
+```
+**Agent rule:** Prefer `replace_string_in_file` / `multi_replace_string_in_file` tools over `sd` when editing <5 files. Use `sd` for bulk renames across many files where the VS Code tools would be too slow.
+
+### delta — improved git diffs
+Delta is configured as the git pager. It activates automatically with `git diff` and `git log -p`.
+```bash
+# View staged changes with syntax highlighting
+git diff --staged
+
+# View diff for a specific file
+git diff -- packages/backend/src/main.ts
+
+# Side-by-side diff
+git -c delta.side-by-side=true diff
+```
+**Setup (one-time):** Configure git to use delta:
+```bash
+git config --global core.pager delta
+git config --global interactive.diffFilter 'delta --color-only'
+git config --global delta.navigate true
+git config --global delta.line-numbers true
+git config --global delta.syntax-theme Dracula
+```
+
+### Agent rules for CLI tools
+1. **Prefer VS Code tools first** — `grep_search` over `rg`, `file_search` over `fd`, `read_file` over `bat`/`cat | jq`, `replace_string_in_file` over `sd`.
+2. **These count toward your 3-command terminal budget** — combine with `&&` when chaining.
+3. **Append process count check** after any terminal use: `&& tasklist | findstr /I node | wc -l`.
+4. **Use `sd` for bulk renames** across >5 files — faster than repeated `replace_string_in_file` calls.
+5. **Use `bat -r`** to view specific line ranges when terminal output is needed (e.g., verifying script output).
+
 ## Troubleshooting
 
 ```bash

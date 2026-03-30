@@ -27,7 +27,7 @@ import {
     EQUIPMENT_AVAILABILITY_COLORS,
     EQUIPMENT_CONDITION_COLORS,
 } from "@/features/workflow/equipment/types/equipment.types";
-import type { CrewMember } from "@/shared/types/users";
+import type { Crew } from "@/shared/types/users";
 
 const inputSx = {
     "& .MuiOutlinedInput-root": {
@@ -56,11 +56,11 @@ interface EquipmentInfoCardProps {
     equipment: Equipment;
     isEditing: boolean;
     editData: Partial<Equipment>;
-    crewMembers: CrewMember[];
+    crew: Crew[];
     onUpdate: (field: keyof Equipment, value: unknown) => void;
 }
 
-export function EquipmentInfoCard({ equipment, isEditing, editData, crewMembers, onUpdate }: EquipmentInfoCardProps) {
+export function EquipmentInfoCard({ equipment, isEditing, editData, crew, onUpdate }: EquipmentInfoCardProps) {
     const val = <K extends keyof Equipment>(field: K) =>
         isEditing ? (editData[field] ?? equipment[field]) : equipment[field];
 
@@ -156,7 +156,7 @@ export function EquipmentInfoCard({ equipment, isEditing, editData, crewMembers,
                                 sx={{ ...selectSx, color: "#f3f4f6" }}
                             >
                                 <MenuItem value=""><em style={{ color: "#6b7280" }}>No owner</em></MenuItem>
-                                {contributors.map((c) => (
+                                {crew.map((c) => (
                                     <MenuItem key={c.id} value={c.id}>
                                         {c.full_name || `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()}
                                     </MenuItem>

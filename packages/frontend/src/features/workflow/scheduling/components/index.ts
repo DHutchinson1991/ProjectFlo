@@ -1,16 +1,26 @@
-export { EventDayManager } from './EventDayManager';
-export type { EventDay, EventDayFilmScene } from './EventDayManager';
+export {
+	EventDayManager,
+	PackageScheduleCard,
+	PackageScheduleSummary,
+	ActivitiesCard,
+	AddActivityDialog,
+	ActivityFilmWizard,
+} from './package-template';
+export type { EventDay, EventDayFilmScene } from './package-template';
 
-export { default as VisualTimeline } from './VisualTimeline';
-export type { VisualTimelineScene, EventDayGroup } from './VisualTimeline';
+export { InstanceScheduleEditor, ScheduleDiffView } from './instance';
 
-export { default as PackageScheduleSummary } from './PackageScheduleSummary';
-export { default as ScheduleDiffView } from './ScheduleDiffView';
-export { default as ProposalSchedulePreview } from './ProposalSchedulePreview';
-export { default as InstanceScheduleEditor } from './InstanceScheduleEditor';
-export { default as PackageScheduleCard } from './PackageScheduleCard';
-export { default as ActivitiesCard } from './ActivitiesCard';
-export { ActivityFilmWizard } from './ActivityFilmWizard';
-export { default as AddActivityDialog } from './AddActivityDialog';
-export { ScheduleApiProvider, useScheduleApi, useOptionalScheduleApi, createPackageScheduleApi, createProjectScheduleApi, createInquiryScheduleApi, useScheduleApiAdapter } from './ScheduleApiContext';
-export type { ScheduleApi, ScheduleMode } from './ScheduleApiContext';
+export {
+	VisualTimeline,
+	ProposalSchedulePreview,
+	ScheduleApiProvider,
+	useScheduleApi,
+	useOptionalScheduleApi,
+	createPackageScheduleApi,
+	createProjectScheduleApi,
+	createInquiryScheduleApi,
+	useScheduleApiAdapter,
+	ScheduleCardGrid,
+} from './shared';
+export type { VisualTimelineScene, EventDayGroup, ScheduleApi, ScheduleMode } from './shared';
+

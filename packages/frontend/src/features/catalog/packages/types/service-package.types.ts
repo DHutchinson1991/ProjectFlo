@@ -27,7 +27,6 @@ export interface ServicePackage {
     name: string;
     description: string | null;
     category: string | null;
-    base_price: number;
     currency: string;
     is_active: boolean;
     created_at: Date;
@@ -83,4 +82,9 @@ export interface ServicePackage {
     };
     /** Sum of group-role subject counts across event days (e.g. total guest headcount) */
     typical_guest_count?: number | null;
+    /** Computed pricing from PricingService (bracket-aware + task costs) */
+    _totalCost?: number;
+    _totalCrewCost?: number;
+    _totalEquipmentCost?: number;
+    _tax?: { rate: number; amount: number; totalWithTax: number } | null;
 }

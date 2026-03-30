@@ -1,4 +1,4 @@
-﻿export { useCrewList, useCrewByRole, useCrewWorkload, useCrewMember, useCrewMembers } from './useCrew';
+﻿export { useCrewList, useCrewByRole, useCrewWorkload, useCrew } from './useCrew';
 export {
   useCrewManagementData,
   useCrewManagementMutations,
@@ -6,8 +6,8 @@ export {
 export {
   useSetCrewStatus,
   useUpdateCrewProfile,
-  useCreateContributor,
-  useUpdateContributor,
-  useDeleteContributor,
-  useUpdateCrewMemberJobRoles,
+  useCreateUserAccount,
+  useUpdateUserAccount,
+  useDeleteUserAccount,
+  useUpdateCrewJobRoles,
 } from './useCrewMutations';

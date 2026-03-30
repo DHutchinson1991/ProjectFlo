@@ -1,6 +1,6 @@
 import React from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, FormControl, InputLabel, Select, MenuItem, Box, Chip, Typography } from '@mui/material';
-import { CrewMember } from '@/lib/types/domains/users';
+import { Crew } from '@/lib/types/domains/users';
 import { Equipment } from '@/lib/types/equipment';
 
 // Temporary props interface based on usage inference
@@ -11,10 +11,10 @@ interface TemplateCustomizationDialogProps {
   template: any; // We'll refine this later
   form: any;
   setForm: (form: any) => void;
-  crewMembers: CrewMember[];
+  crew: Crew[];
   equipment: Equipment[];
-  selectedCrewMember: CrewMember | null;
-  setSelectedContributor: (crew_member: CrewMember | null) => void;
+  selectedCrew: Crew | null;
+  setSelectedCrew: (crew: Crew | null) => void;
   selectedEquipment: Equipment[];
   setSelectedEquipment: (equipment: Equipment[]) => void;
   isSaving: boolean;
@@ -28,10 +28,10 @@ export default function TemplateCustomizationDialog({
   template,
   form,
   setForm,
-  crewMembers,
+  crew,
   equipment,
-  selectedCrewMember,
-  setSelectedContributor,
+  selectedCrew,
+  setSelectedCrew,
   selectedEquipment,
   setSelectedEquipment,
   isSaving,

@@ -36,11 +36,11 @@ interface TaskAccordionProps {
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
     jobRoles: JobRole[];
     allMappings: SkillRoleMapping[];
-    crewMembers: { id: number; contact: { first_name?: string; last_name?: string } }[];
+    crew: { id: number; contact: { first_name?: string; last_name?: string } }[];
     expandedTaskId: number | null;
     onToggleExpand: (taskId: number) => void;
     onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
-    onUpdateContributor: (taskId: number, crewMemberId: number | null) => Promise<void>;
+    onUpdateCrew: (taskId: number, crewId: number | null) => Promise<void>;
 }
 
 export function TaskAccordion({
@@ -63,11 +63,11 @@ export function TaskAccordion({
     updateQuickAddData,
     jobRoles,
     allMappings,
-    crewMembers,
+    crew,
     expandedTaskId,
     onToggleExpand,
     onUpdateRoleSkills,
-    onUpdateContributor,
+    onUpdateCrew,
 }: TaskAccordionProps) {
     const cfg = getPhaseConfig(group.phase);
     const leafTasks = group.tasks.filter(t => !t.is_task_group);
@@ -145,11 +145,11 @@ export function TaskAccordion({
                     updateQuickAddData={updateQuickAddData}
                     jobRoles={jobRoles}
                     allMappings={allMappings}
-                    contributors={crewMembers}
+                    crew={crew}
                     expandedTaskId={expandedTaskId}
                     onToggleExpand={onToggleExpand}
                     onUpdateRoleSkills={onUpdateRoleSkills}
-                    onUpdateContributor={onUpdateContributor}
+                    onUpdateCrew={onUpdateCrew}
                 />
             )}
         </TaskGroupHeader>

@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { Project } from '@/features/workflow/projects/types/project.types';
-import InstanceScheduleEditor from '@/features/workflow/scheduling/components/InstanceScheduleEditor';
+import { InstanceScheduleEditor } from '@/features/workflow/scheduling/instance';
 import { useProjects } from '../../hooks/useProjects';
 
 interface PackageScheduleTabProps {

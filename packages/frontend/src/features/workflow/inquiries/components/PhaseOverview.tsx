@@ -10,6 +10,8 @@ import {
     CalendarMonth,
 } from '@mui/icons-material';
 import type { Inquiry } from '@/features/workflow/inquiries/types';
+import { utcDiffDays } from '@/shared/utils/taskDates';
+import { useBrandTimezone } from '@/features/platform/brand';
 import { WORKFLOW_PHASES, getTempColor, TASK_AUTO_COMPLETE, computeActiveIndex } from '../lib';
 import type { PipelineTask, WorkflowPhase } from '../lib';
 
@@ -386,6 +388,7 @@ interface PhaseOverviewProps {
 /*  PhaseOverview Component                                            */
 /* ================================================================== */
 const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, hasRealTasks }) => {
+    const brandTimezone = useBrandTimezone();
 
     /* ── Derived state ── */
     const hasTasks = pipelineTasks.length > 0;
@@ -660,11 +663,7 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                             {currentSubTask && (currentSubTask.due_date || currentSubTask.estimated_hours != null) && (
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.75, flexWrap: 'wrap' }}>
                                     {currentSubTask.due_date && (() => {
-                                        const due = new Date(currentSubTask.due_date);
-                                        const now = new Date();
-                                        now.setHours(0, 0, 0, 0);
-                                        due.setHours(0, 0, 0, 0);
-                                        const diffDays = Math.round((due.getTime() - now.getTime()) / 86400000);
+                                        const diffDays = utcDiffDays(currentSubTask.due_date, brandTimezone);
                                         const isOverdue = diffDays < 0;
                                         const isSoon = diffDays >= 0 && diffDays <= 2;
                                         const dateColor = isOverdue ? '#ef4444' : isSoon ? '#f59e0b' : '#94a3b8';
@@ -676,7 +675,7 @@ const PhaseOverview: React.FC<PhaseOverviewProps> = ({ inquiry, pipelineTasks, h
                                                         ? `Overdue by ${Math.abs(diffDays)}d`
                                                         : diffDays === 0
                                                           ? 'Due today'
-                                                          : `Due ${due.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
+                                                          : `Due ${new Date(currentSubTask.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: brandTimezone })}`}
                                                 </Typography>
                                             </Box>
                                         );

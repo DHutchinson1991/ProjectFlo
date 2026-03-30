@@ -24,7 +24,7 @@ export type {
     BackendCalendarStats,
     BackendCalendarTask,
     CalendarApiQuery,
-    BackendContributor,
+    BackendUserAccount,
     CalendarEventUpsertRequest,
 } from './types/calendar-api.types';
 
@@ -64,8 +64,8 @@ export {
     useCalendarTasks,
     useFilteredEvents,
 } from './hooks/use-calendar';
-export { useCrewMembers } from './hooks/use-contributors';
-export type { CrewMemberOption } from './hooks/use-contributors';
+export { useCrew } from './hooks/use-crew-members';
+export type { CrewOption } from './hooks/use-crew-members';
 
 // Mappers
 export {

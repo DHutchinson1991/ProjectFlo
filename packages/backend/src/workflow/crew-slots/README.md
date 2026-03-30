@@ -16,7 +16,7 @@ Manages package and project crew slot records for workflow scheduling. It owns p
 ## Business rules / invariants
 - Package slots are stored as `PackageDayOperator` records and remain template-scoped.
 - Project and inquiry slots are stored as `ProjectDayOperator` records and carry live crew assignment.
-- Assigning a contributor to a project or inquiry slot must cascade matched task assignees and unset `review_estimate` auto-subtask state for inquiries.
+- Assigning a crew to a project or inquiry slot must cascade matched task assignees and unset `review_estimate` auto-subtask state for inquiries.
 - Slot equipment and activity links are replace-or-delete operations; no backward-compatibility shim exists for old `/api/operators` routes.
 
 ## Related modules

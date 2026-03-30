@@ -6,6 +6,7 @@ export { PhaseCardsGrid } from './PhaseCardsGrid';
 export { SortableTaskRow } from './SortableTaskRow';
 export { TaskAccordion } from './TaskAccordion';
 export { TaskAccordionList } from './TaskAccordionList';
+export { TaskDetailPanel } from './TaskDetailPanel';
 export { TaskRoleSkillsPanel } from './TaskRoleSkillsPanel';
 export { TasksContent } from './TasksContent';
 export { TasksHeader } from './TasksHeader';

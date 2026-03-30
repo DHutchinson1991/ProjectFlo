@@ -134,15 +134,21 @@ export class WorkflowsService {
     }
 
     async checkBrandAccess(brandId: number, userId: number) {
-        const contributor = await this.prisma.crewMember.findUnique({
+        const crew = await this.prisma.crew.findUnique({
             where: { id: userId },
-            include: { role: true },
+            include: {
+                contact: {
+                    include: {
+                        user_account: { include: { system_role: true } },
+                    },
+                },
+            },
         });
 
-        if (contributor?.role?.name === 'Global Admin') return true;
+        if (crew?.contact.user_account?.system_role?.name === 'Global Admin') return true;
 
         const userBrand = await this.prisma.brandMember.findFirst({
-            where: { crew_member_id: userId, brand_id: brandId, is_active: true },
+            where: { crew_id: userId, brand_id: brandId, is_active: true },
         });
 
         if (!userBrand) {
@@ -152,12 +158,18 @@ export class WorkflowsService {
     }
 
     private async getUserBrands(userId: number) {
-        const contributor = await this.prisma.crewMember.findUnique({
+        const crew = await this.prisma.crew.findUnique({
             where: { id: userId },
-            include: { role: true },
+            include: {
+                contact: {
+                    include: {
+                        user_account: { include: { system_role: true } },
+                    },
+                },
+            },
         });
 
-        if (contributor?.role?.name === 'Global Admin') {
+        if (crew?.contact.user_account?.system_role?.name === 'Global Admin') {
             const allBrands = await this.prisma.brands.findMany({
                 where: { is_active: true },
                 select: { id: true, name: true },
@@ -170,7 +182,7 @@ export class WorkflowsService {
         }
 
         return this.prisma.brandMember.findMany({
-            where: { crew_member_id: userId, is_active: true },
+            where: { crew_id: userId, is_active: true },
             include: { brand: { select: { id: true, name: true } } },
         });
     }

@@ -23,7 +23,7 @@ export class CreateCalendarEventDto {
     event_type!: CalendarEventType;
 
     @IsInt()
-    crew_member_id!: number;
+    crew_id!: number;
 
     @IsOptional()
     @IsInt()

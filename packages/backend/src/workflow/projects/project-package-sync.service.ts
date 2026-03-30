@@ -41,12 +41,12 @@ export class ProjectPackageSyncService {
         if (!packageId) throw new NotFoundException(`Inquiry ${inquiryId} has no source package`);
 
         if (!inquiry.source_package_id && inquiry.selected_package_id) {
-            const pkg = await this.prisma.service_packages.findUnique({ where: { id: inquiry.selected_package_id }, select: { id: true, name: true, base_price: true, currency: true, contents: true } });
+            const pkg = await this.prisma.service_packages.findUnique({ where: { id: inquiry.selected_package_id }, select: { id: true, name: true, currency: true, contents: true } });
             await this.prisma.inquiries.update({
                 where: { id: inquiryId },
                 data: {
                     source_package_id: inquiry.selected_package_id,
-                    package_contents_snapshot: pkg ? { snapshot_taken_at: new Date().toISOString(), package_id: pkg.id, package_name: pkg.name, base_price: pkg.base_price ? Number(pkg.base_price) : 0, currency: pkg.currency ?? DEFAULT_CURRENCY, contents: pkg.contents } : Prisma.JsonNull,
+                    package_contents_snapshot: pkg ? { snapshot_taken_at: new Date().toISOString(), package_id: pkg.id, package_name: pkg.name, currency: pkg.currency ?? DEFAULT_CURRENCY, contents: pkg.contents } : Prisma.JsonNull,
                 },
             });
         }
@@ -63,13 +63,13 @@ export class ProjectPackageSyncService {
         const where = owner as Record<string, unknown>;
         await tx.projectLocationActivityAssignment.deleteMany({ where: { project_location_slot: where } });
         await tx.projectDaySubjectActivity.deleteMany({ where: { project_day_subject: where } });
-        await tx.projectOperatorActivityAssignment.deleteMany({ where: { project_crew_slot: where } });
-        await tx.projectDayOperatorEquipment.deleteMany({ where: { project_crew_slot: where } });
+        await tx.projectCrewSlotActivity.deleteMany({ where: { project_crew_slot: where } });
+        await tx.projectCrewSlotEquipment.deleteMany({ where: { project_crew_slot: where } });
         await tx.projectFilmSceneSchedule.deleteMany({ where: { project_film: where } });
         await tx.projectActivityMoment.deleteMany({ where });
         await tx.projectDaySubject.deleteMany({ where });
         await tx.projectLocationSlot.deleteMany({ where });
-        await tx.projectDayOperator.deleteMany({ where });
+        await tx.projectCrewSlot.deleteMany({ where });
         await tx.projectFilm.deleteMany({ where });
         await tx.projectActivity.deleteMany({ where });
         await tx.projectEventDay.deleteMany({ where });

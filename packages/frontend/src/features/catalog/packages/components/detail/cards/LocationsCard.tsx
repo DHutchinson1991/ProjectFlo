@@ -10,13 +10,14 @@ import PlaceIcon from '@mui/icons-material/Place';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-import { scheduleApi } from '@/features/workflow/scheduling/api';
-import { useOptionalScheduleApi } from '@/features/workflow/scheduling/components';
-import type { EventDay } from '@/features/workflow/scheduling/components';
+import { scheduleApi } from '@/features/workflow/scheduling/package-template';
+import { useOptionalScheduleApi } from '@/features/workflow/scheduling/shared';
+import type { EventDay } from '@/features/workflow/scheduling/package-template';
 import type {
     PackageActivityRecord,
     PackageLocationSlotRecord,
 } from '../../../types';
+import { ScheduleCardShell } from './ScheduleCardShell';
 
 /* ================================================================== */
 /*  Props                                                              */
@@ -76,32 +77,22 @@ export function LocationsCard({
 
     // ─── Render ──────────────────────────────────────────────────────
     return (
-        <Box sx={{ ...(cardSx as object), overflow: 'hidden' }}>
-            {/* Card Header */}
-            <Box sx={{ px: 2.5, pt: 2, pb: 1.5, borderBottom: '1px solid rgba(52, 58, 68, 0.25)' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Box sx={{ width: 28, height: 28, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                            <PlaceIcon sx={{ fontSize: 14, color: '#f59e0b' }} />
-                        </Box>
-                        <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Locations</Typography>
-                            {selectedActivity ? (
-                                <Typography sx={{ fontSize: '0.55rem', color: '#a855f7', fontWeight: 600, mt: -0.25 }}>{selectedActivity.name}</Typography>
-                            ) : activeDay && packageEventDays.length > 1 ? (
-                                <Typography sx={{ fontSize: '0.55rem', color: '#f59e0b', fontWeight: 600, mt: -0.25 }}>{activeDay.name}</Typography>
-                            ) : null}
-                        </Box>
-                    </Box>
-                    {daySlots.length > 0 && (
-                        <Chip
-                            label={`${selectedActivityId ? daySlots.filter((s: any) => isSlotAssigned(s)).length : daySlots.length}`} // eslint-disable-line @typescript-eslint/no-explicit-any
-                            size="small"
-                            sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.2)', '& .MuiChip-label': { px: 0.6 } }}
-                        />
-                    )}
-                </Box>
-            </Box>
+        <ScheduleCardShell
+            title="Locations"
+            icon={<PlaceIcon />}
+            accentColor="#f59e0b"
+            subtitle={selectedActivity ? (
+                <Typography sx={{ fontSize: '0.55rem', color: '#a855f7', fontWeight: 600, mt: -0.25 }}>{selectedActivity.name}</Typography>
+            ) : activeDay && packageEventDays.length > 1 ? (
+                <Typography sx={{ fontSize: '0.55rem', color: '#f59e0b', fontWeight: 600, mt: -0.25 }}>{activeDay.name}</Typography>
+            ) : undefined}
+            headerRight={daySlots.length > 0
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ? <Chip label={`${selectedActivityId ? daySlots.filter((s: any) => isSlotAssigned(s)).length : daySlots.length}`} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.2)', '& .MuiChip-label': { px: 0.6 } }} />
+                : undefined
+            }
+            cardSx={cardSx}
+        >
 
             <Box sx={{ px: 2.5, pt: 1.5, pb: 1.5 }}>
                 {daySlots.length === 0 && (
@@ -329,6 +320,6 @@ export function LocationsCard({
                     )}
                 </Box>
             </Box>
-        </Box>
+        </ScheduleCardShell>
     );
 }

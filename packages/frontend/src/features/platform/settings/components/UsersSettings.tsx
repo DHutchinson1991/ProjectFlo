@@ -43,12 +43,12 @@ import {
     PeopleOutline as UsersIcon,
 } from "@mui/icons-material";
 import { rolesApi } from "@/features/platform/settings/api";
-import { crewMembersApi } from "@/features/workflow/crew/api";
-import { CrewMember, Role } from "@/shared/types/users";
+import { userAccountsApi } from "@/features/workflow/crew/api";
+import type { Crew, Role } from "@/shared/types/users";
 import { useAuth } from "@/features/platform/auth";
 
 export function UsersSettings() {
-    const [crewMembers, setContributors] = useState<CrewMember[]>([]);
+    const [crew, setCrew] = useState<Crew[]>([]);
     const [roles, setRoles] = useState<Role[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -59,7 +59,7 @@ export function UsersSettings() {
     const [inviteOpen, setInviteOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [archiveOpen, setArchiveOpen] = useState(false);
-    const [selected, setSelected] = useState<CrewMember | null>(null);
+    const [selected, setSelected] = useState<Crew | null>(null);
 
     // Invite form
     const [inviteData, setInviteData] = useState({ email: "", first_name: "", last_name: "", password: "", role_id: 0 });
@@ -84,11 +84,11 @@ export function UsersSettings() {
         try {
             setLoading(true);
             setError(null);
-            const [contribData, rolesData] = await Promise.all([
-                crewMembersApi.getAll(),
+            const [crewData, rolesData] = await Promise.all([
+                userAccountsApi.getAll(),
                 rolesApi.getAll(),
             ]);
-            setContributors(contribData);
+            setCrew(crewData);
             setRoles(rolesData);
         } catch {
             setError("Failed to load users");
@@ -97,8 +97,8 @@ export function UsersSettings() {
         }
     };
 
-    const activeUsers = contributors.filter((c) => !c.archived_at);
-    const archivedUsers = contributors.filter((c) => !!c.archived_at);
+    const activeUsers = crew.filter((c) => !c.archived_at);
+    const archivedUsers = crew.filter((c) => !!c.archived_at);
     const displayedUsers = showArchived ? archivedUsers : activeUsers;
 
     // Menu
@@ -128,7 +128,7 @@ export function UsersSettings() {
         if (!validateInvite()) return;
         try {
             setSubmitting(true); setError(null);
-            await crewMembersApi.create({
+            await userAccountsApi.create({
                 email: inviteData.email.trim(),
                 first_name: inviteData.first_name.trim(),
                 last_name: inviteData.last_name.trim() || undefined,
@@ -146,7 +146,7 @@ export function UsersSettings() {
     };
 
     // Edit
-    const openEdit = (c: CrewMember) => {
+    const openEdit = (c: Crew) => {
         setSelected(c);
         setEditData({ first_name: c.first_name || "", last_name: c.last_name || "", email: c.email, role_id: c.role_id });
         setEditErrors({});
@@ -164,7 +164,7 @@ export function UsersSettings() {
         if (!selected || !validateEdit()) return;
         try {
             setSubmitting(true); setError(null);
-            await crewMembersApi.update(selected.id, {
+            await userAccountsApi.update(selected.id, {
                 first_name: editData.first_name.trim(),
                 last_name: editData.last_name.trim() || undefined,
                 email: editData.email.trim(),
@@ -181,7 +181,7 @@ export function UsersSettings() {
     };
 
     // Archive / Restore
-    const openArchive = (c: CrewMember) => {
+    const openArchive = (c: Crew) => {
         setSelected(c);
         setArchiveOpen(true);
         handleMenuClose();
@@ -190,7 +190,7 @@ export function UsersSettings() {
         if (!selected) return;
         try {
             setSubmitting(true); setError(null);
-            await crewMembersApi.delete(selected.id);
+            await userAccountsApi.delete(selected.id);
             await loadUsers();
             setArchiveOpen(false); setSelected(null);
             setSuccess(selected.archived_at ? "User restored!" : "User archived!");
@@ -398,22 +398,22 @@ export function UsersSettings() {
 
             {/* Action Menu */}
             <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
-                <MenuItem onClick={() => { const c = contributors.find((u) => u.id === menuUserId); if (c) openEdit(c); }}>
+                <MenuItem onClick={() => { const c = crew.find((u) => u.id === menuUserId); if (c) openEdit(c); }}>
                     <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
                     <ListItemText>Edit User</ListItemText>
                 </MenuItem>
                 <Divider />
                 <MenuItem
-                    onClick={() => { const c = contributors.find((u) => u.id === menuUserId); if (c) openArchive(c); }}
-                    sx={{ color: contributors.find((u) => u.id === menuUserId)?.archived_at ? "success.main" : "error.main" }}
+                    onClick={() => { const c = crew.find((u) => u.id === menuUserId); if (c) openArchive(c); }}
+                    sx={{ color: crew.find((u) => u.id === menuUserId)?.archived_at ? "success.main" : "error.main" }}
                 >
                     <ListItemIcon>
-                        {contributors.find((u) => u.id === menuUserId)?.archived_at
+                        {crew.find((u) => u.id === menuUserId)?.archived_at
                             ? <RestoreIcon fontSize="small" color="success" />
                             : <BlockIcon fontSize="small" color="error" />}
                     </ListItemIcon>
                     <ListItemText>
-                        {contributors.find((u) => u.id === menuUserId)?.archived_at ? "Restore User" : "Archive User"}
+                        {crew.find((u) => u.id === menuUserId)?.archived_at ? "Restore User" : "Archive User"}
                     </ListItemText>
                 </MenuItem>
             </Menu>

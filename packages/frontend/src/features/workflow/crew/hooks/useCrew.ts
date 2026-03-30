@@ -1,6 +1,6 @@
 ﻿import { useQuery } from '@tanstack/react-query';
 import { useBrand } from '@/features/platform/brand';
-import { crewApi, crewMembersApi } from '../api';
+import { crewApi } from '../api';
 import { crewKeys } from '../constants/query-keys';
 
 export function useCrewList() {
@@ -39,7 +39,7 @@ export function useCrewWorkload() {
   });
 }
 
-export function useCrewMember(id: number) {
+export function useCrew(id: number) {
   const { currentBrand } = useBrand();
   const brandId = currentBrand?.id;
 
@@ -51,14 +51,16 @@ export function useCrewMember(id: number) {
   });
 }
 
-export function useCrewMembers() {
+export function useCrewRoster() {
   const { currentBrand } = useBrand();
   const brandId = currentBrand?.id;
 
   return useQuery({
-    queryKey: crewKeys.contributors(brandId!),
-    queryFn: () => crewApi.getAllContributors(brandId!),
+    queryKey: crewKeys.roster(brandId!),
+    queryFn: () => crewApi.getAllCrew(brandId!),
     enabled: !!brandId,
     staleTime: 1000 * 60 * 5,
   });
 }
+
+

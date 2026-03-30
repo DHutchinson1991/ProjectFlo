@@ -20,6 +20,6 @@ export class ProjectPackageSnapshotService {
     getFilms(filter: OwnerFilter) { return this.scheduleService.getFilms(filter); }
     getLocationSlots(filter: OwnerFilter) { return this.scheduleService.getLocationSlots(filter); }
     getActivityMoments(filter: OwnerFilter, activityId: number) { return this.scheduleService.getActivityMoments(filter, activityId); }
-    getOperators(filter: OwnerFilter) { return this.crewService.getOperators(filter); }
+    getCrewSlots(filter: OwnerFilter) { return this.crewService.getCrewSlots(filter); }
     getSubjects(filter: OwnerFilter) { return this.crewService.getSubjects(filter); }
 }

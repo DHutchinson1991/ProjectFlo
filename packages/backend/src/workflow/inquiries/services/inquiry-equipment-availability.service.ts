@@ -66,7 +66,7 @@ export class InquiryEquipmentAvailabilityService {
 
             return {
                 id: a.id,
-                operator_id: a.project_crew_slot_id,
+                crew_slot_id: a.project_crew_slot_id,
                 is_primary: a.is_primary,
                 equipment: {
                     id: a.equipment.id,
@@ -87,7 +87,7 @@ export class InquiryEquipmentAvailabilityService {
                         }
                         : null,
                 },
-                operator: {
+                crew_slot: {
                     id: a.project_crew_slot.id,
                     label: a.project_crew_slot.label,
                     job_role: a.project_crew_slot.job_role,

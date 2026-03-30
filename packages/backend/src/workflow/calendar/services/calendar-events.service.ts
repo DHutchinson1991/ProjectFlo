@@ -16,7 +16,7 @@ export class CalendarEventsService {
     ) { }
 
     private readonly eventInclude = {
-        crew_member: {
+        crew: {
             include: {
                 contact: {
                     select: { first_name: true, last_name: true, email: true },
@@ -34,7 +34,7 @@ export class CalendarEventsService {
         event_tags: { include: { tag: true } },
         event_attendees: {
             include: {
-                crew_member: {
+                crew: {
                     include: {
                         contact: {
                             select: { first_name: true, last_name: true, email: true },
@@ -57,7 +57,7 @@ export class CalendarEventsService {
             end_time: new Date(createEventDto.end_time),
             is_all_day: createEventDto.is_all_day || false,
             event_type: createEventDto.event_type,
-            crew_member: { connect: { id: createEventDto.crew_member_id } },
+            crew: { connect: { id: createEventDto.crew_id } },
             meeting_type: createEventDto.meeting_type,
             location: createEventDto.location,
             meeting_url: createEventDto.meeting_url,
@@ -109,7 +109,7 @@ export class CalendarEventsService {
             where.start_time = { gte: startDate, lte: endDate };
         }
 
-        if (query.crew_member_id) where.crew_member_id = query.crew_member_id;
+        if (query.crew_id) where.crew_id = query.crew_id;
         if (query.event_type) where.event_type = query.event_type;
         if (query.project_id) where.project_id = query.project_id;
 
@@ -167,24 +167,24 @@ export class CalendarEventsService {
         return this.prisma.calendar_events.delete({ where: { id } });
     }
 
-    async getEventsForDateRange(startDate: string, endDate: string, contributorId?: number) {
+    async getEventsForDateRange(startDate: string, endDate: string, crewId?: number) {
         const query: CalendarQueryDto = { start_date: startDate, end_date: endDate };
-        if (contributorId) query.crew_member_id = contributorId;
+        if (crewId) query.crew_id = crewId;
         return this.findAllEvents(query);
     }
 
-    async getTodaysEvents(contributorId?: number) {
+    async getTodaysEvents(crewId?: number) {
         const today = new Date();
         const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
         const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
-        return this.getEventsForDateRange(startOfDay, endOfDay, contributorId);
+        return this.getEventsForDateRange(startOfDay, endOfDay, crewId);
     }
 
-    async getUpcomingEvents(contributorId?: number, limit: number = 10) {
+    async getUpcomingEvents(crewId?: number, limit: number = 10) {
         const where: Prisma.calendar_eventsWhereInput = {
             start_time: { gte: new Date() },
         };
-        if (contributorId) where.crew_member_id = contributorId;
+        if (crewId) where.crew_id = crewId;
 
         return this.prisma.calendar_events.findMany({
             where,

@@ -5,7 +5,7 @@
  * organized by equipment categories and status.
  */
 
-import type { CrewMember } from "@/shared/types/users";
+import type { Crew } from "@/shared/types/users";
 
 // Shared base entity (inlined from deleted common.ts)
 interface BaseEntity {
@@ -146,6 +146,7 @@ export interface Equipment extends BaseEntity {
     last_maintenance?: string;
     next_maintenance_due?: string;
     location?: string;
+    photo_url?: string | null;
     brand_id?: number;
     is_active: boolean;
     created_by_id?: number;
@@ -344,7 +345,14 @@ export const EQUIPMENT_CONDITION_COLORS = {
 // Hook state/action interfaces for useEquipmentList
 export interface EquipmentListState {
     equipmentByCategory: EquipmentByCategory;
-    crewMembers: CrewMember[];
+    flatEquipment: Equipment[];
+    filteredEquipment: Equipment[];
+    searchTerm: string;
+    categoryFilter: string;
+    statusFilter: string;
+    conditionFilter: string;
+    selectedEquipment: Equipment | null;
+    crew: Crew[];
     loading: boolean;
     error: string | null;
     deleteConfirmOpen: boolean;
@@ -360,6 +368,11 @@ export interface EquipmentListState {
 }
 
 export interface EquipmentListActions {
+    setSearchTerm: (term: string) => void;
+    setCategoryFilter: (category: string) => void;
+    setStatusFilter: (status: string) => void;
+    setConditionFilter: (condition: string) => void;
+    setSelectedEquipment: (equipment: Equipment | null) => void;
     loadEquipment: () => Promise<void>;
     showSnackbar: (message: string, severity?: "success" | "error") => void;
     toggleCategoryExpansion: (category: string) => void;
@@ -377,4 +390,5 @@ export interface EquipmentListActions {
     setDeleteConfirmOpen: (open: boolean) => void;
     setError: (error: string | null) => void;
     setSnackbarOpen: (open: boolean) => void;
+    updateEquipment: (id: number, data: Partial<Equipment>) => Promise<void>;
 }

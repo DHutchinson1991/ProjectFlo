@@ -11,6 +11,7 @@ import {
 import { computeTaxBreakdown } from '@/shared/utils/pricing';
 import { formatCurrency } from '@projectflo/shared';
 import { CategoryBreakdownBar, ExpandedCategoryItems } from '@/features/finance/shared';
+import { useBrand } from '@/features/platform/brand';
 import type { Estimate } from '../types';
 
 interface EstimateListItemProps {
@@ -31,9 +32,11 @@ const EstimateListItem: React.FC<EstimateListItemProps> = ({
     estimate, isExpanded, currency,
     onToggleExpand, onEdit, onDelete, onSetPrimary, onRefreshCosts, onRevise, onSend, onVersionClick,
 }) => {
+    const { currentBrand } = useBrand();
+    const taxRate = Number(currentBrand?.default_tax_rate ?? 0);
     const { taxAmount, total: estPostTax } = computeTaxBreakdown(
         Number(estimate.total_amount ?? 0),
-        Number(estimate.tax_rate ?? 0),
+        taxRate,
     );
 
     return (
@@ -98,7 +101,7 @@ const EstimateListItem: React.FC<EstimateListItemProps> = ({
                         }}
                     />
                     <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: '#f59e0b', fontFamily: 'monospace', minWidth: 70, textAlign: 'right' }}>
-                        {formatCurrency(estPostTax, currency, 0)}
+                        {formatCurrency(estPostTax, currency)}
                     </Typography>
                     <Box sx={{ display: 'flex', ml: 0.5 }}>
                         <Tooltip title={estimate.is_primary ? 'Primary' : 'Set as Primary'}>
@@ -157,7 +160,7 @@ const EstimateListItem: React.FC<EstimateListItemProps> = ({
                 <CategoryBreakdownBar
                     items={estimate.items || []}
                     taxAmount={taxAmount}
-                    taxRate={Number(estimate.tax_rate)}
+                    taxRate={taxRate}
                     currency={currency}
                 />
             )}
@@ -168,7 +171,7 @@ const EstimateListItem: React.FC<EstimateListItemProps> = ({
                     items={estimate.items || []}
                     subtotal={Number(estimate.total_amount || 0)}
                     totalWithTax={estPostTax}
-                    taxRate={Number(estimate.tax_rate)}
+                    taxRate={taxRate}
                     depositRequired={Number(estimate.deposit_required)}
                     currency={currency}
                 >

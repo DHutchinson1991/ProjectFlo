@@ -61,7 +61,6 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
             ? {
                   id: apiResponse.selected_package.id,
                   name: apiResponse.selected_package.name,
-                  base_price: parseFloat(apiResponse.selected_package.base_price),
                   currency: apiResponse.selected_package.currency,
               }
             : null,

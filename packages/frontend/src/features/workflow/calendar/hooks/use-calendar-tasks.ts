@@ -18,7 +18,8 @@ export function useCalendarTasks(viewDate: Date, viewType: 'month' | 'week' | 'd
     const { data: tasks = [], isPending: loading, error: queryError } = useQuery({
         queryKey: calendarQueryKeys.tasksRange(brandId, startStr, endStr),
         queryFn: () =>
-            calendarApi.getTasksForDateRange(dateRange.start, dateRange.end).then(transformBackendTasks),
+            calendarApi.getTasksForDateRange(dateRange.start, dateRange.end)
+                .then(tasks => transformBackendTasks(tasks, currentBrand?.timezone ?? 'UTC')),
         enabled: !!brandId,
     });
 
@@ -34,7 +35,7 @@ export function useCalendarTasks(viewDate: Date, viewType: 'month' | 'week' | 'd
 
 export function useFilteredEvents(
     events: CalendarEvent[],
-    filters: { eventTypes?: EventType[]; search?: string; crewMemberId?: string },
+    filters: { eventTypes?: EventType[]; search?: string; crewId?: string },
 ) {
     return useMemo(() => {
         let filtered = [...events];
@@ -54,8 +55,8 @@ export function useFilteredEvents(
             );
         }
 
-        if (filters.crewMemberId) {
-            filtered = filtered.filter(e => e.assignee?.id === filters.crewMemberId);
+        if (filters.crewId) {
+            filtered = filtered.filter(e => e.assignee?.id === filters.crewId);
         }
 
         return filtered;

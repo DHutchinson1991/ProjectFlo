@@ -27,7 +27,7 @@ export class InquiryCrewAvailabilityService {
             where: { inquiry_id: inquiryId },
             include: {
                 job_role: { select: { id: true, name: true, display_name: true, on_site: true } },
-                crew_member: {
+                crew: {
                     include: {
                         contact: { select: { first_name: true, last_name: true, email: true } },
                     },
@@ -42,13 +42,13 @@ export class InquiryCrewAvailabilityService {
         const rows = await Promise.all(slots.map(async (slot) => {
             const isOnSite = slot.job_role?.on_site ?? false;
             const timeRange = getEventDayTimeRange(slot.project_event_day);
-            const conflicts = slot.crew_member_id
-                ? await this.findContributorConflicts(slot.crew_member_id, inquiryId, timeRange)
+            const conflicts = slot.crew_id
+                ? await this.findCrewConflicts(slot.crew_id, inquiryId, timeRange)
                 : [];
             const alternatives = slot.job_role_id
-                ? await this.findAvailableContributors(slot.job_role_id, inquiryId, timeRange, brandId, slot.crew_member_id ?? undefined)
+                ? await this.findAvailableCrew(slot.job_role_id, inquiryId, timeRange, brandId, slot.crew_id ?? undefined)
                 : [];
-            const hasConflict = conflicts.length > 0 || !slot.crew_member_id;
+            const hasConflict = conflicts.length > 0 || !slot.crew_id;
 
             return {
                 id: slot.id,
@@ -62,19 +62,19 @@ export class InquiryCrewAvailabilityService {
                     start_time: slot.project_event_day.start_time,
                     end_time: slot.project_event_day.end_time,
                 },
-                assigned_contributor: slot.crew_member
+                assigned_crew: slot.crew
                     ? {
-                        id: slot.crew_member.id,
-                        name: `${slot.crew_member.contact.first_name} ${slot.crew_member.contact.last_name}`.trim(),
-                        email: slot.crew_member.contact.email,
+                        id: slot.crew.id,
+                        name: `${slot.crew.contact.first_name} ${slot.crew.contact.last_name}`.trim(),
+                        email: slot.crew.contact.email,
                     }
                     : null,
-                status: !slot.crew_member_id ? 'unassigned' : hasConflict ? 'conflict' : 'available',
+                status: !slot.crew_id ? 'unassigned' : hasConflict ? 'conflict' : 'available',
                 has_conflict: hasConflict,
-                conflict_reason: !slot.crew_member_id
-                    ? 'No contributor assigned'
+                conflict_reason: !slot.crew_id
+                    ? 'No crew assigned'
                     : conflicts.length > 0
-                    ? 'Contributor has an overlapping booking'
+                    ? 'Crew has an overlapping booking'
                     : null,
                 conflicts,
                 alternatives,
@@ -99,21 +99,21 @@ export class InquiryCrewAvailabilityService {
         });
         let count = 0;
         for (const slot of slots) {
-            if (!slot.crew_member_id) {
+            if (!slot.crew_id) {
                 count++;
             } else {
                 const timeRange = getEventDayTimeRange(slot.project_event_day);
-                const conflicts = await this.findContributorConflicts(slot.crew_member_id, inquiryId, timeRange);
+                const conflicts = await this.findCrewConflicts(slot.crew_id, inquiryId, timeRange);
                 if (conflicts.length > 0) count++;
             }
         }
         return count;
     }
 
-    private async findContributorConflicts(contributorId: number, inquiryId: number, currentRange: TimeRange) {
+    private async findCrewConflicts(crewId: number, inquiryId: number, currentRange: TimeRange) {
         const bookings = await this.prisma.projectCrewSlot.findMany({
             where: {
-                crew_member_id: contributorId,
+                crew_id: crewId,
                 NOT: { inquiry_id: inquiryId },
                 OR: [
                     { project_id: { not: null }, project: { archived_at: null } },
@@ -143,20 +143,20 @@ export class InquiryCrewAvailabilityService {
             }));
     }
 
-    private async findAvailableContributors(
+    private async findAvailableCrew(
         jobRoleId: number,
         inquiryId: number,
         currentRange: TimeRange,
         brandId: number,
-        currentContributorId?: number,
+        currentCrewId?: number,
     ) {
-        const candidates = await this.prisma.crewMemberJobRole.findMany({
+        const candidates = await this.prisma.crewJobRole.findMany({
             where: {
                 job_role_id: jobRoleId,
-                crew_member: { contact: { archived_at: null, brand_id: brandId } },
+                crew: { contact: { archived_at: null, brand_id: brandId } },
             },
             include: {
-                crew_member: {
+                crew: {
                     include: {
                         contact: { select: { first_name: true, last_name: true, email: true } },
                     },
@@ -165,12 +165,12 @@ export class InquiryCrewAvailabilityService {
         });
 
         return Promise.all(candidates.map(async (c) => {
-            const conflicts = await this.findContributorConflicts(c.crew_member_id, inquiryId, currentRange);
+            const conflicts = await this.findCrewConflicts(c.crew_id, inquiryId, currentRange);
             return {
-                id: c.crew_member.id,
-                name: `${c.crew_member.contact.first_name} ${c.crew_member.contact.last_name}`.trim(),
-                email: c.crew_member.contact.email,
-                is_current: c.crew_member.id === currentContributorId,
+                id: c.crew.id,
+                name: `${c.crew.contact.first_name} ${c.crew.contact.last_name}`.trim(),
+                email: c.crew.contact.email,
+                is_current: c.crew.id === currentCrewId,
                 conflicts,
             };
         }));

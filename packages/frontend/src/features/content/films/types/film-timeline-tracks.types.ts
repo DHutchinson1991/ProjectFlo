@@ -5,8 +5,8 @@
 
 export type TrackType = 'VIDEO' | 'AUDIO' | 'GRAPHICS' | 'MUSIC';
 
-/** Operator/crew info included with track responses */
-export interface TrackOperator {
+/** Crew info included with track responses */
+export interface TrackCrewSlot {
   id: number;
   crew_color?: string | null;
   contact: {
@@ -23,8 +23,8 @@ export interface TimelineTrack {
   order_index: number;
   is_active: boolean;
   is_unmanned: boolean;
-  crew_member_id: number | null;
-  crew_member: TrackOperator | null;
+  crew_id: number | null;
+  crew: TrackCrewSlot | null;
   created_at: string;
   updated_at: string;
 }
@@ -38,7 +38,7 @@ export interface UpdateTrackDto {
   order_index?: number;
   is_active?: boolean;
   is_unmanned?: boolean;
-  crew_member_id?: number | null;
+  crew_id?: number | null;
 }
 
 export interface ReorderTracksDto {

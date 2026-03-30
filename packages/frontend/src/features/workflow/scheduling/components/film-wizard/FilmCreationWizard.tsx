@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -8,6 +8,7 @@ import {
   DialogActions,
   Typography,
   Button,
+  TextField,
   Box,
   CircularProgress,
   Stack,
@@ -112,7 +113,7 @@ interface FilmCreationWizardProps {
   packageName?: string;
   onFilmCreated: (result: CreatedFilmResult) => void;
   instanceOwner?: InstanceOwner;
-  externalOperators?: Record<string, unknown>[];
+  externalCrewSlots?: Record<string, unknown>[];
 }
 
 // ─── Wizard Steps Config ─────────────────────────────────────────────
@@ -125,7 +126,8 @@ type WizardStepId =
   | 'structure'
   | 'scene-assignment'
   | 'audio'
-  | 'duration-review';
+  | 'duration-review'
+  | 'name';
 
 interface StepConfig {
   id: WizardStepId;
@@ -142,6 +144,7 @@ const ALL_STEPS: StepConfig[] = [
   { id: 'scene-assignment', label: 'Scene Assignment', appliesTo: (t) => t === FilmType.MONTAGE },
   { id: 'audio', label: 'Audio Sources', appliesTo: (t) => t === FilmType.MONTAGE },
   { id: 'duration-review', label: 'Review', appliesTo: (t) => t === FilmType.MONTAGE },
+  { id: 'name', label: 'Name', appliesTo: () => true },
 ];
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -154,7 +157,7 @@ export function FilmCreationWizard({
   packageName,
   onFilmCreated,
   instanceOwner,
-  externalOperators,
+  externalCrewSlots,
 }: FilmCreationWizardProps) {
   const { currentBrand } = useBrand();
 
@@ -194,7 +197,7 @@ export function FilmCreationWizard({
     const result = (() => {
       switch (currentStep.id) {
         case 'film-type':
-          return filmName.trim().length > 0;
+          return true;
         case 'preset':
           return selectedPreset !== null;
         case 'activities':
@@ -211,12 +214,14 @@ export function FilmCreationWizard({
           return true; // optional audio
         case 'duration-review':
           return true;
+        case 'name':
+          return true;
         default:
           return false;
       }
     })();
     return result;
-  }, [currentStep, filmName, selectedPreset, selectedActivityIds, filmType, selectedTemplate]);
+  }, [currentStep, selectedPreset, selectedActivityIds, filmType, selectedTemplate]);
 
   const isLastStep = activeStepIndex === visibleSteps.length - 1;
 
@@ -248,6 +253,27 @@ export function FilmCreationWizard({
     setActiveStepIndex(prev => Math.max(prev - 1, 0));
   }, []);
 
+  // Auto-populate film name when reaching the name step
+  useEffect(() => {
+    if (currentStep?.id !== 'name') return;
+    if (filmName.trim()) return; // don't overwrite if user already typed something
+
+    const typeLabel =
+      filmType === FilmType.ACTIVITY ? 'Activity Film' :
+      filmType === FilmType.FEATURE  ? 'Feature Film'  :
+      'Montage Film';
+
+    const base =
+      selectedPreset?.name
+        ? `${packageName || 'Package'} — ${selectedPreset.name}`
+        : packageName
+          ? `${packageName} ${typeLabel}`
+          : typeLabel;
+
+    setFilmName(base);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep?.id]);
+
   // When film type changes, reset dependent state and jump to step 0
   const handleFilmTypeChange = useCallback((newType: FilmType) => {
     setFilmType(newType);
@@ -261,7 +287,8 @@ export function FilmCreationWizard({
     setCombinedMontageStyle(MontageStyle.HIGHLIGHTS);
     setCombinedMontageDuration(120);
     setSceneOrder([]);
-    // Don't reset activities or name — those can carry over
+    setFilmName(''); // clear so auto-populate re-runs when reaching the name step
+    // Activities carry over across type changes
   }, []);
 
   // ─── Scenes from template (for assignment/audio/review steps) ─────
@@ -296,8 +323,8 @@ export function FilmCreationWizard({
       try {
         const seenCameraIds = new Set<number>();
         const seenAudioIds = new Set<number>();
-        const operators = externalOperators ?? (packageId ? await crewSlotsApi.packageDay.getAll(packageId) : []);
-        (operators || []).forEach((op: Record<string, unknown>) => {
+        const crewSlots = externalCrewSlots ?? (packageId ? await crewSlotsApi.packageDay.getAll(packageId) : []);
+        (crewSlots || []).forEach((op: Record<string, unknown>) => {
           ((op.equipment as Record<string, unknown>[]) || []).forEach((eq: Record<string, unknown>) => {
             const eqInner = eq.equipment as Record<string, unknown> | undefined;
             const cat = ((eqInner?.category as string) || '').toUpperCase();
@@ -716,10 +743,7 @@ export function FilmCreationWizard({
         return (
           <FilmTypeStep
             filmType={filmType}
-            filmName={filmName}
-            packageName={packageName}
             onFilmTypeChange={handleFilmTypeChange}
-            onFilmNameChange={setFilmName}
             disabled={isCreating}
           />
         );
@@ -817,6 +841,36 @@ export function FilmCreationWizard({
             durationOverrides={durationOverrides}
             onDurationOverridesChange={setDurationOverrides}
           />
+        );
+      case 'name':
+        return (
+          <Box>
+            <Typography
+              variant="caption"
+              sx={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.65rem', mb: 0.5, display: 'block' }}
+            >
+              Film Name
+            </Typography>
+            <TextField
+              size="small"
+              fullWidth
+              autoFocus
+              value={filmName}
+              onChange={(e) => setFilmName(e.target.value)}
+              placeholder={`${packageName || 'Package'} Film`}
+              disabled={isCreating}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: 'rgba(255,255,255,0.03)',
+                  '& fieldset': { borderColor: 'rgba(52, 58, 68, 0.4)' },
+                  '&:hover fieldset': { borderColor: 'rgba(100, 140, 255, 0.3)' },
+                  '&.Mui-focused fieldset': { borderColor: '#648CFF' },
+                },
+                '& .MuiInputBase-input': { color: '#f1f5f9', fontSize: '0.85rem' },
+                '& .MuiInputBase-input::placeholder': { color: '#475569' },
+              }}
+            />
+          </Box>
         );
       default:
         return null;

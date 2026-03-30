@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 
 export class AssignBracketDto {
   @IsInt()
-  crew_member_id: number;
+  crew_id: number;
 
   @IsInt()
   job_role_id: number;

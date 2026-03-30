@@ -33,8 +33,8 @@ function createInquiryScheduleSnapshotApi(client: ApiClient) {
             client.get<unknown[]>(`/api/inquiries/${inquiryId}/schedule-snapshot/event-days`),
         getActivities: (inquiryId: number) =>
             client.get<unknown[]>(`/api/inquiries/${inquiryId}/schedule-snapshot/activities`),
-        getOperators: (inquiryId: number) =>
-            client.get<unknown[]>(`/api/inquiries/${inquiryId}/schedule-snapshot/operators`),
+        getCrewSlots: (inquiryId: number) =>
+            client.get<unknown[]>(`/api/inquiries/${inquiryId}/schedule-snapshot/crew-slots`),
         getSubjects: (inquiryId: number) =>
             client.get<unknown[]>(`/api/inquiries/${inquiryId}/schedule-snapshot/subjects`),
         getLocations: (inquiryId: number) =>
@@ -76,7 +76,7 @@ export function createInquiriesApi(client: ApiClient) {
             client.get<InquiryAvailabilityResponse<InquiryEquipmentAvailabilityRow>>(
                 `/api/inquiries/${inquiryId}/equipment-availability`
             ),
-        sendAvailabilityRequest: (inquiryId: number, data: { crew_member_id: number; project_crew_slot_id?: number }) =>
+        sendAvailabilityRequest: (inquiryId: number, data: { crew_id: number; project_crew_slot_id?: number }) =>
             client.post<{ id: number; status: string }>(`/api/inquiries/${inquiryId}/availability-requests`, data),
         updateAvailabilityRequest: (
             inquiryId: number,

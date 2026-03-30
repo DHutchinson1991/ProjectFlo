@@ -35,18 +35,23 @@
 - **Never use `isBackground: true`** for commands that will finish on their own (typecheck, test, lint, prisma generate). Only use background for intentionally persistent processes (which agents should NOT start anyway).
 
 ### Zero-process alternatives (USE THESE FIRST)
-- **Type errors:** Use `get_errors` tool — queries VS Code language server in-process, zero Node processes. **NEVER run `pnpm typecheck`, `tsc`, or `pnpm build` just to find errors.**
-- **File contents:** Use `read_file` / `grep_search` / `semantic_search` — never `cat`, `grep`, or `find` in terminal.
-- **File existence:** Use `file_search` — never `ls`, `dir`, or `test -f` in terminal.
-- **Linting:** Use `get_errors` — never `pnpm lint` from terminal.
+- **Type errors:** `get_errors` tool — zero Node processes. Never run `pnpm typecheck`, `tsc`, or `pnpm build` for this.
+- **File contents:** `read_file` / `grep_search` / `semantic_search` — never `cat`, `grep`, or `find` in terminal.
+- **File existence:** `file_search` — never `ls`/`dir`/`test -f` in terminal.
+- **Linting:** `get_errors` — never `pnpm lint` from terminal.
+
+### CLI search tools (count toward terminal budget)
+`rg` (text search), `fd` (file finder), `jq` (JSON), `bat` (file viewer), `sd` (find-and-replace, use for bulk renames >5 files), `delta` (git diffs). Prefer VS Code tools first. See `Commands.instructions.md` § "Search & CLI Tools" for examples.
 
 ### When terminal IS required
 Only these operations genuinely need the terminal: `pnpm db:generate`, `pnpm db:push`, `pnpm db:migrate` (or `cd packages/backend && npx prisma migrate dev --name "..."` for named migrations), `pnpm test` (when user asks to run tests), `pnpm install`, installing packages.
 
+**For `pnpm db:*` commands:** always set `timeout: 60000` in `run_in_terminal`. Without a timeout the agent terminal hangs at "Preparing" indefinitely. If it times out, retry once — do not ask the user to run it manually.
+
 ### Process monitoring
-- **After ANY terminal command,** run `tasklist | findstr /I node | wc -l` appended with `&&` to the same command. If count >8, run `taskkill /F /IM node.exe` and warn the user to restart their dev server.
-- **Never use `find`** in Git Bash for counting — it resolves to Unix `find` (recursive file lister) instead of Windows `find.exe`, flooding the terminal with thousands of file paths.
-- If your task needs no terminal at all, don't use it — this is the ideal case.
+- Trust the 3-command budget — it is sufficient. **Do not chain process-count checks onto terminal commands.**
+- If you suspect runaway processes, run this as a standalone command (counts as 1 toward budget): `powershell -NoProfile -Command "(Get-Process node -EA 0).Count"`. If >8, run `taskkill /F /IM node.exe` and warn the user.
+- If your task needs no terminal at all, don't use it.
 
 ## Fast task map
 - Auth/session bugs → `packages/frontend/src/app/providers/AuthProvider.tsx` + `packages/backend/src/platform/auth/`
@@ -64,14 +69,10 @@ Only these operations genuinely need the terminal: `pnpm db:generate`, `pnpm db:
 - Frontend code lives in `features/<bucket>/<feature>/` (domain) or `shared/` (cross-domain primitives). `src/lib/types/` is legacy-frozen — do not add to it. `src/lib/api.ts` has been deleted; all endpoint bindings now live in feature `api/` folders.
 - Auth is JWT-based with refresh flow. Backend: `src/platform/auth/`. Frontend: `app/providers/AuthProvider.tsx` (migration to `features/platform/auth/` pending). Note: `BrandProvider` migration IS complete — actual code at `features/platform/brand/`, shim remains at `app/providers/BrandProvider.tsx`. Always import brand from `@/features/platform/brand`.
 
-## Finding errors fast (never run `pnpm build` just to find errors)
-- **Fastest (instant):** Use `get_errors` tool on a folder path — queries VS Code language server directly, no compile needed.
-- **Frontend type errors:** `pnpm typecheck:frontend` — incremental `tsc --noEmit`, uses cache, much faster than build.
-- **Backend type errors:** `pnpm typecheck:backend` — `tsc --noEmit` on NestJS source.
-- **Both + lint in one shot:** `pnpm check` — typecheck + ESLint across both packages.
-- **Scoped to one feature:** `pnpm typecheck:frontend 2>&1 | grep "src/features/<name>"` or pass the folder to `get_errors`.
-- **Never** run `pnpm build` or `nest build` solely to find type errors — it's 10-30x slower for no benefit.
-- **Never** run `pnpm typecheck`, `tsc`, or `pnpm build` just to find errors — use `get_errors` tool instead (zero Node processes spawned).
+## Finding errors fast
+- **Always use `get_errors` tool first** — zero Node processes, instant results.
+- Only fall back to terminal if `get_errors` is insufficient: `pnpm check` (both), `pnpm check:frontend`, `pnpm check:backend`.
+- Never run `pnpm build` or `tsc` just to find errors.
 
 ## Critical workflows
 - Root commands: `pnpm dev` (both apps), `pnpm build`, `pnpm test`, `pnpm lint`, `pnpm format`, `pnpm check`.

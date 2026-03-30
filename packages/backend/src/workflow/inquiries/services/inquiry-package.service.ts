@@ -67,10 +67,10 @@ export class InquiryPackageService {
         const guestCount = parseGuestCountMidpoint(inquiry?.guest_count) ?? undefined;
         const pkg = await tx.service_packages.findUnique({
             where: { id: newPackageId },
-            select: { id: true, name: true, base_price: true, currency: true, contents: true },
+            select: { id: true, name: true, currency: true, contents: true },
         });
         const packageContentsSnapshot = pkg
-            ? { snapshot_taken_at: new Date().toISOString(), package_id: pkg.id, package_name: pkg.name, base_price: pkg.base_price ? Number(pkg.base_price) : 0, currency: pkg.currency ?? DEFAULT_CURRENCY, contents: pkg.contents }
+            ? { snapshot_taken_at: new Date().toISOString(), package_id: pkg.id, package_name: pkg.name, currency: pkg.currency ?? DEFAULT_CURRENCY, contents: pkg.contents }
             : null;
         await tx.inquiries.update({
             where: { id: inquiryId },

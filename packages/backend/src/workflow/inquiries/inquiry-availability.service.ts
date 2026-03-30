@@ -24,7 +24,7 @@ export class InquiryAvailabilityService {
             where: { inquiry_id: inquiryId },
             include: {
                 job_role: { select: { id: true, name: true, display_name: true, on_site: true } },
-                crew_member: {
+                crew: {
                     include: {
                         contact: { select: { first_name: true, last_name: true, email: true } },
                     },
@@ -39,14 +39,14 @@ export class InquiryAvailabilityService {
         const rows = await Promise.all(slots.map(async (slot) => {
             const isOnSite = slot.job_role?.on_site ?? false;
             const timeRange = this.getEventDayTimeRange(slot.project_event_day);
-            const conflicts = slot.crew_member_id
-                ? await this.findContributorConflicts(slot.crew_member_id, inquiryId, timeRange)
+            const conflicts = slot.crew_id
+                ? await this.findCrewConflicts(slot.crew_id, inquiryId, timeRange)
                 : [];
             const alternatives = slot.job_role_id
-                ? await this.findAvailableContributors(slot.job_role_id, inquiryId, timeRange, brandId, slot.crew_member_id ?? undefined)
+                ? await this.findAvailableCrew(slot.job_role_id, inquiryId, timeRange, brandId, slot.crew_id ?? undefined)
                 : [];
 
-            const hasConflict = conflicts.length > 0 || !slot.crew_member_id;
+            const hasConflict = conflicts.length > 0 || !slot.crew_id;
 
             return {
                 id: slot.id,
@@ -60,16 +60,16 @@ export class InquiryAvailabilityService {
                     start_time: slot.project_event_day.start_time,
                     end_time: slot.project_event_day.end_time,
                 },
-                assigned_contributor: slot.crew_member
+                assigned_crew: slot.crew
                     ? {
-                        id: slot.crew_member.id,
-                        name: `${slot.crew_member.contact.first_name} ${slot.crew_member.contact.last_name}`.trim(),
-                        email: slot.crew_member.contact.email,
+                        id: slot.crew.id,
+                        name: `${slot.crew.contact.first_name} ${slot.crew.contact.last_name}`.trim(),
+                        email: slot.crew.contact.email,
                     }
                     : null,
-                status: !slot.crew_member_id ? 'unassigned' : hasConflict ? 'conflict' : 'available',
+                status: !slot.crew_id ? 'unassigned' : hasConflict ? 'conflict' : 'available',
                 has_conflict: hasConflict,
-                conflict_reason: !slot.crew_member_id ? 'No contributor assigned' : conflicts.length > 0 ? 'Contributor has an overlapping booking' : null,
+                conflict_reason: !slot.crew_id ? 'No crew assigned' : conflicts.length > 0 ? 'Crew has an overlapping booking' : null,
                 conflicts,
                 alternatives,
             };
@@ -159,7 +159,7 @@ export class InquiryAvailabilityService {
 
             return {
                 id: assignment.id,
-                operator_id: assignment.project_crew_slot_id,
+                crew_slot_id: assignment.project_crew_slot_id,
                 is_primary: assignment.is_primary,
                 equipment: {
                     id: assignment.equipment.id,
@@ -180,7 +180,7 @@ export class InquiryAvailabilityService {
                           }
                         : null,
                 },
-                operator: {
+                crew_slot: {
                     id: assignment.project_crew_slot.id,
                     label: assignment.project_crew_slot.label,
                     job_role: assignment.project_crew_slot.job_role,
@@ -237,11 +237,11 @@ export class InquiryAvailabilityService {
         });
         let crewConflicts = 0;
         for (const slot of crewSlots) {
-            if (!slot.crew_member_id) {
+            if (!slot.crew_id) {
                 crewConflicts++;
             } else {
                 const timeRange = this.getEventDayTimeRange(slot.project_event_day);
-                const conflicts = await this.findContributorConflicts(slot.crew_member_id, inquiryId, timeRange);
+                const conflicts = await this.findCrewConflicts(slot.crew_id, inquiryId, timeRange);
                 if (conflicts.length > 0) crewConflicts++;
             }
         }
@@ -302,10 +302,10 @@ export class InquiryAvailabilityService {
         return left.toISOString().slice(0, 10) === right.toISOString().slice(0, 10);
     }
 
-    private async findContributorConflicts(contributorId: number, inquiryId: number, currentRange: TimeRange) {
+    private async findCrewConflicts(crewId: number, inquiryId: number, currentRange: TimeRange) {
         const bookings = await this.prisma.projectCrewSlot.findMany({
             where: {
-                crew_member_id: contributorId,
+                crew_id: crewId,
                 NOT: { inquiry_id: inquiryId },
                 OR: [
                     {
@@ -354,22 +354,22 @@ export class InquiryAvailabilityService {
             }));
     }
 
-    private async findAvailableContributors(
+    private async findAvailableCrew(
         jobRoleId: number,
         inquiryId: number,
         currentRange: TimeRange,
         brandId: number,
-        currentContributorId?: number,
+        currentCrewId?: number,
     ) {
-        const candidates = await this.prisma.crewMemberJobRole.findMany({
+        const candidates = await this.prisma.crewJobRole.findMany({
             where: {
                 job_role_id: jobRoleId,
-                crew_member: {
+                crew: {
                     contact: { archived_at: null, brand_id: brandId },
                 },
             },
             include: {
-                crew_member: {
+                crew: {
                     include: {
                         contact: { select: { first_name: true, last_name: true, email: true } },
                     },
@@ -378,12 +378,12 @@ export class InquiryAvailabilityService {
         });
 
         return Promise.all(candidates.map(async (candidate) => {
-            const conflicts = await this.findContributorConflicts(candidate.crew_member_id, inquiryId, currentRange);
+            const conflicts = await this.findCrewConflicts(candidate.crew_id, inquiryId, currentRange);
             return {
-                id: candidate.crew_member.id,
-                name: `${candidate.crew_member.contact.first_name} ${candidate.crew_member.contact.last_name}`.trim(),
-                email: candidate.crew_member.contact.email,
-                is_current: candidate.crew_member.id === currentContributorId,
+                id: candidate.crew.id,
+                name: `${candidate.crew.contact.first_name} ${candidate.crew.contact.last_name}`.trim(),
+                email: candidate.crew.contact.email,
+                is_current: candidate.crew.id === currentCrewId,
                 conflicts,
             };
         }));

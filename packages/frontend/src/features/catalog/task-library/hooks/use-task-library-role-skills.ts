@@ -47,24 +47,24 @@ export function useTaskLibraryRoleSkills({ setTasksByPhase, setError, jobRoles, 
                 r.default_job_role = data.default_job_role_id ? (jobRoles.find(jr => jr.id === data.default_job_role_id) ?? null) : null;
             }
             if (data.skills_needed !== undefined) r.skills_needed = data.skills_needed;
-            if (updated) { r.default_crew_member_id = updated.default_crew_member_id ?? null; r.default_crew_member = updated.default_crew_member ?? null; }
+            if (updated) { r.default_crew_id = updated.default_crew_id ?? null; r.default_crew = updated.default_crew ?? null; }
             return r;
         }));
     };
 
-    const handleUpdateContributor = async (taskId: number, crewMemberId: number | null) => {
+    const handleUpdateCrew = async (taskId: number, crewId: number | null) => {
         try {
-            const updated = await taskLibraryApi.update(taskId, { default_crew_member_id: crewMemberId as number });
-            const newId = updated?.default_crew_member_id ?? crewMemberId;
-            const newContrib = updated?.default_crew_member ?? null;
+            const updated = await taskLibraryApi.update(taskId, { default_crew_id: crewId as number });
+            const newId = updated?.default_crew_id ?? crewId;
+            const newContrib = updated?.default_crew ?? null;
             setTasksByPhase(prev => applyTaskUpdate(prev, taskId, t => ({
-                ...t, default_crew_member_id: newId, default_crew_member: newContrib,
+                ...t, default_crew_id: newId, default_crew: newContrib,
             })));
         } catch (err) {
-            console.error('Failed to update crew member:', err);
-            setError('Failed to save crew member assignment.');
+            console.error('Failed to update crew:', err);
+            setError('Failed to save crew assignment.');
         }
     };
 
-    return { handleUpdateRoleSkills, handleUpdateContributor };
+    return { handleUpdateRoleSkills, handleUpdateCrew };
 }

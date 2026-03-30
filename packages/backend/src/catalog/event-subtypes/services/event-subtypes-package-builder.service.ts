@@ -102,6 +102,8 @@ export class EventSubtypesPackageBuilderService {
     }
 
     // 6. Create activities from event subtype activities
+    const createdActivityIds: { id: number; name: string }[] = [];
+
     for (const activity of eventSubtype.activities) {
       const calculatedStartTime = this.calculateTimeFromOffset(
         eventSubtype.event_start_time,
@@ -121,6 +123,7 @@ export class EventSubtypesPackageBuilderService {
           order_index: activity.order_index,
         },
       });
+      createdActivityIds.push({ id: packageActivity.id, name: activity.name });
 
       // 6a. Link subjects specifically to this activity
       for (const activitySubject of activity.activity_subjects) {
@@ -161,6 +164,38 @@ export class EventSubtypesPackageBuilderService {
           },
         });
       }
+    }
+
+    // 6c. Post-process: auto-assign subjects to ceremony/reception activities
+    //     (mirrors the rule in SchedulePackageActivityService)
+    const allSubjectIds = Array.from(subjectMap.values());
+    if (allSubjectIds.length > 0) {
+      for (const { id: activityId, name } of createdActivityIds) {
+        const n = name.toLowerCase();
+        if (n.includes('ceremony') || n.includes('reception')) {
+          await this.prisma.packageDaySubjectActivity.createMany({
+            data: allSubjectIds.map((sid) => ({
+              package_day_subject_id: sid,
+              package_activity_id: activityId,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+    }
+
+    // 6d. Post-process: if exactly one location slot was created, auto-assign it
+    //     to all activities (mirrors the rule in SchedulePackageResourceService)
+    const allLocationSlotIds = Array.from(locationSlotMap.values());
+    if (allLocationSlotIds.length === 1) {
+      const slotId = allLocationSlotIds[0];
+      await this.prisma.locationActivityAssignment.createMany({
+        data: createdActivityIds.map((a) => ({
+          package_location_slot_id: slotId,
+          package_activity_id: a.id,
+        })),
+        skipDuplicates: true,
+      });
     }
 
     // 8. Return the created package with relationships

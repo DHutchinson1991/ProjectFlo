@@ -43,7 +43,7 @@ const ProposalReviewCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, i
                 ...meetingData,
                 event_type: 'PROPOSAL_REVIEW',
                 inquiry_id: inquiry.id,
-                crew_member_id: user?.id || 1,
+                crew_id: user?.id || 1,
             }),
         onSuccess: invalidateMeetings,
     });

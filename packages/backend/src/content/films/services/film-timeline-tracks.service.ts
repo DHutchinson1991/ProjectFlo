@@ -19,7 +19,7 @@ export class FilmTimelineTracksService {
       where: { film_id: filmId, ...(activeOnly ? { is_active: true } : {}) },
       orderBy: { order_index: 'asc' },
       include: {
-        crew_member: {
+        crew: {
           select: {
             id: true,
             crew_color: true,
@@ -37,7 +37,7 @@ export class FilmTimelineTracksService {
     const track = await this.prisma.filmTimelineTrack.findUnique({
       where: { id: trackId },
       include: {
-        crew_member: {
+        crew: {
           select: {
             id: true,
             crew_color: true,
@@ -60,7 +60,7 @@ export class FilmTimelineTracksService {
   async updateTrack(
     filmId: number,
     trackId: number,
-    data: { name?: string; is_active?: boolean; crew_member_id?: number | null; is_unmanned?: boolean },
+    data: { name?: string; is_active?: boolean; crew_id?: number | null; is_unmanned?: boolean },
   ) {
     const track = await this.prisma.filmTimelineTrack.findFirst({
       where: { id: trackId, film_id: filmId },
@@ -76,7 +76,7 @@ export class FilmTimelineTracksService {
         updated_at: new Date(),
       },
       include: {
-        crew_member: {
+        crew: {
           select: {
             id: true,
             crew_color: true,

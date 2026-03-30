@@ -56,14 +56,14 @@ export default function PackagesScreen({ ctx }: { ctx: NACtx }) {
                         const itemsTotal = (pkg.contents?.items ?? []).reduce((s: number, it: { price?: number }) => s + (it.price ?? 0), 0);
                         const backendTax = epkg._tax;
                         const totalCost = backendTax?.totalWithTax ?? Number(epkg._totalCost ?? 0);
-                        const price = totalCost > 0 ? totalCost : (Number(pkg.base_price) || itemsTotal || 0);
+                        const price = totalCost > 0 ? totalCost : (itemsTotal || 0);
                         const overBudget = budgetMax !== null && price > budgetMax;
                         const tier = slotLabels.get(pkg.id);
                         const items = pkg.contents?.items ?? [];
                         const hours = pkg.contents?.coverage_hours;
                         const cameras = pkg.contents?.equipment_counts?.cameras ?? 0;
                         const audio = pkg.contents?.equipment_counts?.audio ?? 0;
-                        const operators = cameras > 0 ? Math.ceil(cameras / Math.max(1, maxCamerasPerOp || 1)) : 0;
+                        const crewCount = cameras > 0 ? Math.ceil(cameras / Math.max(1, maxCamerasPerOp || 1)) : 0;
                         const filmItems = items.filter((it: ServicePackageItem) => it.type === "film");
                         const serviceItems = items.filter((it: ServicePackageItem) => it.type === "service");
                         const hasTypedItems = filmItems.length > 0 || serviceItems.length > 0;
@@ -103,14 +103,14 @@ export default function PackagesScreen({ ctx }: { ctx: NACtx }) {
                                     {/* Package name */}
                                     <Typography sx={{ color: C.text, fontSize: "1.05rem", fontWeight: 600, lineHeight: 1.3, mb: 1.5 }}>{pkg.name}</Typography>
 
-                                    {/* Stat chips: cameras · operators · audio · hours */}
+                                    {/* Stat chips: cameras · crew · audio · hours */}
                                     {(cameras > 0 || audio > 0 || hours) && (
                                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.7, mb: 2 }}>
                                             {cameras > 0 && (
                                                 <StatChip icon={<CameraAltOutlinedIcon sx={{ fontSize: "0.8rem" }} />} label={`${cameras} Camera${cameras !== 1 ? "s" : ""}`} active={isSel} />
                                             )}
-                                            {operators > 0 && (
-                                                <StatChip icon={<PersonOutlineOutlinedIcon sx={{ fontSize: "0.8rem" }} />} label={`${operators} Operator${operators !== 1 ? "s" : ""}`} active={isSel} />
+                                            {crewCount > 0 && (
+                                                <StatChip icon={<PersonOutlineOutlinedIcon sx={{ fontSize: "0.8rem" }} />} label={`${crewCount} Crew${crewCount !== 1 ? " Slots" : " Slot"}`} active={isSel} />
                                             )}
                                             {audio > 0 && (
                                                 <StatChip icon={<MicNoneOutlinedIcon sx={{ fontSize: "0.8rem" }} />} label={`${audio} Audio`} active={isSel} />
@@ -192,7 +192,7 @@ export default function PackagesScreen({ ctx }: { ctx: NACtx }) {
                                             fontSize: "1.7rem", fontWeight: 700, lineHeight: 1,
                                             background: `linear-gradient(135deg, ${C.gradient1}, ${C.gradient2})`,
                                             backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-                                        }}>{formatCurrency(Number(price), currency, 0)}</Typography>
+                                        }}>{formatCurrency(Number(price), currency)}</Typography>
                                     </Box>
                                 </Box>
                             </Box>

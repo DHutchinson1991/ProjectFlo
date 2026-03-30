@@ -89,6 +89,11 @@ export class EventTypesPackageBuilderService {
       await this.dayContentBuilder.createSubjects(packageId, templateId, eventType.subject_roles, lookups.selectedRoleIdSet);
       await this.dayContentBuilder.createLocationSlots(packageId, templateId, dto.locationCount);
 
+      // Auto-assign subjects to ceremony/reception activities
+      await this.autoAssignSubjectsToActivities(packageId, templateId);
+      // Auto-assign single location slot to all activities
+      await this.autoAssignLocationSlot(packageId, templateId);
+
       const crewMap = await this.crewBuilder.createCrewAssignments(
         dto.crewAssignments, packageId, templateId,
       );
@@ -98,6 +103,62 @@ export class EventTypesPackageBuilderService {
     }
 
     return dayEquipmentContents;
+  }
+
+  /**
+   * Auto-assign all subjects to ceremony/reception activities.
+   * Only runs at creation time — matches activity names containing "ceremony" or "reception".
+   */
+  private async autoAssignSubjectsToActivities(packageId: number, eventDayTemplateId: number) {
+    const subjects = await this.prisma.packageDaySubject.findMany({
+      where: { package_id: packageId, event_day_template_id: eventDayTemplateId },
+      select: { id: true },
+    });
+    if (subjects.length === 0) return;
+
+    const activities = await this.prisma.packageActivity.findMany({
+      where: { package_id: packageId, package_event_day: { event_day_template_id: eventDayTemplateId } },
+      select: { id: true, name: true },
+    });
+
+    const subjectIds = subjects.map(s => s.id);
+    for (const act of activities) {
+      const n = act.name.toLowerCase();
+      if (n.includes('ceremony') || n.includes('reception')) {
+        await this.prisma.packageDaySubjectActivity.createMany({
+          data: subjectIds.map(sid => ({
+            package_day_subject_id: sid,
+            package_activity_id: act.id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+  }
+
+  /**
+   * If exactly one location slot exists for this day, auto-assign it to all activities.
+   * Only runs at creation time.
+   */
+  private async autoAssignLocationSlot(packageId: number, eventDayTemplateId: number) {
+    const slots = await this.prisma.packageLocationSlot.findMany({
+      where: { package_id: packageId, event_day_template_id: eventDayTemplateId },
+      select: { id: true },
+    });
+    if (slots.length !== 1) return;
+
+    const activities = await this.prisma.packageActivity.findMany({
+      where: { package_id: packageId, package_event_day: { event_day_template_id: eventDayTemplateId } },
+      select: { id: true },
+    });
+
+    await this.prisma.locationActivityAssignment.createMany({
+      data: activities.map(act => ({
+        package_location_slot_id: slots[0].id,
+        package_activity_id: act.id,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   private fetchFullPackage(packageId: number) {
@@ -122,7 +183,7 @@ export class EventTypesPackageBuilderService {
         package_crew_slots: {
           orderBy: { order_index: 'asc' },
           include: {
-            crew_member: { include: { contact: true } },
+            crew: { include: { contact: true } },
             job_role: true,
             equipment: { include: { equipment: true } },
           },

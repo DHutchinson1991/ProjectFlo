@@ -31,7 +31,7 @@ import { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquirie
 import { geocodeAddress } from '@/features/workflow/locations/api/geocoding.api';
 import { inquiriesApi } from '@/features/workflow/inquiries';
 import { useBrand } from '@/features/platform/brand';
-import { scheduleApi } from '@/features/workflow/scheduling/api';
+import { scheduleApi } from '@/features/workflow/scheduling/instance';
 import { humanize } from '../lib';
 import { useEventDetailsData } from '../hooks/useEventDetailsData';
 import AddressSearch, { type AddressSelection } from './AddressSearch';

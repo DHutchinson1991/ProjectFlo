@@ -23,10 +23,10 @@ export class ProjectSnapshotScheduleService {
                     orderBy: { order_index: 'asc' },
                     include: { moments: { orderBy: { order_index: 'asc' } } },
                 },
-                day_operators: {
+                day_crew_slots: {
                     orderBy: { order_index: 'asc' },
                     include: {
-                        crew_member: { include: { contact: { select: { id: true, first_name: true, last_name: true, email: true } } } },
+                        crew: { include: { contact: { select: { id: true, first_name: true, last_name: true, email: true } } } },
                         job_role: { select: { id: true, name: true, display_name: true, category: true } },
                         equipment: { include: { equipment: { select: { id: true, item_name: true, category: true, type: true, model: true, is_unmanned: true } } } },
                         activity_assignments: { include: { project_activity: { select: { id: true, name: true } } } },
@@ -56,7 +56,7 @@ export class ProjectSnapshotScheduleService {
                 package_activity: { select: { id: true, name: true } },
                 moments: { orderBy: { order_index: 'asc' } },
                 scene_schedules: { include: { scene: true, project_film: { include: { film: true } } } },
-                operator_assignments: { include: { project_crew_slot: { select: { id: true, label: true, crew_member_id: true, job_role: { select: { name: true, display_name: true } } } } } },
+                crew_slot_assignments: { include: { project_crew_slot: { select: { id: true, label: true, crew_id: true, job_role: { select: { name: true, display_name: true } } } } } },
                 subject_assignments: { include: { project_day_subject: { select: { id: true, name: true, real_name: true } } } },
                 location_assignments: { include: { project_location_slot: { select: { id: true, location_number: true, name: true } } } },
             },

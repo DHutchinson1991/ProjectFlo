@@ -17,6 +17,6 @@ export * from '../types/instance-owner.type';
 export * from './instance-activity-moment.dto';
 export * from './instance-event-day-subject.dto';
 export * from './instance-location-slot.dto';
-export * from './instance-day-operator.dto';
+export * from './instance-crew-slot.dto';
 export * from './package-activity.dto';
 export * from './package-activity-moment.dto';

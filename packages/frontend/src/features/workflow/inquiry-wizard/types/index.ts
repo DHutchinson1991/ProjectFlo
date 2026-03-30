@@ -64,7 +64,7 @@ export interface IwDateConflictResult {
 }
 
 export interface IwCrewConflictResult {
-    conflicts: { crew_member_id: number; name: string; role: string; event_type: string; event_title: string }[];
+    conflicts: { crew_id: number; name: string; role: string; event_type: string; event_title: string }[];
 }
 
 // Portal / public wizard types
@@ -89,7 +89,6 @@ export interface PublicPackageData {
     id: number;
     name: string;
     description?: string | null;
-    base_price?: string | number | null;
     price?: string | number | null;
     currency?: string;
     category?: string | null;
@@ -146,7 +145,7 @@ export type ScreenId =
     | "welcome" | "event_type" | "date" | "guests" | "partner"
     | "birthday_contact" | "venue" | "fork"
     | "budget" | "packages"
-    | "activities" | "coverage" | "deliverables" | "operators"
+    | "activities" | "coverage" | "deliverables" | "crew_slots"
     | "builder"
     | "payment_terms"
     | "special" | "source" | "call_offer" | "call_details"
@@ -196,7 +195,7 @@ export interface PriceEstimate {
     packageName: string;
     currency: string;
     equipment: { cameras: number; audio: number; totalItems: number; dailyCost: number; items: Array<{ name: string; category: string; dailyRate: number }> };
-    crew: { operatorCount: number; totalHours: number; totalCost: number; operators: Array<{ position: string; hours: number; rate: number; cost: number }> };
+    crew: { crewSlotCount: number; totalHours: number; totalCost: number; crewSlots: Array<{ position: string; hours: number; rate: number; cost: number }> };
     tasks: { totalTasks: number; totalHours: number; totalCost: number; byPhase: Record<string, { taskCount: number; hours: number; cost: number }> };
     summary: { equipmentCost: number; crewCost: number; subtotal: number };
 }

@@ -11,7 +11,7 @@ export type {
     InquiryTaskSubtask,
     InquiryTaskEvent,
     InquiryAvailabilityConflict,
-    InquiryAvailabilityAlternativeContributor,
+    InquiryAvailabilityAlternativeCrew,
     InquiryEquipmentAvailabilityAlternative,
 } from './inquiry';
 export { InquiryStatus, InquirySource } from './inquiry';
@@ -44,7 +44,7 @@ export interface InquiryScheduleSnapshotSummary {
     source_package_name: string | null;
     event_day_count: number;
     activity_count: number;
-    operator_count: number;
+    crew_slot_count: number;
     subject_count: number;
     location_slot_count: number;
     film_count: number;

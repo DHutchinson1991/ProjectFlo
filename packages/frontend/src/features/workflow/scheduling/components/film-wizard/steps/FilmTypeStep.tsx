@@ -4,7 +4,6 @@ import React from 'react';
 import {
   Typography,
   Box,
-  TextField,
   Stack,
 } from '@mui/material';
 import TheatersIcon from '@mui/icons-material/Theaters';
@@ -15,10 +14,7 @@ import { FilmType } from '@/features/content/films/types';
 
 interface FilmTypeStepProps {
   filmType: FilmType;
-  filmName: string;
-  packageName?: string;
   onFilmTypeChange: (type: FilmType) => void;
-  onFilmNameChange: (name: string) => void;
   disabled: boolean;
 }
 
@@ -54,43 +50,11 @@ const FILM_TYPE_OPTIONS: Array<{
 
 export function FilmTypeStep({
   filmType,
-  filmName,
-  packageName,
   onFilmTypeChange,
-  onFilmNameChange,
   disabled,
 }: FilmTypeStepProps) {
   return (
     <Stack spacing={2.5}>
-      {/* Film Name */}
-      <Box>
-        <Typography
-          variant="caption"
-          sx={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.65rem', mb: 0.5, display: 'block' }}
-        >
-          Film Name
-        </Typography>
-        <TextField
-          size="small"
-          fullWidth
-          autoFocus
-          value={filmName}
-          onChange={(e) => onFilmNameChange(e.target.value)}
-          placeholder={`${packageName || 'Package'} Film`}
-          disabled={disabled}
-          sx={{
-            '& .MuiOutlinedInput-root': {
-              bgcolor: 'rgba(255,255,255,0.03)',
-              '& fieldset': { borderColor: 'rgba(52, 58, 68, 0.4)' },
-              '&:hover fieldset': { borderColor: 'rgba(100, 140, 255, 0.3)' },
-              '&.Mui-focused fieldset': { borderColor: '#648CFF' },
-            },
-            '& .MuiInputBase-input': { color: '#f1f5f9', fontSize: '0.85rem' },
-            '& .MuiInputBase-input::placeholder': { color: '#475569' },
-          }}
-        />
-      </Box>
-
       {/* Film Type Selection */}
       <Box>
         <Typography

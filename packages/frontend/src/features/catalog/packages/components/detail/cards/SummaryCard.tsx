@@ -40,15 +40,14 @@ export function SummaryCard({
     const tax = computeTaxBreakdown(subtotal, taxRate ?? 0);
 
     return (
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2.5 }}>
-            <Box sx={{
-                ...(cardSx as object),
-                display: 'flex', alignItems: 'center', gap: 3,
-                px: 3, py: 2,
-                minWidth: 420,
-                background: 'linear-gradient(135deg, rgba(16, 18, 22, 0.9), rgba(16, 18, 22, 0.8))',
-                border: '1px solid rgba(245, 158, 11, 0.2)',
-            }}>
+        <Box sx={{
+            ...(cardSx as object),
+            display: 'flex', alignItems: 'center', gap: 3,
+            px: 3, py: 2,
+            minWidth: 420,
+            background: 'linear-gradient(135deg, rgba(16, 18, 22, 0.9), rgba(16, 18, 22, 0.8))',
+            border: '1px solid rgba(245, 158, 11, 0.2)',
+        }}>
                 {/* Crew cost */}
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -116,7 +115,6 @@ export function SummaryCard({
                         {formatCurrency(tax.total, currency)}
                     </Typography>
                 </Box>
-            </Box>
         </Box>
     );
 }

@@ -238,7 +238,7 @@ model SceneMusic {
 
 **How this helps:**
 - Videographers know which equipment to turn on/off when
-- Camera operators know what to film during each moment
+- Crew members know what to film during each moment
 - Audio team knows when their mics should be recording
 - You can verify all important moments have proper coverage
 

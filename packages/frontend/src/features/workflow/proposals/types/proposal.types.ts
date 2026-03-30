@@ -88,7 +88,6 @@ export interface PublicPackage {
   id: number;
   name: string;
   description: string | null;
-  base_price: string;
   currency: string;
   contents?: {
     items?: PublicPackageItem[];

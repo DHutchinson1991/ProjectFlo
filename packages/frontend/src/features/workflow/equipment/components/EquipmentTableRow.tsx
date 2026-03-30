@@ -20,7 +20,7 @@ import {
     EQUIPMENT_AVAILABILITY_COLORS,
     EQUIPMENT_CONDITION_COLORS,
 } from "../types/equipment.types";
-import type { CrewMember } from "@/shared/types/users";
+import type { Crew } from "@/shared/types/users";
 import { formatCurrency } from "@/features/workflow/proposals/utils/portal/formatting";
 
 import { EquipmentTableRowActions } from "./EquipmentTableRowActions";
@@ -35,7 +35,7 @@ interface EquipmentTableRowProps {
     saveInlineEdit: () => void;
     setEquipmentToDelete: (equipment: Equipment) => void;
     setDeleteConfirmOpen: (open: boolean) => void;
-    crewMembers: CrewMember[];
+    crew: Crew[];
     currencyCode: string;
 }
 
@@ -49,7 +49,7 @@ export function EquipmentTableRow({
     saveInlineEdit,
     setEquipmentToDelete,
     setDeleteConfirmOpen,
-    crewMembers,
+    crew,
     currencyCode,
 }: EquipmentTableRowProps) {
     const router = useRouter();
@@ -57,7 +57,7 @@ export function EquipmentTableRow({
 
     return (
         <TableRow
-            onClick={() => !isEditing && router.push(`/resources/equipment/${item.id}`)}
+            onClick={() => !isEditing && router.push(`/equipment/${item.id}`)}
             sx={{
                 cursor: isEditing ? "default" : "pointer",
                 "&:hover": { backgroundColor: "rgba(255,255,255,0.08)", transform: !isEditing ? "translateY(-1px)" : "none", transition: "all 0.2s ease-in-out" },
@@ -148,7 +148,7 @@ export function EquipmentTableRow({
                     <FormControl fullWidth size="small">
                         <Select value={displayData.owner_id ?? ""} onChange={(e) => updateInlineEditData("owner_id", e.target.value === "" ? null : Number(e.target.value))} displayEmpty>
                             <MenuItem value=""><em>None</em></MenuItem>
-                            {contributors.map((c) => <MenuItem key={c.id} value={c.id}>{c.full_name}</MenuItem>)}
+                            {crew.map((c) => <MenuItem key={c.id} value={c.id}>{c.full_name}</MenuItem>)}
                         </Select>
                     </FormControl>
                 ) : (

@@ -39,6 +39,8 @@ export interface StudioTableProps<T> {
   onRowHover?: (row: T | null, index: number) => void;
   /** Section colour — tints header icons and hover accent. Use sectionColors from tokens. */
   sectionColor?: string;
+  /** Override the left accent bar colour per row */
+  getRowAccentColor?: (row: T) => string;
   /** Extra sx on the root container */
   sx?: SxProps<Theme>;
   /** Shown when rows is empty */
@@ -58,6 +60,7 @@ export function StudioTable<T>({
   onRowClick,
   onRowHover,
   sectionColor = DEFAULT_SECTION,
+  getRowAccentColor,
   sx: rootSx,
   emptyMessage = "No items yet",
 }: StudioTableProps<T>) {
@@ -123,7 +126,9 @@ export function StudioTable<T>({
           </Typography>
         </Box>
       ) : (
-        rows.map((row, idx) => (
+        rows.map((row, idx) => {
+          const accentColor = getRowAccentColor ? getRowAccentColor(row) : sectionColor;
+          return (
           <Box
             key={getRowKey(row, idx)}
             onClick={onRowClick ? () => onRowClick(row, idx) : undefined}
@@ -136,12 +141,12 @@ export function StudioTable<T>({
               minHeight: 48,
               px: 1.5,
               borderBottom: "1px solid rgba(255,255,255,0.04)",
-              borderLeft: `3px solid ${sectionColor}`,
+              borderLeft: `3px solid ${accentColor}`,
               cursor: onRowClick ? "pointer" : "default",
               transition: "background-color 0.12s",
               "&:hover": {
                 bgcolor: onRowClick
-                  ? `${sectionColor}09`
+                  ? `${accentColor}15`
                   : "rgba(255,255,255,0.028)",
               },
               "&:last-child": { borderBottom: "none" },
@@ -168,7 +173,8 @@ export function StudioTable<T>({
               </Box>
             ))}
           </Box>
-        ))
+          );
+        })
       )}
     </Box>
   );

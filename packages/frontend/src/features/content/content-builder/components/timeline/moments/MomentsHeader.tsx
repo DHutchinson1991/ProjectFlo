@@ -232,7 +232,7 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
             <Box
                 onClick={packageId ? (e) => {
                     e.stopPropagation();
-                    router.push(`/designer/packages/${packageId}`);
+                    router.push(`/packages/${packageId}`);
                 } : undefined}
                 sx={{
                     flex: 'none',

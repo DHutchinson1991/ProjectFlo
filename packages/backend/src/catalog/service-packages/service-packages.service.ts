@@ -36,7 +36,7 @@ export class ServicePackagesService {
         },
         package_crew_slots: {
           select: {
-            crew_member_id: true,
+            crew_id: true,
             equipment: {
               select: { equipment: { select: { category: true } } },
             },
@@ -63,13 +63,13 @@ export class ServicePackagesService {
       guestCountMap.set(s.package_id, existing + (s.count ?? 0));
     }
 
-    // Compute counts from the lightweight operator data, then fetch pricing via PricingService
+    // Compute counts from the lightweight crew slot data, then fetch pricing via PricingService
     const baseMapped = packages.map(({ package_crew_slots, package_category, ...pkg }) => {
-      const uniqueOperators = new Set<number>();
+      const uniqueCrew = new Set<number>();
       let cameraCount = 0;
       let audioCount = 0;
       for (const op of package_crew_slots) {
-        if (op.crew_member_id) uniqueOperators.add(op.crew_member_id);
+        if (op.crew_id) uniqueCrew.add(op.crew_id);
         for (const eq of op.equipment) {
           if (eq.equipment.category === 'CAMERA') cameraCount++;
           else if (eq.equipment.category === 'AUDIO') audioCount++;
@@ -79,7 +79,7 @@ export class ServicePackagesService {
         ...pkg,
         category: package_category?.name ?? pkg.category ?? null,
         _equipmentCounts: { cameras: cameraCount, audio: audioCount },
-        _crewCount: uniqueOperators.size,
+        _crewCount: uniqueCrew.size,
         typical_guest_count: guestCountMap.get(pkg.id) ?? null,
       };
     });

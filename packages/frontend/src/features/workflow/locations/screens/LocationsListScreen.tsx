@@ -1,38 +1,35 @@
 'use client';
 
-import React, { useState, useMemo, lazy, Suspense } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+    Alert,
     Box,
     Button,
-    Typography,
     CircularProgress,
-    Alert,
-    TextField,
-    InputAdornment,
-    IconButton,
-    Select,
-    MenuItem,
     FormControl,
+    IconButton,
+    InputAdornment,
+    MenuItem,
     Paper,
+    Select,
+    TextField,
+    Typography,
 } from '@mui/material';
 import {
     Add as AddIcon,
-    LocationOn as LocationIcon,
-    Phone as PhoneIcon,
-    Email as EmailIcon,
-    People as PeopleIcon,
-    Search as SearchIcon,
     Close as CloseIcon,
+    LocationOn as LocationIcon,
+    Search as SearchIcon,
 } from '@mui/icons-material';
-import { StudioTable, type StudioColumn } from '@/shared/ui';
+import { StudioTable } from '@/shared/ui';
 import { sectionColors } from '@/shared/theme/tokens';
-import type { LocationsLibrary, CreateLocationRequest } from '../types';
+import type { LocationsLibrary, CreateLocationRequest, LocationCapacityFilter } from '../types';
 import { LocationCreateDialog } from '../components/LocationCreateDialog';
 import { LocationDetailPanel } from '../components/LocationDetailPanel';
 import { useLocationsList } from '../hooks';
+import { locationsColumns } from '../constants/locations-columns';
 
-// Leaflet is heavy — lazy-load the map
 const LocationsMap = lazy(() =>
     import('../components/LocationsMap').then((mod) => ({ default: mod.LocationsMap })),
 );
@@ -53,59 +50,24 @@ const EMPTY_FORM: CreateLocationRequest = {
 
 export function LocationsListScreen() {
     const router = useRouter();
-    const { locations, loading, isError, saveMutation } = useLocationsList();
+    const [searchQuery, setSearchQuery] = useState('');
+    const [cityFilter, setCityFilter] = useState('all');
+    const [capacityFilter, setCapacityFilter] = useState<LocationCapacityFilter>('all');
+
+    const { locations, loading, isError, saveMutation } = useLocationsList({
+        searchQuery,
+        cityFilter,
+        capacityFilter,
+    });
 
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingLocation, setEditingLocation] = useState<LocationsLibrary | null>(null);
     const [form, setForm] = useState<CreateLocationRequest>(EMPTY_FORM);
     const [hoveredId, setHoveredId] = useState<number | null>(null);
 
-    // ── Filter state ──────────────────────────────────────
-    const [searchQuery, setSearchQuery] = useState('');
-    const [cityFilter, setCityFilter] = useState('all');
-    const [capacityFilter, setCapacityFilter] = useState('all');
+    const cities = Array.from(new Set(locations.map((location) => location.city).filter(Boolean) as string[])).sort();
 
-    // ── Derived data ──────────────────────────────────────
-    const cities = useMemo(() => {
-        const set = new Set<string>();
-        locations.forEach((l) => { if (l.city) set.add(l.city); });
-        return Array.from(set).sort();
-    }, [locations]);
-
-    const filteredLocations = useMemo(() => {
-        let result = locations;
-
-        // Search
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            result = result.filter((l) =>
-                l.name.toLowerCase().includes(q) ||
-                l.city?.toLowerCase().includes(q) ||
-                l.state?.toLowerCase().includes(q) ||
-                l.contact_name?.toLowerCase().includes(q) ||
-                l.address_line1?.toLowerCase().includes(q) ||
-                l.postal_code?.toLowerCase().includes(q),
-            );
-        }
-
-        // City
-        if (cityFilter !== 'all') {
-            result = result.filter((l) => l.city === cityFilter);
-        }
-
-        // Capacity
-        if (capacityFilter === 'small') result = result.filter((l) => l.capacity && l.capacity < 100);
-        else if (capacityFilter === 'medium') result = result.filter((l) => l.capacity && l.capacity >= 100 && l.capacity <= 200);
-        else if (capacityFilter === 'large') result = result.filter((l) => l.capacity && l.capacity > 200);
-        else if (capacityFilter === 'unknown') result = result.filter((l) => !l.capacity);
-
-        return result;
-    }, [locations, searchQuery, cityFilter, capacityFilter]);
-
-    const hoveredLocation = useMemo(
-        () => (hoveredId ? filteredLocations.find((l) => l.id === hoveredId) ?? null : null),
-        [hoveredId, filteredLocations],
-    );
+    const hoveredLocation = hoveredId ? locations.find((l) => l.id === hoveredId) ?? null : null;
 
     const handleCreate = () => {
         setEditingLocation(null);
@@ -120,74 +82,6 @@ export function LocationsListScreen() {
         );
     };
 
-    const handleRowClick = (location: LocationsLibrary) => {
-        router.push(`/resources/locations/${location.id}`);
-    };
-
-    const columns: StudioColumn<LocationsLibrary>[] = [
-        {
-            key: 'location',
-            label: 'Location',
-            flex: 2,
-            render: (loc) => (
-                <Box display="flex" alignItems="center">
-                    <LocationIcon sx={{ mr: 1, color: 'primary.main', fontSize: 20 }} />
-                    <Box>
-                        <Typography variant="subtitle2" fontWeight="medium">
-                            {loc.name}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                            {loc.city}{loc.state ? `, ${loc.state}` : ''}
-                        </Typography>
-                    </Box>
-                </Box>
-            ),
-        },
-        {
-            key: 'contact',
-            label: 'Contact',
-            flex: 2,
-            render: (loc) => (
-                <Box>
-                    {loc.contact_name && (
-                        <Typography variant="body2" fontWeight={500}>
-                            {loc.contact_name}
-                        </Typography>
-                    )}
-                    {loc.contact_phone && (
-                        <Box display="flex" alignItems="center" mt={0.25}>
-                            <PhoneIcon sx={{ fontSize: 13, mr: 0.5, color: 'rgba(255,255,255,0.3)' }} />
-                            <Typography variant="caption" color="text.secondary">
-                                {loc.contact_phone}
-                            </Typography>
-                        </Box>
-                    )}
-                    {loc.contact_email && (
-                        <Box display="flex" alignItems="center" mt={0.25}>
-                            <EmailIcon sx={{ fontSize: 13, mr: 0.5, color: 'rgba(255,255,255,0.3)' }} />
-                            <Typography variant="caption" color="text.secondary">
-                                {loc.contact_email}
-                            </Typography>
-                        </Box>
-                    )}
-                </Box>
-            ),
-        },
-        {
-            key: 'capacity',
-            label: 'Capacity',
-            width: 100,
-            align: 'center',
-            render: (loc) =>
-                loc.capacity ? (
-                    <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
-                        <PeopleIcon sx={{ fontSize: 15, color: 'rgba(255,255,255,0.3)' }} />
-                        <Typography variant="body2">{loc.capacity}</Typography>
-                    </Box>
-                ) : null,
-        },
-    ];
-
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -198,11 +92,8 @@ export function LocationsListScreen() {
 
     return (
         <Box p={3}>
-            {/* Page header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h4" component="h1">
-                    Locations Library
-                </Typography>
+                <Typography variant="h4" component="h1">Locations Library</Typography>
                 <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>
                     Add Location
                 </Button>
@@ -214,22 +105,17 @@ export function LocationsListScreen() {
                 </Alert>
             )}
 
-            {/* ── Toolbar ────────────────────────────────────── */}
             <Paper elevation={0} sx={{
                 display: 'flex', alignItems: 'center', gap: 1, p: 0.875, px: 1.25, mb: 2,
                 border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2,
                 bgcolor: 'rgba(255,255,255,0.02)', flexWrap: 'wrap',
             }}>
-                {/* City filter */}
                 <FormControl size="small" sx={{ minWidth: 130 }}>
                     <Select
                         value={cityFilter}
                         onChange={(e) => setCityFilter(e.target.value)}
                         displayEmpty
-                        sx={{
-                            borderRadius: 1.5, fontSize: '0.75rem', height: 32,
-                            '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' },
-                        }}
+                        sx={{ borderRadius: 1.5, fontSize: '0.75rem', height: 32, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' } }}
                     >
                         <MenuItem value="all" sx={{ fontSize: '0.8125rem' }}>All Cities</MenuItem>
                         {cities.map((c) => (
@@ -238,16 +124,12 @@ export function LocationsListScreen() {
                     </Select>
                 </FormControl>
 
-                {/* Capacity filter */}
                 <FormControl size="small" sx={{ minWidth: 130 }}>
                     <Select
                         value={capacityFilter}
                         onChange={(e) => setCapacityFilter(e.target.value)}
                         displayEmpty
-                        sx={{
-                            borderRadius: 1.5, fontSize: '0.75rem', height: 32,
-                            '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' },
-                        }}
+                        sx={{ borderRadius: 1.5, fontSize: '0.75rem', height: 32, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' } }}
                     >
                         <MenuItem value="all" sx={{ fontSize: '0.8125rem' }}>Any Capacity</MenuItem>
                         <MenuItem value="small" sx={{ fontSize: '0.8125rem' }}>Small (&lt; 100)</MenuItem>
@@ -257,7 +139,6 @@ export function LocationsListScreen() {
                     </Select>
                 </FormControl>
 
-                {/* Search */}
                 <TextField
                     size="small"
                     placeholder="Search locations, contacts, addresses…"
@@ -279,35 +160,27 @@ export function LocationsListScreen() {
                     }}
                     sx={{
                         ml: 'auto', minWidth: 260,
-                        '& .MuiOutlinedInput-root': {
-                            borderRadius: 1.5, fontSize: '0.8125rem', height: 32,
-                            '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
-                        },
+                        '& .MuiOutlinedInput-root': { borderRadius: 1.5, fontSize: '0.8125rem', height: 32, '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' } },
                     }}
                 />
 
-                {/* Count */}
                 <Typography sx={{ fontSize: '0.6875rem', color: 'text.disabled', fontWeight: 600, whiteSpace: 'nowrap', px: 0.5 }}>
-                    {filteredLocations.length} / {locations.length}
+                    {locations.length}
                 </Typography>
             </Paper>
 
-            {/* Dashboard layout: table 2/3 + sidebar 1/3 */}
             <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 2.5, alignItems: 'start' }}>
-                {/* Left — Table */}
                 <StudioTable
-                    columns={columns}
-                    rows={filteredLocations}
+                    columns={locationsColumns}
+                    rows={locations}
                     getRowKey={(loc) => loc.id}
-                    onRowClick={handleRowClick}
+                    onRowClick={(loc) => router.push(`/locations/${loc.id}`)}
                     onRowHover={(loc) => setHoveredId(loc?.id ?? null)}
                     sectionColor={sectionColors.locations}
                     emptyMessage="No locations yet — add your first venue"
                 />
 
-                {/* Right — Sidebar */}
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'sticky', top: 24 }}>
-                    {/* Map */}
                     <Suspense
                         fallback={
                             <Box sx={{
@@ -320,26 +193,22 @@ export function LocationsListScreen() {
                         }
                     >
                         <LocationsMap
-                            locations={filteredLocations}
+                            locations={locations}
                             highlightedId={hoveredId}
-                            onMarkerClick={handleRowClick}
+                            onMarkerClick={(loc) => router.push(`/locations/${loc.id}`)}
                             height={380}
                         />
                     </Suspense>
 
-                    {/* Detail panel — shown on hover */}
                     {hoveredLocation ? (
                         <LocationDetailPanel
                             location={hoveredLocation}
-                            onNavigate={handleRowClick}
+                            onNavigate={(loc) => router.push(`/locations/${loc.id}`)}
                         />
                     ) : (
                         <Box sx={{
-                            border: '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: 2.5,
-                            bgcolor: 'rgba(255,255,255,0.01)',
-                            px: 3, py: 4,
-                            textAlign: 'center',
+                            border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2.5,
+                            bgcolor: 'rgba(255,255,255,0.01)', px: 3, py: 4, textAlign: 'center',
                         }}>
                             <LocationIcon sx={{ fontSize: 28, color: 'rgba(255,255,255,0.12)', mb: 1 }} />
                             <Typography sx={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.25)' }}>

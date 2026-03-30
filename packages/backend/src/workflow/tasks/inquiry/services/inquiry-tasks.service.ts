@@ -52,8 +52,8 @@ export class InquiryTasksService {
         return this.lifecycleService.autoCompleteByName(inquiryId, taskName, completedById, force);
     }
 
-    autoAssignByRole(inquiryId: number, jobRoleId: number, contributorId: number | null) {
-        return this.lifecycleService.autoAssignByRole(inquiryId, jobRoleId, contributorId);
+    autoAssignByRole(inquiryId: number, jobRoleId: number, crewId: number | null) {
+        return this.lifecycleService.autoAssignByRole(inquiryId, jobRoleId, crewId);
     }
 
     // --- Status delegation ---

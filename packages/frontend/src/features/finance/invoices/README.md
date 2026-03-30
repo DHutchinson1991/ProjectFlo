@@ -1,22 +1,19 @@
 # Invoices
 
 ## What this module does
-Owns inquiry invoice endpoint bindings and invoice-facing feature exports under the finance bucket.
+Owns invoice types used by inquiry-facing finance models during ongoing invoice frontend migration.
 
 ## Key files
 | File | Purpose |
 |------|---------|
-| `api/index.ts` | Typed invoice CRUD bindings |
 | `types/index.ts` | Invoice type exports for feature consumers |
-| `index.ts` | Public feature exports |
 
 ## Business rules / invariants
-- Invoices remain inquiry-scoped under `/api/inquiries/:inquiryId/invoices/*`.
-- Consumers must import invoice bindings from this feature rather than `invoicesService` or `api.invoices`.
-- Invoice operations stay behavior-compatible during migration.
+- Frontend currently consumes invoice typings only; API bindings were removed as unreferenced dead code.
+- Existing inquiry-domain types can keep importing invoice shapes from this feature.
 
 ## Related modules
 - **Backend**: `packages/backend/src/finance/invoices`
-- **Frontend**: `features/finance/contracts` for contract-driven billing handoff
+- **Frontend**: `features/workflow/inquiries/types` for inquiry aggregate typing
 - **Workflow**: `features/workflow/inquiries` for inquiry ownership
 - **Reference docs**: `PRICING_TOTALS_REFERENCE.md`

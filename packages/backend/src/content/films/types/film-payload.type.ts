@@ -5,7 +5,7 @@ export type FilmWithDetails = Prisma.FilmGetPayload<{
     montage_preset: true;
     tracks: {
       include: {
-        crew_member: {
+        crew: {
           select: {
             id: true;
             crew_color: true;

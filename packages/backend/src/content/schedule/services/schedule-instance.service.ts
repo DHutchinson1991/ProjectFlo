@@ -22,7 +22,7 @@ export class ScheduleInstanceService {
       include: {
         event_day_template: true,
         activities: { orderBy: { order_index: 'asc' } },
-        day_operators: { orderBy: { order_index: 'asc' } },
+        day_crew_slots: { orderBy: { order_index: 'asc' } },
         subjects: { orderBy: { order_index: 'asc' } },
         location_slots: { orderBy: { location_number: 'asc' } },
       },
@@ -58,9 +58,9 @@ export class ScheduleInstanceService {
   private readonly instanceActivityInclude = {
     package_activity: true,
     moments: { orderBy: { order_index: 'asc' as const } },
-    operators: { orderBy: { order_index: 'asc' as const } },
-    subjects: { orderBy: { order_index: 'asc' as const } },
-    location_slots: { orderBy: { location_number: 'asc' as const } },
+    crew_slot_assignments: true,
+    subject_assignments: true,
+    location_assignments: true,
     scene_schedules: true,
   };
 

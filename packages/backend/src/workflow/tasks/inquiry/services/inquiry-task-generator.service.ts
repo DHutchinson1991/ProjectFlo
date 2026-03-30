@@ -27,13 +27,13 @@ export class InquiryTaskGeneratorService {
         });
         if (libraryTasks.length === 0) return [];
 
-        const operators = await this.prisma.projectCrewSlot.findMany({
+        const crewSlots = await this.prisma.projectCrewSlot.findMany({
             where: { inquiry_id: inquiryId },
             orderBy: [{ order_index: 'asc' }],
-            select: { crew_member_id: true, job_role_id: true, label: true, job_role: { select: { display_name: true, name: true } } },
+            select: { crew_id: true, job_role_id: true, label: true, job_role: { select: { display_name: true, name: true } } },
         });
 
-        const roleToContributors = this.buildRoleToContributorsMap(operators);
+        const roleToCrew = this.buildRoleToCrewMap(crewSlots);
         await this.prisma.inquiry_tasks.deleteMany({ where: { inquiry_id: inquiryId } });
 
         const inquiryRefDate = new Date();
@@ -43,25 +43,32 @@ export class InquiryTaskGeneratorService {
         const flatTasks = libraryTasks.filter((t) => !t.is_task_group && t.parent_task_id == null);
         let globalOrder = 0;
 
-        const contributorRoleAssignments = await this.buildContributorRoleSet(operators);
+        const crewRoleAssignments = await this.buildCrewRoleSet(crewSlots);
 
-        const resolveAssignment = (jobRoleId: number | null, defaultContributorId: number | null) => {
-            if (!jobRoleId) return { assigned_to_id: defaultContributorId, job_role_id: null as number | null };
-            const matches = roleToContributors.get(jobRoleId);
+        const resolveAssignment = (jobRoleId: number | null, defaultCrewId: number | null) => {
+            if (!jobRoleId) return { assigned_to_id: defaultCrewId, job_role_id: null as number | null };
+            const matches = roleToCrew.get(jobRoleId);
             if (!matches || matches.length === 0) {
-                if (defaultContributorId && contributorRoleAssignments.has(`${defaultContributorId}-${jobRoleId}`)) {
-                    return { assigned_to_id: defaultContributorId, job_role_id: jobRoleId };
+                if (defaultCrewId && crewRoleAssignments.has(`${defaultCrewId}-${jobRoleId}`)) {
+                    return { assigned_to_id: defaultCrewId, job_role_id: jobRoleId };
                 }
                 return { assigned_to_id: null, job_role_id: jobRoleId };
             }
-            return { assigned_to_id: matches[0].contributorId, job_role_id: jobRoleId };
+            return { assigned_to_id: matches[0].crewId, job_role_id: jobRoleId };
         };
 
-        const isCrewTrigger = (trigger: string) => trigger === 'per_crew_member' || trigger === 'per_activity_crew';
-        const getCrewForRole = (jrId: number | null) => (jrId ? roleToContributors.get(jrId) ?? [] : []);
+        const isCrewTrigger = (trigger: string) => trigger === 'per_crew' || trigger === 'per_activity_crew';
+        const getCrewForRole = (jrId: number | null) => (jrId ? roleToCrew.get(jrId) ?? [] : []);
         const calcDueDate = (task: (typeof libraryTasks)[number]) => {
             if (task.due_date_offset_days == null) return null;
-            const ref = task.phase === 'Booking' && eventDate ? eventDate : inquiryRefDate;
+            let ref: Date;
+            switch (task.due_date_offset_reference) {
+                case 'event_date':    ref = eventDate ?? inquiryRefDate; break;
+                case 'booking_date':  ref = inquiryRefDate; break; // booking hasn't happened yet during inquiry; fall back to today
+                case 'delivery_date': ref = eventDate ?? inquiryRefDate; break;
+                case 'inquiry_created':
+                default:              ref = inquiryRefDate; break;
+            }
             const d = new Date(ref);
             d.setDate(d.getDate() + task.due_date_offset_days);
             return d;
@@ -119,12 +126,12 @@ export class InquiryTaskGeneratorService {
                 const crew = getCrewForRole(task.default_job_role_id);
                 if (crew.length > 1) {
                     for (const member of crew) {
-                        await createTask(task, parentInquiryTaskId, member.contributorId, task.default_job_role_id, member.label);
+                        await createTask(task, parentInquiryTaskId, member.crewId, task.default_job_role_id, member.label ?? undefined);
                     }
                     return;
                 }
             }
-            const { assigned_to_id, job_role_id } = resolveAssignment(task.default_job_role_id, task.default_contributor_id);
+            const { assigned_to_id, job_role_id } = resolveAssignment(task.default_job_role_id, task.default_crew_id);
             await createTask(task, parentInquiryTaskId, assigned_to_id, job_role_id);
         };
 
@@ -145,27 +152,27 @@ export class InquiryTaskGeneratorService {
         });
     }
 
-    private async buildContributorRoleSet(
-        operators: { crew_member_id: number | null; job_role_id: number | null }[],
+    private async buildCrewRoleSet(
+        crewSlots: { crew_id: number | null; job_role_id: number | null }[],
     ): Promise<Set<string>> {
-        const ids = operators.filter((op) => op.crew_member_id).map((op) => op.crew_member_id as number);
+        const ids = crewSlots.filter((op) => op.crew_id).map((op) => op.crew_id as number);
         const roles = ids.length > 0
-            ? await this.prisma.crewMemberJobRole.findMany({
-                where: { crew_member_id: { in: ids } },
-                select: { crew_member_id: true, job_role_id: true },
+            ? await this.prisma.crewJobRole.findMany({
+                where: { crew_id: { in: ids } },
+                select: { crew_id: true, job_role_id: true },
             })
             : [];
-        return new Set(roles.map((a) => `${a.crew_member_id}-${a.job_role_id}`));
+        return new Set(roles.map((a) => `${a.crew_id}-${a.job_role_id}`));
     }
 
-    private buildRoleToContributorsMap(
-        operators: { crew_member_id: number | null; job_role_id: number | null; label: string | null; job_role: { display_name: string | null; name: string } | null }[],
-    ): Map<number, { contributorId: number | null; label: string | null }[]> {
-        const map = new Map<number, { contributorId: number | null; label: string | null }[]>();
-        for (const op of operators) {
-            if (!op.job_role_id || !op.crew_member_id) continue;
+    private buildRoleToCrewMap(
+        crewSlots: { crew_id: number | null; job_role_id: number | null; label: string | null; job_role: { display_name: string | null; name: string } | null }[],
+    ): Map<number, { crewId: number | null; label: string | null }[]> {
+        const map = new Map<number, { crewId: number | null; label: string | null }[]>();
+        for (const op of crewSlots) {
+            if (!op.job_role_id || !op.crew_id) continue;
             if (!map.has(op.job_role_id)) map.set(op.job_role_id, []);
-            map.get(op.job_role_id)?.push({ contributorId: op.crew_member_id, label: op.label ?? op.job_role?.display_name ?? op.job_role?.name ?? null });
+            map.get(op.job_role_id)?.push({ crewId: op.crew_id, label: op.label ?? op.job_role?.display_name ?? op.job_role?.name ?? null });
         }
         return map;
     }

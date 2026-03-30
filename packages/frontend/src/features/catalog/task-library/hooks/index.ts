@@ -4,3 +4,4 @@ export { useTaskLibraryDnd } from './use-task-library-dnd';
 export { useTaskLibraryRoleSkills } from './use-task-library-role-skills';
 export { useTaskDetail } from './use-task-detail';
 export type { TaskFormData } from './use-task-detail';
+export { useTaskLibrarySubtaskMutations } from './use-task-library-subtask-mutations';

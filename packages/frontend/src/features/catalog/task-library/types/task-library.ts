@@ -35,7 +35,7 @@ export enum TriggerType {
     PER_FILM_WITH_MUSIC = "per_film_with_music",
     PER_FILM_WITH_GRAPHICS = "per_film_with_graphics",
     PER_EVENT_DAY = "per_event_day",
-    PER_CREW_MEMBER = "per_crew_member",
+    PER_CREW = "per_crew",
     PER_LOCATION = "per_location",
     PER_ACTIVITY = "per_activity",
     PER_ACTIVITY_CREW = "per_activity_crew",
@@ -45,6 +45,7 @@ export enum TriggerType {
 export interface TaskLibrary extends BaseEntity {
     name: string;
     description?: string;
+    workflow_description?: string | null;
     effort_hours: number;
     recorded_hours: number;
     phase: ProjectPhase;
@@ -57,15 +58,17 @@ export interface TaskLibrary extends BaseEntity {
     order_index: number;
     trigger_type: TriggerType;
     due_date_offset_days?: number | null;
+    due_date_offset_reference?: string | null;
     default_job_role_id?: number | null;
     default_job_role?: Pick<JobRole, 'id' | 'name' | 'display_name' | 'category'> | null;
-    default_crew_member_id?: number | null;
-    default_crew_member?: { id: number; contact: { first_name: string; last_name: string } } | null;
+    default_crew_id?: number | null;
+    default_crew?: { id: number; contact: { first_name: string; last_name: string } } | null;
     skills_needed?: string[];
     benchmarks?: TaskLibraryBenchmark[];
     skill_rates?: TaskLibrarySkillRate[];
     parent_task_id?: number | null;
     is_task_group?: boolean;
+    is_on_site?: boolean;
     children?: TaskLibrary[];
     task_library_subtask_templates?: TaskLibrarySubtaskTemplate[];
 }
@@ -75,21 +78,37 @@ export interface TaskLibrarySubtaskTemplate {
     task_library_id: number;
     subtask_key: string;
     name: string;
+    description?: string | null;
     order_index: number;
     is_auto_only: boolean;
     created_at: string;
     updated_at: string;
 }
 
+export interface CreateSubtaskTemplateDto {
+    subtask_key: string;
+    name: string;
+    description?: string;
+    is_auto_only?: boolean;
+    order_index?: number;
+}
+
+export interface UpdateSubtaskTemplateDto {
+    name?: string;
+    description?: string | null;
+    is_auto_only?: boolean;
+    order_index?: number;
+}
+
 export interface TaskLibraryBenchmark extends BaseEntity {
     task_library_id: number;
-    crew_member_id: number;
+    crew_id: number;
     benchmark_hours: number;
     benchmark_price?: number;
     notes?: string;
     is_active: boolean;
     task_library?: TaskLibrary;
-    crew_member?: {
+    crew?: {
         id: number;
         email: string;
         first_name: string;
@@ -108,6 +127,7 @@ export interface TaskLibrarySkillRate extends BaseEntity {
 export interface CreateTaskLibraryDto {
     name: string;
     description?: string;
+    workflow_description?: string;
     effort_hours: number;
     phase: ProjectPhase;
     pricing_type: PricingType;
@@ -119,8 +139,9 @@ export interface CreateTaskLibraryDto {
     trigger_type?: TriggerType;
     due_date_offset_days?: number | null;
     default_job_role_id?: number;
-    default_crew_member_id?: number;
+    default_crew_id?: number;
     skills_needed?: string[];
+    is_on_site?: boolean;
 }
 
 export interface UpdateTaskLibraryDto extends Partial<CreateTaskLibraryDto> {
@@ -129,7 +150,7 @@ export interface UpdateTaskLibraryDto extends Partial<CreateTaskLibraryDto> {
 
 export interface CreateTaskLibraryBenchmarkDto {
     task_library_id: number;
-    crew_member_id: number;
+    crew_id: number;
     benchmark_hours: number;
     benchmark_price?: number;
     notes?: string;
@@ -205,16 +226,16 @@ export const PRICING_TYPE_LABELS: Record<PricingType, string> = {
 
 export const TRIGGER_TYPE_LABELS: Record<TriggerType, string> = {
     [TriggerType.ALWAYS]: "Always",
-    [TriggerType.PER_PROJECT]: "Per Project",
-    [TriggerType.PER_FILM]: "Per Film",
-    [TriggerType.PER_FILM_WITH_MUSIC]: "Per Film (Music)",
-    [TriggerType.PER_FILM_WITH_GRAPHICS]: "Per Film (Graphics)",
-    [TriggerType.PER_EVENT_DAY]: "Per Event Day",
-    [TriggerType.PER_CREW_MEMBER]: "Per Crew Member",
-    [TriggerType.PER_LOCATION]: "Per Location",
-    [TriggerType.PER_ACTIVITY]: "Per Activity",
-    [TriggerType.PER_ACTIVITY_CREW]: "Per Activity × Crew",
-    [TriggerType.PER_FILM_SCENE]: "Per Film Scene",
+    [TriggerType.PER_PROJECT]: "Project",
+    [TriggerType.PER_FILM]: "Film",
+    [TriggerType.PER_FILM_WITH_MUSIC]: "Film + Music",
+    [TriggerType.PER_FILM_WITH_GRAPHICS]: "Film + Graphics",
+    [TriggerType.PER_EVENT_DAY]: "Event Day",
+    [TriggerType.PER_CREW]: "Crew",
+    [TriggerType.PER_LOCATION]: "Location",
+    [TriggerType.PER_ACTIVITY]: "Activity",
+    [TriggerType.PER_ACTIVITY_CREW]: "Activity × Crew",
+    [TriggerType.PER_FILM_SCENE]: "Film Scene",
 };
 
 export interface TaskAutoGenerationPreviewTask {
@@ -232,6 +253,11 @@ export interface TaskAutoGenerationPreviewTask {
     estimated_cost?: number | null;
     film_name?: string | null;
     due_date_offset_days?: number | null;
+    is_on_site?: boolean | null;
+    /** Deduplication key for on-site hours (activityName for per_activity_crew tasks). */
+    activity_key?: string | null;
+    /** On-site billing band label (e.g. 'Half Day', 'Day', 'Day + OT'). */
+    onsite_band?: string | null;
 }
 
 export interface TaskAutoGenerationPreview {
@@ -241,7 +267,7 @@ export interface TaskAutoGenerationPreview {
         films_with_music: number;
         films_with_graphics: number;
         event_days: number;
-        crew_members: number;
+        crews: number;
         locations: number;
         activities: number;
         activity_crew_assignments: number;

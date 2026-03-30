@@ -9,7 +9,7 @@ export class BrandMembershipsService {
   async addUserToBrand(brandId: number, userId: number, addUserDto: AddUserToBrandDto) {
     await this.ensureBrandExists(brandId);
 
-    const user = await this.prisma.crewMember.findUnique({
+    const user = await this.prisma.crew.findUnique({
       where: { id: userId },
     });
 
@@ -19,8 +19,8 @@ export class BrandMembershipsService {
 
     const existingRelation = await this.prisma.brandMember.findUnique({
       where: {
-        crew_member_id_brand_id: {
-          crew_member_id: userId,
+        crew_id_brand_id: {
+          crew_id: userId,
           brand_id: brandId,
         },
       },
@@ -32,7 +32,7 @@ export class BrandMembershipsService {
 
     return this.prisma.brandMember.create({
       data: {
-        crew_member_id: userId,
+        crew_id: userId,
         brand_id: brandId,
         is_active: addUserDto.is_active ?? true,
       },
@@ -42,8 +42,8 @@ export class BrandMembershipsService {
   async removeUserFromBrand(brandId: number, userId: number) {
     const relation = await this.prisma.brandMember.findUnique({
       where: {
-        crew_member_id_brand_id: {
-          crew_member_id: userId,
+        crew_id_brand_id: {
+          crew_id: userId,
           brand_id: brandId,
         },
       },
@@ -55,8 +55,8 @@ export class BrandMembershipsService {
 
     return this.prisma.brandMember.delete({
       where: {
-        crew_member_id_brand_id: {
-          crew_member_id: userId,
+        crew_id_brand_id: {
+          crew_id: userId,
           brand_id: brandId,
         },
       },
@@ -64,11 +64,14 @@ export class BrandMembershipsService {
   }
 
   async getUserBrands(userId: number) {
-    const user = await this.prisma.crewMember.findUnique({
+    const user = await this.prisma.crew.findUnique({
       where: { id: userId },
       include: {
-        contact: true,
-        role: true,
+        contact: {
+          include: {
+            user_account: { include: { system_role: true } },
+          },
+        },
       },
     });
 
@@ -76,7 +79,7 @@ export class BrandMembershipsService {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
-    if (user.role?.name === "Global Admin") {
+    if (user.contact.user_account?.system_role?.name === "Global Admin") {
       const allBrands = await this.prisma.brands.findMany({
         where: { is_active: true },
         include: {
@@ -103,7 +106,7 @@ export class BrandMembershipsService {
 
     return this.prisma.brandMember.findMany({
       where: {
-        crew_member_id: userId,
+        crew_id: userId,
         is_active: true,
       },
       include: {
@@ -125,8 +128,8 @@ export class BrandMembershipsService {
   async getBrandContext(userId: number, brandId: number) {
     const userBrand = await this.prisma.brandMember.findUnique({
       where: {
-        crew_member_id_brand_id: {
-          crew_member_id: userId,
+        crew_id_brand_id: {
+          crew_id: userId,
           brand_id: brandId,
         },
       },
@@ -155,8 +158,8 @@ export class BrandMembershipsService {
 
     return {
       brand: userBrand.brand,
-      role: this.resolveBrandRole(userBrand.crew_member_id),
-      permissions: this.getBrandPermissions(this.resolveBrandRole(userBrand.crew_member_id)),
+      role: this.resolveBrandRole(userBrand.crew_id),
+      permissions: this.getBrandPermissions(this.resolveBrandRole(userBrand.crew_id)),
     };
   }
 
@@ -202,7 +205,7 @@ export class BrandMembershipsService {
   }
 
   private resolveBrandRole(userId: number): string {
-    // Membership role now comes from contributor.role relation, not brand_memberships.
+    // Membership role now comes from crew.role relation, not brand_memberships.
     return this.prisma ? 'Member' : 'Member';
   }
 }

@@ -91,10 +91,10 @@ export class InquiryWizardConflictService {
                 end_time: { gte: dayStart },
             },
             include: {
-                crew_member: {
+                crew: {
                     include: {
                         contact: { select: { first_name: true, last_name: true } },
-                        crew_member_job_roles: {
+                        job_role_assignments: {
                             include: { job_role: { select: { name: true, display_name: true } } },
                         },
                     },
@@ -104,21 +104,21 @@ export class InquiryWizardConflictService {
 
         const ON_SET_KEYWORDS = ['videographer', 'operator', 'cinematographer', 'photographer', 'drone'];
         const seen = new Set<number>();
-        const conflicts: { crew_member_id: number; name: string; role: string; event_type: string; event_title: string }[] = [];
+        const conflicts: { crew_id: number; name: string; role: string; event_type: string; event_title: string }[] = [];
 
         for (const ev of events) {
-            const cid = ev.crew_member_id;
+            const cid = ev.crew_id;
             if (seen.has(cid)) continue;
 
-            const matchingRole = ev.crew_member.crew_member_job_roles.find((r) =>
+            const matchingRole = ev.crew.job_role_assignments.find((r) =>
                 ON_SET_KEYWORDS.some((kw) => r.job_role.name.toLowerCase().includes(kw)),
             );
             if (!matchingRole) continue;
 
             seen.add(cid);
             conflicts.push({
-                crew_member_id: cid,
-                name: `${ev.crew_member.contact.first_name} ${ev.crew_member.contact.last_name}`.trim(),
+                crew_id: cid,
+                name: `${ev.crew.contact.first_name} ${ev.crew.contact.last_name}`.trim(),
                 role: matchingRole.job_role.display_name ?? matchingRole.job_role.name,
                 event_type: ev.event_type,
                 event_title: ev.title,

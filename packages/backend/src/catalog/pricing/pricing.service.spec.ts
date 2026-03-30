@@ -15,14 +15,14 @@ const mockTaskLib = () => ({
   previewAutoGeneration: jest.fn(),
 });
 
-/** Build a minimal package_day_operator fixture */
-function makeOp(overrides: Record<string, any> = {}) {
+/** Build a minimal crew slot fixture */
+function makeCrewSlot(overrides: Record<string, any> = {}) {
   return {
     label: 'Lead',
     hours: 8,
     job_role_id: 1,
-    crew_member_id: 1,
-    crew_member: {
+    crew_id: 1,
+    crew: {
       id: 1,
       job_role_assignments: [],
     },
@@ -67,8 +67,8 @@ describe('PricingService', () => {
       id: 1,
       name: 'Gold',
       package_crew_slots: [
-        makeOp({ equipment: [sharedEquipment, sharedEquipment] }),
-        makeOp({ equipment: [sharedEquipment] }),
+        makeCrewSlot({ equipment: [sharedEquipment, sharedEquipment] }),
+        makeCrewSlot({ equipment: [sharedEquipment] }),
       ],
     });
     prisma.job_roles.findFirst.mockResolvedValue(null);
@@ -102,9 +102,9 @@ describe('PricingService', () => {
 
   /* ----- Summary arithmetic ----- */
   it('sums equipment + crew + tasks in summary', async () => {
-    const op = makeOp({
+    const op = makeCrewSlot({
       hours: 10,
-      crew_member: {
+      crew: {
         id: 1,
         job_role_assignments: [],
       },

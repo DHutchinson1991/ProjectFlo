@@ -55,7 +55,7 @@ export function EquipmentDetailScreen({ equipmentId }: EquipmentDetailScreenProp
         equipment,
         rentals,
         maintenance,
-        crewMembers,
+        crew,
         loading,
         error,
         isEditing,
@@ -85,7 +85,7 @@ export function EquipmentDetailScreen({ equipmentId }: EquipmentDetailScreenProp
         return (
             <Box sx={{ p: 3 }}>
                 <Alert severity="error">{error || "Equipment not found"}</Alert>
-                <Button onClick={() => router.push("/resources/equipment")} sx={{ mt: 2 }}>
+                <Button onClick={() => router.push("/equipment")} sx={{ mt: 2 }}>
                     Back to Equipment
                 </Button>
             </Box>
@@ -101,7 +101,7 @@ export function EquipmentDetailScreen({ equipmentId }: EquipmentDetailScreenProp
                 onStartEdit={handleStartEdit}
                 onSaveEdit={handleSaveEdit}
                 onCancelEdit={handleCancelEdit}
-                onBack={() => router.push("/resources/equipment")}
+                onBack={() => router.push("/equipment")}
                 onBackToResources={() => router.push("/resources")}
             />
 
@@ -143,7 +143,7 @@ export function EquipmentDetailScreen({ equipmentId }: EquipmentDetailScreenProp
                                 equipment={equipment}
                                 isEditing={isEditing}
                                 editData={editData}
-                                contributors={crewMembers}
+                                crew={crew}
                                 onUpdate={updateEditData}
                             />
                         </Grid>

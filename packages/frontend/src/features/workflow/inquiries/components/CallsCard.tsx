@@ -65,7 +65,7 @@ interface SlotPickerProps {
     initialDate?: string;
     duration: number;
     accentColor?: string;
-    onSelect: (date: string, time: string, operatorId?: number) => void;
+    onSelect: (date: string, time: string, crewMemberId?: number) => void;
     onCancel: () => void;
     isLoading?: boolean;
     confirmLabel?: string;
@@ -79,7 +79,7 @@ const SlotPicker: React.FC<SlotPickerProps> = ({
 }) => {
     const [selectedDate, setSelectedDate] = useState(initialDate || '');
     const [selectedTime, setSelectedTime] = useState('');
-    const [selectedOperator, setSelectedOperator] = useState<number | undefined>();
+    const [selectedCrewMember, setSelectedCrewMember] = useState<number | undefined>();
     const [slots, setSlots] = useState<SlotInfo[]>([]);
     const [loading, setLoading] = useState(false);
     const [unavailableReason, setUnavailableReason] = useState<string | null>(null);
@@ -202,7 +202,7 @@ const SlotPicker: React.FC<SlotPickerProps> = ({
                                         onClick={() => {
                                             if (!slot.available) return;
                                             setSelectedTime(slot.time);
-                                            setSelectedOperator(slot.operator_id);
+                                            setSelectedCrewMember(slot.operator_id);
                                         }}
                                         sx={{
                                             py: 1, px: 0.75, borderRadius: '10px', textAlign: 'center',
@@ -251,7 +251,7 @@ const SlotPicker: React.FC<SlotPickerProps> = ({
                     </Button>
                 )}
                 <Button
-                    onClick={() => onSelect(selectedDate, selectedTime, selectedOperator)}
+                    onClick={() => onSelect(selectedDate, selectedTime, selectedCrewMember)}
                     disabled={!selectedDate || !selectedTime || parentLoading}
                     fullWidth
                     sx={{
@@ -347,7 +347,7 @@ const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, 
     const isConfirmed = latestMeeting?.is_confirmed === true;
 
     // -- Handlers --
-    const createEvent = async (date: string, time: string, confirmed: boolean, operatorId?: number) => {
+    const createEvent = async (date: string, time: string, confirmed: boolean, crewMemberId?: number) => {
         try {
             const paddedTime = time.padStart(5, '0');
             const startDate = new Date(`${date}T${paddedTime}:00`);
@@ -363,7 +363,7 @@ const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, 
                 meeting_url: defaultMeetingUrl,
                 description: defaultDescription,
                 inquiry_id: inquiry.id,
-                crew_member_id: operatorId || user?.id || 1,
+                crew_id: crewMemberId || user?.id || 1,
                 is_confirmed: confirmed,
             });
             setRescheduleMode(false);
@@ -375,7 +375,7 @@ const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, 
 
     const handleConfirmClientSlot = () => createEvent(reqDate, reqTime, true);
 
-    const handleRescheduleSelect = async (date: string, time: string, operatorId?: number) => {
+    const handleRescheduleSelect = async (date: string, time: string, crewMemberId?: number) => {
         // Delete current meeting, create new one
         if (latestMeeting) {
             try {
@@ -384,11 +384,11 @@ const CallsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, 
                 console.error('Error deleting old meeting:', error);
             }
         }
-        await createEvent(date, time, true, operatorId);
+        await createEvent(date, time, true, crewMemberId);
     };
 
-    const handleScheduleViaSlots = (date: string, time: string, operatorId?: number) => {
-        createEvent(date, time, false, operatorId);
+    const handleScheduleViaSlots = (date: string, time: string, crewMemberId?: number) => {
+        createEvent(date, time, false, crewMemberId);
     };
 
     const handleToggleConfirm = async (meeting: BackendCalendarEvent) => {

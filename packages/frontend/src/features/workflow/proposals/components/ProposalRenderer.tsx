@@ -54,7 +54,6 @@ interface PackageData {
     id: number;
     name: string;
     description: string | null;
-    base_price: string;
     currency: string;
     contents?: {
         items?: PackageItem[];
@@ -835,7 +834,7 @@ export default function ProposalRenderer({
                                                 {formatCurrency(
                                                     (() => {
                                                         const amt = parseFloat(String(estimate.total_amount));
-                                                        if (amt <= 0) return pkg?.base_price ?? estimate.total_amount;
+                                                        if (amt <= 0) return estimate.total_amount;
                                                         return computeTaxBreakdown(amt, estimate.tax_rate ? parseFloat(String(estimate.tax_rate)) : 0).total;
                                                     })(),
                                                     currency,
@@ -869,28 +868,6 @@ export default function ProposalRenderer({
                                     </>
                                     );
                                 })()}
-
-                                {/* Fallback: no estimate but has package */}
-                                {!estimate && pkg && parseFloat(String(pkg.base_price)) > 0 && (
-                                    <>
-                                        <Divider sx={{ borderColor: colors.border, my: 2 }} />
-                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                                            <Typography sx={{ fontWeight: 600, color: colors.text }}>Package Price</Typography>
-                                            <Typography
-                                                sx={{
-                                                    fontWeight: 700,
-                                                    fontSize: "1.5rem",
-                                                    background: `linear-gradient(135deg, ${colors.gradient1}, ${colors.gradient2})`,
-                                                    backgroundClip: "text",
-                                                    WebkitBackgroundClip: "text",
-                                                    WebkitTextFillColor: "transparent",
-                                                }}
-                                            >
-                                                {formatCurrency(pkg.base_price, pkg.currency)}
-                                            </Typography>
-                                        </Box>
-                                    </>
-                                )}
                             </Box>
                         </Box>
                     </RevealBox>

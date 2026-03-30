@@ -9,7 +9,7 @@ import { type FilmSubject, type SubjectTemplate } from '@/features/content/subje
 import type { EquipmentSummary, FilmEquipmentAssignmentsBySlot } from "@/features/content/films/types/film-equipment.types";
 import { FilmEquipmentTab } from "./FilmEquipmentTab";
 import { FilmSubjectsTab } from "./FilmSubjectsTab";
-import { FilmOperatorsTab } from "./FilmOperatorsTab";
+import { FilmCrewSlotsTab } from "./FilmCrewSlotsTab";
 import { FilmActivitiesTab } from "./FilmActivitiesTab";
 
 interface FilmRightPanelProps {
@@ -55,7 +55,7 @@ export const FilmRightPanel: React.FC<FilmRightPanelProps> = ({
                 <Tab label="Activities" />
                 <Tab label="Equipment" />
                 <Tab label="Subjects" />
-                <Tab label="Operators" />
+                <Tab label="Crew Slots" />
             </Tabs>
 
             <Box sx={{ overflow: "auto" }}>
@@ -84,7 +84,7 @@ export const FilmRightPanel: React.FC<FilmRightPanelProps> = ({
                     />
                 )}
                 {activeTab === 3 && (
-                    <FilmOperatorsTab
+                    <FilmCrewSlotsTab
                         filmId={filmId}
                         packageId={packageId}
                     />

@@ -3,7 +3,7 @@ import { ProjectPackageSnapshotService } from '../../../workflow/projects/projec
 import { TaskLibraryService } from '../../../workflow/task-library/task-library.service';
 import { AutoEstimateItem, roundMoney } from '../types/estimate-cost.types';
 import {
-  categorizeOperators,
+  categorizeCrewSlots,
   buildCrewItemsFromTasks,
   buildCrewItemsFallback,
   buildEquipmentItems,
@@ -21,9 +21,9 @@ export class EstimateAutoGenerationService {
     packageId: number,
     brandId: number,
   ): Promise<AutoEstimateItem[]> {
-    const [scheduleFilms, operators, taskPreview] = await Promise.all([
+    const [scheduleFilms, crewSlots, taskPreview] = await Promise.all([
       this.snapshotService.getFilms({ inquiryId }).catch(() => [] as Record<string, unknown>[]),
-      this.snapshotService.getOperators({ inquiryId }).catch(() => [] as Record<string, unknown>[]),
+      this.snapshotService.getCrewSlots({ inquiryId }).catch(() => [] as Record<string, unknown>[]),
       this.taskLibraryService.previewAutoGenerationForSystem(packageId, brandId, inquiryId).catch(() => null),
     ]);
 
@@ -34,13 +34,13 @@ export class EstimateAutoGenerationService {
     const items: AutoEstimateItem[] = [];
 
     if (taskPreview?.tasks) {
-      items.push(...buildCrewItemsFromTasks(taskPreview, operators, filmNames));
+      items.push(...buildCrewItemsFromTasks(taskPreview, crewSlots, filmNames));
     } else {
-      const { planningCrew, coverageCrew, postProdCrew } = categorizeOperators(operators);
+      const { planningCrew, coverageCrew, postProdCrew } = categorizeCrewSlots(crewSlots);
       items.push(...buildCrewItemsFallback(planningCrew, coverageCrew, postProdCrew));
     }
 
-    items.push(...buildEquipmentItems(operators));
+    items.push(...buildEquipmentItems(crewSlots));
 
     return items
       .filter((item) => item.description.trim().length > 0)

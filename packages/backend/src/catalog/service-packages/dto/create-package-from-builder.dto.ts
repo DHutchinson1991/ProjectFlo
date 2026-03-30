@@ -28,7 +28,7 @@ export class CreatePackageFromBuilderDto {
 
   @IsNumber()
   @Type(() => Number)
-  operatorCount!: number;
+  crewCount!: number;
 
   @IsOptional()
   @IsNumber()

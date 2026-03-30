@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useEventTypes } from '@/features/catalog/event-types/hooks';
 import { type Brand } from '@/features/platform/brand/types';
-import { scheduleApi } from '@/features/workflow/scheduling/api';
+import { scheduleApi } from '@/features/workflow/scheduling/instance';
 import { geocodeAddress } from '@/features/workflow/locations/api/geocoding.api';
 import type { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
 

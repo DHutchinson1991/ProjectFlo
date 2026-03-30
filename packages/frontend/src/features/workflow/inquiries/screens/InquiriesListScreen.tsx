@@ -286,21 +286,13 @@ export default function InquiriesListScreen() {
 
     const getInquiryPrice = (inquiry: Inquiry) => {
         const currency = currentBrand?.currency ?? DEFAULT_CURRENCY;
-        // Prefer quote total (already includes tax from backend)
+        // Prefer quote total (already includes tax from backend list endpoint)
         if (inquiry.primary_quote_total != null) {
             return { amount: inquiry.primary_quote_total, currency };
         }
-        // Fall back to estimate total (already includes tax from backend)
+        // Fall back to estimate total (already includes tax from backend list endpoint)
         if (inquiry.primary_estimate_total != null) {
             return { amount: inquiry.primary_estimate_total, currency };
-        }
-        // Fall back to package base_price
-        if (inquiry.selected_package?.base_price != null) {
-            return { amount: inquiry.selected_package.base_price, currency };
-        }
-        // Fall back to package snapshot
-        if (inquiry.package_contents_snapshot?.base_price != null) {
-            return { amount: inquiry.package_contents_snapshot.base_price, currency };
         }
         return null;
     };

@@ -6,6 +6,7 @@ export interface PaymentBracket {
     level: number;
     hourly_rate: number;
     day_rate?: number | null;
+    half_day_rate?: number | null;
     overtime_rate?: number | null;
     description?: string | null;
     color?: string | null;
@@ -19,20 +20,20 @@ export interface PaymentBracket {
         category?: string | null;
     };
     _count?: {
-        job_role_assignments: number;
+        crew_job_role_assignments: number;
     };
     /** Populated when fetching brackets by-role (includes assigned crew) */
-    job_role_assignments?: BracketCrewMemberAssignment[];
+    crew_job_role_assignments?: BracketCrewAssignment[];
 }
 
-/** A contributor assigned to a specific payment bracket (returned within bracket data) */
-export interface BracketCrewMemberAssignment {
+/** A crew assigned to a specific payment bracket (returned within bracket data) */
+export interface BracketCrewAssignment {
     id: number;
-    crew_member_id: number;
+    crew_id: number;
     job_role_id: number;
     is_primary: boolean;
     is_unmanned: boolean;
-    crew_member: {
+    crew: {
         id: number;
         crew_color?: string | null;
         contact: {
@@ -56,7 +57,7 @@ export interface PaymentBracketsByRole {
 }
 
 export interface EffectiveRate {
-    crew_member_id: number;
+    crew_id: number;
     job_role: {
         id: number;
         name: string;
@@ -67,9 +68,9 @@ export interface EffectiveRate {
     rate_source: "payment_bracket" | "none";
 }
 
-export interface CrewMemberBracketAssignment {
+export interface CrewBracketAssignment {
     id: number;
-    crew_member_id: number;
+    crew_id: number;
     job_role_id: number;
     is_primary: boolean;
     payment_bracket_id: number | null;
@@ -89,6 +90,7 @@ export interface CreatePaymentBracketData {
     level: number;
     hourly_rate: number;
     day_rate?: number;
+    half_day_rate?: number;
     overtime_rate?: number;
     description?: string;
     color?: string;
@@ -101,6 +103,7 @@ export interface UpdatePaymentBracketData {
     level?: number;
     hourly_rate?: number;
     day_rate?: number;
+    half_day_rate?: number;
     overtime_rate?: number;
     description?: string;
     color?: string;
@@ -108,7 +111,7 @@ export interface UpdatePaymentBracketData {
 }
 
 export interface AssignBracketData {
-    crew_member_id: number;
+    crew_id: number;
     job_role_id: number;
     payment_bracket_id: number;
 }

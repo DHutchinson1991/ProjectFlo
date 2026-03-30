@@ -2,15 +2,15 @@
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { roundMoney } from '@finance/shared/pricing.utils';
 
-interface CrewMemberJobRoleEntry {
+interface CrewJobRoleEntry {
   is_primary: boolean;
   job_role_id: number;
   payment_bracket: { hourly_rate: unknown; day_rate: unknown } | null;
 }
 
-interface CrewMemberWithRoles {
+interface CrewWithRoles {
   id: number;
-  job_role_assignments: CrewMemberJobRoleEntry[];
+  job_role_assignments: CrewJobRoleEntry[];
 }
 
 @Injectable()
@@ -23,7 +23,7 @@ export class PricingAuditService {
       include: {
         package_crew_slots: {
           include: {
-            crew_member: {
+            crew: {
               select: {
                 id: true,
                 job_role_assignments: {
@@ -44,13 +44,13 @@ export class PricingAuditService {
 
     if (!pkg) throw new NotFoundException('Package not found');
 
-    const operators = pkg.package_crew_slots.map(op => {
+    const crewSlots = pkg.package_crew_slots.map(op => {
       const hours = Number(op.hours ?? 0);
       const { rate, tier, isDayRate } = this.resolveRate(op);
 
       return {
-        position: op.label ?? op.job_role?.display_name ?? op.job_role?.name ?? 'Unknown',
-        contributorId: op.crew_member_id,
+        position: op.label ?? 'Unknown',
+        crewId: op.crew_id,
         hours,
         rate,
         isDayRate,
@@ -62,18 +62,18 @@ export class PricingAuditService {
     return {
       packageId: pkg.id,
       packageName: pkg.name,
-      operators,
+      crewSlots,
     };
   }
 
   private resolveRate(
-    op: { crew_member_id: number | null; job_role_id: number | null; crew_member: CrewMemberWithRoles | null },
+    op: { crew_id: number | null; job_role_id: number | null; crew: CrewWithRoles | null },
   ): { rate: number; tier: string; isDayRate: boolean } {
-    if (!op.crew_member || !op.job_role_id) {
+    if (!op.crew || !op.job_role_id) {
       return { rate: 0, tier: 'none', isDayRate: false };
     }
 
-    const roles = op.crew_member.job_role_assignments || [];
+    const roles = op.crew.job_role_assignments || [];
     const match = roles.find((r) => r.job_role_id === op.job_role_id);
 
     if (!match?.payment_bracket) {

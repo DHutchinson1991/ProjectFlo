@@ -1,5 +1,5 @@
 import {
-    Controller, Get, Post, Put, Delete, Body, Param, Query,
+    Controller, Get, Post, Patch, Delete, Body, Param, Query,
     ParseIntPipe, HttpCode, HttpStatus, UseGuards, ValidationPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -26,10 +26,7 @@ export class SkillRoleMappingsController {
 
     @Get()
     findAll(@Query(new ValidationPipe({ transform: true })) query: SkillRoleMappingQueryDto, @BrandId() brandId?: number) {
-        if (brandId !== undefined && query.brandId === undefined) {
-            query.brandId = brandId;
-        }
-        return this.service.findAll(query);
+        return this.service.findAll(query, brandId);
     }
 
     @Get('summary')
@@ -57,7 +54,7 @@ export class SkillRoleMappingsController {
         return this.service.bulkCreate(dto);
     }
 
-    @Put(':id')
+    @Patch(':id')
     update(
         @Param('id', ParseIntPipe) id: number,
         @Body(new ValidationPipe({ transform: true })) dto: UpdateSkillRoleMappingDto,

@@ -1,14 +1,14 @@
 ﻿import { apiClient } from '@/shared/api/client';
 import type { ApiClient } from '@/shared/api/client';
 import type {
-  CrewMember,
+  Crew,
   CrewWorkload,
   SetCrewStatusData,
   UpdateCrewProfileData,
 } from '../types';
-import type { CrewMember, NewCrewMemberData, UpdateCrewMemberDto } from '@/shared/types/users';
-import type { CrewMemberApiResponse } from '@/shared/types/user-api';
-import { mapCrewMemberResponse } from '@/shared/types/user-mappers';
+import type { NewCrewData, UpdateCrewDto } from '@/shared/types/users';
+import type { CrewApiResponse } from '@/shared/types/user-api';
+import { mapCrewResponse } from '@/shared/types/user-mappers';
 import type {
   JobRole,
   CreateJobRoleData,
@@ -28,69 +28,52 @@ import type {
 export function createCrewApi(client: ApiClient) {
   return {
     getByBrand: (_brandId?: number) =>
-      client.get<CrewMember[]>('/api/crew'),
+      client.get<Crew[]>('/api/crew'),
 
-    getAllContributors: (_brandId?: number) =>
-      client.get<CrewMember[]>('/api/crew/all-contributors'),
+    getAllCrew: (_brandId?: number) =>
+      client.get<Crew[]>('/api/crew/all-crew'),
 
     getByJobRole: (_brandId: number | undefined, jobRoleId: number) =>
-      client.get<CrewMember[]>(`/api/crew/by-role/${jobRoleId}`),
+      client.get<Crew[]>(`/api/crew/by-role/${jobRoleId}`),
 
     getWorkload: (_brandId?: number) =>
       client.get<CrewWorkload[]>('/api/crew/workload'),
 
     getById: (id: number) =>
-      client.get<CrewMember>(`/api/crew/${id}`),
+      client.get<Crew>(`/api/crew/${id}`),
 
     setCrewStatus: (id: number, data: SetCrewStatusData) =>
-      client.patch<CrewMember>(`/api/crew/${id}/crew-status`, data),
+      client.patch<Crew>(`/api/crew/${id}/crew-status`, data),
 
     updateProfile: (id: number, data: UpdateCrewProfileData) =>
-      client.patch<CrewMember>(`/api/crew/${id}/profile`, data),
+      client.patch<Crew>(`/api/crew/${id}/profile`, data),
   };
 }
 
-export function createcrewMembersApi(client: ApiClient) {
+export function createUserAccountsApi(client: ApiClient) {
   return {
-    getAll: async (): Promise<CrewMember[]> => {
-      const raw = await client.get<CrewMemberApiResponse[]>('/api/contributors');
-      return raw.map(mapCrewMemberResponse);
+    getAll: async (): Promise<Crew[]> => {
+      const raw = await client.get<CrewApiResponse[]>('/api/user-accounts');
+      return raw.map(mapCrewResponse);
     },
 
-    getById: async (id: number): Promise<CrewMember> => {
-      const raw = await client.get<CrewMemberApiResponse>(`/api/contributors/${id}`);
-      return mapCrewMemberResponse(raw);
+    getById: async (id: number): Promise<Crew> => {
+      const raw = await client.get<CrewApiResponse>(`/api/user-accounts/${id}`);
+      return mapCrewResponse(raw);
     },
 
-    create: async (data: NewCrewMemberData): Promise<CrewMember> => {
-      const raw = await client.post<CrewMemberApiResponse>('/api/contributors', data);
-      return mapCrewMemberResponse(raw);
+    create: async (data: NewCrewData): Promise<Crew> => {
+      const raw = await client.post<CrewApiResponse>('/api/user-accounts', data);
+      return mapCrewResponse(raw);
     },
 
-    update: async (id: number, data: UpdateCrewMemberDto): Promise<CrewMember> => {
-      const raw = await client.patch<CrewMemberApiResponse>(`/api/contributors/${id}`, data);
-      return mapCrewMemberResponse(raw);
+    update: async (id: number, data: UpdateCrewDto): Promise<Crew> => {
+      const raw = await client.patch<CrewApiResponse>(`/api/user-accounts/${id}`, data);
+      return mapCrewResponse(raw);
     },
 
     delete: (id: number) =>
-      client.delete<void>(`/api/contributors/${id}`),
-
-    addJobRole: async (id: number, jobRoleId: number): Promise<CrewMember> => {
-      const raw = await client.post<CrewMemberApiResponse>(`/api/contributors/${id}/job-roles`, {
-        job_role_id: jobRoleId,
-      });
-      return mapCrewMemberResponse(raw);
-    },
-
-    removeJobRole: async (id: number, jobRoleId: number): Promise<CrewMember> => {
-      const raw = await client.delete<CrewMemberApiResponse>(`/api/contributors/${id}/job-roles/${jobRoleId}`);
-      return mapCrewMemberResponse(raw);
-    },
-
-    setPrimaryJobRole: async (id: number, jobRoleId: number): Promise<CrewMember> => {
-      const raw = await client.put<CrewMemberApiResponse>(`/api/contributors/${id}/job-roles/${jobRoleId}/primary`, {});
-      return mapCrewMemberResponse(raw);
-    },
+      client.delete<void>(`/api/user-accounts/${id}`),
   };
 }
 
@@ -111,17 +94,29 @@ export function createJobRolesApi(client: ApiClient) {
     delete: (id: number) =>
       client.delete<void>(`/api/job-roles/${id}`, { skipBrandContext: true }),
 
-    getContributorAssignments: (crewMemberId: number) =>
+    getCrewAssignments: (crewId: number) =>
       client.get<Array<{
       id: number;
-      crew_member_id: number;
+      crew_id: number;
       job_role_id: number;
       is_primary: boolean;
       assigned_at: string;
       assigned_by: number | null;
       job_role: JobRole;
       assigned_by_user: unknown | null;
-    }>>(`/api/job-roles/contributor/${crewMemberId}/assignments`, { skipBrandContext: true }),
+    }>>(`/api/job-roles/crew/${crewId}/assignments`, { skipBrandContext: true }),
+
+    addJobRoleToMember: (crewId: number, jobRoleId: number) =>
+      client.post<unknown>('/api/job-roles/assignments', {
+        crew_id: crewId,
+        job_role_id: jobRoleId,
+      }, { skipBrandContext: true }),
+
+    removeJobRoleFromMember: (crewId: number, jobRoleId: number) =>
+      client.delete<void>(`/api/job-roles/crew/${crewId}/job-role/${jobRoleId}`, { skipBrandContext: true }),
+
+    setPrimaryJobRole: (crewId: number, jobRoleId: number) =>
+      client.put<unknown>(`/api/job-roles/crew/${crewId}/job-role/${jobRoleId}`, { is_primary: true }, { skipBrandContext: true }),
   };
 }
 
@@ -162,11 +157,11 @@ export function createSkillRoleMappingsApi(client: ApiClient) {
 }
 
 export const crewApi = createCrewApi(apiClient);
-export const crewMembersApi = createcrewMembersApi(apiClient);
+export const userAccountsApi = createUserAccountsApi(apiClient);
 export const jobRolesApi = createJobRolesApi(apiClient);
 export const skillRoleMappingsApi = createSkillRoleMappingsApi(apiClient);
 
 export type CrewApi = ReturnType<typeof createCrewApi>;
-export type crewMembersApi = ReturnType<typeof createcrewMembersApi>;
+export type UserAccountsApi = ReturnType<typeof createUserAccountsApi>;
 export type JobRolesApi = ReturnType<typeof createJobRolesApi>;
 export type SkillRoleMappingsApi = ReturnType<typeof createSkillRoleMappingsApi>;

@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Box, CircularProgress, Alert, Button, Link, Stack } from "@mui/material";
-import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
+import { Alert, Link, Stack } from "@mui/material";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ContentBuilder } from "@/features/content/content-builder";
 import { FilmApiProvider, createProjectFilmApi, createInquiryFilmApi, type FilmContentApi } from "../components/FilmApiContext";
-import { FilmRightPanel } from "../components";
+import { FilmRightPanel, FilmEditorShell } from "../components";
 import { useFilmEquipment } from "../hooks";
 import { useTimelineStorage, useTimelineSave } from "@/features/content/content-builder/hooks/data";
 import { useFilmSubjects } from "@/features/content/subjects/hooks/useFilmSubjects";
@@ -27,7 +26,7 @@ import type { TimelineScene } from "@/features/content/content-builder/types/tim
  *
  * Mounts the existing ContentBuilder for project/inquiry film instances,
  * exactly matching the library film editor's feature set (right panel with
- * Activities / Equipment / Subjects / Operators tabs, equipment assignments,
+ * Activities / Equipment / Subjects / Crew Slots tabs, equipment assignments,
  * subject counts, film name editing, etc.).
  *
  * Data flow:
@@ -53,7 +52,7 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
     const inquiryId = searchParams.get("inquiryId");
     const linkedPackageId = searchParams.get("packageId");
     const linkedActivityId = searchParams.get("activityId");
-    const linkedPackageHref = linkedPackageId ? `/designer/packages/${linkedPackageId}` : null;
+    const linkedPackageHref = linkedPackageId ? `/packages/${linkedPackageId}` : null;
 
     // Use the library filmId for hooks that call library endpoints (right-panel tabs, equipment, subjects).
     // Fall back to projectFilmId so the page still works without the query param.
@@ -311,34 +310,8 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
         }
     }, [router, projectId, inquiryId]);
 
-    // ── Render: Loading ─────────────────────────────────────────────
-    if (loading) {
-        return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-                <CircularProgress />
-            </Box>
-        );
-    }
-
-    // ── Render: Error ───────────────────────────────────────────────
-    if (error || !film) {
-        return (
-            <Box sx={{ p: 3 }}>
-                <Alert severity="error">{error || "Film not found"}</Alert>
-                <Button
-                    variant="outlined"
-                    startIcon={<ArrowBackIcon />}
-                    onClick={handleBack}
-                    sx={{ mt: 2 }}
-                >
-                    Back
-                </Button>
-            </Box>
-        );
-    }
-
-    // ── Right panel (identical to library film page) ────────────────
-    const rightPanel = (
+    // ── Render: right panel (shared with library film page) ────────────────────────────────
+    const rightPanel = film ? (
         <FilmRightPanel
             film={film}
             filmId={filmIdForLibrary}
@@ -353,47 +326,50 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
             onDeleteSubject={handleDeleteSubject}
             onSaveFilm={handleSaveFilm}
         />
-    );
+    ) : null;
+
+    const packageAlert = linkedPackageId ? (
+        <Stack spacing={1} sx={{ px: 2, pt: 2 }}>
+            <Alert severity="info">
+                This film is an instance copy linked to a package.{' '}
+                {linkedPackageHref && (
+                    <Link href={linkedPackageHref} underline="hover">
+                        View package
+                    </Link>
+                )}
+            </Alert>
+        </Stack>
+    ) : null;
 
     // ── Main render ─────────────────────────────────────────────────
     return (
-        <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-            <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
-                <Box sx={{ flex: 1, overflow: "visible", p: 0 }}>
-                    {linkedPackageId && (
-                        <Stack spacing={1} sx={{ px: 2, pt: 2 }}>
-                            <Alert severity="info">
-                                This film is an instance copy linked to a package.{' '}
-                                {linkedPackageHref && (
-                                    <Link href={linkedPackageHref} underline="hover">
-                                        View package
-                                    </Link>
-                                )}
-                            </Alert>
-                        </Stack>
-                    )}
-                    <FilmApiProvider filmApi={filmApi}>
-                        <ContentBuilder
-                            filmId={projectFilmId}
-                            film={film}
-                            initialScenes={filmScenes}
-                            initialTracks={tracks}
-                            onSave={handleSave}
-                            onSaveFilmName={handleSaveFilm}
-                            readOnly={false}
-                            rightPanel={rightPanel}
-                            subjectCount={subjects.length}
-                            packageId={linkedPackageId ? Number(linkedPackageId) : undefined}
-                            linkedActivityId={linkedActivityId ? Number(linkedActivityId) : undefined}
-                            instanceOwnerType={mode}
-                            instanceOwnerId={mode === "inquiry" ? (inquiryId ? Number(inquiryId) : null) : (projectId ? Number(projectId) : null)}
-                            equipmentConfig={equipmentSummary || undefined}
-                            equipmentAssignmentsBySlot={equipmentAssignmentsBySlot}
-                            filmApi={filmApi}
-                        />
-                    </FilmApiProvider>
-                </Box>
-            </Box>
-        </Box>
+        <FilmEditorShell
+            loading={loading}
+            error={error}
+            filmReady={!!film}
+            onBack={handleBack}
+            packageAlert={packageAlert}
+        >
+            <FilmApiProvider filmApi={filmApi}>
+                <ContentBuilder
+                    filmId={projectFilmId}
+                    film={film!}
+                    initialScenes={filmScenes}
+                    initialTracks={tracks}
+                    onSave={handleSave}
+                    onSaveFilmName={handleSaveFilm}
+                    readOnly={false}
+                    rightPanel={rightPanel}
+                    subjectCount={subjects.length}
+                    packageId={linkedPackageId ? Number(linkedPackageId) : undefined}
+                    linkedActivityId={linkedActivityId ? Number(linkedActivityId) : undefined}
+                    instanceOwnerType={mode}
+                    instanceOwnerId={mode === "inquiry" ? (inquiryId ? Number(inquiryId) : null) : (projectId ? Number(projectId) : null)}
+                    equipmentConfig={equipmentSummary || undefined}
+                    equipmentAssignmentsBySlot={equipmentAssignmentsBySlot}
+                    filmApi={filmApi}
+                />
+            </FilmApiProvider>
+        </FilmEditorShell>
     );
 }

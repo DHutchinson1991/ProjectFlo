@@ -55,7 +55,7 @@ export function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onRel
     const [roleForm, setRoleForm] = useState({ role_name: "", description: "", is_core: false });
 
     // Derive flat subject type templates from linked junction data
-    const templates = linkedSubjects
+    const templates = [...linkedSubjects]
         .sort((a, b) => a.order_index - b.order_index)
         .map(link => link.subject_type_template);
 
@@ -187,7 +187,7 @@ export function SubjectTypeSection({ linkedSubjects, eventTypeId, brandId, onRel
                                         <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic" }}>No roles defined yet</Typography>
                                     ) : (
                                         <Stack spacing={0.5}>
-                                            {tpl.roles.sort((a, b) => a.order_index - b.order_index).map((role) => (
+                                            {[...tpl.roles].sort((a, b) => a.order_index - b.order_index).map((role) => (
                                                 <Box key={role.id} sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.5, py: 0.75, borderRadius: 1.5, bgcolor: (theme) => alpha(theme.palette.background.default, 0.5) }}>
                                                     <Typography variant="body2" fontWeight={600} sx={{ flex: 1 }}>{role.role_name}</Typography>
                                                     {role.is_core && <Chip label="Core" size="small" color="primary" variant="outlined" sx={{ height: 18, fontSize: "0.6rem" }} />}

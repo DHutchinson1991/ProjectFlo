@@ -6,7 +6,7 @@ import type {
     BackendCalendarStats,
     BackendCalendarTask,
     CalendarApiQuery,
-    BackendContributor,
+    BackendUserAccount,
     CalendarEventUpsertRequest,
 } from '../types/calendar-api.types';
 
@@ -17,7 +17,7 @@ export type {
     BackendCalendarStats,
     BackendCalendarTask,
     CalendarApiQuery,
-    BackendContributor,
+    BackendUserAccount,
     CalendarEventUpsertRequest,
 } from '../types/calendar-api.types';
 
@@ -52,16 +52,16 @@ export function createCalendarApi(client: ApiClient) {
             client.put(`/api/calendar/events/${id}`, event),
         deleteEvent: (id: number): Promise<void> =>
             client.delete(`/api/calendar/events/${id}`),
-        getEventsForDateRange: (start: Date, end: Date, crewMemberId?: number): Promise<BackendCalendarEvent[]> => {
+        getEventsForDateRange: (start: Date, end: Date, crewId?: number): Promise<BackendCalendarEvent[]> => {
             const q: CalendarApiQuery = { start_date: formatDateForApi(start), end_date: formatDateForApi(end) };
-            if (crewMemberId) q.crew_member_id = crewMemberId;
+            if (crewId) q.crew_id = crewId;
             return client.get(`/api/calendar/events${buildQs(q as Record<string, string | number | undefined>)}`);
         },
-        getTodaysEvents: (crewMemberId?: number): Promise<BackendCalendarEvent[]> =>
-            client.get(`/api/calendar/events/today${crewMemberId ? `?crew_member_id=${crewMemberId}` : ''}`),
-        getUpcomingEvents: (crewMemberId?: number, limit?: number): Promise<BackendCalendarEvent[]> => {
+        getTodaysEvents: (crewId?: number): Promise<BackendCalendarEvent[]> =>
+            client.get(`/api/calendar/events/today${crewId ? `?crew_id=${crewId}` : ''}`),
+        getUpcomingEvents: (crewId?: number, limit?: number): Promise<BackendCalendarEvent[]> => {
             const q: Record<string, number | undefined> = {};
-            if (crewMemberId) q.crew_member_id = crewMemberId;
+            if (crewId) q.crew_id = crewId;
             if (limit) q.limit = limit;
             return client.get(`/api/calendar/events/upcoming${buildQs(q)}`);
         },
@@ -77,7 +77,7 @@ export function createCalendarApi(client: ApiClient) {
             });
             return client.get(`/api/calendar/tasks?${params}`);
         },
-        getContributors: (): Promise<BackendContributor[]> => client.get('/api/contributors'),
+        getUserAccounts: (): Promise<BackendUserAccount[]> => client.get('/api/user-accounts'),
         getDiscoveryCallSlots: (brandIdOrDate: number | string, maybeDate?: string): Promise<{
             date: string;
             duration_minutes?: number;

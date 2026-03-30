@@ -20,17 +20,6 @@ export function useCrewPaymentTemplates() {
     });
 }
 
-export function useCrewPaymentTemplate(id: number) {
-    const { currentBrand } = useBrand();
-    const brandId = currentBrand?.id;
-
-    return useQuery({
-        queryKey: brandId ? crewPaymentTemplateKeys.detail(brandId, id) : ['crewPaymentTemplates', 'unscoped'],
-        queryFn: () => crewPaymentTemplatesApi.getById(brandId!, id),
-        enabled: !!brandId && !!id,
-    });
-}
-
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 export function useCreateCrewPaymentTemplate() {

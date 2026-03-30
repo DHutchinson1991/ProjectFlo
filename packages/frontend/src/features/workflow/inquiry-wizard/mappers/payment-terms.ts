@@ -46,7 +46,7 @@ export function resolveTotal(ctx: NACtx): number | null {
             const itemsTotal = (pkg.contents?.items ?? []).reduce(
                 (s: number, it: { price?: number }) => s + (it.price ?? 0), 0,
             );
-            const price = totalCost > 0 ? totalCost : (Number(pkg.base_price) || itemsTotal || 0);
+            const price = totalCost > 0 ? totalCost : (itemsTotal || 0);
             if (price > 0) return price;
         }
     }

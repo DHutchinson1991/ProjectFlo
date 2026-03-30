@@ -101,6 +101,13 @@ export function TaskDetailsTab({ task, formData, isEditing, validationErrors, cu
                                 value={(formData.pricing_type || PricingType.HOURLY) === PricingType.FIXED ? formatMoney(formData.fixed_price || 0) : formatMoney(roundMoney((formData.hourly_rate || 0) * (formData.effort_hours || 0)))}
                                 fullWidth disabled size="small" helperText="Calculated based on pricing type" />
                         </Grid>
+                        <Grid item xs={12}>
+                            <Divider sx={{ my: 0.5 }} />
+                            <FormControlLabel
+                                control={<Switch checked={formData.is_on_site ?? false} onChange={e => onFormChange('is_on_site', e.target.checked)} disabled={!isEditing} />}
+                                label={<Box><Typography variant="body2" sx={{ fontWeight: 500 }}>On-site task</Typography><Typography variant="caption" color="text.secondary">Billed at half-day / full-day / overtime rates instead of hourly</Typography></Box>}
+                            />
+                        </Grid>
                     </Grid>
                 </Paper>
             </Grid>

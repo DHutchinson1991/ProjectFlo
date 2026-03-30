@@ -10,7 +10,8 @@ Owns studio calendar scheduling UI and data flows (list/read/update) for month/w
 | `hooks/use-calendar-page.ts` | Composes view, dialog, modal, and data hooks |
 | `hooks/use-calendar-events.ts` | React Query list/read/update/delete flow for events |
 | `hooks/use-calendar-tasks.ts` | React Query list/read flow for calendar tasks |
-| `hooks/use-contributors.ts` | React Query contributor lookup for assignee selection |
+| `hooks/use-crew-members.ts` | React Query crew lookup for assignee selection |
+| `components/CrewSelector.tsx` | Shared assignee selector used by event and task forms |
 | `constants/query-keys.ts` | Brand-aware tenant-scoped React Query keys |
 | `api/index.ts` | Typed calendar endpoint bindings through shared API client |
 | `types/calendar-api.types.ts` | Backend request/response contracts at the feature boundary |

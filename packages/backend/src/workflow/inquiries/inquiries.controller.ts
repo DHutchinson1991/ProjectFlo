@@ -18,7 +18,7 @@ import { InquiryCrudService } from './services/inquiry-crud.service';
 import { InquiryLifecycleService } from './services/inquiry-lifecycle.service';
 import { ProjectPackageSnapshotService } from '../projects/project-package-snapshot.service';
 import { ProjectPackageCloneService } from '../projects/project-package-clone.service';
-import { ScheduleService } from '../../content/schedule/schedule.service';
+import { ScheduleDiffService } from '../../content/schedule/services';
 import { CreateInquiryDto, UpdateInquiryDto } from './dto/inquiries.dto';
 import { ClientPortalService } from './client-portal.service';
 
@@ -31,7 +31,7 @@ export class InquiriesController {
         private readonly lifecycleService: InquiryLifecycleService,
         private readonly snapshotService: ProjectPackageSnapshotService,
         private readonly cloneService: ProjectPackageCloneService,
-        private readonly scheduleService: ScheduleService,
+        private readonly scheduleService: ScheduleDiffService,
         private readonly clientPortalService: ClientPortalService,
     ) { }
 
@@ -130,9 +130,9 @@ export class InquiriesController {
         return this.snapshotService.getActivities({ inquiryId: id });
     }
 
-    @Get(':id/schedule-snapshot/operators')
-    async getScheduleSnapshotOperators(@Param('id', ParseIntPipe) id: number) {
-        return this.snapshotService.getOperators({ inquiryId: id });
+    @Get(':id/schedule-snapshot/crew-slots')
+    async getScheduleSnapshotCrewSlots(@Param('id', ParseIntPipe) id: number) {
+        return this.snapshotService.getCrewSlots({ inquiryId: id });
     }
 
     @Get(':id/schedule-snapshot/subjects')

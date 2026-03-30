@@ -17,8 +17,8 @@ export function TaskColumnHeaders({ columns, gridCols }: TaskColumnHeadersProps)
             bgcolor: 'rgba(255,255,255,0.022)',
             borderBottom: '1px solid rgba(255,255,255,0.07)',
         }}>
-            {columns.map((h) => (
-                <Typography key={h} sx={{
+            {columns.map((h, i) => (
+                <Typography key={i} sx={{
                     fontSize: '0.625rem', fontWeight: 800, color: 'rgba(255,255,255,0.3)',
                     textTransform: 'uppercase', letterSpacing: '0.12em',
                     px: 1.5, py: 1,

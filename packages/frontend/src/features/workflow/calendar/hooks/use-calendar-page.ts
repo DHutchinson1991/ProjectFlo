@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from 'react';
 import type { CalendarTask, CalendarFilters } from '@/features/workflow/calendar/types/calendar-types';
 import { useCalendarEvents, useCalendarTasks } from '@/features/workflow/calendar/hooks/use-calendar';
-import { useCrewMembers } from '@/features/workflow/calendar/hooks/use-contributors';
+import { useCrew } from '@/features/workflow/calendar/hooks/use-crew-members';
 import {
     searchTasks,
     getUpcomingDeadlines,
@@ -34,8 +34,8 @@ export function useCalendarPage() {
 
     const { tasks: apiTasks } = useCalendarTasks(currentView.date, viewTypeForHook);
 
-    const { crewMembers, currentUserCrewMember, loading: crewMembersLoading, error: crewMembersError } =
-        useCrewMembers();
+    const { crew, currentUserCrew, loading: crewLoading, error: crewError } =
+        useCrew();
 
     const eventModal = useCalendarEventModal({
         apiCreateEvent,
@@ -48,7 +48,7 @@ export function useCalendarPage() {
         apiCreateEvent,
         refreshEvents,
         bumpRefreshKey,
-        currentUserCrewMember,
+        currentUserCrew,
     });
 
     const filters: CalendarFilters = {
@@ -121,10 +121,10 @@ export function useCalendarPage() {
         eventsError,
         filteredTasks,
         stats,
-        crewMembers,
-        currentUserCrewMember,
-        crewMembersLoading,
-        crewMembersError,
+        crew,
+        currentUserCrew,
+        crewLoading,
+        crewError,
         ...addDialog,
         ...eventModal,
         handleEventDragUpdate,

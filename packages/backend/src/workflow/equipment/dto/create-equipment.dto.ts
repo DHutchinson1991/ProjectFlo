@@ -104,6 +104,10 @@ export class CreateEquipmentDto {
     location?: string;
 
     @IsOptional()
+    @IsString()
+    photo_url?: string;
+
+    @IsOptional()
     @IsInt()
     @Type(() => Number)
     brand_id?: number;

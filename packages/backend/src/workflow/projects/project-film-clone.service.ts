@@ -99,7 +99,7 @@ export class ProjectFilmCloneService {
           order_index: track.order_index,
           is_active: track.is_active,
           is_unmanned: track.is_unmanned,
-          crew_member_id: track.crew_member_id,
+          crew_id: track.crew_id,
         },
       });
       trackMap.set(track.id, instanceTrack.id);

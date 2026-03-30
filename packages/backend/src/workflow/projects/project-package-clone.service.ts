@@ -166,7 +166,7 @@ export class ProjectPackageCloneService {
 
     // Map: PackageEventDay.id → ProjectEventDay.id
     const eventDayMap = new Map<number, number>();
-    // Also: EventDay.id → ProjectEventDay.id (for operators/subjects that reference template IDs)
+    // Also: EventDay.id → ProjectEventDay.id (for crew slots/subjects that reference template IDs)
     const templateToProjectDayMap = new Map<number, number>();
 
     for (const ped of packageEventDays) {
@@ -326,45 +326,41 @@ export class ProjectPackageCloneService {
     this.logger.debug(`  Location slots cloned: ${locationSlotMap.size}`);
 
     // ── 6. Clone PackageCrewSlot → ProjectCrewSlot ──────────
-    const packageOperators = await prisma.packageCrewSlot.findMany({
+    const packageCrewSlots = await prisma.packageCrewSlot.findMany({
       where: { package_id: packageId },
       include: {
+        package_event_day: { select: { event_day_template_id: true } },
         equipment: true, // PackageCrewSlotEquipment[]
       },
-      orderBy: [{ event_day_template_id: 'asc' }, { order_index: 'asc' }],
+      orderBy: [{ package_event_day_id: 'asc' }, { order_index: 'asc' }],
     });
 
     // Map: PackageCrewSlot.id → ProjectCrewSlot.id
-    const operatorMap = new Map<number, number>();
+    const crewSlotMap = new Map<number, number>();
 
-    for (const po of packageOperators) {
-      const projDayId = templateToProjectDayMap.get(po.event_day_template_id);
+    for (const po of packageCrewSlots) {
+      const projDayId = templateToProjectDayMap.get(po.package_event_day.event_day_template_id);
       if (!projDayId) continue;
 
-      const projActivityId = po.package_activity_id
-        ? activityMap.get(po.package_activity_id) ?? null
-        : null;
-
-      const projectOperator = await prisma.projectCrewSlot.create({
+      const projectCrewSlot = await prisma.projectCrewSlot.create({
         data: {
           ...ownerFields,
           project_event_day_id: projDayId,
-          project_activity_id: projActivityId,
           source_slot_id: po.id,
-          crew_member_id: po.crew_member_id, // Carry over crew assignment
+          crew_id: po.crew_id, // Carry over crew assignment
           job_role_id: po.job_role_id,
           hours: po.hours,
           label: po.label,
           order_index: po.order_index,
         },
       });
-      operatorMap.set(po.id, projectOperator.id);
+      crewSlotMap.set(po.id, projectCrewSlot.id);
 
       // ── 7. Clone PackageCrewSlotEquipment → ProjectCrewSlotEquipment
       for (const eq of po.equipment) {
         await prisma.projectCrewSlotEquipment.create({
           data: {
-            project_crew_slot_id: projectOperator.id,
+            project_crew_slot_id: projectCrewSlot.id,
             equipment_id: eq.equipment_id,
             is_primary: eq.is_primary,
           },
@@ -372,7 +368,7 @@ export class ProjectPackageCloneService {
       }
     }
 
-    this.logger.debug(`  Operators cloned: ${operatorMap.size}`);
+    this.logger.debug(`  Crew slots cloned: ${crewSlotMap.size}`);
 
     // ── 8. Clone PackageFilm → ProjectFilm ────────────────────────
     // Only clone the PackageFilm records that are currently listed in
@@ -493,20 +489,20 @@ export class ProjectPackageCloneService {
 
     let opAssignmentsCopied = 0;
     for (const oa of opAssignments) {
-      const projOperatorId = operatorMap.get(oa.package_crew_slot_id);
+      const projCrewSlotId = crewSlotMap.get(oa.package_crew_slot_id);
       const projActivityId = activityMap.get(oa.package_activity_id);
-      if (!projOperatorId || !projActivityId) continue;
+      if (!projCrewSlotId || !projActivityId) continue;
 
       await prisma.projectCrewSlotActivity.create({
         data: {
-          project_crew_slot_id: projOperatorId,
+          project_crew_slot_id: projCrewSlotId,
           project_activity_id: projActivityId,
         },
       });
       opAssignmentsCopied++;
     }
 
-    this.logger.debug(`  Operator assignments cloned: ${opAssignmentsCopied}`);
+    this.logger.debug(`  Crew slot assignments cloned: ${opAssignmentsCopied}`);
 
     // ── 11. Clone SubjectActivityAssignment → ProjectSubjectActivityAssignment
     const subAssignments = await prisma.packageDaySubjectActivity.findMany({
@@ -568,9 +564,9 @@ export class ProjectPackageCloneService {
       moments_created: momentsCopied,
       subjects_created: subjectMap.size,
       location_slots_created: locationSlotMap.size,
-      operators_created: operatorMap.size,
+      crew_slots_created: crewSlotMap.size,
       films_created: filmMap.size,
-      operator_assignments_created: opAssignmentsCopied,
+      crew_slot_assignments_created: opAssignmentsCopied,
       subject_assignments_created: subAssignmentsCopied,
       location_assignments_created: locAssignmentsCopied,
     };
@@ -638,7 +634,7 @@ export class ProjectPackageCloneService {
     if (!inquiry.source_package_id && inquiry.selected_package_id) {
       const pkg = await this.prisma.service_packages.findUnique({
         where: { id: inquiry.selected_package_id },
-        select: { id: true, name: true, base_price: true, currency: true, contents: true },
+        select: { id: true, name: true, currency: true, contents: true },
       });
 
       await this.prisma.inquiries.update({
@@ -650,7 +646,6 @@ export class ProjectPackageCloneService {
                 snapshot_taken_at: new Date().toISOString(),
                 package_id: pkg.id,
                 package_name: pkg.name,
-                base_price: pkg.base_price ? Number(pkg.base_price) : 0,
                 currency: pkg.currency ?? DEFAULT_CURRENCY,
                 contents: pkg.contents,
               }
@@ -684,12 +679,12 @@ export class ProjectPackageCloneService {
     await tx.projectDaySubjectActivity.deleteMany({
       where: { project_day_subject: where },
     });
-    await tx.projectOperatorActivityAssignment.deleteMany({
+    await tx.projectCrewSlotActivity.deleteMany({
       where: { project_crew_slot: where },
     });
 
-    // Equipment (references operator)
-    await tx.projectDayOperatorEquipment.deleteMany({
+    // Equipment (references crew slot)
+    await tx.projectCrewSlotEquipment.deleteMany({
       where: { project_crew_slot: where },
     });
 
@@ -702,7 +697,7 @@ export class ProjectPackageCloneService {
     await tx.projectActivityMoment.deleteMany({ where });
     await tx.projectDaySubject.deleteMany({ where });
     await tx.projectLocationSlot.deleteMany({ where });
-    await tx.projectDayOperator.deleteMany({ where });
+    await tx.projectCrewSlot.deleteMany({ where });
     await tx.projectFilm.deleteMany({ where });
     await tx.projectActivity.deleteMany({ where });
     await tx.projectEventDay.deleteMany({ where });
@@ -714,15 +709,15 @@ export class ProjectPackageCloneService {
     tx: Prisma.TransactionClient,
     projectId: number,
   ) {
-    const operators = await tx.projectDayOperator.findMany({
-      where: { project_id: projectId, crew_member_id: { not: null }, job_role_id: { not: null } },
+    const crewSlots = await tx.projectCrewSlot.findMany({
+      where: { project_id: projectId, crew_id: { not: null } },
       select: {
-        crew_member_id: true,
+        crew_id: true,
         job_role_id: true,
       },
     });
 
-    if (operators.length === 0) {
+    if (crewSlots.length === 0) {
       await tx.project_tasks.updateMany({
         where: { project_id: projectId, is_active: true },
         data: { assigned_to_id: null },
@@ -730,9 +725,9 @@ export class ProjectPackageCloneService {
       return;
     }
 
-    const contributorRoleRows = await tx.crewMemberJobRole.findMany({
+    const crewRoleRows = await tx.crewJobRole.findMany({
       where: {
-        crew_member_id: { in: operators.map((operator) => operator.crew_member_id!) },
+        crew_id: { in: crewSlots.map((slot) => slot.crew_id!) },
       },
       include: {
         payment_bracket: { select: { level: true } },
@@ -740,27 +735,27 @@ export class ProjectPackageCloneService {
     });
 
     const validAssignments = new Set(
-      contributorRoleRows.map((row) => `${row.crew_member_id}-${row.job_role_id}`),
+      crewRoleRows.map((row) => `${row.crew_id}-${row.job_role_id}`),
     );
-    const roleToCrew = new Map<number, Array<{ contributorId: number; bracketLevel: number }>>();
+    const roleToCrew = new Map<number, Array<{ crewId: number; bracketLevel: number }>>();
 
-    for (const operator of operators) {
-      const contributorId = operator.crew_member_id;
-      const jobRoleId = operator.job_role_id;
-      if (!contributorId || !jobRoleId) continue;
-      if (!validAssignments.has(`${contributorId}-${jobRoleId}`)) continue;
+    for (const slot of crewSlots) {
+      const crewId = slot.crew_id;
+      const jobRoleId = slot.job_role_id;
+      if (!crewId || !jobRoleId) continue;
+      if (!validAssignments.has(`${crewId}-${jobRoleId}`)) continue;
 
       const bracketLevel =
-        contributorRoleRows.find(
-          (row) => row.crew_member_id === contributorId && row.job_role_id === jobRoleId,
+        crewRoleRows.find(
+          (row) => row.crew_id === crewId && row.job_role_id === jobRoleId,
         )?.payment_bracket?.level ?? 0;
 
       if (!roleToCrew.has(jobRoleId)) {
         roleToCrew.set(jobRoleId, []);
       }
       const list = roleToCrew.get(jobRoleId)!;
-      if (!list.some((entry) => entry.contributorId === contributorId)) {
-        list.push({ contributorId, bracketLevel });
+      if (!list.some((entry) => entry.crewId === crewId)) {
+        list.push({ crewId, bracketLevel });
       }
     }
 
@@ -774,9 +769,9 @@ export class ProjectPackageCloneService {
     ): number | null => {
       const list = roleToCrew.get(roleId);
       if (!list || list.length === 0) return null;
-      if (list.length === 1) return list[0].contributorId;
+      if (list.length === 1) return list[0].crewId;
       if (taskBracketLevel === null || taskBracketLevel <= 0) {
-        return list[0].contributorId;
+        return list[0].crewId;
       }
 
       let best = list[0];
@@ -792,7 +787,7 @@ export class ProjectPackageCloneService {
         }
       }
 
-      return best.contributorId;
+      return best.crewId;
     };
 
     const tasks = await tx.project_tasks.findMany({
@@ -833,15 +828,14 @@ export class ProjectPackageCloneService {
     tx: Prisma.TransactionClient,
     inquiryId: number,
   ) {
-    const operators = await tx.projectDayOperator.findMany({
-      where: { inquiry_id: inquiryId, crew_member_id: { not: null }, job_role_id: { not: null } },
+    const crewSlots = await tx.projectCrewSlot.findMany({
       select: {
-        crew_member_id: true,
+        crew_id: true,
         job_role_id: true,
       },
     });
 
-    if (operators.length === 0) {
+    if (crewSlots.length === 0) {
       await tx.inquiry_tasks.updateMany({
         where: { inquiry_id: inquiryId, is_active: true, is_task_group: false },
         data: { assigned_to_id: null },
@@ -849,9 +843,9 @@ export class ProjectPackageCloneService {
       return;
     }
 
-    const contributorRoleRows = await tx.crewMemberJobRole.findMany({
+    const crewRoleRows = await tx.crewJobRole.findMany({
       where: {
-        crew_member_id: { in: operators.map((operator) => operator.crew_member_id!) },
+        crew_id: { in: crewSlots.map((slot) => slot.crew_id!) },
       },
       include: {
         payment_bracket: { select: { level: true } },
@@ -859,27 +853,27 @@ export class ProjectPackageCloneService {
     });
 
     const validAssignments = new Set(
-      contributorRoleRows.map((row) => `${row.crew_member_id}-${row.job_role_id}`),
+      crewRoleRows.map((row) => `${row.crew_id}-${row.job_role_id}`),
     );
-    const roleToCrew = new Map<number, Array<{ contributorId: number; bracketLevel: number }>>();
+    const roleToCrew = new Map<number, Array<{ crewId: number; bracketLevel: number }>>();
 
-    for (const operator of operators) {
-      const contributorId = operator.crew_member_id;
-      const jobRoleId = operator.job_role_id;
-      if (!contributorId || !jobRoleId) continue;
-      if (!validAssignments.has(`${contributorId}-${jobRoleId}`)) continue;
+    for (const slot of crewSlots) {
+      const crewId = slot.crew_id;
+      const jobRoleId = slot.job_role_id;
+      if (!crewId || !jobRoleId) continue;
+      if (!validAssignments.has(`${crewId}-${jobRoleId}`)) continue;
 
       const bracketLevel =
-        contributorRoleRows.find(
-          (row) => row.crew_member_id === contributorId && row.job_role_id === jobRoleId,
+        crewRoleRows.find(
+          (row) => row.crew_id === crewId && row.job_role_id === jobRoleId,
         )?.payment_bracket?.level ?? 0;
 
       if (!roleToCrew.has(jobRoleId)) {
         roleToCrew.set(jobRoleId, []);
       }
       const list = roleToCrew.get(jobRoleId)!;
-      if (!list.some((entry) => entry.contributorId === contributorId)) {
-        list.push({ contributorId, bracketLevel });
+      if (!list.some((entry) => entry.crewId === crewId)) {
+        list.push({ crewId, bracketLevel });
       }
     }
 
@@ -890,7 +884,7 @@ export class ProjectPackageCloneService {
     const pickCrewForRole = (roleId: number): number | null => {
       const list = roleToCrew.get(roleId);
       if (!list || list.length === 0) return null;
-      return list[0].contributorId;
+      return list[0].crewId;
     };
 
     const tasks = await tx.inquiry_tasks.findMany({

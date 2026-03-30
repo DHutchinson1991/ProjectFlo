@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { SceneSchedule, ScheduleScene } from "../types/schedule-panel.types";
-import type { EventDayFilmScene } from "@/features/workflow/scheduling/components";
+import type { EventDayFilmScene } from "@/features/workflow/scheduling/package-template";
 import { parseTimeToMinutes, calculateEndTime, getTotalScheduledMinutes } from "../utils/schedule-helpers";
 
 export function useScheduleStats(

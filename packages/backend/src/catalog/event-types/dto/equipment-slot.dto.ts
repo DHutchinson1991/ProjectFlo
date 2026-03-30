@@ -12,7 +12,7 @@ export class EquipmentSlotDto {
 
   @IsOptional()
   @IsInt()
-  contributorId?: number;
+  crewId?: number;
 
   @IsOptional()
   @IsInt()

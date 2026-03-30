@@ -7,5 +7,5 @@ export const crewKeys = {
     [...crewKeys.all(brandId), 'workload'] as const,
   detail: (brandId: number, id: number) =>
     [...crewKeys.all(brandId), 'detail', id] as const,
-  crewMembers: (brandId: number) => ['contributors', brandId] as const,
+  roster: (brandId: number) => ['crew', 'roster', brandId] as const,
 };

@@ -16,13 +16,13 @@ export class CrewSlotsController {
   // ─── Package Crew Slots ───────────────────────────────────────────
 
   @Get('packages/:packageId')
-  getPackageDayOperators(
+  getPackageDayCrewSlots(
     @Param('packageId', ParseIntPipe) packageId: number,
     @Query(new ValidationPipe({ transform: true })) query: CrewSlotsDayQueryDto,
     @Headers('x-brand-context') brandId?: string,
   ) {
     const parsedBrandId = brandId ? parseInt(brandId) : undefined;
-    return this.packageCrewSlotsService.getPackageDayOperators(
+    return this.packageCrewSlotsService.getPackageDayCrewSlots(
       packageId,
       query.dayId,
     );
@@ -38,7 +38,7 @@ export class CrewSlotsController {
     return this.packageCrewSlotsService.addCrewSlotToPackageDay(packageId, dto);
   }
 
-  @Patch('packages/day-operators/:slotId')
+  @Patch('packages/crew-slots/:slotId')
   updateCrewSlot(
     @Param('slotId', ParseIntPipe) slotId: number,
     @Body(new ValidationPipe({ transform: true })) dto: UpdateCrewSlotDto,
@@ -48,7 +48,7 @@ export class CrewSlotsController {
     return this.packageCrewSlotsService.updateCrewSlot(slotId, dto);
   }
 
-  @Patch('packages/day-operators/:slotId/assign')
+  @Patch('packages/crew-slots/:slotId/assign')
   assignCrewToSlot(
     @Param('slotId', ParseIntPipe) slotId: number,
     @Body(new ValidationPipe({ transform: true })) dto: AssignCrewSlotDto,
@@ -58,7 +58,7 @@ export class CrewSlotsController {
     return this.packageCrewSlotsService.assignCrewToSlot(slotId, dto);
   }
 
-  @Delete('packages/day-operators/:slotId')
+  @Delete('packages/crew-slots/:slotId')
   removeCrewSlot(
     @Param('slotId', ParseIntPipe) slotId: number,
     @Headers('x-brand-context') brandId?: string,
@@ -69,7 +69,7 @@ export class CrewSlotsController {
 
   // ─── Crew Slot Equipment ──────────────────────────────────────────
 
-  @Post('packages/day-operators/:slotId/equipment')
+  @Post('packages/crew-slots/:slotId/equipment')
   setSlotEquipment(
     @Param('slotId', ParseIntPipe) slotId: number,
     @Body(new ValidationPipe({ transform: true })) dto: SetSlotEquipmentDto,
@@ -81,7 +81,14 @@ export class CrewSlotsController {
 
   // ─── Activity Assignments ─────────────────────────────────────────
 
-  @Post('packages/day-operators/:slotId/activities/:activityId')
+  @Post('packages/:packageId/sync-crew-activities')
+  syncCrewActivities(
+    @Param('packageId', ParseIntPipe) packageId: number,
+  ) {
+    return this.packageCrewSlotsService.syncCrewActivities(packageId);
+  }
+
+  @Post('packages/crew-slots/:slotId/activities/:activityId')
   assignSlotToActivity(
     @Param('slotId', ParseIntPipe) slotId: number,
     @Param('activityId', ParseIntPipe) activityId: number,
@@ -91,7 +98,7 @@ export class CrewSlotsController {
     return this.packageCrewSlotsService.assignSlotToActivity(slotId, activityId);
   }
 
-  @Delete('packages/day-operators/:slotId/activities/:activityId')
+  @Delete('packages/crew-slots/:slotId/activities/:activityId')
   unassignSlotFromActivity(
     @Param('slotId', ParseIntPipe) slotId: number,
     @Param('activityId', ParseIntPipe) activityId: number,
@@ -101,9 +108,9 @@ export class CrewSlotsController {
     return this.packageCrewSlotsService.unassignSlotFromActivity(slotId, activityId);
   }
 
-  // ─── Project Day Operators (Inquiry-level crew) ───────────────────
+  // ─── Project Crew Slots (Inquiry-level crew) ───────────────────
 
-  @Patch('project/day-operators/:slotId/assign')
+  @Patch('project/crew-slots/:slotId/assign')
   assignProjectCrewToSlot(
     @Param('slotId', ParseIntPipe) slotId: number,
     @Body(new ValidationPipe({ transform: true })) dto: AssignCrewSlotDto,

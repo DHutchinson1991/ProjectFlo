@@ -9,7 +9,7 @@ import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import CloseIcon from '@mui/icons-material/Close';
 
-import type { EventDay } from '@/features/workflow/scheduling/components';
+import type { EventDay } from '@/features/workflow/scheduling/package-template';
 import type { ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
 import { roundMoney } from '@/shared/utils/pricing';
 
@@ -22,7 +22,6 @@ export interface PreviewDialogProps {
         name?: string | null;
         description?: string | null;
         category?: string | null;
-        base_price?: number | string | null;
         contents?: {
             items?: ServicePackageItem[];
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,7 +35,7 @@ export interface PreviewDialogProps {
 
 export function PreviewDialog({ open, onClose, formData, packageEventDays }: PreviewDialogProps) {
     const items = formData.contents?.items || [];
-    const total = roundMoney(items.reduce((sum, item) => sum + (item.price || 0), 0) + Number(formData.base_price || 0));
+    const total = roundMoney(items.reduce((sum, item) => sum + (item.price || 0), 0));
 
     return (
         <Dialog

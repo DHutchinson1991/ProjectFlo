@@ -56,3 +56,38 @@ export function computeScreens(r: AnyRecord, cfg: EventTypeConfig): ScreenId[] {
     list.push("contact", "summary");
     return list;
 }
+
+/**
+ * Public-facing variant of computeScreens.
+ * Differences from studio:
+ * - No "welcome" screen
+ * - "contact" moved earlier (after venue/guests, before fork) so leads are captured before package selection
+ */
+export function computePublicScreens(r: AnyRecord, cfg: EventTypeConfig): ScreenId[] {
+    const list: ScreenId[] = ["event_type"];
+    if (!r.event_type) return list;
+    const et = (r.event_type || "").toLowerCase();
+
+    list.push("date");
+    if (cfg.showPartner) list.push("partner");
+    if (et === "birthday") list.push("birthday_contact");
+    list.push("venue");
+    if (cfg.showGuests) list.push("guests");
+
+    // Contact captured here — before package selection
+    list.push("contact");
+    list.push("fork");
+
+    if (r.package_path === "pick") {
+        list.push("budget", "packages");
+    } else if (r.package_path === "build") {
+        list.push("builder");
+    }
+
+    if (!r.package_path) return list;
+
+    list.push("payment_terms", "special", "source", "call_offer");
+    if (r.discovery_call_interest === "yes") list.push("call_details");
+    list.push("summary");
+    return list;
+}

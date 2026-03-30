@@ -16,7 +16,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { JobRolesService } from './job-roles.service';
 import { JobRoleAssignmentsService } from './services/job-role-assignments.service';
 import { CreateJobRoleDto, UpdateJobRoleDto } from './dto/job-role.dto';
-import { AssignJobRoleDto, UpdateJobRoleAssignmentDto } from './dto/contributor-job-role.dto';
+import { AssignJobRoleDto, UpdateJobRoleAssignmentDto } from './dto/crew-job-role.dto';
 
 @Controller('api/job-roles')
 @UseGuards(AuthGuard('jwt'))
@@ -60,9 +60,9 @@ export class JobRolesController {
         await this.jobRolesService.deleteJobRole(id);
     }
 
-    @Get('contributor/:contributorId/assignments')
-    async getContributorJobRoles(@Param('contributorId', ParseIntPipe) contributorId: number) {
-        return this.assignmentsService.getContributorJobRoles(contributorId);
+    @Get('crew/:crewId/assignments')
+    async getCrewJobRoles(@Param('crewId', ParseIntPipe) crewId: number) {
+        return this.assignmentsService.getCrewJobRoles(crewId);
     }
 
     @Post('assignments')
@@ -70,26 +70,26 @@ export class JobRolesController {
         return this.assignmentsService.assignJobRole(assignJobRoleDto);
     }
 
-    @Put('contributor/:contributorId/job-role/:jobRoleId')
-    async updateJobRoleAssignment(
-        @Param('contributorId', ParseIntPipe) contributorId: number,
+    @Put('crew/:crewId/job-role/:jobRoleId')
+    async updateCrewJobRoleAssignment(
+        @Param('crewId', ParseIntPipe) crewId: number,
         @Param('jobRoleId', ParseIntPipe) jobRoleId: number,
         @Body(new ValidationPipe({ transform: true })) updateDto: UpdateJobRoleAssignmentDto,
     ) {
-        return this.assignmentsService.updateJobRoleAssignment(contributorId, jobRoleId, updateDto);
+        return this.assignmentsService.updateJobRoleAssignment(crewId, jobRoleId, updateDto);
     }
 
-    @Delete('contributor/:contributorId/job-role/:jobRoleId')
+    @Delete('crew/:crewId/job-role/:jobRoleId')
     @HttpCode(HttpStatus.NO_CONTENT)
-    async removeJobRoleAssignment(
-        @Param('contributorId', ParseIntPipe) contributorId: number,
+    async removeCrewJobRoleAssignment(
+        @Param('crewId', ParseIntPipe) crewId: number,
         @Param('jobRoleId', ParseIntPipe) jobRoleId: number,
     ) {
-        await this.assignmentsService.removeJobRoleAssignment(contributorId, jobRoleId);
+        await this.assignmentsService.removeJobRoleAssignment(crewId, jobRoleId);
     }
 
-    @Get(':jobRoleId/contributors')
-    async getContributorsByJobRole(@Param('jobRoleId', ParseIntPipe) jobRoleId: number) {
-        return this.assignmentsService.getContributorsByJobRole(jobRoleId);
+    @Get(':jobRoleId/crew')
+    async getCrewByJobRole(@Param('jobRoleId', ParseIntPipe) jobRoleId: number) {
+        return this.assignmentsService.getCrewByJobRole(jobRoleId);
     }
 }

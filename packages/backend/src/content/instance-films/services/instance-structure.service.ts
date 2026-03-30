@@ -43,7 +43,7 @@ export class InstanceStructureService {
         order_index: orderIndex,
         is_active: dto.is_active ?? true,
         is_unmanned: dto.is_unmanned ?? false,
-        crew_member_id: dto.crew_member_id ?? null,
+        crew_id: dto.crew_id ?? null,
       },
     });
   }
@@ -60,7 +60,7 @@ export class InstanceStructureService {
         order_index: dto.order_index,
         is_active: dto.is_active,
         is_unmanned: dto.is_unmanned,
-        crew_member_id: dto.crew_member_id,
+        crew_id: dto.crew_id,
       },
     });
   }

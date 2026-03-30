@@ -2,10 +2,10 @@
 
 ## What this module does
 
-Manages the full needs-assessment / inquiry wizard flow for ProjectFlo. Provides two surfaces:
-- **Public wizard** — brand-themed, token-authenticated form served to prospective clients at `/portal/needs-assessment/[token]`
-- **Studio wizard** — internal staff view at `/sales/inquiries/[id]/needs-assessment` for running the wizard on behalf of a client
-- **Review screen** — internal review UI at `/sales/inquiries/[id]/needs-assessment/review` for conflict checking and sign-off
+Manages the full inquiry wizard flow for ProjectFlo. Provides three surfaces that share the same step components:
+- **Public wizard** — client-facing, token-authenticated form at `/inquiry-wizard/[token]`. Uses the studio `WizardLayout` chrome (bokeh orbs, progress bar, animated ambience) and all 18 studio step components, fed by `usePublicWizardData`. Contact screen is moved earlier (before package selection) to capture leads.
+- **Studio wizard** — internal staff view at `/sales/inquiry-wizard/` for running the wizard on behalf of a client.
+- **Review screen** — internal review UI at `/sales/inquiries/[id]/inquiry-wizard/review` for conflict checking and sign-off.
 
 ## Key files
 
@@ -15,24 +15,22 @@ Manages the full needs-assessment / inquiry wizard flow for ProjectFlo. Provides
 | `types/index.ts` | All domain types: `NACtx`, `ScreenId`, `InquiryWizardTemplate`, `AnyRecord`, etc. |
 | `constants/wizard-config.ts` | Event configs, colour palette, screen ambience, budget ranges, deliverable options |
 | `constants/animations.ts` | MUI keyframe animations shared across wizard steps |
-| `selectors/wizard-navigation.ts` | `computeScreens()` — derives ordered screen list from response state; venue search via Photon API |
+| `selectors/wizard-navigation.ts` | `computeScreens()` — studio screen order; `computePublicScreens()` — same but no welcome, contact earlier; venue search via Photon API |
 | `formatters/payment-terms.ts` | Currency formatting and payment schedule label helpers |
-| `hooks/usePublicWizardForm.ts` | Public wizard form state, step navigation, validation, submission |
-| `hooks/usePublicWizardTemplate.ts` | Fetches public wizard template by token |
+| `hooks/usePublicWizardData.ts` | Fetches public wizard template by token (unauthenticated); adapts `PublicPackageSetData` → `PackageSet`-compatible shape for `useWizardComputed` |
 | `hooks/useWizardComputed.ts` | Derives `eventConfig`, `filteredPackages`, `slotLabels`, `budgetLabels` from responses |
 | `hooks/useWizardStudioData.ts` | Loads brand/package/event-type data needed for the studio wizard |
-| `hooks/useBuilderPackage.ts` | Builder path: creates/resolves custom package from operator+camera selections |
+| `hooks/useBuilderPackage.ts` | Builder path: creates/resolves custom package from crew+camera selections |
 | `hooks/useWizardPaymentSchedules.ts` | Fetches payment schedule templates for the PaymentTermsStep |
-| `screens/PublicInquiryWizardScreen.tsx` | Public wizard entry point — uses `portal/` themed components |
+| `screens/PublicInquiryWizardScreen.tsx` | Public wizard entry point — uses studio `WizardLayout` chrome + all 18 studio step components |
 | `screens/InquiryWizardStudioScreen.tsx` | Studio wizard entry point — shares all step components |
 | `screens/InquiryWizardReviewScreen.tsx` | Conflict checking + checklist review for internal staff |
-| `constants/public-wizard-theme.ts` | Dark colour palette, MUI helpers, animations, and defaults for the public wizard surface |
-| `components/steps/` | 18 studio step components + 3 portal step components (`PortalQuestionCard`, `PortalPackageStep`, `PortalDiscoveryCallStep`) |
-| `components/layout/` | Public wizard layout: `PortalBrandHeader`, `PortalWizardHero`, `PortalStepIndicator`, `PortalWizardFooter` |
+| `components/steps/` | 18 studio step components (used by both public and studio surfaces) |
+| `components/layout/` | `WizardLayout` — full-page wizard chrome with bokeh, progress bar, animated ambience |
 
 ## Business rules / invariants
 
-- `computeScreens()` in `selectors/wizard-navigation.ts` is the single source of truth for screen order — never hardcode screen sequences elsewhere.
+- `computeScreens()` (studio) and `computePublicScreens()` (public) in `selectors/wizard-navigation.ts` are the single sources of truth for screen order — never hardcode screen sequences elsewhere. Public variant: no welcome screen, contact before fork.
 - All wizard responses are typed `Record<string, unknown>` (`AnyRecord`). Narrow with field key checks before accessing values.
 - Public wizard uses `publicGet`/`publicPost` methods (no auth token). Studio wizard uses authenticated `ApiClient`.
 - Submissions are created via `publicInquiryWizardApi.submit()` — do not call the authenticated submissions endpoint from the public surface.

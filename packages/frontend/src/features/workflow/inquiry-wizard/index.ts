@@ -10,8 +10,7 @@ export { default as InquiryWizardStudioScreen } from './screens/InquiryWizardStu
 export { default as InquiryWizardReviewScreen } from './screens/InquiryWizardReviewScreen';
 
 // Hooks
-export { usePublicWizardForm } from './hooks/usePublicWizardForm';
-export { usePublicWizardTemplate } from './hooks/usePublicWizardTemplate';
+export { usePublicWizardData } from './hooks/usePublicWizardData';
 export { useWizardComputed } from './hooks/useWizardComputed';
 export { useWizardStudioData } from './hooks/useWizardStudioData';
 export { useBuilderPackage } from './hooks/useBuilderPackage';

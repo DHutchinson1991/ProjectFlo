@@ -6,7 +6,6 @@ interface PackageSnapshot {
   description: string | null;
   category: string | null;
   category_id: number | null;
-  base_price: unknown;
   currency: string;
   contents: unknown;
 }
@@ -37,7 +36,6 @@ export class ServicePackagesVersionsService {
       description: pkg.description,
       category: pkg.category,
       category_id: pkg.category_id,
-      base_price: pkg.base_price,
       currency: pkg.currency,
       contents: pkg.contents,
     };
@@ -84,7 +82,6 @@ export class ServicePackagesVersionsService {
         description: snapshot.description,
         category: snapshot.category,
         category_id: snapshot.category_id,
-        base_price: snapshot.base_price as number,
         currency: snapshot.currency,
         contents: snapshot.contents as object,
       },

@@ -125,7 +125,7 @@ Modules are grouped into five domain buckets under `src/`:
 
 | Bucket | Responsibilities |
 |--------|-----------------|
-| **`platform`** | Auth, Users/Contributors, Roles, Contacts, Activity Logs, Job Roles, Needs Assessments, Payment Brackets |
+| **`platform`** | Auth, Users/Crew, Roles, Contacts, Activity Logs, Job Roles, Needs Assessments, Payment Brackets |
 | **`catalog`** | Brands, Service Packages, Package Sets, Task Library, Skill Role Mappings, Wedding Types, Event Types |
 | **`workflow`** | Inquiries, Proposals, Estimates, Quotes, Contracts, Invoices, Projects |
 | **`content`** | Films, Scenes, Moments, Beats, Coverage, Music, Subjects, Schedule, Instance Films, Locations |
@@ -352,7 +352,7 @@ The backend exposes a RESTful API at `http://localhost:3002`. Key endpoint group
 | Endpoint | Description |
 |----------|-------------|
 | `POST /auth/login` | JWT authentication |
-| `GET /contributors` | Team member management |
+| `GET /crew` | Team member management |
 | `GET /contacts` | Client contact directory |
 | `GET /projects` | Project CRUD |
 | `GET /inquiries` | Inquiry pipeline |

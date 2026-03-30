@@ -12,21 +12,21 @@ import type {
 
 export function createEventTypesApi(client: ApiClient) {
     return {
-        getAll: () => client.get<EventType[]>('/event-types'),
-        getById: (id: number) => client.get<EventType>(`/event-types/${id}`),
-        create: (data: CreateEventTypeData) => client.post<EventType>('/event-types', data),
-        update: (id: number, data: UpdateEventTypeData) => client.patch<EventType>(`/event-types/${id}`, data),
-        remove: (id: number) => client.delete<void>(`/event-types/${id}`),
+        getAll: () => client.get<EventType[]>('/api/event-types'),
+        getById: (id: number) => client.get<EventType>(`/api/event-types/${id}`),
+        create: (data: CreateEventTypeData) => client.post<EventType>('/api/event-types', data),
+        update: (id: number, data: UpdateEventTypeData) => client.patch<EventType>(`/api/event-types/${id}`, data),
+        remove: (id: number) => client.delete<void>(`/api/event-types/${id}`),
         linkEventDay: (eventTypeId: number, data: LinkEventDayData) =>
-            client.post<unknown>(`/event-types/${eventTypeId}/event-days`, data),
+            client.post<unknown>(`/api/event-types/${eventTypeId}/event-days`, data),
         unlinkEventDay: (eventTypeId: number, dayTemplateId: number) =>
-            client.delete<void>(`/event-types/${eventTypeId}/event-days/${dayTemplateId}`),
+            client.delete<void>(`/api/event-types/${eventTypeId}/event-days/${dayTemplateId}`),
         linkSubjectRole: (eventTypeId: number, data: LinkSubjectRoleData) =>
-            client.post<unknown>(`/event-types/${eventTypeId}/subject-roles`, data),
+            client.post<unknown>(`/api/event-types/${eventTypeId}/subject-roles`, data),
         unlinkSubjectRole: (eventTypeId: number, subjectRoleId: number) =>
-            client.delete<void>(`/event-types/${eventTypeId}/subject-roles/${subjectRoleId}`),
+            client.delete<void>(`/api/event-types/${eventTypeId}/subject-roles/${subjectRoleId}`),
         createPackageFromWizard: (eventTypeId: number, data: CreatePackageFromWizardData) =>
-            client.post<unknown>(`/event-types/${eventTypeId}/create-package`, data),
+            client.post<unknown>(`/api/event-types/${eventTypeId}/create-package`, data),
     };
 }
 

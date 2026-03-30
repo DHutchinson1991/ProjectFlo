@@ -10,10 +10,10 @@ export interface PriceBreakdown {
     items: Array<{ name: string; category: string; dailyRate: number }>;
   };
   crew: {
-    operatorCount: number;
+    crewCount: number;
     totalHours: number;
     totalCost: number;
-    operators: Array<{ position: string; hours: number; rate: number; cost: number }>;
+    crew: Array<{ position: string; hours: number; rate: number; cost: number }>;
   };
   tasks: {
     totalTasks: number;

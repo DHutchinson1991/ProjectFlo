@@ -12,16 +12,17 @@ import {
     ArrowForwardIos as NavigateIcon,
     Bolt as BoltIcon,
 } from '@mui/icons-material';
-import type { ActiveTask, CrewMember } from '@/features/workflow/tasks/types';
+import type { ActiveTask, Crew } from '@/features/workflow/tasks/types';
 import { StatusPill } from './StatusPill';
 import { AssigneeCell } from './AssigneeCell';
 import { formatDueDate, getNavigationUrl } from '../utils/task-display-utils';
 import { GRID_COLS } from '../constants';
+import { useBrandTimezone } from '@/features/platform/brand';
 
 interface TaskRowProps {
     task: ActiveTask;
     groupColor: string;
-    crewMembers: CrewMember[];
+    crew: Crew[];
     onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null, taskKind?: 'task' | 'subtask') => void;
     onNavigate: (task: ActiveTask) => void;
     onToggle: (task: ActiveTask) => void;
@@ -30,12 +31,13 @@ interface TaskRowProps {
     nested?: boolean;
 }
 
-export function TaskRow({ task, groupColor, crewMembers, onAssign, onNavigate, onToggle, isChild, subtasks = [], nested = false }: TaskRowProps) {
+export function TaskRow({ task, groupColor, crew, onAssign, onNavigate, onToggle, isChild, subtasks = [], nested = false }: TaskRowProps) {
     const [hovered, setHovered] = useState(false);
     const [subtasksOpen, setSubtasksOpen] = useState(false);
+    const timezone = useBrandTimezone();
     const isCompleted = task.status === 'Completed';
     const isAuto = task.is_auto_only ?? false;
-    const dueInfo = formatDueDate(task.due_date, isCompleted);
+    const dueInfo = formatDueDate(task.due_date, isCompleted, timezone);
     const navUrl = getNavigationUrl(task);
     const completedSubtasks = subtasks.filter(s => s.status === 'Completed').length;
 
@@ -157,7 +159,7 @@ export function TaskRow({ task, groupColor, crewMembers, onAssign, onNavigate, o
                     <Box sx={{ px: 1.5, display: 'flex', alignItems: 'center' }}>
                         <Typography sx={{ fontSize: '0.75rem', color: 'rgba(253,171,61,0.4)', fontStyle: 'italic' }}>System</Typography>
                     </Box>
-                ) : <AssigneeCell task={task} contributors={crewMembers} onAssign={onAssign} onNavigate={onNavigate} />}
+                ) : <AssigneeCell task={task} crew={crew} onAssign={onAssign} onNavigate={onNavigate} />}
 
                 {/* Due Date */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.625, px: 1.5 }}>
@@ -191,7 +193,7 @@ export function TaskRow({ task, groupColor, crewMembers, onAssign, onNavigate, o
                         key={`${subtask.source}-${subtask.id}`}
                         task={subtask}
                         groupColor={groupColor}
-                        contributors={crewMembers}
+                        crew={crew}
                         onAssign={onAssign}
                         onNavigate={onNavigate}
                         onToggle={onToggle}

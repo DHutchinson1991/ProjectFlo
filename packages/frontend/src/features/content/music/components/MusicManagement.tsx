@@ -1,18 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import {
-    Box,
-    Alert,
-    CircularProgress,
-    Typography
-} from '@mui/material';
+import React, { useReducer, useEffect } from 'react';
+import { Box, Alert, CircularProgress, Typography } from '@mui/material';
 import MusicTable from './MusicTable';
 import CreateMusicDialog from './CreateMusicDialog';
 import AttachMusicToMomentDialog from './AttachMusicToMomentDialog';
 import { musicApi } from '@/features/content/music/api/music';
 import { momentsApi } from '@/features/content/music/api/moments';
-import { CreateMusicLibraryItemDto, MusicLibraryItem, SceneMoment, MusicType, UpdateMusicLibraryItemDto } from '@/features/content/music/types';
+import type { CreateMusicLibraryItemDto, MusicLibraryItem, SceneMoment, MusicType, UpdateMusicLibraryItemDto } from '@/features/content/music/types';
 
 interface MusicItem {
     id?: number;
@@ -24,6 +19,7 @@ interface MusicItem {
     notes?: string;
     moment_id?: number;
     moment_name?: string;
+    scene_name?: string;
 }
 
 interface Moment {
@@ -38,77 +34,105 @@ interface MusicManagementProps {
     onMusicChange?: (musicItems: MusicItem[]) => void;
 }
 
+// ── Reducer ────────────────────────────────────────────────────────────────────
+
+type State = {
+    libraryItems: MusicItem[];
+    moments: SceneMoment[];
+    loading: boolean;
+    saving: boolean;
+    error: string | null;
+    createDialogOpen: boolean;
+    attachDialogOpen: boolean;
+    editingMusicItem: MusicItem | null;
+    attachingMusicItem: MusicItem | null;
+};
+
+type Action =
+    | { type: 'FETCH_START' }
+    | { type: 'FETCH_DONE'; libraryItems: MusicItem[] }
+    | { type: 'FETCH_ERROR'; error: string }
+    | { type: 'MOMENTS_LOADED'; moments: SceneMoment[] }
+    | { type: 'SAVE_START' }
+    | { type: 'SAVE_DONE' }
+    | { type: 'SAVE_ERROR'; error: string }
+    | { type: 'OPEN_CREATE'; item?: MusicItem | null }
+    | { type: 'CLOSE_CREATE' }
+    | { type: 'OPEN_ATTACH'; item: MusicItem }
+    | { type: 'CLOSE_ATTACH' }
+    | { type: 'CLEAR_ERROR' };
+
+const initialState: State = {
+    libraryItems: [],
+    moments: [],
+    loading: true,
+    saving: false,
+    error: null,
+    createDialogOpen: false,
+    attachDialogOpen: false,
+    editingMusicItem: null,
+    attachingMusicItem: null,
+};
+
+function reducer(state: State, action: Action): State {
+    switch (action.type) {
+        case 'FETCH_START':  return { ...state, loading: true };
+        case 'FETCH_DONE':   return { ...state, loading: false, libraryItems: action.libraryItems };
+        case 'FETCH_ERROR':  return { ...state, loading: false, error: action.error };
+        case 'MOMENTS_LOADED': return { ...state, moments: action.moments };
+        case 'SAVE_START':   return { ...state, saving: true };
+        case 'SAVE_DONE':    return { ...state, saving: false, error: null };
+        case 'SAVE_ERROR':   return { ...state, saving: false, error: action.error };
+        case 'OPEN_CREATE':  return { ...state, createDialogOpen: true, editingMusicItem: action.item ?? null };
+        case 'CLOSE_CREATE': return { ...state, createDialogOpen: false, editingMusicItem: null };
+        case 'OPEN_ATTACH':  return { ...state, attachDialogOpen: true, attachingMusicItem: action.item };
+        case 'CLOSE_ATTACH': return { ...state, attachDialogOpen: false, attachingMusicItem: null };
+        case 'CLEAR_ERROR':  return { ...state, error: null };
+        default: return state;
+    }
+}
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
 const MusicManagement: React.FC<MusicManagementProps> = ({
     sceneId,
     projectId,
     moments: sceneMoments = [],
     onMusicChange,
 }) => {
-    const [musicItems, setMusicItems] = useState<MusicItem[]>([]);
-    const [moments, setMoments] = useState<SceneMoment[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [libraryItems, setLibraryItems] = useState<MusicItem[]>([]);
-
-    // Dialog states
-    const [createDialogOpen, setCreateDialogOpen] = useState(false);
-    const [attachDialogOpen, setAttachDialogOpen] = useState(false);
-    const [editingMusicItem, setEditingMusicItem] = useState<MusicItem | null>(null);
-    const [attachingMusicItem, setAttachingMusicItem] = useState<MusicItem | null>(null);
+    const [state, dispatch] = useReducer(reducer, initialState);
 
     const fetchMusicLibrary = async () => {
+        dispatch({ type: 'FETCH_START' });
         try {
-            setLoading(true);
             const data = await musicApi.getMusicLibrary(projectId, sceneId);
-
-            // Convert to our local format and enrich with moment information
-            const enrichedMusic: MusicItem[] = await Promise.all(
-                data.map(async (item: MusicLibraryItem) => {
-                    // Use the moment information returned by the API
-                    return {
-                        id: item.id,
-                        music_name: item.music_name,
-                        artist: item.artist,
-                        duration: item.duration,
-                        music_type: item.music_type,
-                        file_path: item.file_path,
-                        notes: item.notes,
-                        moment_id: item.moment_id,
-                        moment_name: item.moment_name,
-                        scene_name: item.scene_name,
-                    };
-                })
-            );
-
-            // Save full library
-            setLibraryItems(enrichedMusic);
-
-            // Compute attached items for this scene for count reporting
+            const enrichedMusic: MusicItem[] = data.map((item: MusicLibraryItem) => ({
+                id: item.id,
+                music_name: item.music_name,
+                artist: item.artist,
+                duration: item.duration,
+                music_type: item.music_type,
+                file_path: item.file_path,
+                notes: item.notes,
+                moment_id: item.moment_id,
+                moment_name: item.moment_name,
+                scene_name: item.scene_name,
+            }));
+            dispatch({ type: 'FETCH_DONE', libraryItems: enrichedMusic });
             const sceneMomentIds = new Set((sceneMoments || []).map(m => m.id));
             const attached = enrichedMusic.filter(item => item.moment_id && sceneMomentIds.has(item.moment_id));
-            setMusicItems(attached);
-
-            if (onMusicChange) {
-                onMusicChange(attached);
-            }
-
-            setError(null);
+            onMusicChange?.(attached);
         } catch (err) {
-            console.error('Error fetching music library:', err);
-            setError(err instanceof Error ? err.message : 'Failed to fetch music library');
-        } finally {
-            setLoading(false);
+            dispatch({ type: 'FETCH_ERROR', error: err instanceof Error ? err.message : 'Failed to fetch music library' });
         }
     };
 
     const fetchMoments = async () => {
         try {
             const data = await momentsApi.getSceneMoments(sceneId, projectId);
-            setMoments(data);
-        } catch (err) {
-            console.error('Error fetching moments:', err);
-            // Non-critical error, don't set error state
+            dispatch({ type: 'MOMENTS_LOADED', moments: data });
+        } catch {
+            // Non-critical — don't surface error
         }
     };
 
@@ -116,68 +140,43 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
         // Fetch once for this scene/project; do not refetch on moment changes to avoid flicker
         fetchMusicLibrary();
         fetchMoments();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sceneId, projectId]);
-    const handleAddMusic = () => {
-        setEditingMusicItem(null);
-        setCreateDialogOpen(true);
-    };
-
-    const handleEditMusic = (item: MusicItem) => {
-        setEditingMusicItem(item);
-        setCreateDialogOpen(true);
-    };
 
     const handleRemoveMusic = async (item: MusicItem) => {
         if (!item.id) return;
-
         const confirmMessage = item.moment_name
             ? `Are you sure you want to delete this music track? It will also be removed from "${item.moment_name}".`
             : 'Are you sure you want to delete this music track?';
-
         if (!confirm(confirmMessage)) return;
-
+        dispatch({ type: 'SAVE_START' });
         try {
-            setSaving(true);
-
-            // If music is attached to a moment, detach it first
-            if (item.moment_id) {
-                await musicApi.detachMusicFromMoment(item.moment_id);
-            }
-            // Delete the music library item
+            if (item.moment_id) await musicApi.detachMusicFromMoment(item.moment_id);
             await musicApi.deleteMusicLibraryItem(item.id);
             await fetchMusicLibrary();
-            setError(null);
+            dispatch({ type: 'SAVE_DONE' });
         } catch (err) {
-            console.error('Error deleting music item:', err);
-            setError(err instanceof Error ? err.message : 'Failed to delete music item');
-        } finally {
-            setSaving(false);
+            dispatch({ type: 'SAVE_ERROR', error: err instanceof Error ? err.message : 'Failed to delete music item' });
         }
     };
+
     const handleDetachFromMoment = async (item: MusicItem) => {
         if (!item.moment_id) return;
-
         if (!confirm(`Are you sure you want to detach "${item.music_name}" from "${item.moment_name}"?`)) return;
-
+        dispatch({ type: 'SAVE_START' });
         try {
-            setSaving(true);
             await musicApi.detachMusicFromMoment(item.moment_id);
             await fetchMusicLibrary();
-            setError(null);
+            dispatch({ type: 'SAVE_DONE' });
         } catch (err) {
-            console.error('Error detaching music from moment:', err);
-            setError(err instanceof Error ? err.message : 'Failed to detach music from moment');
-        } finally {
-            setSaving(false);
+            dispatch({ type: 'SAVE_ERROR', error: err instanceof Error ? err.message : 'Failed to detach music from moment' });
         }
     };
 
     const handleSaveMusic = async (musicData: Omit<MusicItem, 'id'> & { selectedMomentId?: number }) => {
+        dispatch({ type: 'SAVE_START' });
         try {
-            setSaving(true);
-
             const { selectedMomentId, ...musicItemData } = musicData;
-
             const apiData: CreateMusicLibraryItemDto | UpdateMusicLibraryItemDto = {
                 music_name: musicItemData.music_name,
                 artist: musicItemData.artist,
@@ -188,119 +187,84 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
                 project_id: projectId,
                 scene_id: sceneId,
             };
-
             let musicItemId: number;
-
-            if (editingMusicItem && editingMusicItem.id) {
-                await musicApi.updateMusicLibraryItem(editingMusicItem.id, apiData);
-                musicItemId = editingMusicItem.id;
+            if (state.editingMusicItem?.id) {
+                await musicApi.updateMusicLibraryItem(state.editingMusicItem.id, apiData);
+                musicItemId = state.editingMusicItem.id;
             } else {
                 const result = await musicApi.createMusicLibraryItem(apiData as CreateMusicLibraryItemDto);
                 musicItemId = result.id;
             }
-
-            // If a moment is selected, attach the music to it
-            if (selectedMomentId) {
-                await musicApi.attachMusicToMoment(selectedMomentId, musicItemId);
-            }
-
+            if (selectedMomentId) await musicApi.attachMusicToMoment(selectedMomentId, musicItemId);
             await fetchMusicLibrary();
-            setCreateDialogOpen(false);
-            setEditingMusicItem(null);
-            setError(null);
+            dispatch({ type: 'CLOSE_CREATE' });
+            dispatch({ type: 'SAVE_DONE' });
         } catch (err) {
-            console.error('Error saving music item:', err);
-            setError(err instanceof Error ? err.message : 'Failed to save music item');
-        } finally {
-            setSaving(false);
+            dispatch({ type: 'SAVE_ERROR', error: err instanceof Error ? err.message : 'Failed to save music item' });
         }
-    };
-
-    const handleAttachToMoment = (item: MusicItem) => {
-        setAttachingMusicItem(item);
-        setAttachDialogOpen(true);
     };
 
     const handleAttachMusic = async (momentId: number) => {
-        if (!attachingMusicItem || !attachingMusicItem.id) return;
-
+        if (!state.attachingMusicItem?.id) return;
+        dispatch({ type: 'SAVE_START' });
         try {
-            setSaving(true);
-            await musicApi.attachMusicToMoment(momentId, attachingMusicItem.id);
+            await musicApi.attachMusicToMoment(momentId, state.attachingMusicItem.id);
             await fetchMusicLibrary();
             await fetchMoments();
-            setAttachDialogOpen(false);
-            setAttachingMusicItem(null);
-            setError(null);
+            dispatch({ type: 'CLOSE_ATTACH' });
+            dispatch({ type: 'SAVE_DONE' });
         } catch (err) {
-            console.error('Error attaching music to moment:', err);
-            setError(err instanceof Error ? err.message : 'Failed to attach music to moment');
-        } finally {
-            setSaving(false);
+            dispatch({ type: 'SAVE_ERROR', error: err instanceof Error ? err.message : 'Failed to attach music to moment' });
         }
     };
 
-    if (loading) {
+    if (state.loading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
                 <CircularProgress />
-                <Typography variant="body2" sx={{ ml: 2 }}>
-                    Loading music library...
-                </Typography>
+                <Typography variant="body2" sx={{ ml: 2 }}>Loading music library...</Typography>
             </Box>
         );
     }
 
-    // Always show all items from library (both attached and unattached to this scene)
     const sceneMomentIds = new Set((sceneMoments || []).map(m => m.id));
-    const displayItems = libraryItems.map(item => ({
+    const displayItems = state.libraryItems.map(item => ({
         ...item,
-        isAttached: !!item.moment_id && sceneMomentIds.has(item.moment_id)
+        isAttached: !!item.moment_id && sceneMomentIds.has(item.moment_id),
     }));
 
     return (
         <Box>
-            {error && (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-                    {error}
+            {state.error && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => dispatch({ type: 'CLEAR_ERROR' })}>
+                    {state.error}
                 </Alert>
             )}
-
-            {/* Showing only tracks attached to this scene */}
-
             <MusicTable
                 musicItems={displayItems}
                 title="Music Tracks"
-                onAddMusic={handleAddMusic}
-                onEditMusic={handleEditMusic}
+                onAddMusic={() => dispatch({ type: 'OPEN_CREATE' })}
+                onEditMusic={(item) => dispatch({ type: 'OPEN_CREATE', item })}
                 onRemoveMusic={handleRemoveMusic}
-                onAttachToMoment={handleAttachToMoment}
+                onAttachToMoment={(item) => dispatch({ type: 'OPEN_ATTACH', item })}
                 onDetachFromMoment={handleDetachFromMoment}
             />
-
             <CreateMusicDialog
-                open={createDialogOpen}
-                onClose={() => {
-                    setCreateDialogOpen(false);
-                    setEditingMusicItem(null);
-                }}
+                open={state.createDialogOpen}
+                onClose={() => dispatch({ type: 'CLOSE_CREATE' })}
                 onSave={handleSaveMusic}
-                editingItem={editingMusicItem}
-                saving={saving}
+                editingItem={state.editingMusicItem}
+                saving={state.saving}
                 moments={sceneMoments}
                 projectId={projectId}
             />
-
             <AttachMusicToMomentDialog
-                open={attachDialogOpen}
-                onClose={() => {
-                    setAttachDialogOpen(false);
-                    setAttachingMusicItem(null);
-                }}
+                open={state.attachDialogOpen}
+                onClose={() => dispatch({ type: 'CLOSE_ATTACH' })}
                 onAttach={handleAttachMusic}
-                musicItem={attachingMusicItem}
-                moments={moments}
-                saving={saving}
+                musicItem={state.attachingMusicItem}
+                moments={state.moments}
+                saving={state.saving}
             />
         </Box>
     );

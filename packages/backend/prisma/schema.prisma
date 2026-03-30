@@ -62,7 +62,6 @@ model brands {
   contacts                     contacts[]
   equipment                    equipment[]
   filmLibrary                  filmLibrary[]
-  floor_plan_objects           FloorPlanObjects[]
   locations                    LocationsLibrary[]
   projects                     projects[]
     system_roles                 SystemRole[]
@@ -93,6 +92,7 @@ model brands {
   contract_clause_categories    contract_clause_categories[]
   contract_clauses              contract_clauses[]
   contract_templates            contract_templates[]
+  finance_settings              brand_finance_settings?
 
   @@map("brands")
 }
@@ -116,17 +116,30 @@ model brand_settings {
   @@map("brand_settings")
 }
 
+model brand_finance_settings {
+  id                        Int      @id @default(autoincrement())
+  brand_id                  Int      @unique
+  onsite_half_day_max_hours Int      @default(6)  // Hours below which on-site work is billed at half_day_rate
+  onsite_full_day_max_hours Int      @default(12) // Hours at/above which overtime kicks in
+  created_at                DateTime @default(now())
+  updated_at                DateTime @updatedAt
+
+  brand brands @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+
+  @@map("brand_finance_settings")
+}
+
 model BrandMember {
   id        Int          @id @default(autoincrement())
-  crew_member_id Int
+  crew_id Int
   brand_id  Int
   is_active Boolean      @default(true)
   joined_at DateTime     @default(now())
   brand       brands     @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  crew_member CrewMember @relation(fields: [crew_member_id], references: [id], onDelete: Cascade)
+  crew Crew @relation(fields: [crew_id], references: [id], onDelete: Cascade)
 
-  @@unique([crew_member_id, brand_id])
-  @@index([crew_member_id])
+  @@unique([crew_id, brand_id])
+  @@index([crew_id])
   @@index([brand_id])
   @@map("brand_members")
 }
@@ -145,7 +158,8 @@ model contacts {
   client                       clients?
   communications_log           communications_log[]
   brand                        brands?                        @relation(fields: [brand_id], references: [id])
-  contributor                  CrewMember?
+  crew                  Crew?
+  user_account                 UserAccount?
   event_attendees              event_attendees[]
   inquiries                    inquiries[]
   inquiry_wizard_submissions inquiry_wizard_submissions[]
@@ -155,6 +169,19 @@ model contacts {
   @@index([type])
   @@index([brand_id])
   @@map("contacts")
+}
+
+model UserAccount {
+  id             Int        @id @default(autoincrement())
+  contact_id     Int        @unique
+  password_hash  String
+  system_role_id Int?
+  archived_at    DateTime?
+  contact        contacts   @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  system_role    SystemRole? @relation(fields: [system_role_id], references: [id], onDelete: Restrict)
+
+  @@index([system_role_id])
+  @@map("user_accounts")
 }
 
 model coverage {
@@ -175,14 +202,12 @@ model coverage {
   audio_pattern              String?
   frequency_response         String?
   equipment_assignments      Json?
-  crew_member_id                Int?
+  crew_id                Int?
   job_role_id                Int?
   is_template                Boolean                      @default(false)
   video_style_type           VideoStyleType?
   resource_requirements      Json? // Stores generic requirements: [{ category: string, quantity: number }]
-  build_coverage_assignments build_coverage_assignments[]
-  build_scenes               build_scenes[]
-  crew_member                CrewMember?                @relation("CoverageOperator", fields: [crew_member_id], references: [id])
+  crew                Crew?                      @relation("CoverageCrew", fields: [crew_id], references: [id])
   job_role                   job_roles?                   @relation(fields: [job_role_id], references: [id])
   workflow_template          workflow_templates?          @relation(fields: [workflow_template_id], references: [id])
   project_assets             project_assets[]
@@ -216,7 +241,6 @@ model filmLibrary {
   type                 FilmType                 @default(FEATURE)
   updated_at           DateTime                 @updatedAt
   version              String                   @default("1.0")
-  build_films          build_films[]
   change_logs          FilmChangeLog[]
   equipment            FilmEquipment[]
   timeline_tracks      FilmTimelineTracks[]
@@ -235,8 +259,6 @@ model editing_styles {
   name                       String                       @unique
   description                String?
   workflow_template_id       Int?
-  build_scenes               build_scenes[]
-  editing_style_requirements editing_style_requirements[]
   workflow_template          workflow_templates?          @relation(fields: [workflow_template_id], references: [id])
 
   @@map("editing_styles")
@@ -318,7 +340,7 @@ model FilmVersion {
   created_at       DateTime     @default(now())
   scenes_snapshot  Json
   pricing_snapshot Json
-  changed_by       CrewMember @relation("FilmVersionCreator", fields: [changed_by_id], references: [id])
+  changed_by       Crew @relation("FilmVersionCreator", fields: [changed_by_id], references: [id])
   film             filmLibrary  @relation(fields: [film_id], references: [id], onDelete: Cascade)
 
   @@map("film_versions")
@@ -332,43 +354,20 @@ model FilmChangeLog {
   new_value     Json?
   changed_by_id Int
   created_at    DateTime     @default(now())
-  changed_by    CrewMember @relation("FilmChangeUser", fields: [changed_by_id], references: [id])
+  changed_by    Crew @relation("FilmChangeUser", fields: [changed_by_id], references: [id])
   film          filmLibrary  @relation(fields: [film_id], references: [id], onDelete: Cascade)
 
   @@map("film_change_logs")
 }
 
-model operator_types {
-  id                         Int                          @id @default(autoincrement())
-  name                       String                       @unique
-  default_hourly_rate        Decimal?                     @db.Decimal(8, 2)
-  default_fixed_price        Decimal?                     @db.Decimal(10, 2)
-  pricing_type               pricing_type_options         @default(Hourly)
-  build_coverage_assignments build_coverage_assignments[]
 
-  @@map("operator_types")
-}
-
-model billable_items {
-  id                         Int                          @id @default(autoincrement())
-  name                       String                       @unique
-  description                String?
-  category                   String?
-  price                      Decimal                      @db.Decimal(10, 2)
-  pricing_type               billable_item_pricing_type   @default(Fixed)
-  is_active                  Boolean                      @default(true)
-  build_billable_items       build_billable_items[]
-  editing_style_requirements editing_style_requirements[]
-
-  @@map("billable_items")
-}
 
 model SystemRole {
   id                  Int                   @id @default(autoincrement())
   name                String                @unique
   description         String?
   brand_id            Int?
-  crew_members        CrewMember[]
+  user_accounts       UserAccount[]
   role_permissions    role_permissions[]
   brand               brands?               @relation(fields: [brand_id], references: [id])
 
@@ -417,7 +416,6 @@ model inquiries {
   source_package_for_inquiry   service_packages?              @relation("InquirySourcePackage", fields: [source_package_id], references: [id], onDelete: SetNull)
   event_type                   EventType?                     @relation(fields: [event_type_id], references: [id])
   activities                   activities[]
-  build                        builds?
   calendar_events              calendar_events[]
   client                       clients?
   contracts                    contracts[]
@@ -437,7 +435,7 @@ model inquiries {
   schedule_event_days          ProjectEventDay[]
   schedule_activities          ProjectActivity[]
   schedule_films               ProjectFilm[]
-  schedule_day_operators       ProjectCrewSlot[]
+  schedule_day_crew_slots     ProjectCrewSlot[]
   schedule_subjects            ProjectDaySubject[]
   schedule_location_slots      ProjectLocationSlot[]
   schedule_activity_moments    ProjectActivityMoment[]
@@ -590,7 +588,6 @@ model clients {
   contact_id             Int                      @unique
   inquiry_id             Int?                     @unique
   archived_at            DateTime?
-  builds                 builds[]
   client_user            client_users?
   contact                contacts                 @relation(fields: [contact_id], references: [id], onDelete: Cascade)
   inquiry                inquiries?               @relation(fields: [inquiry_id], references: [id])
@@ -622,11 +619,11 @@ model projects {
   wedding_date               DateTime
   booking_date               DateTime?
   edit_start_date            DateTime?
+  delivery_date              DateTime?
   phase                      String?
   package_contents_snapshot   Json? // Frozen copy of service_packages.contents at clone time
   archived_at                DateTime?
   activities                 activities[]
-  build                      builds?
   calendar_events            calendar_events[]
   client_feedback_surveys    client_feedback_surveys[]
   communications_log         communications_log[]
@@ -635,7 +632,6 @@ model projects {
   equipment_availability     equipment_availability[]
   equipment_rentals          equipment_rentals[]
   estimates                  estimates[]
-  floor_plans                FloorPlans[]
   invoices                   invoices[]
   project_assets             project_assets[]
   project_expenses           project_expenses[]
@@ -668,12 +664,9 @@ model projects {
   @@map("projects")
 }
 
-model CrewMember {
+model Crew {
   id                             Int                           @id @default(autoincrement())
   contact_id                     Int                           @unique
-  system_role_id                 Int?
-  password_hash                  String
-  archived_at                    DateTime?
   crew_color                     String? // hex color for UI display
   bio                            String? // short biography
   activities_assigned            activities[]
@@ -681,11 +674,10 @@ model CrewMember {
   calendar_events                calendar_events[]
   calendar_settings              calendar_settings?
   calendar_sync_token            calendar_sync_tokens?
-  job_roles_assigned             CrewMemberJobRole[]       @relation("JobRoleAssignedBy")
-  job_role_assignments           CrewMemberJobRole[]
+  job_roles_assigned             CrewJobRole[]       @relation("JobRoleAssignedBy")
+  job_role_assignments           CrewJobRole[]
   contact                        contacts                      @relation(fields: [contact_id], references: [id], onDelete: Cascade)
-  system_role                    SystemRole?                        @relation(fields: [system_role_id], references: [id], onDelete: Restrict)
-  coverage_assignments           coverage[]                    @relation("CoverageOperator")
+  coverage_assignments           coverage[]                    @relation("CoverageCrew")
   equipment_created              equipment[]                   @relation("EquipmentCreatedBy")
   equipment_owned                equipment[]                   @relation("EquipmentOwner")
   equipment_booked               equipment_availability[]      @relation("EquipmentBookedBy")
@@ -695,14 +687,12 @@ model CrewMember {
   event_attendees                event_attendees[]
   film_changes_made              FilmChangeLog[]               @relation("FilmChangeUser")
   film_versions_created          FilmVersion[]                 @relation("FilmVersionCreator")
-  floor_plans_created            FloorPlans[]                  @relation("FloorPlanCreatedBy")
-  venue_floor_plans_updated      LocationsLibrary[]            @relation("VenueFloorPlanUpdater")
   notifications_received         notifications[]
   package_crew_assignments       PackageCrewSlot[]
   project_crew_assignments       ProjectCrewSlot[]
 
   task_library_benchmarks        task_library_benchmarks[]
-  default_task_library_entries   task_library[]                @relation("TaskLibraryDefaultCrewMember")
+  default_task_library_entries   task_library[]                @relation("TaskLibraryDefaultCrew")
   project_tasks_assigned         project_tasks[]               @relation("AssignedProjectTasks")
   inquiry_tasks_completed        inquiry_tasks[]               @relation("CompletedInquiryTasks")
   inquiry_task_subtasks_completed inquiry_task_subtasks[]      @relation("CompletedInquiryTaskSubtasks")
@@ -713,7 +703,7 @@ model CrewMember {
   project_film_timeline_tracks   ProjectFilmTimelineTrack[]
   brand_memberships              BrandMember[]
 
-  @@map("crew_members")
+  @@map("crew")
 }
 
 model job_roles {
@@ -726,7 +716,7 @@ model job_roles {
   is_active             Boolean                 @default(true)
   created_at            DateTime                @default(now())
   updated_at            DateTime                @updatedAt
-  crew_member_job_roles CrewMemberJobRole[]
+  crew_job_roles CrewJobRole[]
   coverage_roles        coverage[]
   package_crew_slots    PackageCrewSlot[]
   project_crew_slots    ProjectCrewSlot[]
@@ -748,9 +738,10 @@ model payment_brackets {
   name          String // e.g. "Junior", "Mid", "Senior", "Lead"
   display_name  String?
   level         Int      @default(1) // ordering: 1=lowest tier, higher=more senior
-  hourly_rate   Decimal  @db.Decimal(8, 2)
-  day_rate      Decimal? @db.Decimal(8, 2)
-  overtime_rate Decimal? @db.Decimal(8, 2)
+  hourly_rate    Decimal  @db.Decimal(8, 2)
+  half_day_rate  Decimal? @db.Decimal(8, 2)
+  day_rate       Decimal? @db.Decimal(8, 2)
+  overtime_rate  Decimal? @db.Decimal(8, 2)
   description   String?
   color         String? // hex color for UI display
   is_active     Boolean  @default(true)
@@ -758,7 +749,7 @@ model payment_brackets {
   updated_at    DateTime @updatedAt
 
   job_role              job_roles               @relation(fields: [job_role_id], references: [id], onDelete: Cascade)
-  crew_member_job_roles CrewMemberJobRole[]
+  crew_job_role_assignments CrewJobRole[]
   resolved_project_tasks project_tasks[]        @relation("ResolvedBracket")
   skill_role_mappings   skill_role_mappings[]
 
@@ -769,152 +760,35 @@ model payment_brackets {
   @@map("payment_brackets")
 }
 
-model CrewMemberJobRole {
+model CrewJobRole {
   id                 Int               @id @default(autoincrement())
-  crew_member_id     Int
+  crew_id     Int
   job_role_id        Int
   payment_bracket_id Int?
   is_primary         Boolean           @default(false)
   is_unmanned        Boolean           @default(false)
   assigned_at        DateTime          @default(now())
   assigned_by        Int?
-  assigned_by_user   CrewMember?     @relation("JobRoleAssignedBy", fields: [assigned_by], references: [id])
-  crew_member        CrewMember        @relation(fields: [crew_member_id], references: [id], onDelete: Cascade)
+  assigned_by_user   Crew?           @relation("JobRoleAssignedBy", fields: [assigned_by], references: [id])
+  crew        Crew              @relation(fields: [crew_id], references: [id], onDelete: Cascade)
   job_role           job_roles         @relation(fields: [job_role_id], references: [id], onDelete: Cascade)
   payment_bracket    payment_brackets? @relation(fields: [payment_bracket_id], references: [id], onDelete: SetNull)
 
-  @@unique([crew_member_id, job_role_id])
-  @@index([crew_member_id])
+  @@unique([crew_id, job_role_id])
+  @@index([crew_id])
   @@index([job_role_id])
   @@index([payment_bracket_id])
   @@index([is_primary])
-  @@map("crew_member_job_roles")
+  @@map("crew_job_roles")
 }
 
 // Legacy scene template models removed
 
-model editing_style_requirements {
-  id               Int            @id @default(autoincrement())
-  editing_style_id Int
-  billable_item_id Int
-  quantity         Int            @default(1)
-  billable_item    billable_items @relation(fields: [billable_item_id], references: [id], onDelete: Cascade)
-  editing_style    editing_styles @relation(fields: [editing_style_id], references: [id], onDelete: Cascade)
 
-  @@unique([editing_style_id, billable_item_id], map: "idx_style_item_unique")
-  @@map("editing_style_requirements")
-}
-
-model builds {
-  id                         Int                          @id @default(autoincrement())
-  client_id                  Int?
-  inquiry_id                 Int?                         @unique
-  project_id                 Int?                         @unique
-  status                     builds_status
-  configuration_locked_at    DateTime?
-  approved_price             Decimal                      @default(0.00) @db.Decimal(10, 2)
-  live_price                 Decimal                      @default(0.00) @db.Decimal(10, 2)
-  total_paid                 Decimal                      @default(0.00) @db.Decimal(10, 2)
-  archived_at                DateTime?
-  build_billable_items       build_billable_items[]
-  build_change_orders        build_change_orders[]
-  build_coverage_assignments build_coverage_assignments[]
-  build_films                build_films[]
-  build_snapshots            build_snapshots[]
-  client                     clients?                     @relation(fields: [client_id], references: [id])
-  inquiry                    inquiries?                   @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
-  project                    projects?                    @relation(fields: [project_id], references: [id], onDelete: Cascade)
-
-  @@map("builds")
-}
-
-model build_coverage_assignments {
-  id                  Int            @id @default(autoincrement())
-  build_id            Int
-  coverage_id         Int
-  operator_type_id    Int
-  quantity            Int            @default(1)
-  rate_at_time_of_add Decimal        @db.Decimal(8, 2)
-  build               builds         @relation(fields: [build_id], references: [id], onDelete: Cascade)
-  coverage            coverage       @relation(fields: [coverage_id], references: [id])
-  operator_type       operator_types @relation(fields: [operator_type_id], references: [id])
-
-  @@map("build_coverage_assignments")
-}
-
-model build_films {
-  id           Int            @id @default(autoincrement())
-  build_id     Int
-  film_id      Int
-  build        builds         @relation(fields: [build_id], references: [id], onDelete: Cascade)
-  film         filmLibrary    @relation(fields: [film_id], references: [id])
-  build_scenes build_scenes[]
-
-  @@map("build_films")
-}
-
-model build_scenes {
-  id               Int            @id @default(autoincrement())
-  build_film_id    Int
-  coverage_id      Int
-  editing_style_id Int
-  target_minutes   Decimal?       @db.Decimal(8, 2)
-  is_included      Boolean?       @default(true)
-  calculated_price Decimal?       @db.Decimal(10, 2)
-  build_film       build_films    @relation(fields: [build_film_id], references: [id], onDelete: Cascade)
-  coverage         coverage       @relation(fields: [coverage_id], references: [id])
-  editing_style    editing_styles @relation(fields: [editing_style_id], references: [id])
-
-  @@map("build_scenes")
-}
-
-model build_billable_items {
-  id                   Int            @id @default(autoincrement())
-  build_id             Int
-  billable_item_id     Int
-  quantity             Int            @default(1)
-  price_at_time_of_add Decimal        @db.Decimal(10, 2)
-  notes                String?
-  billable_item        billable_items @relation(fields: [billable_item_id], references: [id])
-  build                builds         @relation(fields: [build_id], references: [id], onDelete: Cascade)
-
-  @@map("build_billable_items")
-}
-
-model build_change_orders {
-  id                       Int                 @id @default(autoincrement())
-  build_id                 Int
-  version_number           Int
-  price_delta              Decimal             @db.Decimal(10, 2)
-  new_total_approved_price Decimal             @db.Decimal(10, 2)
-  description              String
-  status                   change_order_status
-  discount_type            discount_type_enum?
-  discount_percentage      Decimal?            @db.Decimal(5, 2)
-  discount_amount          Decimal?            @db.Decimal(10, 2)
-  discount_reason          String?
-  created_at               DateTime?           @default(now())
-  build                    builds              @relation(fields: [build_id], references: [id], onDelete: Cascade)
-  build_snapshots          build_snapshots[]
-
-  @@map("build_change_orders")
-}
-
-model build_snapshots {
-  id              Int                 @id @default(autoincrement())
-  build_id        Int
-  change_order_id Int
-  snapshot_data   Json
-  created_at      DateTime?           @default(now())
-  build           builds              @relation(fields: [build_id], references: [id], onDelete: Cascade)
-  change_order    build_change_orders @relation(fields: [change_order_id], references: [id], onDelete: Cascade)
-
-  @@map("build_snapshots")
-}
 
 model calendar_events {
   id              Int                 @id @default(autoincrement())
-  crew_member_id  Int
+  crew_id  Int
   project_id      Int?
   title           String
   start_time      DateTime
@@ -930,14 +804,14 @@ model calendar_events {
   meeting_url     String?
   outcome_notes   String?
   is_confirmed    Boolean             @default(false)
-  crew_member     CrewMember          @relation(fields: [crew_member_id], references: [id], onDelete: Cascade)
+  crew     Crew          @relation(fields: [crew_id], references: [id], onDelete: Cascade)
   inquiry         inquiries?          @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   project         projects?           @relation(fields: [project_id], references: [id], onDelete: Cascade)
   event_attendees event_attendees[]
   event_reminders event_reminders[]
   event_tags      event_tags[]
 
-  @@index([crew_member_id, start_time, end_time])
+  @@index([crew_id, start_time, end_time])
   @@map("calendar_events")
 }
 
@@ -967,17 +841,17 @@ model event_tags {
 model event_attendees {
   id             Int                   @id @default(autoincrement())
   event_id       Int
-  crew_member_id Int?
+  crew_id Int?
   contact_id     Int?
   email          String?
   name           String?
   status         event_attendee_status @default(PENDING)
   created_at     DateTime              @default(now())
   contact        contacts?             @relation(fields: [contact_id], references: [id], onDelete: Cascade)
-  crew_member    CrewMember?         @relation(fields: [crew_member_id], references: [id], onDelete: Cascade)
+  crew    Crew?         @relation(fields: [crew_id], references: [id], onDelete: Cascade)
   event          calendar_events       @relation(fields: [event_id], references: [id], onDelete: Cascade)
 
-  @@unique([event_id, crew_member_id])
+  @@unique([event_id, crew_id])
   @@unique([event_id, contact_id])
   @@unique([event_id, email])
   @@map("event_attendees")
@@ -997,7 +871,7 @@ model event_reminders {
 
 model calendar_settings {
   id                     Int          @id @default(autoincrement())
-  crew_member_id         Int          @unique
+  crew_id         Int          @unique
   default_view           String       @default("WEEK")
   working_hours_start    String       @default("09:00")
   working_hours_end      String       @default("17:00")
@@ -1007,7 +881,7 @@ model calendar_settings {
   default_event_duration Int          @default(60)
   created_at             DateTime     @default(now())
   updated_at             DateTime     @updatedAt
-  crew_member            CrewMember @relation(fields: [crew_member_id], references: [id], onDelete: Cascade)
+  crew            Crew @relation(fields: [crew_id], references: [id], onDelete: Cascade)
 
   @@map("calendar_settings")
 }
@@ -1215,11 +1089,11 @@ model quote_payment_milestones {
 
 model audit_log {
   id             Int           @id @default(autoincrement())
-  crew_member_id Int?
+  crew_id Int?
   action         String
   timestamp      DateTime      @default(now())
   details        Json?
-  crew_member    CrewMember? @relation(fields: [crew_member_id], references: [id])
+  crew    Crew? @relation(fields: [crew_id], references: [id])
 
   @@index([details], type: Gin)
   @@map("audit_log")
@@ -1227,20 +1101,20 @@ model audit_log {
 
 model notifications {
   id                        Int         @id @default(autoincrement())
-  recipient_crew_member_id  Int
+  recipient_crew_id  Int
   message                   String
   is_read                   Boolean     @default(false)
   created_at                DateTime?   @default(now())
   link_url                  String?
-  recipient_crew_member     CrewMember  @relation(fields: [recipient_crew_member_id], references: [id], onDelete: Cascade)
+  recipient_crew     Crew  @relation(fields: [recipient_crew_id], references: [id], onDelete: Cascade)
 
-  @@index([recipient_crew_member_id, is_read])
+  @@index([recipient_crew_id, is_read])
   @@map("notifications")
 }
 
 model activities {
   id                          Int             @id @default(autoincrement())
-  assigned_to_crew_member_id  Int
+  assigned_to_crew_id  Int
   contact_id                  Int?
   inquiry_id                  Int?
   project_id                  Int?
@@ -1249,7 +1123,7 @@ model activities {
   title                       String
   notes                       String?
   status                      activity_status @default(Pending)
-  assigned_to_crew_member     CrewMember      @relation(fields: [assigned_to_crew_member_id], references: [id], onDelete: Cascade)
+  assigned_to_crew     Crew      @relation(fields: [assigned_to_crew_id], references: [id], onDelete: Cascade)
   contact                     contacts?       @relation(fields: [contact_id], references: [id], onDelete: Cascade)
   inquiry                     inquiries?      @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   project                     projects?       @relation(fields: [project_id], references: [id], onDelete: Cascade)
@@ -1361,10 +1235,10 @@ model client_feedback_surveys {
 
 model calendar_sync_tokens {
   id             Int                    @id @default(autoincrement())
-  crew_member_id Int                    @unique
+  crew_id Int                    @unique
   provider       calendar_sync_provider
   refresh_token  String
-  crew_member    CrewMember             @relation(fields: [crew_member_id], references: [id], onDelete: Cascade)
+  crew    Crew             @relation(fields: [crew_id], references: [id], onDelete: Cascade)
 
   @@map("calendar_sync_tokens")
 }
@@ -1391,15 +1265,15 @@ model TimelineLayer {
 model TimelineEditingSession {
   id            Int          @id @default(autoincrement())
   film_id        Int
-  crew_member_id Int
+  crew_id Int
   session_start  DateTime     @default(now())
   session_end   DateTime?
   last_activity DateTime     @default(now())
   is_active     Boolean      @default(true)
   film          filmLibrary  @relation(fields: [film_id], references: [id], onDelete: Cascade)
-  crew_member   CrewMember @relation(fields: [crew_member_id], references: [id], onDelete: Cascade)
+  crew   Crew @relation(fields: [crew_id], references: [id], onDelete: Cascade)
 
-  @@unique([film_id, crew_member_id, session_start])
+  @@unique([film_id, crew_id, session_start])
   @@map("timeline_editing_sessions")
 }
 
@@ -1488,6 +1362,7 @@ model task_library {
   id                       Int                        @id @default(autoincrement())
   name                     String
   description              String?
+  workflow_description     String?                    // Fuller workflow narrative (auto-populated from subtask descriptions, independently editable)
   phase                    project_phase
   effort_hours             Decimal?                   @db.Decimal(8, 2)
   recorded_hours           Decimal?                   @db.Decimal(8, 2)
@@ -1502,16 +1377,18 @@ model task_library {
   brand_id                 Int
   is_active                Boolean                    @default(true)
   trigger_type             task_trigger_type          @default(always)
-  due_date_offset_days     Int?                       // Days from reference date (inquiry created / event date) to set due_date
+  due_date_offset_days      Int?                       // Days from the reference date to set due_date
+  due_date_offset_reference due_date_offset_reference? // Which date the offset is measured from
   parent_task_id           Int?                       // Self-reference for parent/child (task group → children)
   is_task_group            Boolean                    @default(false) // True = task group container (collapsible section within a phase)
   is_auto_only             Boolean                    @default(false) // True = auto-completes only, cannot be manually toggled
-  default_crew_member_id   Int?                       // Auto-resolved when exactly 1 crew member has the role
+  is_on_site               Boolean                    @default(false) // True = on-site work (billed at day rate); false = off-site (billed hourly)
+  default_crew_id   Int?                       // Auto-resolved when exactly 1 crew record has the role
   created_at               DateTime                   @default(now())
   updated_at               DateTime                   @updatedAt
   brand                    brands                     @relation(fields: [brand_id], references: [id], onDelete: Cascade)
   default_job_role         job_roles?                 @relation("TaskLibraryDefaultRole", fields: [default_job_role_id], references: [id], onDelete: SetNull)
-  default_crew_member      CrewMember?               @relation("TaskLibraryDefaultCrewMember", fields: [default_crew_member_id], references: [id], onDelete: SetNull)
+  default_crew      Crew?               @relation("TaskLibraryDefaultCrew", fields: [default_crew_id], references: [id], onDelete: SetNull)
   parent_task              task_library?              @relation("TaskLibraryParentChild", fields: [parent_task_id], references: [id], onDelete: SetNull)
   children                 task_library[]             @relation("TaskLibraryParentChild")
   task_library_benchmarks           task_library_benchmarks[]
@@ -1527,7 +1404,7 @@ model task_library {
   @@index([is_active])
   @@index([phase, order_index])
   @@index([default_job_role_id])
-  @@index([default_crew_member_id])
+  @@index([default_crew_id])
   @@index([parent_task_id])
   @@map("task_library")
 }
@@ -1535,17 +1412,17 @@ model task_library {
 model task_library_benchmarks {
   id                        Int          @id @default(autoincrement())
   task_library_id           Int
-  crew_member_id            Int
-  contributor_default_hours Decimal?     @db.Decimal(8, 2)
-  contributor_average_hours Decimal?     @db.Decimal(8, 2)
-  contributor_best_hours    Decimal?     @db.Decimal(8, 2)
+  crew_id            Int
+  crew_default_hours Decimal?     @db.Decimal(8, 2)
+  crew_average_hours Decimal?     @db.Decimal(8, 2)
+  crew_best_hours    Decimal?     @db.Decimal(8, 2)
   completed_count           Int          @default(0)
   created_at                DateTime     @default(now())
   updated_at                DateTime     @updatedAt
-  contributor               CrewMember @relation(fields: [crew_member_id], references: [id], onDelete: Cascade)
+  crew               Crew @relation(fields: [crew_id], references: [id], onDelete: Cascade)
   task_library              task_library @relation(fields: [task_library_id], references: [id], onDelete: Cascade)
 
-  @@unique([task_library_id, crew_member_id])
+  @@unique([task_library_id, crew_id])
   @@map("task_library_benchmarks")
 }
 
@@ -1573,6 +1450,7 @@ model task_library_subtask_templates {
   task_library_id Int
   subtask_key     String       // Unique key within the task (e.g. "verify_submission_data")
   name            String       // Display name (e.g. "Verify Submission Data")
+  description     String?      // Fuller description of what this step does / automation behaviour
   order_index     Int          @default(0)
   is_auto_only    Boolean      @default(false) // True = system-managed, cannot be manually toggled
   created_at      DateTime     @default(now())
@@ -1586,7 +1464,7 @@ model task_library_subtask_templates {
 
 // ─── Project Tasks (auto-generated from task library) ─────────────────
 // Created when task auto-generation runs for a project+package.
-// Separate from legacy `tasks` table which is tied to build_scenes.
+// Separate from legacy `tasks` table.
 
 model project_tasks {
   id                    Int                  @id @default(autoincrement())
@@ -1619,7 +1497,7 @@ model project_tasks {
   project            projects          @relation(fields: [project_id], references: [id], onDelete: Cascade)
   task_library       task_library?     @relation(fields: [task_library_id], references: [id], onDelete: SetNull)
   package            service_packages? @relation(fields: [package_id], references: [id], onDelete: SetNull)
-  assigned_to        CrewMember?     @relation("AssignedProjectTasks", fields: [assigned_to_id], references: [id], onDelete: SetNull)
+  assigned_to        Crew?     @relation("AssignedProjectTasks", fields: [assigned_to_id], references: [id], onDelete: SetNull)
   resolved_job_role  job_roles?        @relation("ResolvedJobRole", fields: [resolved_job_role_id], references: [id], onDelete: SetNull)
   resolved_bracket   payment_brackets? @relation("ResolvedBracket", fields: [resolved_bracket_id], references: [id], onDelete: SetNull)
 
@@ -1653,7 +1531,7 @@ model inquiry_tasks {
   order_index             Int               @default(0)
   completed_at            DateTime?
   completed_by_id         Int?
-  assigned_to_id          Int?              // Contributor assigned to work on this task
+  assigned_to_id          Int?              // Crew assigned to work on this task
   job_role_id             Int?              // Role needed for this task (from task_library.default_job_role_id)
   is_active               Boolean           @default(true)
   is_task_group           Boolean           @default(false) // True = this is a task group container row
@@ -1662,8 +1540,8 @@ model inquiry_tasks {
 
   inquiry             inquiries      @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   task_library        task_library?  @relation(fields: [task_library_id], references: [id], onDelete: SetNull)
-  completed_by        CrewMember?  @relation("CompletedInquiryTasks", fields: [completed_by_id], references: [id], onDelete: SetNull)
-  assigned_to         CrewMember?  @relation("AssignedInquiryTasks", fields: [assigned_to_id], references: [id], onDelete: SetNull)
+  completed_by        Crew?  @relation("CompletedInquiryTasks", fields: [completed_by_id], references: [id], onDelete: SetNull)
+  assigned_to         Crew?  @relation("AssignedInquiryTasks", fields: [assigned_to_id], references: [id], onDelete: SetNull)
   job_role            job_roles?     @relation("InquiryTaskJobRole", fields: [job_role_id], references: [id], onDelete: SetNull)
   parent_inquiry_task inquiry_tasks? @relation("InquiryTaskParentChild", fields: [parent_inquiry_task_id], references: [id], onDelete: Cascade)
   children            inquiry_tasks[]         @relation("InquiryTaskParentChild")
@@ -1695,7 +1573,7 @@ model inquiry_task_subtasks {
   updated_at       DateTime     @updatedAt
 
   inquiry_task inquiry_tasks @relation(fields: [inquiry_task_id], references: [id], onDelete: Cascade)
-  completed_by CrewMember? @relation("CompletedInquiryTaskSubtasks", fields: [completed_by_id], references: [id], onDelete: SetNull)
+  completed_by Crew? @relation("CompletedInquiryTaskSubtasks", fields: [completed_by_id], references: [id], onDelete: SetNull)
   job_role     job_roles?    @relation("InquiryTaskSubtaskJobRole", fields: [job_role_id], references: [id], onDelete: SetNull)
 
   @@unique([inquiry_task_id, subtask_key])
@@ -1749,6 +1627,7 @@ model equipment {
   last_maintenance               DateTime?
   next_maintenance_due           DateTime?
   location                       String?
+  photo_url                      String?
   brand_id                       Int?
   is_active                      Boolean                       @default(true)
   created_at                     DateTime                      @default(now())
@@ -1756,8 +1635,8 @@ model equipment {
   created_by_id                  Int?
   owner_id                       Int?
   brand                          brands?                       @relation(fields: [brand_id], references: [id])
-  created_by                     CrewMember?                 @relation("EquipmentCreatedBy", fields: [created_by_id], references: [id])
-  owner                          CrewMember?                 @relation("EquipmentOwner", fields: [owner_id], references: [id])
+  created_by                     Crew?                 @relation("EquipmentCreatedBy", fields: [created_by_id], references: [id])
+  owner                          Crew?                 @relation("EquipmentOwner", fields: [owner_id], references: [id])
   availability_slots             equipment_availability[]
   maintenance_logs               equipment_maintenance[]
   rental_bookings                equipment_rentals[]
@@ -1796,7 +1675,7 @@ model equipment_rentals {
   client             clients?                @relation(fields: [client_id], references: [id])
   equipment          equipment               @relation(fields: [equipment_id], references: [id])
   project            projects?               @relation(fields: [project_id], references: [id])
-  rented_by          CrewMember?           @relation(fields: [rented_by_id], references: [id])
+  rented_by          Crew?           @relation(fields: [rented_by_id], references: [id])
 
   @@index([equipment_id])
   @@index([project_id])
@@ -1817,7 +1696,7 @@ model equipment_maintenance {
   notes            String?
   created_at       DateTime                   @default(now())
   created_by_id    Int?
-  created_by       CrewMember?              @relation(fields: [created_by_id], references: [id])
+  created_by       Crew?              @relation(fields: [created_by_id], references: [id])
   equipment        equipment                  @relation(fields: [equipment_id], references: [id])
 
   @@index([equipment_id])
@@ -1845,9 +1724,9 @@ model equipment_availability {
   created_at      DateTime                      @default(now())
   updated_at      DateTime                      @updatedAt
   created_by_id   Int?
-  booked_by       CrewMember?                 @relation("EquipmentBookedBy", fields: [booked_by_id], references: [id])
+  booked_by       Crew?                 @relation("EquipmentBookedBy", fields: [booked_by_id], references: [id])
   client          clients?                      @relation(fields: [client_id], references: [id])
-  created_by      CrewMember?                 @relation("EquipmentAvailabilityCreatedBy", fields: [created_by_id], references: [id])
+  created_by      Crew?                 @relation("EquipmentAvailabilityCreatedBy", fields: [created_by_id], references: [id])
   equipment       equipment                     @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
   project         projects?                     @relation(fields: [project_id], references: [id])
 
@@ -1889,11 +1768,6 @@ model LocationsLibrary {
   is_active                   Boolean                   @default(true)
   created_at                  DateTime                  @default(now())
   updated_at                  DateTime                  @updatedAt
-  venue_floor_plan_data       Json?
-  venue_floor_plan_updated_at DateTime?
-  venue_floor_plan_updated_by Int?
-  venue_floor_plan_version    Int                       @default(1)
-  spaces                      LocationSpaces[]
   film_locations              FilmLocation[]
   film_scene_locations        FilmSceneLocation[]
   package_event_day_locations PackageEventDayLocation[]
@@ -1901,72 +1775,9 @@ model LocationsLibrary {
   project_film_locations      ProjectFilmLocation[]
   project_film_scene_locations ProjectFilmSceneLocation[]
   brand                       brands?                   @relation(fields: [brand_id], references: [id])
-  venue_floor_plan_updater    CrewMember?             @relation("VenueFloorPlanUpdater", fields: [venue_floor_plan_updated_by], references: [id])
 
   @@index([brand_id])
   @@map("locations_library")
-}
-
-model LocationSpaces {
-  id                Int              @id @default(autoincrement())
-  location_id       Int
-  name              String
-  space_type        String
-  capacity          Int?
-  dimensions_length Decimal?         @db.Decimal(8, 2)
-  dimensions_width  Decimal?         @db.Decimal(8, 2)
-  dimensions_height Decimal?         @db.Decimal(8, 2)
-  metadata          Json?
-  notes             String?
-  is_active         Boolean          @default(true)
-  created_at        DateTime         @default(now())
-  updated_at        DateTime         @updatedAt
-  floor_plans       FloorPlans[]
-  location          LocationsLibrary @relation(fields: [location_id], references: [id], onDelete: Cascade)
-
-  @@index([location_id])
-  @@map("location_spaces")
-}
-
-model FloorPlans {
-  id            Int            @id @default(autoincrement())
-  space_id      Int
-  project_id    Int?
-  name          String
-  version       Int            @default(1)
-  fabric_data   Json
-  layers_data   Json?
-  is_default    Boolean        @default(false)
-  is_active     Boolean        @default(true)
-  created_at    DateTime       @default(now())
-  updated_at    DateTime       @updatedAt
-  created_by_id Int?
-  created_by    CrewMember?  @relation("FloorPlanCreatedBy", fields: [created_by_id], references: [id])
-  project       projects?      @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  space         LocationSpaces @relation(fields: [space_id], references: [id], onDelete: Cascade)
-
-  @@unique([space_id, project_id, version])
-  @@index([space_id])
-  @@index([project_id])
-  @@map("floor_plans")
-}
-
-model FloorPlanObjects {
-  id              Int      @id @default(autoincrement())
-  name            String
-  category        String
-  object_type     String
-  fabric_template Json
-  thumbnail_url   String?
-  brand_id        Int?
-  is_active       Boolean  @default(true)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
-  brand           brands?  @relation(fields: [brand_id], references: [id])
-
-  @@index([brand_id])
-  @@index([category])
-  @@map("floor_plan_objects")
 }
 
 // Legacy SceneLocationSpace removed
@@ -2031,7 +1842,7 @@ enum VideoStyleType {
 enum contacts_type {
   Client_Lead
   Client
-  Contributor
+  Crew
   Vendor
 }
 
@@ -2051,6 +1862,13 @@ enum project_phase {
   Delivery
 }
 
+enum due_date_offset_reference {
+  inquiry_created
+  booking_date
+  event_date
+  delivery_date
+}
+
 enum task_trigger_type {
   always
   per_project
@@ -2058,16 +1876,11 @@ enum task_trigger_type {
   per_film_with_music
   per_film_with_graphics
   per_event_day
-  per_crew_member
+  per_crew
   per_location
   per_activity
   per_activity_crew
   per_film_scene
-}
-
-enum billable_item_pricing_type {
-  Fixed
-  Unit
 }
 
 enum inquiries_status {
@@ -2078,25 +1891,6 @@ enum inquiries_status {
   Proposal_Sent
   Booked
   Closed_Lost
-}
-
-enum builds_status {
-  Inquiry
-  Proposal_Sent
-  Booked
-  Completed
-  Archived
-}
-
-enum change_order_status {
-  Pending_Approval
-  Approved
-  Rejected
-}
-
-enum discount_type_enum {
-  Percentage
-  Fixed
 }
 
 enum tasks_status {
@@ -2274,12 +2068,12 @@ model FilmTimelineTrack {
   order_index    Int
   is_active      Boolean   @default(true)
   is_unmanned    Boolean   @default(false) // Static camera — operator responsible but not stationed
-  crew_member_id Int? // Which crew member owns this track
+  crew_id Int? // Which crew record owns this track
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
 
   film                     Film                      @relation(fields: [film_id], references: [id], onDelete: Cascade)
-  contributor              CrewMember?             @relation(fields: [crew_member_id], references: [id], onDelete: SetNull)
+  crew              Crew?             @relation(fields: [crew_id], references: [id], onDelete: SetNull)
   camera_assignments       CameraSubjectAssignment[]
   scene_camera_assignments SceneCameraAssignment[]
   project_instances        ProjectFilmTimelineTrack[]
@@ -2287,7 +2081,7 @@ model FilmTimelineTrack {
   @@unique([film_id, name])
   @@index([film_id])
   @@index([type])
-  @@index([crew_member_id])
+  @@index([crew_id])
   @@map("film_timeline_tracks_v2")
 }
 
@@ -2947,7 +2741,6 @@ model service_packages {
   description     String?
   category        String? // Keeping for backward compat, or allows free text if no relation
   category_id     Int? // New flexible relation
-  base_price      Decimal  @default(0) @db.Decimal(10, 2)
   currency        String   @default("USD")
   is_active       Boolean  @default(true)
   created_at      DateTime @default(now())
@@ -3130,7 +2923,6 @@ model EventDay {
   package_scene_schedules     PackageFilmSceneSchedule[]
   project_event_days          ProjectEventDay[]
   package_event_days          PackageEventDay[]
-  package_crew_slots          PackageCrewSlot[]
   package_day_subjects        PackageDaySubject[]
   package_event_day_locations PackageEventDayLocation[]
   package_location_slots      PackageLocationSlot[]
@@ -3403,6 +3195,7 @@ model PackageEventDay {
   package    service_packages  @relation(fields: [package_id], references: [id], onDelete: Cascade)
   event_day  EventDay  @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
   activities PackageActivity[]
+  crew_slots PackageCrewSlot[]
 
   @@unique([package_id, event_day_template_id])
   @@index([package_id])
@@ -3412,7 +3205,7 @@ model PackageEventDay {
 
 // ─── Activities (real-world schedule blocks within an event day) ──────
 // Activities represent what actually happens during a day: Bridal Prep, Ceremony,
-// Reception, Portraits, etc. Film scenes and operators are assigned TO activities.
+// Reception, Portraits, etc. Film scenes and crew slots are assigned TO activities.
 
 // Package-level activities (template schedule blocks)
 model PackageActivity {
@@ -3433,10 +3226,9 @@ model PackageActivity {
   package              service_packages             @relation(fields: [package_id], references: [id], onDelete: Cascade)
   package_event_day    PackageEventDay              @relation(fields: [package_event_day_id], references: [id], onDelete: Cascade)
   scene_schedules      PackageFilmSceneSchedule[]
-  operators            PackageCrewSlot[]
   locations            PackageEventDayLocation[]
   project_activities   ProjectActivity[]
-  operator_assignments PackageCrewSlotActivity[]
+  crew_slot_assignments PackageCrewSlotActivity[]
   subject_assignments  PackageDaySubjectActivity[]
   location_assignments LocationActivityAssignment[]
   moments              PackageActivityMoment[]
@@ -3469,44 +3261,41 @@ model PackageActivityMoment {
   @@map("package_activity_moments")
 }
 
-// ─── Package Crew Slots (assign real crew members to package event days) ───
+// ─── Package Crew Slots (assign real crew to package event days) ───────────
 model PackageCrewSlot {
-  id                    Int      @id @default(autoincrement())
-  package_id            Int
-  event_day_template_id Int
-  crew_member_id        Int? // Nullable: null = unassigned slot, set = real crew member assigned
-  package_activity_id   Int? // Optional: assign to a specific activity
-  job_role_id           Int // Required: which job role this slot requires
-  hours                 Decimal  @default(8) @db.Decimal(4, 1)
-  label                 String? // Optional display override: "Lead", "B-Cam", etc.
-  order_index           Int      @default(0)
-  created_at            DateTime @default(now())
-  updated_at            DateTime @updatedAt
+  id                   Int      @id @default(autoincrement())
+  package_id           Int
+  package_event_day_id Int
+  crew_id              Int? // Nullable: null = unassigned slot, set = real crew assigned
+  job_role_id          Int // Required: which job role this slot requires
+  hours                Decimal  @default(8) @db.Decimal(4, 1)
+  label                String? // Optional display override: "Lead", "B-Cam", etc.
+  order_index          Int      @default(0)
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
 
-  package              service_packages              @relation(fields: [package_id], references: [id], onDelete: Cascade)
-  event_day            EventDay              @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
-  contributor          CrewMember?                 @relation(fields: [crew_member_id], references: [id], onDelete: SetNull)
-  package_activity     PackageActivity?              @relation(fields: [package_activity_id], references: [id], onDelete: SetNull)
-  job_role             job_roles                     @relation(fields: [job_role_id], references: [id], onDelete: Restrict)
+  package              service_packages         @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  package_event_day    PackageEventDay          @relation(fields: [package_event_day_id], references: [id], onDelete: Cascade)
+  crew                 Crew?                    @relation(fields: [crew_id], references: [id], onDelete: SetNull)
+  job_role             job_roles                @relation(fields: [job_role_id], references: [id], onDelete: Restrict)
   equipment            PackageCrewSlotEquipment[]
   activity_assignments PackageCrewSlotActivity[]
 
-  @@unique([package_id, event_day_template_id, job_role_id, order_index])
+  @@unique([package_id, package_event_day_id, job_role_id, order_index])
   @@index([package_id])
-  @@index([event_day_template_id])
-  @@index([crew_member_id])
-  @@index([package_activity_id])
+  @@index([package_event_day_id])
+  @@index([crew_id])
   @@index([job_role_id])
   @@map("package_crew_slots")
 }
 
-// Equipment assigned to an operator for a specific package-day (overrides template defaults)
+// Equipment assigned to a crew slot for a specific package-day (overrides template defaults)
 model PackageCrewSlotEquipment {
-  id                      Int      @id @default(autoincrement())
+  id                   Int      @id @default(autoincrement())
   package_crew_slot_id Int
-  equipment_id            Int
-  is_primary              Boolean  @default(false)
-  created_at              DateTime @default(now())
+  equipment_id         Int
+  is_primary           Boolean  @default(false)
+  created_at           DateTime @default(now())
 
   package_crew_slot PackageCrewSlot @relation(fields: [package_crew_slot_id], references: [id], onDelete: Cascade)
   equipment         equipment       @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
@@ -3642,7 +3431,7 @@ model ProjectEventDay {
   event_day_template EventDay?          @relation(fields: [event_day_template_id], references: [id], onDelete: SetNull)
   scene_schedules    ProjectFilmSceneSchedule[]
   activities         ProjectActivity[]
-  day_operators      ProjectCrewSlot[]
+  day_crew_slots    ProjectCrewSlot[]
   subjects           ProjectDaySubject[]
   location_slots     ProjectLocationSlot[]
 
@@ -3679,12 +3468,10 @@ model ProjectActivity {
   package_activity  PackageActivity?           @relation(fields: [package_activity_id], references: [id], onDelete: SetNull)
   scene_schedules   ProjectFilmSceneSchedule[]
   moments           ProjectActivityMoment[]
-  operators         ProjectCrewSlot[]
-  operator_assignments  ProjectCrewSlotActivity[]
+  crew_slot_assignments  ProjectCrewSlotActivity[]
   subject_assignments   ProjectDaySubjectActivity[]
   location_assignments  ProjectLocationActivityAssignment[]
 
-  @@index([project_id])
   @@index([inquiry_id])
   @@index([project_event_day_id])
   @@index([package_activity_id])
@@ -3770,7 +3557,7 @@ model ProjectFilmTimelineTrack {
   order_index     Int
   is_active       Boolean   @default(true)
   is_unmanned     Boolean   @default(false)
-  crew_member_id  Int?
+  crew_id  Int?
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
 
@@ -3778,7 +3565,7 @@ model ProjectFilmTimelineTrack {
   inquiry                  inquiries?                      @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   project_film             ProjectFilm                     @relation(fields: [project_film_id], references: [id], onDelete: Cascade)
   source_track             FilmTimelineTrack?              @relation(fields: [source_track_id], references: [id], onDelete: SetNull)
-  contributor              CrewMember?                   @relation(fields: [crew_member_id], references: [id], onDelete: SetNull)
+  crew              Crew?                   @relation(fields: [crew_id], references: [id], onDelete: SetNull)
   camera_assignments       ProjectCameraSubjectAssignment[]
   scene_camera_assignments ProjectSceneCameraAssignment[]
 
@@ -3786,7 +3573,7 @@ model ProjectFilmTimelineTrack {
   @@index([inquiry_id])
   @@index([project_film_id])
   @@index([source_track_id])
-  @@index([crew_member_id])
+  @@index([crew_id])
   @@map("project_film_timeline_tracks")
 }
 
@@ -4195,48 +3982,45 @@ model ProjectLocationSlot {
   @@map("project_location_slots")
 }
 
-// Project crew/operator slots (cloned from PackageCrewSlot)
+// Project crew slots (cloned from PackageCrewSlot)
 // Dual-owner: owned by either a project OR an inquiry (exactly one must be set)
 model ProjectCrewSlot {
-  id                      Int      @id @default(autoincrement())
-  project_id              Int? // Nullable: set when owned by project
-  inquiry_id              Int? // Nullable: set when owned by inquiry (before booking)
-  project_event_day_id    Int
-  project_activity_id     Int? // Optional: assigned to a specific activity
-  source_slot_id Int? // Traceability to original PackageCrewSlot
-  crew_member_id          Int? // Nullable: null = unassigned slot
-  job_role_id             Int // Required: which job role this slot requires
-  hours                   Decimal  @default(8) @db.Decimal(4, 1)
-  label                   String? // Optional display override
-  order_index             Int      @default(0)
-  created_at              DateTime @default(now())
-  updated_at              DateTime @updatedAt
+  id                   Int      @id @default(autoincrement())
+  project_id           Int? // Nullable: set when owned by project
+  inquiry_id           Int? // Nullable: set when owned by inquiry (before booking)
+  project_event_day_id Int
+  source_slot_id       Int? // Traceability to original PackageCrewSlot
+  crew_id              Int? // Nullable: null = unassigned slot
+  job_role_id          Int // Required: which job role this slot requires
+  hours                Decimal  @default(8) @db.Decimal(4, 1)
+  label                String? // Optional display override
+  order_index          Int      @default(0)
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
 
-  project           projects?         @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  inquiry           inquiries?        @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
-  project_event_day ProjectEventDay   @relation(fields: [project_event_day_id], references: [id], onDelete: Cascade)
-  project_activity  ProjectActivity?  @relation(fields: [project_activity_id], references: [id], onDelete: SetNull)
-  contributor       CrewMember?     @relation(fields: [crew_member_id], references: [id], onDelete: SetNull)
-  job_role          job_roles                     @relation(fields: [job_role_id], references: [id], onDelete: Restrict)
-  equipment         ProjectCrewSlotEquipment[]
+  project              projects?         @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry              inquiries?        @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_event_day    ProjectEventDay   @relation(fields: [project_event_day_id], references: [id], onDelete: Cascade)
+  crew                 Crew?             @relation(fields: [crew_id], references: [id], onDelete: SetNull)
+  job_role             job_roles         @relation(fields: [job_role_id], references: [id], onDelete: Restrict)
+  equipment            ProjectCrewSlotEquipment[]
   activity_assignments ProjectCrewSlotActivity[]
 
   @@index([project_id])
   @@index([inquiry_id])
   @@index([project_event_day_id])
-  @@index([project_activity_id])
-  @@index([crew_member_id])
+  @@index([crew_id])
   @@index([job_role_id])
   @@map("project_crew_slots")
 }
 
-// Equipment assigned to a project operator
+// Equipment assigned to a project crew slot
 model ProjectCrewSlotEquipment {
-  id                       Int      @id @default(autoincrement())
-  project_crew_slot_id  Int
-  equipment_id             Int
-  is_primary               Boolean  @default(false)
-  created_at               DateTime @default(now())
+  id                   Int      @id @default(autoincrement())
+  project_crew_slot_id Int
+  equipment_id         Int
+  is_primary           Boolean  @default(false)
+  created_at           DateTime @default(now())
 
   project_crew_slot ProjectCrewSlot @relation(fields: [project_crew_slot_id], references: [id], onDelete: Cascade)
   equipment         equipment       @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
@@ -4295,7 +4079,7 @@ model ProjectLocationActivityAssignment {
 }
 
 // ─── Multi-Activity Assignment Junction Tables ───────────────────────
-// Allow operators and subjects to be assigned to MULTIPLE activities per day.
+// Allow crew slots and subjects to be assigned to MULTIPLE activities per day.
 
 model PackageCrewSlotActivity {
   id                      Int      @id @default(autoincrement())

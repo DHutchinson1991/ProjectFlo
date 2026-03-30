@@ -48,7 +48,7 @@ const TIERS: Record<string, { name: string; display_name: string; level: number;
     ],
     _default: [
         { name: 'junior', display_name: 'Junior',    level: 1, ...T[1], color: '#66BB6A', description: 'Entry-level' },
-        { name: 'mid',    display_name: 'Mid-Level', level: 2, ...T[2], color: '#42A5F5', description: 'Independent contributor' },
+        { name: 'mid',    display_name: 'Mid-Level', level: 2, ...T[2], color: '#42A5F5', description: 'Independent crew' },
         { name: 'senior', display_name: 'Senior',    level: 3, ...T[3], color: '#AB47BC', description: 'Expert level' },
         { name: 'lead',   display_name: 'Lead',      level: 4, ...T[4], color: '#FF7043', description: 'Team lead' },
     ],

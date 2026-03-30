@@ -37,7 +37,6 @@ import {
     Save as SaveIcon,
     Add as AddIcon,
     Delete as DeleteIcon,
-    AutoAwesome as AutoAwesomeIcon,
     Email as EmailIcon,
     LocationOn as LocationIcon,
 } from "@mui/icons-material";
@@ -127,17 +126,6 @@ export default function CompanySettings() {
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
     const [validationErrors, setValidationErrors] = useState<BrandValidationErrors>({});
 
-    // ---- Services Offered state ---------------------------------------------
-    const [serviceTypes, setServiceTypes] = useState<string[]>([]);
-    const [confirmingServiceType, setConfirmingServiceType] = useState<{ key: string; label: string; icon: string } | null>(null);
-    const [provisioningType, setProvisioningType] = useState<string | null>(null);
-
-    const SERVICE_TYPE_OPTIONS = [
-        { key: 'WEDDING',    label: 'Weddings',    icon: '💒', color: '#ec4899', description: 'Full wedding day coverage — ceremony, reception, portraits and more.' },
-        { key: 'BIRTHDAY',   label: 'Birthdays',   icon: '🎂', color: '#f59e0b', description: 'Birthday celebrations — cake, speeches, dancing and party coverage.' },
-        { key: 'ENGAGEMENT', label: 'Engagements', icon: '💍', color: '#8b5cf6', description: 'Engagement shoots and parties — portraits, golden hour, and celebrations.' },
-    ];
-
     // ---- Create Brand dialog state -------------------------------------------
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [creating, setCreating] = useState(false);
@@ -201,7 +189,6 @@ export default function CompanySettings() {
         };
         setFormData(values);
         setOriginalFormData(values);
-        setServiceTypes(b.service_types ?? []);
     }, []);
 
     const loadBrand = useCallback(async () => {
@@ -260,25 +247,6 @@ export default function CompanySettings() {
     const handleDiscard = () => {
         setFormData({ ...originalFormData });
         setValidationErrors({});
-    };
-
-    const handleConfirmEnableServiceType = async () => {
-        if (!brand || !confirmingServiceType) return;
-        const key = confirmingServiceType.key;
-        setConfirmingServiceType(null);
-        setProvisioningType(key);
-        try {
-            const newTypes = [...serviceTypes, key];
-            const updated = await brandsApi.update(brand.id, { service_types: newTypes } as any);
-            setBrand(updated);
-            setServiceTypes(updated.service_types ?? newTypes);
-            await refreshBrands();
-            setSnackbar({ open: true, message: `${confirmingServiceType?.label ?? key} service enabled and templates created.`, severity: 'success' });
-        } catch {
-            setSnackbar({ open: true, message: 'Failed to enable service type. Please try again.', severity: 'error' });
-        } finally {
-            setProvisioningType(null);
-        }
     };
 
     const loadAllBrands = useCallback(async () => {
@@ -453,41 +421,6 @@ export default function CompanySettings() {
                                     </FormControl>
                                 </Grid>
                             </Grid>
-                        </Box>
-                    </Box>
-
-                    {/* Services Offered */}
-                    <Box sx={{ mb: 3.5 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-                            <AutoAwesomeIcon sx={{ fontSize: 18, color: "primary.main" }} />
-                            <Typography variant="subtitle2" fontWeight={700}>Services Offered</Typography>
-                        </Box>
-                        <Box sx={{ p: 2.5, borderRadius: 2.5, border: 1, borderColor: "divider", bgcolor: (theme) => alpha(theme.palette.background.paper, 0.6) }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                Enable a service to auto-create its event templates, activities, subjects and a default package set.
-                            </Typography>
-                            <Stack spacing={1.5}>
-                                {SERVICE_TYPE_OPTIONS.map((opt) => {
-                                    const enabled = serviceTypes.includes(opt.key);
-                                    const isLoading = provisioningType === opt.key;
-                                    return (
-                                        <Box key={opt.key} sx={{ display: "flex", alignItems: "center", gap: 2, p: 2, borderRadius: 2, border: 1, borderColor: enabled ? opt.color : "divider", bgcolor: enabled ? (theme) => alpha(opt.color, 0.06) : "transparent", transition: "all 0.2s ease" }}>
-                                            <Typography sx={{ fontSize: "1.5rem", lineHeight: 1, flexShrink: 0 }}>{opt.icon}</Typography>
-                                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                <Typography variant="body2" fontWeight={700}>{opt.label}</Typography>
-                                                <Typography variant="caption" color="text.secondary">{opt.description}</Typography>
-                                            </Box>
-                                            {enabled ? (
-                                                <Chip label="Enabled" size="small" sx={{ height: 24, fontWeight: 700, fontSize: "0.7rem", bgcolor: alpha(opt.color, 0.12), color: opt.color, border: "none", flexShrink: 0 }} />
-                                            ) : (
-                                                <Button size="small" variant="outlined" disabled={isLoading} onClick={() => setConfirmingServiceType(opt)} startIcon={isLoading ? <CircularProgress size={12} /> : <AddIcon />} sx={{ borderRadius: 2, fontWeight: 600, minWidth: 90, flexShrink: 0 }}>
-                                                    {isLoading ? "Enabling…" : "Enable"}
-                                                </Button>
-                                            )}
-                                        </Box>
-                                    );
-                                })}
-                            </Stack>
                         </Box>
                     </Box>
 
@@ -693,43 +626,6 @@ export default function CompanySettings() {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
-
-            {/* Enable Service Type Confirmation Dialog */}
-            <Dialog open={!!confirmingServiceType} onClose={() => setConfirmingServiceType(null)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-                <DialogTitle sx={{ pb: 1 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                        <Typography sx={{ fontSize: "1.8rem", lineHeight: 1 }}>{confirmingServiceType?.icon}</Typography>
-                        <Box>
-                            <Typography variant="subtitle1" fontWeight={700}>Enable {confirmingServiceType?.label}?</Typography>
-                            <Typography variant="caption" color="text.secondary">This will create templates, activities, and subjects for this service type.</Typography>
-                        </Box>
-                    </Box>
-                </DialogTitle>
-                <Divider />
-                <DialogContent sx={{ pt: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>The following will be automatically created for your brand:</Typography>
-                    <Stack spacing={1}>
-                        {[
-                            { icon: '📅', label: 'Event days (e.g. Ceremony Day, Getting Ready)' },
-                            { icon: '🎬', label: 'Activities with key moment markers' },
-                            { icon: '👥', label: 'Subject types with standard roles' },
-                            { icon: '📦', label: 'Package category and default package set' },
-                        ].map((item) => (
-                            <Box key={item.label} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                                <Typography sx={{ fontSize: '1rem', mt: 0.1 }}>{item.icon}</Typography>
-                                <Typography variant="body2">{item.label}</Typography>
-                            </Box>
-                        ))}
-                    </Stack>
-                    <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>Enabling a service doesn&apos;t affect existing data. You can customise everything after it&apos;s created.</Alert>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2.5 }}>
-                    <Button onClick={() => setConfirmingServiceType(null)} sx={{ borderRadius: 2 }}>Cancel</Button>
-                    <Button variant="contained" onClick={handleConfirmEnableServiceType} disableElevation startIcon={provisioningType ? <CircularProgress size={14} /> : <AutoAwesomeIcon />} disabled={!!provisioningType} sx={{ fontWeight: 600, borderRadius: 2 }}>
-                        {provisioningType ? 'Enabling…' : `Enable ${confirmingServiceType?.label ?? ''}`}
-                    </Button>
-                </DialogActions>
-            </Dialog>
 
             {/* Create Brand Dialog */}
             <Dialog open={createDialogOpen} onClose={() => !creating && setCreateDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>

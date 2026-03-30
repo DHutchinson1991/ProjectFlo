@@ -5,15 +5,15 @@
  */
 
 import type {
-    CrewMemberApiResponse,
+    CrewApiResponse,
     ContactApiResponse,
     RoleApiResponse,
-    CrewMemberJobRoleApiResponse,
+    CrewJobRoleApiResponse,
     JobRoleApiResponse,
 } from './user-api';
 
-import type { CrewMember, Contact, Role } from './users';
-import type { JobRole, CrewMemberJobRole } from '@/features/catalog/task-library/types/job-roles';
+import type { Crew, Contact, Role } from './users';
+import type { JobRole, CrewJobRole } from '@/features/catalog/task-library/types/job-roles';
 
 function nullToUndefined<T>(value: T | null): T | undefined {
     return value === null ? undefined : value;
@@ -51,10 +51,10 @@ export function mapJobRoleResponse(apiResponse: JobRoleApiResponse): JobRole {
     };
 }
 
-export function mapCrewMemberJobRoleResponse(apiResponse: CrewMemberJobRoleApiResponse): CrewMemberJobRole {
+export function mapCrewJobRoleResponse(apiResponse: CrewJobRoleApiResponse): CrewJobRole {
     return {
         id: apiResponse.id,
-        crew_member_id: apiResponse.crew_member_id,
+        crew_id: apiResponse.crew_id,
         job_role_id: apiResponse.job_role_id,
         is_primary: apiResponse.is_primary ?? false,
         payment_bracket_id: apiResponse.payment_bracket_id ?? null,
@@ -116,11 +116,11 @@ export function mapContactResponse(apiResponse: ContactApiResponse): Contact {
     };
 }
 
-export function mapCrewMemberResponse(apiResponse: CrewMemberApiResponse): CrewMember {
+export function mapCrewResponse(apiResponse: CrewApiResponse): Crew {
     const contact = mapContactResponse(apiResponse.contact);
     const role = apiResponse.role ? mapRoleResponse(apiResponse.role) : null;
-    const CrewMemberJobRoles = apiResponse.job_role_assignments
-        ? apiResponse.job_role_assignments.map(mapCrewMemberJobRoleResponse)
+    const crewJobRoles = apiResponse.job_role_assignments
+        ? apiResponse.job_role_assignments.map(mapCrewJobRoleResponse)
         : [];
 
     return {
@@ -132,7 +132,7 @@ export function mapCrewMemberResponse(apiResponse: CrewMemberApiResponse): CrewM
         bio: apiResponse.bio ?? null,
         contact,
         role,
-        job_role_assignments: CrewMemberJobRoles,
+        job_role_assignments: crewJobRoles,
         email: contact.email,
         first_name: contact.first_name,
         last_name: contact.last_name,
@@ -141,8 +141,8 @@ export function mapCrewMemberResponse(apiResponse: CrewMemberApiResponse): CrewM
     };
 }
 
-export function mapContributorsListResponse(apiResponses: CrewMemberApiResponse[]): CrewMember[] {
-    return apiResponses.map(mapCrewMemberResponse);
+export function mapUserAccountsListResponse(apiResponses: CrewApiResponse[]): Crew[] {
+    return apiResponses.map(mapCrewResponse);
 }
 
 export function mapContactsListResponse(apiResponses: ContactApiResponse[]): Contact[] {
@@ -154,19 +154,19 @@ export function mapRolesListResponse(apiResponses: RoleApiResponse[]): Role[] {
 }
 
 export function getUserInitials(
-    user: CrewMember | Contact | { first_name?: string; last_name?: string },
+    user: Crew | Contact | { first_name?: string; last_name?: string },
 ): string {
     if ('initials' in user) return user.initials;
     return generateInitials(user.first_name, user.last_name);
 }
 
 export function getUserDisplayName(
-    user: CrewMember | Contact | { first_name?: string; last_name?: string; email?: string },
+    user: Crew | Contact | { first_name?: string; last_name?: string; email?: string },
 ): string {
     if ('full_name' in user) return user.full_name;
     return generateFullName(user.first_name, user.last_name, user.email);
 }
 
-export function isUserDataComplete(user: CrewMember | Contact): boolean {
+export function isUserDataComplete(user: Crew | Contact): boolean {
     return !!(user.first_name && user.last_name && user.email);
 }

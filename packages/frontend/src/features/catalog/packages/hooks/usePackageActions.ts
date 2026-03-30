@@ -9,7 +9,7 @@ import { useState, useCallback } from 'react';
 import { type AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 
 import { servicePackagesApi } from '@/features/catalog/packages/api';
-import { scheduleApi } from '@/features/workflow/scheduling/api';
+import { scheduleApi } from '@/features/workflow/scheduling/package-template';
 import { createLinkedFilmFromTemplate } from '@/features/catalog/packages/utils/packageFilmLinker';
 import { ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
 
@@ -68,7 +68,7 @@ export function usePackageActions({
             } else {
                 const newPkg = await servicePackagesApi.create(formData);
                 savedPkgId = newPkg.id;
-                router.replace(`/designer/packages/${newPkg.id}`);
+                router.replace(`/packages/${newPkg.id}`);
             }
 
             // Sync PackageFilm records for any film items that don't have one
@@ -224,7 +224,7 @@ export function usePackageActions({
 
             const newPkg = await servicePackagesApi.create(formData);
             setFormData(newPkg);
-            router.replace(`/designer/packages/${newPkg.id}`);
+            router.replace(`/packages/${newPkg.id}`);
             return newPkg.id;
         };
 
@@ -235,7 +235,7 @@ export function usePackageActions({
             const linkedFilmId = item.config?.linked_film_id;
             if (linkedFilmId) {
                 const activityParam = item.config?.activity_id ? `&activityId=${item.config.activity_id}` : '';
-                router.push(`/designer/films/${linkedFilmId}?packageId=${savedPackageId}&itemId=${item.id}${activityParam}`);
+                router.push(`/films/${linkedFilmId}?packageId=${savedPackageId}&itemId=${item.id}${activityParam}`);
                 return;
             }
 
@@ -291,7 +291,7 @@ export function usePackageActions({
             setFormData(updatedPackage);
 
             const activityParam2 = item.config?.activity_id ? `&activityId=${item.config.activity_id}` : '';
-            router.push(`/designer/films/${newLinkedFilmId}?packageId=${savedPackageId}&itemId=${item.id}${activityParam2}`);
+            router.push(`/films/${newLinkedFilmId}?packageId=${savedPackageId}&itemId=${item.id}${activityParam2}`);
         } catch (e) {
             if ((e as Error).message !== 'Package save cancelled') {
                 console.error(e);

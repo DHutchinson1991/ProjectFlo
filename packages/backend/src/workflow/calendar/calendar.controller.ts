@@ -29,7 +29,7 @@ import {
     UpdateCalendarSettingsDto,
 } from './dto/calendar.dto';
 import { CalendarEventsDateRangeQueryDto } from './dto/calendar-events-date-range-query.dto';
-import { CalendarContributorQueryDto } from './dto/calendar-contributor-query.dto';
+import { CalendarCrewQueryDto } from './dto/calendar-crew-query.dto';
 import { CalendarUpcomingEventsQueryDto } from './dto/calendar-upcoming-events-query.dto';
 import { CalendarStatsQueryDto } from './dto/calendar-stats-query.dto';
 import { CalendarDiscoveryCallSlotsQueryDto } from './dto/calendar-discovery-call-slots-query.dto';
@@ -61,21 +61,21 @@ export class CalendarController {
     async getEventsForDateRange(
         @Query(new ValidationPipe({ transform: true })) query: CalendarEventsDateRangeQueryDto,
     ) {
-        return this.eventsService.getEventsForDateRange(query.start_date, query.end_date, query.crew_member_id);
+        return this.eventsService.getEventsForDateRange(query.start_date, query.end_date, query.crew_id);
     }
 
     @Get('events/today')
     async getTodaysEvents(
-        @Query(new ValidationPipe({ transform: true })) query: CalendarContributorQueryDto,
+        @Query(new ValidationPipe({ transform: true })) query: CalendarCrewQueryDto,
     ) {
-        return this.eventsService.getTodaysEvents(query.crew_member_id);
+        return this.eventsService.getTodaysEvents(query.crew_id);
     }
 
     @Get('events/upcoming')
     async getUpcomingEvents(
         @Query(new ValidationPipe({ transform: true })) query: CalendarUpcomingEventsQueryDto,
     ) {
-        return this.eventsService.getUpcomingEvents(query.crew_member_id, query.limit ?? 10);
+        return this.eventsService.getUpcomingEvents(query.crew_id, query.limit ?? 10);
     }
 
     @Get('events/:id')

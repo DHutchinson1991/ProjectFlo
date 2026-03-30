@@ -10,7 +10,7 @@ import {
 import PlaceIcon from '@mui/icons-material/Place';
 import PersonIcon from '@mui/icons-material/Person';
 import { Inquiry } from '@/features/workflow/inquiries/types';
-import { scheduleApi } from '@/features/workflow/scheduling/api';
+import { scheduleApi } from '@/features/workflow/scheduling/instance';
 
 const PURPLE = '#a855f7';
 

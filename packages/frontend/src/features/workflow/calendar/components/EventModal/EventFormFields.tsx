@@ -4,8 +4,8 @@ import {
     Switch, Autocomplete, Grid, Typography, Box,
 } from '@mui/material';
 import { CalendarEvent, EventType, Priority, Project } from '@/features/workflow/calendar/types/calendar-types';
-import { CrewMemberSelector } from '../CrewMemberSelector';
-import { CrewMemberOption } from '@/features/workflow/calendar/hooks/use-contributors';
+import { CrewSelector } from '../CrewSelector';
+import { CrewOption } from '@/features/workflow/calendar/hooks/use-crew-members';
 import { eventTypeConfig, priorityConfig } from '@/features/workflow/calendar/constants/calendar-config';
 import { formatDateTimeLocal } from '../../hooks/use-event-form';
 
@@ -51,7 +51,7 @@ interface FormState {
     allDay: boolean;
     type: EventType;
     priority: Priority;
-    assignee: CrewMemberOption | null;
+    assignee: CrewOption | null;
     project: Project | null;
     location: string;
 }
@@ -61,15 +61,15 @@ interface EventFormFieldsProps {
     setFormData: React.Dispatch<React.SetStateAction<FormState>>;
     mode: 'create' | 'edit';
     event?: CalendarEvent | null;
-    crewMembers: CrewMemberOption[];
-    currentUserCrewMember: CrewMemberOption | null;
-    crewMembersLoading: boolean;
-    crewMembersError: string | null;
+    crew: CrewOption[];
+    currentUserCrew: CrewOption | null;
+    crewLoading: boolean;
+    crewError: string | null;
 }
 
 const EventFormFields: React.FC<EventFormFieldsProps> = ({
     formData, setFormData, mode, event,
-    crewMembers, currentUserCrewMember, crewMembersLoading, crewMembersError,
+    crew, currentUserCrew, crewLoading, crewError,
 }) => (
     <Grid container spacing={2}>
         <Grid item xs={12}>
@@ -134,10 +134,10 @@ const EventFormFields: React.FC<EventFormFieldsProps> = ({
         </Grid>
 
         <Grid item xs={6}>
-            <CrewMemberSelector selectedCrewMember={formData.assignee}
-                onCrewMemberChange={(c) => setFormData(prev => ({ ...prev, assignee: c }))}
-                contributors={crewMembers} currentUserCrewMember={currentUserCrewMember}
-                loading={crewMembersLoading} error={crewMembersError} label="Assignee" />
+            <CrewSelector selectedCrew={formData.assignee}
+                onCrewChange={(c) => setFormData(prev => ({ ...prev, assignee: c }))}
+                crew={crew} currentUserCrew={currentUserCrew}
+                loading={crewLoading} error={crewError} label="Assignee" />
         </Grid>
 
         <Grid item xs={6}>

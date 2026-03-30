@@ -95,7 +95,7 @@ const PaymentScheduleRows: React.FC<PaymentScheduleRowsProps> = ({
                         <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: r.color, flexShrink: 0 }} />
                         <Typography sx={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>{r.label}</Typography>
                         <Typography sx={{ fontSize: '0.62rem', color: '#94a3b8', fontFamily: 'monospace', fontWeight: 700 }}>
-                            {formatCurrency(r.amount, currency, 0)}
+                            {formatCurrency(r.amount, currency)}
                         </Typography>
                         <Typography sx={{ fontSize: '0.58rem', color: '#475569' }}>({Math.round(r.pct)}%)</Typography>
                     </Box>

@@ -34,7 +34,7 @@ export function useBuilderPackage(currentScreenId: string, eventTypes: EventType
         const customPkg = await wizardStudioDataApi.createPackageFromBuilder({
             eventTypeId: matchedET.id,
             selectedActivityPresetIds: builderActivities,
-            operatorCount: responses.operator_count ?? 1,
+            crewSlotCount: responses.operator_count ?? 1,
             cameraCount: responses.camera_count ?? responses.operator_count ?? 1,
             filmPreferences: builderFilms,
             clientName: responses.contact_first_name,

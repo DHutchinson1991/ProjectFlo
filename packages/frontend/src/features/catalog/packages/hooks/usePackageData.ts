@@ -6,17 +6,18 @@ import { servicePackageCategoriesApi, servicePackagesApi } from '@/features/cata
 import { filmsApi } from '@/features/content/films/api';
 import { crewApi, jobRolesApi } from '@/features/workflow/crew/api';
 import { equipmentApi } from '@/features/workflow/equipment/api';
-import { crewSlotsApi, scheduleApi } from '@/features/workflow/scheduling/api';
+import { crewSlotsApi } from '@/features/workflow/scheduling/shared';
+import { scheduleApi } from '@/features/workflow/scheduling/package-template';
 import { taskLibraryApi } from '@/features/catalog/task-library/api';
 import { rolesApi } from '@/features/content/subjects/api/roles.api';
-import { type EventDay } from '@/features/workflow/scheduling/components';
+import type { EventDay } from '@/features/workflow/scheduling/package-template';
 import { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import type { JobRole } from '@/features/catalog/task-library/types';
 import type { TaskAutoGenerationPreview } from '@/features/catalog/task-library/types';
 
 import type {
     SubjectType,
-    CrewMemberOption,
+    CrewOption,
     PackageCrewSlotRecord,
     PackageFilmRecord,
     PackageActivityRecord,
@@ -48,7 +49,7 @@ export interface UsePackageDataReturn {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     categories: any[];
     subjectTemplates: SubjectType[];
-    crewMembers: CrewMemberOption[];
+    crew: CrewOption[];
     jobRoles: JobRole[];
     allEquipment: EquipmentRecord[];
 
@@ -102,7 +103,6 @@ export function usePackageData({
         name: '',
         description: '',
         category: '',
-        base_price: 0,
         contents: { items: [] },
     });
 
@@ -116,8 +116,8 @@ export function usePackageData({
     const [packageEventDays, setPackageEventDays] = useState<EventDay[]>([]);
     const [packageActivities, setPackageActivities] = useState<PackageActivityRecord[]>([]);
 
-    // Crew & Operator Data
-    const [crewMembers, setCrewMembers] = useState<CrewMemberOption[]>([]);
+    // Crew & Crew Slot Data
+    const [crew, setCrew] = useState<CrewOption[]>([]);
     const [jobRoles, setJobRoles] = useState<JobRole[]>([]);
     const [PackageCrewSlots, setPackageCrewSlots] = useState<PackageCrewSlotRecord[]>([]);
 
@@ -216,16 +216,16 @@ export function usePackageData({
                     console.warn('Failed to load package event days:', edError);
                 }
 
-                // Load Crew Members (brand-level) and Job Roles in parallel
+                // Load crew and job roles in parallel
                 try {
                     const [crew, roles] = await Promise.all([
                         crewApi.getByBrand(brandId),
                         jobRolesApi.getAll(),
                     ]);
-                    setCrewMembers((crew || []) as unknown as CrewMemberOption[]);
+                    setCrew((crew || []) as unknown as CrewOption[]);
                     setJobRoles((roles || []).filter(r => r.is_active));
                 } catch (crewError) {
-                    console.warn('Failed to load crew members / job roles:', crewError);
+                    console.warn('Failed to load crew / job roles:', crewError);
                 }
 
                 // Load Unmanned Equipment (brand-level)
@@ -236,13 +236,15 @@ export function usePackageData({
                     console.warn('Failed to load unmanned equipment:', unmannedError);
                 }
 
-                // Load Package Day Operators
+                // Load Package Day Crew Slots
                 try {
+                    // Sync all crew slots to all activities on the same day (idempotent back-fill)
+                    await crewSlotsApi.packageDay.syncCrewActivities(packageId).catch(() => {/* non-critical */});
                     const dayOps = await crewSlotsApi.packageDay.getAll(packageId) as unknown as PackageCrewSlotRecord[];
 
-                    // Auto-cleanup: delete orphan "equipment-as-operator" placeholder records
+                    // Auto-cleanup: delete orphan "equipment-as-crew-slot" placeholder records
                     const orphanOps = (dayOps || []).filter(
-                        (o: PackageCrewSlotRecord) => !o.crew_member_id && !o.job_role_id,
+                        (o: PackageCrewSlotRecord) => !o.crew_id && !o.job_role_id,
                     );
                     if (orphanOps.length > 0) {
                         await Promise.allSettled(
@@ -251,13 +253,13 @@ export function usePackageData({
                             ),
                         );
                         setPackageCrewSlots(
-                            (dayOps || []).filter((o: PackageCrewSlotRecord) => !!(o.crew_member_id || o.job_role_id)),
+                            (dayOps || []).filter((o: PackageCrewSlotRecord) => !!(o.crew_id || o.job_role_id)),
                         );
                     } else {
                         setPackageCrewSlots(dayOps || []);
                     }
                 } catch (doError) {
-                    console.warn('Failed to load package day operators:', doError);
+                    console.warn('Failed to load package day crew slots:', doError);
                 }
 
                 // Load Package Activities
@@ -297,17 +299,16 @@ export function usePackageData({
                     name: 'New Package',
                     description: '',
                     category: '',
-                    base_price: 0,
                     contents: { items: [] },
                 });
 
-                // Still load crew members and job roles for new packages
+                // Still load crew and job roles for new packages
                 try {
                     const [crew, roles] = await Promise.all([
                         crewApi.getByBrand(brandId),
                         jobRolesApi.getAll(),
                     ]);
-                    setCrewMembers((crew || []) as unknown as CrewMemberOption[]);
+                    setCrew((crew || []) as unknown as CrewOption[]);
                     setJobRoles((roles || []).filter(r => r.is_active));
                 } catch {
                     // ignore
@@ -354,7 +355,7 @@ export function usePackageData({
         // Reference data (read-only)
         categories,
         subjectTemplates,
-        crewMembers,
+        crew,
         jobRoles,
         allEquipment,
 

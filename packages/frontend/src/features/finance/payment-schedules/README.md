@@ -7,12 +7,13 @@ Owns payment schedule template and milestone API bindings used by estimates, quo
 | File | Purpose |
 |------|---------|
 | `api/index.ts` | Payment schedule and milestone endpoint bindings |
-| `hooks/use-payment-schedules-api.ts` | Hook wrapper for payment schedule API access |
+| `hooks/use-payment-schedules.ts` | React Query hooks for schedule template retrieval |
 | `types/index.ts` | Payment schedule and milestone type exports |
 | `index.ts` | Public feature exports |
 
 ## Business rules / invariants
-- Estimate and quote milestone actions go through this feature API.
+- Estimate and quote milestone actions currently go through this feature API methods directly.
+- Public hook surface is intentionally narrow (`usePaymentScheduleTemplates`) until additional consumers are reintroduced.
 - Brand-scoped template operations remain unchanged during migration.
 - Consumers stop referencing `api.paymentSchedules` directly.
 

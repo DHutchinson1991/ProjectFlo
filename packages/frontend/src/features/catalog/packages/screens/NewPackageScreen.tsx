@@ -16,7 +16,7 @@ function NewPackageContent() {
     return (
         <PackageCreationWizard
             fullPage
-            onClose={() => router.push('/designer/packages')}
+            onClose={() => router.push('/packages')}
             onPackageCreated={async (packageId) => {
                 if (slotId && currentBrand?.id) {
                     try {
@@ -25,7 +25,7 @@ function NewPackageContent() {
                         console.warn('Failed to assign package to slot:', err);
                     }
                 }
-                router.push(`/designer/packages/${packageId}`);
+                router.push(`/packages/${packageId}`);
             }}
         />
     );

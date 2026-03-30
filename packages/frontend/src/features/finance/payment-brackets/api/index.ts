@@ -2,7 +2,7 @@ import { apiClient } from '@/shared/api/client';
 import type { ApiClient } from '@/shared/api/client';
 import type {
     AssignBracketData,
-    CrewMemberBracketAssignment,
+    CrewBracketAssignment,
     CreatePaymentBracketData,
     EffectiveRate,
     PaymentBracket,
@@ -29,19 +29,19 @@ export function createPaymentBracketsApi(client: ApiClient) {
             client.patch<PaymentBracket>(`/api/payment-brackets/${bracketId}`, data, { skipBrandContext: true }),
         delete: (bracketId: number) => client.delete<void>(`/api/payment-brackets/${bracketId}`, { skipBrandContext: true }),
         assign: (data: AssignBracketData) =>
-            client.post<CrewMemberBracketAssignment>('/api/payment-brackets/assign', data, { skipBrandContext: true }),
-        unassign: (crewMemberId: number, jobRoleId: number) =>
-            client.delete<CrewMemberBracketAssignment>(`/api/payment-brackets/contributor/${crewMemberId}/job-role/${jobRoleId}`, { skipBrandContext: true }),
-        toggleUnmanned: (crewMemberId: number, jobRoleId: number, isUnmanned: boolean) =>
-            client.patch<CrewMemberBracketAssignment>(
-                `/api/payment-brackets/contributor/${crewMemberId}/job-role/${jobRoleId}/unmanned`,
+            client.post<CrewBracketAssignment>('/api/payment-brackets/assign', data, { skipBrandContext: true }),
+        unassign: (crewId: number, jobRoleId: number) =>
+            client.delete<CrewBracketAssignment>(`/api/payment-brackets/crew/${crewId}/job-role/${jobRoleId}`, { skipBrandContext: true }),
+        toggleUnmanned: (crewId: number, jobRoleId: number, isUnmanned: boolean) =>
+            client.patch<CrewBracketAssignment>(
+                `/api/payment-brackets/crew/${crewId}/job-role/${jobRoleId}/unmanned`,
                 { is_unmanned: isUnmanned },
                 { skipBrandContext: true }
             ),
-        getCrewMemberBrackets: (crewMemberId: number) =>
-            client.get<CrewMemberBracketAssignment[]>(`/api/payment-brackets/contributor/${crewMemberId}`, { skipBrandContext: true }),
-        getEffectiveRate: (crewMemberId: number, jobRoleId: number) =>
-            client.get<EffectiveRate>(`/api/payment-brackets/effective-rate/${crewMemberId}/${jobRoleId}`, { skipBrandContext: true }),
+        getCrewBrackets: (crewId: number) =>
+            client.get<CrewBracketAssignment[]>(`/api/payment-brackets/crew/${crewId}`, { skipBrandContext: true }),
+        getEffectiveRate: (crewId: number, jobRoleId: number) =>
+            client.get<EffectiveRate>(`/api/payment-brackets/effective-rate/crew/${crewId}/${jobRoleId}`, { skipBrandContext: true }),
     };
 }
 

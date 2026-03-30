@@ -25,15 +25,10 @@ const SaveControls: React.FC<SaveControlsProps> = ({
     readOnly = false,
 }) => {
     const handleSaveClick = React.useCallback(async () => {
-        console.log('💾 [SAVECONTROLS] Clicked save button');
-        console.log('💾 [SAVECONTROLS] Before save - hasUnsavedChanges:', saveState?.hasUnsavedChanges);
         try {
-            console.log('💾 [SAVECONTROLS] Awaiting onSave callback...');
             await onSave();
-            console.log('✅ [SAVECONTROLS] Save completed');
-            console.log('💾 [SAVECONTROLS] After save - hasUnsavedChanges:', saveState?.hasUnsavedChanges);
         } catch (error) {
-            console.error('❌ [SAVECONTROLS] Save failed:', error);
+            // save errors are surfaced via saveState
         }
     }, [onSave, saveState]);
 

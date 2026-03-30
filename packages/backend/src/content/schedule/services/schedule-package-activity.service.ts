@@ -21,7 +21,7 @@ export class SchedulePackageActivityService {
       include: {
         package_event_day: { include: { event_day: true } },
         scene_schedules: { include: { scene: true, package_film: { include: { film: true } } } },
-        operators: { include: { crew_member: { include: { contact: true } }, job_role: true, equipment: { include: { equipment: true } } } },
+        crew_slot_assignments: { include: { package_crew_slot: { include: { crew: { include: { contact: true } }, job_role: true, equipment: { include: { equipment: true } } } } } },
         moments: { orderBy: { order_index: 'asc' } },
       },
       orderBy: [{ package_event_day_id: 'asc' }, { order_index: 'asc' }],
@@ -33,7 +33,7 @@ export class SchedulePackageActivityService {
       where: { package_id: packageId, package_event_day_id: packageEventDayId },
       include: {
         scene_schedules: { include: { scene: true, package_film: { include: { film: true } } } },
-        operators: { include: { crew_member: { include: { contact: true } }, job_role: true, equipment: { include: { equipment: true } } } },
+        crew_slot_assignments: { include: { package_crew_slot: { include: { crew: { include: { contact: true } }, job_role: true, equipment: { include: { equipment: true } } } } } },
         moments: { orderBy: { order_index: 'asc' } },
       },
       orderBy: { order_index: 'asc' },
@@ -71,14 +71,68 @@ export class SchedulePackageActivityService {
         await this.prisma.packageActivityMoment.createMany({
           data: defaultMoments.map((m) => ({ package_activity_id: activity.id, ...m })),
         });
-        return this.prisma.packageActivity.findUnique({
-          where: { id: activity.id },
-          include: { package_event_day: { include: { event_day: true } }, moments: { orderBy: { order_index: 'asc' } } },
-        });
       }
     }
 
-    return activity;
+    await this._autoAssignOnSiteSlots(packageId, dto.package_event_day_id, activity.id);
+    if (this._isAllSubjectsActivity(dto.name)) {
+      await this._autoAssignSubjectsToActivity(packageId, ped.event_day_template_id, activity.id);
+    }
+    await this._autoAssignLocationSlotsToActivity(packageId, ped.event_day_template_id, activity.id);
+
+    return this.prisma.packageActivity.findUnique({
+      where: { id: activity.id },
+      include: {
+        package_event_day: { include: { event_day: true } },
+        moments: { orderBy: { order_index: 'asc' } },
+        crew_slot_assignments: { include: { package_crew_slot: { include: { crew: { include: { contact: true } }, job_role: true } } } },
+        subject_assignments: { include: { package_day_subject: { include: { role_template: true } } } },
+        location_assignments: { include: { package_location_slot: true } },
+      },
+    });
+  }
+
+  private async _autoAssignOnSiteSlots(packageId: number, packageEventDayId: number, activityId: number) {
+    const onSiteSlots = await this.prisma.packageCrewSlot.findMany({
+      where: { package_id: packageId, package_event_day_id: packageEventDayId },
+      select: { id: true },
+    });
+    if (onSiteSlots.length === 0) return;
+    await this.prisma.packageCrewSlotActivity.createMany({
+      data: onSiteSlots.map((slot) => ({ package_crew_slot_id: slot.id, package_activity_id: activityId })),
+      skipDuplicates: true,
+    });
+  }
+
+  private _isAllSubjectsActivity(name: string): boolean {
+    const n = name.toLowerCase();
+    return n.includes('ceremony') || n.includes('reception');
+  }
+
+  private async _autoAssignSubjectsToActivity(packageId: number, eventDayTemplateId: number, activityId: number) {
+    const subjects = await this.prisma.packageDaySubject.findMany({
+      where: { package_id: packageId, event_day_template_id: eventDayTemplateId },
+      select: { id: true },
+    });
+    if (subjects.length === 0) return;
+    await this.prisma.packageDaySubjectActivity.createMany({
+      data: subjects.map((s) => ({ package_day_subject_id: s.id, package_activity_id: activityId })),
+      skipDuplicates: true,
+    });
+  }
+
+  private async _autoAssignLocationSlotsToActivity(packageId: number, eventDayTemplateId: number, activityId: number) {
+    const slots = await this.prisma.packageLocationSlot.findMany({
+      where: { package_id: packageId, event_day_template_id: eventDayTemplateId },
+      select: { id: true },
+    });
+    // Only auto-assign when there is exactly one slot — multiple slots means the
+    // package builder has intentionally split venues and must wire them manually.
+    if (slots.length !== 1) return;
+    await this.prisma.locationActivityAssignment.createMany({
+      data: slots.map((s) => ({ package_location_slot_id: s.id, package_activity_id: activityId })),
+      skipDuplicates: true,
+    });
   }
 
   async updatePackageActivity(activityId: number, dto: UpdatePackageActivityDto) {
@@ -91,7 +145,7 @@ export class SchedulePackageActivityService {
       include: {
         package_event_day: { include: { event_day: true } },
         scene_schedules: { include: { scene: true, package_film: { include: { film: true } } } },
-        operators: { include: { crew_member: { include: { contact: true } }, job_role: true } },
+        crew_slot_assignments: { include: { package_crew_slot: { include: { crew: { include: { contact: true } }, job_role: true } } } },
       },
     });
   }

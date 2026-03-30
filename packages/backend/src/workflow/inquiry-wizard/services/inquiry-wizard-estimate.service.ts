@@ -4,11 +4,17 @@ import { EstimatesService } from '../../../finance/estimates/estimates.service';
 import { ProjectPackageSnapshotService } from '../../projects/project-package-snapshot.service';
 import { TaskLibraryService } from '../../task-library/task-library.service';
 import { PaymentSchedulesService } from '../../../finance/payment-schedules/payment-schedules.service';
+import { BrandFinanceSettingsService } from '../../../finance/brand-finance-settings/brand-finance-settings.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
-    AutoEstimateItem, CrewOperator, roundMoney, buildEquipmentItems, buildItemsFromOperators,
+    AutoEstimateItem, CrewSlotRecord, roundMoney, buildEquipmentItems, buildItemsFromCrewSlots,
 } from './estimate-item-builders';
 import { TaskEntry, CrewEntry } from '../types/estimate-service.types';
+import {
+    PLANNING_CATEGORIES,
+    POST_PRODUCTION_CATEGORIES,
+    NON_DELIVERY_PHASES as TASK_EXCLUDED_PHASES,
+} from '@projectflo/shared';
 
 @Injectable()
 export class InquiryWizardEstimateService {
@@ -18,6 +24,7 @@ export class InquiryWizardEstimateService {
         private readonly snapshotService: ProjectPackageSnapshotService,
         private readonly taskLibraryService: TaskLibraryService,
         private readonly paymentSchedulesService: PaymentSchedulesService,
+        private readonly brandFinanceSettingsService: BrandFinanceSettingsService,
     ) {}
 
     async autoCreateDraftEstimate(inquiryId: number): Promise<void> {
@@ -30,7 +37,7 @@ export class InquiryWizardEstimateService {
                 select: {
                     wedding_date: true,
                     preferred_payment_schedule_template_id: true,
-                    selected_package: { select: { id: true, name: true, base_price: true, currency: true } },
+                    selected_package: { select: { id: true, name: true, currency: true } },
                     contact: { select: { brand: { select: { id: true, default_tax_rate: true, default_payment_method: true } } } },
                 },
             });
@@ -45,12 +52,7 @@ export class InquiryWizardEstimateService {
             expiry.setDate(today.getDate() + 30);
 
             const items = await this.buildAutoEstimateItems(inquiryId, pkg.id, brand.id);
-            const fallbackBasePrice = Number(pkg.base_price ?? 0);
-            const estimateItems = items.length > 0
-                ? items
-                : fallbackBasePrice > 0
-                    ? [{ description: pkg.name, quantity: 1, unit: 'Package', unit_price: fallbackBasePrice, category: 'Package' }]
-                    : [];
+            const estimateItems = items.length > 0 ? items : [];
             if (estimateItems.length === 0) return;
 
             const estimate = await this.estimatesService.create(inquiryId, {
@@ -100,9 +102,9 @@ export class InquiryWizardEstimateService {
         packageId: number,
         brandId: number,
     ): Promise<AutoEstimateItem[]> {
-        const [scheduleFilms, operators, taskPreview] = await Promise.all([
+        const [scheduleFilms, crewSlots, taskPreview] = await Promise.all([
             this.snapshotService.getFilms({ inquiryId }).catch(() => [] as Array<{ film_id: number; film?: { name?: string } }>),
-            this.snapshotService.getOperators({ inquiryId }).catch(() => [] as CrewOperator[]),
+            this.snapshotService.getCrewSlots({ inquiryId }).catch(() => [] as CrewSlotRecord[]),
             this.taskLibraryService.previewAutoGenerationForSystem(packageId, brandId, inquiryId).catch(() => null),
         ]);
 
@@ -111,12 +113,17 @@ export class InquiryWizardEstimateService {
             .map((pf) => pf.film?.name || `Film #${pf.film_id}`);
 
         if (taskPreview?.tasks) {
-            this.buildItemsFromTasks(taskPreview.tasks as TaskEntry[], operators as CrewOperator[], filmNames, items);
+            this.buildItemsFromTasks(
+                taskPreview.tasks as TaskEntry[],
+                crewSlots as CrewSlotRecord[],
+                filmNames,
+                items,
+            );
         } else {
-            items.push(...buildItemsFromOperators(operators));
+            items.push(...buildItemsFromCrewSlots(crewSlots));
         }
 
-        items.push(...buildEquipmentItems(operators));
+        items.push(...buildEquipmentItems(crewSlots));
 
         return items
             .filter((item) => item.description.trim().length > 0)
@@ -125,23 +132,42 @@ export class InquiryWizardEstimateService {
 
     private buildItemsFromTasks(
         tasks: TaskEntry[],
-        operators: CrewOperator[],
+        crewSlots: CrewSlotRecord[],
         filmNames: string[],
         items: AutoEstimateItem[],
     ): void {
         const allCrewMap = new Map<string, CrewEntry>();
-        this.accumulateTaskCrew(tasks, operators, filmNames, allCrewMap);
+        this.accumulateTaskCrew(tasks, crewSlots, filmNames, allCrewMap);
+
+        // Band cost is emitted once per person. The task preview already computed band cost/label —
+        // we just need to pick the first entry per person that carries it.
+        const emittedBandPerson = new Set<string>();
 
         for (const entry of allCrewMap.values()) {
             if (entry.category === 'Planning' || entry.category === 'Coverage') {
-                const derivedRate = entry.rate > 0 ? entry.rate : entry.hours > 0 ? entry.cost / entry.hours : entry.cost;
-                items.push({
-                    description: entry.role ? `${entry.name} - ${entry.role}` : entry.name,
-                    category: entry.category,
-                    quantity: roundMoney(entry.hours),
-                    unit: 'Hours',
-                    unit_price: roundMoney(derivedRate),
-                });
+                if (entry.hours > 0) {
+                    const derivedRate = entry.rate > 0 ? entry.rate : entry.hours > 0 ? entry.cost / entry.hours : entry.cost;
+                    items.push({
+                        description: entry.role ? `${entry.name} - ${entry.role}` : entry.name,
+                        category: entry.category,
+                        quantity: roundMoney(entry.hours),
+                        unit: 'Hours',
+                        unit_price: roundMoney(derivedRate),
+                    });
+                }
+
+                // Emit band line item from task preview data (once per person).
+                // On-site band always goes under Coverage regardless of the entry's off-site category.
+                if (entry.onsiteBandCost > 0 && entry.onsiteBandLabel && !emittedBandPerson.has(entry.name)) {
+                    emittedBandPerson.add(entry.name);
+                    items.push({
+                        description: entry.role ? `${entry.name} - ${entry.role} (On-site)` : `${entry.name} (On-site)`,
+                        category: 'Coverage',
+                        quantity: 1,
+                        unit: entry.onsiteBandLabel,
+                        unit_price: roundMoney(entry.onsiteBandCost),
+                    });
+                }
             }
         }
 
@@ -150,52 +176,79 @@ export class InquiryWizardEstimateService {
 
     private accumulateTaskCrew(
         tasks: TaskEntry[],
-        operators: CrewOperator[],
+        crewSlots: CrewSlotRecord[],
         filmNames: string[],
         allCrewMap: Map<string, CrewEntry>,
     ): void {
-        const planningCategories = new Set(['creative', 'production']);
-        const postProductionCategories = new Set(['post-production']);
-        const taskExcludedPhases = new Set(['Lead', 'Inquiry', 'Booking']);
+        // Track on-site band cost once per person (task preview already computed the band).
+        const seenOnsiteBandPerson = new Set<string>();
 
         for (const task of tasks) {
-            if (taskExcludedPhases.has(task.phase ?? '') || !task.assigned_to_name) continue;
+            if (TASK_EXCLUDED_PHASES.has(task.phase ?? '') || !task.assigned_to_name) continue;
+            const hours = Number(task.total_hours || 0);
             const cost = Number(task.estimated_cost ?? 0);
             const key = `${task.assigned_to_name}|${task.role_name ?? ''}`;
+            const isOnSite = task.is_on_site ?? false;
             const existing = allCrewMap.get(key);
 
             if (existing) {
-                existing.hours += Number(task.total_hours || 0);
-                existing.cost += cost;
-                if (task.phase === 'Post_Production') {
-                    const filmKey = filmNames.find((fn) => task.name?.includes(fn)) || 'General';
-                    const fc = existing.ppFilmCosts.get(filmKey);
-                    if (fc) { fc.hours += Number(task.total_hours || 0); fc.cost += cost; }
-                    else existing.ppFilmCosts.set(filmKey, { hours: Number(task.total_hours || 0), cost });
+                if (isOnSite) {
+                    // On-site band cost: preview sets estimated_cost on the first on-site task per person,
+                    // and onsite_band label. Subsequent on-site tasks have cost=0.
+                    if (cost > 0 && task.onsite_band && !seenOnsiteBandPerson.has(task.assigned_to_name)) {
+                        existing.onsiteBandCost = cost;
+                        existing.onsiteBandLabel = task.onsite_band;
+                        seenOnsiteBandPerson.add(task.assigned_to_name);
+                    }
+                } else {
+                    // Off-site work for coverage roles is prep → promote to Planning
+                    if (existing.category === 'Coverage') existing.category = 'Planning';
+                    existing.hours += hours;
+                    existing.cost += cost;
+                    if (task.phase === 'Post_Production') {
+                        const filmKey = filmNames.find((fn) => task.name?.includes(fn)) || 'General';
+                        const fc = existing.ppFilmCosts.get(filmKey);
+                        if (fc) { fc.hours += hours; fc.cost += cost; }
+                        else existing.ppFilmCosts.set(filmKey, { hours, cost });
+                    }
                 }
                 continue;
             }
 
-            const matchingOp = operators.find((op) => {
-                const name = op.crew_member
-                    ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim()
+            const matchingOp = crewSlots.find((op) => {
+                const name = op.crew
+                    ? `${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim()
                     : '';
                 return name === task.assigned_to_name
                     && (op.job_role?.display_name === task.role_name || op.job_role?.name === task.role_name);
             });
             const category = matchingOp?.job_role?.category?.toLowerCase() || '';
-            const lineCategory = planningCategories.has(category) ? 'Planning'
-                : postProductionCategories.has(category) ? 'Post-Production' : 'Coverage';
+            const roleCategory = PLANNING_CATEGORIES.has(category) ? 'Planning'
+                : POST_PRODUCTION_CATEGORIES.has(category) ? 'Post-Production' : 'Coverage';
+            // Off-site work for coverage roles is prep/planning, not actual coverage.
+            const lineCategory = (!isOnSite && roleCategory === 'Coverage') ? 'Planning' : roleCategory;
             const ppFilmCosts = new Map<string, { hours: number; cost: number }>();
-            if (task.phase === 'Post_Production') {
-                const filmKey = filmNames.find((fn) => task.name?.includes(fn)) || 'General';
-                ppFilmCosts.set(filmKey, { hours: Number(task.total_hours || 0), cost });
-            }
 
-            allCrewMap.set(key, {
-                name: task.assigned_to_name, role: task.role_name ?? '', category: lineCategory,
-                hours: Number(task.total_hours || 0), cost, rate: Number(task.hourly_rate ?? 0), ppFilmCosts,
-            });
+            if (isOnSite) {
+                const bandCost = (cost > 0 && task.onsite_band && !seenOnsiteBandPerson.has(task.assigned_to_name)) ? cost : 0;
+                const bandLabel = bandCost > 0 ? (task.onsite_band ?? null) : null;
+                if (bandCost > 0) seenOnsiteBandPerson.add(task.assigned_to_name);
+                allCrewMap.set(key, {
+                    name: task.assigned_to_name, role: task.role_name ?? '', category: lineCategory,
+                    hours: 0, cost: 0, rate: Number(task.hourly_rate ?? 0), ppFilmCosts,
+                    onsiteBandCost: bandCost, onsiteBandLabel: bandLabel,
+                });
+            } else {
+                if (task.phase === 'Post_Production') {
+                    const filmKey = filmNames.find((fn) => task.name?.includes(fn)) || 'General';
+                    ppFilmCosts.set(filmKey, { hours, cost });
+                }
+                allCrewMap.set(key, {
+                    name: task.assigned_to_name, role: task.role_name ?? '', category: lineCategory,
+                    hours, cost, rate: Number(task.hourly_rate ?? 0), ppFilmCosts,
+                    onsiteBandCost: 0, onsiteBandLabel: null,
+                });
+            }
         }
     }
 

@@ -33,6 +33,7 @@ import { ActiveTask } from "@/features/catalog/task-library/types";
 import { inquiriesApi } from "@/features/workflow/inquiries/api";
 import { InquiryTaskEvent } from "@/features/workflow/inquiries/types";
 import { useGlobalTaskDrawer, getNavUrl, isOverdue } from "../hooks/useGlobalTaskDrawer";
+import { useBrandTimezone } from "@/features/platform/brand";
 
 // ── Status config ─────────────────────────────────────────────
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
@@ -53,13 +54,15 @@ const STATUS_TABS = [
 
 // ── Helpers ───────────────────────────────────────────────────
 import { getInitials, avatarColor } from '@/shared/utils/avatar';
-function formatDateShort(dateStr: string | null, isCompleted: boolean): { text: string; color: string } {
-  if (!dateStr) return { text: "—", color: "rgba(255,255,255,0.2)" };
-  if (isCompleted) return { text: new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" }), color: "rgba(255,255,255,0.3)" };
+function formatDateShort(dateStr: string | null, isCompleted: boolean, timezone = 'UTC'): { text: string; color: string } {
+  if (!dateStr) return { text: "\u2014", color: "rgba(255,255,255,0.2)" };
   const due = new Date(dateStr);
-  const now = new Date(); now.setHours(0, 0, 0, 0);
-  const diff = Math.ceil((due.getTime() - now.getTime()) / 86400000);
-  const fmt = due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const fmt = due.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: timezone });
+  if (isCompleted) return { text: fmt, color: "rgba(255,255,255,0.3)" };
+  const dueUTC = Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate());
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+  const [ty, tm, td] = todayStr.split('-').map(Number);
+  const diff = (dueUTC - Date.UTC(ty, tm - 1, td)) / 86400000;
   if (diff < 0) return { text: `Overdue · ${fmt}`, color: "#D83A52" };
   if (diff === 0) return { text: "Today", color: "#FDAB3D" };
   if (diff === 1) return { text: "Tomorrow", color: "#FDAB3D" };
@@ -171,14 +174,15 @@ function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false }: { ta
   const [hovered, setHovered] = useState(false);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [events, setEvents] = useState<InquiryTaskEvent[] | null>(null);
+  const timezone = useBrandTimezone();
   const [eventsLoading, setEventsLoading] = useState(false);
   const [subtasksOpen, setSubtasksOpen] = useState(false);
   const isCompleted = task.status === "Completed";
   const isAuto = task.is_auto_only ?? false;
-  const overdue = isOverdue(task);
+  const overdue = isOverdue(task, timezone);
   const navUrl = getNavUrl(task);
   const cfg = STATUS_CFG[task.status] ?? STATUS_CFG.To_Do;
-  const dateInfo = formatDateShort(task.due_date, isCompleted);
+  const dateInfo = formatDateShort(task.due_date, isCompleted, timezone);
   const isProject = task.source === "project";
   const contextColor = isProject ? "#579BFC" : "#00C875";
   const canShowHistory = task.source === "inquiry" && task.inquiry_id != null && task.task_kind !== 'subtask';

@@ -5,6 +5,7 @@ import type {
     TaskLibraryBenchmark,
     TaskLibrarySkillRate,
     TaskLibraryByPhase,
+    TaskLibrarySubtaskTemplate,
     CreateTaskLibraryDto,
     UpdateTaskLibraryDto,
     CreateTaskLibraryBenchmarkDto,
@@ -14,6 +15,8 @@ import type {
     TaskAutoGenerationPreview,
     ExecuteAutoGenerationDto,
     ExecuteAutoGenerationResult,
+    CreateSubtaskTemplateDto,
+    UpdateSubtaskTemplateDto,
 } from '@/features/catalog/task-library/types';
 
 export interface BatchUpdateTaskOrderDto {
@@ -94,8 +97,17 @@ export function createTaskLibraryApi(client: ApiClient) {
         executeAutoGeneration: (dto: ExecuteAutoGenerationDto): Promise<ExecuteAutoGenerationResult> =>
             client.post('/api/task-library/auto-generate/execute', dto),
 
-        syncContributors: (): Promise<{ updated: number }> =>
-            client.post('/api/task-library/sync-contributors', {}),
+        syncCrew: (): Promise<{ updated: number }> =>
+            client.post('/api/task-library/sync-crew', {}),
+
+        subtasks: {
+            create: (taskId: number, data: CreateSubtaskTemplateDto): Promise<TaskLibrarySubtaskTemplate> =>
+                client.post(`/api/task-library/${taskId}/subtasks`, data),
+            update: (taskId: number, subtaskId: number, data: UpdateSubtaskTemplateDto): Promise<TaskLibrarySubtaskTemplate> =>
+                client.patch(`/api/task-library/${taskId}/subtasks/${subtaskId}`, data),
+            delete: (taskId: number, subtaskId: number): Promise<void> =>
+                client.delete(`/api/task-library/${taskId}/subtasks/${subtaskId}`),
+        },
     };
 }
 

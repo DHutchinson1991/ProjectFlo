@@ -2,8 +2,8 @@
 
 import React from "react";
 import { Box, Typography, CircularProgress, Alert } from "@mui/material";
-import { EventDayManager } from "@/features/workflow/scheduling/components";
-import VisualTimeline from "@/features/workflow/scheduling/components/VisualTimeline";
+import { EventDayManager } from "@/features/workflow/scheduling/package-template";
+import { VisualTimeline } from "@/features/workflow/scheduling/shared";
 import type { FilmSchedulePanelProps } from "../types/schedule-panel.types";
 import type { VisualTimelineScene } from "../types/schedule-panel.types";
 import { suggestNextStartTime } from "../utils/schedule-helpers";

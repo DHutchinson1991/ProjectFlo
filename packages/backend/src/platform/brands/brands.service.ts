@@ -28,9 +28,9 @@ export class BrandsService {
     return this.prisma.brands.findMany({
       where: { is_active: true },
       include: {
-        brand_memberships: {
+        brand_members: {
           include: {
-            user: {
+            crew: {
               include: {
                 contact: true,
               },
@@ -52,9 +52,9 @@ export class BrandsService {
     const brand = await this.prisma.brands.findUnique({
       where: { id },
       include: {
-        brand_memberships: {
+        brand_members: {
           include: {
-            user: {
+            crew: {
               include: {
                 contact: true,
               },

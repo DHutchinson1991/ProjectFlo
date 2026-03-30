@@ -49,7 +49,8 @@ interface PackageDef {
   name: string;
   description: string;
   films: string[];
-  operatorCount: number;
+  crewSlotCount: number;
+  soundEngineerSlots?: number;
   cameraCount: number;
   hasDrone: boolean;
   activityNames: string[];
@@ -61,7 +62,7 @@ const WEDDING_PACKAGES: PackageDef[] = [
     name: 'The Starter Package',
     description: 'Capture the most important moments with our Snapshot Film and relive your ceremony in full.',
     films: ['90 Second Snapshot Film', 'Ceremony Film'],
-    operatorCount: 1, cameraCount: 2, hasDrone: false,
+    crewSlotCount: 1, cameraCount: 2, hasDrone: false,
     activityNames: ['Ceremony', 'Confetti & Photos', 'Reception Entry', 'Formal Dinner', 'Cake Cut & Speeches', 'First Dance & Evening'],
     features: ['90 Second Snapshot Film', '1 Camera Operator, 2 Cameras', 'Ceremony Film', 'Filming from Ceremony to First Dance'],
   },
@@ -69,7 +70,7 @@ const WEDDING_PACKAGES: PackageDef[] = [
     name: 'The Essentials Package',
     description: 'Add stunning aerial views to your films and relive your ceremony, first dance and speeches.',
     films: ['2 Minute Snapshot Film', 'Ceremony Film', 'First Dance Film', 'Speech Film'],
-    operatorCount: 1, cameraCount: 3, hasDrone: false,
+    crewSlotCount: 1, cameraCount: 3, hasDrone: false,
     activityNames: ['Ceremony', 'Confetti & Photos', 'Reception Entry', 'Formal Dinner', 'Cake Cut & Speeches', 'First Dance & Evening'],
     features: ['2 Minute Snapshot Film', '1 Camera Operator, 3 Cameras', 'Ceremony Film', 'First Dance Film', 'Up to 3 Speech Films', 'Filming from Ceremony to First Dance'],
   },
@@ -77,7 +78,7 @@ const WEDDING_PACKAGES: PackageDef[] = [
     name: 'The Highlights Package',
     description: 'Watch more of your special day with a longer Highlights Film, a richer and more extensive cinematic memory.',
     films: ['7 Minute Highlights Film', 'Ceremony Film', 'First Dance Film', 'Speech Film'],
-    operatorCount: 1, cameraCount: 3, hasDrone: true,
+    crewSlotCount: 1, soundEngineerSlots: 1, cameraCount: 3, hasDrone: true,
     activityNames: ['Getting Ready', 'Ceremony', 'Confetti & Photos', 'Reception Entry', 'Formal Dinner', 'Cake Cut & Speeches', 'First Dance & Evening'],
     features: ['7 Minute Highlights Film', '1 Camera Operator, 3 Cameras', 'Drone Footage', 'Ceremony Film', 'First Dance Film', 'Up to 3 Speech Films', 'Filming from Preparations to The Dance Floor'],
   },
@@ -85,7 +86,7 @@ const WEDDING_PACKAGES: PackageDef[] = [
     name: 'The Film Package',
     description: 'Your complete wedding story, a timeless cinematic treasure.',
     films: ['Feature Film', '90 Second Snapshot Film', 'Ceremony Film', 'First Dance Film', 'Speech Film'],
-    operatorCount: 2, cameraCount: 5, hasDrone: true,
+    crewSlotCount: 2, soundEngineerSlots: 1, cameraCount: 5, hasDrone: true,
     activityNames: ['Getting Ready', 'Ceremony', 'Confetti & Photos', 'Reception Entry', 'Formal Dinner', 'Cake Cut & Speeches', 'First Dance & Evening'],
     features: ['Feature Film', '90 Second Snapshot Film', '2 Camera Operators, 5 Cameras', 'Drone Footage', 'Ceremony Included', 'First Dance Included', 'All Speeches Included', '6 Additional Scenes', 'Filming from Preparations to The Dance Floor'],
   },
@@ -132,7 +133,10 @@ async function seedWeddingPackages(brandId: number): Promise<SeedSummary> {
     });
   }
 
-  const videographerRole = await prisma.job_roles.findUnique({ where: { name: 'videographer' } });
+  const [videographerRole, soundEngineerRole] = await Promise.all([
+    prisma.job_roles.findUnique({ where: { name: 'videographer' } }),
+    prisma.job_roles.findUnique({ where: { name: 'sound_engineer' } }),
+  ]);
 
   // Create/find film templates
   const filmMap = new Map<string, number>();
@@ -171,15 +175,30 @@ async function seedWeddingPackages(brandId: number): Promise<SeedSummary> {
       if (filmId) await prisma.packageFilm.create({ data: { package_id: pkg.id, film_id: filmId, order_index: filmOrder++ } });
     }
 
-    // Crew operator slots
-    for (let i = 0; i < pkgDef.operatorCount; i++) {
-      await prisma.packageDayOperator.create({
+    // Crew slots
+    const crewSlotIds: number[] = [];
+    for (let i = 0; i < pkgDef.crewSlotCount; i++) {
+      const slot = await prisma.packageCrewSlot.create({
         data: {
-          package_id: pkg.id, event_day_template_id: weddingDayTemplate.id,
-          label: pkgDef.operatorCount === 1 ? null : i === 0 ? 'Lead Videographer' : `Videographer ${i + 1}`,
-          job_role_id: videographerRole?.id ?? null, order_index: i,
+          package_id: pkg.id, package_event_day_id: pkgEventDay.id,
+          label: pkgDef.crewSlotCount === 1 ? null : i === 0 ? 'Lead Videographer' : `Videographer ${i + 1}`,
+          job_role_id: videographerRole!.id, order_index: i,
         },
       });
+      crewSlotIds.push(slot.id);
+    }
+    // Sound engineer crew slots (linked to activities = Activity Coverage tasks auto-gen for them)
+    if (pkgDef.soundEngineerSlots && soundEngineerRole) {
+      for (let i = 0; i < pkgDef.soundEngineerSlots; i++) {
+        const slot = await prisma.packageCrewSlot.create({
+          data: {
+            package_id: pkg.id, package_event_day_id: pkgEventDay.id,
+            label: pkgDef.soundEngineerSlots === 1 ? 'Sound Engineer' : `Sound Engineer ${i + 1}`,
+            job_role_id: soundEngineerRole.id, order_index: pkgDef.crewSlotCount + i,
+          },
+        });
+        crewSlotIds.push(slot.id);
+      }
     }
 
     // Subjects from wedding type
@@ -231,10 +250,15 @@ async function seedWeddingPackages(brandId: number): Promise<SeedSummary> {
         const slotId = locationSlotMap.get(actLoc.wedding_type_location_id);
         if (slotId) await prisma.locationActivityAssignment.create({ data: { package_location_slot_id: slotId, package_activity_id: pkgActivity.id } });
       }
+
+      // Link every crew slot to this activity (drives per_activity_crew task generation)
+      for (const crewSlotId of crewSlotIds) {
+        await prisma.packageCrewSlotActivity.create({ data: { package_crew_slot_id: crewSlotId, package_activity_id: pkgActivity.id } });
+      }
     }
 
     created++;
-    logger.created(`"${pkgDef.name}" (${pkgDef.films.length} films, ${pkgDef.operatorCount} ops, ${activityCount} activities, ${momentCount} moments)`);
+    logger.created(`"${pkgDef.name}" (${pkgDef.films.length} films, ${pkgDef.crewSlotCount} crew, ${activityCount} activities, ${momentCount} moments)`);
   }
 
   const total = created + skipped;
@@ -340,8 +364,8 @@ async function seedBirthdayPackage(brandId: number): Promise<SeedSummary> {
 
   await prisma.packageFilm.create({ data: { package_id: pkg.id, film_id: highlightsFilm.id, order_index: 0 } });
 
-  await prisma.packageDayOperator.create({
-    data: { package_id: pkg.id, event_day_template_id: birthdayDay.id, label: 'Lead Videographer', job_role_id: videographerRole?.id ?? null, order_index: 0 },
+  await prisma.packageCrewSlot.create({
+    data: { package_id: pkg.id, package_event_day_id: pkgEventDay.id, label: 'Lead Videographer', job_role_id: videographerRole!.id, order_index: 0 },
   });
 
   // Subjects
@@ -397,7 +421,7 @@ async function seedBirthdayPackage(brandId: number): Promise<SeedSummary> {
   }
 
   created++;
-  logger.created(`"The Birthday Package" (1 film, 1 operator, ${activityCount} activities, ${momentCount} moments)`);
+  logger.created(`"The Birthday Package" (1 film, 1 crew slot, ${activityCount} activities, ${momentCount} moments)`);
 
   return { created, updated: 0, skipped, total: created + skipped };
 }

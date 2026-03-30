@@ -15,9 +15,9 @@ import Link from 'next/link';
 import { formatCurrency } from '@/shared/utils/formatUtils';
 import { ServicePackage, ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
 import { equipmentApi } from '@/features/workflow/equipment/api';
-import { crewSlotsApi } from '@/features/workflow/scheduling/api';
-import type { EventDay } from '@/features/workflow/scheduling/components';
-import { useOptionalScheduleApi } from '@/features/workflow/scheduling/components';
+import { crewSlotsApi } from '@/features/workflow/scheduling/shared';
+import type { EventDay } from '@/features/workflow/scheduling/package-template';
+import { useOptionalScheduleApi } from '@/features/workflow/scheduling/shared';
 
 import type {
     PackageCrewSlotRecord,
@@ -26,6 +26,7 @@ import type {
     UnmannedEquipmentRecord,
     EquipItem,
 } from '../../../types';
+import { ScheduleCardShell } from './ScheduleCardShell';
 
 // ─── Local equipment contents shape ─────────────────────────────────
 type EquipmentContentsShape = {
@@ -81,11 +82,11 @@ export function EquipmentCard({
 
     // ── ScheduleApi adapter (context if available, else direct package API) ──
     const contextApi = useOptionalScheduleApi();
-    const operatorEquipApi = {
-        setEquipment: contextApi?.operators?.setEquipment
+    const crewSlotEquipApi = {
+        setEquipment: contextApi?.crewSlots?.setEquipment
             ?? ((opId: number, equip: { equipment_id: number; is_primary: boolean }[]) =>
                 crewSlotsApi.packageDay.setEquipment(opId, equip)),
-        refreshAll: contextApi?.operators?.refreshAll
+        refreshAll: contextApi?.crewSlots?.refreshAll
             ?? (packageId
                 ? () => crewSlotsApi.packageDay.getAll(packageId)
                 : () => Promise.resolve([])),
@@ -104,7 +105,7 @@ export function EquipmentCard({
 
     const dayEquipment: EquipItem[] = activeDayId ? (dayEquipmentMap[String(activeDayId)] || []) : [];
 
-    // Fallback: derive equipment from relational operator-equipment links
+    // Fallback: derive equipment from relational crew-slot-equipment links
     const dayOpsForEquip = activeDayTemplateId
         ? PackageCrewSlots.filter(o => o.event_day_template_id === activeDayTemplateId)
         : PackageCrewSlots;
@@ -197,20 +198,20 @@ export function EquipmentCard({
     const levelLabel = activeLevel === 'activity' ? 'Activity Override' : 'Event Day';
     const levelColor = activeLevel === 'activity' ? '#a855f7' : '#f59e0b';
 
-    // Build equipment → operator map
-    const equipToOperator = new Map<number, PackageCrewSlotRecord>();
+    // Build equipment → crew slot map
+    const equipToCrewSlot = new Map<number, PackageCrewSlotRecord>();
     dayOpsForEquip.forEach(op => {
         (op.equipment || []).forEach(eq => {
-            equipToOperator.set(eq.equipment_id, op);
+            equipToCrewSlot.set(eq.equipment_id, op);
         });
     });
 
-    const getOperatorForEquipment = (equipmentId: number | undefined) => {
+    const getCrewSlotForEquipment = (equipmentId: number | undefined) => {
         if (!equipmentId) return null;
-        return equipToOperator.get(equipmentId) || null;
+        return equipToCrewSlot.get(equipmentId) || null;
     };
 
-    const isOperatorAssignedToSelectedActivity = (op: PackageCrewSlotRecord | null | undefined) => {
+    const isCrewSlotAssignedToSelectedActivity = (op: PackageCrewSlotRecord | null | undefined) => {
         if (!selectedActivityId || !op) return false;
         if (op.activity_assignments && op.activity_assignments.length > 0) {
             return op.activity_assignments.some(a => a.package_activity_id === selectedActivityId);
@@ -223,42 +224,42 @@ export function EquipmentCard({
         if (!selectedActivityId) return false;
         if (activeLevel === 'activity') return true;
         if (!item.equipment_id) return false;
-        return isOperatorAssignedToSelectedActivity(op);
+        return isCrewSlotAssignedToSelectedActivity(op);
     };
 
-    // ── Operator assignment helpers ──
-    const handleAssignOperator = async (operatorDayId: number, equipmentId: number) => {
-        const targetOp = dayOpsForEquip.find(o => o.id === operatorDayId);
+    // ── Crew slot assignment helpers ──
+    const handleAssignCrewSlot = async (crewSlotDayId: number, equipmentId: number) => {
+        const targetOp = dayOpsForEquip.find(o => o.id === crewSlotDayId);
         if (!targetOp) return;
-        const currentOwner = equipToOperator.get(equipmentId);
-        if (currentOwner && currentOwner.id !== operatorDayId) {
+        const currentOwner = equipToCrewSlot.get(equipmentId);
+        if (currentOwner && currentOwner.id !== crewSlotDayId) {
             const updatedEquip = (currentOwner.equipment || [])
                 .filter(e => e.equipment_id !== equipmentId)
                 .map(e => ({ equipment_id: e.equipment_id, is_primary: e.is_primary }));
-            try { await operatorEquipApi.setEquipment(currentOwner.id, updatedEquip); } catch {}
+            try { await crewSlotEquipApi.setEquipment(currentOwner.id, updatedEquip); } catch {}
         }
         const existsAlready = (targetOp.equipment || []).some(e => e.equipment_id === equipmentId);
         const newEquip = existsAlready
             ? (targetOp.equipment || []).map(e => ({ equipment_id: e.equipment_id, is_primary: e.is_primary }))
             : [...(targetOp.equipment || []).map(e => ({ equipment_id: e.equipment_id, is_primary: e.is_primary })), { equipment_id: equipmentId, is_primary: true }];
         try {
-            await operatorEquipApi.setEquipment(operatorDayId, newEquip);
-            const dayOps = await operatorEquipApi.refreshAll();
+            await crewSlotEquipApi.setEquipment(crewSlotDayId, newEquip);
+            const dayOps = await crewSlotEquipApi.refreshAll();
             setPackageCrewSlots(dayOps || []);
-        } catch (err) { console.warn('Failed to assign operator:', err); }
+        } catch (err) { console.warn('Failed to assign crew slot:', err); }
     };
 
-    const handleUnassignOperator = async (operatorDayId: number, equipmentId: number) => {
-        const targetOp = dayOpsForEquip.find(o => o.id === operatorDayId);
+    const handleUnassignCrewSlot = async (crewSlotDayId: number, equipmentId: number) => {
+        const targetOp = dayOpsForEquip.find(o => o.id === crewSlotDayId);
         if (!targetOp) return;
         const updatedEquip = (targetOp.equipment || [])
             .filter(e => e.equipment_id !== equipmentId)
             .map(e => ({ equipment_id: e.equipment_id, is_primary: e.is_primary }));
         try {
-            await operatorEquipApi.setEquipment(operatorDayId, updatedEquip);
-            const dayOps = await operatorEquipApi.refreshAll();
+            await crewSlotEquipApi.setEquipment(crewSlotDayId, updatedEquip);
+            const dayOps = await crewSlotEquipApi.refreshAll();
             setPackageCrewSlots(dayOps || []);
-        } catch (err) { console.warn('Failed to unassign operator:', err); }
+        } catch (err) { console.warn('Failed to unassign crew slot:', err); }
     };
 
     const handleToggleUnmanned = async (equipmentId: number) => {
@@ -269,7 +270,7 @@ export function EquipmentCard({
                 const unmannedList = await equipmentApi.findUnmanned(safeBrandId);
                 setUnmannedEquipment(unmannedList || []);
             }
-            const dayOps = await operatorEquipApi.refreshAll();
+            const dayOps = await crewSlotEquipApi.refreshAll();
             setPackageCrewSlots(dayOps || []);
         } catch (err) {
             console.error('❌ Failed to toggle unmanned status:', err);
@@ -283,12 +284,12 @@ export function EquipmentCard({
         const hoverBg = isCamera ? 'rgba(100, 140, 255, 0.06)' : 'rgba(16, 185, 129, 0.06)';
         const trackNum = item.track_number;
         const trackLabel = trackNum ? (isCamera ? `Camera ${trackNum}` : `Audio ${trackNum}`) : (isCamera ? `Cam` : `Aud`);
-        const op = getOperatorForEquipment(item.equipment_id);
-        const opColor = op?.crew_member?.crew_color || '#EC4899';
+        const op = getCrewSlotForEquipment(item.equipment_id);
+        const opColor = op?.crew?.crew_color || '#EC4899';
 
         let tierName: string | null = null;
-        if (op?.contributor && op?.job_role) {
-            const jobRoleMatch = op.crew_member.job_role_assignments?.find(
+        if (op?.crew && op?.job_role) {
+            const jobRoleMatch = op.crew.job_role_assignments?.find(
                 (cjr) => cjr.job_role_id === op.job_role_id
             );
             tierName = jobRoleMatch?.payment_bracket?.name || null;
@@ -297,8 +298,8 @@ export function EquipmentCard({
         const opLabel = op?.job_role
             ? `${op.job_role.display_name || op.job_role.name}${tierName ? ` - ${tierName}` : ''}`
             : (op?.label || '');
-        const opName = op?.contributor
-            ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim()
+        const opName = op?.crew
+            ? `${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim()
             : '';
         const opInitials = (opName || opLabel) ? (opName || opLabel).split(' ').filter(Boolean).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() : '';
 
@@ -322,7 +323,6 @@ export function EquipmentCard({
                 sx={{
                     display: 'flex', alignItems: 'center', gap: 1,
                     py: 0.75, px: 1.5, mx: -1.5, borderRadius: 1.5,
-                    bgcolor: isHighlighted ? 'rgba(236, 72, 153, 0.07)' : 'transparent',
                     opacity: isEquipAssigned ? 1 : 0.3,
                     transition: 'all 0.2s ease',
                     '&:hover': {
@@ -395,7 +395,7 @@ export function EquipmentCard({
                         </Typography>
                     );
                 })()}
-                {/* Operator column */}
+                {/* Crew slot column */}
                 <Stack direction="row" alignItems="center" spacing={0.5} sx={{ flexShrink: 0 }}>
                     {/* UM toggle */}
                     {isCamera && (
@@ -418,9 +418,9 @@ export function EquipmentCard({
                             </Box>
                         </Tooltip>
                     )}
-                    {/* Operator chip or assign button */}
+                    {/* Crew slot chip or assign button */}
                     {op ? (
-                        <Tooltip title={`${opLabel}${op.crew_member ? ` · ${`${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim()}` : ''}${isEquipUnmanned ? ' (Unmanned)' : ''} — Click to change`} arrow placement="top">
+                        <Tooltip title={`${opLabel}${op.crew ? ` · ${`${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim()}` : ''}${isEquipUnmanned ? ' (Unmanned)' : ''} — Click to change`} arrow placement="top">
                             <Box
                                 onClick={(e) => {
                                     setEquipAssignAnchor(e.currentTarget);
@@ -469,7 +469,7 @@ export function EquipmentCard({
                         >
                             <AddIcon sx={{ fontSize: 10, color: '#475569' }} />
                             <Typography variant="caption" sx={{ color: '#475569', fontSize: '0.55rem', fontWeight: 600 }}>
-                                Assign Operator
+                                Assign Crew
                             </Typography>
                         </Box>
                     )}
@@ -480,76 +480,71 @@ export function EquipmentCard({
 
     const activeDay = packageEventDays.find(d => d.id === (scheduleActiveDayId || packageEventDays[0]?.id));
     const selectedActivity = selectedActivityId ? packageActivities.find(a => a.id === selectedActivityId) : null;
-    const highlightedCameraCount = cameraItems.filter((item) => isEquipmentHighlighted(item, getOperatorForEquipment(item.equipment_id))).length;
-    const highlightedAudioCount = audioItems.filter((item) => isEquipmentHighlighted(item, getOperatorForEquipment(item.equipment_id))).length;
+    const highlightedCameraCount = cameraItems.filter((item) => isEquipmentHighlighted(item, getCrewSlotForEquipment(item.equipment_id))).length;
+    const highlightedAudioCount = audioItems.filter((item) => isEquipmentHighlighted(item, getCrewSlotForEquipment(item.equipment_id))).length;
 
     return (
-        <Box sx={{ ...(cardSx as object), overflow: 'hidden' }}>
-            {/* Card Header */}
-            <Box sx={{ px: 2.5, pt: 2, pb: 1.5, borderBottom: '1px solid rgba(52, 58, 68, 0.25)' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Box sx={{ width: 28, height: 28, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                            <BuildIcon sx={{ fontSize: 14, color: '#10b981' }} />
-                        </Box>
-                        <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Equipment</Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: -0.25 }}>
-                                {selectedActivity ? (
-                                    <Typography sx={{ fontSize: '0.55rem', color: '#a855f7', fontWeight: 600 }}>{selectedActivity.name}</Typography>
-                                ) : activeDay && packageEventDays.length > 1 ? (
-                                    <Typography sx={{ fontSize: '0.55rem', color: '#f59e0b', fontWeight: 600 }}>{activeDay.name}</Typography>
-                                ) : null}
-                                <Chip
-                                    label={levelLabel}
-                                    size="small"
-                                    sx={{
-                                        height: 14, fontSize: '0.45rem', fontWeight: 700,
-                                        bgcolor: `${levelColor}15`, color: levelColor,
-                                        border: `1px solid ${levelColor}30`, '& .MuiChip-label': { px: 0.5 },
-                                    }}
-                                />
-                            </Box>
-                        </Box>
-                    </Box>
-                    {(cameraItems.length > 0 || audioItems.length > 0) && (
-                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                            {cameraItems.length > 0 && (
-                                <Chip
-                                    icon={<VideocamIcon sx={{ fontSize: '11px !important' }} />}
-                                    label={`${selectedActivity ? highlightedCameraCount : cameraItems.length}`}
-                                    size="small"
-                                    sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(100, 140, 255, 0.1)', color: '#648CFF', border: '1px solid rgba(100, 140, 255, 0.2)', '& .MuiChip-icon': { color: '#648CFF' }, '& .MuiChip-label': { px: 0.4 } }}
-                                />
-                            )}
-                            {audioItems.length > 0 && (
-                                <Chip
-                                    icon={<MicIcon sx={{ fontSize: '11px !important' }} />}
-                                    label={`${selectedActivity ? highlightedAudioCount : audioItems.length}`}
-                                    size="small"
-                                    sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', '& .MuiChip-icon': { color: '#10b981' }, '& .MuiChip-label': { px: 0.4 } }}
-                                />
-                            )}
-                        </Box>
-                    )}
+        <ScheduleCardShell
+            title="Equipment"
+            icon={<BuildIcon />}
+            accentColor="#10b981"
+            subtitle={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: -0.25 }}>
+                    {selectedActivity ? (
+                        <Typography sx={{ fontSize: '0.55rem', color: '#a855f7', fontWeight: 600 }}>{selectedActivity.name}</Typography>
+                    ) : activeDay && packageEventDays.length > 1 ? (
+                        <Typography sx={{ fontSize: '0.55rem', color: '#f59e0b', fontWeight: 600 }}>{activeDay.name}</Typography>
+                    ) : null}
+                    <Chip
+                        label={levelLabel}
+                        size="small"
+                        sx={{
+                            height: 14, fontSize: '0.45rem', fontWeight: 700,
+                            bgcolor: `${levelColor}15`, color: levelColor,
+                            border: `1px solid ${levelColor}30`, '& .MuiChip-label': { px: 0.5 },
+                        }}
+                    />
                 </Box>
-
-                {/* Override controls bar */}
-                {hasOverride && (
-                    <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Button
-                            size="small"
-                            onClick={resetOverride}
-                            sx={{
-                                fontSize: '0.5rem', textTransform: 'none', fontWeight: 600, py: 0.15, px: 0.75,
-                                color: '#ef4444', '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.06)' },
-                            }}
-                        >
-                            Reset to Event Day
-                        </Button>
+            }
+            headerRight={(cameraItems.length > 0 || audioItems.length > 0)
+                ? (
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        {cameraItems.length > 0 && (
+                            <Chip
+                                icon={<VideocamIcon sx={{ fontSize: '11px !important' }} />}
+                                label={`${selectedActivity ? highlightedCameraCount : cameraItems.length}`}
+                                size="small"
+                                sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(100, 140, 255, 0.1)', color: '#648CFF', border: '1px solid rgba(100, 140, 255, 0.2)', '& .MuiChip-icon': { color: '#648CFF' }, '& .MuiChip-label': { px: 0.4 } }}
+                            />
+                        )}
+                        {audioItems.length > 0 && (
+                            <Chip
+                                icon={<MicIcon sx={{ fontSize: '11px !important' }} />}
+                                label={`${selectedActivity ? highlightedAudioCount : audioItems.length}`}
+                                size="small"
+                                sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', '& .MuiChip-icon': { color: '#10b981' }, '& .MuiChip-label': { px: 0.4 } }}
+                            />
+                        )}
                     </Box>
-                )}
-            </Box>
+                )
+                : undefined
+            }
+            headerExtra={hasOverride ? (
+                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Button
+                        size="small"
+                        onClick={resetOverride}
+                        sx={{
+                            fontSize: '0.5rem', textTransform: 'none', fontWeight: 600, py: 0.15, px: 0.75,
+                            color: '#ef4444', '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.06)' },
+                        }}
+                    >
+                        Reset to Event Day
+                    </Button>
+                </Box>
+            ) : undefined}
+            cardSx={cardSx}
+        >
 
             {/* ── Equipment Section ── */}
             <Box sx={{ px: 2.5, pt: 1.5, pb: 1 }}>
@@ -562,7 +557,7 @@ export function EquipmentCard({
                     </Box>
                     <Box sx={{ width: 120, textAlign: 'right' }}>
                         <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.5rem' }}>
-                            Operator
+                            Crew
                         </Typography>
                     </Box>
                 </Box>
@@ -667,7 +662,7 @@ export function EquipmentCard({
                     </Button>
                     <Button
                         size="small"
-                        href="/resources/equipment"
+                        href="/equipment"
                         component={Link}
                         sx={{ fontSize: '0.6rem', color: '#64748b', textTransform: 'none', fontWeight: 600, py: 0.25, '&:hover': { bgcolor: 'rgba(255,255,255,0.03)', color: '#94a3b8' } }}
                     >
@@ -676,7 +671,7 @@ export function EquipmentCard({
                 </Box>
             </Box>
 
-            {/* Equipment-Operator Assignment Menu */}
+            {/* Equipment-Crew Slot Assignment Menu */}
             <Menu
                 anchorEl={equipAssignAnchor}
                 open={Boolean(equipAssignAnchor)}
@@ -685,7 +680,7 @@ export function EquipmentCard({
             >
                 <Box sx={{ px: 1.5, py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                     <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        Assign Operator
+                        Assign Crew
                     </Typography>
                 </Box>
                 {/* Mark Unmanned option (cameras only) */}
@@ -714,7 +709,7 @@ export function EquipmentCard({
                                     <Typography sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
                                         {isCurrentlyUnmanned ? 'Remove Unmanned' : 'Mark Unmanned'}
                                     </Typography>
-                                    <Typography sx={{ fontSize: '0.55rem', color: '#64748b' }}>No operator needed</Typography>
+                                    <Typography sx={{ fontSize: '0.55rem', color: '#64748b' }}>No crew needed</Typography>
                                 </Box>
                                 {isCurrentlyUnmanned && (
                                     <Typography sx={{ fontSize: '0.5rem', color: '#94a3b8', fontWeight: 600 }}>✓</Typography>
@@ -724,7 +719,7 @@ export function EquipmentCard({
                     );
                 })()}
                 {dayOpsForEquip.length === 0 ? (
-                    <MenuItem disabled sx={{ fontSize: '0.7rem', color: '#475569' }}>Add crew members first</MenuItem>
+                    <MenuItem disabled sx={{ fontSize: '0.7rem', color: '#475569' }}>Add crew first</MenuItem>
                 ) : (() => {
                     const isTargetCamera = equipAssignTarget
                         ? cameraItems.some(eq => eq.equipment_id === equipAssignTarget.equipmentId)
@@ -743,17 +738,17 @@ export function EquipmentCard({
                         : [];
 
                     const renderOpItem = (op: PackageCrewSlotRecord, dimmed = false) => {
-                        const opC = op.crew_member?.crew_color || '#EC4899';
+                        const opC = op.crew?.crew_color || '#EC4899';
                         let opTierName: string | null = null;
-                        if (op.crew_member && op.job_role) {
-                            const jrm = op.crew_member.job_role_assignments?.find(cjr => cjr.job_role_id === op.job_role_id);
+                        if (op.crew && op.job_role) {
+                            const jrm = op.crew.job_role_assignments?.find(cjr => cjr.job_role_id === op.job_role_id);
                             opTierName = jrm?.payment_bracket?.name || null;
                         }
                         const opRoleLabel = op.job_role
                             ? `${op.job_role.display_name || op.job_role.name}${opTierName ? ` - ${opTierName}` : ''}`
                             : (op.label || '?');
                         const initials = opRoleLabel.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
-                        const personName = op.crew_member ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim() : null;
+                        const personName = op.crew ? `${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim() : null;
                         const isCurrentlyAssigned = equipAssignTarget?.currentOpId === op.id;
                         return (
                             <MenuItem
@@ -762,7 +757,7 @@ export function EquipmentCard({
                                     setEquipAssignAnchor(null);
                                     if (!equipAssignTarget) return;
                                     if (isCurrentlyAssigned) return;
-                                    await handleAssignOperator(op.id, equipAssignTarget.equipmentId);
+                                    await handleAssignCrewSlot(op.id, equipAssignTarget.equipmentId);
                                     setEquipAssignTarget(null);
                                 }}
                                 sx={{
@@ -822,7 +817,7 @@ export function EquipmentCard({
                             onClick={async () => {
                                 setEquipAssignAnchor(null);
                                 if (!equipAssignTarget?.currentOpId) return;
-                                await handleUnassignOperator(equipAssignTarget.currentOpId, equipAssignTarget.equipmentId);
+                                await handleUnassignCrewSlot(equipAssignTarget.currentOpId, equipAssignTarget.equipmentId);
                                 setEquipAssignTarget(null);
                             }}
                             sx={{ fontSize: '0.7rem', color: '#ef4444', py: 0.75, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.08)' } }}
@@ -964,6 +959,6 @@ export function EquipmentCard({
                     );
                 })()}
             </Menu>
-        </Box>
+        </ScheduleCardShell>
     );
 }

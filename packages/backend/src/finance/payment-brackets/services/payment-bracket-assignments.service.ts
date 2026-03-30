@@ -11,10 +11,10 @@ export class PaymentBracketAssignmentsService {
   constructor(private prisma: PrismaService) {}
 
   async assignBracket(dto: AssignBracketDto) {
-    const assignment = await this.prisma.crewMemberJobRole.findUnique({
+    const assignment = await this.prisma.crewJobRole.findUnique({
       where: {
-        crew_member_id_job_role_id: {
-          crew_member_id: dto.crew_member_id,
+        crew_id_job_role_id: {
+          crew_id: dto.crew_id,
           job_role_id: dto.job_role_id,
         },
       },
@@ -22,7 +22,7 @@ export class PaymentBracketAssignmentsService {
 
     if (!assignment) {
       throw new NotFoundException(
-        `Contributor ${dto.crew_member_id} is not assigned to job role ${dto.job_role_id}`,
+        `Crew ${dto.crew_id} is not assigned to job role ${dto.job_role_id}`,
       );
     }
 
@@ -48,10 +48,10 @@ export class PaymentBracketAssignmentsService {
       );
     }
 
-    return this.prisma.crewMemberJobRole.update({
+    return this.prisma.crewJobRole.update({
       where: {
-        crew_member_id_job_role_id: {
-          crew_member_id: dto.crew_member_id,
+        crew_id_job_role_id: {
+          crew_id: dto.crew_id,
           job_role_id: dto.job_role_id,
         },
       },
@@ -59,7 +59,7 @@ export class PaymentBracketAssignmentsService {
       include: {
         job_role: true,
         payment_bracket: true,
-        crew_member: {
+        crew: {
           include: {
             contact: {
               select: { first_name: true, last_name: true, email: true },
@@ -70,11 +70,11 @@ export class PaymentBracketAssignmentsService {
     });
   }
 
-  async unassignBracket(contributorId: number, jobRoleId: number) {
-    const assignment = await this.prisma.crewMemberJobRole.findUnique({
+  async unassignBracket(crewId: number, jobRoleId: number) {
+    const assignment = await this.prisma.crewJobRole.findUnique({
       where: {
-        crew_member_id_job_role_id: {
-          crew_member_id: contributorId,
+        crew_id_job_role_id: {
+          crew_id: crewId,
           job_role_id: jobRoleId,
         },
       },
@@ -82,14 +82,14 @@ export class PaymentBracketAssignmentsService {
 
     if (!assignment) {
       throw new NotFoundException(
-        `Contributor ${contributorId} is not assigned to job role ${jobRoleId}`,
+        `Crew ${crewId} is not assigned to job role ${jobRoleId}`,
       );
     }
 
-    return this.prisma.crewMemberJobRole.update({
+    return this.prisma.crewJobRole.update({
       where: {
-        crew_member_id_job_role_id: {
-          crew_member_id: contributorId,
+        crew_id_job_role_id: {
+          crew_id: crewId,
           job_role_id: jobRoleId,
         },
       },
@@ -97,7 +97,7 @@ export class PaymentBracketAssignmentsService {
       include: {
         job_role: true,
         payment_bracket: true,
-        crew_member: {
+        crew: {
           include: {
             contact: {
               select: { first_name: true, last_name: true, email: true },
@@ -108,11 +108,11 @@ export class PaymentBracketAssignmentsService {
     });
   }
 
-  async toggleUnmanned(contributorId: number, jobRoleId: number, isUnmanned: boolean) {
-    const assignment = await this.prisma.crewMemberJobRole.findUnique({
+  async toggleUnmanned(crewId: number, jobRoleId: number, isUnmanned: boolean) {
+    const assignment = await this.prisma.crewJobRole.findUnique({
       where: {
-        crew_member_id_job_role_id: {
-          crew_member_id: contributorId,
+        crew_id_job_role_id: {
+          crew_id: crewId,
           job_role_id: jobRoleId,
         },
       },
@@ -120,14 +120,14 @@ export class PaymentBracketAssignmentsService {
 
     if (!assignment) {
       throw new NotFoundException(
-        `Contributor ${contributorId} is not assigned to job role ${jobRoleId}`,
+        `Crew ${crewId} is not assigned to job role ${jobRoleId}`,
       );
     }
 
-    return this.prisma.crewMemberJobRole.update({
+    return this.prisma.crewJobRole.update({
       where: {
-        crew_member_id_job_role_id: {
-          crew_member_id: contributorId,
+        crew_id_job_role_id: {
+          crew_id: crewId,
           job_role_id: jobRoleId,
         },
       },
@@ -135,7 +135,7 @@ export class PaymentBracketAssignmentsService {
       include: {
         job_role: true,
         payment_bracket: true,
-        crew_member: {
+        crew: {
           include: {
             contact: {
               select: { first_name: true, last_name: true, email: true },
@@ -146,10 +146,10 @@ export class PaymentBracketAssignmentsService {
     });
   }
 
-  async findContributorBrackets(contributorId: number) {
-    return this.prisma.crewMemberJobRole.findMany({
+  async findCrewBrackets(crewId: number) {
+    return this.prisma.crewJobRole.findMany({
       where: {
-        crew_member_id: contributorId,
+        crew_id: crewId,
         payment_bracket_id: { not: null },
       },
       include: {
@@ -162,13 +162,13 @@ export class PaymentBracketAssignmentsService {
     });
   }
 
-  /** Resolve the effective hourly rate for a contributor+role.
+  /** Resolve the effective hourly rate for a crew+role.
    *  Uses bracket rate only. */
-  async findEffectiveRate(contributorId: number, jobRoleId: number) {
-    const assignment = await this.prisma.crewMemberJobRole.findUnique({
+  async findEffectiveRate(crewId: number, jobRoleId: number) {
+    const assignment = await this.prisma.crewJobRole.findUnique({
       where: {
-        crew_member_id_job_role_id: {
-          crew_member_id: contributorId,
+        crew_id_job_role_id: {
+          crew_id: crewId,
           job_role_id: jobRoleId,
         },
       },
@@ -182,14 +182,14 @@ export class PaymentBracketAssignmentsService {
 
     if (!assignment) {
       throw new NotFoundException(
-        `Contributor ${contributorId} is not assigned to job role ${jobRoleId}`,
+        `Crew ${crewId} is not assigned to job role ${jobRoleId}`,
       );
     }
 
     const bracketRate = assignment.payment_bracket?.hourly_rate ?? null;
 
     return {
-      crew_member_id: contributorId,
+      crew_id: crewId,
       job_role: assignment.job_role,
       payment_bracket: assignment.payment_bracket,
       effective_hourly_rate: bracketRate,
@@ -206,13 +206,13 @@ export class PaymentBracketAssignmentsService {
         job_role: {
           select: { id: true, name: true, display_name: true, category: true },
         },
-        _count: { select: { crew_member_job_roles: true } },
-        crew_member_job_roles: {
+        _count: { select: { crew_job_role_assignments: true } },
+        crew_job_role_assignments: {
           where: brandId
-            ? { crew_member: { brand_memberships: { some: { brand_id: brandId, is_active: true } } } }
+            ? { crew: { brand_memberships: { some: { brand_id: brandId, is_active: true } } } }
             : undefined,
           include: {
-            crew_member: {
+            crew: {
               include: { contact: { select: { first_name: true, last_name: true, email: true } } },
             },
           },
@@ -232,7 +232,7 @@ export class PaymentBracketAssignmentsService {
         acc[key].brackets.push(bracket);
         return acc;
       },
-      {} as Record<string, { job_role: Record<string, unknown>; brackets: typeof brackets }>,
+      {} as Record<string, { job_role: Record<string, unknown>; brackets: typeof brackets }>,  
     );
 
     return grouped;

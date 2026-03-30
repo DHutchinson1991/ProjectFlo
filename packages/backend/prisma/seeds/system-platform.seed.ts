@@ -101,11 +101,13 @@ const SKILL_ROLE_MAPPINGS = [
     { skill_name: 'Media Rendering',    job_role: 'editor', priority: 2 },
     { skill_name: 'Gallery Setup',      job_role: 'editor', priority: 1 },
     // === SOUND ENGINEER ===
-    { skill_name: 'Audio Engineering',  job_role: 'sound_engineer', priority: 3 },
-    { skill_name: 'Sound Design',       job_role: 'sound_engineer', priority: 3 },
-    { skill_name: 'Audio Recording',    job_role: 'sound_engineer', priority: 3 },
-    { skill_name: 'Audio Enhancement',  job_role: 'sound_engineer', priority: 3 },
-    { skill_name: 'Technical Skills',   job_role: 'sound_engineer', priority: 1 },
+    { skill_name: 'Audio Engineering',     job_role: 'sound_engineer', priority: 3 },
+    { skill_name: 'Sound Design',          job_role: 'sound_engineer', priority: 3 },
+    { skill_name: 'Audio Recording',       job_role: 'sound_engineer', priority: 3 },
+    { skill_name: 'Audio Enhancement',     job_role: 'sound_engineer', priority: 3 },
+    { skill_name: 'Live Audio Recording',  job_role: 'sound_engineer', priority: 3 },
+    { skill_name: 'Sound Engineering',     job_role: 'sound_engineer', priority: 3 },
+    { skill_name: 'Technical Skills',      job_role: 'sound_engineer', priority: 1 },
     // === CROSS-ROLE ===
     { skill_name: 'Communication',      job_role: 'director', priority: 1 },
     { skill_name: 'Storytelling',       job_role: 'editor',   priority: 2 },

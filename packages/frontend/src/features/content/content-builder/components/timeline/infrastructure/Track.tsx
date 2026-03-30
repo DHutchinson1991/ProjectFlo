@@ -59,11 +59,11 @@ const Track: React.FC<TimelineTrackProps> = ({
         ? getEquipmentLabelForTrackName(track.name, equipmentAssignmentsBySlot)
         : "";
 
-    // Operator info from track assignment
-    const operator = track.crew_member;
-    const operatorColor = operator?.crew_color || null;
-    const operatorName = operator?.contact
-        ? [operator.contact.first_name, operator.contact.last_name].filter(Boolean).join(" ")
+    // Crew info from track assignment
+    const crewMember = track.crew;
+    const crewColor = crewMember?.crew_color || null;
+    const crewName = crewMember?.contact
+        ? [crewMember.contact.first_name, crewMember.contact.last_name].filter(Boolean).join(" ")
         : null;
     const isUnmanned = track.is_unmanned === true;
 
@@ -182,18 +182,18 @@ const Track: React.FC<TimelineTrackProps> = ({
                             {equipmentLabel}
                         </Typography>
                     )}
-                    {operatorName && (
+                    {crewName && (
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.25 }}>
                             <Box sx={{
                                 width: 6, height: 6, borderRadius: "50%",
-                                bgcolor: operatorColor || "#EC4899",
+                                bgcolor: crewColor || "#EC4899",
                                 flexShrink: 0,
                             }} />
                             <Typography
                                 variant="caption"
-                                sx={{ color: operatorColor || "#EC4899", fontSize: "0.65rem", lineHeight: 1.1, fontWeight: 600 }}
+                                sx={{ color: crewColor || "#EC4899", fontSize: "0.65rem", lineHeight: 1.1, fontWeight: 600 }}
                             >
-                                {operatorName}
+                                {crewName}
                             </Typography>
                         </Box>
                     )}
@@ -205,7 +205,7 @@ const Track: React.FC<TimelineTrackProps> = ({
                             Unmanned
                         </Typography>
                     )}
-                    {!operatorName && !isUnmanned && showEquipmentLabel && !equipmentLabel && (
+                    {!crewName && !isUnmanned && showEquipmentLabel && !equipmentLabel && (
                         <Typography
                             variant="caption"
                             sx={{ color: "rgba(255,255,255,0.4)", fontSize: "0.65rem", lineHeight: 1.1, fontStyle: "italic" }}

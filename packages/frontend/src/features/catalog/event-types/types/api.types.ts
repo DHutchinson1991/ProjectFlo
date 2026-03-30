@@ -55,6 +55,6 @@ export interface CreatePackageFromWizardData {
     momentKeyOverrides: { momentId: number; isKey: boolean }[];
     selectedRoleIds: number[];
     locationCount: number;
-    crewAssignments: { crewMemberId: number; jobRoleId: number; label?: string }[];
+    crewAssignments: { crewId: number; jobRoleId: number; label?: string }[];
     equipmentSlots: { equipmentId: number; slotLabel: string; slotType: string }[];
 }

@@ -5,7 +5,6 @@ import {
     Box,
     Typography,
     Divider,
-    Switch,
     Chip,
     Avatar,
     TextField,
@@ -36,9 +35,9 @@ import {
     ShieldOutlined as ShieldOutlinedIcon,
     EmailOutlined as EmailOutlinedIcon,
 } from "@mui/icons-material";
-import { crewMembersApi } from "@/features/workflow/crew/api";
+import { userAccountsApi } from "@/features/workflow/crew/api";
 import { contactsApi } from "@/features/workflow/clients/api";
-import { CrewMember, UpdateCrewMemberDto, UpdateContactDto } from "@/shared/types/users";
+import type { Crew, UpdateCrewDto, UpdateContactDto } from "@/shared/types/users";
 import { getUserInitials, getUserDisplayName } from "@/shared/types/user-mappers";
 import { useAuth } from "@/features/platform/auth";
 
@@ -60,7 +59,7 @@ interface EditFormData {
 export default function ProfileSettings() {
     const { user: authUser, refreshAuth } = useAuth();
 
-    const [crewMember, setCrewMember] = useState<CrewMember | null>(null);
+    const [crew, setCrew] = useState<Crew | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -88,8 +87,8 @@ export default function ProfileSettings() {
         try {
             setLoading(true);
             setLoadError(null);
-            const data = await crewMembersApi.getById(authUser.id);
-            setContributor(data);
+            const data = await userAccountsApi.getById(authUser.id);
+            setCrew(data);
             const formValues: EditFormData = {
                 first_name: data.contact?.first_name ?? "",
                 last_name: data.contact?.last_name ?? "",
@@ -116,23 +115,23 @@ export default function ProfileSettings() {
     };
 
     const handleSave = async () => {
-        if (!crewMember) return;
+        if (!crew) return;
         try {
             setSaving(true);
 
-            const crewMemberData: UpdateCrewMemberDto = {};
-            if (editFormData.first_name !== undefined) crewMemberData.first_name = editFormData.first_name;
-            if (editFormData.last_name !== undefined) crewMemberData.last_name = editFormData.last_name;
-            if (editFormData.email !== undefined) crewMemberData.email = editFormData.email;
+            const crewData: UpdateCrewDto = {};
+            if (editFormData.first_name !== undefined) crewData.first_name = editFormData.first_name;
+            if (editFormData.last_name !== undefined) crewData.last_name = editFormData.last_name;
+            if (editFormData.email !== undefined) crewData.email = editFormData.email;
 
-            await crewMembersApi.update(crewMember.id, crewMemberData);
+            await userAccountsApi.update(crew.id, crewData);
 
             if (editFormData.phone_number !== undefined) {
                 const contactData: UpdateContactDto = { phone_number: editFormData.phone_number };
-                await contactsApi.update(crewMember.contact_id, contactData);
+                await contactsApi.update(crew.contact_id, contactData);
             }
 
-            setContributor((prev) =>
+            setCrew((prev) =>
                 prev
                     ? {
                           ...prev,
@@ -171,7 +170,7 @@ export default function ProfileSettings() {
         );
     }
 
-    if (loadError || !crewMember) {
+    if (loadError || !crew) {
         return (
             <Alert severity="error" sx={{ mb: 2 }}>
                 {loadError || "Unable to load profile."}
@@ -210,7 +209,7 @@ export default function ProfileSettings() {
                             borderColor: (theme) => alpha(theme.palette.primary.main, 0.3),
                         }}
                     >
-                        {getUserInitials(crewMember)}
+                        {getUserInitials(crew)}
                     </Avatar>
                     <Tooltip title="Change photo" arrow>
                         <IconButton
@@ -235,10 +234,10 @@ export default function ProfileSettings() {
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.25 }}>
                         <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1.1rem" }}>
-                            {getUserDisplayName(crewMember)}
+                            {getUserDisplayName(crew)}
                         </Typography>
                         <Chip
-                            label={crewMember.role?.name || "No Role"}
+                            label={crew.role?.name || "No Role"}
                             size="small"
                             sx={{
                                 fontWeight: 600,
@@ -250,7 +249,7 @@ export default function ProfileSettings() {
                         />
                     </Box>
                     <Typography variant="body2" color="text.secondary">
-                        {crewMember.contact?.email}
+                        {crew.contact?.email}
                     </Typography>
                 </Box>
 

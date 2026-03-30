@@ -3,6 +3,20 @@ export {
   computeLineTotal,
   computeItemsTotal,
   computeTaxBreakdown,
+  computeEquipmentBreakdown,
+  computeTaskCostBreakdown,
+  computeCrewCost,
+  computePackagePricing,
+} from './pricing';
+export type {
+  Numeric,
+  PricingEquipmentRel,
+  PricingCrewSlotForEquipment,
+  EquipmentBreakdown,
+  PricingTaskRow,
+  TaskCostBreakdown,
+  PricingCrewSlotForDayRate,
+  PackagePricingSummary,
 } from './pricing';
 
 export {

@@ -162,12 +162,12 @@ export class InquiryTaskLifecycleService {
         return updated;
     }
 
-    async autoAssignByRole(inquiryId: number, jobRoleId: number, contributorId: number | null) {
-        if (!contributorId || !jobRoleId) return;
+    async autoAssignByRole(inquiryId: number, jobRoleId: number, crewId: number | null) {
+        if (!crewId || !jobRoleId) return;
 
-        const matchingRole = await this.prisma.crewMemberJobRole.findFirst({
-            where: { crew_member_id: contributorId, job_role_id: jobRoleId },
-            select: { crew_member_id: true },
+        const matchingRole = await this.prisma.crewJobRole.findFirst({
+            where: { crew_id: crewId, job_role_id: jobRoleId },
+            select: { crew_id: true },
         });
         if (!matchingRole) return;
 
@@ -181,7 +181,7 @@ export class InquiryTaskLifecycleService {
 
         await this.prisma.inquiry_tasks.updateMany({
             where: { id: { in: unassigned.map((t) => t.id) } },
-            data: { assigned_to_id: contributorId },
+            data: { assigned_to_id: crewId },
         });
     }
 

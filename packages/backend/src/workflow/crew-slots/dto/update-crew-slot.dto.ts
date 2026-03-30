@@ -7,7 +7,7 @@ export class UpdateCrewSlotDto {
 
   @IsNumber()
   @IsOptional()
-  crew_member_id?: number | null;
+  crew_id?: number | null;
 
   @IsString()
   @IsOptional()
@@ -20,8 +20,4 @@ export class UpdateCrewSlotDto {
   @IsNumber()
   @IsOptional()
   order_index?: number;
-
-  @IsNumber()
-  @IsOptional()
-  package_activity_id?: number | null;
 }

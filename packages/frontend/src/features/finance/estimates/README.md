@@ -7,6 +7,7 @@ Owns inquiry estimate endpoint bindings, UI components, and feature exports for 
 | File | Purpose |
 |------|---------|
 | `api/index.ts` | Typed estimate CRUD, send, revise, refresh, and snapshot bindings |
+| `mappers/estimate-mappers.ts` | Normalizes API payloads into frontend estimate types (date parsing + item mapping) |
 | `hooks/use-estimates-api.ts` | React Query hooks for estimate operations |
 | `hooks/useEstimateAutoGen.ts` | Auto-generates initial line items from inquiry package |
 | `components/EstimatesCard.tsx` | Thin shell — accordion list orchestrator (~220 lines) |
@@ -20,6 +21,7 @@ Owns inquiry estimate endpoint bindings, UI components, and feature exports for 
 - Estimates are always inquiry-scoped under `/api/inquiries/:inquiryId/estimates/*`.
 - Refresh, revise, send, and snapshot history are part of the same estimate lifecycle.
 - Consumers must import from this feature, not `estimatesService` or `api.estimates`.
+- API payloads are normalized through `mappers/estimate-mappers.ts` before hooks expose data to consumers.
 - UI components use shared primitives from `features/finance/shared/`.
 
 ## Related modules

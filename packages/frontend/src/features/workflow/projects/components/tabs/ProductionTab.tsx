@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Button, Card, CardContent, Chip, Grid, IconButton, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon, VideoCall as ProductionIcon, Schedule as ScheduleIcon, Camera as CameraIcon, Videocam as FilmIcon } from '@mui/icons-material';
 import { Project } from '@/features/workflow/projects/types/project.types';
-import InstanceScheduleEditor from '@/features/workflow/scheduling/components/InstanceScheduleEditor';
+import { InstanceScheduleEditor } from '@/features/workflow/scheduling/instance';
 import { useProjectProduction } from '../../hooks/useProjectProduction';
 
 interface ProductionTabProps { project: Project; onRefresh?: () => void; }

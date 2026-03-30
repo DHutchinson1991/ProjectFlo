@@ -9,7 +9,9 @@ Manages the studio's physical equipment inventory, including tracking condition,
 ```
 equipment/
   api/              ← createEquipmentApi(client) factory + equipmentApi singleton
-  components/       ← UI components (accordion list, table, cards, dialogs)
+  components/       ← EquipmentListHeader, CategoryCardsGrid, EquipmentFilterToolbar,
+                       EquipmentTable, EquipmentDetailPanel, EquipmentTableRowActions,
+                       EquipmentQuickAddRow, DeleteConfirmDialog, EquipmentSnackbar
   constants/        ← Category config (icons, colors) via categoryConfig.ts
   hooks/            ← useEquipmentList, useEquipmentDetail (React Query)
   screens/          ← EquipmentListScreen, EquipmentDetailScreen
@@ -23,7 +25,40 @@ equipment/
 - **Availability** — Each item has an `EquipmentAvailability` status (AVAILABLE, RENTED, MAINTENANCE, RETIRED).
 - **Rentals** — Equipment can be rented out; tracked via `EquipmentRental` records with start/end dates and deposit tracking.
 - **Maintenance** — Maintenance logs track routine and ad-hoc service events via `EquipmentMaintenance` records.
-- **Contributors** — Equipment items have an optional `owner_id` linking to a brand contributor (crew member).
+- **Crew ownership** — Equipment items have an optional `owner_id` linking to a brand crew record.
+
+## List screen architecture
+
+`EquipmentListScreen` uses a split-view layout:
+
+1. **`EquipmentListHeader`** — icon-box title + **Add Equipment** button only. No search.
+2. **`CategoryCardsGrid`** — full-width row of gradient category filter cards (one per category + "All"). Each card shows category label, item count, and total purchase value chip. Clicking filters the table.
+3. **`EquipmentFilterToolbar`** — toolbar Paper with Status `Select`, Condition `Select`, Search `TextField` (with clear button), and filtered/total count.
+4. **`EquipmentTable`** — `StudioTable<Equipment>` with `onRowHover` + `onRowClick`. Columns: Equipment (name + brand/model subtitle), Category, Status (chip), Condition (chip), Daily Rate, Actions. No navigation — clicks open the detail panel. Inline-edit logic renders `TextField`/`Select` within column `render()` closures.
+5. **`EquipmentDetailPanel`** — sticky right-side panel (360px). Appears on hover; stays pinned on click (toggle). Shows grouped sections: Pricing, Details, Physical, Maintenance, Location, Description. Close `X` clears both hover and selected state.
+
+### Detail panel logic (in `EquipmentListScreen`)
+
+```
+detailEquipment = selectedEquipment ?? hoveredEquipment
+```
+
+- **Hover** → `hoveredEquipment` local state (ephemeral, not in hook)
+- **Click** → `selectedEquipment` from hook (toggles: click same row to deselect)
+- Selected row takes priority; closing panel clears both states
+
+### Filter state (in `useEquipmentList`)
+
+| State | Default | Effect |
+|---|---|---|
+| `searchTerm` | `""` | Filters by `item_name`, `model`, `brand_name`, `description` |
+| `categoryFilter` | `"all"` | Filters by `category` enum value (driven by CategoryCardsGrid) |
+| `statusFilter` | `"all"` | Filters by `availability_status` enum value |
+| `conditionFilter` | `"all"` | Filters by `condition` enum value |
+| `selectedEquipment` | `null` | Pinned detail panel item (also in hook for cross-component access) |
+
+`flatEquipment` = all equipment merged across categories. `filteredEquipment` = `flatEquipment` filtered by all four filters above.
+
 
 ## API
 
@@ -38,7 +73,7 @@ equipmentApi.create(data);
 equipmentApi.update(id, data);
 equipmentApi.delete(id);
 equipmentApi.getGroupedByCategory();
-equipmentApi.getContributors();   // for owner dropdowns
+equipmentApi.getCrew();   // current method name, returns crew for owner dropdowns
 equipmentApi.rentals.getAll(equipmentId);
 equipmentApi.maintenance.getAll(equipmentId);
 ```

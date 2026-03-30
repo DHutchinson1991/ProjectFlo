@@ -6,5 +6,5 @@ export { TaskColumnHeaders } from './TaskColumnHeaders';
 export type { TaskColumnHeadersProps } from './TaskColumnHeaders';
 export { TaskSummaryStrip } from './TaskSummaryStrip';
 export type { SummaryItem, TaskSummaryStripProps } from './TaskSummaryStrip';
-export { CrewMemberPicker } from './CrewMemberPicker';
-export type { CrewMemberPickerProps, PickerContributor } from './CrewMemberPicker';
+export { CrewPicker } from './CrewPicker';
+export type { CrewPickerProps, PickerCrew } from './CrewPicker';

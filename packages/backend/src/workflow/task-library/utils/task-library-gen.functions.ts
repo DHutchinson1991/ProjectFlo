@@ -3,43 +3,43 @@
  * No NestJS injection — import these functions directly.
  */
 
-export interface CrewEntry { contributorId: number; bracketLevel: number; }
-export interface PreviewCrewMember { name: string; bracketLevel: number; }
+export interface CrewEntry { crewId: number; bracketLevel: number; }
+export interface PreviewCrew { name: string; bracketLevel: number; }
 export type ExecRoleCrewMap = Map<number, CrewEntry[]>;
-export type PreviewRoleCrewMap = Map<number, PreviewCrewMember[]>;
+export type PreviewRoleCrewMap = Map<number, PreviewCrew[]>;
 
-/** Build "contributorId-roleId → bracket level" map from crew_member_job_roles rows. */
-export function buildBracketMap(rows: Array<{ crew_member_id: number; job_role_id: number; payment_bracket_id: number | null; payment_bracket: { level: number } | null }>): Map<string, number> {
+/** Build "crewId-roleId → bracket level" map from crew_job_roles rows. */
+export function buildBracketMap(rows: Array<{ crew_id: number; job_role_id: number; payment_bracket_id: number | null; payment_bracket: { level: number } | null }>): Map<string, number> {
     const map = new Map<string, number>();
     for (const r of rows) {
-        if (r.payment_bracket_id && r.payment_bracket) map.set(`${r.crew_member_id}-${r.job_role_id}`, r.payment_bracket.level);
+        if (r.payment_bracket_id && r.payment_bracket) map.set(`${r.crew_id}-${r.job_role_id}`, r.payment_bracket.level);
     }
     return map;
 }
 
-/** Build role → crew list for execute (stores contributorIds). Sorted by bracketLevel asc. */
-export function buildExecRoleCrewMap(operators: Array<{ crew_member_id: number | null; job_role_id: number | null }>, bracketMap: Map<string, number>, validAssignments: Set<string>): ExecRoleCrewMap {
+/** Build role → crew list for execute (stores crewIds). Sorted by bracketLevel asc. */
+export function buildExecRoleCrewMap(crewSlots: Array<{ crew_id: number | null; job_role_id: number | null }>, bracketMap: Map<string, number>, validAssignments: Set<string>): ExecRoleCrewMap {
     const map = new Map<number, CrewEntry[]>();
-    for (const op of operators) {
-        if (!op.job_role_id || !op.crew_member_id) continue;
-        if (!validAssignments.has(`${op.crew_member_id}-${op.job_role_id}`)) continue;
-        const bracketLevel = bracketMap.get(`${op.crew_member_id}-${op.job_role_id}`) ?? 0;
+    for (const op of crewSlots) {
+        if (!op.job_role_id || !op.crew_id) continue;
+        if (!validAssignments.has(`${op.crew_id}-${op.job_role_id}`)) continue;
+        const bracketLevel = bracketMap.get(`${op.crew_id}-${op.job_role_id}`) ?? 0;
         if (!map.has(op.job_role_id)) map.set(op.job_role_id, []);
         const list = map.get(op.job_role_id)!;
-        if (!list.some(c => c.contributorId === op.crew_member_id)) list.push({ contributorId: op.crew_member_id!, bracketLevel });
+        if (!list.some(c => c.crewId === op.crew_id)) list.push({ crewId: op.crew_id!, bracketLevel });
     }
     for (const [, list] of map) list.sort((a, b) => a.bracketLevel - b.bracketLevel);
     return map;
 }
 
-/** Pick best crew contributor ID for a given role + task bracket level. */
+/** Pick best crew crew ID for a given role + task bracket level. */
 export function pickCrewForBracket(map: ExecRoleCrewMap, roleId: number, taskBracketLevel: number | null): number | null {
     const list = map.get(roleId); if (!list || !list.length) return null;
-    if (list.length === 1) return list[0].contributorId;
-    if (!taskBracketLevel || taskBracketLevel <= 0) return list[0].contributorId;
+    if (list.length === 1) return list[0].crewId;
+    if (!taskBracketLevel || taskBracketLevel <= 0) return list[0].crewId;
     let best = list[0], bestDist = Math.abs(list[0].bracketLevel - taskBracketLevel);
     for (const e of list) { const d = Math.abs(e.bracketLevel - taskBracketLevel); if (d < bestDist || (d === bestDist && e.bracketLevel < best.bracketLevel)) { best = e; bestDist = d; } }
-    return best.contributorId;
+    return best.crewId;
 }
 
 /** Build payment-bracket rate lookup map from payment_brackets rows. */

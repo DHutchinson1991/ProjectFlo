@@ -16,7 +16,7 @@ export class InquiryQueryService {
             where: { archived_at: null, contact: { brand_id: brandId } },
             include: {
                 contact: { select: { first_name: true, last_name: true, email: true, phone_number: true } },
-                selected_package: { select: { id: true, name: true, base_price: true, currency: true } },
+                selected_package: { select: { id: true, name: true, currency: true } },
                 estimates: {
                     select: { id: true, total_amount: true, tax_rate: true, is_primary: true, status: true, created_at: true },
                     orderBy: [{ is_primary: 'desc' }, { id: 'desc' }],
@@ -69,19 +69,19 @@ export class InquiryQueryService {
                     orderBy: { order_index: 'asc' }, take: 1,
                     include: { location: { select: { name: true, address_line1: true, lat: true, lng: true } } },
                 },
-                schedule_day_operators: {
+                schedule_day_crew_slots: {
                     where: {
-                        crew_member_id: { not: null },
+                        crew_id: { not: null },
                         OR: [
                             { job_role: { is: { name: { contains: 'producer', mode: 'insensitive' } } } },
                             { job_role: { is: { display_name: { contains: 'producer', mode: 'insensitive' } } } },
-                            { crew_member: { is: { crew_member_job_roles: { some: { job_role: { OR: [{ name: { contains: 'producer', mode: 'insensitive' } }, { display_name: { contains: 'producer', mode: 'insensitive' } }] } } } } } },
+                            { crew: { is: { job_role_assignments: { some: { job_role: { OR: [{ name: { contains: 'producer', mode: 'insensitive' } }, { display_name: { contains: 'producer', mode: 'insensitive' } }] } } } } } },
                         ],
                     },
                     orderBy: [{ order_index: 'asc' }], take: 1,
                     select: {
                         id: true, label: true,
-                        crew_member: { select: { id: true, contact: { select: { first_name: true, last_name: true, email: true } } } },
+                        crew: { select: { id: true, contact: { select: { first_name: true, last_name: true, email: true } } } },
                         job_role: { select: { id: true, name: true, display_name: true } },
                     },
                 },
@@ -99,10 +99,10 @@ export class InquiryQueryService {
 
         if (!inquiry) throw new NotFoundException(`Inquiry with ID ${id} not found`);
 
-        const lpAssignment = inquiry.schedule_day_operators[0] ?? null;
+        const lpAssignment = inquiry.schedule_day_crew_slots[0] ?? null;
         const fallbackTask = inquiry.inquiry_tasks[0] ?? null;
-        const leadProducer = lpAssignment?.crew_member
-            ? { id: lpAssignment.crew_member.id, name: `${lpAssignment.crew_member.contact.first_name} ${lpAssignment.crew_member.contact.last_name}`.trim(), email: lpAssignment.crew_member.contact.email, label: lpAssignment.label, job_role_name: lpAssignment.job_role?.display_name ?? lpAssignment.job_role?.name ?? null }
+        const leadProducer = lpAssignment?.crew
+            ? { id: lpAssignment.crew.id, name: `${lpAssignment.crew.contact.first_name} ${lpAssignment.crew.contact.last_name}`.trim(), email: lpAssignment.crew.contact.email, label: lpAssignment.label, job_role_name: lpAssignment.job_role?.display_name ?? lpAssignment.job_role?.name ?? null }
             : fallbackTask?.assigned_to
             ? { id: fallbackTask.assigned_to.id, name: `${fallbackTask.assigned_to.contact.first_name} ${fallbackTask.assigned_to.contact.last_name}`.trim(), email: fallbackTask.assigned_to.contact.email, label: null, job_role_name: fallbackTask.job_role?.display_name ?? fallbackTask.job_role?.name ?? null }
             : null;
@@ -153,7 +153,7 @@ export class InquiryQueryService {
 
     private _mapListItem(inquiry: Awaited<ReturnType<typeof this.prisma.inquiries.findMany>>[number] & {
         contact: { first_name: string | null; last_name: string | null; email: string; phone_number: string | null };
-        selected_package: { id: number; name: string; base_price: unknown; currency: string } | null;
+        selected_package: { id: number; name: string; currency: string } | null;
         inquiry_tasks: Array<{ name: string; order_index: number; children: Array<{ status: string }> }>;
         estimates: Array<{ id: number; total_amount: unknown; tax_rate: unknown; status: string }>;
         quotes: Array<{ id: number; total_amount: unknown; tax_rate: unknown; status: string }>;
@@ -195,7 +195,7 @@ export class InquiryQueryService {
             contact: { id: inquiry.contact_id, first_name: inquiry.contact.first_name, last_name: inquiry.contact.last_name, email: inquiry.contact.email, phone_number: inquiry.contact.phone_number },
             contact_id: inquiry.contact_id,
             selected_package_id: inquiry.selected_package_id,
-            selected_package: inquiry.selected_package ? { id: inquiry.selected_package.id, name: inquiry.selected_package.name, base_price: inquiry.selected_package.base_price, currency: inquiry.selected_package.currency } : null,
+            selected_package: inquiry.selected_package ? { id: inquiry.selected_package.id, name: inquiry.selected_package.name, currency: inquiry.selected_package.currency } : null,
             primary_estimate_total: calcTotal(inquiry.estimates),
             primary_quote_total: calcTotal(inquiry.quotes),
             pipeline_stage,

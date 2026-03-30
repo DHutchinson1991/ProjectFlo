@@ -9,8 +9,8 @@ export const paymentBracketKeys = {
         [...paymentBracketKeys.all(), 'byJobRole', jobRoleId, { includeInactive }] as const,
     detail: (id: number) =>
         [...paymentBracketKeys.all(), 'detail', id] as const,
-    crewMemberBrackets: (crewMemberId: number) =>
-        [...paymentBracketKeys.all(), 'contributor', crewMemberId] as const,
-    effectiveRate: (crewMemberId: number, jobRoleId: number) =>
-        [...paymentBracketKeys.all(), 'effectiveRate', crewMemberId, jobRoleId] as const,
+    crewBrackets: (crewId: number) =>
+        [...paymentBracketKeys.all(), 'crew', crewId] as const,
+    effectiveRate: (crewId: number, jobRoleId: number) =>
+        [...paymentBracketKeys.all(), 'effectiveRate', crewId, jobRoleId] as const,
 };

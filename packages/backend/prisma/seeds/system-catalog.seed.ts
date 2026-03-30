@@ -1,6 +1,6 @@
 // System Catalog Seed — Equipment Owners + Camera Limits
-// Requires brand seeds and team seeds to have run first (looks up contributors by name).
-// Silently skips if contributors or brands don't exist yet.
+// Requires brand seeds and team seeds to have run first (looks up crew by name).
+// Silently skips if crew or brands don't exist yet.
 import { PrismaClient } from '@prisma/client';
 import { createSeedLogger, SeedType, SeedSummary, sumSummaries } from '../utils/seed-logger';
 
@@ -14,11 +14,11 @@ async function seedEquipmentOwners(): Promise<SeedSummary> {
     logger.startTimer('equipment-owners');
     logger.processing('Assigning equipment owners...');
 
-    const andy = await prisma.contributors.findFirst({
+    const andy = await prisma.crew.findFirst({
         where: { contact: { first_name: { equals: 'Andy', mode: 'insensitive' }, last_name: { equals: 'Galloway', mode: 'insensitive' } } },
         select: { id: true },
     });
-    const daniel = await prisma.contributors.findFirst({
+    const daniel = await prisma.crew.findFirst({
         where: { contact: { first_name: { equals: 'Daniel', mode: 'insensitive' }, last_name: { equals: 'Hutchinson', mode: 'insensitive' } } },
         select: { id: true },
     });

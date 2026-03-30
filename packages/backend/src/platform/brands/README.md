@@ -19,6 +19,7 @@ Core multi-tenancy module. Manages brands (tenants), user-brand associations, br
 - `update` with `service_types` triggers `BrandProvisioningService.provision()`.
 - Provisioning is idempotent — existing event types just ensure category + set exist.
 - Global Admin users see all brands; regular users see only their associated brands.
+- Global-admin checks resolve through `crew.contact.user_account.system_role`, not directly from `Crew`.
 - Settings stored as key-value pairs with categories (meetings, welcome).
 - Welcome `social_proof_count` = manual start number + count of `Delivery`-phase projects.
 - Delete is soft-delete (`is_active: false`).

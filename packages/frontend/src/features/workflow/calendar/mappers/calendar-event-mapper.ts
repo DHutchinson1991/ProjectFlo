@@ -32,24 +32,24 @@ function determineStatus(): EventStatus {
     return 'confirmed';
 }
 
-function transformCrewMember(crewMember?: BackendCalendarEvent['crew_member']): User | undefined {
-    if (!contributor?.contact) return undefined;
+function transformCrew(crew?: BackendCalendarEvent['crew']): User | undefined {
+    if (!crew?.contact) return undefined;
 
-    const { contact } = contributor;
+    const { contact } = crew;
     return {
-        id: crewMember.id.toString(),
+        id: crew.id.toString(),
         name: `${contact.first_name} ${contact.last_name}`.trim(),
         email: contact.email,
         avatar: `/avatars/${contact.first_name.toLowerCase()}.jpg`,
-        role: 'Contributor'
+        role: 'Crew'
     };
 }
 
 function transformAttendees(attendees?: BackendCalendarEvent['event_attendees']): User[] {
     if (!attendees) return [];
     return attendees
-        .filter(attendee => attendee.crew_member?.contact)
-        .map(attendee => transformCrewMember(attendee.crew_member))
+        .filter(attendee => attendee.crew?.contact)
+        .map(attendee => transformCrew(attendee.crew))
         .filter(Boolean) as User[];
 }
 
@@ -93,7 +93,7 @@ export function transformBackendEvent(backendEvent: BackendCalendarEvent): Calen
         type: eventType || 'meeting',
         status: determineStatus(),
         priority: extractedPriority || determinePriority(backendEvent),
-        assignee: transformCrewMember(backendEvent.crew_member),
+        assignee: transformCrew(backendEvent.crew),
         project: backendEvent.project ? {
             id: backendEvent.project.id.toString(),
             name: backendEvent.project.name,
@@ -160,7 +160,7 @@ export function transformToBackendEvent(frontendEvent: Partial<CalendarEvent>): 
         backendEvent.event_type = reverseEventTypeMap[frontendEvent.type] || 'PROJECT_ASSIGNMENT';
     }
 
-    if (frontendEvent.assignee?.id) backendEvent.crew_member_id = parseInt(frontendEvent.assignee.id);
+    if (frontendEvent.assignee?.id) backendEvent.crew_id = parseInt(frontendEvent.assignee.id);
     if (frontendEvent.project?.id) backendEvent.project_id = parseInt(frontendEvent.project.id);
 
     return backendEvent;

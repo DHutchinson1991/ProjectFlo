@@ -35,7 +35,7 @@ features/workflow/tasks/
 ## Key Flows
 
 ### Loading
-`ActiveTasksScreen` calls `api.activeTasks.getAll()` + `api.contributors.getAll()` in parallel on mount. Contributors use frozen `api` because no workflow feature factory is needed — contributors are shared across features.
+`ActiveTasksScreen` calls `activeTasksApi.getAll()` + `userAccountsApi.getAll()` in parallel on mount. Crew data is loaded from the workflow crew API surface.
 
 ### Grouping
 `groupTasks(filteredTasks, groupMode)` in `utils/group-tasks.tsx` returns `TaskGroupData[]`. Supports: project (default), status, person, date, phase.
@@ -56,8 +56,8 @@ Both `handleAssign` and `handleToggle` update local state immediately, then call
 
 ## API Notes
 - Uses feature `activeTasksApi` from `api/index.ts` for active-task operations (getAll, assign, toggle).
-- `api.contributors.getAll()` uses frozen `lib/api.ts` — contributors are a shared resource (TODO: migrate when contributors feature is created).
-- `taskLibraryApi.syncContributors()` used for "Sync People" button (from catalog feature).
+- Uses `userAccountsApi.getAll()` to load crew assignees.
+- `taskLibraryApi.syncCrew()` is still the current task-library sync method name (contract-level rename pending).
 
 ## Brand Scoping
 No brandId needed — active tasks are brand-scoped via the `X-Brand-Context` header automatically.

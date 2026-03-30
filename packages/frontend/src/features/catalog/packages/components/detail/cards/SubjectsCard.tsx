@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
     Box, Typography, Button, TextField, Select, MenuItem,
     IconButton, Chip, Menu, Tooltip,
@@ -11,14 +11,15 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-import { scheduleApi } from '@/features/workflow/scheduling/api';
-import { useOptionalScheduleApi } from '@/features/workflow/scheduling/components';
-import type { EventDay } from '@/features/workflow/scheduling/components';
+import { scheduleApi } from '@/features/workflow/scheduling/package-template';
+import { useOptionalScheduleApi } from '@/features/workflow/scheduling/shared';
+import type { EventDay } from '@/features/workflow/scheduling/package-template';
 import type {
     PackageActivityRecord,
     PackageEventDaySubjectRecord,
     SubjectType,
 } from '../../../types';
+import { ScheduleCardShell } from './ScheduleCardShell';
 
 /* ================================================================== */
 /*  Props                                                              */
@@ -120,47 +121,6 @@ export function SubjectsCard({
     // Suggest all subject roles not yet added to the active day
     const existingNames = new Set(daySubjects.map((s: any) => s.name)); // eslint-disable-line @typescript-eslint/no-explicit-any
     const suggestedRoles = subjectTemplates.filter(r => !existingNames.has(r.role_name));
-    const autoConnectInFlightRef = useRef<Set<number>>(new Set());
-
-    useEffect(() => {
-        if (!hasOwner || activeDayActivities.length === 0) return;
-
-        const subjectsNeedingAssignments = daySubjects.filter((subject: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-            if (autoConnectInFlightRef.current.has(subject.id)) return false;
-            if (subject.activity_assignments?.length) return false;
-            if (subject.package_activity_id) return false;
-            return true;
-        });
-
-        if (subjectsNeedingAssignments.length === 0) return;
-
-        let cancelled = false;
-
-        const autoConnect = async () => {
-            for (const subject of subjectsNeedingAssignments) {
-                autoConnectInFlightRef.current.add(subject.id);
-                try {
-                    let latest = subject;
-                    for (const activity of activeDayActivities) {
-                        latest = await subjectApi.assignActivity(subject.id, activity.id);
-                    }
-                    if (!cancelled) {
-                        setPackageSubjects(prev => prev.map((item: any) => item.id === subject.id ? { ...item, ...latest } : item)); // eslint-disable-line @typescript-eslint/no-explicit-any
-                    }
-                } catch (err) {
-                    console.warn('Failed to auto-connect subject to activities:', err);
-                } finally {
-                    autoConnectInFlightRef.current.delete(subject.id);
-                }
-            }
-        };
-
-        autoConnect();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [activeDayActivities, daySubjects, hasOwner, setPackageSubjects, subjectApi]);
 
     // ─── Helpers ─────────────────────────────────────────────────────
     const addSubjectFromTemplate = async (role: { id: number; role_name: string; is_group?: boolean; never_group?: boolean }) => {
@@ -205,28 +165,21 @@ export function SubjectsCard({
     // ─── Render ──────────────────────────────────────────────────────
     return (
         <>
-            <Box sx={{ ...(cardSx as object), overflow: 'hidden' }}>
-                {/* Card Header */}
-                <Box sx={{ px: 2.5, pt: 2, pb: 1.5, borderBottom: '1px solid rgba(52, 58, 68, 0.25)' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Box sx={{ width: 28, height: 28, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(167, 139, 250, 0.1)', border: '1px solid rgba(167, 139, 250, 0.2)' }}>
-                                <PeopleIcon sx={{ fontSize: 14, color: '#a78bfa' }} />
-                            </Box>
-                            <Box>
-                                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Subjects</Typography>
-                                {selectedActivity ? (
-                                    <Typography sx={{ fontSize: '0.55rem', color: '#a855f7', fontWeight: 600, mt: -0.25 }}>{selectedActivity.name}</Typography>
-                                ) : activeDay && packageEventDays.length > 1 ? (
-                                    <Typography sx={{ fontSize: '0.55rem', color: '#f59e0b', fontWeight: 600, mt: -0.25 }}>{activeDay.name}</Typography>
-                                ) : null}
-                            </Box>
-                        </Box>
-                        {daySubjects.length > 0 && (
-                            <Chip label={`${daySubjects.reduce((sum: number, s: any) => sum + (s.count != null ? (s.count as number) : 1), 0)}`} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(167, 139, 250, 0.1)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.2)', '& .MuiChip-label': { px: 0.6 } }} />
-                        )}
-                    </Box>
-                </Box>
+            <ScheduleCardShell
+                title="Subjects"
+                icon={<PeopleIcon />}
+                accentColor="#a78bfa"
+                subtitle={selectedActivity ? (
+                    <Typography sx={{ fontSize: '0.55rem', color: '#a855f7', fontWeight: 600, mt: -0.25 }}>{selectedActivity.name}</Typography>
+                ) : activeDay && packageEventDays.length > 1 ? (
+                    <Typography sx={{ fontSize: '0.55rem', color: '#f59e0b', fontWeight: 600, mt: -0.25 }}>{activeDay.name}</Typography>
+                ) : undefined}
+                headerRight={daySubjects.length > 0
+                    ? <Chip label={`${daySubjects.reduce((sum: number, s: any) => sum + (s.count != null ? (s.count as number) : 1), 0)}`} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(167, 139, 250, 0.1)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.2)', '& .MuiChip-label': { px: 0.6 } }} />
+                    : undefined
+                }
+                cardSx={cardSx}
+            >
 
                 <Box sx={{ px: 2.5, pt: 1.5, pb: 1.5 }}>
                     {/* Existing subjects */}
@@ -572,7 +525,7 @@ export function SubjectsCard({
                         )}
                     </Box>
                 </Box>
-            </Box>
+            </ScheduleCardShell>
 
             {/* Subject Add Menu */}
             <Menu

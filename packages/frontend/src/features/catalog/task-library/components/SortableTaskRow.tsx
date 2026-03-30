@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import React, { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
     Box,
     Typography,
@@ -18,13 +17,12 @@ import {
     DragIndicator as DragIndicatorIcon,
     ExpandMore as ExpandMoreIcon,
     ExpandLess as ExpandLessIcon,
-    OpenInNew as OpenInNewIcon,
     CalendarMonth as CalendarMonthIcon,
 } from "@mui/icons-material";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { TaskLibrary, JobRole, SkillRoleMapping, TriggerType, TRIGGER_TYPE_LABELS, CrewMember } from "@/features/catalog/task-library/types";
-import { getPhaseConfig, hexToRgba, CrewMemberPicker } from "@/shared/ui/tasks";
+import { TaskLibrary, JobRole, SkillRoleMapping, TriggerType, TRIGGER_TYPE_LABELS, Crew } from "@/features/catalog/task-library/types";
+import { getPhaseConfig, hexToRgba, CrewPicker } from "@/shared/ui/tasks";
 import { TIER_LABELS, TIER_COLORS, resolveHighestBracket } from "@/shared/utils/tierRate";
 import { DEFAULT_CURRENCY, formatCurrency } from "@projectflo/shared";
 import { GRID_COLS } from "../constants";
@@ -37,15 +35,17 @@ interface SortableTaskRowProps {
     onUpdateTask: (taskId: number, data: Partial<TaskLibrary>) => Promise<void>;
     setTaskToDelete: (task: TaskLibrary) => void;
     setDeleteConfirmOpen: (open: boolean) => void;
-    router: ReturnType<typeof useRouter>;
     isDragging: boolean;
     jobRoles: JobRole[];
     allMappings: SkillRoleMapping[];
-    crewMembers: CrewMember[];
+    crew: Crew[];
     expandedTaskId: number | null;
     onToggleExpand: (taskId: number) => void;
     onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
-    onUpdateContributor: (taskId: number, crewMemberId: number | null) => Promise<void>;
+    onUpdateCrew: (taskId: number, crewId: number | null) => Promise<void>;
+    selectedTaskId?: number | null;
+    onRowClick?: (task: TaskLibrary) => void;
+    onRowHover?: (task: TaskLibrary | null) => void;
 }
 
 const ghostNameSx = {
@@ -81,9 +81,10 @@ const ghostNumSx = {
 export function SortableTaskRow({
     task, phase, isChild = false,
     onUpdateTask,
-    setTaskToDelete, setDeleteConfirmOpen, router, isDragging,
-    jobRoles, allMappings, crewMembers,
-    expandedTaskId, onToggleExpand, onUpdateRoleSkills, onUpdateContributor,
+    setTaskToDelete, setDeleteConfirmOpen, isDragging,
+    jobRoles, allMappings, crew,
+    expandedTaskId, onToggleExpand, onUpdateRoleSkills, onUpdateCrew,
+    selectedTaskId, onRowClick, onRowHover,
 }: SortableTaskRowProps) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging: isCurrentDragging } = useSortable({ id: task.id.toString() });
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isCurrentDragging ? 0 : 1 };
@@ -93,6 +94,7 @@ export function SortableTaskRow({
     const cfg = getPhaseConfig(phase);
     const phaseColor = cfg.color;
     const isExpanded = expandedTaskId === task.id;
+    const isRowSelected = selectedTaskId === task.id;
     const [hovered, setHovered] = useState(false);
 
     // Local state for text/number fields — saved on blur or Enter
@@ -114,16 +116,19 @@ export function SortableTaskRow({
         <Box
             ref={setNodeRef}
             style={style}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
+            onMouseEnter={() => { setHovered(true); onRowHover?.(task); }}
+            onMouseLeave={() => { setHovered(false); onRowHover?.(null); }}
+            onClick={() => onRowClick?.(task)}
             sx={{
                 display: 'grid', gridTemplateColumns: GRID_COLS, alignItems: 'center', minHeight: 44,
                 borderBottom: '1px solid rgba(255,255,255,0.04)',
                 borderLeft: isChild ? `2px solid ${phaseColor}55` : `3px solid ${phaseColor}`,
-                cursor: isDragging ? 'grabbing' : 'default',
+                cursor: isDragging ? 'grabbing' : 'pointer',
                 transition: 'background-color 0.12s',
-                bgcolor: isChild ? 'rgba(255,255,255,0.012)' : 'transparent',
-                '&:hover': { bgcolor: `${hexToRgba(phaseColor, 0.04)}` },
+                bgcolor: isRowSelected ? `${hexToRgba(phaseColor, 0.07)}` : isChild ? 'rgba(255,255,255,0.012)' : 'transparent',
+                outline: isRowSelected ? `1px solid ${phaseColor}33` : 'none',
+                outlineOffset: '-1px',
+                '&:hover': { bgcolor: `${hexToRgba(phaseColor, 0.05)}` },
             }}
         >
             {/* Drag */}
@@ -229,16 +234,17 @@ export function SortableTaskRow({
                 ) : <Typography sx={{ fontSize: '0.6875rem', color: 'rgba(255,255,255,0.18)' }}>—</Typography>}
             </Box>
 
-            {/* Contributor */}
+            {/* Crew */}
             <Box sx={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
-                <CrewMemberPicker
-                    contributors={crewMembers}
-                    selectedId={task.default_crew_member?.id ?? null}
-                    selectedName={task.default_crew_member ? `${task.default_crew_member.contact.first_name} ${task.default_crew_member.contact.last_name}` : null}
-                    onSelect={(id) => onUpdateContributor(task.id, id)}
+                <CrewPicker
+                    crew={crew}
+                    selectedId={task.default_crew?.id ?? null}
+                    selectedName={task.default_crew ? `${task.default_crew.contact.first_name} ${task.default_crew.contact.last_name}` : null}
+                    onSelect={(id) => onUpdateCrew(task.id, id)}
                     filterRoleId={task.default_job_role_id ?? null}
                     filterMinBracketLevel={resolvedBracket?.level ?? null}
                     showDashWhenEmpty
+                    placeholder="On site"
                 />
             </Box>
 
@@ -275,13 +281,20 @@ export function SortableTaskRow({
                         sx={ghostNumSx}
                     />
                 ) : (
-                    <Box onClick={() => setDueEditing(true)} sx={{ cursor: 'text', display: 'flex', alignItems: 'center', gap: 0.375, minWidth: 32, justifyContent: 'center' }}>
+                    <Box onClick={() => setDueEditing(true)} sx={{ cursor: 'text', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0.25, minWidth: 32 }}>
                         {task.due_date_offset_days != null ? (
                             <>
-                                <CalendarMonthIcon sx={{ fontSize: 11, color: 'rgba(255,183,77,0.55)', flexShrink: 0 }} />
-                                <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, color: task.due_date_offset_days < 0 ? 'rgba(255,152,0,0.9)' : 'rgba(255,183,77,0.9)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                                    {task.due_date_offset_days > 0 ? '+' : ''}{task.due_date_offset_days}d
-                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.375 }}>
+                                    <CalendarMonthIcon sx={{ fontSize: 11, color: 'rgba(255,183,77,0.55)', flexShrink: 0 }} />
+                                    <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, color: task.due_date_offset_days < 0 ? 'rgba(255,152,0,0.9)' : 'rgba(255,183,77,0.9)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                                        {task.due_date_offset_days > 0 ? '+' : ''}{task.due_date_offset_days}d
+                                    </Typography>
+                                </Box>
+                                {task.due_date_offset_reference && (
+                                    <Typography sx={{ fontSize: '0.575rem', fontWeight: 400, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                                        {({ inquiry_created: 'inquiry', booking_date: 'booking', event_date: 'event', delivery_date: 'delivery' } as Record<string, string>)[task.due_date_offset_reference] ?? task.due_date_offset_reference}
+                                    </Typography>
+                                )}
                             </>
                         ) : (
                             <Typography sx={{ fontSize: '0.6875rem', color: 'rgba(255,255,255,0.18)' }}>—</Typography>
@@ -313,6 +326,19 @@ export function SortableTaskRow({
                 </FormControl>
             </Box>
 
+            {/* On-site */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', px: 0.25 }}>
+                <Switch
+                    size="small"
+                    checked={task.is_on_site ?? false}
+                    onChange={(e) => save({ is_on_site: e.target.checked })}
+                    sx={{
+                        '& .MuiSwitch-switchBase.Mui-checked': { color: '#ffb74d' },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: 'rgba(255,183,77,0.4)' },
+                    }}
+                />
+            </Box>
+
             {/* Status */}
             <Box sx={{ display: 'flex', justifyContent: 'center', px: 0.25 }}>
                 <Switch
@@ -328,11 +354,7 @@ export function SortableTaskRow({
 
             {/* Actions */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.25 }}>
-                <IconButton size="small" onClick={() => router.push(`/task-library/${task.id}`)}
-                    sx={{ width: 24, height: 24, color: hovered ? 'rgba(255,255,255,0.35)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)' } }}>
-                    <OpenInNewIcon sx={{ fontSize: 12 }} />
-                </IconButton>
-                <IconButton size="small" onClick={() => { setTaskToDelete(task); setDeleteConfirmOpen(true); }}
+                <IconButton size="small" onClick={(e) => { e.stopPropagation(); setTaskToDelete(task); setDeleteConfirmOpen(true); }}
                     sx={{ width: 24, height: 24, color: hovered ? '#f44336' : 'transparent', '&:hover': { bgcolor: 'rgba(244,67,54,0.1)' } }}>
                     <DeleteIcon sx={{ fontSize: 14 }} />
                 </IconButton>
@@ -357,17 +379,18 @@ export function SortableTaskRow({
                     <Box sx={{ px: 1.5, pl: isChild ? 5 : 3, overflow: 'hidden' }}>
                         <Typography noWrap sx={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>{st.name}</Typography>
                     </Box>
-                    <Box /><Box /><Box /><Box /><Box /><Box />
-                    <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                        <Box sx={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            bgcolor: st.is_auto_only ? 'rgba(79,172,254,0.12)' : 'rgba(255,255,255,0.06)',
-                            color: st.is_auto_only ? '#4facfe' : 'rgba(255,255,255,0.5)',
-                            fontWeight: 700, fontSize: '0.5625rem', height: 18, px: 0.625, borderRadius: '4px',
-                        }}>
-                            {st.is_auto_only ? 'Auto' : 'Always'}
-                        </Box>
+                    <Box />{/* role */}<Box />{/* tier */}<Box />{/* rate */}
+                    {/* crew */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', px: 1.5 }}>
+                        <Typography sx={{ fontSize: '0.625rem', color: 'rgba(255,255,255,0.18)', fontStyle: 'italic', letterSpacing: '0.03em' }}>auto</Typography>
                     </Box>
+                    {/* hours */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', px: 0.25 }}>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: 'rgba(255,255,255,0.18)', fontVariantNumeric: 'tabular-nums' }}>0</Typography>
+                    </Box>
+                    <Box />{/* due */}
+                    <Box />{/* trigger */}
+                    <Box />{/* on-site */}
                     <Box /><Box />
                 </Box>
             ))}

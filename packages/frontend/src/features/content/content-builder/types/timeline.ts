@@ -144,8 +144,8 @@ export interface TimelineTrack {
     muted?: boolean;
     color: string;
     order_index: number;
-    crew_member_id?: number | null;
-    crew_member?: {
+    crew_id?: number | null;
+    crew?: {
         id: number;
         crew_color?: string | null;
         contact?: { first_name?: string | null; last_name?: string | null };

@@ -22,7 +22,7 @@ export class SchedulePackageService {
     });
     if (!pkg) throw new NotFoundException(`Package ${packageId} not found`);
 
-    const [eventDayCount, activityCount, momentCount, subjectCount, locationSlotCount, operatorCount, filmCount, eventDays] =
+    const [eventDayCount, activityCount, momentCount, subjectCount, locationSlotCount, crewSlotCount, filmCount, eventDays] =
       await Promise.all([
         this.prisma.packageEventDay.count({ where: { package_id: packageId } }),
         this.prisma.packageActivity.count({ where: { package_id: packageId } }),
@@ -43,7 +43,7 @@ export class SchedulePackageService {
       package_name: pkg.name,
       package_description: pkg.description,
       has_schedule_data: eventDayCount > 0 || activityCount > 0,
-      counts: { event_days: eventDayCount, activities: activityCount, moments: momentCount, subjects: subjectCount, location_slots: locationSlotCount, operators: operatorCount, films: filmCount },
+      counts: { event_days: eventDayCount, activities: activityCount, moments: momentCount, subjects: subjectCount, location_slots: locationSlotCount, crew_slots: crewSlotCount, films: filmCount },
       event_day_names: eventDays.map((d) => d.event_day?.name ?? `Day ${d.order_index + 1}`),
     };
   }

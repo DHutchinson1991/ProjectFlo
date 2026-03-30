@@ -3,14 +3,13 @@
 import React, { useMemo } from "react";
 import { Box } from "@mui/material";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { TaskLibrary, JobRole, SkillRoleMapping, CrewMember } from "@/features/catalog/task-library/types";
+import { TaskLibrary, JobRole, SkillRoleMapping, Crew } from "@/features/catalog/task-library/types";
 import { TaskColumnHeaders } from "@/shared/ui/tasks";
 import { buildRenderItems } from "@/shared/utils/taskTree";
 import { GRID_COLS, GRID_HEADERS } from "../constants";
 import { SortableTaskRow } from "./SortableTaskRow";
 import { TaskQuickAddRow } from "./TaskQuickAddRow";
 import { TaskGroupHeaderRow } from "./TaskGroupHeaderRow";
-import { useRouter } from "next/navigation";
 
 interface TaskTableProps {
     tasks: TaskLibrary[];
@@ -27,11 +26,14 @@ interface TaskTableProps {
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
     jobRoles: JobRole[];
     allMappings: SkillRoleMapping[];
-    crewMembers: CrewMember[];
+    crew: Crew[];
     expandedTaskId: number | null;
     onToggleExpand: (taskId: number) => void;
     onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
-    onUpdateContributor: (taskId: number, crewMemberId: number | null) => Promise<void>;
+    onUpdateCrew: (taskId: number, crewId: number | null) => Promise<void>;
+    selectedTaskId?: number | null;
+    onRowClick?: (task: TaskLibrary) => void;
+    onRowHover?: (task: TaskLibrary | null) => void;
 }
 
 export function TaskTable({
@@ -49,14 +51,15 @@ export function TaskTable({
     updateQuickAddData,
     jobRoles,
     allMappings,
-    crewMembers,
+    crew,
     expandedTaskId,
     onToggleExpand,
     onUpdateRoleSkills,
-    onUpdateContributor,
+    onUpdateCrew,
+    selectedTaskId,
+    onRowClick,
+    onRowHover,
 }: TaskTableProps) {
-    const router = useRouter();
-
     // Build ordered render list: stage headers with their children, then flat tasks
     const renderItems = useMemo(() => buildRenderItems(tasks), [tasks]);
 
@@ -127,15 +130,17 @@ export function TaskTable({
                                 onUpdateTask={onUpdateTask}
                                 setTaskToDelete={setTaskToDelete}
                                 setDeleteConfirmOpen={setDeleteConfirmOpen}
-                                router={router}
                                 isDragging={isDragging}
                                 jobRoles={jobRoles}
                                 allMappings={allMappings}
-                                contributors={crewMembers}
+                                crew={crew}
                                 expandedTaskId={expandedTaskId}
                                 onToggleExpand={onToggleExpand}
                                 onUpdateRoleSkills={onUpdateRoleSkills}
-                                onUpdateContributor={onUpdateContributor}
+                                onUpdateCrew={onUpdateCrew}
+                                selectedTaskId={selectedTaskId}
+                                onRowClick={onRowClick}
+                                onRowHover={onRowHover}
                             />
                         );
 

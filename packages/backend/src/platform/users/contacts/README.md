@@ -1,7 +1,7 @@
 # contacts
 
 ## What this module does
-Manages contact records used across inquiries, projects, and contributor-linked identities, including brand-scoped listing and submission-trigger sync updates.
+Manages contact records used across inquiries, projects, and crew-linked identities, including brand-scoped listing and submission-trigger sync updates.
 
 ## Key files
 | File | Purpose |

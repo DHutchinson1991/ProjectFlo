@@ -2,18 +2,21 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { crewMembersApi } from '@/features/workflow/crew/api';
-import type { ActiveTask, CrewMember } from '@/features/workflow/tasks/types';
+import { userAccountsApi } from '@/features/workflow/crew/api';
+import type { ActiveTask, Crew } from '@/features/workflow/tasks/types';
 import { taskLibraryApi } from '@/features/catalog/task-library';
 import { activeTasksApi } from '../api';
 import { groupTasks } from '../utils/group-tasks';
 import { getNavigationUrl } from '../utils/task-display-utils';
 import type { GroupMode } from '../constants';
+import { useBrand } from '@/features/platform/brand';
 
 export function useActiveTasks() {
     const router = useRouter();
+    const { currentBrand } = useBrand();
+    const timezone = currentBrand?.timezone ?? 'UTC';
     const [tasks, setTasks] = useState<ActiveTask[]>([]);
-    const [crewMembers, setContributors] = useState<CrewMember[]>([]);
+    const [crew, setCrew] = useState<Crew[]>([]);
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -30,12 +33,12 @@ export function useActiveTasks() {
     const loadTasks = useCallback(async () => {
         try {
             setLoading(true);
-            const [data, contribs] = await Promise.all([
+            const [data, crewData] = await Promise.all([
                 activeTasksApi.getAll(),
-                crewMembersApi.getAll(), // TODO: migrate when contributors feature is created
+                userAccountsApi.getAll(),
             ]);
             setTasks(data);
-            setContributors(contribs);
+            setCrew(crewData);
             setError(null);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load tasks');
@@ -46,10 +49,10 @@ export function useActiveTasks() {
 
     useEffect(() => { loadTasks(); }, [loadTasks]);
 
-    const handleSyncFromLibrary = useCallback(async () => {
+    const handleSyncCrewFromLibrary = useCallback(async () => {
         try {
             setSyncing(true);
-            await taskLibraryApi.syncContributors();
+            await taskLibraryApi.syncCrew();
             await loadTasks();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Sync failed');
@@ -60,11 +63,11 @@ export function useActiveTasks() {
 
     const handleAssign = useCallback(async (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null, taskKind: 'task' | 'subtask' = 'task') => {
         if (taskKind === 'subtask') return;
-        const contributor = assigneeId ? contributors.find(c => c.id === assigneeId) : null;
-        const newAssignee = contributor ? { id: crewMember.id, name: contributor.full_name, email: contributor.email } : null;
+        const selectedCrew = assigneeId ? crew.find(c => c.id === assigneeId) : null;
+        const newAssignee = selectedCrew ? { id: selectedCrew.id, name: selectedCrew.full_name, email: selectedCrew.email } : null;
         setTasks(prev => prev.map(t => t.id === taskId && t.source === source ? { ...t, assignee: newAssignee } : t));
         try { await activeTasksApi.assign(taskId, source, assigneeId, taskKind); } catch { loadTasks(); }
-    }, [crewMembers, loadTasks]);
+    }, [crew, loadTasks]);
 
     const handleNavigateToTask = useCallback((task: ActiveTask) => {
         const url = getNavigationUrl(task);
@@ -123,13 +126,13 @@ export function useActiveTasks() {
         return true;
     }), [tasks, statusFilter, sourceFilter, searchQuery, showAuto]);
 
-    const groups = useMemo(() => groupTasks(filteredTasks, groupMode), [filteredTasks, groupMode]);
+    const groups = useMemo(() => groupTasks(filteredTasks, groupMode, timezone), [filteredTasks, groupMode, timezone]);
 
     return {
-        tasks, crewMembers, loading, syncing, error,
+        tasks, crew, loading, syncing, error,
         searchQuery, statusFilter, sourceFilter, groupMode, showAuto,
         filteredTasks, groups,
         setSearchQuery, setStatusFilter, setSourceFilter, setGroupMode,
-        loadTasks, handleSyncFromLibrary, handleAssign, handleNavigateToTask, handleToggle, handleShowAutoToggle,
+        loadTasks, handleSyncCrewFromLibrary, handleAssign, handleNavigateToTask, handleToggle, handleShowAutoToggle,
     };
 }

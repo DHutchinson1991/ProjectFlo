@@ -106,7 +106,7 @@ export async function getEstimateLatestDataChange(
   prisma: PrismaService,
   inquiryId: number,
 ): Promise<Date> {
-  const [inquiry, latestOperator, latestFilm] = await Promise.all([
+  const [inquiry, latestCrewSlot, latestFilm] = await Promise.all([
     prisma.inquiries.findUnique({
       where: { id: inquiryId },
       select: { updated_at: true },
@@ -125,7 +125,7 @@ export async function getEstimateLatestDataChange(
 
   const dates = [
     inquiry?.updated_at,
-    latestOperator?.updated_at,
+    latestCrewSlot?.updated_at,
     latestFilm?.updated_at,
   ].filter(Boolean) as Date[];
 

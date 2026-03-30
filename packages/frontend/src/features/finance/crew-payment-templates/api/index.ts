@@ -10,8 +10,6 @@ export function createCrewPaymentTemplatesApi(client: ApiClient) {
   return {
     getAll: (brandId: number) =>
       client.get<CrewPaymentTemplate[]>(`/api/brands/${brandId}/crew-payment-templates`),
-    getById: (brandId: number, id: number) =>
-      client.get<CrewPaymentTemplate>(`/api/brands/${brandId}/crew-payment-templates/${id}`),
     create: (brandId: number, data: CreateCrewPaymentTemplateData) =>
       client.post<CrewPaymentTemplate>(`/api/brands/${brandId}/crew-payment-templates`, data),
     update: (brandId: number, id: number, data: UpdateCrewPaymentTemplateData) =>

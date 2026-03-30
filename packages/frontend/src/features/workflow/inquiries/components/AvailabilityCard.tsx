@@ -38,7 +38,7 @@ import {
 import type { Brand } from '@/features/platform/brand/types';
 import { useCrewPaymentTemplates } from '@/features/finance/crew-payment-templates';
 import type { CrewPaymentTemplate } from '@/features/finance/crew-payment-templates';
-import { crewSlotsApi } from '@/features/workflow/scheduling/api';
+import { crewSlotsApi } from '@/features/workflow/scheduling/shared';
 import { taskLibraryApi } from '@/features/catalog/task-library/api';
 import { inquiriesApi } from '@/features/workflow/inquiries';
 import { useBrand } from '@/features/platform/brand';
@@ -57,13 +57,13 @@ interface AvailabilityCardProps {
 }
 
 type RequestState = { id: number; status: 'pending' | 'confirmed' | 'declined' | 'cancelled' };
-type RequestMap = Map<number, RequestState>; // keyed by crew_member_id
+type RequestMap = Map<number, RequestState>; // keyed by crew_id
 type ReservationState = { id: number; status: 'reserved' | 'confirmed' | 'cancelled' };
 type ReservationMap = Map<number, ReservationState>; // keyed by assignment id (row.id)
 type CrewDialogState = {
-    crewMemberId: number;
-    contributorName: string;
-    contributorEmail?: string | null;
+    crewId: number;
+    crewName: string;
+    crewEmail?: string | null;
     rows: InquiryCrewAvailabilityRow[];
     requestState?: RequestState;
     emailSubject: string;
@@ -88,7 +88,7 @@ type EquipmentDialogState = {
 // ─── Email draft helpers ──────────────────────────────────────────────────────
 function buildCrewEmailDraft(
     inquiry: Inquiry,
-    contributorName: string,
+    crewName: string,
     rows: InquiryCrewAvailabilityRow[],
     previewTasks?: TaskAutoGenerationPreviewTask[],
     brand?: Brand | null,
@@ -97,7 +97,7 @@ function buildCrewEmailDraft(
     const brandName = brand?.display_name ?? brand?.name;
     const eventTypeLabel = inquiry.event_type ?? 'Event';
     const clientName = inquiry.contact?.full_name ?? inquiry.contact?.first_name ?? 'Client';
-    const firstName = contributorName.split(' ')[0];
+    const firstName = crewName.split(' ')[0];
     const dateFmt: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const shortDateFmt: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
     const eventDateStr = inquiry.event_date
@@ -117,21 +117,21 @@ function buildCrewEmailDraft(
         : null;
     const onSiteDateLabel = [eventDateStr, onSiteStartTime ? `from ${onSiteStartTime}` : null].filter(Boolean).join(' ');
 
-    // Contributor role names for matching preview tasks
-    const contributorRoleNames = new Set(
+    // Crew role names for matching preview tasks
+    const crewRoleNames = new Set(
         rows
             .flatMap((r) => [r.job_role?.display_name, r.job_role?.name, r.label])
             .filter((n): n is string => Boolean(n)),
     );
 
-    const normName = contributorName.trim().toLowerCase();
+    const normName = crewName.trim().toLowerCase();
 
-    // Filter production tasks to this contributor — exclude admin pipeline phases
+    // Filter production tasks to this crew — exclude admin pipeline phases
     const ADMIN_PHASES = new Set(['Lead', 'Inquiry', 'Booking']);
-    const contributorTasks = (previewTasks ?? []).filter((t) => {
+    const crewTasks = (previewTasks ?? []).filter((t) => {
         if (ADMIN_PHASES.has(t.phase)) return false;
         if (t.assigned_to_name && t.assigned_to_name.trim().toLowerCase() === normName) return true;
-        if (t.role_name && contributorRoleNames.has(t.role_name)) return true;
+        if (t.role_name && crewRoleNames.has(t.role_name)) return true;
         return false;
     });
 
@@ -169,7 +169,7 @@ function buildCrewEmailDraft(
 
     // Group tasks by role
     const tasksByRole = new Map<string, TaskAutoGenerationPreviewTask[]>();
-    for (const t of contributorTasks) {
+    for (const t of crewTasks) {
         const rn = t.role_name ?? 'General';
         if (!tasksByRole.has(rn)) tasksByRole.set(rn, []);
         tasksByRole.get(rn)!.push(t);
@@ -206,7 +206,7 @@ function buildCrewEmailDraft(
         lines.push('On-site: No');
     }
 
-    if (contributorTasks.length > 0) {
+    if (crewTasks.length > 0) {
         lines.push('');
         lines.push("Here's a breakdown of the work involved:");
         lines.push('');
@@ -240,8 +240,8 @@ function buildCrewEmailDraft(
             }
         }
 
-        const totalHours = contributorTasks.reduce((s, t) => s + (t.total_hours ?? 0), 0);
-        const totalCost = contributorTasks.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
+        const totalHours = crewTasks.reduce((s, t) => s + (t.total_hours ?? 0), 0);
+        const totalCost = crewTasks.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
         lines.push(totalCost > 0 ? `Total commitment: ${totalHours}h  (${formatCurrency(totalCost)})` : `Total commitment: ${totalHours}h`);
     } else {
         lines.push('');
@@ -792,7 +792,7 @@ function CrewRow({
     swapping,
 }: {
     row: InquiryCrewAvailabilityRow;
-    onSwap?: (slotId: number, alternativeContributorId: number) => void;
+    onSwap?: (slotId: number, alternativeCrewId: number) => void;
     swapping?: boolean;
 }) {
     const [showAlternatives, setShowAlternatives] = useState(false);
@@ -1056,8 +1056,8 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
             setEquipment(equipmentData);
             const initialRequests: RequestMap = new Map();
             for (const row of crewData.rows) {
-                if (row.assigned_crew_member && row.availability_request_id && row.availability_request_status) {
-                    initialRequests.set(row.assigned_crew_member.id, {
+                if (row.assigned_crew && row.availability_request_id && row.availability_request_status) {
+                    initialRequests.set(row.assigned_crew.id, {
                         id: row.availability_request_id,
                         status: row.availability_request_status as RequestState['status'],
                     });
@@ -1098,40 +1098,40 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
     }, [refreshAvailability]);
 
     const handleSendRequest = useCallback(async (row: InquiryCrewAvailabilityRow) => {
-        if (!row.assigned_crew_member) return;
-        const crewMemberId = row.assigned_crew_member.id;
-        setSending((prev) => new Set(prev).add(crewMemberId));
+        if (!row.assigned_crew) return;
+        const crewId = row.assigned_crew.id;
+        setSending((prev) => new Set(prev).add(crewId));
         try {
             const result = await inquiriesApi.sendAvailabilityRequest(inquiry.id, {
-                crew_member_id: crewMemberId,
+                crew_id: crewId,
                 project_crew_slot_id: row.id,
             });
             if (isMounted.current) {
-                setRequests((prev) => new Map(prev).set(crewMemberId, { id: result.id, status: result.status as RequestState['status'] }));
+                setRequests((prev) => new Map(prev).set(crewId, { id: result.id, status: result.status as RequestState['status'] }));
             }
         } catch (err) {
             console.error('Failed to send availability request', err);
         } finally {
-            if (isMounted.current) setSending((prev) => { const s = new Set(prev); s.delete(crewMemberId); return s; });
+            if (isMounted.current) setSending((prev) => { const s = new Set(prev); s.delete(crewId); return s; });
         }
     }, [inquiry.id]);
 
     const handleUpdateStatus = useCallback(async (
-        crewMemberId: number,
+        crewId: number,
         requestId: number,
         status: 'confirmed' | 'declined' | 'cancelled',
     ) => {
-        setSending((prev) => new Set(prev).add(crewMemberId));
+        setSending((prev) => new Set(prev).add(crewId));
         try {
             const result = await inquiriesApi.updateAvailabilityRequest(inquiry.id, requestId, status);
             if (isMounted.current) {
-                setRequests((prev) => new Map(prev).set(crewMemberId, { id: result.id, status: result.status as RequestState['status'] }));
+                setRequests((prev) => new Map(prev).set(crewId, { id: result.id, status: result.status as RequestState['status'] }));
             }
             onTasksChanged?.();
         } catch (err) {
             console.error('Failed to update availability request', err);
         } finally {
-            if (isMounted.current) setSending((prev) => { const s = new Set(prev); s.delete(crewMemberId); return s; });
+            if (isMounted.current) setSending((prev) => { const s = new Set(prev); s.delete(crewId); return s; });
         }
     }, [inquiry.id, onTasksChanged]);
 
@@ -1186,36 +1186,36 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
         }
     }, [inquiry.id]);
 
-    const handleDirectConfirmCrew = useCallback(async (crewMemberId: number, row: InquiryCrewAvailabilityRow) => {
-        setSending((prev) => new Set(prev).add(crewMemberId));
+    const handleDirectConfirmCrew = useCallback(async (crewId: number, row: InquiryCrewAvailabilityRow) => {
+        setSending((prev) => new Set(prev).add(crewId));
         try {
             // Send request silently then immediately confirm it
             const created = await inquiriesApi.sendAvailabilityRequest(inquiry.id, {
-                crew_member_id: crewMemberId,
+                crew_id: crewId,
                 project_crew_slot_id: row.id,
             });
             const confirmed = await inquiriesApi.updateAvailabilityRequest(inquiry.id, created.id, 'confirmed');
             if (isMounted.current) {
-                setRequests((prev) => new Map(prev).set(crewMemberId, { id: confirmed.id, status: 'confirmed' }));
+                setRequests((prev) => new Map(prev).set(crewId, { id: confirmed.id, status: 'confirmed' }));
             }
         } catch (err) {
             console.error('Failed to directly confirm crew', err);
         } finally {
-            if (isMounted.current) setSending((prev) => { const s = new Set(prev); s.delete(crewMemberId); return s; });
+            if (isMounted.current) setSending((prev) => { const s = new Set(prev); s.delete(crewId); return s; });
         }
     }, [inquiry.id]);
 
     const [swappingSlots, setSwappingSlots] = useState<Set<number>>(new Set());
     const [swappingEquipment, setSwappingEquipment] = useState<Set<number>>(new Set());
 
-    const handleSwapCrew = useCallback(async (slotId: number, newContributorId: number) => {
+    const handleSwapCrew = useCallback(async (slotId: number, newCrewId: number) => {
         setSwappingSlots((prev) => new Set(prev).add(slotId));
         try {
-            await crewSlotsApi.projectDay.assign(slotId, newContributorId);
+            await crewSlotsApi.projectDay.assign(slotId, newCrewId);
             await refreshAvailability();
             onTasksChanged?.();
         } catch (err) {
-            console.error('Failed to reassign crew member', err);
+            console.error('Failed to reassign crew', err);
         } finally {
             if (isMounted.current) setSwappingSlots((prev) => { const s = new Set(prev); s.delete(slotId); return s; });
         }
@@ -1279,7 +1279,7 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
         }
     }, [inquiry.id, onTasksChanged]);
 
-    // Group ALL crew rows by contributor (merged view — one card per person)
+    // Group ALL crew rows by crew (merged view — one card per person)
     type MergedCrewGroup = {
         cid: number;
         name: string;
@@ -1291,14 +1291,14 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
     const seenCrewMerged = new Map<number, number>(); // cid → index
 
     for (const row of (crew?.rows ?? [])) {
-        const cid = row.assigned_crew_member?.id;
+        const cid = row.assigned_crew?.id;
         if (cid == null) {
             unassignedRows.push(row);
             continue;
         }
         if (!seenCrewMerged.has(cid)) {
             seenCrewMerged.set(cid, mergedCrewGroups.length);
-            mergedCrewGroups.push({ cid, name: row.assigned_crew_member!.name, onSiteRows: [], projectRows: [] });
+            mergedCrewGroups.push({ cid, name: row.assigned_crew!.name, onSiteRows: [], projectRows: [] });
         }
         const group = mergedCrewGroups[seenCrewMerged.get(cid)!];
         if (row.is_on_site && row.event_day?.date) {
@@ -1309,22 +1309,22 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
     }
 
     // Readiness counts for StatusBanner
-    const uniqueCrewCount = new Set((crew?.rows ?? []).map(r => r.assigned_crew_member?.id).filter(Boolean)).size;
+    const uniqueCrewCount = new Set((crew?.rows ?? []).map(r => r.assigned_crew?.id).filter(Boolean)).size;
     const crewReadyCount = Array.from(requests.values()).filter(r => r.status === 'confirmed').length;
     const equipmentReadyCount = Array.from(reservations.values()).filter(r => r.status === 'reserved' || r.status === 'confirmed').length;
 
-    const getContributorRows = useCallback((crewMemberId: number) => {
+    const getCrewRows = useCallback((crewId: number) => {
         const allRows = crew?.rows ?? [];
-        return allRows.filter((row) => row.assigned_crew_member?.id === crewMemberId);
+        return allRows.filter((row) => row.assigned_crew?.id === crewId);
     }, [crew?.rows]);
 
     const openCrewRequestDialog = useCallback(async (row: InquiryCrewAvailabilityRow) => {
-        if (!row.assigned_crew_member) {
+        if (!row.assigned_crew) {
             return;
         }
-        const crewMemberId = row.assigned_crew_member.id;
-        const contributorName = row.assigned_crew_member.name;
-        const contributorRows = getContributorRows(crewMemberId);
+        const crewId = row.assigned_crew.id;
+        const crewName = row.assigned_crew.name;
+        const crewRows = getCrewRows(crewId);
 
         // Fetch production tasks for the linked package so the email shows
         // a full before/on-day/after breakdown with hours and costs.
@@ -1339,14 +1339,14 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
             }
         }
 
-        const draft = buildCrewEmailDraft(inquiry, contributorName, contributorRows, previewTasks, currentBrand, crewPaymentTemplates);
+        const draft = buildCrewEmailDraft(inquiry, crewName, crewRows, previewTasks, currentBrand, crewPaymentTemplates);
         setCrewDialogError(null);
         setCrewDialogState({
-            crewMemberId,
-            contributorName,
-            contributorEmail: row.assigned_crew_member.email,
-            rows: contributorRows,
-            requestState: requests.get(crewMemberId),
+            crewId,
+            crewName,
+            crewEmail: row.assigned_crew.email,
+            rows: crewRows,
+            requestState: requests.get(crewId),
             emailSubject: draft.subject,
             emailBody: draft.body,
             previewTasks,
@@ -1356,7 +1356,7 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
             clientName: inquiry.contact?.full_name ?? inquiry.contact?.first_name,
             brandName: currentBrand?.display_name ?? currentBrand?.name,
         });
-    }, [getContributorRows, inquiry, requests, brandId, currentBrand]);
+    }, [getCrewRows, inquiry, requests, brandId, currentBrand]);
 
     const openEquipmentDialog = useCallback((row: InquiryEquipmentAvailabilityRow) => {
         // Get all equipment for this owner
@@ -1400,8 +1400,8 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
 
         try {
             await handleSendRequest(firstRow);
-            if (crewDialogState.contributorEmail) {
-                const mailto = `mailto:${encodeURIComponent(crewDialogState.contributorEmail)}?subject=${encodeURIComponent(crewDialogState.emailSubject)}&body=${encodeURIComponent(crewDialogState.emailBody)}`;
+            if (crewDialogState.crewEmail) {
+                const mailto = `mailto:${encodeURIComponent(crewDialogState.crewEmail)}?subject=${encodeURIComponent(crewDialogState.emailSubject)}&body=${encodeURIComponent(crewDialogState.emailBody)}`;
                 window.location.href = mailto;
             }
             setCrewDialogState(null);
@@ -1659,8 +1659,8 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
             <CrewAvailabilityRequestDialog
                 open={Boolean(crewDialogState)}
                 onClose={() => setCrewDialogState(null)}
-                contributorName={crewDialogState?.contributorName ?? ''}
-                contributorEmail={crewDialogState?.contributorEmail}
+                crewName={crewDialogState?.crewName ?? ''}
+                crewEmail={crewDialogState?.crewEmail}
                 rows={crewDialogState?.rows ?? []}
                 requestStatus={crewDialogState?.requestState?.status ?? null}
                 emailSubject={crewDialogState?.emailSubject ?? ''}
@@ -1668,7 +1668,7 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
                 onEmailSubjectChange={setCrewEmailSubject}
                 onEmailBodyChange={setCrewEmailBody}
                 onConfirm={confirmCrewRequest}
-                loading={crewDialogState ? sending.has(crewDialogState.crewMemberId) : false}
+                loading={crewDialogState ? sending.has(crewDialogState.crewId) : false}
                 error={crewDialogError}
                 previewTasks={crewDialogState?.previewTasks}
                 eventDate={crewDialogState?.eventDate}

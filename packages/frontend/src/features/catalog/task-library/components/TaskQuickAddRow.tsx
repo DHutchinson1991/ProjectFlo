@@ -182,7 +182,7 @@ export function TaskQuickAddRow({
                 )}
             </Box>
 
-            {/* Contributor — auto */}
+            {/* Crew — auto */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Typography sx={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.7rem', fontStyle: 'italic' }}>Auto</Typography>
             </Box>
@@ -230,6 +230,9 @@ export function TaskQuickAddRow({
                     </Select>
                 </FormControl>
             </Box>
+
+            {/* On-site — not settable in quick-add */}
+            <Box />
 
             {/* Status */}
             <Box sx={{ display: 'flex', justifyContent: 'center' }}>

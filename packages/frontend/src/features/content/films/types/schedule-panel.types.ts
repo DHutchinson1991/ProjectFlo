@@ -1,4 +1,4 @@
-import type { VisualTimelineScene } from "@/features/workflow/scheduling/components/VisualTimeline";
+import type { VisualTimelineScene } from "@/features/workflow/scheduling/shared";
 
 export interface EventDay {
   id: number;

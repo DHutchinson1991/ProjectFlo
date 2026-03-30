@@ -32,16 +32,16 @@ async function seedMoonrise(): Promise<SeedSummary> {
     moonriseLogger.processing('Linking global admin to Moonrise Films...');
     const adminContact = await prisma.contacts.findUnique({
         where: { email: 'info@dhutchinson.co.uk' },
-        include: { contributor: true }
+        include: { crew: true }
     });
-    if (adminContact?.contributor) {
+    if (adminContact?.crew) {
         if (!adminContact.brand_id) {
             await prisma.contacts.update({ where: { id: adminContact.id }, data: { brand_id: brand.id } });
         }
-        await prisma.user_brands.upsert({
-            where: { user_id_brand_id: { user_id: adminContact.contributor.id, brand_id: brand.id } },
+        await prisma.brandMember.upsert({
+            where: { crew_id_brand_id: { crew_id: adminContact.crew.id, brand_id: brand.id } },
             update: { is_active: true },
-            create: { user_id: adminContact.contributor.id, brand_id: brand.id, is_active: true },
+            create: { crew_id: adminContact.crew.id, brand_id: brand.id, is_active: true },
         });
         moonriseLogger.success('Admin linked to Moonrise Films');
 
@@ -64,10 +64,10 @@ async function seedMoonrise(): Promise<SeedSummary> {
             const bracket = await prisma.payment_brackets.findUnique({
                 where: { job_role_id_name: { job_role_id: role.id, name: tier } },
             });
-            await prisma.contributor_job_roles.upsert({
-                where: { contributor_id_job_role_id: { contributor_id: adminContact.contributor.id, job_role_id: role.id } },
+            await prisma.crewJobRole.upsert({
+                where: { crew_id_job_role_id: { crew_id: adminContact.crew.id, job_role_id: role.id } },
                 update: { is_primary: primary, payment_bracket_id: bracket?.id ?? null },
-                create: { contributor_id: adminContact.contributor.id, job_role_id: role.id, is_primary: primary, payment_bracket_id: bracket?.id ?? null },
+                create: { crew_id: adminContact.crew.id, job_role_id: role.id, is_primary: primary, payment_bracket_id: bracket?.id ?? null },
             });
             moonriseLogger.created(`Daniel → ${label}`, undefined, 'verbose');
         }
@@ -119,13 +119,13 @@ async function seedLayer5(): Promise<SeedSummary> {
     layer5Logger.processing('Linking global admin to Layer5...');
     const adminContact = await prisma.contacts.findUnique({
         where: { email: 'info@dhutchinson.co.uk' },
-        include: { contributor: true }
+        include: { crew: true }
     });
-    if (adminContact?.contributor) {
-        await prisma.user_brands.upsert({
-            where: { user_id_brand_id: { user_id: adminContact.contributor.id, brand_id: brand.id } },
+    if (adminContact?.crew) {
+        await prisma.brandMember.upsert({
+            where: { crew_id_brand_id: { crew_id: adminContact.crew.id, brand_id: brand.id } },
             update: { is_active: true },
-            create: { user_id: adminContact.contributor.id, brand_id: brand.id, is_active: true },
+            create: { crew_id: adminContact.crew.id, brand_id: brand.id, is_active: true },
         });
         layer5Logger.success('Admin linked to Layer5');
     }

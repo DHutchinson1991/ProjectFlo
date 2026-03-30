@@ -3,5 +3,5 @@
 export class AssignCrewSlotDto {
   @IsNumber()
   @IsOptional()
-  crew_member_id?: number | null;
+  crew_id?: number | null;
 }

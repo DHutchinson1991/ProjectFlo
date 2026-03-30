@@ -11,8 +11,8 @@ import {
     Grid,
 } from '@mui/material';
 import type { TaskType, Priority, Project } from '@/features/workflow/calendar/types/calendar-types';
-import { CrewMemberSelector } from './CrewMemberSelector';
-import type { CrewMemberOption } from '@/features/workflow/calendar/hooks/use-contributors';
+import { CrewSelector } from './CrewSelector';
+import type { CrewOption } from '@/features/workflow/calendar/hooks/use-crew-members';
 import { taskTypeConfig, priorityConfig } from '@/features/workflow/calendar/constants/calendar-config';
 
 export interface TaskFormData {
@@ -21,7 +21,7 @@ export interface TaskFormData {
     dueDate: Date;
     type: TaskType;
     priority: Priority;
-    assignee: CrewMemberOption | null;
+    assignee: CrewOption | null;
     project: Project | null;
     estimatedHours: number;
 }
@@ -29,19 +29,19 @@ export interface TaskFormData {
 interface TaskFormProps {
     newTask: TaskFormData;
     setNewTask: React.Dispatch<React.SetStateAction<TaskFormData>>;
-    crewMembers: CrewMemberOption[];
-    currentUserCrewMember: CrewMemberOption | null;
-    crewMembersLoading: boolean;
-    crewMembersError: string | null;
+    crew: CrewOption[];
+    currentUserCrew: CrewOption | null;
+    crewLoading: boolean;
+    crewError: string | null;
 }
 
 export function TaskForm({
     newTask,
     setNewTask,
-    crewMembers,
-    currentUserCrewMember,
-    crewMembersLoading,
-    crewMembersError,
+    crew,
+    currentUserCrew,
+    crewLoading,
+    crewError,
 }: TaskFormProps) {
     return (
         <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -77,7 +77,7 @@ export function TaskForm({
                 <Autocomplete options={[] as Project[]} getOptionLabel={o => o.name} value={newTask.project} onChange={(_, v) => setNewTask(prev => ({ ...prev, project: v }))} renderInput={p => <TextField {...p} label="Project" />} />
             </Grid>
             <Grid item xs={6}>
-                <CrewMemberSelector selectedCrewMember={newTask.assignee} onCrewMemberChange={c => setNewTask(prev => ({ ...prev, assignee: c }))} contributors={crewMembers} currentUserCrewMember={currentUserCrewMember} loading={crewMembersLoading} error={crewMembersError} label="Assignee" />
+                <CrewSelector selectedCrew={newTask.assignee} onCrewChange={c => setNewTask(prev => ({ ...prev, assignee: c }))} crew={crew} currentUserCrew={currentUserCrew} loading={crewLoading} error={crewError} label="Assignee" />
             </Grid>
         </Grid>
     );

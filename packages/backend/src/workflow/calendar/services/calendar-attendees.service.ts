@@ -27,7 +27,7 @@ export class CalendarAttendeesService {
                 ea.id, ea.event_id, ea.user_id, ea.response_status, ea.created_at,
                 c.first_name, c.last_name, c.email
             FROM event_attendees ea
-            INNER JOIN contributors contrib ON ea.user_id = contrib.id
+            INNER JOIN crew contrib ON ea.user_id = contrib.id
             INNER JOIN contacts c ON contrib.contact_id = c.id
             WHERE ea.event_id = ${eventId}
             ORDER BY c.first_name, c.last_name

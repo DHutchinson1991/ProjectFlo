@@ -10,6 +10,7 @@ Reusable UI primitives and constants shared across task-related features (`catal
 | `TaskGroupHeader.tsx` | Collapsible group header with left border accent, chevron, count badge, progress bar, hours |
 | `TaskColumnHeaders.tsx` | Configurable grid column header row |
 | `TaskSummaryStrip.tsx` | Horizontal stats strip (colored dots + label + value) |
+| `CrewPicker.tsx` | Shared assignee picker used by task-oriented workflow UIs |
 | `index.ts` | Barrel exports |
 
 ## Business rules / invariants

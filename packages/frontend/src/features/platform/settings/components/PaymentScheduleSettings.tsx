@@ -26,6 +26,7 @@ import {
     Chip,
     TextField,
     ListSubheader,
+    Alert,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import {
@@ -38,6 +39,7 @@ import {
     ReceiptLong as ReceiptLongIcon,
     Gavel as ContractsIcon,
     StarBorder as StarBorderIcon,
+    Calculate as CalcIcon,
 } from "@mui/icons-material";
 import {
     useCrewPaymentTemplates,
@@ -52,6 +54,7 @@ import { paymentSchedulesApi } from "@/features/finance/payment-schedules";
 import type { PaymentScheduleTemplate, PaymentScheduleRule, PaymentAmountType, PaymentTriggerType } from "@/features/finance/payment-schedules/types";
 import type { TaskLibrary } from "@/features/catalog/task-library/types";
 import { useBrand } from "@/features/platform/brand";
+import { useBrandFinanceSettings, useUpsertBrandFinanceSettings } from "@/features/finance/brand-finance-settings/hooks";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -289,6 +292,27 @@ export function PaymentScheduleSettings() {
     };
 
     const handleDiscardSettings = () => setPaymentSettings({ ...originalPaymentSettings });
+
+    // ── On-site billing thresholds ───────────────────────────────────────────
+    const { data: financeSettings } = useBrandFinanceSettings();
+    const upsertFinanceSettings = useUpsertBrandFinanceSettings();
+    const [halfDayMax, setHalfDayMax] = React.useState<number>(6);
+    const [fullDayMax, setFullDayMax] = React.useState<number>(12);
+    const [onsiteSaved, setOnsiteSaved] = React.useState(false);
+
+    React.useEffect(() => {
+        if (financeSettings) {
+            setHalfDayMax(financeSettings.onsite_half_day_max_hours);
+            setFullDayMax(financeSettings.onsite_full_day_max_hours);
+        }
+    }, [financeSettings]);
+
+    const handleSaveOnsite = () => {
+        upsertFinanceSettings.mutate(
+            { onsite_half_day_max_hours: halfDayMax, onsite_full_day_max_hours: fullDayMax },
+            { onSuccess: () => { setOnsiteSaved(true); setTimeout(() => setOnsiteSaved(false), 3000); } }
+        );
+    };
 
     // ── Payment schedule templates ───────────────────────────────────────────
     const [templates, setTemplates] = React.useState<PaymentScheduleTemplate[]>([]);
@@ -790,6 +814,59 @@ export function PaymentScheduleSettings() {
                             </Grid>
                         </Box>
                     </Box>
+
+                    {/* On-site Billing Thresholds */}
+                    <Box sx={{ mb: 3.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                            <CalcIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+                            <Typography variant="subtitle2" fontWeight={700}>On-site Billing Thresholds</Typography>
+                        </Box>
+                        <Box sx={{ p: 2.5, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: (theme) => alpha(theme.palette.background.paper, 0.6) }}>
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                                Controls how on-site crew hours are billed. Hours are summed per person per day from unique activity durations.
+                            </Typography>
+                            <Grid container spacing={2.5}>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField label="Half-day max hours" fullWidth size="small" type="number"
+                                        value={halfDayMax}
+                                        onChange={e => setHalfDayMax(parseInt(e.target.value) || 1)}
+                                        inputProps={{ min: 1, max: fullDayMax - 1 }}
+                                        helperText={`≤ ${halfDayMax}h → half-day rate`}
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <TextField label="Overtime threshold hours" fullWidth size="small" type="number"
+                                        value={fullDayMax}
+                                        onChange={e => setFullDayMax(parseInt(e.target.value) || 1)}
+                                        inputProps={{ min: halfDayMax + 1 }}
+                                        helperText={`≥ ${fullDayMax}h → full-day + overtime`}
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                            &lt; {halfDayMax}h → half-day rate &nbsp;|&nbsp; {halfDayMax}–{fullDayMax - 1}h → full-day rate &nbsp;|&nbsp; {fullDayMax}h+ → full-day + overtime
+                                        </Typography>
+                                    </Box>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    {onsiteSaved && <Alert severity="success" sx={{ mb: 1.5, py: 0.5 }}>Saved</Alert>}
+                                    <Button variant="contained" size="small" disableElevation
+                                        onClick={handleSaveOnsite}
+                                        disabled={upsertFinanceSettings.isPending || halfDayMax >= fullDayMax}
+                                        sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}>
+                                        {upsertFinanceSettings.isPending ? 'Saving…' : 'Save Thresholds'}
+                                    </Button>
+                                    {halfDayMax >= fullDayMax && (
+                                        <Typography variant="caption" color="error" sx={{ ml: 2 }}>Half-day max must be less than overtime threshold</Typography>
+                                    )}
+                                </Grid>
+                            </Grid>
+                        </Box>
+                    </Box>
+
                 </Grid>
 
                 {/* RIGHT COLUMN — Payment Schedules */}

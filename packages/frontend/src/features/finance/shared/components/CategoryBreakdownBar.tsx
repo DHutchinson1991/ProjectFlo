@@ -46,7 +46,7 @@ const CategoryBreakdownBar: React.FC<CategoryBreakdownBarProps> = ({
                         <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: getCategoryColor(cat), flexShrink: 0 }} />
                         <Typography sx={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>{cat}</Typography>
                         <Typography sx={{ fontSize: '0.62rem', color: '#94a3b8', fontFamily: 'monospace', fontWeight: 700 }}>
-                            {formatCurrency(total, currency, 0)}
+                            {formatCurrency(total, currency)}
                         </Typography>
                     </Box>
                 ))}
@@ -57,7 +57,7 @@ const CategoryBreakdownBar: React.FC<CategoryBreakdownBarProps> = ({
                             Tax ({taxRate ?? 0}%)
                         </Typography>
                         <Typography sx={{ fontSize: '0.62rem', color: '#94a3b8', fontFamily: 'monospace', fontWeight: 700 }}>
-                            {formatCurrency(taxAmount, currency, 0)}
+                            {formatCurrency(taxAmount, currency)}
                         </Typography>
                     </Box>
                 )}

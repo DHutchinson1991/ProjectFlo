@@ -2,20 +2,20 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import type { CalendarEvent, EventType, TaskType, Priority, Project } from '@/features/workflow/calendar/types/calendar-types';
-import type { CrewMemberOption } from './use-contributors';
+import type { CrewOption } from './use-crew-members';
 
 interface UseCalendarAddDialogDeps {
     apiCreateEvent: (data: Partial<CalendarEvent>) => Promise<CalendarEvent>;
     refreshEvents: () => void;
     bumpRefreshKey: () => void;
-    currentUserCrewMember: CrewMemberOption | null;
+    currentUserCrew: CrewOption | null;
 }
 
 export function useCalendarAddDialog({
     apiCreateEvent,
     refreshEvents,
     bumpRefreshKey,
-    currentUserCrewMember,
+    currentUserCrew,
 }: UseCalendarAddDialogDeps) {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [addDialogType, setAddDialogType] = useState<'event' | 'task'>('event');
@@ -29,7 +29,7 @@ export function useCalendarAddDialog({
         allDay: false,
         type: 'meeting' as EventType,
         priority: 'medium' as Priority,
-        assignee: null as CrewMemberOption | null,
+        assignee: null as CrewOption | null,
         project: null as Project | null,
         location: '',
     });
@@ -40,22 +40,22 @@ export function useCalendarAddDialog({
         dueDate: new Date(),
         type: 'production' as TaskType,
         priority: 'medium' as Priority,
-        assignee: null as CrewMemberOption | null,
+        assignee: null as CrewOption | null,
         project: null as Project | null,
         estimatedHours: 1,
     });
 
     useEffect(() => {
-        if (currentUserCrewMember && !newEvent.assignee) {
-            setNewEvent(prev => ({ ...prev, assignee: currentUserCrewMember }));
+        if (currentUserCrew && !newEvent.assignee) {
+            setNewEvent(prev => ({ ...prev, assignee: currentUserCrew }));
         }
-    }, [currentUserCrewMember, newEvent.assignee]);
+    }, [currentUserCrew, newEvent.assignee]);
 
     useEffect(() => {
-        if (currentUserCrewMember && !newTask.assignee) {
-            setNewTask(prev => ({ ...prev, assignee: currentUserCrewMember }));
+        if (currentUserCrew && !newTask.assignee) {
+            setNewTask(prev => ({ ...prev, assignee: currentUserCrew }));
         }
-    }, [currentUserCrewMember, newTask.assignee]);
+    }, [currentUserCrew, newTask.assignee]);
 
     const handleAddEvent = useCallback(async () => {
         try {

@@ -125,7 +125,6 @@ export class ScheduleInstanceResourceService {
 
   private readonly instanceLocationSlotInclude = {
     project_event_day: true,
-    project_activity: true,
     location: true,
     activity_assignments: { include: { project_activity: true } },
   };

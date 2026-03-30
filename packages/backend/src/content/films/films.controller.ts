@@ -144,7 +144,7 @@ export class FilmsController {
   updateTrack(
     @Param("id", ParseIntPipe) id: number,
     @Param("trackId", ParseIntPipe) trackId: number,
-    @Body(new ValidationPipe({ transform: true })) body: { name?: string; is_active?: boolean; crew_member_id?: number | null; is_unmanned?: boolean },
+    @Body(new ValidationPipe({ transform: true })) body: { name?: string; is_active?: boolean; crew_id?: number | null; is_unmanned?: boolean },
   ) {
     return this.tracksService.updateTrack(id, trackId, body);
   }

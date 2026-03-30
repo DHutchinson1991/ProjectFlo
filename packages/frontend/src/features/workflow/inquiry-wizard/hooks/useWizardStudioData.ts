@@ -5,7 +5,7 @@ import type { ServicePackage } from '@/features/catalog/packages/types/service-p
 import type { PackageSet } from '@/features/catalog/packages/types/package-set.types';
 import type { EventType } from '@/features/catalog/event-types/types';
 import type { WelcomeSettings } from '@/features/platform/brand/types';
-import type { CrewMember } from '@/shared/types/users';
+import type { Crew } from '@/shared/types/users';
 import { useBrand } from '@/features/platform/brand';
 
 interface WizardStudioData {
@@ -51,7 +51,7 @@ export function useWizardStudioData(): WizardStudioData {
                 setAllPackages(p || []);
                 setPackageSets(s || []);
                 setEventTypes(et || []);
-                const videographerCount = (cr || []).filter((c: CrewMember) =>
+                const videographerCount = (cr || []).filter((c: Crew) =>
                     (c.job_role_assignments || []).some((cjr) =>
                         cjr.job_role?.name?.toLowerCase() === 'videographer'
                     )

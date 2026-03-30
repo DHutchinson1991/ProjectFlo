@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsBoolean, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ProjectPhase, PricingType, TaskTriggerType } from './task-library-enums.dto';
+import { ProjectPhase, PricingType, TaskTriggerType, DueDateOffsetReference } from './task-library-enums.dto';
 
 export class CreateTaskLibraryDto {
     @IsString()
@@ -9,6 +9,10 @@ export class CreateTaskLibraryDto {
     @IsOptional()
     @IsString()
     description?: string;
+
+    @IsOptional()
+    @IsString()
+    workflow_description?: string;
 
     @IsEnum(ProjectPhase)
     phase: ProjectPhase;
@@ -57,7 +61,7 @@ export class CreateTaskLibraryDto {
     @IsOptional()
     @IsNumber()
     @Type(() => Number)
-    default_contributor_id?: number;
+    default_crew_id?: number;
 
     @IsOptional()
     @IsString()
@@ -77,6 +81,10 @@ export class CreateTaskLibraryDto {
     due_date_offset_days?: number;
 
     @IsOptional()
+    @IsEnum(DueDateOffsetReference)
+    due_date_offset_reference?: DueDateOffsetReference;
+
+    @IsOptional()
     @IsNumber()
     @Type(() => Number)
     parent_task_id?: number;
@@ -84,4 +92,8 @@ export class CreateTaskLibraryDto {
     @IsOptional()
     @IsBoolean()
     is_task_group?: boolean;
+
+    @IsOptional()
+    @IsBoolean()
+    is_on_site?: boolean;
 }

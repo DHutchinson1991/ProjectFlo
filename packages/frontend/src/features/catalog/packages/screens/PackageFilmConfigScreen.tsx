@@ -37,7 +37,7 @@ export function PackageFilmConfigScreen({ packageId, itemId }: PackageFilmConfig
                         pkg.contents?.equipment_template_id ?? null,
                         pkg.contents?.equipment_counts ?? null
                     );
-                    router.replace(`/designer/films/${item.config.linked_film_id}?packageId=${packageId}&itemId=${itemId}`);
+                    router.replace(`/films/${item.config.linked_film_id}?packageId=${packageId}&itemId=${itemId}`);
                     return;
                 }
 
@@ -73,7 +73,7 @@ export function PackageFilmConfigScreen({ packageId, itemId }: PackageFilmConfig
                     contents: { items: updatedItems },
                 });
 
-                router.replace(`/designer/films/${newFilmId}?packageId=${packageId}&itemId=${itemId}`);
+                router.replace(`/films/${newFilmId}?packageId=${packageId}&itemId=${itemId}`);
             } catch (err) {
                 console.error(err);
                 setError(err instanceof Error ? err.message : 'Failed to link film');

@@ -1,40 +1,45 @@
-/**
- * Estimate Mappers - API Response to Domain Transformation
- *
- * Transform backend estimate API responses to frontend domain models.
- */
+import type { Estimate, EstimateItem, EstimateSnapshot } from '../types';
+import type { EstimateApiResponse, EstimateItemApiResponse } from '../types/estimate-api';
 
-import type { Estimate } from '@/features/finance/estimates/types';
-import type { EstimateApiResponse } from '@/features/finance/estimates/types/estimate-api';
+type EstimateSnapshotApiResponse = Omit<EstimateSnapshot, 'snapshotted_at'> & {
+    snapshotted_at: string | Date;
+};
 
-export function mapEstimateResponse(apiResponse: EstimateApiResponse): Estimate {
+function toDate(value: string | Date): Date {
+    return value instanceof Date ? value : new Date(value);
+}
+
+function mapEstimateItem(item: EstimateItemApiResponse | EstimateItem): EstimateItem {
     return {
-        id: apiResponse.id,
-        inquiry_id: apiResponse.inquiry_id,
-        project_id: apiResponse.project_id,
-        estimate_number: apiResponse.estimate_number,
-        title: apiResponse.title,
-        status: apiResponse.status,
-        issue_date: new Date(apiResponse.issue_date),
-        expiry_date: new Date(apiResponse.expiry_date),
-        total_amount: apiResponse.total_amount,
-        tax_rate: apiResponse.tax_rate,
-        deposit_required: apiResponse.deposit_required,
-        notes: apiResponse.notes,
-        terms: apiResponse.terms,
-        version: apiResponse.version ?? 1,
-        items: apiResponse.items.map(item => ({
-            id: item.id,
-            category: item.category,
-            description: item.description,
-            service_date: item.service_date ? new Date(item.service_date) : null,
-            start_time: item.start_time,
-            end_time: item.end_time,
-            quantity: item.quantity,
-            unit: item.unit,
-            unit_price: item.unit_price,
-        })),
-        created_at: new Date(apiResponse.created_at),
-        updated_at: new Date(apiResponse.updated_at),
+        ...item,
+        service_date: item.service_date ? toDate(item.service_date) : null,
     };
+}
+
+export function mapEstimateResponse(estimate: EstimateApiResponse | Estimate): Estimate {
+    return {
+        ...estimate,
+        issue_date: toDate(estimate.issue_date),
+        expiry_date: toDate(estimate.expiry_date),
+        created_at: toDate(estimate.created_at),
+        updated_at: toDate(estimate.updated_at),
+        items: estimate.items.map(mapEstimateItem),
+    };
+}
+
+export function mapEstimateListResponse(estimates: Array<EstimateApiResponse | Estimate>): Estimate[] {
+    return estimates.map(mapEstimateResponse);
+}
+
+export function mapEstimateSnapshotResponse(snapshot: EstimateSnapshotApiResponse | EstimateSnapshot): EstimateSnapshot {
+    return {
+        ...snapshot,
+        snapshotted_at: toDate(snapshot.snapshotted_at),
+    };
+}
+
+export function mapEstimateSnapshotListResponse(
+    snapshots: Array<EstimateSnapshotApiResponse | EstimateSnapshot>,
+): EstimateSnapshot[] {
+    return snapshots.map(mapEstimateSnapshotResponse);
 }

@@ -21,7 +21,7 @@ Manages calendar events, active tasks, discovery call scheduling, tags, attendee
 - Every query is scoped to `brandId` extracted from the authenticated user context.
 - Events linked to inquiries via `inquiry_id` (used by discovery calls & proposal reviews).
 - Route ordering: literal paths (`/stats`, `/tags`, `/today`, `/upcoming`, `/tasks`) registered before parameterized `/:id` to avoid route shadowing.
-- Discovery slots honour contributor availability windows.
+- Discovery slots honour crew availability windows.
 
 ## Related modules
 - **Frontend**: `features/workflow/calendar` — consumes all calendar API endpoints

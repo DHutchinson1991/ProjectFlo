@@ -14,7 +14,7 @@ export function TaskLibraryScreen() {
 
     const {
         tasksByPhase, setTasksByPhase, loading, error, setError,
-        jobRoles, allMappings, loadAllMappings, crewMembers, loadTasks,
+        jobRoles, allMappings, loadAllMappings, crew, loadTasks,
     } = useTaskLibraryData();
 
     const {
@@ -85,11 +85,11 @@ export function TaskLibraryScreen() {
             updateQuickAddData={mutations.updateQuickAddData}
             jobRoles={jobRoles}
             allMappings={allMappings}
-            contributors={crewMembers}
+            crew={crew}
             expandedTaskId={expandedTaskId}
             onToggleExpand={handleToggleExpand}
             onUpdateRoleSkills={roleSkills.handleUpdateRoleSkills}
-            onUpdateContributor={roleSkills.handleUpdateContributor}
+            onUpdateCrew={roleSkills.handleUpdateCrew}
         />
     );
 }

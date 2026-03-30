@@ -33,7 +33,7 @@ export class PaymentBracketsService {
         job_role: {
           select: { id: true, name: true, display_name: true, category: true },
         },
-        _count: { select: { crew_member_job_roles: true } },
+        _count: { select: { crew_job_role_assignments: true } },
       },
     });
   }
@@ -45,9 +45,9 @@ export class PaymentBracketsService {
         job_role: {
           select: { id: true, name: true, display_name: true, category: true },
         },
-        crew_member_job_roles: {
+        crew_job_role_assignments: {
           include: {
-            crew_member: {
+            crew: {
               include: {
                 contact: {
                   select: { first_name: true, last_name: true, email: true },
@@ -82,7 +82,7 @@ export class PaymentBracketsService {
       },
       orderBy: { level: 'asc' },
       include: {
-        _count: { select: { crew_member_job_roles: true } },
+        _count: { select: { crew_job_role_assignments: true } },
       },
     });
   }
@@ -164,9 +164,9 @@ export class PaymentBracketsService {
 
   async remove(id: number) {
     try {
-      // Soft delete — also unset from any crew_member_job_roles using it
+      // Soft delete — also unset from any crew_job_roles using it
       const [, bracket] = await this.prisma.$transaction([
-        this.prisma.crewMemberJobRole.updateMany({
+        this.prisma.crewJobRole.updateMany({
           where: { payment_bracket_id: id },
           data: { payment_bracket_id: null },
         }),

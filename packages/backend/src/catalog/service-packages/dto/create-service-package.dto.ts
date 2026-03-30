@@ -13,10 +13,6 @@ export class CreateServicePackageDto {
   @IsOptional()
   category?: string;
 
-  @IsNumber()
-  @Type(() => Number)
-  base_price: number;
-
   @IsString()
   @IsOptional()
   currency?: string;

@@ -16,11 +16,11 @@ interface BackendTrackRecord {
     name?: string | null;
     track_type?: string;
     track_label?: string | null;
-    crew_member_id?: number | null;
+    crew_id?: number | null;
     is_unmanned?: boolean | null;
 }
 
-interface PackageOperatorEquipmentRecord {
+interface PackageCrewSlotEquipmentRecord {
     equipment_id?: number | null;
     equipment?: {
         id?: number;
@@ -29,10 +29,10 @@ interface PackageOperatorEquipmentRecord {
     } | null;
 }
 
-interface PackageOperatorRecord {
+interface PackageCrewSlotRecord {
     id: number;
-    crew_member_id?: number | null;
-    equipment?: PackageOperatorEquipmentRecord[];
+    crew_id?: number | null;
+    equipment?: PackageCrewSlotEquipmentRecord[];
 }
 
 interface PackageDayEquipmentRecord {
@@ -87,20 +87,20 @@ export function usePackageTrackSync({
         const syncTracksFromPackage = async () => {
             try {
                 const pkgId = Number(linkedPackageId);
-                const [operators, currentTracks, pkgData] = await Promise.all([
-                    crewSlotsApi.packageDay.getAll(pkgId) as Promise<PackageOperatorRecord[]>,
+                const [crewSlots, currentTracks, pkgData] = await Promise.all([
+                    crewSlotsApi.packageDay.getAll(pkgId) as Promise<PackageCrewSlotRecord[]>,
                     filmsApi.tracks.getAll(filmId) as Promise<BackendTrackRecord[]>,
                     servicePackagesApi.getById(pkgId).catch((): null => null) as Promise<PackageRecord | null>,
                 ]);
 
-                const cameraOperators: { crewId: number | null; cameraEquipmentId: number | null; isUnmanned: boolean }[] = [];
+                const cameraCrew: { crewId: number | null; cameraEquipmentId: number | null; isUnmanned: boolean }[] = [];
                 const audioEquipment: { crewId: number | null; audioEquipmentId: number }[] = [];
                 const seenCameraIds = new Set<number>();
                 const seenAudioIds = new Set<number>();
                 const pendingUnmannedCams: { crewId: number | null; cameraEquipmentId: number; isUnmanned: boolean }[] = [];
 
-                (operators || []).forEach((op) => {
-                    const crewId = op.crew_member_id ?? op.id;
+                (crewSlots || []).forEach((op) => {
+                    const crewId = op.crew_id ?? op.id;
                     const equipment = op.equipment ?? [];
                     equipment.forEach((eq) => {
                         const cat = (eq.equipment?.category || '').toUpperCase();
@@ -110,7 +110,7 @@ export function usePackageTrackSync({
                             if (eq.equipment?.is_unmanned === true) {
                                 pendingUnmannedCams.push({ crewId, cameraEquipmentId: eqId, isUnmanned: true });
                             } else {
-                                cameraOperators.push({ crewId, cameraEquipmentId: eqId, isUnmanned: false });
+                                cameraCrew.push({ crewId, cameraEquipmentId: eqId, isUnmanned: false });
                             }
                         } else if (cat === 'AUDIO' && eqId && !seenAudioIds.has(eqId)) {
                             seenAudioIds.add(eqId);
@@ -133,9 +133,9 @@ export function usePackageTrackSync({
                     });
                 });
 
-                cameraOperators.push(...pendingUnmannedCams);
+                cameraCrew.push(...pendingUnmannedCams);
 
-                const neededCameras = cameraOperators.length;
+                const neededCameras = cameraCrew.length;
                 const neededAudio = audioEquipment.length;
                 const currentCameras = currentTracks.filter((t) => t.type === 'VIDEO').length;
                 const currentAudioCount = currentTracks.filter((t) => t.type === 'AUDIO').length;
@@ -154,11 +154,11 @@ export function usePackageTrackSync({
                 });
 
                 const assignmentPromises: Array<Promise<unknown>> = [];
-                for (let i = 0; i < videoTracks.length && i < cameraOperators.length; i++) {
+                for (let i = 0; i < videoTracks.length && i < cameraCrew.length; i++) {
                     const track = videoTracks[i];
-                    const opData = cameraOperators[i];
-                    if (track.crew_member_id !== opData.crewId || track.is_unmanned !== opData.isUnmanned) {
-                        assignmentPromises.push(filmsApi.tracks.update(filmId, track.id, { crew_member_id: opData.crewId, is_unmanned: opData.isUnmanned }));
+                    const opData = cameraCrew[i];
+                    if (track.crew_id !== opData.crewId || track.is_unmanned !== opData.isUnmanned) {
+                        assignmentPromises.push(filmsApi.tracks.update(filmId, track.id, { crew_id: opData.crewId, is_unmanned: opData.isUnmanned }));
                     }
                     if (opData.cameraEquipmentId) {
                         const slotNote = buildEquipmentSlotNote(buildEquipmentSlotKey('camera', i + 1));
@@ -174,8 +174,8 @@ export function usePackageTrackSync({
                 for (let i = 0; i < audioTracks.length && i < audioEquipment.length; i++) {
                     const track = audioTracks[i];
                     const audioData = audioEquipment[i];
-                    if (track.crew_member_id !== audioData.crewId) {
-                        assignmentPromises.push(filmsApi.tracks.update(filmId, track.id, { crew_member_id: audioData.crewId }));
+                    if (track.crew_id !== audioData.crewId) {
+                        assignmentPromises.push(filmsApi.tracks.update(filmId, track.id, { crew_id: audioData.crewId }));
                     }
                     if (audioData.audioEquipmentId) {
                         const slotNote = buildEquipmentSlotNote(buildEquipmentSlotKey('audio', i + 1));

@@ -13,17 +13,17 @@ import type {
   UpdatePaymentBracketData,
 } from '@/features/finance/payment-brackets';
 import type { BrandSetting } from '@/features/platform/brand/types';
-import type { UpdateCrewMemberDto } from '@/shared/types/users';
+import type { UpdateCrewDto } from '@/shared/types/users';
 import type { UpdateCrewProfileData } from '../types';
 import {
-  crewMembersApi,
+  userAccountsApi,
   crewApi,
   jobRolesApi,
   skillRoleMappingsApi,
 } from '../api';
 
 const crewManagementKeys = {
-  crewMembers: (brandId: number) => ['contributors', brandId] as const,
+  userAccounts: (brandId: number) => ['userAccounts', brandId] as const,
   jobRoles: () => ['jobRoles'] as const,
   overtimeSetting: (brandId: number) => ['brandSetting', 'overtime_multiplier', brandId] as const,
   skillRoleMappings: (brandId: number) => ['skillRoleMappings', brandId] as const,
@@ -34,9 +34,9 @@ export function useCrewManagementData() {
   const { currentBrand } = useBrand();
   const brandId = currentBrand?.id;
 
-  const contributorsQuery = useQuery({
-    queryKey: brandId ? crewManagementKeys.contributors(brandId) : ['contributors', 'unscoped'],
-    queryFn: () => crewMembersApi.getAll(),
+  const crewQuery = useQuery({
+    queryKey: brandId ? crewManagementKeys.userAccounts(brandId) : ['userAccounts', 'unscoped'],
+    queryFn: () => userAccountsApi.getAll(),
     enabled: !!brandId,
   });
 
@@ -75,7 +75,7 @@ export function useCrewManagementData() {
   });
 
   return {
-    contributorsQuery,
+    crewQuery,
     jobRolesQuery,
     paymentBracketsQuery,
     paymentBracketsByRoleQuery,
@@ -105,7 +105,7 @@ export function useCrewManagementMutations(options: {
     options.onInvalidateAll?.();
     queryClient.invalidateQueries({ queryKey: paymentBracketKeys.all() });
     if (brandId) {
-      queryClient.invalidateQueries({ queryKey: crewManagementKeys.contributors(brandId) });
+      queryClient.invalidateQueries({ queryKey: crewManagementKeys.userAccounts(brandId) });
     }
     queryClient.invalidateQueries({ queryKey: ['jobRoles'] });
   };
@@ -177,8 +177,8 @@ export function useCrewManagementMutations(options: {
   });
 
   const unassignBracketMutation = useMutation({
-    mutationFn: ({ crewMemberId, jobRoleId }: { crewMemberId: number; jobRoleId: number }) =>
-      paymentBracketsApi.unassign(crewMemberId, jobRoleId),
+    mutationFn: ({ crewId, jobRoleId }: { crewId: number; jobRoleId: number }) =>
+      paymentBracketsApi.unassign(crewId, jobRoleId),
     onSuccess: () => {
       invalidateAll();
       options.onSuccess?.('Bracket removed');
@@ -186,14 +186,14 @@ export function useCrewManagementMutations(options: {
     onError: (error: Error) => options.onError?.(error.message || 'Failed to remove bracket'),
   });
 
-  const createContributorMutation = useMutation({
-    mutationFn: (data: Parameters<typeof crewMembersApi.create>[0]) => crewMembersApi.create(data),
+  const createCrewMutation = useMutation({
+    mutationFn: (data: Parameters<typeof userAccountsApi.create>[0]) => userAccountsApi.create(data),
     onSuccess: () => {
       invalidateAll();
       options.closeAddCrewDialog?.();
-      options.onSuccess?.('Crew member added');
+      options.onSuccess?.('Crew added');
     },
-    onError: (error: Error) => options.onError?.(error.message || 'Failed to add crew member'),
+    onError: (error: Error) => options.onError?.(error.message || 'Failed to add crew'),
   });
 
   const createRoleMutation = useMutation({
@@ -227,18 +227,18 @@ export function useCrewManagementMutations(options: {
     onError: (error: Error) => options.onError?.(error.message || 'Failed to delete role'),
   });
 
-  const updateContributorMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: UpdateCrewMemberDto }) => crewMembersApi.update(id, data),
+  const updateCrewMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: UpdateCrewDto }) => userAccountsApi.update(id, data),
     onSuccess: () => {
       invalidateAll();
-      options.onSuccess?.('Crew member updated');
+      options.onSuccess?.('Crew updated');
     },
-    onError: (error: Error) => options.onError?.(error.message || 'Failed to update crew member'),
+    onError: (error: Error) => options.onError?.(error.message || 'Failed to update crew'),
   });
 
   const addJobRoleMutation = useMutation({
-    mutationFn: ({ crewMemberId, jobRoleId }: { crewMemberId: number; jobRoleId: number }) =>
-      crewMembersApi.addJobRole(crewMemberId, jobRoleId),
+    mutationFn: ({ crewId, jobRoleId }: { crewId: number; jobRoleId: number }) =>
+      jobRolesApi.addJobRoleToMember(crewId, jobRoleId),
     onSuccess: () => {
       invalidateAll();
       options.onSuccess?.('Role added');
@@ -247,8 +247,8 @@ export function useCrewManagementMutations(options: {
   });
 
   const removeJobRoleMutation = useMutation({
-    mutationFn: ({ crewMemberId, jobRoleId }: { crewMemberId: number; jobRoleId: number }) =>
-      crewMembersApi.removeJobRole(crewMemberId, jobRoleId),
+    mutationFn: ({ crewId, jobRoleId }: { crewId: number; jobRoleId: number }) =>
+      jobRolesApi.removeJobRoleFromMember(crewId, jobRoleId),
     onSuccess: () => {
       invalidateAll();
       options.onSuccess?.('Role removed');
@@ -257,8 +257,8 @@ export function useCrewManagementMutations(options: {
   });
 
   const setPrimaryJobRoleMutation = useMutation({
-    mutationFn: ({ crewMemberId, jobRoleId }: { crewMemberId: number; jobRoleId: number }) =>
-      crewMembersApi.setPrimaryJobRole(crewMemberId, jobRoleId),
+    mutationFn: ({ crewId, jobRoleId }: { crewId: number; jobRoleId: number }) =>
+      jobRolesApi.setPrimaryJobRole(crewId, jobRoleId),
     onSuccess: () => {
       invalidateAll();
       options.onSuccess?.('Primary role updated');
@@ -283,11 +283,11 @@ export function useCrewManagementMutations(options: {
     deleteBracketMutation,
     assignBracketMutation,
     unassignBracketMutation,
-    createContributorMutation,
+    createCrewMutation,
     createRoleMutation,
     updateRoleMutation,
     deleteRoleMutation,
-    updateContributorMutation,
+    updateCrewMutation,
     addJobRoleMutation,
     removeJobRoleMutation,
     setPrimaryJobRoleMutation,

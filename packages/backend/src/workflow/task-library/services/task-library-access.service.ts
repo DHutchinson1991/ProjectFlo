@@ -10,25 +10,37 @@ export class TaskLibraryAccessService {
     constructor(private readonly prisma: PrismaService) {}
 
     async checkBrandAccess(brandId: number, userId: number) {
-        const contributor = await this.prisma.crewMember.findUnique({
+        const crew = await this.prisma.crew.findUnique({
             where: { id: userId },
-            include: { role: true },
+            include: {
+                contact: {
+                    include: {
+                        user_account: { include: { system_role: true } },
+                    },
+                },
+            },
         });
-        if (contributor?.role?.name === 'Global Admin') return true;
+        if (crew?.contact.user_account?.system_role?.name === 'Global Admin') return true;
 
         const userBrand = await this.prisma.brandMember.findFirst({
-            where: { crew_member_id: userId, brand_id: brandId, is_active: true },
+            where: { crew_id: userId, brand_id: brandId, is_active: true },
         });
         if (!userBrand) throw new ForbiddenException('Access denied to this brand');
         return userBrand;
     }
 
     async getUserBrands(userId: number) {
-        const contributor = await this.prisma.crewMember.findUnique({
+        const crew = await this.prisma.crew.findUnique({
             where: { id: userId },
-            include: { role: true },
+            include: {
+                contact: {
+                    include: {
+                        user_account: { include: { system_role: true } },
+                    },
+                },
+            },
         });
-        if (contributor?.role?.name === 'Global Admin') {
+        if (crew?.contact.user_account?.system_role?.name === 'Global Admin') {
             const allBrands = await this.prisma.brands.findMany({
                 where: { is_active: true },
                 select: { id: true, name: true },
@@ -36,18 +48,18 @@ export class TaskLibraryAccessService {
             return allBrands.map(brand => ({ user_id: userId, brand_id: brand.id, brand }));
         }
         return this.prisma.brandMember.findMany({
-            where: { crew_member_id: userId, is_active: true },
+            where: { crew_id: userId, is_active: true },
             include: { brand: { select: { id: true, name: true } } },
         });
     }
 
     /**
-     * Auto-select a contributor for a role, scoped to a brand.
+     * Auto-select a crew for a role, scoped to a brand.
      * Returns null when multiple people qualify (manual pick needed).
      */
-    async resolveContributorForRole(jobRoleId: number, bracketId?: number | null, brandId?: number): Promise<number | null> {
+    async resolveCrewForRole(jobRoleId: number, bracketId?: number | null, brandId?: number): Promise<number | null> {
         const brandFilter = brandId ? {
-            crew_member: { contact: { OR: [{ brand_id: brandId }, { brand_id: null }] } },
+            crew: { contact: { OR: [{ brand_id: brandId }, { brand_id: null }] } },
         } : {};
 
         if (bracketId != null) {
@@ -56,20 +68,20 @@ export class TaskLibraryAccessService {
                 select: { level: true },
             });
             if (bracket) {
-                const eligible = await this.prisma.crewMemberJobRole.findMany({
+                const eligible = await this.prisma.crewJobRole.findMany({
                     where: { job_role_id: jobRoleId, payment_bracket: { level: { gte: bracket.level } }, ...brandFilter },
-                    select: { crew_member_id: true },
+                    select: { crew_id: true },
                 });
-                if (eligible.length === 1) return eligible[0].crew_member_id;
+                if (eligible.length === 1) return eligible[0].crew_id;
                 if (eligible.length > 1) return null;
             }
         }
 
-        const allRows = await this.prisma.crewMemberJobRole.findMany({
+        const allRows = await this.prisma.crewJobRole.findMany({
             where: { job_role_id: jobRoleId, ...brandFilter },
-            select: { crew_member_id: true },
+            select: { crew_id: true },
         });
-        return allRows.length === 1 ? allRows[0].crew_member_id : null;
+        return allRows.length === 1 ? allRows[0].crew_id : null;
     }
 
     /** Resolve the highest-level payment bracket for a role+skills combination. */

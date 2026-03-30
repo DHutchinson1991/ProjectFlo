@@ -53,11 +53,11 @@ interface BeatEditorProps {
   } | null;
   /** All package subjects (will be filtered to activity-inherited) */
   activitySubjects?: any[];
-  /** All package operators (will be filtered to activity-inherited) */
-  activityOperators?: any[];
+  /** All package crew slots (will be filtered to activity-inherited) */
+  activityCrewSlots?: any[];
 }
 
-const BeatEditor: React.FC<BeatEditorProps> = ({ open, beat, allTracks = [], sceneRecordingSetup, onClose, onSave, onDelete, activity, activitySubjects = [], activityOperators = [] }) => {
+const BeatEditor: React.FC<BeatEditorProps> = ({ open, beat, allTracks = [], sceneRecordingSetup, onClose, onSave, onDelete, activity, activitySubjects = [], activityCrewSlots = [] }) => {
   const [name, setName] = React.useState(beat?.name || "");
   const [durationSeconds, setDurationSeconds] = React.useState<number>(beat?.duration_seconds || 10);
   const [shotCount, setShotCount] = React.useState<number>(beat?.shot_count || 0);
@@ -83,7 +83,7 @@ const BeatEditor: React.FC<BeatEditorProps> = ({ open, beat, allTracks = [], sce
   const inheritedCrew = React.useMemo(() => {
     if (!activity) return [];
     const eventDayId = activity.event_day_template_id ?? activity.package_event_day_id;
-    const matched = activityOperators.filter((o: any) => {
+    const matched = activityCrewSlots.filter((o: any) => {
       if (o.package_activity_id === activity.id) return true;
       if (o.activity_assignments?.some((a: any) => a.package_activity_id === activity.id)) return true;
       const hasNoAssignment = !o.package_activity_id && (!o.activity_assignments || o.activity_assignments.length === 0);
@@ -92,11 +92,11 @@ const BeatEditor: React.FC<BeatEditorProps> = ({ open, beat, allTracks = [], sce
     });
     const seen = new Map<number, any>();
     matched.forEach((o: any) => {
-      const crewId = o.crew_member_id ?? o.id;
+      const crewId = o.crew_id ?? o.id;
       if (!seen.has(crewId)) seen.set(crewId, o);
     });
     return Array.from(seen.values());
-  }, [activityOperators, activity]);
+  }, [activityCrewSlots, activity]);
 
   // Helper: format "HH:MM" → "12:30 PM"
   const fmtTime = (t: string | null | undefined) => {

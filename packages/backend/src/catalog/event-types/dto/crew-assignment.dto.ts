@@ -2,7 +2,7 @@ import { IsInt, IsString, IsOptional } from 'class-validator';
 
 export class CrewAssignmentDto {
   @IsInt()
-  contributorId!: number;
+  crewId!: number;
 
   @IsInt()
   jobRoleId!: number;

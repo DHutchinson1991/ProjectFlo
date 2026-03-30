@@ -9,13 +9,13 @@ import {
     EquipmentMaintenance,
     UpdateEquipmentDto,
 } from "@/features/workflow/equipment/types/equipment.types";
-import type { CrewMember } from "@/shared/types/users";
+import type { Crew } from "@/shared/types/users";
 
 export interface EquipmentDetailState {
     equipment: Equipment | null;
     rentals: EquipmentRental[];
     maintenance: EquipmentMaintenance[];
-    crewMembers: CrewMember[];
+    crew: Crew[];
     loading: boolean;
     error: string | null;
     isEditing: boolean;
@@ -74,10 +74,10 @@ export function useEquipmentDetail(equipmentId: number): EquipmentDetailState & 
         enabled: !!equipmentId && !!brandId,
     });
 
-    // Server state — contributors (brand-scoped)
-    const contributorsQuery = useQuery({
-        queryKey: ["contributors", brandId],
-        queryFn: () => equipmentApi.getContributors(),
+    // Server state — crew (brand-scoped)
+    const crewQuery = useQuery({
+        queryKey: ["crew", brandId],
+        queryFn: () => equipmentApi.getCrew(),
         enabled: !!brandId,
     });
 
@@ -132,7 +132,7 @@ export function useEquipmentDetail(equipmentId: number): EquipmentDetailState & 
         equipment,
         rentals,
         maintenance,
-        crewMembers: contributorsQuery.data ?? [],
+        crew: crewQuery.data ?? [],
         loading: equipmentQuery.isPending,
         error: equipmentQuery.isError ? "Failed to load equipment. Please try again." : null,
         isEditing,

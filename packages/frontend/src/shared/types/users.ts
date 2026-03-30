@@ -1,10 +1,10 @@
 ﻿/**
  * User Domain Types — Canonical source.
  *
- * Cross-domain user/contact/contributor types shared across features.
+ * Cross-domain user/contact/crew types shared across features.
  */
 
-import type { CrewMemberJobRole } from '@/features/catalog/task-library/types/job-roles';
+import type { CrewJobRole as CrewJobRole } from '@/features/catalog/task-library/types/job-roles';
 
 // ============================================================================
 // DOMAIN MODELS
@@ -30,7 +30,7 @@ export interface Role {
     brand_id?: number;
 }
 
-export interface CrewMember {
+export interface Crew {
     id: number;
     contact_id: number;
     role_id: number;
@@ -40,7 +40,7 @@ export interface CrewMember {
 
     contact: Contact;
     role?: Role | null;
-    job_role_assignments?: CrewMemberJobRole[];
+    job_role_assignments?: CrewJobRole[];
 
     email: string;
     first_name?: string;
@@ -53,7 +53,7 @@ export interface CrewMember {
 // DTOs
 // ============================================================================
 
-export interface NewCrewMemberData {
+export interface NewCrewData {
     email: string;
     first_name?: string;
     last_name?: string;
@@ -61,7 +61,7 @@ export interface NewCrewMemberData {
     role_id: number;
 }
 
-export interface UpdateCrewMemberDto {
+export interface UpdateCrewDto {
     email?: string;
     first_name?: string;
     last_name?: string;
@@ -102,18 +102,6 @@ export interface ContactData {
     phone_number?: string;
     company_name?: string;
     type?: string;
-}
-
-/** @deprecated Use Contributor instead */
-export interface ContributorData {
-    id: number;
-    email: string;
-    first_name?: string;
-    last_name?: string;
-    role?: {
-        id: number;
-        name: string;
-    };
 }
 
 // ============================================================================

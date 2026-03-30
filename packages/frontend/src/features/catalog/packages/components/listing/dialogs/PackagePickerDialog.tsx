@@ -64,8 +64,8 @@ function sortByPriceForTier(list: ServicePackage[], slotLabel: string | null): S
     const lowerTiers = ['budget', 'basic'];
     const asc = slotLabel ? lowerTiers.includes(slotLabel.toLowerCase()) : true;
     return [...list].sort((a, b) => {
-        const pa = Number(a.base_price ?? 0);
-        const pb = Number(b.base_price ?? 0);
+        const pa = Number(a._totalCost ?? 0);
+        const pb = Number(b._totalCost ?? 0);
         return asc ? pa - pb : pb - pa;
     });
 }
@@ -410,7 +410,7 @@ export default function PackagePickerDialog({
                                                             fontWeight: 800, color: '#f59e0b', fontSize: '0.9rem',
                                                             fontFamily: 'monospace',
                                                         }}>
-                                                            {formatCurrency(Number(pkg.base_price ?? 0), currencyCode ?? DEFAULT_CURRENCY)}
+                                                            {formatCurrency(Number(pkg._tax?.totalWithTax ?? pkg._totalCost ?? 0), currencyCode ?? DEFAULT_CURRENCY)}
                                                         </Typography>
                                                     </Box>
                                                 </Box>

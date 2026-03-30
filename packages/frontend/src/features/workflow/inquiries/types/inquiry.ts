@@ -46,7 +46,6 @@ export interface Inquiry {
     selected_package?: {
         id: number;
         name: string;
-        base_price: number;
         currency: string;
     } | null;
     preferred_payment_schedule_template_id?: number | null;
@@ -69,7 +68,6 @@ export interface Inquiry {
         snapshot_taken_at: string;
         package_id: number;
         package_name: string;
-        base_price?: number;
         currency?: string;
         contents?: Record<string, unknown>;
     } | null;
@@ -177,7 +175,7 @@ export interface InquiryTask {
     children?: InquiryTask[];
 }
 
-export interface InquiryAvailabilityAlternativeContributor {
+export interface InquiryAvailabilityAlternativeCrew {
     id: number;
     name: string;
     email?: string | null;
@@ -211,7 +209,7 @@ export interface InquiryCrewAvailabilityRow {
         start_time?: string | null;
         end_time?: string | null;
     } | null;
-    assigned_crew_member?: {
+    assigned_crew?: {
         id: number;
         name: string;
         email?: string | null;
@@ -220,7 +218,7 @@ export interface InquiryCrewAvailabilityRow {
     has_conflict: boolean;
     conflict_reason?: string | null;
     conflicts: InquiryAvailabilityConflict[];
-    alternatives: InquiryAvailabilityAlternativeContributor[];
+    alternatives: InquiryAvailabilityAlternativeCrew[];
     is_on_site?: boolean;
     availability_request_id?: number | null;
     availability_request_status?: 'pending' | 'confirmed' | 'declined' | 'cancelled' | null;
@@ -255,7 +253,7 @@ export interface InquiryEquipmentAvailabilityRow {
             phone?: string | null;
         } | null;
     };
-    operator: {
+    crew_slot: {
         id: number;
         label?: string | null;
         job_role?: {

@@ -9,12 +9,12 @@ import type {
 
 export function createServicePackageCategoriesApi(client: ApiClient) {
     return {
-        getAll: (brandId: number) => client.get<ServicePackageCategory[]>(`/brands/${brandId}/package-categories`),
-        create: (brandId: number, data: CreatePackageCategoryData) =>
-            client.post<ServicePackageCategory>(`/brands/${brandId}/package-categories`, data),
-        update: (brandId: number, id: number, data: UpdatePackageCategoryData) =>
-            client.patch<ServicePackageCategory>(`/brands/${brandId}/package-categories/${id}`, data),
-        delete: (brandId: number, id: number) => client.delete<void>(`/brands/${brandId}/package-categories/${id}`),
+        getAll: (_brandId: number) => client.get<ServicePackageCategory[]>(`/api/service-package-categories`),
+        create: (_brandId: number, data: CreatePackageCategoryData) =>
+            client.post<ServicePackageCategory>(`/api/service-package-categories`, data),
+        update: (_brandId: number, id: number, data: UpdatePackageCategoryData) =>
+            client.patch<ServicePackageCategory>(`/api/service-package-categories/${id}`, data),
+        delete: (_brandId: number, id: number) => client.delete<void>(`/api/service-package-categories/${id}`),
     };
 }
 

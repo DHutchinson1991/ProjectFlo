@@ -148,12 +148,11 @@ export class InvoicesService {
       where: { id: inquiryId },
       select: {
         quotes: { select: { id: true, deposit_required: true, total_amount: true }, orderBy: { id: 'asc' }, take: 1 },
-        selected_package: { select: { base_price: true } },
       },
     });
 
     const primaryQuote = inquiry?.quotes?.[0];
-    const rawDeposit = primaryQuote?.deposit_required ?? primaryQuote?.total_amount ?? inquiry?.selected_package?.base_price ?? null;
+    const rawDeposit = primaryQuote?.deposit_required ?? primaryQuote?.total_amount ?? null;
     const depositAmount = rawDeposit != null ? Number(rawDeposit) : 0;
 
     const invoiceNumber = `DEP-${inquiryId}-${Date.now()}`;

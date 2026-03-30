@@ -19,7 +19,7 @@ import { Inquiry, InquiryTask, NeedsAssessmentSubmission } from '@/features/work
 import { inquiriesApi } from '@/features/workflow/inquiries';
 import { taskLibraryApi } from '@/features/catalog/task-library';
 import { inquiryWizardSubmissionsApi } from '@/features/workflow/inquiry-wizard';
-import { calendarApi, type BackendContributor } from '@/features/workflow/calendar/api';
+import { calendarApi, type BackendUserAccount } from '@/features/workflow/calendar/api';
 import { computeTaxBreakdown } from '@/shared/utils/pricing';
 
 import {
@@ -76,7 +76,7 @@ export default function InquiryDetailScreen() {
     const [pipelineTasks, setPipelineTasks] = useState<PipelineTask[]>([]);
     const [inquiryTasksData, setInquiryTasksData] = useState<InquiryTask[]>([]);
     const [hasRealTasks, setHasRealTasks] = useState(false);
-    const [crewMembers, setContributors] = useState<BackendContributor[]>([]);
+    const [crew, setCrew] = useState<BackendUserAccount[]>([]);;
     const [needsAssessmentDialogOpen, setNeedsAssessmentDialogOpen] = useState(false);
 
     /* ---- data loading ---- */
@@ -87,7 +87,7 @@ export default function InquiryDetailScreen() {
     useEffect(() => {
         if (currentBrand?.id) {
             loadPipelineTasks();
-            loadContributors();
+            loadCrew();
         }
     }, [inquiryId, currentBrand?.id]);
 
@@ -115,12 +115,12 @@ export default function InquiryDetailScreen() {
         }
     };
 
-    const loadContributors = async () => {
+    const loadCrew = async () => {
         try {
-            const data = await calendarApi.getContributors();
-            setContributors(data);
+            const data = await calendarApi.getUserAccounts();
+            setCrew(data);
         } catch (err) {
-            console.error('Error loading crewMembers:', err);
+            console.error('Error loading user accounts:', err);
         }
     };
 
@@ -204,20 +204,8 @@ export default function InquiryDetailScreen() {
 
     const conversionData = getConversionScore(inquiry);
     const daysInPipeline = getDaysInPipeline(inquiry);
-    const taxRate = Number(currentBrand?.default_tax_rate ?? 0);
-    const dealValue = (() => {
-        // 1. Primary estimate total (pre-tax, from estimate line items)
-        const primaryEst = inquiry.estimates?.find(e => e.is_primary) ?? inquiry.estimates?.[0];
-        if (primaryEst && Number(primaryEst.total_amount || 0) > 0) {
-            return computeTaxBreakdown(Number(primaryEst.total_amount), taxRate).total;
-        }
-        // 2. Package base price from snapshot (taken when package was selected)
-        const snapshot = inquiry.package_contents_snapshot as { base_price?: number } | null;
-        if (snapshot?.base_price && snapshot.base_price > 0) {
-            return computeTaxBreakdown(snapshot.base_price, taxRate).total;
-        }
-        return 0;
-    })();
+    const primaryEst = inquiry.estimates?.find(e => e.is_primary) ?? inquiry.estimates?.[0];
+    const dealValue = primaryEst ? computeTaxBreakdown(Number(primaryEst.total_amount ?? 0), Number(currentBrand?.default_tax_rate ?? 0)).total : 0;
 
     /* ---- helpers for phase lookup ---- */
     const phaseColor = (id: string) => WORKFLOW_PHASES.find((p) => p.id === id)?.color;

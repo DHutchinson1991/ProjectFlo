@@ -10,19 +10,18 @@ export class ProjectSnapshotCrewService {
         return filter.projectId != null ? { project_id: filter.projectId } : { inquiry_id: filter.inquiryId };
     }
 
-    async getOperators(filter: OwnerFilter) {
+    async getCrewSlots(filter: OwnerFilter) {
         return this.prisma.projectCrewSlot.findMany({
             where: this.ownerWhere(filter),
             include: {
                 project_event_day: { select: { id: true, name: true, date: true } },
-                project_activity: { select: { id: true, name: true } },
-                crew_member: {
+                crew: {
                     include: {
                         contact: { select: { id: true, first_name: true, last_name: true, email: true } },
                         job_role_assignments: {
                             include: {
                                 job_role: { select: { id: true, name: true, display_name: true } },
-                                payment_bracket: { select: { id: true, name: true, display_name: true, level: true, hourly_rate: true, day_rate: true } },
+                                payment_bracket: { select: { id: true, name: true, display_name: true, level: true, hourly_rate: true, half_day_rate: true, day_rate: true, overtime_rate: true } },
                             },
                         },
                     },

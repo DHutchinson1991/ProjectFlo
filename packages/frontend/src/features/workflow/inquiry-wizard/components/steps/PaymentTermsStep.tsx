@@ -71,7 +71,7 @@ export default function PaymentTermsScreen({ ctx }: { ctx: NACtx }) {
                             lineHeight: 1.1,
                         }}
                     >
-                        {formatCurrency(totalPrice, currency, 0)}
+                        {formatCurrency(totalPrice, currency)}
                     </Typography>
                 </Box>
             )}

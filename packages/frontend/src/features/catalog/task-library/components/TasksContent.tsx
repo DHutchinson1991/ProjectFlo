@@ -6,7 +6,7 @@ import {
     DndContext, DragEndEvent, DragStartEvent, DragOverlay,
     PointerSensor, useSensor, useSensors,
 } from "@dnd-kit/core";
-import { TaskLibrary, ProjectPhase, JobRole, SkillRoleMapping, CrewMember } from "@/features/catalog/task-library/types";
+import { TaskLibrary, ProjectPhase, JobRole, SkillRoleMapping, Crew } from "@/features/catalog/task-library/types";
 import { TaskSummaryStrip } from "@/shared/ui/tasks";
 import { sumEffortHours } from "@/shared/utils/hours";
 import { TasksHeader } from "./TasksHeader";
@@ -16,6 +16,7 @@ import { DragOverlayTask } from "./DragOverlayTask";
 import { DroppableZone } from "./DroppableZone";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { TasksSnackbar } from "./TasksSnackbar";
+import { TaskDetailPanel } from "./TaskDetailPanel";
 
 interface TasksContentProps {
     loading: boolean;
@@ -47,11 +48,11 @@ interface TasksContentProps {
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
     jobRoles: JobRole[];
     allMappings: SkillRoleMapping[];
-    crewMembers: CrewMember[];
+    crew: Crew[];
     expandedTaskId: number | null;
     onToggleExpand: (taskId: number) => void;
     onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
-    onUpdateContributor: (taskId: number, crewMemberId: number | null) => Promise<void>;
+    onUpdateCrew: (taskId: number, crewId: number | null) => Promise<void>;
 }
 
 export function TasksContent({
@@ -84,13 +85,42 @@ export function TasksContent({
     updateQuickAddData,
     jobRoles,
     allMappings,
-    crewMembers,
+    crew,
     expandedTaskId,
     onToggleExpand,
     onUpdateRoleSkills,
-    onUpdateContributor,
+    onUpdateCrew,
 }: TasksContentProps) {
     const [activeTask, setActiveTask] = useState<TaskLibrary | null>(null);
+    const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null);
+    const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+    const [taskOverrides, setTaskOverrides] = useState<Map<number, TaskLibrary>>(new Map());
+
+    // Find a task by id across all phases (with local overrides for optimistic panel updates)
+    const findTask = (id: number): TaskLibrary | null => {
+        if (taskOverrides.has(id)) return taskOverrides.get(id)!;
+        for (const tasks of Object.values(tasksByPhase)) {
+            const found = tasks.find(t => t.id === id);
+            if (found) return found;
+        }
+        return null;
+    };
+
+    const handlePanelTaskUpdated = (taskId: number, updater: (t: TaskLibrary) => TaskLibrary) => {
+        const base = findTask(taskId);
+        if (!base) return;
+        setTaskOverrides(prev => new Map(prev).set(taskId, updater(base)));
+    };
+
+    const hoveredTask = hoveredTaskId ? findTask(hoveredTaskId) : null;
+    const selectedTask = selectedTaskId ? findTask(selectedTaskId) : null;
+    const detailTask = selectedTask ?? hoveredTask;
+
+    // When phase card is clicked, clear selected task (show placeholder)
+    const handlePhaseCardClick = (phase: string) => {
+        setSelectedTaskId(null);
+        onPhaseChange(phase);
+    };
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -142,49 +172,68 @@ export function TasksContent({
             <PhaseCardsGrid
                 phaseStats={phaseStats}
                 tasksByPhase={tasksByPhase}
-                onPhaseCardClick={onPhaseChange}
+                onPhaseCardClick={handlePhaseCardClick}
             />
 
-            {/* Table for active phase */}
-            <Box sx={{
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                bgcolor: 'rgba(255,255,255,0.01)',
-            }}>
-                <DndContext
-                    sensors={sensors}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                >
-                    <DroppableZone id={`phase-${activePhase}`} phase={activePhase as ProjectPhase}>
-                        <TaskTable
-                            tasks={activeTasks}
-                            phase={activePhase}
-                            onUpdateTask={onUpdateTask}
-                            setTaskToDelete={setTaskToDelete}
-                            setDeleteConfirmOpen={setDeleteConfirmOpen}
-                            isDragging={isDragging}
-                            quickAddPhase={quickAddPhase}
-                            quickAddData={quickAddData}
-                            startQuickAdd={startQuickAdd}
-                            cancelQuickAdd={cancelQuickAdd}
-                            saveQuickAdd={saveQuickAdd}
-                            updateQuickAddData={updateQuickAddData}
-                            jobRoles={jobRoles}
-                            allMappings={allMappings}
-                            contributors={crewMembers}
-                            expandedTaskId={expandedTaskId}
-                            onToggleExpand={onToggleExpand}
-                            onUpdateRoleSkills={onUpdateRoleSkills}
-                            onUpdateContributor={onUpdateContributor}
-                        />
-                    </DroppableZone>
+            {/* 2-column: task table (2/3) + detail panel (1/3) */}
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                {/* Left — task table */}
+                <Box sx={{ flex: '0 0 65%', minWidth: 0 }}>
+                    {/* Table for active phase */}
+                    <Box sx={{
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        bgcolor: 'rgba(255,255,255,0.01)',
+                    }}>
+                        <DndContext
+                            sensors={sensors}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                        >
+                            <DroppableZone id={`phase-${activePhase}`} phase={activePhase as ProjectPhase}>
+                                <TaskTable
+                                    tasks={activeTasks}
+                                    phase={activePhase}
+                                    onUpdateTask={onUpdateTask}
+                                    setTaskToDelete={setTaskToDelete}
+                                    setDeleteConfirmOpen={setDeleteConfirmOpen}
+                                    isDragging={isDragging}
+                                    quickAddPhase={quickAddPhase}
+                                    quickAddData={quickAddData}
+                                    startQuickAdd={startQuickAdd}
+                                    cancelQuickAdd={cancelQuickAdd}
+                                    saveQuickAdd={saveQuickAdd}
+                                    updateQuickAddData={updateQuickAddData}
+                                    jobRoles={jobRoles}
+                                    allMappings={allMappings}
+                                    crew={crew}
+                                    expandedTaskId={expandedTaskId}
+                                    onToggleExpand={onToggleExpand}
+                                    onUpdateRoleSkills={onUpdateRoleSkills}
+                                    onUpdateCrew={onUpdateCrew}
+                                    selectedTaskId={selectedTaskId}
+                                    onRowClick={(t) => setSelectedTaskId(prev => prev === t.id ? null : t.id)}
+                                    onRowHover={(t) => setHoveredTaskId(t ? t.id : null)}
+                                />
+                            </DroppableZone>
 
-                    <DragOverlay>
-                        {activeTask && <DragOverlayTask task={activeTask} phase={activePhase} />}
-                    </DragOverlay>
-                </DndContext>
+                            <DragOverlay>
+                                {activeTask && <DragOverlayTask task={activeTask} phase={activePhase} />}
+                            </DragOverlay>
+                        </DndContext>
+                    </Box>
+                </Box>
+
+                {/* Right — sticky detail panel */}
+                <Box sx={{ flex: '1 1 0', minWidth: 0, position: 'sticky', top: 80 }}>
+                    <TaskDetailPanel
+                        task={detailTask ?? null}
+                        isSelected={selectedTaskId !== null}
+                        onClose={() => setSelectedTaskId(null)}
+                        onTaskUpdated={handlePanelTaskUpdated}
+                    />
+                </Box>
             </Box>
 
             <DeleteConfirmDialog

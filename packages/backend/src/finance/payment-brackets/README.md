@@ -2,7 +2,7 @@
 
 ## What this module does
 
-Manages hourly rate brackets per job role per brand. Brackets define what rate a crew member is paid based on their role. The pricing module uses brackets in its 4-tier rate fallback chain.
+Manages hourly rate brackets per job role per brand. Brackets define what rate a crew assignment is paid based on role. The pricing module uses brackets in its 4-tier rate fallback chain.
 
 ## Key files
 
@@ -18,6 +18,8 @@ Manages hourly rate brackets per job role per brand. Brackets define what rate a
 - Brackets are brand-scoped — a bracket belongs to one brand via `brand_id`.
 - The pricing fallback chain in `pricing.service.ts` queries brackets in order: matched-role → primary → any.
 - Deleting a bracket that is referenced by active pricing may break rate resolution.
+- Controller supports both legacy `crew/*` routes and new `crew/*` aliases while clients migrate.
+- DTO and DB payload keys still include legacy `crew_*` fields and require a coordinated contract + schema migration.
 
 ## Keep docs up to date
 

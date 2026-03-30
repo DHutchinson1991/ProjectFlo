@@ -19,14 +19,12 @@ types/       — TypeScript interfaces and DTOs
 | Hook | Purpose |
 |------|---------|
 | `useCrewPaymentTemplates()` | Fetch all templates for current brand |
-| `useCrewPaymentTemplate(id)` | Fetch single template by ID |
 | `useCreateCrewPaymentTemplate()` | Create mutation with auto-invalidation |
 | `useUpdateCrewPaymentTemplate()` | Update mutation with auto-invalidation |
 | `useDeleteCrewPaymentTemplate()` | Delete (soft) mutation with auto-invalidation |
 
 ## Key Routes
 - `GET /api/brands/:brandId/crew-payment-templates`
-- `GET /api/brands/:brandId/crew-payment-templates/:id`
 - `POST /api/brands/:brandId/crew-payment-templates`
 - `PATCH /api/brands/:brandId/crew-payment-templates/:id`
 - `DELETE /api/brands/:brandId/crew-payment-templates/:id`

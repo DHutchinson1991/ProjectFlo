@@ -23,23 +23,24 @@ export class AuthService {
     const userContact = await this.prisma.contacts.findUnique({
       where: { email },
       include: {
-        crew_member: {
+        user_account: {
           include: {
-            role: true, // We need the role for the JWT payload
+            system_role: true,
           },
         },
+        crew: true,
       },
     });
 
     // Step 2: Check if the user exists and has a stored password hash.
-    if (!userContact?.crew_member?.password_hash) {
+    if (!userContact?.user_account?.password_hash || !userContact.crew) {
       throw new UnauthorizedException("Invalid credentials");
     }
 
     // Step 3: Compare the provided password with the stored hash.
     const isMatch = await bcrypt.compare(
       pass,
-      userContact.crew_member.password_hash,
+      userContact.user_account.password_hash,
     );
 
     if (!isMatch) {
@@ -48,16 +49,16 @@ export class AuthService {
 
     // Step 4: If passwords match, create the JWT payload.
     const payload = {
-      sub: userContact.crew_member.id,
+      sub: userContact.crew.id,
       email: userContact.email,
-      role: userContact.crew_member.role?.name || "User",
+      role: userContact.user_account.system_role?.name || "User",
     };
 
     // Create user profile object matching frontend expectations
     const user = {
-      id: userContact.crew_member.id,
+      id: userContact.crew.id,
       email: userContact.email,
-      roles: [userContact.crew_member.role?.name || "User"], // Array of roles as expected by frontend
+      roles: [userContact.user_account.system_role?.name || "User"],
     };
 
     // Step 5: Sign the payload and return the access token, refresh token, and user profile.
@@ -82,23 +83,26 @@ export class AuthService {
       const payload = await this.jwtService.verifyAsync(refreshToken);
 
       // Fetch the user to ensure they still exist
-      const contributor = await this.prisma.crewMember.findUnique({
+      const crew = await this.prisma.crew.findUnique({
         where: { id: payload.sub },
         include: {
-          contact: true,
-          role: true,
+          contact: {
+            include: {
+              user_account: { include: { system_role: true } },
+            },
+          },
         },
       });
 
-      if (!contributor) {
+      if (!crew) {
         throw new UnauthorizedException('User not found');
       }
 
       // Create new tokens
       const newPayload = {
-        sub: contributor.id,
-        email: contributor.contact.email,
-        role: contributor.role?.name || "User",
+        sub: crew.id,
+        email: crew.contact.email,
+        role: crew.contact.user_account?.system_role?.name || "User",
       };
 
       const access_token = await this.jwtService.signAsync(newPayload);

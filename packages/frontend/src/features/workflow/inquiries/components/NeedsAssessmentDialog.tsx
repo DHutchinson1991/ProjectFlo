@@ -448,7 +448,7 @@ export default function NeedsAssessmentDialog({
                                     ) : (
                                         <Stack spacing={0.5}>
                                             {crewConflicts.conflicts.map((c) => (
-                                                <Box key={c.crew_member_id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Box key={c.crew_id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                     <Warning sx={{ fontSize: 14, color: '#ef4444' }} />
                                                     <Typography sx={{ fontSize: '0.78rem', color: '#fca5a5' }}>
                                                         <strong>{c.name}</strong> ({c.role}) — {c.event_title}

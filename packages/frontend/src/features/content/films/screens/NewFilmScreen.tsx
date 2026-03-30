@@ -24,7 +24,7 @@ export function NewFilmScreen() {
             name: name.trim(), brand_id: currentBrand.id,
             num_cameras: numCameras, num_audio: numAudio,
         });
-        router.push(`/designer/films/${film.id}`);
+        router.push(`/films/${film.id}`);
     };
 
     return (

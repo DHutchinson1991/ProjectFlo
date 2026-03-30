@@ -1,164 +1,120 @@
-"use client";
+﻿"use client";
 
 import React from "react";
-import {
-    Box,
-    Card,
-    Typography,
-    Chip,
-    LinearProgress,
-} from "@mui/material";
-import { Equipment } from "@/features/workflow/equipment/types/equipment.types";
+import { Box, Card, Typography, Chip } from "@mui/material";
 import { getCategoryIcon, getCategoryColor } from "../constants/categoryConfig";
+import { EquipmentCategory, EQUIPMENT_CATEGORY_LABELS } from "../types/equipment.types";
+import { hexToRgba } from "@/shared/ui/tasks";
 import { useBrand } from "@/features/platform/brand";
-import { DEFAULT_CURRENCY } from '@projectflo/shared';
-import { formatCurrency } from "@/shared/utils/formatUtils";
+import { formatCurrency, DEFAULT_CURRENCY } from "@projectflo/shared";
+
+interface CategoryStat {
+    category: string;
+    count: number;
+    totalValue?: number;
+}
 
 interface CategoryCardsGridProps {
-    categoryStats: Array<{
-        category: string;
-        label: string;
-        count: number;
-        availableCount: number;
-        totalValue: number;
-    }>;
-    equipmentByCategory: Record<string, Equipment[]>;
-    onCategoryCardClick: (category: string) => void;
+    categoryStats: CategoryStat[];
+    selectedCategory: string;
+    totalCount: number;
+    onSelect: (category: string) => void;
 }
 
 export const CategoryCardsGrid: React.FC<CategoryCardsGridProps> = ({
     categoryStats,
-    onCategoryCardClick,
+    selectedCategory,
+    onSelect,
 }) => {
+    const nonEmpty = categoryStats.filter((s) => s.count > 0);
     const { currentBrand } = useBrand();
     const currencyCode = currentBrand?.currency ?? DEFAULT_CURRENCY;
 
     return (
         <Box sx={{
-            display: 'grid',
-            gridTemplateColumns: {
-                xs: 'repeat(2, 1fr)',
-                sm: 'repeat(3, 1fr)',
-                md: 'repeat(4, 1fr)',
-                lg: 'repeat(6, 1fr)',
-            },
+            display: "grid",
+            gridAutoFlow: "column",
+            gridAutoColumns: "1fr",
             gap: 2,
             mb: 4,
         }}>
-            {categoryStats.filter(stat => stat.count > 0).map((stat) => {
-                const availabilityRate = stat.count > 0 ? (stat.availableCount / stat.count) * 100 : 0;
-                const categoryColor = getCategoryColor(stat.category);
+            {nonEmpty.map((stat) => {
+                const color = getCategoryColor(stat.category);
                 const IconComponent = getCategoryIcon(stat.category);
+                const isSelected = selectedCategory === stat.category;
+                const label = EQUIPMENT_CATEGORY_LABELS[stat.category as EquipmentCategory] ?? stat.category;
+                const gradient = `linear-gradient(135deg, ${color} 0%, ${hexToRgba(color, 0.7)} 100%)`;
+                const hoverColor = hexToRgba(color, 0.2);
 
                 return (
                     <Card
                         key={stat.category}
                         elevation={0}
+                        onClick={() => onSelect(isSelected ? "all" : stat.category)}
                         sx={{
                             p: 2.5,
-                            border: '1px solid',
-                            borderColor: 'divider',
+                            border: "2px solid",
+                            borderColor: isSelected ? "rgba(255,255,255,0.6)" : "divider",
                             borderRadius: 3,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            position: 'relative',
-                            overflow: 'hidden',
-                            '&:hover': {
-                                borderColor: categoryColor,
-                                boxShadow: `0 4px 20px ${categoryColor}20`,
-                                transform: 'translateY(-2px)',
+                            cursor: "pointer",
+                            transition: "all 0.3s ease",
+                            minHeight: "130px",
+                            position: "relative",
+                            overflow: "hidden",
+                            background: gradient,
+                            backgroundSize: "200% 200%",
+                            opacity: isSelected ? 1 : 0.85,
+                            "&:hover": {
+                                borderColor: "rgba(255,255,255,0.5)",
+                                transform: "translateY(-4px)",
+                                boxShadow: `0 8px 25px ${hoverColor}`,
+                                opacity: 1,
+                                backgroundPosition: "right center",
                             },
                         }}
-                        onClick={() => onCategoryCardClick(stat.category)}
                     >
-                        {/* Background Pattern */}
+                        {/* Background Icon */}
                         <Box sx={{
-                            position: 'absolute',
-                            top: 0,
-                            right: 0,
-                            width: 60,
-                            height: 60,
-                            background: `linear-gradient(135deg, ${categoryColor}10, ${categoryColor}05)`,
-                            borderRadius: '0 0 0 60px',
-                        }} />
+                            position: "absolute",
+                            top: -10,
+                            right: -10,
+                            opacity: 0.2,
+                            zIndex: 0,
+                        }}>
+                            <IconComponent sx={{ fontSize: 60, color: "white" }} />
+                        </Box>
 
-                        <Box sx={{ position: 'relative', zIndex: 1 }}>
-                            {/* Header */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
-                                <Box sx={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 2,
-                                    background: `linear-gradient(135deg, ${categoryColor}, ${categoryColor}dd)`,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    mr: 2,
-                                    color: 'white',
-                                }}>
-                                    <IconComponent sx={{ fontSize: 20 }} />
-                                </Box>
-                                <Box sx={{ flex: 1 }}>
-                                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5, color: 'white', fontSize: '0.95rem' }}>
-                                        {stat.label}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                                        {stat.count} {stat.count === 1 ? 'item' : 'items'}
-                                    </Typography>
-                                </Box>
-                            </Box>
+                        {/* Content */}
+                        <Box sx={{ position: "relative", zIndex: 2, height: "100%", display: "flex", flexDirection: "column" }}>
+                            <Typography variant="subtitle2" sx={{
+                                fontWeight: 400,
+                                color: "white",
+                                textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                                mb: 0.5,
+                            }}>
+                                {label}
+                            </Typography>
 
-                            {/* Availability Status */}
-                            <Box sx={{ mb: 1.5 }}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                                        Availability
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8rem' }}>
-                                        {availabilityRate.toFixed(0)}%
-                                    </Typography>
-                                </Box>
-                                <LinearProgress
-                                    variant="determinate"
-                                    value={availabilityRate}
-                                    sx={{
-                                        height: 5,
-                                        borderRadius: 3,
-                                        backgroundColor: 'grey.200',
-                                        '& .MuiLinearProgress-bar': {
-                                            borderRadius: 3,
-                                            backgroundColor: categoryColor,
-                                        },
-                                    }}
-                                />
-                            </Box>
+                            <Typography variant="body2" sx={{
+                                color: "rgba(255,255,255,0.55)",
+                                mb: 2,
+                                textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                            }}>
+                                {stat.count} {stat.count === 1 ? "item" : "items"}
+                            </Typography>
 
-                            {/* Stats */}
-                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                            <Box sx={{ mt: "auto" }}>
                                 <Chip
-                                    label={`${stat.availableCount} Available`}
                                     size="small"
+                                    label={stat.totalValue ? formatCurrency(stat.totalValue, currencyCode) : "No value"}
                                     sx={{
-                                        backgroundColor: `${categoryColor}15`,
-                                        color: categoryColor,
+                                        bgcolor: "rgba(255,255,255,0.9)",
+                                        color: "rgba(0,0,0,0.8)",
                                         fontWeight: 600,
-                                        fontSize: '0.7rem',
-                                        height: 24,
+                                        fontSize: "0.75rem",
+                                        boxShadow: 1,
                                     }}
                                 />
-                                {stat.totalValue > 0 && (
-                                    <Chip
-                                        label={formatCurrency(stat.totalValue, currencyCode)}
-                                        size="small"
-                                        variant="outlined"
-                                        sx={{
-                                            borderColor: categoryColor,
-                                            color: categoryColor,
-                                            fontSize: '0.7rem',
-                                            height: 24,
-                                        }}
-                                    />
-                                )}
                             </Box>
                         </Box>
                     </Card>

@@ -50,7 +50,8 @@ export class EventTypesDayContentBuilderService {
     dayLink: { event_day_template: { id: number; activity_presets: ActivityPreset[] } },
     dto: CreatePackageFromEventTypeDto,
     lookups: BuilderLookups,
-  ) {
+  ): Promise<Array<{ id: number; name: string }>> {
+    const createdActivities: Array<{ id: number; name: string }> = [];
     let activityOrderIdx = 0;
     for (const preset of dayLink.event_day_template.activity_presets) {
       const override = lookups.activityOverrideMap.get(preset.id);
@@ -66,6 +67,7 @@ export class EventTypesDayContentBuilderService {
           order_index: activityOrderIdx++,
         },
       });
+      createdActivities.push({ id: packageActivity.id, name: preset.name });
 
       let momentIdx = 0;
       for (const moment of preset.moments) {
@@ -94,6 +96,7 @@ export class EventTypesDayContentBuilderService {
           order_index: activityOrderIdx++,
         },
       });
+      createdActivities.push({ id: packageActivity.id, name: ca.name });
       let momentIdx = 0;
       for (const cm of ca.moments) {
         await this.prisma.packageActivityMoment.create({
@@ -105,6 +108,8 @@ export class EventTypesDayContentBuilderService {
         });
       }
     }
+
+    return createdActivities;
   }
 
   async createSubjects(

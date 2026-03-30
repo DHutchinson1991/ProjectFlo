@@ -28,8 +28,8 @@ export interface SubjectType {
     order_index: number;
 }
 
-// Crew member from crew API (for assignment dropdowns)
-export interface CrewMemberOption {
+// Crew option from the crew API (for assignment dropdowns)
+export interface CrewOption {
     id: number;
     contact: {
         first_name?: string | null;
@@ -37,7 +37,7 @@ export interface CrewMemberOption {
         email: string;
     };
     crew_color?: string | null;
-    /** Optional to accommodate contributor objects loaded via operator records */
+    /** Optional to accommodate crew objects loaded via crew slot records */
     job_role_assignments?: Array<{
         is_primary: boolean;
         job_role: { id: number; name: string; display_name?: string | null };
@@ -48,13 +48,13 @@ export interface PackageCrewSlotRecord {
     id: number;
     package_id: number;
     event_day_template_id: number;
-    crew_member_id?: number | null;
+    crew_id?: number | null;
     package_activity_id?: number | null;
     label?: string | null;
     job_role_id?: number | null;
     hours: number;
     order_index: number;
-    crew_member?: {
+    crew?: {
         id: number;
         crew_color?: string | null;
         contact: { id: number; first_name?: string | null; last_name?: string | null; email: string };
@@ -69,7 +69,9 @@ export interface PackageCrewSlotRecord {
                 display_name?: string | null;
                 level: number;
                 hourly_rate?: number | string | null;
+                half_day_rate?: number | string | null;
                 day_rate?: number | string | null;
+                overtime_rate?: number | string | null;
             } | null;
         }>;
     } | null;
@@ -91,8 +93,8 @@ export interface PackageCrewSlotRecord {
 
 // ─── Local state-shape interfaces ────────────────────────────────────
 
-/** Contributor job-role assignment (subset used throughout this page). */
-export type CrewMemberJobRoleEntry = {
+/** Crew job-role assignment (subset used throughout this page). */
+export type CrewJobRoleEntry = {
     is_primary: boolean;
     is_unmanned?: boolean;
     job_role_id?: number;
@@ -103,7 +105,9 @@ export type CrewMemberJobRoleEntry = {
         display_name?: string | null;
         level: number;
         hourly_rate?: number | string | null;
+        half_day_rate?: number | string | null;
         day_rate?: number | string | null;
+        overtime_rate?: number | string | null;
     } | null;
 };
 
@@ -131,7 +135,7 @@ export interface PackageActivityRecord {
     }>;
     package_event_day?: { event_day?: { name?: string } };
     scene_schedules?: any[];
-    operators?: any[];
+    crewSlots?: any[];
 }
 
 /** Package subject record used in `packageSubjects` state. */

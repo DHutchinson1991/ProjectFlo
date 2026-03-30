@@ -28,6 +28,11 @@ export class CreatePaymentBracketDto {
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Type(() => Number)
+  half_day_rate?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Type(() => Number)
   overtime_rate?: number;
 
   @IsOptional()

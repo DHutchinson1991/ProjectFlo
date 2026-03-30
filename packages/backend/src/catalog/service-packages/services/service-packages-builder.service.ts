@@ -85,7 +85,6 @@ export class ServicePackagesBuilderService {
           brand_id: brandId,
           name: pkgName,
           description: null,
-          base_price: 0,
           currency: brand?.currency || DEFAULT_CURRENCY,
           is_active: false,
           category: eventType.name,
@@ -135,25 +134,25 @@ export class ServicePackagesBuilderService {
       }
 
       // Create PackageCrewSlot slots
-      const opCount = Math.max(1, Math.min(dto.operatorCount, 10));
-      const createdOperators: Array<{ id: number }> = [];
-      for (let i = 0; i < opCount; i++) {
+      const crewSlotCount = Math.max(1, Math.min(dto.crewCount, 10));
+      const createdCrewSlots: Array<{ id: number }> = [];
+      for (let i = 0; i < crewSlotCount; i++) {
         const op = await tx.packageCrewSlot.create({
           data: {
             package_id: servicePackage.id,
-            event_day_template_id: mainTemplate.id,
-            crew_member_id: null,
-            job_role_id: videographerRole?.id || null,
-            label: opCount > 1 ? `Videographer ${i + 1}` : null,
+            package_event_day_id: packageEventDay.id,
+            crew_id: null,
+            job_role_id: videographerRole!.id,
+            label: crewSlotCount > 1 ? `Videographer ${i + 1}` : null,
             hours: coverageHours || 8,
             order_index: i,
           },
         });
-        createdOperators.push(op);
+        createdCrewSlots.push(op);
       }
 
       // Auto-assign equipment from brand's library
-      const totalCameras = Math.max(opCount, Math.min(dto.cameraCount ?? opCount, opCount * 10));
+      const totalCameras = Math.max(crewSlotCount, Math.min(dto.cameraCount ?? crewSlotCount, crewSlotCount * 10));
       if (totalCameras > 0) {
         const availableCameras = await tx.equipment.findMany({
           where: {
@@ -168,14 +167,14 @@ export class ServicePackagesBuilderService {
           let cameraIdx = 0;
           for (let c = 0; c < totalCameras; c++) {
             const camera = availableCameras[cameraIdx % availableCameras.length];
-            const operatorIndex = c % opCount;
-            const operator = createdOperators[operatorIndex];
+            const crewSlotIndex = c % crewSlotCount;
+            const crewSlot = createdCrewSlots[crewSlotIndex];
 
             await tx.packageCrewSlotEquipment.create({
               data: {
-                package_crew_slot_id: operator.id,
+                package_crew_slot_id: crewSlot.id,
                 equipment_id: camera.id,
-                is_primary: c < opCount,
+                is_primary: c < crewSlotCount,
               },
             });
             cameraIdx++;

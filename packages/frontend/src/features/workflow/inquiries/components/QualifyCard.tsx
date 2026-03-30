@@ -70,6 +70,7 @@ function buildWelcomeDraft(
   leadProducer: Inquiry["lead_producer"],
   missingDataQuestions: string[],
   brandName: string,
+  taxRate: number,
   portalUrl?: string | null,
   discoveryCall?: DiscoveryCallData,
   callInterest?: string,
@@ -105,14 +106,9 @@ function buildWelcomeDraft(
   const venueDisplay = inquiry.venue_address || inquiry.venue_details;
   if (venueDisplay) confirmedDetails.push(`Venue: ${venueDisplay}`);
   const packageName = inquiry.selected_package?.name ?? inquiry.package_contents_snapshot?.package_name;
-  // Get best estimate: prefer primary, then most recent. Use total_with_tax or compute from total_amount + tax_rate.
-  const estimates = inquiry.estimates ?? [];
-  const bestEstimate = estimates.find((e) => e.is_primary) ?? estimates[0] ?? null;
-  const estimateTotal = bestEstimate
-    ? (bestEstimate.total_with_tax
-        ? Number(bestEstimate.total_with_tax)
-        : computeTaxBreakdown(Number(bestEstimate.total_amount), Number(bestEstimate.tax_rate ?? 0)).total)
-    : (inquiry.primary_estimate_total ?? 0);
+  const primaryEst = inquiry.estimates?.find(e => e.is_primary) ?? inquiry.estimates?.[0];
+  const estimateTotal = (primaryEst ? computeTaxBreakdown(Number(primaryEst.total_amount ?? 0), taxRate).total : 0)
+    || (inquiry.primary_estimate_total ?? 0);
   const currency = bestEstimate?.currency ?? inquiry.selected_package?.currency ?? inquiry.package_contents_snapshot?.currency ?? DEFAULT_CURRENCY;
   const packagePriceStr = estimateTotal > 0 ? formatCurrency(estimateTotal, currency) : null;
   if (packageName && packagePriceStr) confirmedDetails.push(`Package: ${packageName} (estimated ${packagePriceStr})`);
@@ -160,14 +156,14 @@ function buildWelcomeDraft(
 
   // ── Crew confirmation block ──────────────────────────────────────
   const confirmedCrew = (crew ?? []).filter(
-    (r) => r.assigned_crew_member && (r.availability_request_status === 'confirmed' || r.status === 'available'),
+    (r) => r.assigned_crew && (r.availability_request_status === 'confirmed' || r.status === 'available'),
   );
   if (confirmedCrew.length > 0) {
     lines.push('Your Crew:');
     lines.push('');
     confirmedCrew.forEach((r) => {
       const role = r.job_role?.display_name ?? r.job_role?.name ?? r.label ?? 'Crew';
-      const name = r.assigned_crew_member!.name;
+      const name = r.assigned_crew!.name;
       const confirmed = r.availability_request_status === 'confirmed' ? ' ✓ Confirmed' : '';
       lines.push(`  • ${role}: ${name}${confirmed}`);
     });
@@ -308,6 +304,7 @@ export default function QualifyCard({ inquiry, inquiryTasks, submission, onRefre
       leadProducer,
       missingDataQuestions,
       brandName,
+      Number(currentBrand?.default_tax_rate ?? 0),
       portalUrl,
       discoveryCall,
       String(responses.discovery_call_interest ?? ''),

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import InstanceScheduleEditor from '@/features/workflow/scheduling/components/InstanceScheduleEditor';
-import { scheduleApi } from '@/features/workflow/scheduling/api';
+import { InstanceScheduleEditor } from '@/features/workflow/scheduling/instance';
+import { scheduleApi } from '@/features/workflow/scheduling/instance';
 
 interface InquirySchedulePreviewProps {
     inquiryId: number;

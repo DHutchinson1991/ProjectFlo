@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../platform/prisma/prisma.service';
 import { CreateSkillRoleMappingDto } from './dto/create-skill-role-mapping.dto';
 import { UpdateSkillRoleMappingDto } from './dto/update-skill-role-mapping.dto';
@@ -13,20 +14,21 @@ export class SkillRoleMappingsService {
 
     // ─── CRUD ──────────────────────────────────────────────────
 
-    async findAll(query: SkillRoleMappingQueryDto) {
-        const where: Record<string, unknown> = {};
+    async findAll(query: SkillRoleMappingQueryDto, brandId?: number) {
+        const effectiveBrandId = query.brandId ?? brandId;
+        const where: Prisma.skill_role_mappingsWhereInput = {};
 
         if (!query.include_inactive) {
             where.is_active = true;
         }
-        if (query.brandId) {
-            where.OR = [{ brand_id: query.brandId }, { brand_id: null }];
+        if (effectiveBrandId) {
+            where.OR = [{ brand_id: effectiveBrandId }, { brand_id: null }];
         }
         if (query.jobRoleId) {
             where.job_role_id = query.jobRoleId;
         }
-        if ((query as { paymentBracketId?: number }).paymentBracketId) {
-            where.payment_bracket_id = (query as { paymentBracketId?: number }).paymentBracketId;
+        if (query.paymentBracketId) {
+            where.payment_bracket_id = query.paymentBracketId;
         }
         if (query.skill) {
             where.skill_name = { contains: query.skill, mode: 'insensitive' };
@@ -147,10 +149,10 @@ export class SkillRoleMappingsService {
     async update(id: number, dto: UpdateSkillRoleMappingDto) {
         await this.findById(id); // throws if not found
 
-        const data: Record<string, unknown> = {};
+        const data: Prisma.skill_role_mappingsUpdateInput = {};
         if (dto.skill_name !== undefined) data.skill_name = this.normalizeSkillName(dto.skill_name);
-        if (dto.job_role_id !== undefined) data.job_role_id = dto.job_role_id;
-        if (dto.payment_bracket_id !== undefined) data.payment_bracket_id = dto.payment_bracket_id;
+        if (dto.job_role_id !== undefined) data.job_role = { connect: { id: dto.job_role_id } };
+        if (dto.payment_bracket_id !== undefined) data.payment_bracket = { connect: { id: dto.payment_bracket_id } };
         if (dto.priority !== undefined) data.priority = dto.priority;
         if (dto.is_active !== undefined) data.is_active = dto.is_active;
 

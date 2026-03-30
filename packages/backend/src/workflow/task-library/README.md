@@ -18,6 +18,7 @@ Manages reusable task templates that define the work items for a project. Provid
 ## Business rules / invariants
 - Each task template belongs to exactly one brand.
 - Preview and execute share the same resolution logic (roles → brackets → rates).
+- Brand-access checks for admins resolve through `crew.contact.user_account.system_role`.
 - External consumers (pricing, estimates, inquiry-wizard) call `previewAutoGeneration` / `previewAutoGenerationForSystem` via the facade `TaskLibraryService`.
 
 ## Related modules

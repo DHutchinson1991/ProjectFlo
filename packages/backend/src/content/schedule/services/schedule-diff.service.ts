@@ -30,7 +30,7 @@ interface DiffSubject {
   role_template?: { role_name: string } | null;
 }
 
-interface DiffOperator {
+interface DiffCrewSlot {
   id: number;
   source_slot_id?: number | null;
   label?: string | null;
@@ -68,7 +68,7 @@ export class ScheduleDiffService {
       event_days: this.buildEventDayDiffs(instance.days, pkg.days),
       activities: this.buildActivityDiffs(instance.activities, pkg.activities),
       subjects: this.buildSubjectDiffs(instance.subjects, pkg.subjects),
-      operators: this.buildOperatorDiffs(instance.operators, pkg.operators),
+      crew_slots: this.buildCrewSlotDiffs(instance.crewSlots, pkg.crewSlots),
       location_slots: this.buildLocationDiffs(instance.slots, pkg.slots),
     };
 
@@ -85,14 +85,14 @@ export class ScheduleDiffService {
           event_days: pkg.days.length,
           activities: pkg.activities.length,
           subjects: pkg.subjects.length,
-          operators: pkg.operators.length,
+          crew_slots: pkg.crewSlots.length,
           location_slots: pkg.slots.length,
         },
         instance: {
           event_days: instance.days.length,
           activities: instance.activities.length,
           subjects: instance.subjects.length,
-          operators: instance.operators.length,
+          crew_slots: instance.crewSlots.length,
           location_slots: instance.slots.length,
         },
       },
@@ -123,13 +123,13 @@ export class ScheduleDiffService {
     return {
       has_source_package: false,
       source_package_id: null,
-      diffs: { event_days: [], activities: [], subjects: [], operators: [], location_slots: [] },
+      diffs: { event_days: [], activities: [], subjects: [], crew_slots: [], location_slots: [] },
       summary: { total_changes: 0, added: 0, removed: 0, modified: 0 },
     };
   }
 
   private async fetchInstanceData(owner: InstanceOwner) {
-    const [days, activities, subjects, operators, slots] = await Promise.all([
+    const [days, activities, subjects, crewSlots, slots] = await Promise.all([
       this.prisma.projectEventDay.findMany({
         where: owner,
         include: { event_day_template: { select: { id: true, name: true } } },
@@ -152,11 +152,11 @@ export class ScheduleDiffService {
       }),
       this.prisma.projectLocationSlot.findMany({ where: owner, orderBy: { order_index: 'asc' } }),
     ]);
-    return { days, activities, subjects, operators, slots };
+    return { days, activities, subjects, crewSlots, slots };
   }
 
   private async fetchPackageData(packageId: number) {
-    const [days, activities, subjects, operators, slots] = await Promise.all([
+    const [days, activities, subjects, crewSlots, slots] = await Promise.all([
       this.prisma.packageEventDay.findMany({
         where: { package_id: packageId },
         include: { event_day: { select: { id: true, name: true } } },
@@ -186,7 +186,7 @@ export class ScheduleDiffService {
         orderBy: { location_number: 'asc' },
       }),
     ]);
-    return { days, activities, subjects, operators, slots };
+    return { days, activities, subjects, crewSlots, slots };
   }
 
   private buildEventDayDiffs(instanceDays: DiffEventDay[], pkgDays: DiffEventDay[]) {
@@ -238,10 +238,10 @@ export class ScheduleDiffService {
     return diffs;
   }
 
-  private buildOperatorDiffs(instanceOperators: DiffOperator[], pkgOperators: DiffOperator[]) {
-    const instMap = new Map(instanceOperators.filter((o) => o.source_slot_id != null).map((o) => [o.source_slot_id!, o]));
+  private buildCrewSlotDiffs(instanceCrewSlots: DiffCrewSlot[], pkgCrewSlots: DiffCrewSlot[]) {
+    const instMap = new Map(instanceCrewSlots.filter((o) => o.source_slot_id != null).map((o) => [o.source_slot_id!, o]));
     const diffs: Array<{ change: string; name: string; detail?: string }> = [];
-    for (const po of pkgOperators) {
+    for (const po of pkgCrewSlots) {
       const inst = instMap.get(po.id);
       const pkgName = po.label ?? po.job_role?.display_name ?? po.job_role?.name ?? 'Unknown';
       if (!inst) { diffs.push({ change: 'removed', name: pkgName }); continue; }
@@ -251,7 +251,7 @@ export class ScheduleDiffService {
       if (inst.job_role_id !== po.job_role_id) changes.push('role changed');
       if (changes.length > 0) diffs.push({ change: 'modified', name: instName || pkgName, detail: changes.join(', ') });
     }
-    for (const io of instanceOperators) {
+    for (const io of instanceCrewSlots) {
       if (!io.source_slot_id) diffs.push({ change: 'added', name: io.label ?? io.job_role?.display_name ?? io.job_role?.name ?? 'Unknown' });
     }
     return diffs;

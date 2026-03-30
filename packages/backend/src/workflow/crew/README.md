@@ -5,7 +5,7 @@
 
 ## Responsibility
 
-Manages the crew roster for a brand: who is on crew, their profiles, job roles, and workload across inquiries and projects. Handles promotion of contributors to crew status.
+Manages the crew roster for a brand: who is on crew, their profiles, job roles, and workload across inquiries and projects. Handles promotion into active crew status.
 
 ## Exposed Surface
 
@@ -18,7 +18,7 @@ Manages the crew roster for a brand: who is on crew, their profiles, job roles, 
 
 ## Key Concepts
 
-- A crew member is a contributor (user with a brand relationship) who has a `job_role` assignment.
+- A crew record is a user with a brand relationship and at least one `job_role` assignment.
 - Workload is computed across `package_day_operator` and `project_event_day_operator` records.
 
 ## API Endpoints
@@ -26,9 +26,9 @@ Manages the crew roster for a brand: who is on crew, their profiles, job roles, 
 | Method | Path | Description |
 |---|---|---|
 | GET | `/crew` | List crew by brand |
-| GET | `/crew/contributors` | List all contributors (for promotion flows) |
+| GET | `/crew/crew` | List all crew (for promotion flows) |
 | GET | `/crew/by-role` | Filter crew by job role |
-| GET | `/crew/:id` | Full crew member detail |
+| GET | `/crew/:id` | Full crew detail |
 | PATCH | `/crew/:id/status` | Promote/demote crew status |
 | PATCH | `/crew/:id/profile` | Update crew profile fields |
 | GET | `/crew/:id/workload` | Crew workload summary |

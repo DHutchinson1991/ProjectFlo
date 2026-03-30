@@ -8,11 +8,11 @@ import { useActiveTasks } from "../hooks/use-active-tasks";
 
 export function ActiveTasksScreen() {
     const {
-        tasks, crewMembers, loading, syncing, error,
+        tasks, crew, loading, syncing, error,
         searchQuery, statusFilter, sourceFilter, groupMode, showAuto,
         filteredTasks, groups,
         setSearchQuery, setStatusFilter, setSourceFilter, setGroupMode,
-        loadTasks, handleSyncFromLibrary, handleAssign, handleNavigateToTask, handleToggle, handleShowAutoToggle,
+           loadTasks, handleSyncCrewFromLibrary, handleAssign, handleNavigateToTask, handleToggle, handleShowAutoToggle,
     } = useActiveTasks();
 
     const visibleNonSubtasks = filteredTasks.filter(t => t.task_kind !== "subtask").length;
@@ -44,7 +44,7 @@ export function ActiveTasksScreen() {
                     <Tooltip title="Sync people from task library defaults" arrow>
                         <span>
                             <Button
-                                onClick={handleSyncFromLibrary} disabled={syncing} size="small"
+                                    onClick={handleSyncCrewFromLibrary} disabled={syncing} size="small"
                                 startIcon={<SyncIcon sx={{ fontSize: "15px !important", ...(syncing && { animation: "spin 1s linear infinite" }) }} />}
                                 sx={{
                                     fontSize: "0.75rem", fontWeight: 600, textTransform: "none",
@@ -115,7 +115,7 @@ export function ActiveTasksScreen() {
                             <TaskGroup
                                 key={group.key} title={group.title} color={group.color}
                                 tasks={group.tasks} defaultExpanded={idx < 5}
-                                icon={group.icon} badge={group.badge} contributors={crewMembers}
+                                icon={group.icon} badge={group.badge} crew={crew}
                                 onAssign={handleAssign} onNavigate={handleNavigateToTask} onToggle={handleToggle}
                             />
                         ))}

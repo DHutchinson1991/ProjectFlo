@@ -2,9 +2,8 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../platform/prisma/prisma.module';
 import { TasksModule } from '../../workflow/tasks/tasks.module';
 
-// Legacy monolithic controller + service (to be removed once frontend migrates to api/ routes)
+// Legacy monolithic controller (frontend still calls these routes; to be removed once frontend migrates)
 import { ScheduleController } from './schedule.controller';
-import { ScheduleService } from './schedule.service';
 
 // Split services (bounded responsibility)
 import {
@@ -42,7 +41,6 @@ import {
     ScheduleInstanceResourceController,
   ],
   providers: [
-    ScheduleService,
     SchedulePresetService,
     ScheduleFilmService,
     SchedulePackageService,
@@ -55,7 +53,6 @@ import {
     ScheduleDiffService,
   ],
   exports: [
-    ScheduleService,
     ScheduleDiffService,
     ScheduleProjectService,
     ScheduleInstanceService,

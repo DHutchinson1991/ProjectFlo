@@ -1,15 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useBrand } from '@/features/platform/brand';
 import { locationsApi } from '../api';
+import { locationKeys } from './useLocationsList';
 import type { FilmLocationAssignment } from '../types';
 
 export const filmLocationsKeys = {
     all: ['film-locations'] as const,
     byFilm: (filmId: number) => [...filmLocationsKeys.all, filmId] as const,
-    allLocations: ['locations-library'] as const,
 };
 
 export const useFilmLocations = (filmId?: number) => {
     const queryClient = useQueryClient();
+    const { currentBrand } = useBrand();
+    const brandId = currentBrand?.id;
 
     const filmLocationsQuery = useQuery({
         queryKey: filmLocationsKeys.byFilm(filmId!),
@@ -18,8 +21,9 @@ export const useFilmLocations = (filmId?: number) => {
     });
 
     const allLocationsQuery = useQuery({
-        queryKey: filmLocationsKeys.allLocations,
+        queryKey: brandId ? locationKeys.all(brandId) : ['locations', 'missing-brand'],
         queryFn: () => locationsApi.getAll(),
+        enabled: Boolean(brandId),
     });
 
     const invalidate = () =>

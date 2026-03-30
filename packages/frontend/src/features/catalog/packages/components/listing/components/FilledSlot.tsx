@@ -44,13 +44,8 @@ export function FilledSlot({
     const tierColor = getTierColor(slotLabel);
     const filmItems = (pkg.contents?.items || []).filter(i => i.type === 'film');
 
-    // Use backend-provided pricing (bracket-aware, includes task costs + tax)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pkgData = pkg as any;
-    const backendTax = pkgData._tax as { rate: number; amount: number; totalWithTax: number } | null;
-    const displayCost = backendTax
-        ? backendTax.totalWithTax
-        : (stats.totalCost > 0 ? stats.totalCost : Number(pkg.base_price ?? 0));
+    const displayCost = Number(pkg._tax?.totalWithTax ?? pkg._totalCost ?? 0);
+    const hasTax = (pkg._tax?.rate ?? 0) > 0;
 
     return (
         <Box sx={{
@@ -116,11 +111,14 @@ export function FilledSlot({
                             textTransform: 'uppercase', letterSpacing: '0.5px',
                         }}
                     />
-                    <Typography sx={{
-                        fontWeight: 800, color: '#f59e0b', fontSize: '1.1rem', fontFamily: 'monospace',
-                    }}>
-                        {formatCurrency(displayCost, currencyCode ?? DEFAULT_CURRENCY)}
-                    </Typography>
+                    <Box sx={{ textAlign: 'right' }}>
+                        <Typography sx={{
+                            fontWeight: 800, color: '#f59e0b', fontSize: '1.1rem', fontFamily: 'monospace',
+                        }}>
+                            {formatCurrency(displayCost, currencyCode ?? DEFAULT_CURRENCY)}
+                        </Typography>
+                        {hasTax && <Typography sx={{ fontSize: '0.55rem', color: '#475569', fontFamily: 'monospace' }}>incl. {pkg._tax!.rate}% tax</Typography>}
+                    </Box>
                 </Box>
 
                 {/* Name + Description */}

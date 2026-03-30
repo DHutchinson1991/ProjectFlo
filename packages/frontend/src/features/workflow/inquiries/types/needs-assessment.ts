@@ -63,7 +63,7 @@ export interface NaDateConflictResult {
 }
 
 export interface NaCrewConflictResult {
-    conflicts: { crew_member_id: number; name: string; role: string; event_type: string; event_title: string }[];
+    conflicts: { crew_id: number; name: string; role: string; event_type: string; event_title: string }[];
 }
 
 export interface NeedsAssessmentSubmissionPayload {

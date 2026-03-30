@@ -27,25 +27,28 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   // The return value is what NestJS attaches to the `request.user` object.
   async validate(payload: { sub: number; email: string; role: string }) {
     // Fetch the full user information from the database
-    const contributor = await this.prisma.crewMember.findUnique({
+    const crew = await this.prisma.crew.findUnique({
       where: { id: payload.sub },
       include: {
-        contact: true,
-        role: true,
+        contact: {
+          include: {
+            user_account: { include: { system_role: true } },
+          },
+        },
       },
     });
 
-    if (!contributor) {
+    if (!crew) {
       return null;
     }
 
     return {
-      id: contributor.id,
-      userId: contributor.id, // Keep for backward compatibility
-      email: contributor.contact.email,
-      first_name: contributor.contact.first_name,
-      last_name: contributor.contact.last_name,
-      roles: [contributor.role?.name || "User"],
+      id: crew.id,
+      userId: crew.id,
+      email: crew.contact.email,
+      first_name: crew.contact.first_name,
+      last_name: crew.contact.last_name,
+      roles: [crew.contact.user_account?.system_role?.name || "User"],
     };
   }
 }

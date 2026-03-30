@@ -33,11 +33,12 @@ import {
 } from '@mui/icons-material';
 import { Inquiry } from '@/features/workflow/inquiries/types';
 import { packageSetsApi, servicePackagesApi } from '@/features/catalog/packages/api';
-import { scheduleApi } from '@/features/workflow/scheduling/api';
+import { scheduleApi } from '@/features/workflow/scheduling/instance';
 import { inquiriesApi } from '@/features/workflow/inquiries';
-import { getPackageStats } from '@/features/catalog/packages/components/listing/listing-helpers';
 import { formatCurrency } from '@/features/workflow/proposals/utils/portal/formatting';
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
+import { computeTaxBreakdown } from '@/shared/utils/pricing';
+import { useBrand } from '@/features/platform/brand';
 import { InquirySchedulePreview } from '../components';
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ export default function PackageReviewScreen() {
     const params = useParams();
     const router = useRouter();
     const inquiryId = Number(params.id);
+    const { currentBrand } = useBrand();
 
     // Data state
     const [inquiry, setInquiry] = useState<Inquiry | null>(null);
@@ -262,10 +264,9 @@ export default function PackageReviewScreen() {
                             )}
                         </Box>
                         {selectedPkg && (() => {
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            const tax = (selectedPkg as any)._tax as { totalWithTax: number } | null | undefined;
-                            const s = getPackageStats(selectedPkg);
-                            const price = tax?.totalWithTax ?? (s.totalCost > 0 ? s.totalCost : Number(selectedPkg.base_price ?? 0));
+                            const primaryEst = inquiry?.estimates?.find(e => e.is_primary) ?? inquiry?.estimates?.[0];
+                            const price = (primaryEst ? computeTaxBreakdown(Number(primaryEst.total_amount ?? 0), Number(currentBrand?.default_tax_rate ?? 0)).total : 0)
+                                || Number(selectedPkg._totalCost ?? 0);
                             return (
                                 <Typography sx={{ fontSize: '0.85rem', color: '#64748b', mt: 0.25 }}>
                                     {selectedPkg.name}
@@ -322,10 +323,7 @@ export default function PackageReviewScreen() {
                                     </ListSubheader>,
                                     ...group.packages.map((pkg) => {
                                         const info = packageSetInfoMap.get(pkg.id);
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        const tax = (pkg as any)._tax as { totalWithTax: number } | null | undefined;
-                                        const pkgStats = getPackageStats(pkg);
-                                        const pkgPrice = tax?.totalWithTax ?? (pkgStats.totalCost > 0 ? pkgStats.totalCost : Number(pkg.base_price ?? 0));
+                                        const pkgPrice = Number(pkg._totalCost ?? 0);
                                         return (
                                             <MenuItem key={pkg.id} value={pkg.id}>
                                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
@@ -402,7 +400,7 @@ export default function PackageReviewScreen() {
                             <Box sx={{ width: '1px', height: 16, bgcolor: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
                             {[
                                 { count: packageSummary.counts?.activities ?? 0, label: 'activities' },
-                                { count: packageSummary.counts?.operators ?? 0, label: 'crew' },
+                                { count: packageSummary.counts?.crew_slots ?? 0, label: 'crew' },
                                 { count: packageSummary.counts?.films ?? 0, label: 'films' },
                             ].filter((s) => s.count > 0).map(({ count, label }) => (
                                 <Typography key={label} sx={{ fontSize: '0.75rem', color: '#64748b' }}>
@@ -473,7 +471,7 @@ export default function PackageReviewScreen() {
                             <WarningAmber sx={{ fontSize: 14 }} /> May change
                         </Typography>
                         <Typography variant="body2" sx={{ color: '#cbd5e1', fontSize: '0.8rem', pl: 2.5 }}>
-                            Event days, activities, films, and operator slots will be recreated from the new package. Data is restored by matching role/position names — unmatched items will be lost.
+                            Event days, activities, films, and crew slots will be recreated from the new package. Data is restored by matching role/position names — unmatched items will be lost.
                         </Typography>
                     </Box>
                 </DialogContent>

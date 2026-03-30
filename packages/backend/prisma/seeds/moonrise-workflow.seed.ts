@@ -14,6 +14,7 @@ interface SubTaskDef {
     order_index: number;
     is_auto_only: boolean;
     due_date_offset_days: number | null;
+    due_date_offset_reference: string;
 }
 
 interface StageDef {
@@ -28,23 +29,24 @@ interface StageDef {
 interface SubtaskTemplateDef {
     subtask_key: string;
     name: string;
+    description?: string;
     order_index: number;
     is_auto_only: boolean;
 }
 
 const TASK_SUBTASK_TEMPLATES: Record<string, SubtaskTemplateDef[]> = {
     'Review Inquiry': [
-        { subtask_key: 'verify_contact_details', name: 'Verify Contact Details', order_index: 1, is_auto_only: true },
-        { subtask_key: 'verify_event_date', name: 'Verify Event Date', order_index: 2, is_auto_only: true },
-        { subtask_key: 'confirm_package_selection', name: 'Confirm Package Selection', order_index: 3, is_auto_only: true },
-        { subtask_key: 'check_crew_availability', name: 'Check Crew Availability', order_index: 4, is_auto_only: true },
-        { subtask_key: 'check_equipment_availability', name: 'Check Equipment Availability', order_index: 5, is_auto_only: true },
-        { subtask_key: 'resolve_availability_conflicts', name: 'Resolve Availability Conflicts', order_index: 6, is_auto_only: true },
-        { subtask_key: 'send_crew_availability_requests', name: 'Send Availability Requests', order_index: 7, is_auto_only: true },
-        { subtask_key: 'reserve_equipment', name: 'Reserve Equipment', order_index: 8, is_auto_only: true },
+        { subtask_key: 'verify_contact_details', name: 'Verify Contact Details', description: 'Checks that the client submission includes a valid name, email address, and phone number. Flags missing or malformed fields so you can follow up before spending time on the rest of the inquiry.', order_index: 1, is_auto_only: true },
+        { subtask_key: 'verify_event_date', name: 'Verify Event Date', description: 'Confirms the event date has been provided and is a valid future date. Cross-checks your booking calendar to surface any existing commitments on that day so you can assess availability immediately.', order_index: 2, is_auto_only: true },
+        { subtask_key: 'confirm_package_selection', name: 'Confirm Package Selection', description: 'Validates that the client selected a package from your catalog. If no package was chosen, the inquiry is flagged so you can clarify requirements before building an estimate.', order_index: 3, is_auto_only: true },
+        { subtask_key: 'check_crew_availability', name: 'Check Crew Availability', description: 'Scans your crew roster for the event date and identifies who is already booked, who has confirmed availability, and who still needs to be checked. Results are surfaced directly in the Review Inquiry task.', order_index: 4, is_auto_only: true },
+        { subtask_key: 'check_equipment_availability', name: 'Check Equipment Availability', description: 'Reviews your equipment inventory for the event date and lists any items that are reserved or unavailable. Highlights conflicts so you can resolve them before committing to the booking.', order_index: 5, is_auto_only: true },
+        { subtask_key: 'resolve_availability_conflicts', name: 'Resolve Availability Conflicts', description: 'Evaluates crew and equipment conflicts identified in the availability checks. Where alternatives exist they are suggested automatically; remaining conflicts are surfaced for manual resolution before proceeding.', order_index: 6, is_auto_only: true },
+        { subtask_key: 'send_crew_availability_requests', name: 'Send Availability Requests', description: 'Sends availability request notifications to crew members who have not yet confirmed or declined for the event date. Responses update their availability status in real time.', order_index: 7, is_auto_only: true },
+        { subtask_key: 'reserve_equipment', name: 'Reserve Equipment', description: 'Places a provisional hold on the required equipment for the event date once availability is confirmed. The reservation is tied to the inquiry and released automatically if the booking does not proceed.', order_index: 8, is_auto_only: true },
     ],
     'Qualify & Respond': [
-        { subtask_key: 'review_estimate', name: 'Review Estimate', order_index: 1, is_auto_only: true },
+        { subtask_key: 'review_estimate', name: 'Review Estimate', description: 'Auto-generates a draft estimate from the selected package pricing and any applicable adjustments. Review line items, add or remove services, and confirm the total before sharing with the client.', order_index: 1, is_auto_only: true },
         { subtask_key: 'schedule_discovery_call', name: 'Schedule Discovery Call', order_index: 2, is_auto_only: false },
         { subtask_key: 'mark_inquiry_qualified', name: 'Qualify Inquiry', order_index: 3, is_auto_only: false },
         { subtask_key: 'send_welcome_response', name: 'Send Welcome Response', order_index: 4, is_auto_only: false },
@@ -58,8 +60,8 @@ const PIPELINE_STAGES: StageDef[] = [
         phase: $Enums.project_phase.Inquiry,
         order_index: 1,
         children: [
-            { name: 'Review Inquiry', description: 'Review what the client submitted — check their responses, date availability, and crew conflicts before responding', effort_hours: 0.25, order_index: 1, is_auto_only: false, due_date_offset_days: 1 },
-            { name: 'Qualify & Respond', description: 'Confirm availability, introduce yourself, share portfolio, and transition the inquiry to Contacted', effort_hours: 0.25, order_index: 2, is_auto_only: false, due_date_offset_days: 1 },
+            { name: 'Review Inquiry', description: 'Review what the client submitted — check their responses, date availability, and crew conflicts before responding', effort_hours: 0.25, order_index: 1, is_auto_only: false, due_date_offset_days: 1, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Qualify & Respond', description: 'Confirm availability, introduce yourself, share portfolio, and transition the inquiry to Contacted', effort_hours: 0.25, order_index: 2, is_auto_only: false, due_date_offset_days: 2, due_date_offset_reference: 'inquiry_created' },
         ],
     },
     {
@@ -68,7 +70,7 @@ const PIPELINE_STAGES: StageDef[] = [
         phase: $Enums.project_phase.Inquiry,
         order_index: 2,
         children: [
-            { name: 'Discovery Call', description: 'Conduct the call, then save post-call notes or transcript in the Discovery Questionnaire section', effort_hours: 0.25, order_index: 1, is_auto_only: false, due_date_offset_days: 7 },
+            { name: 'Discovery Call', description: 'Conduct the call, then save post-call notes or transcript in the Discovery Questionnaire section', effort_hours: 0.25, order_index: 1, is_auto_only: false, due_date_offset_days: 7, due_date_offset_reference: 'inquiry_created' },
         ],
     },
     {
@@ -77,11 +79,11 @@ const PIPELINE_STAGES: StageDef[] = [
         phase: $Enums.project_phase.Booking,
         order_index: 3,
         children: [
-            { name: 'Generate Quote', description: 'Review package selections from the discovery call, adjust if needed, then generate the formal quote', effort_hours: 0.75, order_index: 1, is_auto_only: false, due_date_offset_days: 2 },
-            { name: 'Prepare Contract', description: 'Auto-generate contract from template using quote values — review and customise clauses before sending', effort_hours: 0.5, order_index: 2, is_auto_only: false, due_date_offset_days: 1 },
-            { name: 'Create & Review Proposal', description: 'Generate the full proposal — verify timeline, subjects, venues, package, films, quote, and personal message', effort_hours: 1.0, order_index: 3, is_auto_only: false, due_date_offset_days: 2 },
-            { name: 'Send Proposal', description: 'Send the proposal to the client portal — client can Accept or Request Changes', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 1 },
-            { name: 'Contract Sent', description: 'Auto-sent to client when they accept the proposal — no manual action required', effort_hours: 0, order_index: 5, is_auto_only: true, due_date_offset_days: 0 },
+            { name: 'Generate Quote', description: 'Review package selections from the discovery call, adjust if needed, then generate the formal quote', effort_hours: 0.75, order_index: 1, is_auto_only: false, due_date_offset_days: 8, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Prepare Contract', description: 'Auto-generate contract from template using quote values — review and customise clauses before sending', effort_hours: 0.5, order_index: 2, is_auto_only: false, due_date_offset_days: 9, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Create & Review Proposal', description: 'Generate the full proposal — verify timeline, subjects, venues, package, films, quote, and personal message', effort_hours: 1.0, order_index: 3, is_auto_only: false, due_date_offset_days: 10, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Send Proposal', description: 'Send the proposal to the client portal — client can Accept or Request Changes', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 11, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Contract Sent', description: 'Auto-sent to client when they accept the proposal — no manual action required', effort_hours: 0, order_index: 5, is_auto_only: true, due_date_offset_days: 12, due_date_offset_reference: 'inquiry_created' },
         ],
     },
     {
@@ -90,63 +92,27 @@ const PIPELINE_STAGES: StageDef[] = [
         phase: $Enums.project_phase.Booking,
         order_index: 4,
         children: [
-            { name: 'Contract Signed', description: 'Auto-completes when all signers have signed in the client portal', effort_hours: 0, order_index: 1, is_auto_only: true, due_date_offset_days: 14 },
-            { name: 'Raise Deposit Invoice', description: 'Auto-generated from the estimate deposit amount when the contract is signed', effort_hours: 0, order_index: 2, is_auto_only: true, due_date_offset_days: 0 },
-            { name: 'Block Wedding Date', description: 'Wedding day calendar block auto-created when inquiry status changes to Booked', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 0 },
-            { name: 'Confirm Booking', description: 'Change inquiry status to Booked — triggers calendar block and completes this task', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 1 },
-            { name: 'Send Welcome Pack', description: 'Unlock the Welcome Pack section in the client portal — introduces what happens next', effort_hours: 0.15, order_index: 5, is_auto_only: false, due_date_offset_days: 2 },
+            { name: 'Contract Signed', description: 'Auto-completes when all signers have signed in the client portal', effort_hours: 0, order_index: 1, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date' },
+            { name: 'Raise Deposit Invoice', description: 'Auto-generated from the estimate deposit amount when the contract is signed', effort_hours: 0, order_index: 2, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date' },
+            { name: 'Block Wedding Date', description: 'Wedding day calendar block auto-created when inquiry status changes to Booked', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date' },
+            { name: 'Confirm Booking', description: 'Change inquiry status to Booked — triggers calendar block and completes this task', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 1, due_date_offset_reference: 'booking_date' },
+            { name: 'Send Welcome Pack', description: 'Unlock the Welcome Pack section in the client portal — introduces what happens next', effort_hours: 0.15, order_index: 5, is_auto_only: false, due_date_offset_days: 2, due_date_offset_reference: 'booking_date' },
         ],
     },
 ];
 
 // Pipeline tasks need skill mappings — backfilled separately so crew assignment can resolve them
-const PIPELINE_TASK_SKILLS: Record<string, { skills_needed: string[]; complexity_score: number }> = {
-    'Review Inquiry': {
-        skills_needed: ['Client Relations', 'Communication', 'Scheduling'],
-        complexity_score: 2,
-    },
-    'Qualify & Respond': {
-        skills_needed: ['Client Relations', 'Sales', 'Communication'],
-        complexity_score: 3,
-    },
-    'Discovery Call': {
-        skills_needed: ['Consultation', 'Communication', 'Client Relations'],
-        complexity_score: 4,
-    },
-    'Generate Quote': {
-        skills_needed: ['Pricing', 'Planning', 'Client Relations'],
-        complexity_score: 3,
-    },
-    'Prepare Contract': {
-        skills_needed: ['Legal', 'Documentation', 'Contract Management'],
-        complexity_score: 3,
-    },
-    'Create & Review Proposal': {
-        skills_needed: ['Creative Direction', 'Presentation', 'Pricing'],
-        complexity_score: 5,
-    },
-    'Send Proposal': {
-        skills_needed: ['Communication', 'Client Relations'],
-        complexity_score: 1,
-    },
-    'Confirm Booking': {
-        skills_needed: ['Client Relations', 'Documentation'],
-        complexity_score: 2,
-    },
-    'Send Welcome Pack': {
-        skills_needed: ['Client Relations', 'Communication'],
-        complexity_score: 1,
-    },
+const PIPELINE_TASK_SKILLS: Record<string, { skills_needed: string[] }> = {
+    'Review Inquiry':         { skills_needed: ['Client Relations', 'Communication', 'Scheduling'] },
+    'Qualify & Respond':      { skills_needed: ['Client Relations', 'Sales', 'Communication'] },
+    'Discovery Call':         { skills_needed: ['Consultation', 'Communication', 'Client Relations'] },
+    'Generate Quote':         { skills_needed: ['Pricing', 'Planning', 'Client Relations'] },
+    'Prepare Contract':       { skills_needed: ['Legal', 'Documentation', 'Contract Management'] },
+    'Create & Review Proposal': { skills_needed: ['Creative Direction', 'Presentation', 'Pricing'] },
+    'Send Proposal':          { skills_needed: ['Communication', 'Client Relations'] },
+    'Confirm Booking':        { skills_needed: ['Client Relations', 'Documentation'] },
+    'Send Welcome Pack':      { skills_needed: ['Client Relations', 'Communication'] },
 };
-
-// ── Complexity → bracket level mapping ─────────────────────────────────
-function complexityToLevel(score: number, maxLevel: number): number {
-    if (score <= 2) return Math.min(Math.max(score, 1), maxLevel);
-    if (score <= 4) return Math.min(3, maxLevel);
-    if (score <= 6) return Math.min(4, maxLevel);
-    if (score <= 8) return Math.min(maxLevel >= 5 ? 5 : 4, maxLevel);
-    return maxLevel;
-}
 
 export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: number): Promise<number> {
     prisma = db;
@@ -210,6 +176,7 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
                         effort_hours: child.effort_hours,
                         order_index: child.order_index,
                         due_date_offset_days: child.due_date_offset_days,
+                        due_date_offset_reference: child.due_date_offset_reference as $Enums.due_date_offset_reference,
                         brand_id: brandId,
                         parent_task_id: parentTask.id,
                         is_auto_only: child.is_auto_only,
@@ -227,6 +194,7 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
                         effort_hours: child.effort_hours,
                         order_index: child.order_index,
                         due_date_offset_days: child.due_date_offset_days,
+                        due_date_offset_reference: child.due_date_offset_reference as $Enums.due_date_offset_reference,
                         parent_task_id: parentTask.id,
                         is_auto_only: child.is_auto_only,
                         is_active: true,
@@ -265,6 +233,7 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
                         task_library_id: task.id,
                         subtask_key: template.subtask_key,
                         name: template.name,
+                        description: template.description,
                         order_index: template.order_index,
                         is_auto_only: template.is_auto_only,
                     },
@@ -276,6 +245,7 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
                     where: { id: existing.id },
                     data: {
                         name: template.name,
+                        description: template.description,
                         order_index: template.order_index,
                         is_auto_only: template.is_auto_only,
                     },
@@ -287,6 +257,7 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
     logger.summary('Subtask templates', { created: subtaskCreated, updated: subtaskUpdated, skipped: 0, total: subtaskCreated + subtaskUpdated });
 
     // ─── REMAINING PHASES (flat tasks) ───────────────────────────────
+    // skills_needed drives role resolution in seedTaskCrewAssignments via skill_role_mappings.
     const taskLibraryItems = [
         // CREATIVE DEVELOPMENT PHASE
         {
@@ -295,6 +266,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Creative_Development,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 2.0,
+            skills_needed: ['Creative Vision', 'Storytelling', 'Creative Direction', 'Client Relations'],
+            due_date_offset_days: 7,
+            due_date_offset_reference: $Enums.due_date_offset_reference.booking_date,
             order_index: 1,
             brand_id: brandId,
         },
@@ -304,6 +278,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Creative_Development,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 1.5,
+            skills_needed: ['Style Guide', 'Creative Direction', 'Visual Arts', 'Design'],
+            due_date_offset_days: 14,
+            due_date_offset_reference: $Enums.due_date_offset_reference.booking_date,
             order_index: 2,
             brand_id: brandId,
         },
@@ -313,6 +290,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Creative_Development,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 2.0,
+            skills_needed: ['Shot Planning', 'Cinematography', 'Camera Operation'],
+            due_date_offset_days: 21,
+            due_date_offset_reference: $Enums.due_date_offset_reference.booking_date,
             order_index: 3,
             brand_id: brandId,
         },
@@ -322,6 +302,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Creative_Development,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 1.0,
+            skills_needed: ['Mood Board Creation', 'Creative Direction', 'Visual Arts'],
+            due_date_offset_days: 14,
+            due_date_offset_reference: $Enums.due_date_offset_reference.booking_date,
             order_index: 4,
             brand_id: brandId,
         },
@@ -331,6 +314,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Creative_Development,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 1.0,
+            skills_needed: ['Creative Direction', 'Creative Vision', 'Presentation'],
+            due_date_offset_days: 28,
+            due_date_offset_reference: $Enums.due_date_offset_reference.booking_date,
             order_index: 5,
             brand_id: brandId,
         },
@@ -342,6 +328,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Pre_Production,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 3.0,
+            skills_needed: ['Location Scouting', 'Cinematography', 'Camera Operation'],
+            due_date_offset_days: -30,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 1,
             brand_id: brandId,
         },
@@ -351,6 +340,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Pre_Production,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 2.0,
+            skills_needed: ['Equipment Management', 'Technical Knowledge', 'Camera Operation'],
+            due_date_offset_days: -7,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 2,
             brand_id: brandId,
         },
@@ -360,6 +352,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Pre_Production,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 1.5,
+            skills_needed: ['Scheduling', 'Planning', 'Vendor Coordination'],
+            due_date_offset_days: -21,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 3,
             brand_id: brandId,
         },
@@ -369,6 +364,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Pre_Production,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 1.0,
+            skills_needed: ['Vendor Coordination', 'Project Management', 'Communication'],
+            due_date_offset_days: -21,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 4,
             brand_id: brandId,
         },
@@ -378,19 +376,42 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Pre_Production,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 1.0,
+            skills_needed: ['Client Relations', 'Communication', 'Consultation'],
+            due_date_offset_days: -14,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 5,
             brand_id: brandId,
         },
 
         // PRODUCTION PHASE
+        // One per_activity_crew task per on-site job role. Each task generates one instance per
+        // crew slot × activity pair at runtime, filtered to the task's default_job_role_id.
         {
-            name: "Activity Coverage",
-            description: "Coverage task generated per scheduled activity and assigned crew member",
+            name: "Video Coverage",
+            description: "Video capture task generated per scheduled activity for Videographer crew",
             phase: $Enums.project_phase.Production,
             pricing_type: $Enums.pricing_type_options.Fixed,
             trigger_type: $Enums.task_trigger_type.per_activity_crew,
+            is_on_site: true,
             effort_hours: 1.0,
+            skills_needed: ['Event Coverage', 'Cinematography', 'Camera Operation'],
+            due_date_offset_days: 0,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 1,
+            brand_id: brandId,
+        },
+        {
+            name: "Audio Coverage",
+            description: "Audio capture task generated per scheduled activity for Sound Engineer crew",
+            phase: $Enums.project_phase.Production,
+            pricing_type: $Enums.pricing_type_options.Fixed,
+            trigger_type: $Enums.task_trigger_type.per_activity_crew,
+            is_on_site: true,
+            effort_hours: 1.0,
+            skills_needed: ['Live Audio Recording', 'Sound Engineering', 'Audio Recording'],
+            due_date_offset_days: 0,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
+            order_index: 2,
             brand_id: brandId,
         },
 
@@ -402,6 +423,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             pricing_type: $Enums.pricing_type_options.Fixed,
             trigger_type: $Enums.task_trigger_type.per_activity,
             effort_hours: 4.0,
+            skills_needed: ['Content Review', 'Video Editing', 'Organization'],
+            due_date_offset_days: 7,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 1,
             brand_id: brandId,
         },
@@ -412,6 +436,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             pricing_type: $Enums.pricing_type_options.Fixed,
             trigger_type: $Enums.task_trigger_type.per_film_scene,
             effort_hours: 3.0,
+            skills_needed: ['Audio Enhancement', 'Audio Engineering', 'Sound Design'],
+            due_date_offset_days: 21,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 2,
             brand_id: brandId,
         },
@@ -422,6 +449,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             pricing_type: $Enums.pricing_type_options.Fixed,
             trigger_type: $Enums.task_trigger_type.per_film_scene,
             effort_hours: 6.0,
+            skills_needed: ['Color Grading', 'Video Editing'],
+            due_date_offset_days: 28,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 3,
             brand_id: brandId,
         },
@@ -432,6 +462,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             pricing_type: $Enums.pricing_type_options.Fixed,
             trigger_type: $Enums.task_trigger_type.per_film_with_music,
             effort_hours: 2.0,
+            skills_needed: ['Music Selection', 'Music Licensing', 'Music Sync'],
+            due_date_offset_days: 14,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 4,
             brand_id: brandId,
         },
@@ -442,6 +475,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             pricing_type: $Enums.pricing_type_options.Fixed,
             trigger_type: $Enums.task_trigger_type.per_film_with_graphics,
             effort_hours: 3.0,
+            skills_needed: ['Title Card Design', 'Motion Graphics'],
+            due_date_offset_days: -21,
+            due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 5,
             brand_id: brandId,
         },
@@ -452,6 +488,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             pricing_type: $Enums.pricing_type_options.Fixed,
             trigger_type: $Enums.task_trigger_type.per_film_scene,
             effort_hours: 3.0,
+            skills_needed: ['Rough Cut Editing', 'Video Editing', 'Storytelling'],
+            due_date_offset_days: 21,
+            due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 6,
             brand_id: brandId,
         },
@@ -462,6 +501,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             pricing_type: $Enums.pricing_type_options.Fixed,
             trigger_type: $Enums.task_trigger_type.per_film,
             effort_hours: 2.0,
+            skills_needed: ['Communication', 'Client Relations', 'Project Management'],
+            due_date_offset_days: -14,
+            due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 7,
             brand_id: brandId,
         },
@@ -473,6 +515,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Delivery,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 2.0,
+            skills_needed: ['Final Export', 'Media Rendering', 'Quality Control'],
+            due_date_offset_days: -7,
+            due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 1,
             brand_id: brandId,
         },
@@ -482,6 +527,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Delivery,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 1.0,
+            skills_needed: ['Quality Control', 'Content Review', 'Video Editing'],
+            due_date_offset_days: -3,
+            due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 2,
             brand_id: brandId,
         },
@@ -491,6 +539,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Delivery,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 0.5,
+            skills_needed: ['Client Delivery', 'Documentation'],
+            due_date_offset_days: 0,
+            due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 3,
             brand_id: brandId,
         },
@@ -500,6 +551,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Delivery,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 1.0,
+            skills_needed: ['Gallery Setup', 'Organization'],
+            due_date_offset_days: -3,
+            due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 4,
             brand_id: brandId,
         },
@@ -509,6 +563,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Delivery,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 0.5,
+            skills_needed: ['Client Delivery', 'Client Relations', 'Communication'],
+            due_date_offset_days: 0,
+            due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 5,
             brand_id: brandId,
         },
@@ -518,6 +575,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Delivery,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 0.5,
+            skills_needed: ['Invoicing', 'Client Relations', 'Documentation'],
+            due_date_offset_days: 7,
+            due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 6,
             brand_id: brandId,
         },
@@ -527,10 +587,22 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             phase: $Enums.project_phase.Delivery,
             pricing_type: $Enums.pricing_type_options.Fixed,
             effort_hours: 1.0,
+            skills_needed: ['Archiving', 'Documentation'],
+            due_date_offset_days: 14,
+            due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 7,
             brand_id: brandId,
         },
     ];
+
+    // Clean up legacy unified task replaced by role-specific Video Coverage + Audio Coverage
+    const legacyActivityCoverage = await prisma.task_library.findFirst({
+        where: { name: 'Activity Coverage', brand_id: brandId },
+    });
+    if (legacyActivityCoverage) {
+        await prisma.task_library.delete({ where: { id: legacyActivityCoverage.id } });
+        logger.created('Removed legacy task: Activity Coverage', 'replaced by Video Coverage + Audio Coverage');
+    }
 
     let created = 0;
     let skipped = 0;
@@ -544,8 +616,21 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             created++;
             logger.created(`Task: ${task.name}`, `${$Enums.project_phase[task.phase]} phase`);
         } else {
+            // Always patch so re-seeding picks up changes (including trigger_type fixes)
+            await prisma.task_library.update({
+                where: { id: existing.id },
+                data: {
+                    skills_needed: task.skills_needed ?? [],
+                    due_date_offset_days: task.due_date_offset_days ?? null,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    due_date_offset_reference: (task as any).due_date_offset_reference ?? null,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    is_on_site: (task as any).is_on_site ?? false,
+                    trigger_type: task.trigger_type,
+                },
+            });
             skipped++;
-            logger.skipped(`Task exists: ${task.name}`, `${$Enums.project_phase[task.phase]} phase`);
+            logger.skipped(`Task patched: ${task.name}`, `${$Enums.project_phase[task.phase]} phase`);
         }
     }
     const summary: SeedSummary = { created, updated: 0, skipped, total: created + skipped };
@@ -555,7 +640,7 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
     return totalPipelineTasks + taskLibraryItems.length;
 }
 
-/** Backfill skills_needed + complexity_score onto pipeline tasks that don't have them yet. */
+/** Backfill skills_needed onto pipeline tasks that don't have them yet. */
 export async function backfillPipelineSkills(db: PrismaClient, brandId: number): Promise<number> {
     prisma = db;
     let updated = 0;
@@ -563,26 +648,18 @@ export async function backfillPipelineSkills(db: PrismaClient, brandId: number):
     for (const [taskName, config] of Object.entries(PIPELINE_TASK_SKILLS)) {
         const task = await prisma.task_library.findFirst({
             where: { name: taskName, brand_id: brandId, is_active: true },
-            select: { id: true, skills_needed: true, complexity_score: true },
+            select: { id: true, skills_needed: true },
         });
 
         if (!task) continue;
 
-        const needsUpdate =
-            task.skills_needed.length === 0 ||
-            task.complexity_score === null ||
-            task.complexity_score === 1;
-
-        if (needsUpdate) {
+        if (task.skills_needed.length === 0) {
             await prisma.task_library.update({
                 where: { id: task.id },
-                data: {
-                    skills_needed: config.skills_needed,
-                    complexity_score: config.complexity_score,
-                },
+                data: { skills_needed: config.skills_needed },
             });
             updated++;
-            logger.created(`Backfill: ${taskName}`, `skills: [${config.skills_needed.join(', ')}], complexity: ${config.complexity_score}`);
+            logger.created(`Backfill: ${taskName}`, `skills: [${config.skills_needed.join(', ')}]`);
         }
     }
 
@@ -600,9 +677,8 @@ export async function seedTaskCrewAssignments(db: PrismaClient, brandId: number)
             id: true,
             name: true,
             skills_needed: true,
-            complexity_score: true,
             default_job_role_id: true,
-            default_contributor_id: true,
+            default_crew_id: true,
         },
     });
 
@@ -622,26 +698,15 @@ export async function seedTaskCrewAssignments(db: PrismaClient, brandId: number)
         orderBy: [{ job_role_id: 'asc' }, { level: 'asc' }],
     });
 
-    const bracketsByRole = new Map<number, { maxLevel: number; byLevel: Map<number, typeof allBrackets[0]> }>();
-    for (const b of allBrackets) {
-        let entry = bracketsByRole.get(b.job_role_id);
-        if (!entry) {
-            entry = { maxLevel: 0, byLevel: new Map() };
-            bracketsByRole.set(b.job_role_id, entry);
-        }
-        entry.byLevel.set(b.level, b);
-        if (b.level > entry.maxLevel) entry.maxLevel = b.level;
-    }
-
-    const brandContributors = await prisma.contributors.findMany({
+    const brandCrewMembers = await prisma.crew.findMany({
         where: {
             contact: { brand_id: brandId },
-            contributor_job_roles: { some: {} },
+            job_role_assignments: { some: {} },
         },
         select: {
             id: true,
             contact: { select: { first_name: true, last_name: true } },
-            contributor_job_roles: {
+            job_role_assignments: {
                 select: {
                     job_role_id: true,
                     payment_bracket_id: true,
@@ -689,38 +754,43 @@ export async function seedTaskCrewAssignments(db: PrismaClient, brandId: number)
         }
 
         const roleName = roleNameById.get(bestRoleId) ?? 'unknown';
-        const complexity = task.complexity_score ?? 1;
-        const roleEntry = bracketsByRole.get(bestRoleId);
-        const targetLevel = roleEntry ? complexityToLevel(complexity, roleEntry.maxLevel) : 1;
-        const targetBracket = roleEntry?.byLevel.get(targetLevel);
 
-        // 2. Find best-matching crew member with this role at or above target level
-        let bestContributor: { id: number; name: string } | null = null;
-        let bestDelta = Infinity;
+        // 2. Find the crew member with the highest bracket for this role (primary preferred)
+        let bestCrewMember: { id: number; name: string; bracketId: number | null; bracketLevel: number } | null = null;
 
-        for (const c of brandContributors) {
-            const crewRole = c.contributor_job_roles.find(r => r.job_role_id === bestRoleId);
+        for (const c of brandCrewMembers) {
+            const crewRole = c.job_role_assignments.find(r => r.job_role_id === bestRoleId);
             if (!crewRole) continue;
 
-            const crewLevel = crewRole.payment_bracket?.level ?? 1;
-            const delta = crewLevel - targetLevel;
+            const level = crewRole.payment_bracket?.level ?? 0;
+            const isPrimary = crewRole.is_primary;
 
-            if (Math.abs(delta) < Math.abs(bestDelta) || (delta >= 0 && bestDelta < 0)) {
-                bestDelta = delta;
-                bestContributor = {
+            if (
+                !bestCrewMember ||
+                level > bestCrewMember.bracketLevel ||
+                (level === bestCrewMember.bracketLevel && isPrimary)
+            ) {
+                bestCrewMember = {
                     id: c.id,
                     name: `${c.contact.first_name} ${c.contact.last_name}`,
+                    bracketId: crewRole.payment_bracket_id ?? null,
+                    bracketLevel: level,
                 };
             }
         }
+
+        // Use the crew member's actual bracket for skill rate snapshots
+        const targetBracket = bestCrewMember?.bracketId
+            ? allBrackets.find(b => b.id === bestCrewMember!.bracketId)
+            : undefined;
 
         // 3. Update task
         const updateData: Record<string, unknown> = {};
         if (task.default_job_role_id !== bestRoleId) {
             updateData.default_job_role_id = bestRoleId;
         }
-        if (bestContributor && task.default_contributor_id !== bestContributor.id) {
-            updateData.default_contributor_id = bestContributor.id;
+        if (bestCrewMember && task.default_crew_id !== bestCrewMember.id) {
+            updateData.default_crew_id = bestCrewMember.id;
         }
 
         if (Object.keys(updateData).length > 0) {
@@ -730,10 +800,10 @@ export async function seedTaskCrewAssignments(db: PrismaClient, brandId: number)
             });
 
             if (updateData.default_job_role_id) rolesAssigned++;
-            if (updateData.default_contributor_id) crewAssigned++;
+            if (updateData.default_crew_id) crewAssigned++;
 
-            const crewLabel = bestContributor ? ` → ${bestContributor.name}` : '';
-            const bracketLabel = targetBracket ? ` (L${targetLevel} ${targetBracket.name})` : '';
+            const crewLabel = bestCrewMember ? ` → ${bestCrewMember.name}` : '';
+            const bracketLabel = targetBracket ? ` (L${bestCrewMember?.bracketLevel} ${targetBracket.name})` : '';
             logger.created(`${task.name}`, `${roleName}${bracketLabel}${crewLabel}`);
         } else {
             skipped++;
@@ -793,13 +863,13 @@ async function main() {
             throw new Error("Moonrise Films brand not found. Run moonrise-platform.seed.ts first.");
         }
 
-        const taskCount = await createMoonriseTaskLibrary(brand.id);
+        const taskCount = await createMoonriseTaskLibrary(prisma, brand.id);
         logger.success(`Task library setup complete! Created ${taskCount} task items`);
 
-        const backfilled = await backfillPipelineSkills(brand.id);
+        const backfilled = await backfillPipelineSkills(prisma, brand.id);
         logger.info(`Backfilled skills on ${backfilled} pipeline tasks`);
 
-        const summary = await seedTaskCrewAssignments(brand.id);
+        const summary = await seedTaskCrewAssignments(prisma, brand.id);
         logger.success(`Crew assignment complete! ${summary.created} assignments made.`);
     } catch (error) {
         logger.error(`Workflow setup failed: ${String(error)}`);

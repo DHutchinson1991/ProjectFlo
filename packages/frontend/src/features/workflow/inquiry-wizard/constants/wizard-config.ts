@@ -42,7 +42,7 @@ export const STEP_AMBIENCE: Record<string, { c1: string; c2: string; c1pos: stri
     activities:   { c1: "#34d399", c2: "#a78bfa", c1pos: "top: 20%; right: 10%", c2pos: "bottom: 12%; left: 15%" },
     coverage:     { c1: "#38bdf8", c2: "#34d399", c1pos: "top: 12%; left: 10%",  c2pos: "bottom: 18%; right: 8%" },
     deliverables: { c1: "#e879f9", c2: "#fb7185", c1pos: "top: 18%; right: 12%", c2pos: "bottom: 8%; left: 10%" },
-    operators:    { c1: "#818cf8", c2: "#38bdf8", c1pos: "top: 10%; left: 8%",   c2pos: "bottom: 15%; right: 15%" },
+    crew_slots:  { c1: "#818cf8", c2: "#38bdf8", c1pos: "top: 10%; left: 8%",   c2pos: "bottom: 15%; right: 15%" },
     builder:      { c1: "#e879f9", c2: "#f472b6", c1pos: "top: 15%; left: 10%",  c2pos: "bottom: 12%; right: 8%" },
     payment_terms: { c1: "#fbbf24", c2: "#c084fc", c1pos: "top: 18%; right: 8%",  c2pos: "bottom: 12%; left: 12%" },
     special:      { c1: "#fbbf24", c2: "#fb923c", c1pos: "top: 22%; right: 6%",  c2pos: "bottom: 10%; left: 12%" },

@@ -2,7 +2,6 @@ export { crewPaymentTemplatesApi } from './api';
 export { crewPaymentTemplateKeys } from './hooks/queryKeys';
 export {
   useCrewPaymentTemplates,
-  useCrewPaymentTemplate,
   useCreateCrewPaymentTemplate,
   useUpdateCrewPaymentTemplate,
   useDeleteCrewPaymentTemplate,

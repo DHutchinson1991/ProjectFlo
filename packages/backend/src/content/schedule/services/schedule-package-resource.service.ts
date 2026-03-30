@@ -30,13 +30,42 @@ export class SchedulePackageResourceService {
     });
     const nextOrder = existing.length > 0 ? existing[0].order_index + 1 : 0;
 
-    return this.prisma.packageDaySubject.create({
+    const subject = await this.prisma.packageDaySubject.create({
       data: {
         package_id: packageId, event_day_template_id: dto.event_day_template_id,
         role_template_id: dto.role_template_id, name: dto.name, count: dto.count,
         notes: dto.notes, order_index: dto.order_index ?? nextOrder,
       },
       include: { role_template: true, event_day: true, activity_assignments: { include: { package_activity: true } } },
+    });
+
+    await this._autoAssignSubjectToActivities(packageId, dto.event_day_template_id, subject.id);
+
+    return this.prisma.packageDaySubject.findUnique({
+      where: { id: subject.id },
+      include: { role_template: true, event_day: true, activity_assignments: { include: { package_activity: true } } },
+    });
+  }
+
+  private async _autoAssignSubjectToActivities(packageId: number, eventDayTemplateId: number, subjectId: number) {
+    const ped = await this.prisma.packageEventDay.findUnique({
+      where: { package_id_event_day_template_id: { package_id: packageId, event_day_template_id: eventDayTemplateId } },
+      select: { id: true },
+    });
+    if (!ped) return;
+    // Only auto-assign to ceremony/reception activities
+    const activities = await this.prisma.packageActivity.findMany({
+      where: {
+        package_id: packageId,
+        package_event_day_id: ped.id,
+        OR: [{ name: { contains: 'ceremony', mode: 'insensitive' } }, { name: { contains: 'reception', mode: 'insensitive' } }],
+      },
+      select: { id: true },
+    });
+    if (activities.length === 0) return;
+    await this.prisma.packageDaySubjectActivity.createMany({
+      data: activities.map((a) => ({ package_day_subject_id: subjectId, package_activity_id: a.id })),
+      skipDuplicates: true,
     });
   }
 
@@ -165,13 +194,40 @@ export class SchedulePackageResourceService {
     }
 
     try {
-      return await this.prisma.packageLocationSlot.create({
+      const slot = await this.prisma.packageLocationSlot.create({
         data: { package_id: packageId, event_day_template_id: dto.event_day_template_id, location_number: locationNumber },
-        include: this.locationSlotInclude,
       });
-    } catch {
-      throw new BadRequestException(`Location ${locationNumber} already exists for this event day`);
+      await this._autoAssignActivitiesToLocationSlot(packageId, dto.event_day_template_id, slot.id);
+      return this.prisma.packageLocationSlot.findUnique({ where: { id: slot.id }, include: this.locationSlotInclude });
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2002') {
+        throw new BadRequestException(`Location ${locationNumber} already exists for this event day`);
+      }
+      throw err;
     }
+  }
+
+  private async _autoAssignActivitiesToLocationSlot(packageId: number, eventDayTemplateId: number, slotId: number) {
+    // Only auto-assign when this is the only slot on the day — multi-venue
+    // setups must wire activities manually.
+    const totalSlots = await this.prisma.packageLocationSlot.count({
+      where: { package_id: packageId, event_day_template_id: eventDayTemplateId },
+    });
+    if (totalSlots !== 1) return;
+    const ped = await this.prisma.packageEventDay.findUnique({
+      where: { package_id_event_day_template_id: { package_id: packageId, event_day_template_id: eventDayTemplateId } },
+      select: { id: true },
+    });
+    if (!ped) return;
+    const activities = await this.prisma.packageActivity.findMany({
+      where: { package_id: packageId, package_event_day_id: ped.id },
+      select: { id: true },
+    });
+    if (activities.length === 0) return;
+    await this.prisma.locationActivityAssignment.createMany({
+      data: activities.map((a) => ({ package_location_slot_id: slotId, package_activity_id: a.id })),
+      skipDuplicates: true,
+    });
   }
 
   async deletePackageLocationSlot(slotId: number) {

@@ -1,3 +1,5 @@
-export { LocationsListScreen } from './LocationsListScreen';
 export { LocationCreateDialog } from './LocationCreateDialog';
-export { default as VenueFloorPlanModal } from './VenueFloorPlanModal';
+export { LocationDetailPanel } from './LocationDetailPanel';
+export { LocationAddressCard } from './LocationAddressCard';
+export { LocationContactCard } from './LocationContactCard';
+export { LocationsMap } from './LocationsMap';

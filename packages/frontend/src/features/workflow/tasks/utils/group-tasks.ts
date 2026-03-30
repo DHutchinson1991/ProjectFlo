@@ -18,7 +18,7 @@ export interface TaskGroupData {
     badge?: string;
 }
 
-export function groupTasks(tasks: ActiveTask[], mode: GroupMode): TaskGroupData[] {
+export function groupTasks(tasks: ActiveTask[], mode: GroupMode, timezone = 'UTC'): TaskGroupData[] {
     switch (mode) {
         case 'project': {
             const map = new Map<string, ActiveTask[]>();
@@ -85,7 +85,7 @@ export function groupTasks(tasks: ActiveTask[], mode: GroupMode): TaskGroupData[
                     key: group,
                     title: group,
                     color: DATE_GROUP_COLORS[group] || '#676879',
-                    tasks: tasks.filter(t => getDateGroup(t.due_date) === group),
+                    tasks: tasks.filter(t => getDateGroup(t.due_date, timezone) === group),
                     icon: React.createElement(DateGroupIcon, { group }),
                 }))
                 .filter(g => g.tasks.length > 0);

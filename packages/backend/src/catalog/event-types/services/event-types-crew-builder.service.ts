@@ -8,12 +8,12 @@ export class EventTypesCrewBuilderService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Create crew operator assignments for a package event day.
-   * Returns a Map of `contributorId:jobRoleId` → operator record ID.
+   * Create crew slot assignments for a package event day.
+   * Returns a Map of `crewId:jobRoleId` → crew slot record ID.
    */
   async createCrewAssignments(
     crewAssignments: Array<{
-      contributorId: number;
+      crewId: number;
       jobRoleId: number;
       label?: string;
     }>,
@@ -23,20 +23,34 @@ export class EventTypesCrewBuilderService {
     const createdMap = new Map<string, number>();
     let crewIdx = 0;
 
+    const packageEventDay = await this.prisma.packageEventDay.findUnique({
+      where: {
+        package_id_event_day_template_id: {
+          package_id: packageId,
+          event_day_template_id: eventDayTemplateId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!packageEventDay) {
+      return createdMap;
+    }
+
     for (const crew of crewAssignments) {
       try {
-        const operator = await this.prisma.packageCrewSlot.create({
+        const crewSlot = await this.prisma.packageCrewSlot.create({
           data: {
             package_id: packageId,
-            event_day_template_id: eventDayTemplateId,
-            crew_member_id: crew.contributorId,
+            package_event_day_id: packageEventDay.id,
+            crew_id: crew.crewId,
             job_role_id: crew.jobRoleId,
             label: crew.label || null,
             hours: 8,
             order_index: crewIdx++,
           },
         });
-        createdMap.set(`${crew.contributorId}:${crew.jobRoleId}`, operator.id);
+        createdMap.set(`${crew.crewId}:${crew.jobRoleId}`, crewSlot.id);
       } catch {
         // unique constraint violation — skip duplicate
       }
@@ -46,37 +60,37 @@ export class EventTypesCrewBuilderService {
   }
 
   /**
-   * Attach equipment items to crew operator slots.
+   * Attach equipment items to crew slots.
    */
   async attachEquipment(
     equipmentSlots: Array<{
       equipmentId: number;
       slotLabel: string;
       slotType: string;
-      contributorId?: number;
+      crewId?: number;
       jobRoleId?: number;
     }>,
-    crewOperatorMap: Map<string, number>,
+    crewRoleSlotMap: Map<string, number>,
   ) {
     for (const slot of equipmentSlots) {
-      if (!slot.contributorId || !slot.jobRoleId) continue;
+      if (!slot.crewId || !slot.jobRoleId) continue;
 
-      const operatorId = crewOperatorMap.get(
-        `${slot.contributorId}:${slot.jobRoleId}`,
+      const crewSlotId = crewRoleSlotMap.get(
+        `${slot.crewId}:${slot.jobRoleId}`,
       );
-      if (!operatorId) continue;
+      if (!crewSlotId) continue;
 
       try {
         await this.prisma.packageCrewSlotEquipment.create({
           data: {
-            package_crew_slot_id: operatorId,
+            package_crew_slot_id: crewSlotId,
             equipment_id: slot.equipmentId,
             is_primary: slot.slotLabel.includes('1'),
           },
         });
       } catch (err) {
         this.logger.warn(
-          `Failed to attach equipment slot "${slot.slotLabel}" to crew operator`,
+          `Failed to attach equipment slot "${slot.slotLabel}" to crew slot`,
           err instanceof Error ? err.message : String(err),
         );
       }
@@ -84,15 +98,14 @@ export class EventTypesCrewBuilderService {
   }
 
   /**
-   * Delete any orphan "equipment-as-operator" placeholder records
-   * that have no real contributor and no job role.
+   * Delete any orphan "equipment-as-placeholder" records
+   * that have no real crew and no job role.
    */
   async cleanupOrphans(packageId: number) {
     await this.prisma.packageCrewSlot.deleteMany({
       where: {
         package_id: packageId,
-        crew_member_id: null,
-        job_role_id: null,
+        crew_id: null,
       },
     });
   }

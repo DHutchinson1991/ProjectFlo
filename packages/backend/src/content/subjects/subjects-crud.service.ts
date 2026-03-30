@@ -28,6 +28,17 @@ export class SubjectsCrudService {
             );
         }
 
+        if (createSubjectDto.role_template_id != null) {
+            const roleTemplate = await this.prisma.subjectRole.findUnique({
+                where: { id: createSubjectDto.role_template_id },
+            });
+            if (!roleTemplate) {
+                throw new BadRequestException(
+                    `Role template with ID ${createSubjectDto.role_template_id} not found`,
+                );
+            }
+        }
+
         const subject = await this.prisma.filmSubject.create({
             data: {
                 film_id: filmId,

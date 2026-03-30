@@ -26,15 +26,20 @@ export function useEquipmentList(): EquipmentListState & EquipmentListActions {
     const [snackbarMessage, setSnackbarMessage] = useState("");
     const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">("success");
     const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+    const [searchTerm, setSearchTerm] = useState("");
+    const [categoryFilter, setCategoryFilter] = useState("all");
+    const [statusFilter, setStatusFilter] = useState("all");
+    const [conditionFilter, setConditionFilter] = useState("all");
+    const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
 
     const equipmentQuery = useQuery({
         queryKey: ["equipment", "grouped", brandId],
         queryFn: () => equipmentApi.getGroupedByCategory(),
         enabled: !!brandId,
     });
-    const contributorsQuery = useQuery({
-        queryKey: ["contributors", brandId],
-        queryFn: () => equipmentApi.getContributors(),
+    const crewQuery = useQuery({
+        queryKey: ["crew", brandId],
+        queryFn: () => equipmentApi.getCrew(),
         enabled: !!brandId,
     });
 
@@ -46,6 +51,24 @@ export function useEquipmentList(): EquipmentListState & EquipmentListActions {
             equipmentByCategory[key] = { ...group, expanded: expandedCategories[key] ?? false };
         });
     }
+
+    // Flat list of all equipment across all categories
+    const flatEquipment: Equipment[] = Object.values(equipmentByCategory).flatMap((g) => g.equipment);
+
+    // Filtered by search + category + status + condition
+    const filteredEquipment: Equipment[] = flatEquipment.filter((item) => {
+        const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
+        const matchesStatus = statusFilter === "all" || item.availability_status === statusFilter;
+        const matchesCondition = conditionFilter === "all" || item.condition === conditionFilter;
+        const q = searchTerm.toLowerCase();
+        const matchesSearch =
+            !q ||
+            item.item_name?.toLowerCase().includes(q) ||
+            item.model?.toLowerCase().includes(q) ||
+            item.brand_name?.toLowerCase().includes(q) ||
+            item.description?.toLowerCase().includes(q);
+        return matchesCategory && matchesStatus && matchesCondition && matchesSearch;
+    });
 
     const invalidate = () => queryClient.invalidateQueries({ queryKey: ["equipment", "grouped", brandId] });
     const updateMutation = useMutation({ mutationFn: ({ id, data }: { id: number; data: Partial<CreateEquipmentDto> }) => equipmentApi.update(id, data), onSuccess: invalidate });
@@ -88,7 +111,19 @@ export function useEquipmentList(): EquipmentListState & EquipmentListActions {
 
     return {
         equipmentByCategory,
-        crewMembers: contributorsQuery.data ?? [],
+        flatEquipment,
+        filteredEquipment,
+        searchTerm,
+        categoryFilter,
+        statusFilter,
+        conditionFilter,
+        selectedEquipment,
+        setSearchTerm,
+        setCategoryFilter,
+        setStatusFilter,
+        setConditionFilter,
+        setSelectedEquipment,
+        crew: crewQuery.data ?? [],
         loading: equipmentQuery.isPending,
         error,
         deleteConfirmOpen,
@@ -113,5 +148,13 @@ export function useEquipmentList(): EquipmentListState & EquipmentListActions {
         setDeleteConfirmOpen,
         setError: (err: string | null) => { if (err === null) setErrorDismissed(true); },
         setSnackbarOpen,
+        updateEquipment: async (id: number, data: Partial<Equipment>) => {
+            try {
+                await updateMutation.mutateAsync({ id, data: data as Partial<CreateEquipmentDto> });
+                showSnackbar("Equipment updated");
+            } catch {
+                showSnackbar("Failed to update equipment", "error");
+            }
+        },
     };
 }

@@ -12,16 +12,16 @@ export class CalendarQueryDto {
     end_date?: string;
 
     @IsOptional()
-    @Transform(({ value }) => parseInt(value))
+    @Transform(({ value }) => value !== undefined ? parseInt(value, 10) : undefined)
     @IsInt()
-    crew_member_id?: number;
+    crew_id?: number;
 
     @IsOptional()
     @IsEnum(CalendarEventType)
     event_type?: CalendarEventType;
 
     @IsOptional()
-    @Transform(({ value }) => parseInt(value))
+    @Transform(({ value }) => value !== undefined ? parseInt(value, 10) : undefined)
     @IsInt()
     project_id?: number;
 }

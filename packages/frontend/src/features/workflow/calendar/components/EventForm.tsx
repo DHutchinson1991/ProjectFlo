@@ -13,8 +13,8 @@ import {
     Grid,
 } from '@mui/material';
 import type { EventType, Priority, Project } from '@/features/workflow/calendar/types/calendar-types';
-import { CrewMemberSelector } from './CrewMemberSelector';
-import type { CrewMemberOption } from '@/features/workflow/calendar/hooks/use-contributors';
+import { CrewSelector } from './CrewSelector';
+import type { CrewOption } from '@/features/workflow/calendar/hooks/use-crew-members';
 import { eventTypeConfig, priorityConfig } from '@/features/workflow/calendar/constants/calendar-config';
 
 function formatDateTimeLocal(date: Date): string {
@@ -34,7 +34,7 @@ export interface EventFormData {
     allDay: boolean;
     type: EventType;
     priority: Priority;
-    assignee: CrewMemberOption | null;
+    assignee: CrewOption | null;
     project: Project | null;
     location: string;
 }
@@ -42,19 +42,19 @@ export interface EventFormData {
 interface EventFormProps {
     newEvent: EventFormData;
     setNewEvent: React.Dispatch<React.SetStateAction<EventFormData>>;
-    crewMembers: CrewMemberOption[];
-    currentUserCrewMember: CrewMemberOption | null;
-    crewMembersLoading: boolean;
-    crewMembersError: string | null;
+    crew: CrewOption[];
+    currentUserCrew: CrewOption | null;
+    crewLoading: boolean;
+    crewError: string | null;
 }
 
 export function EventForm({
     newEvent,
     setNewEvent,
-    crewMembers,
-    currentUserCrewMember,
-    crewMembersLoading,
-    crewMembersError,
+    crew,
+    currentUserCrew,
+    crewLoading,
+    crewError,
 }: EventFormProps) {
     return (
         <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -96,7 +96,7 @@ export function EventForm({
                 <Autocomplete options={[] as Project[]} getOptionLabel={o => o.name} value={newEvent.project} onChange={(_, v) => setNewEvent(prev => ({ ...prev, project: v }))} renderInput={p => <TextField {...p} label="Project" />} />
             </Grid>
             <Grid item xs={6}>
-                <CrewMemberSelector selectedCrewMember={newEvent.assignee} onCrewMemberChange={c => setNewEvent(prev => ({ ...prev, assignee: c }))} contributors={crewMembers} currentUserCrewMember={currentUserCrewMember} loading={crewMembersLoading} error={crewMembersError} label="Assignee" required />
+                <CrewSelector selectedCrew={newEvent.assignee} onCrewChange={c => setNewEvent(prev => ({ ...prev, assignee: c }))} crew={crew} currentUserCrew={currentUserCrew} loading={crewLoading} error={crewError} label="Assignee" required />
             </Grid>
             <Grid item xs={12}>
                 <TextField label="Location" value={newEvent.location} onChange={e => setNewEvent(prev => ({ ...prev, location: e.target.value }))} fullWidth />

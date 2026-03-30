@@ -58,7 +58,7 @@ export class ProposalCrudService {
             include: {
                 contact: true,
                 event_type: true,
-                selected_package: { select: { id: true, name: true, base_price: true, currency: true } },
+                selected_package: { select: { id: true, name: true, currency: true } },
             },
         });
         if (!inquiry) throw new NotFoundException(`Inquiry with ID ${inquiryId} not found`);

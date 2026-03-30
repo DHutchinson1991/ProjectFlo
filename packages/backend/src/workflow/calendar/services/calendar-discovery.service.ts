@@ -24,18 +24,18 @@ export class CalendarDiscoveryService {
 
         const duration = settings.duration_minutes || 20;
 
-        // Find active brand members as the discovery call operators
-        const operators = await this.prisma.brandMember.findMany({
+        // Find active brand members as the discovery call crew
+        const brandMembers = await this.prisma.brandMember.findMany({
             where: {
                 brand_id: brandId,
                 is_active: true,
             },
-            select: { crew_member_id: true },
+            select: { crew_id: true },
         });
 
-        const contributorIds = operators.map(o => o.crew_member_id);
-        if (contributorIds.length === 0) {
-            return { date, slots: [], unavailable_reason: 'no_operators' };
+        const crewIds = brandMembers.map(o => o.crew_id);
+        if (crewIds.length === 0) {
+            return { date, slots: [], unavailable_reason: 'no_crew' };
         }
 
         // Parse available window
@@ -44,25 +44,25 @@ export class CalendarDiscoveryService {
         const dayStart = new Date(`${date}T${String(fromH).padStart(2, '0')}:${String(fromM).padStart(2, '0')}:00`);
         const dayEnd = new Date(`${date}T${String(toH).padStart(2, '0')}:${String(toM).padStart(2, '0')}:00`);
 
-        // Fetch existing events for ALL operators on this date
+        // Fetch existing events for ALL crew on this date
         const existingEvents = await this.prisma.calendar_events.findMany({
             where: {
-                crew_member_id: { in: contributorIds },
+                crew_id: { in: crewIds },
                 start_time: { lt: dayEnd },
                 end_time: { gt: dayStart },
             },
-            select: { crew_member_id: true, start_time: true, end_time: true },
+            select: { crew_id: true, start_time: true, end_time: true },
         });
 
-        // Build busy map per contributor
+        // Build busy map per crew
         const busyMap = new Map<number, { start: Date; end: Date }[]>();
-        for (const cid of contributorIds) busyMap.set(cid, []);
+        for (const cid of crewIds) busyMap.set(cid, []);
         for (const ev of existingEvents) {
-            busyMap.get(ev.crew_member_id)?.push({ start: ev.start_time, end: ev.end_time });
+            busyMap.get(ev.crew_id)?.push({ start: ev.start_time, end: ev.end_time });
         }
 
         // Generate candidate slots from dayStart to dayEnd
-        const slots: { time: string; available: boolean; operator_id?: number }[] = [];
+        const slots: { time: string; available: boolean; crew_id?: number }[] = [];
         let cursor = new Date(dayStart);
         while (cursor.getTime() + duration * 60000 <= dayEnd.getTime()) {
             const slotStart = new Date(cursor);
@@ -71,15 +71,15 @@ export class CalendarDiscoveryService {
             const mm = String(slotStart.getMinutes()).padStart(2, '0');
             const timeLabel = `${hh}:${mm}`;
 
-            // Check if ANY operator is free during this slot
-            let availableOp: number | undefined;
-            for (const cid of contributorIds) {
+            // Check if ANY crew member is free during this slot
+            let availableCrew: number | undefined;
+            for (const cid of crewIds) {
                 const busy = busyMap.get(cid) || [];
                 const conflict = busy.some(b => slotStart < b.end && slotEnd > b.start);
-                if (!conflict) { availableOp = cid; break; }
+                if (!conflict) { availableCrew = cid; break; }
             }
 
-            slots.push({ time: timeLabel, available: availableOp !== undefined, operator_id: availableOp });
+            slots.push({ time: timeLabel, available: availableCrew !== undefined, crew_id: availableCrew });
             cursor = new Date(cursor.getTime() + duration * 60000);
         }
 

@@ -13,7 +13,7 @@ Manages service package sets and individual packages (tiers) available to client
 ```
 api/         — Typed API bindings split by resource (`service-packages.api.ts`, `package-sets.api.ts`, `package-categories.api.ts`)
 constants/   — Query keys for package library, package sets, and package detail invalidation
-components/  — listing/ (PackageSetCard, PackagePickerDialog), detail/ (CrewCard, PackageContentsCard, SummaryCard)
+components/  — listing/ (PackageSetCard, PackagePickerDialog), detail/ (CrewCard, PackageContentsCard, SummaryCard), creation/ (PackageCreationWizard, EventTypeSelector)
 hooks/       — package detail hooks plus React Query hooks for package library/set mutations
 screens/     — PackagesScreen, PackageDetailScreen
 types/       — PackageSet, PackageSetSlot, service package models, and API DTOs
@@ -32,3 +32,6 @@ utils/       — package-helpers.ts (film stats, slot computations)
 ## Notes
 - Package library screens should use feature hooks from `hooks/` instead of calling `servicePackagesApi` and `packageSetsApi` directly inside components.
 - Package set assignment, slot edits, and deletion should invalidate `constants/query-keys.ts` rather than manually reloading local screen state.
+- Package creation UI (`components/creation/PackageCreationWizard.tsx`) must tolerate partial event-type payloads (for example missing `event_days`/`subject_types`) and default to empty collections instead of throwing in render/effects.
+- Package creation wizard normalizes event-type subject payloads: it supports both legacy `subject_types` and current role-link payloads (`subject_roles`) so subjects continue to render after backend relation changes.
+- Package creation equipment-step crew matching is keyword-based: camera slots accept videographer/camera/operator/cinematographer/photographer/drone roles, while audio slots accept sound/audio/mixer roles.

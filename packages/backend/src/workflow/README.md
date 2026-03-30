@@ -17,7 +17,7 @@ Aggregates all client-to-project lifecycle modules: from initial client contact 
 | `equipment/` | Equipment inventory, templates, availability tracking |
 | `inquiries/` | Inquiry lifecycle, package management, client portal actions |
 | `inquiry-wizard/` | Step-by-step inquiry creation with estimate preview |
-| `locations/` | Venues, spaces, floor plans, plan objects, geocoding |
+| `locations/` | Venue/location CRUD and geocoding |
 | `crew-slots/` | Package/project crew slot management |
 | `projects/` | Project lifecycle, package cloning, snapshots, sync, reassignment |
 | `proposals/` | Proposal CRUD, content generation, lifecycle management |

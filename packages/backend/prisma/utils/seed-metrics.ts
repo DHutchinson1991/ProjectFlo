@@ -4,14 +4,13 @@ import { logger, type SeedSummary } from './seed-logger';
 // Snapshot types for global and per-brand counts
 export interface GlobalCountSnapshot {
     brands: number;
-    contributors: number;
+    crew: number;
     films: number;
     tasks: number;
     coverage: number;
     projects: number;
     inquiries: number;
     venues: number;
-    spaces: number;
     equipment: number;
     events: number;
     tags: number;
@@ -32,31 +31,29 @@ export interface GlobalCountSnapshot {
 }
 
 export interface BrandCountSnapshot {
-    contributors: number; // via user_brands for brand
+    crew: number; // via user_brands for brand
     films: number;
     tasks: number;
     equipment: number;
     projects: number;
     inquiries: number; // via inquiries.contact.brand_id
     venues: number;
-    spaces: number; // spaces under venues for brand
 }
 
 export async function getGlobalCounts(prisma: PrismaClient): Promise<GlobalCountSnapshot> {
     logger.sectionHeader('Final Database Metrics');
     // Core entities
-    const [brands, contributors, films, tasks, coverage, projects, inquiries, venues, spaces, equipment,
+    const [brands, crew, films, tasks, coverage, projects, inquiries, venues, equipment,
         refactorFilms, refactorFilmTracks, refactorFilmSubjects, refactorFilmScenes, refactorFilmMoments, refactorRecordingSetups, refactorCameraAssignments,
         refactorSubjectTemplates, refactorSceneTemplates, refactorSceneMusic, refactorMomentMusic] = await Promise.all([
         prisma.brands.count(),
-        prisma.contributors.count(),
+        prisma.crew.count(),
         prisma.filmLibrary.count(),
         prisma.task_library.count(),
         prisma.coverage.count(),
         prisma.projects.count(),
         prisma.inquiries.count(),
         prisma.locationsLibrary.count(),
-        prisma.locationSpaces.count(),
         prisma.equipment.count(),
         prisma.film.count(),
         prisma.filmTimelineTrack.count(),
@@ -82,14 +79,13 @@ export async function getGlobalCounts(prisma: PrismaClient): Promise<GlobalCount
 
     return {
         brands,
-        contributors,
+        crew,
         films,
         tasks,
         coverage,
         projects,
         inquiries,
         venues,
-        spaces,
         equipment,
         events,
         tags,
@@ -111,17 +107,16 @@ export async function getGlobalCounts(prisma: PrismaClient): Promise<GlobalCount
 }
 
 export async function getBrandCounts(prisma: PrismaClient, brandId: number): Promise<BrandCountSnapshot> {
-    const [contributors, films, tasks, equipment, projects, inquiries, venues, spaces] = await Promise.all([
-        prisma.user_brands.count({ where: { brand_id: brandId } }),
+    const [crew, films, tasks, equipment, projects, inquiries, venues] = await Promise.all([
+        prisma.brandMember.count({ where: { brand_id: brandId } }),
         prisma.filmLibrary.count({ where: { brand_id: brandId } }),
         prisma.task_library.count({ where: { brand_id: brandId } }),
         prisma.equipment.count({ where: { brand_id: brandId } }),
         prisma.projects.count({ where: { brand_id: brandId } }),
         prisma.inquiries.count({ where: { contact: { brand_id: brandId } } }),
         prisma.locationsLibrary.count({ where: { brand_id: brandId } }),
-        prisma.locationSpaces.count({ where: { location: { brand_id: brandId } } })
     ]);
-    return { contributors, films, tasks, equipment, projects, inquiries, venues, spaces };
+    return { crew, films, tasks, equipment, projects, inquiries, venues };
 }
 
 function diff(after: number, before?: number): number {
@@ -131,7 +126,7 @@ function diff(after: number, before?: number): number {
 
 // Optionally provide before-snapshots to display per-item created deltas
 export type PerBrandRun = Record<string, Partial<Record<
-    | 'contributors'
+    | 'crew'
     | 'films'
     | 'scenes'
     | 'tasks'
@@ -141,7 +136,6 @@ export type PerBrandRun = Record<string, Partial<Record<
     | 'projects'
     | 'inquiries'
     | 'venues'
-    | 'spaces'
     | 'sceneAssignments'
     , SeedSummary>>>;
 
@@ -178,7 +172,7 @@ export async function printFinalMetrics(
 
     logger.sectionDivider('🏢 Brands & Teams');
     logger.success(`🏢 Brands:${fmtDeltas(diff(afterGlobal.brands, beforeGlobal?.brands), undefined, afterGlobal.brands)}`);
-    logger.success(`👥 Contributors:${fmtDeltas(diff(afterGlobal.contributors, beforeGlobal?.contributors), undefined, afterGlobal.contributors)}`);
+    logger.success(`👥 Crew:${fmtDeltas(diff(afterGlobal.crew, beforeGlobal?.crew), undefined, afterGlobal.crew)}`);
 
     // Optional run summary (created/skipped this run)
     if (runSummary) {
@@ -191,13 +185,13 @@ export async function printFinalMetrics(
     if (afterMoonrise) {
         logger.sectionDivider('🌙 Moonrise Films');
         const m = perBrandRun?.['Moonrise Films'] || {};
-        logger.success(`👥 Contributors:${fmtDeltas(diff(afterMoonrise.contributors, beforeBrand?.['Moonrise Films']?.contributors), m.contributors?.skipped, afterMoonrise.contributors)}`);
+        logger.success(`👥 Crew:${fmtDeltas(diff(afterMoonrise.crew, beforeBrand?.['Moonrise Films']?.crew), m.crew?.skipped, afterMoonrise.crew)}`);
         logger.success(`🎬 Films:${fmtDeltas(diff(afterMoonrise.films, beforeBrand?.['Moonrise Films']?.films), m.films?.skipped, afterMoonrise.films)}`);
         logger.success(`📋 Tasks:${fmtDeltas(diff(afterMoonrise.tasks, beforeBrand?.['Moonrise Films']?.tasks), m.tasks?.skipped, afterMoonrise.tasks)}`);
         logger.success(`🎥 Equipment Items:${fmtDeltas(diff(afterMoonrise.equipment, beforeBrand?.['Moonrise Films']?.equipment), m.equipment?.skipped, afterMoonrise.equipment)}`);
         logger.success(`💼 Projects:${fmtDeltas(diff(afterMoonrise.projects, beforeBrand?.['Moonrise Films']?.projects), m.projects?.skipped, afterMoonrise.projects)}`);
         logger.success(`📧 Inquiries:${fmtDeltas(diff(afterMoonrise.inquiries, beforeBrand?.['Moonrise Films']?.inquiries), m.inquiries?.skipped, afterMoonrise.inquiries)}`);
-        logger.success(`🏰 Venues:${fmtDeltas(diff(afterMoonrise.venues, beforeBrand?.['Moonrise Films']?.venues), m.venues?.skipped, afterMoonrise.venues)} (Spaces:${fmtDeltas(diff(afterMoonrise.spaces, beforeBrand?.['Moonrise Films']?.spaces), m.spaces?.skipped, afterMoonrise.spaces)})`);
+        logger.success(`🏰 Venues:${fmtDeltas(diff(afterMoonrise.venues, beforeBrand?.['Moonrise Films']?.venues), m.venues?.skipped, afterMoonrise.venues)}`);
         logger.success(`🎬 New Films:${fmtDeltas(diff(afterGlobal.refactorFilms, beforeGlobal?.refactorFilms), undefined, afterGlobal.refactorFilms)}`);
         logger.success(`🎞️ New Tracks:${fmtDeltas(diff(afterGlobal.refactorFilmTracks, beforeGlobal?.refactorFilmTracks), undefined, afterGlobal.refactorFilmTracks)}`);
         logger.success(`👥 New Film Subjects:${fmtDeltas(diff(afterGlobal.refactorFilmSubjects, beforeGlobal?.refactorFilmSubjects), undefined, afterGlobal.refactorFilmSubjects)}`);
@@ -212,18 +206,18 @@ export async function printFinalMetrics(
     }
     if (afterLayer5) {
         logger.sectionDivider('🏢 Layer5 Corporate');
-        logger.success(`👥 Contributors:${fmtDeltas(diff(afterLayer5.contributors, beforeBrand?.['Layer5']?.contributors), undefined, afterLayer5.contributors)}`);
+        logger.success(`👥 Crew:${fmtDeltas(diff(afterLayer5.crew, beforeBrand?.['Layer5']?.crew), undefined, afterLayer5.crew)}`);
         logger.success(`🎬 Films:${fmtDeltas(diff(afterLayer5.films, beforeBrand?.['Layer5']?.films), undefined, afterLayer5.films)}`);
         logger.success(`📋 Tasks:${fmtDeltas(diff(afterLayer5.tasks, beforeBrand?.['Layer5']?.tasks), undefined, afterLayer5.tasks)}`);
         logger.success(`🎥 Equipment Items:${fmtDeltas(diff(afterLayer5.equipment, beforeBrand?.['Layer5']?.equipment), undefined, afterLayer5.equipment)}`);
         logger.success(`💼 Projects:${fmtDeltas(diff(afterLayer5.projects, beforeBrand?.['Layer5']?.projects), undefined, afterLayer5.projects)}`);
         logger.success(`📧 Inquiries:${fmtDeltas(diff(afterLayer5.inquiries, beforeBrand?.['Layer5']?.inquiries), undefined, afterLayer5.inquiries)}`);
-        logger.success(`🏰 Venues:${fmtDeltas(diff(afterLayer5.venues, beforeBrand?.['Layer5']?.venues), undefined, afterLayer5.venues)} (Spaces:${fmtDeltas(diff(afterLayer5.spaces, beforeBrand?.['Layer5']?.spaces), undefined, afterLayer5.spaces)})`);
+        logger.success(`🏰 Venues:${fmtDeltas(diff(afterLayer5.venues, beforeBrand?.['Layer5']?.venues), undefined, afterLayer5.venues)}`);
     }
     logger.sectionDivider('📁 Projects & Inquiries');
     logger.success(`💼 Projects:${fmtDeltas(diff(afterGlobal.projects, beforeGlobal?.projects), undefined, afterGlobal.projects)}`);
     logger.success(`📧 Inquiries:${fmtDeltas(diff(afterGlobal.inquiries, beforeGlobal?.inquiries), undefined, afterGlobal.inquiries)}`);
-    logger.success(`🏰 Venues:${fmtDeltas(diff(afterGlobal.venues, beforeGlobal?.venues), undefined, afterGlobal.venues)} (Spaces:${fmtDeltas(diff(afterGlobal.spaces, beforeGlobal?.spaces), undefined, afterGlobal.spaces)})`);
+    logger.success(`🏰 Venues:${fmtDeltas(diff(afterGlobal.venues, beforeGlobal?.venues), undefined, afterGlobal.venues)}`);
 
     logger.sectionDivider('📅 Calendar');
     logger.success(`📅 Events:${fmtDeltas(diff(afterGlobal.events, beforeGlobal?.events), undefined, afterGlobal.events)}`);

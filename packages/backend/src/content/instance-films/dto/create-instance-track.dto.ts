@@ -21,5 +21,5 @@ export class CreateInstanceTrackDto {
 
   @IsOptional()
   @IsInt()
-  crew_member_id?: number;
+  crew_id?: number;
 }

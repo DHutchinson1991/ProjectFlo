@@ -116,13 +116,7 @@ const Toolbar: React.FC<TimelineBottomControlsProps> = ({
                         min={minZoom}
                         max={maxZoom}
                         onChange={(_, value) => {
-                            const newZoom = value as number;
-                            console.log(`🎚️ [ZOOM-SLIDER] User dragged zoom slider to:`, { 
-                                value: newZoom,
-                                min: minZoom,
-                                max: maxZoom
-                            });
-                            onZoomChange(newZoom);
+                            onZoomChange(value as number);
                         }}
                         disabled={readOnly}
                         size="small"

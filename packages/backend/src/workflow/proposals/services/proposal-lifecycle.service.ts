@@ -122,7 +122,7 @@ export class ProposalLifecycleService {
                 include: {
                     contact: { select: { first_name: true, last_name: true, email: true } },
                     estimates: { include: { items: true }, orderBy: [{ total_amount: 'desc' as const }, { is_primary: 'desc' as const }, { created_at: 'desc' as const }], take: 1 },
-                    selected_package: { select: { id: true, name: true, description: true, base_price: true, currency: true, contents: true } },
+                    selected_package: { select: { id: true, name: true, description: true, currency: true, contents: true } },
                     schedule_event_days: {
                         orderBy: { order_index: 'asc' as const },
                         include: {

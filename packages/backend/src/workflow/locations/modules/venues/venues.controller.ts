@@ -6,18 +6,18 @@ import {
     Patch,
     Param,
     Delete,
-    Query,
     ParseIntPipe,
+    Query,
     ValidationPipe,
     UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { VenuesService } from './venues.service';
-import { CreateLocationDto, UpdateLocationDto, UpdateVenueFloorPlanDto } from '../../dto';
+import { CreateLocationDto, UpdateLocationDto, VenuesQueryDto } from '../../dto';
 import { BrandId } from '../../../../platform/auth/decorators/brand-id.decorator';
 
 /**
- * Controller for managing venues/locations and their venue-specific floor plan data
+ * Controller for managing venues/locations
  */
 @Controller('api/locations')
 @UseGuards(AuthGuard('jwt'))
@@ -32,8 +32,11 @@ export class VenuesController {
     }
 
     @Get()
-    findAllVenues(@BrandId() brandId: number) {
-        return this.venuesService.findAllVenues(brandId);
+    findAllVenues(
+        @BrandId() brandId: number,
+        @Query(new ValidationPipe({ transform: true })) query: VenuesQueryDto,
+    ) {
+        return this.venuesService.findAllVenues(brandId, query);
     }
 
     @Get(':id')
@@ -52,25 +55,5 @@ export class VenuesController {
     @Delete(':id')
     removeVenue(@Param('id', ParseIntPipe) id: number) {
         return this.venuesService.removeVenue(id);
-    }
-
-    // ==================== VENUE FLOOR PLAN DATA ====================
-
-    @Get(':id/venue-floor-plan')
-    getVenueFloorPlan(@Param('id', ParseIntPipe) id: number) {
-        return this.venuesService.getVenueFloorPlan(id);
-    }
-
-    @Patch(':id/venue-floor-plan')
-    updateVenueFloorPlan(
-        @Param('id', ParseIntPipe) id: number,
-        @Body(ValidationPipe) updateVenueFloorPlanDto: UpdateVenueFloorPlanDto,
-    ) {
-        return this.venuesService.updateVenueFloorPlan(id, updateVenueFloorPlanDto);
-    }
-
-    @Delete(':id/venue-floor-plan')
-    resetVenueFloorPlan(@Param('id', ParseIntPipe) id: number) {
-        return this.venuesService.resetVenueFloorPlan(id);
     }
 }

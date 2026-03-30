@@ -75,7 +75,7 @@ export class FilmsService {
         montage_preset: true,
         tracks: {
           include: {
-            crew_member: {
+            crew: {
               select: {
                 id: true,
                 crew_color: true,
@@ -155,7 +155,7 @@ export class FilmsService {
         montage_preset: true,
         tracks: {
           include: {
-            crew_member: {
+            crew: {
               select: {
                 id: true,
                 crew_color: true,
@@ -276,7 +276,7 @@ export class FilmsService {
       where: { film_id: id },
       orderBy: { order_index: 'asc' },
       include: {
-        crew_member: {
+        crew: {
           select: {
             id: true,
             crew_color: true,

@@ -16,22 +16,22 @@ interface EquipmentSlot {
     name?: string;
 }
 
-interface PackageOperator {
+interface PackageCrewSlot {
     id: number;
-    crew_member_id?: number;
+    crew_id?: number;
     label?: string;
     name?: string;
     job_role?: { display_name?: string; name?: string };
-    crew_member?: { crew_color?: string };
+    crew?: { crew_color?: string };
     equipment?: EquipmentSlot[];
 }
 
-function countPackageEquipment(operators: PackageOperator[]) {
+function countPackageEquipment(crewSlots: PackageCrewSlot[]) {
     const audioMap = new Map<number, EquipmentDetail>();
     const cameraOps: { name: string; equipment?: EquipmentDetail }[] = [];
     const seenCameraIds = new Set<number>();
 
-    (operators || []).forEach((op) => {
+    (crewSlots || []).forEach((op) => {
         const equipment = op.equipment?.length ? op.equipment : [];
         const opName = op.label || op.name || 'Crew';
 
@@ -50,15 +50,15 @@ function countPackageEquipment(operators: PackageOperator[]) {
     return {
         cameras: cameraOps.length,
         audio: audioMap.size,
-        cameraOperators: cameraOps,
+        cameraCrew: cameraOps,
         audioItems: Array.from(audioMap.values()),
     };
 }
 
-function deduplicateOperators(operators: PackageOperator[]): PackageOperator[] {
-    const map = new Map<number, PackageOperator>();
-    operators.forEach((op) => {
-        const crewId = op.crew_member_id;
+function deduplicateCrewSlots(crewSlots: PackageCrewSlot[]): PackageCrewSlot[] {
+    const map = new Map<number, PackageCrewSlot>();
+    crewSlots.forEach((op) => {
+        const crewId = op.crew_id;
         if (!crewId) { map.set(op.id, op); return; }
         if (!map.has(crewId)) {
             map.set(crewId, { ...op });
@@ -68,13 +68,13 @@ function deduplicateOperators(operators: PackageOperator[]): PackageOperator[] {
 }
 
 export function PackageEquipmentView({ packageId }: { packageId: number; filmId?: number }) {
-    const [operators, setOperators] = useState<PackageOperator[]>([]);
+    const [crewSlots, setCrewSlots] = useState<PackageCrewSlot[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         let mounted = true;
         crewSlotsApi.packageDay.getAll(packageId).then((ops) => {
-            if (mounted) setOperators(ops || []);
+            if (mounted) setCrewSlots(ops || []);
         }).catch(() => {}).finally(() => {
             if (mounted) setLoading(false);
         });
@@ -89,8 +89,8 @@ export function PackageEquipmentView({ packageId }: { packageId: number; filmId?
         );
     }
 
-    const uniqueOps = deduplicateOperators(operators);
-    const { cameras: pkgCameras, audio: pkgAudio, cameraOperators, audioItems } = countPackageEquipment(operators);
+    const uniqueOps = deduplicateCrewSlots(crewSlots);
+    const { cameras: pkgCameras, audio: pkgAudio, cameraCrew, audioItems } = countPackageEquipment(crewSlots);
 
     return (
         <Box sx={{ px: 2, py: 1.5 }}>
@@ -106,7 +106,7 @@ export function PackageEquipmentView({ packageId }: { packageId: number; filmId?
                         Inherited from Package
                     </Typography>
                     <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
-                        Equipment is managed at the package level via operators.
+                        Equipment is managed at the package level via crew slots.
                     </Typography>
                 </Box>
             </Box>
@@ -117,13 +117,13 @@ export function PackageEquipmentView({ packageId }: { packageId: number; filmId?
             </Typography>
             <Stack spacing={0.75} sx={{ mb: 2 }}>
                 <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: cameraOperators.length > 0 ? 0.5 : 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: cameraCrew.length > 0 ? 0.5 : 0 }}>
                         <Videocam sx={{ fontSize: 15, color: 'rgba(59,130,246,0.7)' }} />
                         <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', flex: 1 }}>
                             {pkgCameras} Camera{pkgCameras !== 1 && 's'}
                         </Typography>
                     </Box>
-                    {cameraOperators.map((cam, idx) => (
+                    {cameraCrew.map((cam, idx) => (
                         <Box key={idx} sx={{ pl: 3.5, mb: 0.25 }}>
                             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>
                                 {cam.equipment?.item_name || 'Camera'}{cam.equipment?.model ? ` · ${cam.equipment.model}` : ''}
@@ -147,20 +147,20 @@ export function PackageEquipmentView({ packageId }: { packageId: number; filmId?
                 </Box>
             </Stack>
 
-            {/* Operators */}
+            {/* Crew Slots */}
             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.06em', mb: 1 }}>
-                Package Operators
+                Package Crew
             </Typography>
             {uniqueOps.length === 0 ? (
                 <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>
-                    No operators assigned to this package yet.
+                    No crew assigned to this package yet.
                 </Typography>
             ) : (
                 <Stack spacing={0.75}>
                     {uniqueOps.map((op) => {
                         const name = op.label || op.name || 'Crew';
                         const role = op.job_role?.display_name || op.job_role?.name;
-                        const color = op.crew_member?.crew_color;
+                        const color = op.crew?.crew_color;
                         const equipment = op.equipment?.length ? op.equipment : [] as EquipmentSlot[];
                         return (
                             <Box key={op.id} sx={{

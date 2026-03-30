@@ -1,7 +1,7 @@
 # roles
 
 ## What this module does
-Manages platform contributor roles and exposes authenticated role CRUD endpoints for brand-scoped role administration.
+Manages platform crew roles and exposes authenticated role CRUD endpoints for brand-scoped role administration.
 
 ## Key files
 | File | Purpose |
@@ -17,5 +17,5 @@ Manages platform contributor roles and exposes authenticated role CRUD endpoints
 - Create, update, and delete operations remain admin-only.
 
 ## Related modules
-- **Backend**: `../contributors` — contributor primary role relation
+- **Backend**: `../crew` — crew primary role relation
 - **Frontend**: `packages/frontend/src/lib/api.ts` — legacy roles API consumer

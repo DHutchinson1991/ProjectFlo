@@ -1,5 +1,5 @@
 // System Platform Seed - Infrastructure + Global Admin
-// Creates: Timeline layers, Global Admin role, Daniel Hutchinson user (contact + contributor)
+// Creates: Timeline layers, Global Admin role, Daniel Hutchinson user (contact + crew)
 import { PrismaClient, $Enums } from "@prisma/client";
 import * as bcrypt from "bcrypt";
 import { createSeedLogger, SeedType, SeedSummary } from '../utils/seed-logger';
@@ -57,7 +57,7 @@ async function main(db: PrismaClient): Promise<SeedSummary> {
         logger.processing('Creating global admin user...');
 
         // Create global Admin role (not tied to any specific brand)
-        const globalAdminRole = await prisma.roles.upsert({
+        const globalAdminRole = await prisma.systemRole.upsert({
             where: { name: "Global Admin" },
             update: {
                 description: "System-wide administrator with access to all brands and global settings.",
@@ -80,31 +80,28 @@ async function main(db: PrismaClient): Promise<SeedSummary> {
             update: {
                 first_name: "Daniel",
                 last_name: "Hutchinson",
-                type: $Enums.contacts_type.Contributor,
+                type: $Enums.contacts_type.Crew,
                 brand_id: null, // Global admin, not tied to specific brand
             },
             create: {
                 first_name: "Daniel",
                 last_name: "Hutchinson",
                 email: "info@dhutchinson.co.uk",
-                type: $Enums.contacts_type.Contributor,
+                type: $Enums.contacts_type.Crew,
                 brand_id: null, // Global admin, not tied to specific brand
             },
         });
 
-        await prisma.contributors.upsert({
+        await prisma.crew.upsert({
             where: { contact_id: danielContact.id },
-            update: {
-                role_id: globalAdminRole.id,
-                password_hash: adminPassword,
-                crew_color: "#7C3AED",
-            },
-            create: {
-                contact_id: danielContact.id,
-                role_id: globalAdminRole.id,
-                password_hash: adminPassword,
-                crew_color: "#7C3AED",
-            },
+            update: { crew_color: "#7C3AED" },
+            create: { contact_id: danielContact.id, crew_color: "#7C3AED" },
+        });
+
+        await prisma.userAccount.upsert({
+            where: { contact_id: danielContact.id },
+            update: { system_role_id: globalAdminRole.id, password_hash: adminPassword },
+            create: { contact_id: danielContact.id, system_role_id: globalAdminRole.id, password_hash: adminPassword },
         });
 
         // Track admin user/role creation (these are upserts, so they might be updates or creates)

@@ -6,14 +6,19 @@ export class CrewService {
     constructor(private readonly prisma: PrismaService) {}
 
     async getCrewByBrand(brandId: number) {
-        return this.prisma.crewMember.findMany({
+        return this.prisma.crew.findMany({
             where: {
-                archived_at: null,
+                contact: { archived_at: null },
                 brand_memberships: { some: { brand_id: brandId, is_active: true } },
             },
             include: {
-                contact: { select: { id: true, first_name: true, last_name: true, email: true, phone_number: true, company_name: true } },
-                role: { select: { id: true, name: true } },
+                contact: {
+                    select: {
+                        id: true, first_name: true, last_name: true,
+                        email: true, phone_number: true, company_name: true,
+                        user_account: { select: { system_role: { select: { id: true, name: true } } } },
+                    },
+                },
                 job_role_assignments: {
                     include: { job_role: { select: { id: true, name: true, display_name: true, category: true } } },
                     orderBy: [{ is_primary: 'desc' }, { assigned_at: 'asc' }],
@@ -23,12 +28,11 @@ export class CrewService {
         });
     }
 
-    async getCrewMemberById(id: number) {
-        const member = await this.prisma.crewMember.findUnique({
+    async getCrewById(id: number) {
+        const member = await this.prisma.crew.findUnique({
             where: { id },
             include: {
-                contact: true,
-                role: true,
+                contact: { include: { user_account: { include: { system_role: true } } } },
                 job_role_assignments: {
                     include: { job_role: true },
                     orderBy: [{ is_primary: 'desc' }, { assigned_at: 'asc' }],
@@ -36,7 +40,7 @@ export class CrewService {
                 package_crew_assignments: {
                     include: {
                         package: { select: { id: true, name: true } },
-                        event_day: { select: { id: true, name: true } },
+                        package_event_day: { select: { id: true, event_day: { select: { name: true } } } },
                         job_role: { select: { id: true, name: true, display_name: true } },
                     },
                     orderBy: { created_at: 'desc' },
@@ -47,14 +51,14 @@ export class CrewService {
                 },
             },
         });
-        if (!member) throw new NotFoundException('Crew member not found');
+        if (!member) throw new NotFoundException('Crew not found');
         return member;
     }
 
     async getCrewByJobRole(brandId: number, jobRoleId: number) {
-        return this.prisma.crewMember.findMany({
+        return this.prisma.crew.findMany({
             where: {
-                archived_at: null,
+                contact: { archived_at: null },
                 brand_memberships: { some: { brand_id: brandId, is_active: true } },
                 job_role_assignments: { some: { job_role_id: jobRoleId } },
             },

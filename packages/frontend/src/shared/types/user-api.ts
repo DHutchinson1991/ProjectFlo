@@ -4,7 +4,7 @@
  * Types representing the exact structure returned by backend APIs for user-related endpoints.
  */
 
-export interface CrewMemberApiResponse {
+export interface CrewApiResponse {
     id: number;
     contact_id: number;
     role_id: number;
@@ -14,12 +14,12 @@ export interface CrewMemberApiResponse {
     bio?: string | null;
     contact: ContactApiResponse;
     role: RoleApiResponse;
-    job_role_assignments?: CrewMemberJobRoleApiResponse[];
+    job_role_assignments?: CrewJobRoleApiResponse[];
 }
 
-export interface CrewMemberJobRoleApiResponse {
+export interface CrewJobRoleApiResponse {
     id: number;
-    crew_member_id: number;
+    crew_id: number;
     job_role_id: number;
     is_primary: boolean;
     payment_bracket_id?: number | null;
@@ -68,7 +68,7 @@ export interface RoleApiResponse {
     brand_id?: number;
 }
 
-export type ContributorsListResponse = CrewMemberApiResponse[];
+export type UserAccountsListResponse = CrewApiResponse[];
 export type ContactsListResponse = ContactApiResponse[];
 export type RolesListResponse = RoleApiResponse[];
 

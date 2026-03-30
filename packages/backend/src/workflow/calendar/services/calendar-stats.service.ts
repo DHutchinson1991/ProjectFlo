@@ -7,7 +7,7 @@ export class CalendarStatsService {
     constructor(private prisma: PrismaService) { }
 
     async getCalendarStats(userId?: number): Promise<CalendarStats> {
-        const where = userId ? { crew_member_id: userId } : {};
+        const where = userId ? { crew_id: userId } : {};
 
         const [totalEvents, projectEvents, personalEvents, holidayEvents, upcomingEvents, pastEvents] =
             await Promise.all([

@@ -33,9 +33,11 @@ export type {
     ExecuteAutoGenerationDto,
     ExecuteAutoGenerationResult,
     ActiveTask,
+    CreateSubtaskTemplateDto,
+    UpdateSubtaskTemplateDto,
 } from './task-library';
 
-export type { JobRole, CrewMemberJobRole, CreateJobRoleData, UpdateJobRoleData } from './job-roles';
+export type { JobRole, CrewJobRole, CreateJobRoleData, UpdateJobRoleData } from './job-roles';
 
 export type {
     SkillRoleMapping,
@@ -48,5 +50,5 @@ export type {
     ResolveSkillRoleData,
 } from './skill-role-mappings';
 
-// Re-export Contributor for task-library consumers (canonical source: lib/types/domains/users)
-export type { CrewMember } from '@/shared/types/users';
+// Re-export Crew for task-library consumers (canonical source: lib/types/domains/users)
+export type { Crew } from '@/shared/types/users';

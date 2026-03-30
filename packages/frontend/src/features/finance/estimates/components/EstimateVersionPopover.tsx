@@ -4,6 +4,7 @@ import React from 'react';
 import { Box, Typography, Chip, Stack, Popover, CircularProgress } from '@mui/material';
 import { computeTaxBreakdown } from '@/shared/utils/pricing';
 import { formatCurrency } from '@projectflo/shared';
+import { useBrand } from '@/features/platform/brand';
 import type { Estimate, EstimateSnapshot } from '../types';
 
 interface EstimateVersionPopoverProps {
@@ -18,6 +19,8 @@ interface EstimateVersionPopoverProps {
 const EstimateVersionPopover: React.FC<EstimateVersionPopoverProps> = ({
     anchorEl, onClose, estimate, snapshots, loading, currency,
 }) => {
+    const { currentBrand } = useBrand();
+    const taxRate = Number(currentBrand?.default_tax_rate ?? 0);
     return (
         <Popover
             open={Boolean(anchorEl)}
@@ -51,7 +54,7 @@ const EstimateVersionPopover: React.FC<EstimateVersionPopoverProps> = ({
                 <Stack spacing={0.5}>
                     {/* Current version */}
                     {estimate && (() => {
-                        const { total } = computeTaxBreakdown(Number(estimate.total_amount || 0), Number(estimate.tax_rate || 0));
+                        const { total } = computeTaxBreakdown(Number(estimate.total_amount || 0), taxRate);
                         return (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.5, borderRadius: 1, bgcolor: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)' }}>
                                 <Chip label={`v${estimate.version}`} size="small" sx={{ height: 16, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(139,92,246,0.2)', color: '#a78bfa', border: 'none' }} />

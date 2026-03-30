@@ -30,7 +30,7 @@ function getCategoryColor(cat: string | null): string {
     return '#64748b';
 }
 
-type SortKey = 'name' | 'category' | 'base_price' | 'is_active' | 'set' | 'created_at';
+type SortKey = 'name' | 'category' | 'price' | 'is_active' | 'set' | 'created_at';
 type SortDir = 'asc' | 'desc';
 
 export function PackagesListScreen() {
@@ -89,8 +89,8 @@ export function PackagesListScreen() {
                 case 'category':
                     cmp = (a.category || '').localeCompare(b.category || '');
                     break;
-                case 'base_price':
-                    cmp = Number(a.base_price ?? 0) - Number(b.base_price ?? 0);
+                case 'price':
+                    cmp = Number(a._totalCost ?? 0) - Number(b._totalCost ?? 0);
                     break;
                 case 'is_active':
                     cmp = (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
@@ -198,7 +198,7 @@ export function PackagesListScreen() {
                                 </TableCell>
                             ))}
                             <TableCell sx={headCellSx} align="right">
-                                <TableSortLabel active={sortKey === 'base_price'} direction={sortKey === 'base_price' ? sortDir : 'asc'} onClick={() => handleSort('base_price')} sx={{ '& .MuiTableSortLabel-icon': { color: '#648CFF !important' } }}>Price</TableSortLabel>
+                                <TableSortLabel active={sortKey === 'price'} direction={sortKey === 'price' ? sortDir : 'asc'} onClick={() => handleSort('price')} sx={{ '& .MuiTableSortLabel-icon': { color: '#648CFF !important' } }}>Price</TableSortLabel>
                             </TableCell>
                             <TableCell sx={headCellSx} align="center">
                                 <TableSortLabel active={sortKey === 'is_active'} direction={sortKey === 'is_active' ? sortDir : 'asc'} onClick={() => handleSort('is_active')} sx={{ '& .MuiTableSortLabel-icon': { color: '#648CFF !important' } }}>Active</TableSortLabel>
@@ -230,7 +230,7 @@ export function PackagesListScreen() {
                                 <TableRow
                                     key={pkg.id}
                                     hover
-                                    onClick={() => router.push(`/designer/packages/${pkg.id}`)}
+                                    onClick={() => router.push(`/packages/${pkg.id}`)}
                                     sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' }, transition: 'background-color 0.15s ease' }}
                                 >
                                     <TableCell sx={bodyCellSx}>
@@ -247,7 +247,10 @@ export function PackagesListScreen() {
                                         )}
                                     </TableCell>
                                     <TableCell sx={bodyCellSx} align="right">
-                                        <Typography sx={{ fontWeight: 800, color: '#f59e0b', fontSize: '0.85rem', fontFamily: 'monospace' }}>{formatCurrency(Number(pkg.base_price ?? 0), currencyCode)}</Typography>
+                                        <Box sx={{ textAlign: 'right' }}>
+                                            <Typography sx={{ fontWeight: 800, color: '#f59e0b', fontSize: '0.85rem', fontFamily: 'monospace' }}>{formatCurrency(Number(pkg._tax?.totalWithTax ?? pkg._totalCost ?? 0), currencyCode)}</Typography>
+                                            {(pkg._tax?.rate ?? 0) > 0 && <Typography sx={{ fontSize: '0.6rem', color: '#475569', fontFamily: 'monospace' }}>incl. {pkg._tax!.rate}% tax</Typography>}
+                                        </Box>
                                     </TableCell>
                                     <TableCell sx={bodyCellSx} align="center">
                                         {pkg.is_active ? <CheckCircleIcon sx={{ fontSize: 18, color: '#10b981' }} /> : <CancelIcon sx={{ fontSize: 18, color: '#475569' }} />}

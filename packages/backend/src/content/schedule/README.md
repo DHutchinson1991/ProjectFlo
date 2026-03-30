@@ -32,6 +32,8 @@ schedule/
 └── schedule.module.ts
 ```
 
+> **Legacy controller note:** `schedule.controller.ts` (prefix `api/schedule`) still serves the original URL shapes used by the frontend. It now delegates to the split services — it is NOT backed by a monolithic service. Once the frontend migrates to the split controller routes, `schedule.controller.ts` can be deleted.
+
 ## Key concepts
 
 - **Preset** — Brand-level schedule library (event day templates, activity presets, moments).
@@ -39,15 +41,22 @@ schedule/
 - **Project/Inquiry instance** — Concrete schedule materialized from a package via `initializeProjectFromPackage`.
 - **Resolved schedule** — Inheritance chain: film → package film → project film scene schedules.
 - **Schedule diff** — Compares package template vs instance to surface additions, removals, and changes.
+- **Crew slot assignment invariant** — Crew slots are day-scoped (`package_event_day_id` / `project_event_day_id`), and activity linkage is handled only through junction tables (`PackageCrewSlotActivity` / `ProjectCrewSlotActivity`).
 
 ## External consumers
 
 - `InquiriesController` imports `ScheduleService` → `getScheduleDiff()`.
 - `ProjectsController` imports `ScheduleService` → `getScheduleDiff()`.
 
+## Crew slot contract notes
+
+- Package crew slots are stored against `PackageEventDay` (not directly against `EventDay` templates).
+- Legacy-compatible response aliases (`event_day_template_id`, `package_activity_id`, `project_activity_id`) are still provided by crew-slot services for existing frontend consumers.
+
 ## Migration status
 
 - **Split services**: All 10 registered in `schedule.module.ts` ✅
 - **Split controllers**: All 6 registered in `schedule.module.ts` ✅ (prefixed with `api/schedule`, guarded)
-- **Legacy `schedule.service.ts`**: Still active (2919 lines). External consumers depend on it. Will be thinned to a facade once all consumers migrate to split services.
-- **Legacy `schedule.controller.ts`**: Still active (prefix `schedule`, no `api/`). Frontend calls these routes. Will be deprecated once frontend migrates to split controller routes.
+- **Legacy `schedule.service.ts`**: **Deleted** ✅ — all 117 methods have been migrated to the 10 split services.
+- **Legacy `schedule.controller.ts`**: Still active (prefix `api/schedule`). Now delegates to split services — no monolith behind it. Will be deleted once frontend migrates to split controller routes.
+- **External consumers** (`inquiries.controller.ts`, `projects.controller.ts`): Migrated from `ScheduleService` → `ScheduleDiffService` ✅

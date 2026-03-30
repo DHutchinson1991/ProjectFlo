@@ -17,7 +17,8 @@ Manages workflow templates — reusable sequences of tasks that can be assigned 
 | `dto/toggle-template-task.dto.ts` | Toggle task on/off by library ID |
 
 ## Business rules / invariants
-- Templates are brand-scoped; `checkBrandAccess` enforces ownership via user → brand membership.
+- Templates are brand-scoped; `checkBrandAccess` enforces ownership via crew account → brand membership.
+- Global-admin overrides resolve through `crew.contact.user_account.system_role`.
 - One template per brand can be `is_default: true`.
 - Template tasks reference `task_library` entries; overrides (hours, role, phase) are stored per-template-task.
 - Syncing tasks replaces all existing template-task links in a transaction.

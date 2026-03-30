@@ -31,6 +31,8 @@ export async function seedMoonriseLocationsLibrary() {
             state: "Shropshire",
             country: "United Kingdom",
             postal_code: "SY13 4AJ",
+            lat: 52.9771,
+            lng: -2.6656,
             contact_name: "Sarah Henderson",
             contact_phone: "+44 1948 871154",
             contact_email: "weddings@combermereabbey.co.uk",
@@ -63,6 +65,8 @@ export async function seedMoonriseLocationsLibrary() {
             state: "Shropshire",
             country: "United Kingdom",
             postal_code: "SY13 3AT",
+            lat: 52.9541,
+            lng: -2.8288,
             contact_name: "Emma Godsal",
             contact_phone: "+44 1948 780785",
             contact_email: "events@iscoydpark.com",
@@ -76,6 +80,8 @@ export async function seedMoonriseLocationsLibrary() {
             state: "Shropshire",
             country: "United Kingdom",
             postal_code: "SY7 9BH",
+            lat: 52.4255,
+            lng: -2.8344,
             contact_name: "Victoria Cartwright",
             contact_phone: "+44 1588 673204",
             contact_email: "weddings@delburyhall.co.uk",
@@ -90,6 +96,8 @@ export async function seedMoonriseLocationsLibrary() {
             state: "Shropshire",
             country: "United Kingdom",
             postal_code: "SY4 3DB",
+            lat: 52.7271,
+            lng: -2.7294,
             contact_name: "James Morrison",
             contact_phone: "+44 1939 290685",
             contact_email: "info@battlefield1403.com",
@@ -103,6 +111,8 @@ export async function seedMoonriseLocationsLibrary() {
             state: "Shropshire",
             country: "United Kingdom",
             postal_code: "SY4 5UY",
+            lat: 52.8073,
+            lng: -2.6831,
             contact_name: "Charlotte Williams",
             contact_phone: "+44 1939 200611",
             contact_email: "weddings@hawkstonehall.co.uk",
@@ -114,10 +124,9 @@ export async function seedMoonriseLocationsLibrary() {
     // Create the venues and their spaces with duplicate checking
     let createdVenuesCount = 0;
     let skippedVenuesCount = 0;
-    let createdSpacesCount = 0;
 
     for (const venueData of shropshireVenues) {
-        const { spaces, ...venueInfo } = venueData;
+        const { spaces: _spaces, ...venueInfo } = venueData;
 
         // Check if venue already exists by name and brand
         const existingVenue = await prisma.locationsLibrary.findFirst({
@@ -129,8 +138,12 @@ export async function seedMoonriseLocationsLibrary() {
 
         let venue;
         if (existingVenue) {
-            logger.skipped(`Venue "${venueData.name}" already exists (ID: ${existingVenue.id})`, undefined, 'verbose');
-            venue = existingVenue;
+            // Update coords and city in case they were missing from an earlier seed run
+            venue = await prisma.locationsLibrary.update({
+                where: { id: existingVenue.id },
+                data: { lat: venueInfo.lat, lng: venueInfo.lng, city: venueInfo.city }
+            });
+            logger.skipped(`Venue "${venueData.name}" already exists (ID: ${existingVenue.id}) — coords updated`, undefined, 'verbose');
             skippedVenuesCount++;
         } else {
             venue = await prisma.locationsLibrary.create({
@@ -144,29 +157,8 @@ export async function seedMoonriseLocationsLibrary() {
             createdVenuesCount++;
         }
 
-        // Create spaces if they exist and venue was newly created
-        if (spaces && spaces.length > 0) {
-            if (existingVenue) {
-                logger.info(`Skipping spaces for existing venue: ${venueData.name}`);
-            } else {
-                logger.info(`Creating ${spaces.length} spaces for ${venueData.name}`);
-
-                for (const spaceData of spaces) {
-                    await prisma.locationSpaces.create({
-                        data: {
-                            ...spaceData,
-                            location_id: venue.id,
-                            is_active: true
-                        }
-                    });
-                    logger.created(`Space: ${spaceData.name}`, 'verbose');
-                    createdSpacesCount++;
-                }
-            }
-        }
     }
     logger.summary('Venues', { created: createdVenuesCount, updated: 0, skipped: skippedVenuesCount, total: createdVenuesCount + skippedVenuesCount });
-    logger.info(`Spaces created: ${createdSpacesCount}`);
     logger.success('Moonrise Films Locations Library seeding completed!');
 }
 

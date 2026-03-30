@@ -7,7 +7,7 @@ import { ScheduleDiffService } from '../services/schedule-diff.service';
 import {
   CreateInstanceEventDaySubjectDto, UpdateInstanceEventDaySubjectDto,
   CreateInstanceLocationSlotDto, UpdateInstanceLocationSlotDto,
-  CreateInstanceDayOperatorDto, UpdateInstanceDayOperatorDto,
+  CreateInstanceCrewSlotDto, UpdateInstanceCrewSlotDto,
 } from '../dto';
 import { EventDayIdQueryDto } from '../dto/event-day-id-query.dto';
 
@@ -17,7 +17,7 @@ export class ScheduleInstanceResourceController {
   constructor(
     private readonly instanceService: ScheduleInstanceService,
     private readonly resourceService: ScheduleInstanceResourceService,
-    private readonly operatorService: ScheduleInstanceCrewSlotsService,
+    private readonly crewSlotsService: ScheduleInstanceCrewSlotsService,
     private readonly diffService: ScheduleDiffService,
   ) {}
 
@@ -102,53 +102,53 @@ export class ScheduleInstanceResourceController {
   }
 
   @Get('projects/:projectId/crew-slots')
-  getProjectDayOperators(@Param('projectId', ParseIntPipe) projectId: number, @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto) {
-    return this.operatorService.getInstanceDayOperators({ project_id: projectId }, query.eventDayId);
+  getProjectDayCrewSlots(@Param('projectId', ParseIntPipe) projectId: number, @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto) {
+    return this.crewSlotsService.getInstanceDayCrewSlots({ project_id: projectId }, query.eventDayId);
   }
 
   @Get('inquiries/:inquiryId/crew-slots')
-  getInquiryDayOperators(@Param('inquiryId', ParseIntPipe) inquiryId: number, @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto) {
-    return this.operatorService.getInstanceDayOperators({ inquiry_id: inquiryId }, query.eventDayId);
+  getInquiryDayCrewSlots(@Param('inquiryId', ParseIntPipe) inquiryId: number, @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto) {
+    return this.crewSlotsService.getInstanceDayCrewSlots({ inquiry_id: inquiryId }, query.eventDayId);
   }
 
   @Post('projects/:projectId/crew-slots')
-  createProjectDayOperator(@Param('projectId', ParseIntPipe) projectId: number, @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceDayOperatorDto) {
-    return this.operatorService.createInstanceDayOperator({ project_id: projectId }, dto);
+  createProjectDayCrewSlot(@Param('projectId', ParseIntPipe) projectId: number, @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceCrewSlotDto) {
+    return this.crewSlotsService.createInstanceCrewSlot({ project_id: projectId }, dto);
   }
 
   @Post('inquiries/:inquiryId/crew-slots')
-  createInquiryDayOperator(@Param('inquiryId', ParseIntPipe) inquiryId: number, @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceDayOperatorDto) {
-    return this.operatorService.createInstanceDayOperator({ inquiry_id: inquiryId }, dto);
+  createInquiryDayCrewSlot(@Param('inquiryId', ParseIntPipe) inquiryId: number, @Body(new ValidationPipe({ transform: true })) dto: CreateInstanceCrewSlotDto) {
+    return this.crewSlotsService.createInstanceCrewSlot({ inquiry_id: inquiryId }, dto);
   }
 
-  @Patch('instance/crew-slots/:operatorId')
-  updateInstanceDayOperator(@Param('operatorId', ParseIntPipe) operatorId: number, @Body(new ValidationPipe({ transform: true })) dto: UpdateInstanceDayOperatorDto) {
-    return this.operatorService.updateInstanceDayOperator(operatorId, dto);
+  @Patch('instance/crew-slots/:crewSlotId')
+  updateInstanceCrewSlot(@Param('crewSlotId', ParseIntPipe) crewSlotId: number, @Body(new ValidationPipe({ transform: true })) dto: UpdateInstanceCrewSlotDto) {
+    return this.crewSlotsService.updateInstanceCrewSlot(crewSlotId, dto);
   }
 
-  @Patch('instance/crew-slots/:operatorId/assign')
-  assignInstanceCrewToSlot(@Param('operatorId', ParseIntPipe) operatorId: number, @Body(new ValidationPipe({ transform: true })) dto: { crew_member_id: number | null }) {
-    return this.operatorService.assignInstanceCrewToSlot(operatorId, dto.crew_member_id);
+  @Patch('instance/crew-slots/:crewSlotId/assign')
+  assignInstanceCrewToSlot(@Param('crewSlotId', ParseIntPipe) crewSlotId: number, @Body(new ValidationPipe({ transform: true })) dto: { crew_id: number | null }) {
+    return this.crewSlotsService.assignInstanceCrewToSlot(crewSlotId, dto.crew_id);
   }
 
-  @Delete('instance/crew-slots/:operatorId')
-  removeInstanceDayOperator(@Param('operatorId', ParseIntPipe) operatorId: number) {
-    return this.operatorService.removeInstanceDayOperator(operatorId);
+  @Delete('instance/crew-slots/:crewSlotId')
+  removeInstanceCrewSlot(@Param('crewSlotId', ParseIntPipe) crewSlotId: number) {
+    return this.crewSlotsService.removeInstanceCrewSlot(crewSlotId);
   }
 
-  @Post('instance/crew-slots/:operatorId/equipment')
-  setInstanceOperatorEquipment(@Param('operatorId', ParseIntPipe) operatorId: number, @Body(new ValidationPipe({ transform: true })) dto: { equipment: { equipment_id: number; is_primary: boolean }[] }) {
-    return this.operatorService.setInstanceOperatorEquipment(operatorId, dto.equipment);
+  @Post('instance/crew-slots/:crewSlotId/equipment')
+  setInstanceCrewSlotEquipment(@Param('crewSlotId', ParseIntPipe) crewSlotId: number, @Body(new ValidationPipe({ transform: true })) dto: { equipment: { equipment_id: number; is_primary: boolean }[] }) {
+    return this.crewSlotsService.setInstanceCrewSlotEquipment(crewSlotId, dto.equipment);
   }
 
-  @Post('instance/crew-slots/:operatorId/activities/:activityId')
-  assignInstanceOperatorToActivity(@Param('operatorId', ParseIntPipe) operatorId: number, @Param('activityId', ParseIntPipe) activityId: number) {
-    return this.operatorService.assignInstanceOperatorToActivity(operatorId, activityId);
+  @Post('instance/crew-slots/:crewSlotId/activities/:activityId')
+  assignInstanceCrewSlotToActivity(@Param('crewSlotId', ParseIntPipe) crewSlotId: number, @Param('activityId', ParseIntPipe) activityId: number) {
+    return this.crewSlotsService.assignInstanceCrewSlotToActivity(crewSlotId, activityId);
   }
 
-  @Delete('instance/crew-slots/:operatorId/activities/:activityId')
-  unassignInstanceOperatorFromActivity(@Param('operatorId', ParseIntPipe) operatorId: number, @Param('activityId', ParseIntPipe) activityId: number) {
-    return this.operatorService.unassignInstanceOperatorFromActivity(operatorId, activityId);
+  @Delete('instance/crew-slots/:crewSlotId/activities/:activityId')
+  unassignInstanceCrewSlotFromActivity(@Param('crewSlotId', ParseIntPipe) crewSlotId: number, @Param('activityId', ParseIntPipe) activityId: number) {
+    return this.crewSlotsService.unassignInstanceCrewSlotFromActivity(crewSlotId, activityId);
   }
 
   @Get('projects/:projectId/instance-event-days')

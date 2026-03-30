@@ -102,10 +102,15 @@ export function BrandProvider({ children }: BrandProviderProps) {
             return;
         }
 
-        // If brand is already set AND still present in the list, leave it alone
-        if (brandRef.current && availableBrands.some((b) => b.id === brandRef.current!.id)) {
-            brandResolved.current = true;
-            return;
+        // If brand is already set AND still present in the list, sync the latest
+        // data (e.g. updated tax rate) but don't change which brand is active.
+        if (brandRef.current) {
+            const refreshed = availableBrands.find((b) => b.id === brandRef.current!.id);
+            if (refreshed) {
+                updateBrand(refreshed);
+                brandResolved.current = true;
+                return;
+            }
         }
 
         // Try stored preference
@@ -153,7 +158,7 @@ export function BrandProvider({ children }: BrandProviderProps) {
                     "films",
                     "projects",
                     "tasks",
-                    "contributors",
+                    "crew",
                 ];
 
                 for (const prefix of brandSpecificPrefixes) {

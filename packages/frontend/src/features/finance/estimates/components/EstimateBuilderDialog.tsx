@@ -106,7 +106,7 @@ const EstimateBuilderDialog: React.FC<EstimateBuilderDialogProps> = ({
                 ?? null,
             );
         }
-    }, [open, estimate, createPayload]); // eslint-disable-line
+    }, [open, estimate, createPayload]);  
 
     const subtotal = lineItems.reduce((acc, item) => acc + (item.total || 0), 0);
     const { total: totalAmount } = computeTaxBreakdown(subtotal, taxRate);

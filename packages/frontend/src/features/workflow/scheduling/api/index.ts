@@ -1,8 +1,8 @@
 import { apiClient } from '@/shared/api/client';
-import { createSchedulePresetsApi } from './schedule-presets.api';
-import { createSchedulePackageApi } from './schedule-package.api';
-import { createScheduleInstanceApi } from './schedule-instance.api';
-import { createCrewSlotsApi } from './crew-slots.api';
+import { createSchedulePresetsApi } from './presets';
+import { createSchedulePackageApi } from './package-template';
+import { createScheduleInstanceApi } from './instance';
+import { createCrewSlotsApi } from './shared';
 import type { ApiClient } from '@/shared/api/client';
 
 export function createScheduleApi(client: ApiClient) {
@@ -18,14 +18,14 @@ export const scheduleApi = createScheduleApi(apiClient);
 export const crewSlotsApi = createCrewSlotsApi(apiClient);
 
 // Named re-exports for selective imports
-export { createSchedulePresetsApi } from './schedule-presets.api';
-export { createSchedulePackageApi } from './schedule-package.api';
-export { createScheduleInstanceApi } from './schedule-instance.api';
-export { createCrewSlotsApi } from './crew-slots.api';
+export { createSchedulePresetsApi } from './presets';
+export { createSchedulePackageApi } from './package-template';
+export { createScheduleInstanceApi } from './instance';
+export { createCrewSlotsApi } from './shared';
 
-export type { SchedulePresetsApi } from './schedule-presets.api';
-export type { SchedulePackageApi } from './schedule-package.api';
-export type { ScheduleInstanceApi } from './schedule-instance.api';
-export type { CrewSlotsApi } from './crew-slots.api';
+export type { SchedulePresetsApi } from './presets';
+export type { SchedulePackageApi } from './package-template';
+export type { ScheduleInstanceApi } from './instance';
+export type { CrewSlotsApi } from './shared';
 
 export type ScheduleApi = typeof scheduleApi;

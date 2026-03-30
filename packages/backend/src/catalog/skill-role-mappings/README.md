@@ -25,5 +25,5 @@ Maps skill names (e.g., "Cinematography", "Drone Operation") to job roles and pa
 - **skill_role_mappings** — maps a skill name to a `job_roles` + optional `payment_brackets`, optionally brand-scoped.
 
 ## Related modules
-- **Backend**: `../../business/task-library` — consumes `batchResolve` for auto-assigning roles to tasks
-- **Frontend**: `features/catalog/skill-role-mappings`
+- **Backend**: `workflow/task-library` — consumes `batchResolve` for auto-assigning roles to tasks
+- **Frontend**: `features/workflow/crew` — consumes skill-role mappings for crew management

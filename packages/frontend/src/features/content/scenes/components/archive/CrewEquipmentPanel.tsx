@@ -29,7 +29,7 @@ interface Equipment {
   model?: string;
 }
 
-interface CrewMember {
+interface Crew {
   id: number;
   name: string;
   role: string;
@@ -38,7 +38,7 @@ interface CrewMember {
 
 interface CrewEquipmentPanelProps {
   equipment?: Equipment[];
-  crew?: CrewMember[];
+  crew?: Crew[];
   loading?: boolean;
 }
 

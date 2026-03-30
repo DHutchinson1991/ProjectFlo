@@ -1,19 +1,18 @@
 ﻿// ─── Package Edit Page – Derived Data Selectors ─────────────────────
 //
 // Pure selector functions that compute derived values from page state.
-// Centralises logic that was previously duplicated across multiple
-// IIFEs inside the JSX render tree.
+// Delegates to @projectflo/shared for all pricing math to ensure
+// frontend and backend always agree.
 // ─────────────────────────────────────────────────────────────────────
 
 import type { TaskAutoGenerationPreview } from '@/features/catalog/task-library/types';
 import type { PackageCrewSlotRecord, EquipmentRecord } from '../types';
-import {
-    getCrewHourlyRate,
-    isCrewDayRate,
-    getCrewDayRate,
-} from './package-helpers';
 import { NON_DELIVERY_PHASES } from '@/shared/utils/rates';
-import { roundMoney } from '@/shared/utils/pricing';
+import {
+    computeEquipmentBreakdown,
+    computeTaskCostBreakdown,
+    computeCrewCost as sharedComputeCrewCost,
+} from '@/shared/utils/pricing';
 
 // ─── Active day resolution ──────────────────────────────────────────
 
@@ -32,80 +31,47 @@ export function getActiveDayId(
 // ─── Crew cost computation ──────────────────────────────────────────
 
 /**
- * Compute the total crew cost from a list of operators and an optional
+ * Compute the total crew cost from a list of crew slots and an optional
  * task-auto-generation preview.
  *
- * When a preview is available we sum `estimated_cost` directly from the
- * backend-generated task rows (exactly what the TaskAutoGenCard displays),
- * which avoids the floating-point divergence caused by re-multiplying
- * aggregated hours in the frontend.  Day-rate operators are added on top
- * because the backend preview returns `estimated_cost = 0` for them
- * (their brackets carry a day_rate, not an hourly_rate).
- *
- * When no preview exists we fall back to operator-level rate × hours.
+ * Delegates to @projectflo/shared `computeCrewCost` which uses
+ * `estimated_cost` directly from task rows and adds day-rate crew
+ * adjustments. This ensures the frontend matches the backend
+ * PricingService exactly.
  */
 export function computeCrewCost(
-    operators: PackageCrewSlotRecord[],
+    crewSlots: PackageCrewSlotRecord[],
     taskPreview: TaskAutoGenerationPreview | null,
 ): number {
     if (taskPreview?.tasks) {
-        // Sum estimated_cost from all non-sales-pipeline task rows
-        const taskCost = taskPreview.tasks
-            .filter(t => !NON_DELIVERY_PHASES.has(t.phase) && t.estimated_cost != null)
-            .reduce((sum, t) => sum + (t.estimated_cost ?? 0), 0);
-
-        // Day-rate crew have hourly_rate=0 in the preview so estimated_cost=0;
-        // add their actual day-rate cost separately.
-        const dayRateCost = operators
-            .filter(op => isCrewDayRate(op))
-            .reduce((sum, op) => sum + roundMoney(getCrewDayRate(op) * Number(op.hours || 1)), 0);
-
-        return roundMoney(taskCost + dayRateCost);
+        // Filter to delivery-only tasks and sum estimated_cost
+        const deliveryTasks = taskPreview.tasks.filter(
+            t => !NON_DELIVERY_PHASES.has(t.phase),
+        );
+        const taskCost = deliveryTasks.reduce(
+            (sum, t) => sum + (t.estimated_cost ?? 0),
+            0,
+        );
+        return sharedComputeCrewCost(taskCost, crewSlots);
     }
 
-    // Fallback: no preview available — compute directly from operator rates
-    return operators.reduce((sum, op) => {
-        if (!op.crew_member_id && !op.job_role_id) return sum;
-        if (isCrewDayRate(op)) {
-            return sum + roundMoney(getCrewDayRate(op) * Number(op.hours || 1));
-        }
-        const rate = getCrewHourlyRate(op);
-        const hours = Number(op.hours || 0);
-        return sum + roundMoney(rate * hours);
-    }, 0);
+    // No preview — fallback uses shared function with null taskCost
+    return sharedComputeCrewCost(null, crewSlots);
 }
 
 // ─── Equipment cost computation ─────────────────────────────────────
 
-/** Minimal contents shape needed for equipment cost extraction. */
-interface EquipContentsForCost {
-    day_equipment?: Record<string, Array<{ equipment_id: number }>>;
-}
-
 /**
- * Compute the total equipment cost from operator-linked equipment only.
+ * Compute the total equipment cost from crew-slot-linked equipment only.
  *
- * Uses only the relational operator→equipment links, matching the backend
- * `estimatePackagePrice` behaviour. The `day_equipment` JSON field is
- * intentionally excluded — it can contain orphaned entries from deleted
- * event days that are invisible in the UI but would inflate the total.
- *
- * Deduplicates by equipment_id (shared equipment counted once).
+ * Delegates to @projectflo/shared `computeEquipmentBreakdown` which
+ * deduplicates by equipment_id and sums rental_price_per_day.
+ * This ensures the frontend matches the backend PricingService exactly.
  */
 export function computeEquipmentCost(
-    _contents: EquipContentsForCost | undefined | null,
-    operators: PackageCrewSlotRecord[],
-    allEquipment: EquipmentRecord[],
+    _contents: { day_equipment?: Record<string, Array<{ equipment_id: number }>> } | undefined | null,
+    crewSlots: PackageCrewSlotRecord[],
+    _allEquipment: EquipmentRecord[],
 ): number {
-    const allEquipIds = new Set<number>();
-
-    // Only relational operator-equipment links (matches backend behaviour)
-    operators.forEach(op => {
-        (op.equipment || []).forEach(eq => allEquipIds.add(eq.equipment_id));
-    });
-
-    return Array.from(allEquipIds).reduce((sum, eqId) => {
-        const fullEq = allEquipment.find(e => e.id === eqId);
-        return sum + (fullEq?.rental_price_per_day ? Number(fullEq.rental_price_per_day) : 0);
-    }, 0);
+    return computeEquipmentBreakdown(crewSlots).dailyCost;
 }

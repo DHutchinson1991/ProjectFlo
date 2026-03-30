@@ -21,15 +21,15 @@ export class CrewController {
     private readonly crewManagementService: CrewManagementService,
   ) {}
 
-  // ─── Crew Members (brand-scoped) ─────────────────────────────────
+  // ─── Crew (brand-scoped) ─────────────────────────────────────────
 
-  /** List all crew members for a brand */
+  /** List all crew for a brand */
   @Get()
   getCrewByBrand(@BrandId() brandId: number) {
     return this.crewService.getCrewByBrand(brandId);
   }
 
-  /** Get crew members filtered by job role (for assignment dropdowns) */
+  /** Get crew filtered by job role (for assignment dropdowns) */
   @Get('by-role/:jobRoleId')
   getCrewByJobRole(
     @BrandId() brandId: number,
@@ -38,16 +38,16 @@ export class CrewController {
     return this.crewService.getCrewByJobRole(brandId, jobRoleId);
   }
 
-  /** Get workload summary for all crew members */
+  /** Get workload summary for all crew */
   @Get('workload')
   getCrewWorkload(@BrandId() brandId: number) {
     return this.crewManagementService.getCrewWorkload(brandId);
   }
 
-  /** Get a single crew member with full details */
+  /** Get a single crew record with full details */
   @Get(':id')
-  getCrewMemberById(@Param('id', ParseIntPipe) id: number) {
-    return this.crewService.getCrewMemberById(id);
+  getCrewById(@Param('id', ParseIntPipe) id: number) {
+    return this.crewService.getCrewById(id);
   }
 
   /** Update crew profile (color, bio) */

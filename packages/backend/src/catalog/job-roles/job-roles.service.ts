@@ -11,7 +11,7 @@ export class JobRolesService {
             where: { is_active: true },
             orderBy: [{ category: 'asc' }, { display_name: 'asc' }],
             include: {
-                _count: { select: { crew_member_job_roles: true } },
+                _count: { select: { crew_job_roles: true } },
             },
         });
     }
@@ -20,9 +20,9 @@ export class JobRolesService {
         const jobRole = await this.prisma.job_roles.findUnique({
             where: { id },
             include: {
-                crew_member_job_roles: {
+                crew_job_roles: {
                     include: {
-                        crew_member: {
+                        crew: {
                             include: {
                                 contact: {
                                     select: {
@@ -94,7 +94,7 @@ export class JobRolesService {
             where: { is_active: true },
             orderBy: [{ category: 'asc' }, { display_name: 'asc' }],
             include: {
-                _count: { select: { crew_member_job_roles: true } },
+                _count: { select: { crew_job_roles: true } },
             },
         });
 

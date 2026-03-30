@@ -86,6 +86,11 @@ Shared utilities live in `prisma/utils/`:
 - **`seed-logger.ts`** — `SeedLogger` singleton with `createSeedLogger(SeedType)`, coloured output, timers. See `prisma/utils/README.md` for full API.
 - **`seed-metrics.ts`** — `getGlobalCounts()`, `getBrandCounts()`, `printFinalMetrics()` for delta reporting.
 
+## Current schema naming
+
+- Seed code must use the current Prisma crew names: `contacts.crew`, `BrandMember.crew_id`, `CrewJobRole.crew_id`, and `task_library.default_crew_id`.
+- Use the current task trigger enum value `per_crew` in seed data and task-library bindings.
+
 ## Related modules
 
 - **Schema**: `prisma/schema.prisma`

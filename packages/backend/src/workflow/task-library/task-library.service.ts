@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { TaskLibraryCrudService } from './services/task-library-crud.service';
 import { TaskLibraryPreviewService, PreviewTaskRow } from './services/task-library-preview.service';
 import { TaskLibraryExecuteService } from './services/task-library-execute.service';
-import { CreateTaskLibraryDto, UpdateTaskLibraryDto, TaskLibraryQueryDto, ProjectPhase, BatchUpdateTaskOrderDto, ExecuteAutoGenerationDto } from './dto/task-library.dto';
+import { CreateTaskLibraryDto, UpdateTaskLibraryDto, TaskLibraryQueryDto, ProjectPhase, BatchUpdateTaskOrderDto, ExecuteAutoGenerationDto, CreateSubtaskTemplateDto, UpdateSubtaskTemplateDto } from './dto/task-library.dto';
 
 export { PreviewTaskRow };
 
@@ -40,8 +40,19 @@ export class TaskLibraryService {
     batchUpdateOrder(dto: BatchUpdateTaskOrderDto, userId: number) {
         return this.crud.batchUpdateOrder(dto, userId);
     }
-    syncContributorsToInquiryTasks(brandId: number) {
-        return this.crud.syncContributorsToInquiryTasks(brandId);
+    syncCrewToInquiryTasks(brandId: number) {
+        return this.crud.syncCrewToInquiryTasks(brandId);
+    }
+
+    /* ── Subtask templates ────────────────────────────── */
+    createSubtask(taskId: number, dto: CreateSubtaskTemplateDto, userId: number) {
+        return this.crud.createSubtask(taskId, dto, userId);
+    }
+    updateSubtask(taskId: number, subtaskId: number, dto: UpdateSubtaskTemplateDto, userId: number) {
+        return this.crud.updateSubtask(taskId, subtaskId, dto, userId);
+    }
+    removeSubtask(taskId: number, subtaskId: number, userId: number) {
+        return this.crud.removeSubtask(taskId, subtaskId, userId);
     }
 
     /* ── Preview ──────────────────────────────────────── */

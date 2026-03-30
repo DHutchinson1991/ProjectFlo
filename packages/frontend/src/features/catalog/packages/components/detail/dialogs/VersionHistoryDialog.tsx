@@ -104,16 +104,11 @@ export function VersionHistoryDialog({
                                             )}
                                             {snapshot && (
                                                 <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                                    <Chip
-                                                        label={String(snapshot.name || 'Untitled')}
-                                                        size="small"
-                                                        sx={{ height: 20, fontSize: '0.62rem', bgcolor: 'rgba(255,255,255,0.04)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.08)' }}
-                                                    />
-                                                    {!!snapshot.base_price && (
+                                                    {!!snapshot.name && (
                                                         <Chip
-                                                            label={formatCurrency(Number(snapshot.base_price), String(snapshot.currency || DEFAULT_CURRENCY))}
+                                                            label={String(snapshot.name || 'Untitled')}
                                                             size="small"
-                                                            sx={{ height: 20, fontSize: '0.62rem', bgcolor: 'rgba(16, 185, 129, 0.08)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}
+                                                            sx={{ height: 20, fontSize: '0.62rem', bgcolor: 'rgba(255,255,255,0.04)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.08)' }}
                                                         />
                                                     )}
                                                 </Box>

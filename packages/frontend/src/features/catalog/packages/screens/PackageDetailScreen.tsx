@@ -1,25 +1,23 @@
 ﻿'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Box, Grid, Stack, CircularProgress, Alert } from '@mui/material';
+import { Box, Stack, CircularProgress, Alert } from '@mui/material';
 
 import { filmsApi } from '@/features/content/films/api';
 import { useBrand } from '@/features/platform/brand';
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
-import { scheduleApi } from '@/features/workflow/scheduling/api';
-import { PackageScheduleCard } from '@/features/workflow/scheduling/components';
-import { ActivitiesCard } from '@/features/workflow/scheduling/components';
-import { FilmCreationWizard } from '@/features/workflow/scheduling/components/film-wizard';
-import PackageCreationWizard from '../components/creation/PackageCreationWizard';
+import { scheduleApi, PackageScheduleCard, ActivitiesCard } from '@/features/workflow/scheduling/package-template';
+import { ScheduleCardGrid } from '@/features/workflow/scheduling/components';
+import { FilmCreationWizard } from '@/features/workflow/scheduling/film-wizard';
 
 import { usePackageData, usePackageActions } from '../hooks';
 import {
     SummaryCard, CrewCard, EquipmentCard,
-    PackageContentsCard, SubjectsCard, LocationsCard,
+    DeliverablesCard, SubjectsCard, LocationsCard,
     TaskAutoGenCard,
 } from '../components/detail/cards';
-import { AddItemDialog, PreviewDialog, VersionHistoryDialog } from '../components/detail/dialogs';
+import { AddItemDialog, VersionHistoryDialog } from '../components/detail/dialogs';
 import { PackageHeader } from '../components/detail/header';
 
 export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string }) {
@@ -31,10 +29,9 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
     const {
         isLoading, error,
         formData, setFormData,
-        categories,
         films, setFilms,
         subjectTemplates,
-        crewMembers, jobRoles,
+        crew, jobRoles,
         allEquipment,
         unmannedEquipment, setUnmannedEquipment,
         setPackageFilms,
@@ -62,9 +59,18 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
     const [addDialogOpen, setAddDialogOpen] = useState(false);
     const [addDialogType, setAddDialogType] = useState<'film' | 'service'>('film');
     const [activityWizardOpen, setActivityWizardOpen] = useState(false);
-    const [packageCreationWizardOpen, setPackageCreationWizardOpen] = useState(false);
-    const [previewOpen, setPreviewOpen] = useState(false);
     const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+
+    // ── Debounced auto-save (existing packages only) ─────────────────
+    const isFirstRender = useRef(true);
+    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        if (isFirstRender.current) { isFirstRender.current = false; return; }
+        if (!packageId) return;
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => { handleSave(); }, 2000);
+        return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+    }, [formData]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const openAddDialog = (type: 'film' | 'service') => {
         setAddDialogType(type);
@@ -87,26 +93,26 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
     };
 
     return (
-        <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1920, mx: 'auto' }}>
-            <PackageHeader
-                formData={formData} setFormData={setFormData}
-                categories={categories} subjectTemplates={subjectTemplates}
-                isSaving={isSaving}
-                onBack={() => router.push('/designer/packages')}
-                onSave={handleSave}
-                onPreview={() => setPreviewOpen(true)}
-                onVersionHistory={handleOpenVersionHistory}
-                onNewPackage={() => setPackageCreationWizardOpen(true)}
-            />
-            <SummaryCard
-                PackageCrewSlots={PackageCrewSlots}
-                taskPreview={taskPreview}
-                contents={formData.contents}
-                allEquipment={allEquipment}
-                currency={currentBrand?.currency || DEFAULT_CURRENCY}
-                taxRate={Number(currentBrand?.default_tax_rate ?? 0)}
-                cardSx={cardSx}
-            />
+        <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <PackageHeader
+                        formData={formData} setFormData={setFormData}
+                        isSaving={isSaving}
+                        onBack={() => router.push('/packages')}
+                        onVersionHistory={handleOpenVersionHistory}
+                    />
+                </Box>
+                <SummaryCard
+                    PackageCrewSlots={PackageCrewSlots}
+                    taskPreview={taskPreview}
+                    contents={formData.contents}
+                    allEquipment={allEquipment}
+                    currency={currentBrand?.currency || DEFAULT_CURRENCY}
+                    taxRate={Number(currentBrand?.default_tax_rate ?? 0)}
+                    cardSx={cardSx}
+                />
+            </Box>
             <Box sx={{ mb: 2.5 }}>
                 <PackageScheduleCard
                     packageId={packageId} brandId={safeBrandId ?? 0}
@@ -137,8 +143,8 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
                     colorOverrides={activityColorOverrides}
                 />
             </Box>
-            <Grid container spacing={2.5}>
-                <Grid item xs={12} md={5}>
+            <ScheduleCardGrid
+                col1={<>
                     <ActivitiesCard
                         packageId={packageId} packageEventDays={packageEventDays}
                         activities={packageActivities} setActivities={setPackageActivities}
@@ -152,41 +158,19 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
                             else setActivityColorOverrides({ [activityId]: color });
                         }}
                     />
-                </Grid>
-                <AddItemDialog
-                    open={addDialogOpen} onClose={() => setAddDialogOpen(false)}
-                    initialType={addDialogType}
-                    onAddService={(description) => handleAddItem('service', undefined, description)}
-                    onOpenFilmWizard={() => setActivityWizardOpen(true)}
-                />
-                {packageId && (
-                    <FilmCreationWizard
-                        open={activityWizardOpen} onClose={() => setActivityWizardOpen(false)}
-                        packageId={packageId} activities={packageActivities}
-                        packageName={formData.name || undefined}
-                        onFilmCreated={(result) => {
-                            const items = [...(formData.contents?.items || [])];
-                            const singleActivityId = result.activityIds?.length === 1 ? result.activityIds[0] : null;
-                            items.push({
-                                id: Math.random().toString(36).substr(2, 9),
-                                type: 'film', referenceId: result.filmId,
-                                description: result.filmName, price: 0,
-                                config: {
-                                    linked_film_id: result.filmId,
-                                    subject_template_id: formData.contents?.subject_template_id ?? null,
-                                    package_film_id: result.packageFilmId,
-                                    activity_id: singleActivityId,
-                                },
-                            });
-                            setFormData({ ...formData, contents: { ...formData.contents, items } });
-                            filmsApi.films.getById(result.filmId).then(newFilm => setFilms(prev => [...prev, newFilm])).catch(() => {});
-                            scheduleApi.packageFilms.getAll(packageId).then(pfs => setPackageFilms(pfs)).catch(() => {});
-                        }}
+                    <Box sx={{ mt: 2.5 }} />
+                    <DeliverablesCard
+                        items={formData.contents?.items || []} films={films}
+                        packageActivities={packageActivities}
+                        onConfigureItem={handleConfigureItem} onRemoveItem={handleRemoveItem}
+                        onAddFilm={() => openAddDialog('film')} onAddService={() => openAddDialog('service')}
+                        cardSx={cardSx}
                     />
-                )}
-                <Grid item xs={12} md={3.5}>
-                    <Stack spacing={2}>
-                        <SubjectsCard
+                </>
+            }
+            col2={
+                <Stack spacing={2}>
+                    <SubjectsCard
                             packageId={packageId} packageEventDays={packageEventDays}
                             packageActivities={packageActivities}
                             packageSubjects={packageSubjects} setPackageSubjects={setPackageSubjects}
@@ -201,16 +185,16 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
                             scheduleActiveDayId={scheduleActiveDayId} selectedActivityId={selectedActivityId}
                             cardSx={cardSx}
                         />
-                    </Stack>
-                </Grid>
-                <Grid item xs={12} md={3.5}>
-                    <Stack spacing={2}>
-                        <CrewCard
+                </Stack>
+            }
+            col3={
+                <Stack spacing={2}>
+                    <CrewCard
                             packageId={packageId} PackageCrewSlots={PackageCrewSlots}
                             setPackageCrewSlots={setPackageCrewSlots}
                             packageEventDays={packageEventDays} packageActivities={packageActivities}
                             scheduleActiveDayId={scheduleActiveDayId} selectedActivityId={selectedActivityId}
-                            crewMembers={crewMembers} jobRoles={jobRoles}
+                            crew={crew} jobRoles={jobRoles}
                             taskPreview={taskPreview} currency={currentBrand?.currency || DEFAULT_CURRENCY}
                             cardSx={cardSx}
                         />
@@ -224,28 +208,47 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
                             unmannedEquipment={unmannedEquipment} setUnmannedEquipment={setUnmannedEquipment}
                             currency={currentBrand?.currency || DEFAULT_CURRENCY} cardSx={cardSx}
                         />
-                    </Stack>
-                </Grid>
-            </Grid>
-            <Grid container spacing={2.5} sx={{ mt: 0 }}>
-                <Grid item xs={12} md={6}>
-                    <PackageContentsCard
-                        items={formData.contents?.items || []} films={films}
-                        packageActivities={packageActivities}
-                        onConfigureItem={handleConfigureItem} onRemoveItem={handleRemoveItem}
-                        onAddFilm={() => openAddDialog('film')} onAddService={() => openAddDialog('service')}
-                        cardSx={cardSx}
-                    />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                    {safeBrandId && packageId && (
-                        <TaskAutoGenCard packageId={packageId} brandId={safeBrandId} cardSx={cardSx} />
-                    )}
-                </Grid>
-            </Grid>
-            <PreviewDialog open={previewOpen} onClose={() => setPreviewOpen(false)} formData={formData} packageEventDays={packageEventDays} />
+                </Stack>
+            }
+            col4={
+                safeBrandId && packageId
+                    ? <TaskAutoGenCard packageId={packageId} brandId={safeBrandId} cardSx={cardSx} />
+                    : null
+            }
+        >
+            <AddItemDialog
+                open={addDialogOpen} onClose={() => setAddDialogOpen(false)}
+                initialType={addDialogType}
+                onAddService={(description) => handleAddItem('service', undefined, description)}
+                onOpenFilmWizard={() => setActivityWizardOpen(true)}
+            />
+            {packageId && (
+                <FilmCreationWizard
+                    open={activityWizardOpen} onClose={() => setActivityWizardOpen(false)}
+                    packageId={packageId} activities={packageActivities}
+                    packageName={formData.name || undefined}
+                    onFilmCreated={(result) => {
+                        const items = [...(formData.contents?.items || [])];
+                        const singleActivityId = result.activityIds?.length === 1 ? result.activityIds[0] : null;
+                        items.push({
+                            id: Math.random().toString(36).substr(2, 9),
+                            type: 'film', referenceId: result.filmId,
+                            description: result.filmName, price: 0,
+                            config: {
+                                linked_film_id: result.filmId,
+                                subject_template_id: formData.contents?.subject_template_id ?? null,
+                                package_film_id: result.packageFilmId,
+                                activity_id: singleActivityId,
+                            },
+                        });
+                        setFormData({ ...formData, contents: { ...formData.contents, items } });
+                        filmsApi.films.getById(result.filmId).then(newFilm => setFilms(prev => [...prev, newFilm])).catch(() => {});
+                        scheduleApi.packageFilms.getAll(packageId).then(pfs => setPackageFilms(pfs)).catch(() => {});
+                    }}
+                />
+            )}
+        </ScheduleCardGrid>
             <VersionHistoryDialog open={versionHistoryOpen} onClose={() => setVersionHistoryOpen(false)} packageVersions={packageVersions} versionsLoading={versionsLoading} onRestore={handleRestoreVersion} />
-            <PackageCreationWizard open={packageCreationWizardOpen} onClose={() => setPackageCreationWizardOpen(false)} onPackageCreated={(newPackageId) => router.push(`/designer/packages/${newPackageId}`)} />
         </Box>
     );
 }

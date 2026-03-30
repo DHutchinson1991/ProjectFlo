@@ -16,7 +16,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { TaskLibraryService } from './task-library.service';
-import { CreateTaskLibraryDto, UpdateTaskLibraryDto, TaskLibraryQueryDto, ProjectPhase, BatchUpdateTaskOrderDto, ExecuteAutoGenerationDto } from './dto/task-library.dto';
+import { CreateTaskLibraryDto, UpdateTaskLibraryDto, TaskLibraryQueryDto, ProjectPhase, BatchUpdateTaskOrderDto, ExecuteAutoGenerationDto, CreateSubtaskTemplateDto, UpdateSubtaskTemplateDto } from './dto/task-library.dto';
 import { TaskLibraryPhaseQueryDto } from './dto/task-library-phase-query.dto';
 import { PreviewAutoGenerationQueryDto } from './dto/preview-auto-generation-query.dto';
 import { BrandId } from '../../platform/auth/decorators/brand-id.decorator';
@@ -96,13 +96,13 @@ export class TaskLibraryController {
         return this.taskLibraryService.executeAutoGeneration(dto, req.user.id);
     }
 
-    @Post('sync-contributors')
-    syncContributors(
+    @Post('sync-crew')
+    syncCrew(
         @Headers('x-brand-context') brandId: string,
     ) {
         const brandIdNum = parseInt(brandId);
         if (!brandIdNum) throw new BadRequestException('Brand ID is required');
-        return this.taskLibraryService.syncContributorsToInquiryTasks(brandIdNum);
+        return this.taskLibraryService.syncCrewToInquiryTasks(brandIdNum);
     }
 
     @Get(':id')
@@ -128,5 +128,35 @@ export class TaskLibraryController {
         @Request() req: AuthenticatedRequest,
     ) {
         return this.taskLibraryService.remove(id, req.user.id);
+    }
+
+    // ─── Subtask template endpoints ───────────────────────────────
+
+    @Post(':id/subtasks')
+    createSubtask(
+        @Param('id', ParseIntPipe) id: number,
+        @Body(new ValidationPipe({ transform: true })) dto: CreateSubtaskTemplateDto,
+        @Request() req: AuthenticatedRequest,
+    ) {
+        return this.taskLibraryService.createSubtask(id, dto, req.user.id);
+    }
+
+    @Patch(':id/subtasks/:subtaskId')
+    updateSubtask(
+        @Param('id', ParseIntPipe) id: number,
+        @Param('subtaskId', ParseIntPipe) subtaskId: number,
+        @Body(new ValidationPipe({ transform: true })) dto: UpdateSubtaskTemplateDto,
+        @Request() req: AuthenticatedRequest,
+    ) {
+        return this.taskLibraryService.updateSubtask(id, subtaskId, dto, req.user.id);
+    }
+
+    @Delete(':id/subtasks/:subtaskId')
+    removeSubtask(
+        @Param('id', ParseIntPipe) id: number,
+        @Param('subtaskId', ParseIntPipe) subtaskId: number,
+        @Request() req: AuthenticatedRequest,
+    ) {
+        return this.taskLibraryService.removeSubtask(id, subtaskId, req.user.id);
     }
 }

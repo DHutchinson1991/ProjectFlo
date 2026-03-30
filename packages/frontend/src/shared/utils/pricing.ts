@@ -10,6 +10,19 @@ export {
   computeLineTotal,
   computeItemsTotal,
   computeTaxBreakdown,
+  computeEquipmentBreakdown,
+  computeTaskCostBreakdown,
+  computeCrewCost,
+  computePackagePricing,
+} from '@projectflo/shared';
+export type {
+  PricingEquipmentRel,
+  PricingCrewSlotForEquipment,
+  EquipmentBreakdown,
+  PricingTaskRow,
+  TaskCostBreakdown,
+  PricingCrewSlotForDayRate,
+  PackagePricingSummary,
 } from '@projectflo/shared';
 
 /** @deprecated Use computeItemsTotal instead. Kept for backward compat. */

@@ -1,9 +1,16 @@
-import { Type } from 'class-transformer';
-import { IsInt, IsOptional } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class VenuesQueryDto {
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  brandId?: number;
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['small', 'medium', 'large', 'unknown'])
+  capacity?: 'small' | 'medium' | 'large' | 'unknown';
 }

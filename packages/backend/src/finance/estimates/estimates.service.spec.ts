@@ -16,7 +16,7 @@ const buildPrisma = () => ({
   inquiries: {
     findUnique: jest.fn().mockResolvedValue({ updated_at: new Date(0) }),
   },
-  projectDayOperator: {
+  projectCrewSlot: {
     findFirst: jest.fn().mockResolvedValue(null),
   },
   projectFilm: {

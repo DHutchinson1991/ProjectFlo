@@ -13,8 +13,8 @@ type RequestStatus = "pending" | "confirmed" | "declined" | "cancelled";
 interface CrewAvailabilityRequestDialogProps {
   open: boolean;
   onClose: () => void;
-  contributorName: string;
-  contributorEmail?: string | null;
+  crewName: string;
+  crewEmail?: string | null;
   rows: InquiryCrewAvailabilityRow[];
   requestStatus?: RequestStatus | null;
   emailSubject: string;
@@ -36,7 +36,7 @@ const ADMIN_PHASES = new Set(["Lead", "Inquiry", "Booking"]);
 
 function buildTaskSummary(
   rows: InquiryCrewAvailabilityRow[],
-  contributorName: string,
+  crewName: string,
   previewTasks: TaskAutoGenerationPreviewTask[],
 ): { before: number; onday: number; after: number; totalCost: number } | null {
   const roleNames = new Set(
@@ -44,7 +44,7 @@ function buildTaskSummary(
       .flatMap((r) => [r.job_role?.display_name, r.job_role?.name, r.label])
       .filter((n): n is string => Boolean(n)),
   );
-  const normName = contributorName.trim().toLowerCase();
+  const normName = crewName.trim().toLowerCase();
 
   const tasks = previewTasks.filter((t) => {
     if (ADMIN_PHASES.has(t.phase)) return false;
@@ -70,8 +70,8 @@ function buildTaskSummary(
 export default function CrewAvailabilityRequestDialog({
   open,
   onClose,
-  contributorName,
-  contributorEmail,
+  crewName,
+  crewEmail,
   rows,
   requestStatus,
   emailSubject,
@@ -90,7 +90,7 @@ export default function CrewAvailabilityRequestDialog({
 }: CrewAvailabilityRequestDialogProps) {
   const onSiteRows = rows.filter((r) => r.is_on_site ?? r.job_role?.on_site ?? false);
   const offSiteRows = rows.filter((r) => !(r.is_on_site ?? r.job_role?.on_site ?? false));
-  const taskSummary = previewTasks ? buildTaskSummary(rows, contributorName, previewTasks) : null;
+  const taskSummary = previewTasks ? buildTaskSummary(rows, crewName, previewTasks) : null;
   const formattedEventDate = eventDate
     ? new Date(eventDate).toLocaleDateString(undefined, { weekday: "short", month: "long", day: "numeric", year: "numeric" })
     : null;
@@ -115,7 +115,7 @@ export default function CrewAvailabilityRequestDialog({
       primaryAction={onConfirm}
       loading={loading}
       error={error}
-      primaryDisabled={rows.length === 0 || !contributorEmail}
+      primaryDisabled={rows.length === 0 || !crewEmail}
       maxWidth="lg"
     >
       <Box
@@ -126,14 +126,14 @@ export default function CrewAvailabilityRequestDialog({
           alignItems: "start",
         }}
       >
-        {/* ── Left column: contributor info + roles ── */}
+        {/* ── Left column: crew info + roles ── */}
         <Stack spacing={1}>
           <Stack spacing={0.5}>
             <Typography sx={{ fontSize: "0.82rem", fontWeight: 600, color: "#e2e8f0" }}>
-              {contributorName}
+              {crewName}
             </Typography>
-            {contributorEmail ? (
-              <Typography sx={{ fontSize: "0.75rem", color: "#94a3b8" }}>{contributorEmail}</Typography>
+            {crewEmail ? (
+              <Typography sx={{ fontSize: "0.75rem", color: "#94a3b8" }}>{crewEmail}</Typography>
             ) : (
               <Typography sx={{ fontSize: "0.75rem", color: "#f59e0b" }}>No email on file — cannot send</Typography>
             )}
@@ -278,7 +278,7 @@ export default function CrewAvailabilityRequestDialog({
               value={emailSubject}
               onChange={(e) => onEmailSubjectChange(e.target.value)}
               fullWidth
-              disabled={!contributorEmail}
+              disabled={!crewEmail}
               sx={textFieldSx}
             />
             <TextField
@@ -289,7 +289,7 @@ export default function CrewAvailabilityRequestDialog({
               fullWidth
               multiline
               rows={22}
-              disabled={!contributorEmail}
+              disabled={!crewEmail}
               sx={textFieldSx}
             />
           </Stack>

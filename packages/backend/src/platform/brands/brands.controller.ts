@@ -11,6 +11,7 @@ import {
     Query,
     UseGuards,
     ValidationPipe,
+    NotFoundException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { BrandsService } from './brands.service';
@@ -94,11 +95,16 @@ export class BrandsController {
     }
 
     @Get(':brandId/settings/:key')
-    getSetting(
+    async getSetting(
         @Param('brandId', ParseIntPipe) brandId: number,
         @Param('key') key: string,
     ) {
-        return this.brandsService.getSetting(brandId, key);
+        try {
+            return await this.brandsService.getSetting(brandId, key);
+        } catch (e) {
+            if (e instanceof NotFoundException) return null;
+            throw e;
+        }
     }
 
     @Patch(':brandId/settings/:key')

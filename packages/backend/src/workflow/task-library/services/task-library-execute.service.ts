@@ -25,7 +25,7 @@ export class TaskLibraryExecuteService {
         await this.access.checkBrandAccess(brandId, userId);
 
         const [project, pkg] = await Promise.all([
-            this.prisma.projects.findUnique({ where: { id: projectId }, select: { id: true, project_name: true, brand_id: true, wedding_date: true, booking_date: true } }),
+            this.prisma.projects.findUnique({ where: { id: projectId }, select: { id: true, project_name: true, brand_id: true, wedding_date: true, booking_date: true, delivery_date: true } }),
             this.prisma.service_packages.findUnique({ where: { id: packageId }, select: { id: true, name: true, brand_id: true } }),
         ]);
         if (!project) throw new NotFoundException(`Project with ID ${projectId} not found`);
@@ -36,21 +36,21 @@ export class TaskLibraryExecuteService {
         const existingCount = await this.prisma.project_tasks.count({ where: { project_id: projectId, package_id: packageId } });
         if (existingCount > 0) throw new ConflictException(`Tasks have already been generated for this project from this package (${existingCount} tasks exist). Delete them first to regenerate.`);
 
-        const [films, eventDays, operators, locations, activities, activityCrewAssignments, filmSceneSchedules] = await Promise.all([
+        const [films, eventDays, crewSlots, locations, activities, activityCrewAssignments, filmSceneSchedules] = await Promise.all([
             this.prisma.packageFilm.findMany({ where: { package_id: packageId }, include: { film: { select: { id: true, name: true } } }, orderBy: { order_index: 'asc' } }),
             this.prisma.packageEventDay.findMany({ where: { package_id: packageId }, include: { event_day: { select: { id: true, name: true } } }, orderBy: { order_index: 'asc' } }),
-            this.prisma.packageCrewSlot.findMany({ where: { package_id: packageId }, include: { crew_member: { include: { contact: { select: { first_name: true, last_name: true } } } } }, orderBy: { order_index: 'asc' } }),
+            this.prisma.packageCrewSlot.findMany({ where: { package_id: packageId }, include: { crew: { include: { contact: { select: { first_name: true, last_name: true } } } } }, orderBy: { order_index: 'asc' } }),
             this.prisma.packageEventDayLocation.findMany({ where: { package_id: packageId }, include: { location: { select: { id: true, name: true } } }, orderBy: { order_index: 'asc' } }),
             this.prisma.packageActivity.findMany({ where: { package_id: packageId }, select: { id: true, name: true }, orderBy: { order_index: 'asc' } }),
-            this.prisma.packageCrewSlotActivity.findMany({ where: { package_activity: { package_id: packageId } }, include: { package_activity: { select: { name: true, duration_minutes: true } }, package_crew_slot: { select: { label: true, crew_member_id: true, job_role_id: true, crew_member: { include: { contact: { select: { first_name: true, last_name: true } } } } } } }, orderBy: [{ package_activity: { order_index: 'asc' } }, { package_crew_slot: { order_index: 'asc' } }] }),
+            this.prisma.packageCrewSlotActivity.findMany({ where: { package_activity: { package_id: packageId } }, include: { package_activity: { select: { name: true, duration_minutes: true } }, package_crew_slot: { select: { label: true, crew_id: true, job_role_id: true, crew: { include: { contact: { select: { first_name: true, last_name: true } } } } } } }, orderBy: [{ package_activity: { order_index: 'asc' } }, { package_crew_slot: { order_index: 'asc' } }] }),
             this.prisma.packageFilmSceneSchedule.findMany({ where: { package_film: { package_id: packageId } }, include: { package_film: { include: { film: { select: { name: true } } } }, scene: { select: { name: true, duration_seconds: true } } }, orderBy: [{ package_film: { order_index: 'asc' } }, { order_index: 'asc' }] }),
         ]);
 
-        const opContributorIds = operators.filter(o => o.crew_member_id).map(o => o.crew_member_id!);
-        const cjrRows = opContributorIds.length > 0 ? await this.prisma.crewMemberJobRole.findMany({ where: { crew_member_id: { in: opContributorIds } }, include: { payment_bracket: { select: { level: true } } } }) : [];
+        const opCrewIds = crewSlots.filter(o => o.crew_id).map(o => o.crew_id!);
+        const cjrRows = opCrewIds.length > 0 ? await this.prisma.crewJobRole.findMany({ where: { crew_id: { in: opCrewIds } }, include: { payment_bracket: { select: { level: true } } } }) : [];
         const bracketMap = buildBracketMap(cjrRows);
-        const validAssignments = new Set(cjrRows.map(r => `${r.crew_member_id}-${r.job_role_id}`));
-        const roleCrewMap = buildExecRoleCrewMap(operators, bracketMap, validAssignments);
+        const validAssignments = new Set(cjrRows.map(r => `${r.crew_id}-${r.job_role_id}`));
+        const roleCrewMap = buildExecRoleCrewMap(crewSlots, bracketMap, validAssignments);
         const hasValid = (cId: number | null | undefined, rId: number | null | undefined) => !cId || !rId || validAssignments.has(`${cId}-${rId}`);
 
         const libraryTasks = await this.prisma.task_library.findMany({ where: { brand_id: brandId, is_active: true }, orderBy: [{ phase: 'asc' }, { order_index: 'asc' }] });
@@ -68,17 +68,25 @@ export class TaskLibraryExecuteService {
             always: [''],
             per_film: films.map(f => `Film: ${f.film?.name || `Film #${f.film_id}`}`),
             per_event_day: eventDays.map(ed => `Event Day: ${ed.event_day?.name || `Day #${ed.event_day_template_id}`}`),
-            per_crew_member: operators.map(op => { const n = op.crew_member ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim() : null; return `Crew: ${n || op.label || 'Unknown'}`; }),
+            per_crew: crewSlots.map(op => { const n = op.crew ? `${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim() : null; return `Crew: ${n || op.label || 'Unknown'}`; }),
             per_location: locations.map(loc => `Location: ${loc.location?.name || `Location #${loc.location_id}`}`),
             per_activity: activities.map(act => `Activity: ${act.name}`),
         };
 
         const eventDate = project.wedding_date ? new Date(project.wedding_date) : null;
         const bookingDate = project.booking_date ? new Date(project.booking_date) : null;
+        const deliveryDate = project.delivery_date ? new Date(project.delivery_date) : null;
         const calcDueDate = (task: LibraryTask): Date | null => {
             if (task.due_date_offset_days == null) return null;
-            const prodPhases = ['Production', 'Post_Production', 'Delivery'];
-            const ref = prodPhases.includes(task.phase) ? (eventDate || bookingDate || new Date()) : (bookingDate || new Date());
+            let ref: Date | null;
+            switch (task.due_date_offset_reference) {
+                case 'booking_date':    ref = bookingDate ?? eventDate; break;
+                case 'event_date':      ref = eventDate ?? bookingDate; break;
+                case 'delivery_date':   ref = deliveryDate ?? eventDate ?? bookingDate; break;
+                case 'inquiry_created':
+                default:                ref = bookingDate ?? eventDate; break;
+            }
+            if (!ref) ref = new Date();
             const d = new Date(ref); d.setDate(d.getDate() + task.due_date_offset_days); return d;
         };
         const getResolved = (id: number) => { const r = resolvedRoles.get(id); if (!r) return {}; return { resolved_job_role_id: r.job_role_id, resolved_bracket_id: r.bracket_id, resolved_rate: r.hourly_rate, resolved_skill: r.resolved_skill }; };
@@ -92,16 +100,16 @@ export class TaskLibraryExecuteService {
             const ov = overrideMap.get(task.id); if (ov?.action === 'exclude') continue;
             const effectiveName = ov?.override_name || task.name; const effectiveHours = ov?.override_hours ?? task.effort_hours;
             if (task.trigger_type === 'per_film_scene') { for (const s of filmSceneSchedules) { const fm = s.package_film.film.name; const sn = s.scene.name; const dur = s.scheduled_duration_minutes ?? (s.scene.duration_seconds ? s.scene.duration_seconds / 60 : null); const h = dur ? (dur / 60) * (task.effort_hours ? Number(task.effort_hours) : 1) : (task.effort_hours ? Number(task.effort_hours) : 1); taskRecords.push(base(task, ov, `${effectiveName} — ${sn} (${fm})`, `${sn} (${fm})`, roundMoney(h))); } continue; }
-            if (task.trigger_type === 'per_activity_crew') { for (const a of activityCrewAssignments) { const op = a.package_crew_slot; if (!hasValid(op.crew_member_id, op.job_role_id)) continue; if (task.default_job_role_id && op.job_role_id !== task.default_job_role_id) continue; const n = op.crew_member ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim() : (op.label || 'Unknown'); const h = a.package_activity.duration_minutes ? a.package_activity.duration_minutes / 60 : (task.effort_hours ? Number(task.effort_hours) : 0); taskRecords.push(base(task, ov, `${a.package_activity.name} — ${n}`, `${a.package_activity.name} — ${n}`, h, op.crew_member_id || null)); } continue; }
+            if (task.trigger_type === 'per_activity_crew') { for (const a of activityCrewAssignments) { const op = a.package_crew_slot; if (!hasValid(op.crew_id, op.job_role_id)) continue; if (task.default_job_role_id && op.job_role_id !== task.default_job_role_id) continue; const n = op.crew ? `${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim() : (op.label || 'Unknown'); const h = a.package_activity.duration_minutes ? a.package_activity.duration_minutes / 60 : (task.effort_hours ? Number(task.effort_hours) : 0); taskRecords.push(base(task, ov, `${a.package_activity.name} — ${n}`, `${a.package_activity.name} — ${n}`, h, op.crew_id || null)); } continue; }
             if (task.trigger_type === 'per_film') { const e = effectiveHours ? Number(effectiveHours) : 0; for (const f of films) { const fn = f.film?.name || `Film #${f.film_id}`; taskRecords.push(base(task, ov, `${effectiveName} — ${fn}`, fn, e)); } continue; }
             if (task.trigger_type === 'per_film_with_music') { const e = effectiveHours ? Number(effectiveHours) : 0; for (const f of filmsWithMusicExec) { const fn = f.film?.name || `Film #${f.film_id}`; taskRecords.push(base(task, ov, `${effectiveName} — ${fn}`, fn, e)); } continue; }
             if (task.trigger_type === 'per_film_with_graphics') { const e = effectiveHours ? Number(effectiveHours) : 0; for (const f of filmsWithGraphicsExec) { const fn = f.film?.name || `Film #${f.film_id}`; taskRecords.push(base(task, ov, `${effectiveName} — ${fn}`, fn, e)); } continue; }
             if (task.trigger_type === 'per_activity') { const e = effectiveHours ? Number(effectiveHours) : 0; for (const act of activities) { taskRecords.push(base(task, ov, `${effectiveName} — ${act.name}`, act.name, e)); } continue; }
             if (task.trigger_type === 'per_event_day' && task.default_job_role_id) {
                 const e = effectiveHours ? Number(effectiveHours) : 0; const crew = roleCrewMap.get(task.default_job_role_id);
-                if (crew?.length) { for (const ed of eventDays) { const dn = ed.event_day?.name || `Day #${ed.event_day_template_id}`; for (const c of crew) { const op = operators.find(o => o.crew_member_id === c.contributorId); const cn = op?.crew_member ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim() : `Crew #${c.contributorId}`; const label = eventDays.length > 1 ? `${effectiveName} — ${cn} (${dn})` : `${effectiveName} — ${cn}`; taskRecords.push(base(task, ov, label, eventDays.length > 1 ? `${cn} (${dn})` : cn, e, c.contributorId)); } } continue; }
+                if (crew?.length) { for (const ed of eventDays) { const dn = ed.event_day?.name || `Day #${ed.event_day_template_id}`; for (const c of crew) { const op = crewSlots.find(o => o.crew_id === c.crewId); const cn = op?.crew ? `${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim() : `Crew #${c.crewId}`; const label = eventDays.length > 1 ? `${effectiveName} — ${cn} (${dn})` : `${effectiveName} — ${cn}`; taskRecords.push(base(task, ov, label, eventDays.length > 1 ? `${cn} (${dn})` : cn, e, c.crewId)); } } continue; }
             }
-            if (task.trigger_type === 'per_crew_member') { const e = effectiveHours ? Number(effectiveHours) : 0; for (const op of operators) { if (!hasValid(op.crew_member_id, op.job_role_id)) continue; const n = op.crew_member ? `${op.crew_member.contact?.first_name || ''} ${op.crew_member.contact?.last_name || ''}`.trim() : (op.label || 'Unknown'); taskRecords.push(base(task, ov, `${effectiveName} — ${n}`, `Crew: ${n}`, e, op.crew_member_id || null)); } continue; }
+            if (task.trigger_type === 'per_crew') { const e = effectiveHours ? Number(effectiveHours) : 0; for (const op of crewSlots) { if (!hasValid(op.crew_id, op.job_role_id)) continue; const n = op.crew ? `${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim() : (op.label || 'Unknown'); taskRecords.push(base(task, ov, `${effectiveName} — ${n}`, `Crew: ${n}`, e, op.crew_id || null)); } continue; }
             const labels = contextLabels[task.trigger_type] || [''];
             for (const label of labels) { const sfx = label && task.trigger_type !== 'always' ? ` — ${label}` : ''; taskRecords.push(base(task, ov, `${effectiveName}${sfx}`, label || null, effectiveHours)); }
         }

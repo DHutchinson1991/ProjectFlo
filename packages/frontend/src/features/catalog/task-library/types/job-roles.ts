@@ -16,9 +16,9 @@ export interface JobRole {
     };
 }
 
-export interface CrewMemberJobRole {
+export interface CrewJobRole {
     id: number;
-    crew_member_id: number;
+    crew_id: number;
     job_role_id: number;
     is_primary: boolean;
     payment_bracket_id?: number | null;

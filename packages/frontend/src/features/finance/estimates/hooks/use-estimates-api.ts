@@ -5,6 +5,10 @@ import { useBrand } from '@/features/platform/brand';
 import { estimatesApi } from '../api';
 import type { CreateEstimateData, UpdateEstimateData, Estimate } from '../types';
 import { estimateKeys } from './queryKeys';
+import {
+    mapEstimateListResponse,
+    mapEstimateResponse,
+} from '../mappers/estimate-mappers';
 
 export { estimateKeys };
 
@@ -32,7 +36,7 @@ export function useInquiryEstimates(inquiryId: number | null | undefined) {
 
     const query = useQuery({
         queryKey: estimateKeys.byInquiry(brandId, nInquiryId),
-        queryFn: () => estimatesApi.getAllByInquiry(nInquiryId!),
+        queryFn: async () => mapEstimateListResponse(await estimatesApi.getAllByInquiry(nInquiryId!)),
         enabled: !!brandId && !!nInquiryId,
     });
 
@@ -56,7 +60,7 @@ export function useEstimateDetail(inquiryId: number | null | undefined, estimate
 
     const query = useQuery({
         queryKey: estimateKeys.detail(brandId, nInquiryId, nEstimateId),
-        queryFn: () => estimatesApi.getById(nInquiryId!, nEstimateId!),
+        queryFn: async () => mapEstimateResponse(await estimatesApi.getById(nInquiryId!, nEstimateId!)),
         enabled: !!brandId && !!nInquiryId && !!nEstimateId,
     });
 
@@ -76,7 +80,7 @@ export function useEstimateDetail(inquiryId: number | null | undefined, estimate
 export function useCreateEstimate(inquiryId: number | null | undefined) {
     const { nInquiryId, invalidate } = useEstimateContext(inquiryId);
     return useMutation({
-        mutationFn: (data: CreateEstimateData) => estimatesApi.create(nInquiryId!, data),
+        mutationFn: async (data: CreateEstimateData) => mapEstimateResponse(await estimatesApi.create(nInquiryId!, data)),
         onSuccess: invalidate,
     });
 }
@@ -84,8 +88,8 @@ export function useCreateEstimate(inquiryId: number | null | undefined) {
 export function useUpdateEstimate(inquiryId: number | null | undefined) {
     const { nInquiryId, invalidate } = useEstimateContext(inquiryId);
     return useMutation({
-        mutationFn: ({ estimateId, data }: { estimateId: number; data: UpdateEstimateData }) =>
-            estimatesApi.update(nInquiryId!, estimateId, data),
+        mutationFn: async ({ estimateId, data }: { estimateId: number; data: UpdateEstimateData }) =>
+            mapEstimateResponse(await estimatesApi.update(nInquiryId!, estimateId, data)),
         onSuccess: invalidate,
     });
 }
@@ -101,7 +105,7 @@ export function useDeleteEstimate(inquiryId: number | null | undefined) {
 export function useSendEstimate(inquiryId: number | null | undefined) {
     const { nInquiryId, invalidate } = useEstimateContext(inquiryId);
     return useMutation({
-        mutationFn: (estimateId: number) => estimatesApi.send(nInquiryId!, estimateId),
+        mutationFn: async (estimateId: number) => mapEstimateResponse(await estimatesApi.send(nInquiryId!, estimateId)),
         onSuccess: invalidate,
     });
 }
@@ -109,7 +113,7 @@ export function useSendEstimate(inquiryId: number | null | undefined) {
 export function useRefreshEstimateCosts(inquiryId: number | null | undefined) {
     const { nInquiryId, invalidate } = useEstimateContext(inquiryId);
     return useMutation({
-        mutationFn: (estimateId: number) => estimatesApi.refresh(nInquiryId!, estimateId),
+        mutationFn: async (estimateId: number) => mapEstimateResponse(await estimatesApi.refresh(nInquiryId!, estimateId)),
         onSuccess: invalidate,
     });
 }
@@ -117,7 +121,7 @@ export function useRefreshEstimateCosts(inquiryId: number | null | undefined) {
 export function useReviseEstimate(inquiryId: number | null | undefined) {
     const { nInquiryId, invalidate } = useEstimateContext(inquiryId);
     return useMutation({
-        mutationFn: (estimateId: number) => estimatesApi.revise(nInquiryId!, estimateId),
+        mutationFn: async (estimateId: number) => mapEstimateResponse(await estimatesApi.revise(nInquiryId!, estimateId)),
         onSuccess: invalidate,
     });
 }

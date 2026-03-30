@@ -17,6 +17,34 @@ After a pattern appears ≥2 times or is high-impact, update the relevant `.gith
 
 <!-- Add new entries below this line -->
 
+## [2026-03-29] Assumed event-type nested arrays were safe in all wizard render paths
+- **Trigger**: Fixed an initial null-safety crash in `getAllRoleIds`, but missed additional direct `.sort()`/`.find()` usage of `selectedEventType.subject_types` and `selectedEventType.event_days` in render and handlers, causing repeated runtime crashes on partial payloads.
+- **Category**: Pattern
+- **Resolution**: Added wizard-level payload normalization plus centralized safe helpers (`getEventTypeDays`/`getEventTypeSubjects`) and replaced direct array access in render/handlers with guarded copy-before-sort usage.
+- **Instruction updated**: none
+- **Status**: Open
+
+## [2026-03-29] Began schema/API refactor before running baseline pnpm test
+- **Trigger**: Started implementing crew-slot schema/API refactor before executing the mandatory baseline `pnpm test` gate from `refactoring-safety.instructions.md`.
+- **Category**: Pattern
+- **Resolution**: Continue enforcing sequence strictly for future refactors: baseline test first, then edits, then full validation (`pnpm test && pnpm build && pnpm lint:fix`).
+- **Instruction updated**: none (rule already exists in refactoring-safety.instructions.md)
+- **Status**: Open
+
+## [2026-03-28] Used compatibility aliases during terminology migration instead of direct replacement
+- **Trigger**: While renaming legacy contributor and crew-member terminology across the repo, the first pass added compatibility route aliases and staged partial terminology changes instead of performing the direct global replacement the task required.
+- **Category**: Pattern
+- **Resolution**: Removed the alias endpoints, switched to exact `rg`-driven inventorying, completed the direct repo-wide rename, and verified the remaining legacy filename/content references were eliminated.
+- **Instruction updated**: none
+- **Status**: Open
+
+## [2026-03-28] Assumed crew still owned platform role fields after auth split
+- **Trigger**: During the contributor → crew migration, some backend services were updated to query `crew` but still attempted to read `system_role` directly from the `Crew` model and initially treated the rename as code-only, despite auth now storing platform role data under `contact.user_account`.
+- **Category**: Pattern
+- **Resolution**: Updated auth/brand/task-library/workflow access paths to resolve platform role via `crew.contact.user_account.system_role`, fixed seed/auth code to respect the split between `Crew` and `UserAccount`, and reseeded successfully.
+- **Instruction updated**: none
+- **Status**: Open
+
 ## [2026-03-26] Deleted platform/logging/ — broke 9 backend services
 - **Trigger**: During an auth migration cleanup, `packages/backend/src/platform/logging/` was deleted. This folder contained `logger.service.ts` and `request-logger.middleware.ts`, both used cross-module by `content/films/*`, `content/schedule`, and `app.module.ts`. The TypeScript compiler reported 9 errors at next startup.
 - **Category**: Pattern (high-impact)

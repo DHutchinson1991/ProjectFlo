@@ -42,7 +42,7 @@ import {
 } from "@mui/icons-material";
 
 import { clientPortalApi } from "@/features/workflow/client-portal/api";
-import { publicNeedsAssessmentApi } from "@/features/workflow/needs-assessment/api";
+import { publicInquiryWizardApi } from "@/features/workflow/inquiry-wizard/api";
 import { computeTaxBreakdown, computeLineTotal } from "@/shared/utils/pricing";
 import {
     fadeInUp, fadeIn, scaleIn, shimmer, float, gradientShift, subtleFloat,
@@ -88,7 +88,7 @@ interface InvoiceData {
 }
 
 interface PackageData {
-    id: number; name: string; base_price: string | number | null;
+    id: number; name: string;
     currency: string | null; description: string | null;
     films: { id: number; name: string }[];
 }
@@ -314,7 +314,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
     const [browsingPackages, setBrowsingPackages] = useState(false);
     const [availablePackages, setAvailablePackages] = useState<Array<{
         id: number; name: string; description: string | null;
-        category: string | null; base_price: string | number;
+        category: string | null;
         currency: string; contents: unknown;
     }>>([]);
     const [loadingPackages, setLoadingPackages] = useState(false);
@@ -407,7 +407,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
                 }
             }
             if (Object.keys(updates).length > 0) {
-                await publicNeedsAssessmentApi.updateSubmission(submissionId, updates);
+                await publicInquiryWizardApi.updateSubmission(submissionId, updates);
                 await fetchPortal();
             }
             setEditingQuestionnaire(false);
@@ -818,7 +818,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
                             iconColor: "#f59e0b",
                             title: hasPackage ? (sections.package?.data.name ?? "Your Package") : "Your Package",
                             subtitle: hasPackage
-                                ? `Starting at ${formatCurrency(sections.package!.data.base_price, sections.package!.data.currency || currency)}`
+                                ? sections.package?.data.name ?? "Your Package"
                                 : showBrowser ? "Browse available packages" : "Select a package to get started",
                             statusChip: hasPackage ? { label: "Selected", color: "#f59e0b" } as const : undefined,
                             locked: false,
@@ -923,9 +923,6 @@ export function ClientPortalScreen({ token }: { token: string }) {
                                                     >
                                                         <Typography sx={{ color: colors.text, fontWeight: 600, fontSize: "0.9rem", mb: 0.5 }}>
                                                             {pkg.name}
-                                                        </Typography>
-                                                        <Typography sx={{ color: "#f59e0b", fontWeight: 700, fontSize: "1.1rem", mb: 1 }}>
-                                                            {formatCurrency(pkg.base_price, pkg.currency)}
                                                         </Typography>
                                                         {pkg.description && (
                                                             <Typography sx={{ color: colors.muted, fontSize: "0.78rem", lineHeight: 1.5 }}>

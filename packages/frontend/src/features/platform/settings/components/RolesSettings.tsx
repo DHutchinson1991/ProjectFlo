@@ -41,7 +41,7 @@ import {
     SupervisorAccount as RolesIcon,
 } from "@mui/icons-material";
 import { rolesApi } from "@/features/platform/settings/api";
-import { crewMembersApi } from "@/features/workflow/crew/api";
+import { userAccountsApi } from "@/features/workflow/crew/api";
 import { Role } from "@/shared/types/users";
 
 interface RoleWithUserCount extends Role {
@@ -71,8 +71,8 @@ export default function RolesSettings() {
     const loadRoles = async () => {
         try {
             setLoading(true); setError(null);
-            const [rolesData, contributorsData] = await Promise.all([rolesApi.getAll(), crewMembersApi.getAll()]);
-            const rolesWithCount = rolesData.map((role) => ({ ...role, userCount: contributorsData.filter((c) => c.role_id === role.id).length }));
+            const [rolesData, crewData] = await Promise.all([rolesApi.getAll(), userAccountsApi.getAll()]);
+            const rolesWithCount = rolesData.map((role) => ({ ...role, userCount: crewData.filter((c) => c.role_id === role.id).length }));
             setRoles(rolesWithCount);
         } catch { setError("Failed to load roles data"); }
         finally { setLoading(false); }

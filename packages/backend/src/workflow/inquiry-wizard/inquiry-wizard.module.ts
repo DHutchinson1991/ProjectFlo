@@ -15,6 +15,7 @@ import { ProjectsModule } from '../projects/projects.module';
 import { TaskLibraryModule } from '../task-library/task-library.module';
 import { PaymentSchedulesModule } from '../../finance/payment-schedules/payment-schedules.module';
 import { LocationsModule } from '../locations/locations.module';
+import { BrandFinanceSettingsModule } from '../../finance/brand-finance-settings/brand-finance-settings.module';
 
 @Module({
     imports: [
@@ -26,6 +27,7 @@ import { LocationsModule } from '../locations/locations.module';
         TaskLibraryModule,
         PaymentSchedulesModule,
         LocationsModule,
+        BrandFinanceSettingsModule,
     ],
     controllers: [InquiryWizardController, PublicInquiryWizardController],
     providers: [

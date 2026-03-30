@@ -47,7 +47,7 @@ export const AVAILABLE_VARIABLES: VariableCategory[] = [
   {
     category: 'Crew',
     variables: [
-      { key: 'crew.list', label: 'Crew Members', example: 'Lead Videographer: Dan H\nSecond Shooter: Alex T' },
+      { key: 'crew.list', label: 'Crew', example: 'Lead Videographer: Dan H\nSecond Shooter: Alex T' },
       { key: 'crew.count', label: 'Crew Count', example: '3' },
     ],
   },

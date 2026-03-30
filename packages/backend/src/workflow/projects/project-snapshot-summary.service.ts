@@ -59,7 +59,7 @@ export class ProjectSnapshotSummaryService {
             source_package = inquiry.source_package_for_inquiry;
         }
 
-        const [eventDayCount, activityCount, filmCount, operatorCount, subjectCount, locationSlotCount] =
+        const [eventDayCount, activityCount, filmCount, crewSlotCount, subjectCount, locationSlotCount] =
             await Promise.all([
                 this.prisma.projectEventDay.count({ where }),
                 this.prisma.projectActivity.count({ where }),
@@ -76,7 +76,7 @@ export class ProjectSnapshotSummaryService {
             source_package,
             package_contents_snapshot,
             has_package_data: eventDayCount > 0 || activityCount > 0 || filmCount > 0,
-            counts: { event_days: eventDayCount, activities: activityCount, films: filmCount, operators: operatorCount, subjects: subjectCount, location_slots: locationSlotCount },
+            counts: { event_days: eventDayCount, activities: activityCount, films: filmCount, crew_slots: crewSlotCount, subjects: subjectCount, location_slots: locationSlotCount },
         };
     }
 }

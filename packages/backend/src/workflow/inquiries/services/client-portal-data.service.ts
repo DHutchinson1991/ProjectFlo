@@ -88,7 +88,7 @@ const PORTAL_INCLUDE = {
         select: { id: true, invoice_number: true, status: true, amount: true, due_date: true, issue_date: true, amount_paid: true },
     },
     selected_package: {
-        select: { id: true, name: true, base_price: true, currency: true, description: true, contents: true },
+        select: { id: true, name: true, currency: true, description: true, contents: true },
     },
     event_type: { select: { id: true, name: true } },
     schedule_event_days: {

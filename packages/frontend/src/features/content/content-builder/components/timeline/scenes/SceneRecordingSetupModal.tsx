@@ -75,8 +75,8 @@ interface SceneRecordingSetupModalProps {
     }>;
     /** Subjects from the package, assigned to activities */
     activitySubjects?: any[];
-    /** Operators/crew from the package, assigned to activities */
-    activityOperators?: any[];
+    /** Crew slots from the package, assigned to activities */
+    activityCrewSlots?: any[];
     /** Current scene schedule data */
     sceneSchedule?: {
         event_day_template_id?: number | null;
@@ -116,7 +116,7 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
     onScheduleChange,
     activities = [],
     activitySubjects = [],
-    activityOperators = [],
+    activityCrewSlots = [],
 }) => {
     const { equipmentAssignmentsBySlot, loadAvailableScenes } = useContentBuilder();
     useFilmSubjects(filmId ?? undefined); // retained for potential future use
@@ -140,7 +140,7 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
     // the same event day with no specific activity assignment (available everywhere).
     const inheritedSubjects = React.useMemo(() => {
         if (!selectedActivity) return [];
-        // Use event_day_template_id (the template ID) to match with subject/operator records.
+        // Use event_day_template_id (the template ID) to match with subject/crew slot records.
         // package_event_day_id is the join-table ID which differs from the template ID.
         const eventDayId = selectedActivity.event_day_template_id ?? selectedActivity.package_event_day_id;
         return activitySubjects.filter((s: any) => {
@@ -154,30 +154,30 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
         });
     }, [activitySubjects, selectedActivity]);
 
-    // Derive operators/crew for the selected activity (deduplicated by template).
-    // Includes: (a) explicitly assigned to this activity, (b) day-level operators on
+    // Derive crew slots for the selected activity (deduplicated by template).
+    // Includes: (a) explicitly assigned to this activity, (b) day-level crew slots on
     // the same event day with no specific activity assignment (available everywhere).
     const inheritedCrew = React.useMemo(() => {
         if (!selectedActivity) return [];
-        // Use event_day_template_id (the template ID) to match with operator records.
+        // Use event_day_template_id (the template ID) to match with crew slot records.
         const eventDayId = selectedActivity.event_day_template_id ?? selectedActivity.package_event_day_id;
-        const matched = activityOperators.filter((o: any) => {
+        const matched = activityCrewSlots.filter((o: any) => {
             // Explicitly assigned to this activity (direct or M2M)
             if (o.package_activity_id === selectedActivity.id) return true;
             if (o.activity_assignments?.some((a: any) => a.package_activity_id === selectedActivity.id)) return true;
-            // Day-level operator: same event day, no activity assignment at all
+            // Day-level crew slot: same event day, no activity assignment at all
             const hasNoAssignment = !o.package_activity_id && (!o.activity_assignments || o.activity_assignments.length === 0);
             if (hasNoAssignment && o.event_day_template_id === eventDayId) return true;
             return false;
         });
-        // Deduplicate by crew_member_id (same person on multiple days)
+        // Deduplicate by crew_id (same person on multiple days)
         const seen = new Map<number, any>();
         matched.forEach((o: any) => {
-            const crewId = o.crew_member_id ?? o.id;
+            const crewId = o.crew_id ?? o.id;
             if (!seen.has(crewId)) seen.set(crewId, o);
         });
         return Array.from(seen.values());
-    }, [activityOperators, selectedActivity]);
+    }, [activityCrewSlots, selectedActivity]);
 
     // Helper: format "HH:MM" → "12:30 PM"
     const fmtTime = (t: string | null | undefined) => {
@@ -702,7 +702,7 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
                                     {inheritedCrew.map((crew: any) => {
                                         const crewName = crew.label || crew.job_role?.display_name || crew.job_role?.name || crew.name || 'Crew';
                                         const crewRole = crew.job_role?.display_name || crew.job_role?.name;
-                                        const crewColor = crew.crew_member?.crew_color;
+                                        const crewColor = crew.crew?.crew_color;
                                         return (
                                             <Box
                                                 key={`inherited-crew-${crew.id}`}

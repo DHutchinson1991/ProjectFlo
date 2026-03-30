@@ -8,8 +8,10 @@ import {
     CheckCircle as CheckCircleIcon,
     Warning as WarningIcon,
 } from '@mui/icons-material';
-import type { ActiveTask, CrewMember } from '@/features/workflow/tasks/types';
+import type { ActiveTask, Crew } from '@/features/workflow/tasks/types';
 import { sumEstimatedHours } from '@/shared/utils/hours';
+import { isDateOverdue } from '@/shared/utils/taskDates';
+import { useBrandTimezone } from '@/features/platform/brand';
 import { TaskRow } from './TaskRow';
 import { getInitials, avatarColor } from '../utils/task-display-utils';
 
@@ -17,24 +19,23 @@ interface TaskGroupRowProps {
     stage: ActiveTask;
     children: ActiveTask[];
     groupColor: string;
-    crewMembers: CrewMember[];
+    crew: Crew[];
     onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null, taskKind?: 'task' | 'subtask') => void;
     onNavigate: (task: ActiveTask) => void;
     onToggle: (task: ActiveTask) => void;
     subtasksByParent: Map<number, ActiveTask[]>;
 }
 
-export function TaskGroupRow({ stage, children, groupColor, crewMembers, onAssign, onNavigate, onToggle, subtasksByParent }: TaskGroupRowProps) {
+export function TaskGroupRow({ stage, children, groupColor, crew, onAssign, onNavigate, onToggle, subtasksByParent }: TaskGroupRowProps) {
     const [open, setOpen] = useState(true);
+    const timezone = useBrandTimezone();
     const color = groupColor;
     const done = children.filter(t => t.status === 'Completed').length;
     const total = children.length;
     const progress = total > 0 ? (done / total) * 100 : 0;
     const allDone = total > 0 && done === total;
     const totalHours = sumEstimatedHours(children);
-    const overdueAny = children.some(t =>
-        t.due_date && t.status !== 'Completed' && new Date(t.due_date) < new Date()
-    );
+    const overdueAny = children.some(t => isDateOverdue(t.due_date, t.status, timezone));
     const teamMembers = useMemo(() => [...new Map(
         children.filter(t => t.assignee).map(t => [t.assignee!.id, t.assignee!])
     ).values()], [children]);
@@ -112,7 +113,7 @@ export function TaskGroupRow({ stage, children, groupColor, crewMembers, onAssig
                         key={`${task.source}-${task.id}`}
                         task={task}
                         groupColor={color}
-                        contributors={crewMembers}
+                        crew={crew}
                         onAssign={onAssign}
                         onNavigate={onNavigate}
                         onToggle={onToggle}

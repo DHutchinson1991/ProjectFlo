@@ -44,6 +44,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import EventTypeSelector, { EventTypeForWizard } from './EventTypeSelector';
 import { eventTypesApi } from '@/features/catalog/event-types/api';
 import { useEventTypes } from '@/features/catalog/event-types/hooks';
+import type { EventType } from '@/features/catalog/event-types/types';
 import { useBrand } from '@/features/platform/brand';
 import { crewApi } from '@/features/workflow/crew/api';
 import { equipmentApi } from '@/features/workflow/equipment/api';
@@ -65,12 +66,12 @@ interface CustomActivity {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type CrewMember = any;
+type Crew = any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EquipmentItem = any;
 
 interface CrewAssignment {
-  crewMemberId: number;
+  crewId: number;
   jobRoleIds: number[];
   positionColor?: string;
 }
@@ -78,12 +79,120 @@ interface CrewAssignment {
 interface CameraAudioSlot {
   slotNumber: number;
   equipmentId: number | null;
-  assignedCrewMemberId: number | null;
+  assignedCrewId: number | null;
   assignedJobRoleId: number | null;
 }
 
 const renumberSlots = (slots: CameraAudioSlot[]) =>
   slots.map((slot, index) => ({ ...slot, slotNumber: index + 1 }));
+
+const CAMERA_ROLE_KEYWORDS = ['videographer', 'camera', 'operator', 'cinematographer', 'photographer', 'drone'];
+const AUDIO_ROLE_KEYWORDS = ['sound', 'audio', 'mixer'];
+
+const getNormalizedRoleName = (role: { display_name?: string; name?: string } | null | undefined) =>
+  `${role?.display_name || ''} ${role?.name || ''}`.trim().toLowerCase();
+
+const matchesRoleKeywords = (
+  role: { display_name?: string; name?: string } | null | undefined,
+  keywords: string[],
+) => {
+  const normalizedRoleName = getNormalizedRoleName(role);
+  return keywords.some((keyword) => normalizedRoleName.includes(keyword));
+};
+
+const mapSubjectRolesToSubjectTypes = (eventType: EventTypeForWizard | EventType): EventTypeForWizard['subject_types'] => {
+  const subjectRoleLinks = Array.isArray((eventType as unknown as { subject_roles?: unknown[] }).subject_roles)
+    ? ((eventType as unknown as { subject_roles?: unknown[] }).subject_roles as Array<Record<string, unknown>>)
+    : [];
+
+  if (subjectRoleLinks.length === 0) return [];
+
+  type Group = {
+    id: number;
+    order_index: number;
+    is_default: boolean;
+    subject_type_template: {
+      id: number;
+      name: string;
+      description?: string;
+      roles: Array<{
+        id: number;
+        role_name: string;
+        is_core: boolean;
+        is_group: boolean;
+        never_group: boolean;
+        order_index?: number;
+      }>;
+    };
+  };
+
+  const grouped = new Map<string, Group>();
+
+  subjectRoleLinks.forEach((link, index) => {
+    const subjectRole = (link.subject_role as Record<string, unknown> | undefined) ?? undefined;
+    if (!subjectRole) return;
+
+    const subjectType = (subjectRole.subject_type as Record<string, unknown> | undefined) ?? undefined;
+    const subjectTypeId = Number(subjectRole.subject_type_id ?? subjectType?.id ?? -1);
+    const subjectTypeName =
+      (typeof subjectType?.name === 'string' && subjectType.name.trim().length > 0)
+        ? subjectType.name
+        : 'Subjects';
+    const groupKey = `${subjectTypeId}:${subjectTypeName}`;
+
+    if (!grouped.has(groupKey)) {
+      grouped.set(groupKey, {
+        id: subjectTypeId > 0 ? subjectTypeId : -(index + 1),
+        order_index: Number(link.order_index ?? 0),
+        is_default: Boolean(link.is_default),
+        subject_type_template: {
+          id: subjectTypeId > 0 ? subjectTypeId : -(index + 1),
+          name: subjectTypeName,
+          description: typeof subjectType?.description === 'string' ? subjectType.description : undefined,
+          roles: [],
+        },
+      });
+    }
+
+    grouped.get(groupKey)?.subject_type_template.roles.push({
+      id: Number(subjectRole.id ?? 0),
+      role_name: String(subjectRole.role_name ?? subjectRole.name ?? 'Role'),
+      is_core: Boolean(subjectRole.is_core),
+      is_group: Boolean(subjectRole.is_group),
+      never_group: Boolean(subjectRole.never_group),
+      order_index: Number(subjectRole.order_index ?? 0),
+    });
+  });
+
+  return Array.from(grouped.values());
+};
+
+const normalizeEventTypeForWizard = (eventType: EventTypeForWizard | EventType): EventTypeForWizard => {
+  const eventDays = Array.isArray(eventType.event_days) ? eventType.event_days : [];
+  const linkedSubjectTypes = Array.isArray(eventType.subject_types) ? eventType.subject_types : [];
+  const subjectTypes = linkedSubjectTypes.length > 0 ? linkedSubjectTypes : mapSubjectRolesToSubjectTypes(eventType);
+
+  return {
+    ...eventType,
+    event_days: eventDays,
+    subject_types: subjectTypes.map((subjectType) => {
+      const template = subjectType.subject_type_template;
+      const roles = Array.isArray(template?.roles) ? template.roles : [];
+
+      return {
+        ...subjectType,
+        subject_type_template: {
+          ...template,
+          roles: roles.map((role) => ({
+            ...role,
+            is_group: Boolean(role.is_group),
+            never_group: Boolean(role.never_group),
+          })),
+        },
+      };
+    }),
+  };
+};
 
 interface PackageCreationWizardProps {
   open?: boolean;
@@ -134,14 +243,14 @@ export default function PackageCreationWizard({
   const [newMomentName, setNewMomentName] = useState('');
 
   // Crew state
-  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
+  const [crew, setCrew] = useState<Crew[]>([]);
   const [crewAssignments, setCrewAssignments] = useState<CrewAssignment[]>([]);
   const [loadingCrew, setLoadingCrew] = useState(false);
 
   // Equipment state
   const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([]);
   const [cameraSlots, setCameraSlots] = useState<CameraAudioSlot[]>([
-    { slotNumber: 1, equipmentId: null, assignedCrewMemberId: null, assignedJobRoleId: null },
+    { slotNumber: 1, equipmentId: null, assignedCrewId: null, assignedJobRoleId: null },
   ]);
   const [audioSlots, setAudioSlots] = useState<CameraAudioSlot[]>([]);
   const [loadingEquipment, setLoadingEquipment] = useState(false);
@@ -156,9 +265,9 @@ export default function PackageCreationWizard({
     setLoadingCrew(true);
     try {
       const data = await crewApi.getByBrand(currentBrand.id);
-      setCrewMembers(data || []);
+      setCrew(data || []);
     } catch {
-      setCrewMembers([]);
+      setCrew([]);
     } finally {
       setLoadingCrew(false);
     }
@@ -178,40 +287,47 @@ export default function PackageCreationWizard({
 
   // Fetch on step entry
   useEffect(() => {
-    if (activeStep === 6 && crewMembers.length === 0) fetchCrew();
+    if (activeStep === 6 && crew.length === 0) fetchCrew();
     if (activeStep === 7 && equipmentItems.length === 0) fetchEquipment();
-  }, [activeStep, crewMembers.length, equipmentItems.length, fetchCrew, fetchEquipment]);
+  }, [activeStep, crew.length, equipmentItems.length, fetchCrew, fetchEquipment]);
 
   // Auto-select event type when initialEventTypeName is provided
   useEffect(() => {
     if (!open || !initialEventTypeName || autoSelectAttempted) return;
     setAutoSelectAttempted(true);
-    const match = (eventTypes as EventTypeForWizard[]).find(
+    const match = eventTypes.find(
       (et) => et.name.toLowerCase() === initialEventTypeName.toLowerCase(),
     );
     if (!match) return;
+    const normalizedMatch = normalizeEventTypeForWizard(match);
 
-    setSelectedEventType(match);
+    setSelectedEventType(normalizedMatch);
     setSelectedDayIds(new Set());
     setSelectedPresetIds(new Set());
     setSelectedMomentIds(new Set());
-    setSelectedRoleIds(getAllRoleIds(match));
+    setSelectedRoleIds(getAllRoleIds(normalizedMatch));
     setCustomActivities([]);
     setPresetTimeOverrides({});
     setPresetDurationOverrides({});
     setMomentKeyOverrides({});
     setCrewAssignments([]);
-    setCameraSlots([{ slotNumber: 1, equipmentId: null, assignedCrewMemberId: null, assignedJobRoleId: null }]);
+    setCameraSlots([{ slotNumber: 1, equipmentId: null, assignedCrewId: null, assignedJobRoleId: null }]);
     setAudioSlots([]);
     setLocationCount(3);
-    if (!packageName) setPackageName(`${match.name} Package`);
+    if (!packageName) setPackageName(`${normalizedMatch.name} Package`);
     setActiveStep(1);
   }, [open, initialEventTypeName, autoSelectAttempted, eventTypes, packageName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Helpers ────────────────────────────────────────────────────────
+  const getEventTypeDays = (et?: EventTypeForWizard | null) =>
+    Array.isArray(et?.event_days) ? et.event_days : [];
+
+  const getEventTypeSubjects = (et?: EventTypeForWizard | null) =>
+    Array.isArray(et?.subject_types) ? et.subject_types : [];
+
   const getPresetIdsForDays = (et: EventTypeForWizard, dayIds: Set<number>) => {
     const ids = new Set<number>();
-    et.event_days.filter((ed) => dayIds.has(ed.id)).forEach((ed) =>
+    getEventTypeDays(et).filter((ed) => dayIds.has(ed.id)).forEach((ed) =>
       ed.event_day_template.activity_presets.forEach((p) => ids.add(p.id)),
     );
     return ids;
@@ -219,7 +335,7 @@ export default function PackageCreationWizard({
 
   const getAllMomentIdsForPresets = (et: EventTypeForWizard, presetIds: Set<number>) => {
     const ids = new Set<number>();
-    et.event_days.forEach((ed) =>
+    getEventTypeDays(et).forEach((ed) =>
       ed.event_day_template.activity_presets
         .filter((p) => presetIds.has(p.id))
         .forEach((p) => p.moments?.forEach((m) => ids.add(m.id))),
@@ -227,11 +343,13 @@ export default function PackageCreationWizard({
     return ids;
   };
 
-  const getAllRoleIds = (et: EventTypeForWizard) => {
+  const getAllRoleIds = (et?: EventTypeForWizard | null) => {
     const ids = new Set<number>();
-    et.subject_types.forEach((st) =>
-      st.subject_type_template.roles.forEach((r) => ids.add(r.id)),
-    );
+    getEventTypeSubjects(et).forEach((st) => {
+      const roles = st.subject_type_template?.roles;
+      if (!Array.isArray(roles)) return;
+      roles.forEach((r) => ids.add(r.id));
+    });
     return ids;
   };
 
@@ -244,13 +362,13 @@ export default function PackageCreationWizard({
   const isMomentKey = (moment: { id: number; is_key_moment?: boolean }) =>
     momentKeyOverrides[moment.id] ?? moment.is_key_moment ?? false;
 
-  const getCrewName = (cm: CrewMember) => {
+  const getCrewName = (cm: Crew) => {
     const c = cm.contact;
     if (c?.first_name || c?.last_name) return `${c.first_name || ''} ${c.last_name || ''}`.trim();
     return c?.email || 'Unnamed';
   };
 
-  const getCrewPrimaryRole = (cm: CrewMember): string => {
+  const getCrewPrimaryRole = (cm: Crew): string => {
     const primary = cm.job_role_assignments?.find((r: { is_primary: boolean }) => r.is_primary);
     if (primary) return primary.job_role?.display_name || primary.job_role?.name || '';
     if (cm.job_role_assignments?.length > 0) {
@@ -263,7 +381,7 @@ export default function PackageCreationWizard({
   // ── Derived data ───────────────────────────────────────────────────
   const selectedDays = useMemo(() => {
     if (!selectedEventType) return [];
-    return selectedEventType.event_days
+    return getEventTypeDays(selectedEventType)
       .filter((ed) => selectedDayIds.has(ed.id))
       .sort((a, b) => a.order_index - b.order_index);
   }, [selectedEventType, selectedDayIds]);
@@ -286,11 +404,11 @@ export default function PackageCreationWizard({
             .reduce((ms, p) => ms + (p.moments?.filter((m) => selectedMomentIds.has(m.id)).length || 0), 0),
         0,
       ) + customActivities.reduce((s, ca) => s + ca.moments.length, 0);
-    const subjects = selectedEventType.subject_types.reduce(
-      (sum, st) =>
-        sum + st.subject_type_template.roles.filter((r) => selectedRoleIds.has(r.id)).length,
-      0,
-    );
+    const subjects = getEventTypeSubjects(selectedEventType).reduce((sum, st) => {
+      const roles = st.subject_type_template?.roles;
+      if (!Array.isArray(roles)) return sum;
+      return sum + roles.filter((r) => selectedRoleIds.has(r.id)).length;
+    }, 0);
     return {
       days: selectedDays.length,
       activities,
@@ -309,9 +427,10 @@ export default function PackageCreationWizard({
 
   const totalRoles = useMemo(() => {
     if (!selectedEventType) return 0;
-    return selectedEventType.subject_types.reduce(
-      (s, st) => s + st.subject_type_template.roles.length, 0,
-    );
+    return getEventTypeSubjects(selectedEventType).reduce((s, st) => {
+      const roles = st.subject_type_template?.roles;
+      return s + (Array.isArray(roles) ? roles.length : 0);
+    }, 0);
   }, [selectedEventType]);
 
   // Group equipment by category
@@ -337,9 +456,9 @@ export default function PackageCreationWizard({
     [audioSlots],
   );
 
-  const equipmentOperatorOptions = useMemo(() => {
+  const equipmentCrewOptions = useMemo(() => {
     return crewAssignments.flatMap((assignment) => {
-      const crewMember = crewMembers.find((cm: CrewMember) => cm.id === assignment.crewMemberId);
+      const crewMember = crew.find((cm: Crew) => cm.id === assignment.crewId);
       if (!crewMember) return [];
 
       return assignment.jobRoleIds.map((jobRoleId) => {
@@ -348,94 +467,92 @@ export default function PackageCreationWizard({
         const roleName = role?.job_role?.display_name || role?.job_role?.name || 'Crew';
 
         return {
-          crewMemberId: assignment.crewMemberId,
+          crewId: assignment.crewId,
           jobRoleId,
           label: `${getCrewName(crewMember)} · ${roleName}`,
           color: assignment.positionColor || crewMember.crew_color || '#818cf8',
         };
       });
     });
-  }, [crewAssignments, crewMembers]);
+  }, [crewAssignments, crew]);
 
-  // Filtered options for camera slots — only show crew assigned with a Videographer role
-  const cameraOperatorOptions = useMemo(() => {
-    return equipmentOperatorOptions.filter((opt) => {
-      const crewMember = crewMembers.find((cm: CrewMember) => cm.id === opt.crewMemberId);
+  // Filtered options for camera slots — accept videographer and related camera roles
+  const cameraCrewOptions = useMemo(() => {
+    return equipmentCrewOptions.filter((opt) => {
+      const crewMember = crew.find((cm: Crew) => cm.id === opt.crewId);
       if (!crewMember) return false;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const role = crewMember.job_role_assignments?.find((r: any) => r.job_role.id === opt.jobRoleId);
-      const roleName = (role?.job_role?.display_name || role?.job_role?.name || '').toLowerCase();
-      return roleName.includes('videographer');
+      return matchesRoleKeywords(role?.job_role, CAMERA_ROLE_KEYWORDS);
     });
-  }, [equipmentOperatorOptions, crewMembers]);
+  }, [equipmentCrewOptions, crew]);
 
-  const audioOperatorOptions = useMemo(() => {
-    return equipmentOperatorOptions.filter((opt) => {
-      const crewMember = crewMembers.find((cm: CrewMember) => cm.id === opt.crewMemberId);
+  const audioCrewOptions = useMemo(() => {
+    return equipmentCrewOptions.filter((opt) => {
+      const crewMember = crew.find((cm: Crew) => cm.id === opt.crewId);
       if (!crewMember) return false;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const role = crewMember.job_role_assignments?.find((r: any) => r.job_role.id === opt.jobRoleId);
-      const roleName = (role?.job_role?.display_name || role?.job_role?.name || '').toLowerCase();
-      return roleName.includes('sound') || roleName.includes('audio') || roleName.includes('mixer');
+      return matchesRoleKeywords(role?.job_role, AUDIO_ROLE_KEYWORDS);
     });
-  }, [equipmentOperatorOptions, crewMembers]);
+  }, [equipmentCrewOptions, crew]);
 
   useEffect(() => {
-    const isValidAssignment = (slot: CameraAudioSlot, options: typeof equipmentOperatorOptions) => {
-      if (!slot.assignedCrewMemberId || !slot.assignedJobRoleId) return true;
+    const isValidAssignment = (slot: CameraAudioSlot, options: typeof equipmentCrewOptions) => {
+      if (!slot.assignedCrewId || !slot.assignedJobRoleId) return true;
       return options.some(
         (option) =>
-          option.crewMemberId === slot.assignedCrewMemberId
+          option.crewId === slot.assignedCrewId
           && option.jobRoleId === slot.assignedJobRoleId,
       );
     };
 
     const autoAssignSingleOption = (
       slot: CameraAudioSlot,
-      options: typeof equipmentOperatorOptions,
+      options: typeof equipmentCrewOptions,
     ) => {
-      if (slot.assignedCrewMemberId && slot.assignedJobRoleId) return slot;
+      if (slot.assignedCrewId && slot.assignedJobRoleId) return slot;
       if (options.length !== 1) return slot;
       return {
         ...slot,
-        assignedCrewMemberId: options[0].crewMemberId,
+        assignedCrewId: options[0].crewId,
         assignedJobRoleId: options[0].jobRoleId,
       };
     };
 
     setCameraSlots((prev) => prev.map((slot) => (
       autoAssignSingleOption(
-        isValidAssignment(slot, cameraOperatorOptions)
+        isValidAssignment(slot, cameraCrewOptions)
           ? slot
-          : { ...slot, assignedCrewMemberId: null, assignedJobRoleId: null },
-        cameraOperatorOptions,
+          : { ...slot, assignedCrewId: null, assignedJobRoleId: null },
+        cameraCrewOptions,
       )
     )));
     setAudioSlots((prev) => prev.map((slot) => (
       autoAssignSingleOption(
-        isValidAssignment(slot, audioOperatorOptions)
+        isValidAssignment(slot, audioCrewOptions)
           ? slot
-          : { ...slot, assignedCrewMemberId: null, assignedJobRoleId: null },
-        audioOperatorOptions,
+          : { ...slot, assignedCrewId: null, assignedJobRoleId: null },
+        audioCrewOptions,
       )
     )));
-  }, [audioOperatorOptions, cameraOperatorOptions]);
+  }, [audioCrewOptions, cameraCrewOptions]);
 
   // Group crew by primary role
   const crewByRole = useMemo(() => {
-    const groups: Record<string, CrewMember[]> = {};
-    crewMembers.forEach((cm) => {
+    const groups: Record<string, Crew[]> = {};
+    crew.forEach((cm) => {
       const role = getCrewPrimaryRole(cm) || 'Unassigned';
       if (!groups[role]) groups[role] = [];
       groups[role].push(cm);
     });
     return groups;
-  }, [crewMembers]);
+  }, [crew]);
 
   // ── Toggle handlers ────────────────────────────────────────────────
   const toggleDay = (dayId: number) => {
     if (!selectedEventType) return;
-    const dayLink = selectedEventType.event_days.find((ed) => ed.id === dayId);
+    const dayLink = getEventTypeDays(selectedEventType).find((ed) => ed.id === dayId);
     if (!dayLink) return;
     const presetIds = dayLink.event_day_template.activity_presets.map((p) => p.id);
     const momentIds = dayLink.event_day_template.activity_presets.flatMap(
@@ -455,7 +572,7 @@ export default function PackageCreationWizard({
   const togglePreset = (id: number) => {
     if (!selectedEventType) return;
     const momentIdsForPreset: number[] = [];
-    selectedEventType.event_days.forEach((ed) =>
+    getEventTypeDays(selectedEventType).forEach((ed) =>
       ed.event_day_template.activity_presets
         .filter((p) => p.id === id)
         .forEach((p) => p.moments?.forEach((m) => momentIdsForPreset.push(m.id))),
@@ -480,7 +597,7 @@ export default function PackageCreationWizard({
 
   const selectAllMomentsForPreset = (presetId: number) => {
     if (!selectedEventType) return;
-    selectedEventType.event_days.forEach((ed) =>
+    getEventTypeDays(selectedEventType).forEach((ed) =>
       ed.event_day_template.activity_presets
         .filter((p) => p.id === presetId)
         .forEach((p) =>
@@ -491,7 +608,7 @@ export default function PackageCreationWizard({
 
   const deselectAllMomentsForPreset = (presetId: number) => {
     if (!selectedEventType) return;
-    selectedEventType.event_days.forEach((ed) =>
+    getEventTypeDays(selectedEventType).forEach((ed) =>
       ed.event_day_template.activity_presets
         .filter((p) => p.id === presetId)
         .forEach((p) =>
@@ -513,29 +630,29 @@ export default function PackageCreationWizard({
   };
 
   // ── Crew assignment handlers ───────────────────────────────────────
-  const addCrewMember = (cm: CrewMember) => {
-    if (crewAssignments.some((a) => a.crewMemberId === cm.id)) return;
+  const addCrew = (cm: Crew) => {
+    if (crewAssignments.some((a) => a.crewId === cm.id)) return;
     const primaryRole = cm.job_role_assignments?.find((r: { is_primary: boolean }) => r.is_primary);
     const firstRole = primaryRole || cm.job_role_assignments?.[0];
     if (!firstRole) return;
     setCrewAssignments((prev) => [
       ...prev,
       {
-        crewMemberId: cm.id,
+        crewId: cm.id,
         jobRoleIds: [firstRole.job_role.id],
         positionColor: cm.crew_color,
       },
     ]);
   };
 
-  const removeCrewMember = (crewMemberId: number) => {
-    setCrewAssignments((prev) => prev.filter((a) => a.crewMemberId !== crewMemberId));
+  const removeCrew = (crewId: number) => {
+    setCrewAssignments((prev) => prev.filter((a) => a.crewId !== crewId));
   };
 
-  const toggleCrewRole = (crewMemberId: number, roleId: number) => {
+  const toggleCrewRole = (crewId: number, roleId: number) => {
     setCrewAssignments((prev) =>
       prev.map((a) => {
-        if (a.crewMemberId !== crewMemberId) return a;
+        if (a.crewId !== crewId) return a;
         const has = a.jobRoleIds.includes(roleId);
         // Don't allow removing the last role
         if (has && a.jobRoleIds.length <= 1) return a;
@@ -551,13 +668,13 @@ export default function PackageCreationWizard({
 
   // ── Equipment slot handlers ────────────────────────────────────────
   const addCameraSlot = () => {
-    const autoOp = cameraOperatorOptions.length === 1 ? cameraOperatorOptions[0] : null;
+    const autoOp = cameraCrewOptions.length === 1 ? cameraCrewOptions[0] : null;
     setCameraSlots((prev) => [
       ...prev,
       {
         slotNumber: prev.length + 1,
         equipmentId: null,
-        assignedCrewMemberId: autoOp?.crewMemberId ?? null,
+        assignedCrewId: autoOp?.crewId ?? null,
         assignedJobRoleId: autoOp?.jobRoleId ?? null,
       },
     ]);
@@ -587,13 +704,13 @@ export default function PackageCreationWizard({
   };
 
   const addAudioSlot = () => {
-    const autoOp = audioOperatorOptions.length === 1 ? audioOperatorOptions[0] : null;
+    const autoOp = audioCrewOptions.length === 1 ? audioCrewOptions[0] : null;
     setAudioSlots((prev) => [
       ...prev,
       {
         slotNumber: prev.length + 1,
         equipmentId: null,
-        assignedCrewMemberId: autoOp?.crewMemberId ?? null,
+        assignedCrewId: autoOp?.crewId ?? null,
         assignedJobRoleId: autoOp?.jobRoleId ?? null,
       },
     ]);
@@ -627,12 +744,12 @@ export default function PackageCreationWizard({
     slotNumber: number,
     value: string,
   ) => {
-    const [contributorValue, roleValue] = value ? value.split(':') : [];
-    const assignedCrewMemberId = contributorValue ? Number(contributorValue) : null;
+    const [crewValue, roleValue] = value ? value.split(':') : [];
+    const assignedCrewId = crewValue ? Number(crewValue) : null;
     const assignedJobRoleId = roleValue ? Number(roleValue) : null;
     const updater = (slots: CameraAudioSlot[]) => slots.map((slot) => (
       slot.slotNumber === slotNumber
-        ? { ...slot, assignedCrewMemberId, assignedJobRoleId }
+        ? { ...slot, assignedCrewId, assignedJobRoleId }
         : slot
     ));
 
@@ -717,20 +834,21 @@ export default function PackageCreationWizard({
 
   // ── Navigation ─────────────────────────────────────────────────────
   const handleEventTypeSelected = (eventType: EventTypeForWizard) => {
-    setSelectedEventType(eventType);
+    const normalizedEventType = normalizeEventTypeForWizard(eventType);
+    setSelectedEventType(normalizedEventType);
     setSelectedDayIds(new Set());
     setSelectedPresetIds(new Set());
     setSelectedMomentIds(new Set());
-    setSelectedRoleIds(getAllRoleIds(eventType));
+    setSelectedRoleIds(getAllRoleIds(normalizedEventType));
     setCustomActivities([]);
     setPresetTimeOverrides({});
     setPresetDurationOverrides({});
     setMomentKeyOverrides({});
     setCrewAssignments([]);
-    setCameraSlots([{ slotNumber: 1, equipmentId: null, assignedCrewMemberId: null, assignedJobRoleId: null }]);
+    setCameraSlots([{ slotNumber: 1, equipmentId: null, assignedCrewId: null, assignedJobRoleId: null }]);
     setAudioSlots([]);
     setLocationCount(3);
-    if (!packageName) setPackageName(`${eventType.name} Package`);
+    if (!packageName) setPackageName(`${normalizedEventType.name} Package`);
     setActiveStep(1);
   };
 
@@ -759,7 +877,7 @@ export default function PackageCreationWizard({
       const customActivitiesData = customActivities
         .filter((ca) => selectedDayIds.has(ca.dayLinkId))
         .map((ca) => {
-          const dayLink = selectedEventType.event_days.find((ed) => ed.id === ca.dayLinkId);
+          const dayLink = getEventTypeDays(selectedEventType).find((ed) => ed.id === ca.dayLinkId);
           return {
             name: ca.name,
             dayTemplateId: dayLink?.event_day_template.id || 0,
@@ -783,7 +901,7 @@ export default function PackageCreationWizard({
             equipmentId: s.equipmentId!,
             slotLabel: `Camera ${s.slotNumber}`,
             slotType: 'CAMERA',
-            crewMemberId: s.assignedCrewMemberId || undefined,
+            crewId: s.assignedCrewId || undefined,
             jobRoleId: s.assignedJobRoleId || undefined,
           })),
         ...audioSlots
@@ -792,20 +910,20 @@ export default function PackageCreationWizard({
             equipmentId: s.equipmentId!,
             slotLabel: `Audio ${s.slotNumber}`,
             slotType: 'AUDIO',
-            crewMemberId: s.assignedCrewMemberId || undefined,
+            crewId: s.assignedCrewId || undefined,
             jobRoleId: s.assignedJobRoleId || undefined,
           })),
       ];
 
-      // Expand multi-role crew assignments: one DTO entry per contributor + role
+      // Expand multi-role crew assignments: one DTO entry per crew + role
       const crewAssignmentsData = crewAssignments.flatMap((a) =>
         a.jobRoleIds.map((roleId) => {
-          const cm = crewMembers.find((c: CrewMember) => c.id === a.crewMemberId);
+          const cm = crew.find((c: Crew) => c.id === a.crewId);
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const role = cm?.job_role_assignments?.find((r: any) => r.job_role.id === roleId);
           const positionName = role?.job_role?.display_name || role?.job_role?.name || 'Crew';
           return {
-            crewMemberId: a.crewMemberId,
+            crewId: a.crewId,
             jobRoleId: roleId,
             label: positionName,
           };
@@ -855,7 +973,7 @@ export default function PackageCreationWizard({
     setPresetDurationOverrides({});
     setMomentKeyOverrides({});
     setCrewAssignments([]);
-    setCameraSlots([{ slotNumber: 1, equipmentId: null, assignedCrewMemberId: null, assignedJobRoleId: null }]);
+    setCameraSlots([{ slotNumber: 1, equipmentId: null, assignedCrewId: null, assignedJobRoleId: null }]);
     setAudioSlots([]);
     setLocationCount(3);
     setPackageName('');
@@ -971,7 +1089,7 @@ export default function PackageCreationWizard({
           <Box>
             <Typography sx={{ color: '#94a3b8', fontSize: '0.85rem', mb: 2 }}>Which days does this event include?</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 1.5 }}>
-              {selectedEventType.event_days.sort((a, b) => a.order_index - b.order_index).map((link) => {
+              {[...getEventTypeDays(selectedEventType)].sort((a, b) => a.order_index - b.order_index).map((link) => {
                 const day = link.event_day_template;
                 const isSelected = selectedDayIds.has(link.id);
                 const activityCount = day.activity_presets?.length || 0;
@@ -1260,15 +1378,16 @@ export default function PackageCreationWizard({
             {totalRoles === 0 && <Typography sx={{ color: '#475569', fontSize: '0.8rem', fontStyle: 'italic' }}>No subject types configured for this event type yet.</Typography>}
 
             <Stack spacing={2}>
-              {selectedEventType.subject_types.sort((a, b) => a.order_index - b.order_index).map((link) => {
+              {[...getEventTypeSubjects(selectedEventType)].sort((a, b) => a.order_index - b.order_index).map((link) => {
                 const st = link.subject_type_template;
-                if (!st.roles?.length) return null;
+                const roles = Array.isArray(st.roles) ? st.roles : [];
+                if (roles.length === 0) return null;
                 return (
                   <Box key={link.id}>
                     <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px', mb: 0.5 }}>{st.name}</Typography>
                     <Stack spacing={0.25}>
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                      {st.roles.sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0)).map((role) => {
+                      {[...roles].sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0)).map((role) => {
                         const sel = selectedRoleIds.has(role.id);
                         return (
                           <Box key={role.id} onClick={() => toggleRole(role.id)} sx={listRowSx(sel, '#f472b6')}>
@@ -1327,12 +1446,12 @@ export default function PackageCreationWizard({
           </Box>
         )}
 
-        {/* ── Step 6: Crew Members ───────────────────────── */}
+        {/* ── Step 6: Crew ───────────────────────────────── */}
         {activeStep === 6 && (
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
               <Box>
-                <Typography sx={{ color: '#94a3b8', fontSize: '0.85rem' }}>Assign crew members to this package</Typography>
+                <Typography sx={{ color: '#94a3b8', fontSize: '0.85rem' }}>Assign crew to this package</Typography>
                 <Typography sx={{ color: '#475569', fontSize: '0.7rem', mt: 0.25 }}>Select crew and choose the role they&apos;ll fill on this project</Typography>
               </Box>
               {crewAssignments.length > 0 && (
@@ -1344,18 +1463,18 @@ export default function PackageCreationWizard({
             {loadingCrew && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 3, justifyContent: 'center' }}>
                 <CircularProgress size={18} sx={{ color: '#818cf8' }} />
-                <Typography sx={{ color: '#64748b', fontSize: '0.8rem' }}>Loading crew members...</Typography>
+                <Typography sx={{ color: '#64748b', fontSize: '0.8rem' }}>Loading crew...</Typography>
               </Box>
             )}
 
-            {!loadingCrew && crewMembers.length === 0 && (
-              <Typography sx={{ color: '#475569', fontSize: '0.8rem', fontStyle: 'italic' }}>No crew members found. You can add them later in the package.</Typography>
+            {!loadingCrew && crew.length === 0 && (
+              <Typography sx={{ color: '#475569', fontSize: '0.8rem', fontStyle: 'italic' }}>No crew found. You can add it later in the package.</Typography>
             )}
 
-            {!loadingCrew && crewMembers.length > 0 && (
+            {!loadingCrew && crew.length > 0 && (
               <Stack spacing={0.5}>
-                {crewMembers.map((cm: CrewMember) => {
-                  const assignment = crewAssignments.find((a) => a.crewMemberId === cm.id);
+                {crew.map((cm: Crew) => {
+                  const assignment = crewAssignments.find((a) => a.crewId === cm.id);
                   const isAssigned = !!assignment;
                   const crewColor = cm.crew_color || '#818cf8';
                   const hasRoles = cm.job_role_assignments?.length > 0;
@@ -1364,7 +1483,7 @@ export default function PackageCreationWizard({
                     <Box key={cm.id} sx={listRowSx(isAssigned, crewColor)}>
                       {/* Add/Remove toggle */}
                       <Box
-                        onClick={() => isAssigned ? removeCrewMember(cm.id) : addCrewMember(cm)}
+                        onClick={() => isAssigned ? removeCrew(cm.id) : addCrew(cm)}
                         sx={checkboxSx(isAssigned, crewColor)}
                       >
                         {isAssigned && <CheckCircleIcon sx={{ fontSize: '0.7rem' }} />}
@@ -1383,7 +1502,7 @@ export default function PackageCreationWizard({
 
                       {/* Name */}
                       <Box
-                        onClick={() => isAssigned ? removeCrewMember(cm.id) : addCrewMember(cm)}
+                        onClick={() => isAssigned ? removeCrew(cm.id) : addCrew(cm)}
                         sx={{ cursor: 'pointer', minWidth: 120 }}
                       >
                         <Typography sx={{ color: isAssigned ? '#e2e8f0' : '#94a3b8', fontSize: '0.82rem', fontWeight: isAssigned ? 600 : 400 }}>
@@ -1535,7 +1654,7 @@ export default function PackageCreationWizard({
                           );})}
                         </Select>
                         <Select
-                          value={slot.assignedCrewMemberId && slot.assignedJobRoleId ? `${slot.assignedCrewMemberId}:${slot.assignedJobRoleId}` : ''}
+                          value={slot.assignedCrewId && slot.assignedJobRoleId ? `${slot.assignedCrewId}:${slot.assignedJobRoleId}` : ''}
                           onChange={(e) => updateSlotAssignment('CAMERA', slot.slotNumber, String(e.target.value))}
                           size="small"
                           displayEmpty
@@ -1560,9 +1679,9 @@ export default function PackageCreationWizard({
                             },
                           }}
                         >
-                          <MenuItem value=""><em style={{ color: '#64748b' }}>No operator yet</em></MenuItem>
-                          {cameraOperatorOptions.map((option) => (
-                            <MenuItem key={`cam-op-${option.crewMemberId}-${option.jobRoleId}`} value={`${option.crewMemberId}:${option.jobRoleId}`}>
+                          <MenuItem value=""><em style={{ color: '#64748b' }}>No crew yet</em></MenuItem>
+                          {cameraCrewOptions.map((option) => (
+                            <MenuItem key={`cam-op-${option.crewId}-${option.jobRoleId}`} value={`${option.crewId}:${option.jobRoleId}`}>
                               {option.label}
                             </MenuItem>
                           ))}
@@ -1673,7 +1792,7 @@ export default function PackageCreationWizard({
                           );})}
                         </Select>
                         <Select
-                          value={slot.assignedCrewMemberId && slot.assignedJobRoleId ? `${slot.assignedCrewMemberId}:${slot.assignedJobRoleId}` : ''}
+                          value={slot.assignedCrewId && slot.assignedJobRoleId ? `${slot.assignedCrewId}:${slot.assignedJobRoleId}` : ''}
                           onChange={(e) => updateSlotAssignment('AUDIO', slot.slotNumber, String(e.target.value))}
                           size="small"
                           displayEmpty
@@ -1698,9 +1817,9 @@ export default function PackageCreationWizard({
                             },
                           }}
                         >
-                          <MenuItem value=""><em style={{ color: '#64748b' }}>No operator yet</em></MenuItem>
-                          {audioOperatorOptions.map((option) => (
-                            <MenuItem key={`aud-op-${option.crewMemberId}-${option.jobRoleId}`} value={`${option.crewMemberId}:${option.jobRoleId}`}>
+                          <MenuItem value=""><em style={{ color: '#64748b' }}>No crew yet</em></MenuItem>
+                          {audioCrewOptions.map((option) => (
+                            <MenuItem key={`aud-op-${option.crewId}-${option.jobRoleId}`} value={`${option.crewId}:${option.jobRoleId}`}>
                               {option.label}
                             </MenuItem>
                           ))}
@@ -1852,16 +1971,17 @@ export default function PackageCreationWizard({
                       <PeopleIcon sx={{ fontSize: '0.75rem' }} /> Subjects
                     </Typography>
                     <Stack spacing={0.75}>
-                      {selectedEventType.subject_types.sort((a, b) => a.order_index - b.order_index).map((link) => {
+                      {[...getEventTypeSubjects(selectedEventType)].sort((a, b) => a.order_index - b.order_index).map((link) => {
                         const st = link.subject_type_template;
-                        const selectedRoles = st.roles.filter((r) => selectedRoleIds.has(r.id));
+                        const roles = Array.isArray(st.roles) ? st.roles : [];
+                        const selectedRoles = roles.filter((r) => selectedRoleIds.has(r.id));
                         if (selectedRoles.length === 0) return null;
                         return (
                           <Box key={link.id}>
                             <Typography sx={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 600, mb: 0.25 }}>{st.name}</Typography>
                             <Stack spacing={0.15}>
                               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                              {selectedRoles.sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0)).map((role) => (
+                              {[...selectedRoles].sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0)).map((role) => (
                                 <Typography key={role.id} sx={{ color: '#94a3b8', fontSize: '0.7rem', pl: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                   <Box component="span" sx={{ width: 3, height: 3, borderRadius: '50%', bgcolor: role.is_core ? '#f472b6' : '#475569', display: 'inline-block' }} />
                                   {role.role_name}
@@ -1885,7 +2005,7 @@ export default function PackageCreationWizard({
                     </Typography>
                     <Stack spacing={0.25}>
                       {crewAssignments.map((assignment) => {
-                        const cm = crewMembers.find((c: CrewMember) => c.id === assignment.crewMemberId);
+                        const cm = crew.find((c: Crew) => c.id === assignment.crewId);
                         if (!cm) return null;
                          
                         const roleNames = assignment.jobRoleIds.map((rid: number) => {
@@ -1894,7 +2014,7 @@ export default function PackageCreationWizard({
                           return r?.job_role?.display_name || r?.job_role?.name || '';
                         }).filter(Boolean);
                         return (
-                          <Typography key={assignment.crewMemberId} sx={{ color: '#94a3b8', fontSize: '0.7rem', pl: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                          <Typography key={assignment.crewId} sx={{ color: '#94a3b8', fontSize: '0.7rem', pl: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
                             <Box component="span" sx={{ width: 3, height: 3, borderRadius: '50%', bgcolor: assignment.positionColor || '#818cf8', display: 'inline-block' }} />
                             {getCrewName(cm)}
                             <Box component="span" sx={{ color: '#475569', fontSize: '0.55rem' }}>{roleNames.join(', ')}</Box>
@@ -1914,27 +2034,27 @@ export default function PackageCreationWizard({
                     <Stack spacing={0.25}>
                       {cameraSlots.filter((s) => s.equipmentId).map((slot) => {
                         const eq = equipmentItems.find((e: EquipmentItem) => e.id === slot.equipmentId);
-                        const assignedOperator = equipmentOperatorOptions.find(
-                          (option) => option.crewMemberId === slot.assignedCrewMemberId && option.jobRoleId === slot.assignedJobRoleId,
+                        const assignedCrew = equipmentCrewOptions.find(
+                          (option) => option.crewId === slot.assignedCrewId && option.jobRoleId === slot.assignedJobRoleId,
                         );
                         return (
                           <Typography key={`cam-${slot.slotNumber}`} sx={{ color: '#94a3b8', fontSize: '0.7rem', pl: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
                             <CameraAltIcon sx={{ fontSize: '0.6rem', color: '#fb923c' }} />
                             Camera {slot.slotNumber}: {eq?.item_name || 'Unknown'}
-                            {assignedOperator && <Box component="span" sx={{ color: '#475569', fontSize: '0.6rem' }}>· {assignedOperator.label}</Box>}
+                            {assignedCrew && <Box component="span" sx={{ color: '#475569', fontSize: '0.6rem' }}>· {assignedCrew.label}</Box>}
                           </Typography>
                         );
                       })}
                       {audioSlots.filter((s) => s.equipmentId).map((slot) => {
                         const eq = equipmentItems.find((e: EquipmentItem) => e.id === slot.equipmentId);
-                        const assignedOperator = equipmentOperatorOptions.find(
-                          (option) => option.crewMemberId === slot.assignedCrewMemberId && option.jobRoleId === slot.assignedJobRoleId,
+                        const assignedCrew = equipmentCrewOptions.find(
+                          (option) => option.crewId === slot.assignedCrewId && option.jobRoleId === slot.assignedJobRoleId,
                         );
                         return (
                           <Typography key={`aud-${slot.slotNumber}`} sx={{ color: '#94a3b8', fontSize: '0.7rem', pl: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
                             <MicIcon sx={{ fontSize: '0.6rem', color: '#22d3ee' }} />
                             Audio {slot.slotNumber}: {eq?.item_name || 'Unknown'}
-                            {assignedOperator && <Box component="span" sx={{ color: '#475569', fontSize: '0.6rem' }}>· {assignedOperator.label}</Box>}
+                            {assignedCrew && <Box component="span" sx={{ color: '#475569', fontSize: '0.6rem' }}>· {assignedCrew.label}</Box>}
                           </Typography>
                         );
                       })}

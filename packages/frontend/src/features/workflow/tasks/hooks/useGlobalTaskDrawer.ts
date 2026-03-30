@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { activeTasksApi } from "@/features/workflow/tasks/api";
 import { ActiveTask } from "@/features/catalog/task-library/types";
+import { useBrand } from "@/features/platform/brand";
+import { isDateOverdue, isDateToday } from "@/shared/utils/taskDates";
 
 // ── Page context parsing ──────────────────────────────────────
 export type PageCtx =
@@ -62,11 +64,9 @@ export function getNavUrl(task: ActiveTask): string | null {
   return null;
 }
 
-export function isOverdue(task: ActiveTask) {
-  if (!task.due_date || task.status === "Completed") return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(task.due_date) < today;
+/** Timezone-aware overdue check. Pass brand timezone from useBrandTimezone(). */
+export function isOverdue(task: ActiveTask, timezone = 'UTC') {
+  return isDateOverdue(task.due_date, task.status, timezone);
 }
 
 export interface GlobalTaskDrawerState {
@@ -102,6 +102,8 @@ export interface GlobalTaskDrawerState {
 export function useGlobalTaskDrawer(): GlobalTaskDrawerState {
   const pathname = usePathname();
   const router = useRouter();
+  const { currentBrand } = useBrand();
+  const timezone = currentBrand?.timezone ?? 'UTC';
 
   const [tasks, setTasks] = useState<ActiveTask[]>([]);
   const [loading, setLoading] = useState(false);
@@ -178,17 +180,8 @@ export function useGlobalTaskDrawer(): GlobalTaskDrawerState {
   const total = leafContext.length;
   const active = leafContext.filter((t) => t.status !== "Completed" && t.status !== "Archived").length;
   const done = leafContext.filter((t) => t.status === "Completed").length;
-  const overdueCount = leafContext.filter(isOverdue).length;
-  const dueTodayCount = leafContext.filter((t) => {
-    if (!t.due_date || t.status === "Completed") return false;
-    const due = new Date(t.due_date);
-    const now = new Date();
-    return (
-      due.getFullYear() === now.getFullYear() &&
-      due.getMonth() === now.getMonth() &&
-      due.getDate() === now.getDate()
-    );
-  }).length;
+  const overdueCount = leafContext.filter((t) => isOverdue(t, timezone)).length;
+  const dueTodayCount = leafContext.filter((t) => isDateToday(t.due_date, timezone) && t.status !== 'Completed').length;
   const progress = total > 0 ? (done / total) * 100 : 0;
 
   const contextLabel =

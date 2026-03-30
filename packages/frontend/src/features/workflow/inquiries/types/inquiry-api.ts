@@ -30,7 +30,6 @@ export interface InquiryApiResponse {
     selected_package?: {
         id: number;
         name: string;
-        base_price: string;
         currency: string;
     } | null;
     preferred_payment_schedule_template_id?: number | null;
@@ -40,7 +39,6 @@ export interface InquiryApiResponse {
         snapshot_taken_at: string;
         package_id: number;
         package_name: string;
-        base_price?: number;
         currency?: string;
         contents?: Record<string, unknown>;
     } | null;

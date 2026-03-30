@@ -1,5 +1,4 @@
 export { default as ClientPortalSettings } from "./ClientPortalSettings";
-export { FormsSettings } from "./FormsSettings";
 export { MeetingsSettings } from "./MeetingsSettings";
 export { PaymentScheduleSettings } from "./PaymentScheduleSettings";
 export { default as ProposalSettings } from "./ProposalSettings";

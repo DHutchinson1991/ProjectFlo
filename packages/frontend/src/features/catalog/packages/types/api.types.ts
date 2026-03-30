@@ -12,10 +12,10 @@ export interface ServicePackagePriceEstimate {
         items: Array<{ name: string; category: string; dailyRate: number }>;
     };
     crew: {
-        operatorCount: number;
+        crewSlotCount: number;
         totalHours: number;
         totalCost: number;
-        operators: Array<{ position: string; hours: number; rate: number; cost: number }>;
+        crewSlots: Array<{ position: string; hours: number; rate: number; cost: number }>;
     };
     tasks: {
         totalTasks: number;
@@ -50,7 +50,7 @@ export interface ServicePackageCategory {
 export interface CreatePackageFromBuilderData {
     eventTypeId: number;
     selectedActivityPresetIds: number[];
-    operatorCount: number;
+    crewSlotCount: number;
     cameraCount?: number;
     filmPreferences: Array<{ type: string; activityPresetId?: number; activityName?: string }>;
     inquiryId?: number;

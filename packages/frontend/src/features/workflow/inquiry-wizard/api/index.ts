@@ -11,7 +11,7 @@ import type { PaymentScheduleTemplate } from '@/features/finance/payment-schedul
 import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import type { PackageSet } from '@/features/catalog/packages/types/package-set.types';
 import type { EventType } from '@/features/catalog/event-types/types';
-import type { CrewMember } from '@/shared/types/users';
+import type { Crew } from '@/shared/types/users';
 import type { BrandSetting, WelcomeSettings } from '@/features/platform/brand/types';
 import type { PriceEstimate } from '../types';
 
@@ -98,7 +98,7 @@ export function createWizardStudioDataApi(client: ApiClient) {
             client.get<EventType[]>('/api/event-types'),
         getCrew: () => {
             requireCurrentBrandId();
-            return client.get<CrewMember[]>('/api/crew');
+            return client.get<Crew[]>('/api/crew');
         },
         getBrandSetting: (key: string) => {
             const brandId = requireCurrentBrandId();
@@ -117,7 +117,7 @@ export function createWizardStudioDataApi(client: ApiClient) {
         createPackageFromBuilder: (data: {
             eventTypeId: number;
             selectedActivityPresetIds: number[];
-            operatorCount: number;
+            crewSlotCount: number;
             cameraCount?: number;
             filmPreferences: Array<{ type: string; activityPresetId?: number; activityName?: string }>;
             inquiryId?: number;

@@ -20,14 +20,14 @@ import {
     EquipmentAvailability,
     EquipmentCondition,
 } from "../types/equipment.types";
-import type { CrewMember } from "@/shared/types/users";
+import type { Crew } from "@/shared/types/users";
 
 interface EquipmentQuickAddRowProps {
     quickAddData: Partial<Equipment>;
     updateQuickAddData: (field: keyof Equipment, value: unknown) => void;
     cancelQuickAdd: () => void;
     saveQuickAdd: () => void;
-    crewMembers: CrewMember[];
+    crew: Crew[];
     currencyCode: string;
 }
 
@@ -36,7 +36,7 @@ export function EquipmentQuickAddRow({
     updateQuickAddData,
     cancelQuickAdd,
     saveQuickAdd,
-    crewMembers,
+    crew,
 }: EquipmentQuickAddRowProps) {
     return (
         <TableRow
@@ -148,7 +148,7 @@ export function EquipmentQuickAddRow({
                         displayEmpty
                     >
                         <MenuItem value=""><em>None</em></MenuItem>
-                        {contributors.map((c) => (
+                        {crew.map((c) => (
                             <MenuItem key={c.id} value={c.id}>{c.full_name}</MenuItem>
                         ))}
                     </Select>

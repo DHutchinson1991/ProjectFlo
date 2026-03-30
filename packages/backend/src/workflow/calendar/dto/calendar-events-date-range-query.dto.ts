@@ -11,5 +11,5 @@ export class CalendarEventsDateRangeQueryDto {
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
   @IsInt()
-  crew_member_id?: number;
+  crew_id?: number;
 }

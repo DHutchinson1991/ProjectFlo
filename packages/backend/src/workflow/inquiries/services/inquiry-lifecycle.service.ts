@@ -37,10 +37,10 @@ export class InquiryLifecycleService {
             if (!packageContentsSnapshot && inquiry.selected_package_id) {
                 const pkg = await prisma.service_packages.findUnique({
                     where: { id: inquiry.selected_package_id },
-                    select: { id: true, name: true, base_price: true, currency: true, contents: true },
+                    select: { id: true, name: true, currency: true, contents: true },
                 });
                 if (pkg) {
-                    packageContentsSnapshot = { snapshot_taken_at: new Date().toISOString(), package_id: pkg.id, package_name: pkg.name, base_price: pkg.base_price ? Number(pkg.base_price) : 0, currency: pkg.currency ?? DEFAULT_CURRENCY, contents: pkg.contents };
+                    packageContentsSnapshot = { snapshot_taken_at: new Date().toISOString(), package_id: pkg.id, package_name: pkg.name, currency: pkg.currency ?? DEFAULT_CURRENCY, contents: pkg.contents };
                 }
             }
 
@@ -62,7 +62,7 @@ export class InquiryLifecycleService {
             } else if (inquiry.selected_package_id) {
                 try {
                     const result = await this.packageCloneService.clonePackageToProject(project.id, inquiry.selected_package_id, prisma);
-                    this.logger.log(`Package clone for project ${project.id}: ${result.event_days_created} days, ${result.activities_created} activities, ${result.films_created} films, ${result.operators_created} operators`);
+                    this.logger.log(`Package clone for project ${project.id}: ${result.event_days_created} days, ${result.activities_created} activities, ${result.films_created} films, ${result.crew_slots_created} crew slots`);
                 } catch (error) {
                     this.logger.error(`Failed to clone package ${inquiry.selected_package_id} for project ${project.id}`, error instanceof Error ? error.stack : error);
                     throw error;

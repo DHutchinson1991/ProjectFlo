@@ -134,7 +134,7 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
         dayName?: string;
     }>>([]);
     const [packageSubjects, setPackageSubjects] = React.useState<any[]>([]);
-    const [packageOperators, setPackageOperators] = React.useState<any[]>([]);
+    const [packageCrewSlots, setPackageCrewSlots] = React.useState<any[]>([]);
 
     React.useEffect(() => {
         if (!packageId) return;
@@ -144,14 +144,14 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
             scheduleApi.packageEventDays.getAll(packageId),
             scheduleApi.packageEventDaySubjects.getAll(packageId),
             crewSlotsApi.packageDay.getAll(packageId),
-        ]).then(([acts, days, subjects, operators]) => {
+        ]).then(([acts, days, subjects, crewSlots]) => {
             if (!mounted) return;
             const dayNameMap = new Map<number, string>();
             const joinToTemplateMap = new Map<number, number>();
             days.forEach((d: any) => {
                 const joinId = d._joinId ?? d.id;
                 dayNameMap.set(joinId, d.name);
-                // Map join-table ID → event_day_template_id so editors can compare with operator.event_day_template_id
+                // Map join-table ID → event_day_template_id so editors can compare with crewSlot.event_day_template_id
                 if (d._joinId != null) joinToTemplateMap.set(d._joinId, d.id);
             });
             setPackageActivities((acts || []).map((a: any) => ({
@@ -160,7 +160,7 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
                 event_day_template_id: joinToTemplateMap.get(a.package_event_day_id) ?? a.package_event_day_id,
             })));
             setPackageSubjects(subjects || []);
-            setPackageOperators(operators || []);
+            setPackageCrewSlots(crewSlots || []);
         }).catch(() => {});
         return () => { mounted = false; };
     }, [packageId]);
@@ -267,7 +267,7 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
                 mode="full"
                 activity={momentActivity}
                 activitySubjects={packageSubjects}
-                activityOperators={packageOperators}
+                activityCrewSlots={packageCrewSlots}
                 trackDefaults={trackDefaults}
             />
 
@@ -281,7 +281,7 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
                 onDelete={handleBeatDelete}
                 activity={beatActivity}
                 activitySubjects={packageSubjects}
-                activityOperators={packageOperators}
+                activityCrewSlots={packageCrewSlots}
             />
 
             <SceneRecordingSetupModal
@@ -305,7 +305,7 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
                 onClear={handleClearRecordingSetup}
                 activities={packageActivities}
                 activitySubjects={packageSubjects}
-                activityOperators={packageOperators}
+                activityCrewSlots={packageCrewSlots}
                 sceneSchedule={sceneScheduleForSetup}
                 onScheduleChange={handleSceneScheduleFieldChange}
                 onToggleCameraTrack={(trackId) => setSelectedCameraTrackIds(prev => toggleIdInList(prev, trackId))}

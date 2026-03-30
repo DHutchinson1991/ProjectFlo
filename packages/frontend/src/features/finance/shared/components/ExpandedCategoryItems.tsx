@@ -68,7 +68,7 @@ const ExpandedCategoryItems: React.FC<ExpandedCategoryItemsProps> = ({
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 1.5, mt: 1, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 {Number(depositRequired ?? 0) > 0 && (
                     <Typography sx={{ fontSize: '0.72rem', color: '#475569' }}>
-                        Deposit: <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{formatCurrency(Number(depositRequired), currency, 0)}</span>
+                        Deposit: <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{formatCurrency(Number(depositRequired), currency)}</span>
                     </Typography>
                 )}
                 <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -78,7 +78,7 @@ const ExpandedCategoryItems: React.FC<ExpandedCategoryItemsProps> = ({
                         </Typography>
                     )}
                     <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', fontFamily: 'monospace', color: '#f59e0b' }}>
-                        {formatCurrency(totalWithTax, currency, 0)}
+                        {formatCurrency(totalWithTax, currency)}
                     </Typography>
                 </Box>
             </Box>

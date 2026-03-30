@@ -83,7 +83,7 @@ export function FilmsListScreen() {
                     <Typography variant="h4" component="h1">Film Manager</Typography>
                     <Typography variant="body1" color="text.secondary">Create and manage film templates with visual builder</Typography>
                 </Box>
-                <Button component={Link} href="/designer/films/new" variant="contained" startIcon={<AddIcon />}>Create Film Template</Button>
+                <Button component={Link} href="/films/new" variant="contained" startIcon={<AddIcon />}>Create Film Template</Button>
             </Box>
 
             {isLoading && films.length > 0 && <CircularProgress sx={{ display: "block", margin: "20px auto" }} />}
@@ -93,7 +93,7 @@ export function FilmsListScreen() {
                     <VideoLibraryIcon sx={{ fontSize: 48, color: "text.secondary", mb: 2 }} />
                     <Typography variant="h6" gutterBottom>No Films Found</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>Get started by creating your first film</Typography>
-                    <Button component={Link} href="/designer/films/new" variant="contained" startIcon={<AddIcon />}>Create Your First Film</Button>
+                    <Button component={Link} href="/films/new" variant="contained" startIcon={<AddIcon />}>Create Your First Film</Button>
                 </Card>
             ) : (
                 <Card>
@@ -113,7 +113,7 @@ export function FilmsListScreen() {
                                 {films.map((contentItem: FilmTemplate) => (
                                     <TableRow key={contentItem.id} hover>
                                         <TableCell>
-                                            <Link href={`/designer/films/${contentItem.id}`} passHref legacyBehavior>
+                                            <Link href={`/films/${contentItem.id}`} passHref legacyBehavior>
                                                 <Typography variant="subtitle2" fontWeight="bold" component="a" sx={{ textDecoration: "none", color: "primary.main", "&:hover": { textDecoration: "underline" } }}>
                                                     {contentItem.name}
                                                 </Typography>
@@ -138,7 +138,7 @@ export function FilmsListScreen() {
             )}
 
             <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
-                <MenuItem component={Link} href={selectedContent ? `/designer/films/${selectedContent.id}` : "#"} onClick={handleMenuClose}>
+                <MenuItem component={Link} href={selectedContent ? `/films/${selectedContent.id}` : "#"} onClick={handleMenuClose}>
                     <EditIcon sx={{ mr: 1 }} fontSize="small" />View/Edit
                 </MenuItem>
                 <MenuItem onClick={() => selectedContent && handleOpenDeleteModal(selectedContent)} sx={{ color: "error.main" }}>

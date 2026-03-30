@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { Box, Typography, Avatar, AvatarGroup, Tooltip } from '@mui/material';
 import { AccessTime as ClockIcon } from '@mui/icons-material';
-import type { ActiveTask, CrewMember } from '@/features/workflow/tasks/types';
+import type { ActiveTask, Crew } from '@/features/workflow/tasks/types';
 import { sumEstimatedHours } from '@/shared/utils/hours';
 import { TaskGroupHeader, TaskColumnHeaders } from '@/shared/ui/tasks';
 import { TaskRow } from './TaskRow';
@@ -19,13 +19,13 @@ interface TaskGroupProps {
     defaultExpanded: boolean;
     icon?: React.ReactNode;
     badge?: string;
-    crewMembers: CrewMember[];
+    crew: Crew[];
     onAssign: (taskId: number, source: 'inquiry' | 'project', assigneeId: number | null, taskKind?: 'task' | 'subtask') => void;
     onNavigate: (task: ActiveTask) => void;
     onToggle: (task: ActiveTask) => void;
 }
 
-export function TaskGroup({ title, color, tasks, defaultExpanded, icon, badge, crewMembers, onAssign, onNavigate, onToggle }: TaskGroupProps) {
+export function TaskGroup({ title, color, tasks, defaultExpanded, icon, badge, crew, onAssign, onNavigate, onToggle }: TaskGroupProps) {
     const [expanded, setExpanded] = useState(defaultExpanded);
 
     const subtasksByParent = useMemo(() => {
@@ -72,7 +72,7 @@ export function TaskGroup({ title, color, tasks, defaultExpanded, icon, badge, c
                         stage={item.stage}
                         children={item.children}
                         groupColor={color}
-                        contributors={crewMembers}
+                        crew={crew}
                         onAssign={onAssign}
                         onNavigate={onNavigate}
                         onToggle={onToggle}
@@ -83,7 +83,7 @@ export function TaskGroup({ title, color, tasks, defaultExpanded, icon, badge, c
                         key={`${item.task.source}-${item.task.id}`}
                         task={item.task}
                         groupColor={color}
-                        contributors={crewMembers}
+                        crew={crew}
                         onAssign={onAssign}
                         onNavigate={onNavigate}
                         onToggle={onToggle}

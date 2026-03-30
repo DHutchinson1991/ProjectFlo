@@ -1,17 +1,17 @@
 ﻿import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
-import { CreateTaskLibraryDto, UpdateTaskLibraryDto, TaskLibraryQueryDto, ProjectPhase, BatchUpdateTaskOrderDto } from '../dto/task-library.dto';
+import { CreateTaskLibraryDto, UpdateTaskLibraryDto, TaskLibraryQueryDto, ProjectPhase, BatchUpdateTaskOrderDto, CreateSubtaskTemplateDto, UpdateSubtaskTemplateDto } from '../dto/task-library.dto';
 import { TaskLibraryAccessService } from './task-library-access.service';
 
 const BASE_INCLUDE = {
     brand: { select: { id: true, name: true } },
     default_job_role: { select: { id: true, name: true, display_name: true, category: true } },
-    default_contributor: { select: { id: true, contact: { select: { first_name: true, last_name: true } } } },
+    default_crew: { select: { id: true, contact: { select: { first_name: true, last_name: true } } } },
 } as const;
 
 const BENCH_INCLUDE = {
     ...BASE_INCLUDE,
-    task_library_benchmarks: { include: { crew_member: { include: { contact: { select: { first_name: true, last_name: true } } } } } },
+    task_library_benchmarks: { include: { crew: { include: { contact: { select: { first_name: true, last_name: true } } } } } },
     task_library_skill_rates: true,
 } as const;
 
@@ -29,9 +29,9 @@ export class TaskLibraryCrudService {
 
     async create(dto: CreateTaskLibraryDto, userId: number) {
         await this.access.checkBrandAccess(dto.brand_id, userId);
-        if (dto.default_job_role_id && dto.default_contributor_id == null) {
+        if (dto.default_job_role_id && dto.default_crew_id == null) {
             const bracketId = await this.access.resolveBracketForRoleSkills(dto.default_job_role_id, dto.skills_needed ?? []);
-            dto.default_contributor_id = (await this.access.resolveContributorForRole(dto.default_job_role_id, bracketId, dto.brand_id)) ?? undefined;
+            dto.default_crew_id = (await this.access.resolveCrewForRole(dto.default_job_role_id, bracketId, dto.brand_id)) ?? undefined;
         }
         return this.prisma.task_library.create({ data: { ...dto, skills_needed: dto.skills_needed || [] }, include: BASE_INCLUDE });
     }
@@ -70,27 +70,27 @@ export class TaskLibraryCrudService {
         if (dto.default_job_role_id !== undefined) {
             const newRoleId = dto.default_job_role_id;
             if (newRoleId) {
-                if (dto.default_contributor_id === undefined) {
+                if (dto.default_crew_id === undefined) {
                     const skills = dto.skills_needed ?? existing.skills_needed ?? [];
                     const bracketId = await this.access.resolveBracketForRoleSkills(newRoleId, skills);
-                    dto.default_contributor_id = await this.access.resolveContributorForRole(newRoleId, bracketId, existing.brand_id);
+                    dto.default_crew_id = await this.access.resolveCrewForRole(newRoleId, bracketId, existing.brand_id);
                 }
             } else {
-                dto.default_contributor_id = null;
+                dto.default_crew_id = null;
             }
         }
         const updated = await this.prisma.task_library.update({ where: { id }, data: dto, include: BENCH_INCLUDE });
-        if (dto.default_contributor_id !== undefined) {
-            await this.prisma.inquiry_tasks.updateMany({ where: { task_library_id: id, is_active: true, is_task_group: false }, data: { assigned_to_id: dto.default_contributor_id } });
+        if (dto.default_crew_id !== undefined) {
+            await this.prisma.inquiry_tasks.updateMany({ where: { task_library_id: id, is_active: true, is_task_group: false }, data: { assigned_to_id: dto.default_crew_id } });
         }
         return updated;
     }
 
-    async syncContributorsToInquiryTasks(brandId: number): Promise<{ updated: number }> {
-        const libraryTasks = await this.prisma.task_library.findMany({ where: { brand_id: brandId, is_active: true, default_contributor_id: { not: null } }, select: { id: true, default_contributor_id: true } });
+    async syncCrewToInquiryTasks(brandId: number): Promise<{ updated: number }> {
+        const libraryTasks = await this.prisma.task_library.findMany({ where: { brand_id: brandId, is_active: true, default_crew_id: { not: null } }, select: { id: true, default_crew_id: true } });
         let updated = 0;
         for (const lt of libraryTasks) {
-            const result = await this.prisma.inquiry_tasks.updateMany({ where: { task_library_id: lt.id, is_active: true, is_task_group: false }, data: { assigned_to_id: lt.default_contributor_id } });
+            const result = await this.prisma.inquiry_tasks.updateMany({ where: { task_library_id: lt.id, is_active: true, is_task_group: false }, data: { assigned_to_id: lt.default_crew_id } });
             updated += result.count;
         }
         return { updated };
@@ -117,5 +117,33 @@ export class TaskLibraryCrudService {
             include: BENCH_INCLUDE,
             orderBy: [{ order_index: 'asc' }, { name: 'asc' }],
         });
+    }
+
+    // ─── Subtask template CRUD ───────────────────────────────────────
+
+    async createSubtask(taskId: number, dto: CreateSubtaskTemplateDto, userId: number) {
+        await this.findOne(taskId, userId); // validates ownership
+        const maxOrder = await this.prisma.task_library_subtask_templates.aggregate({
+            where: { task_library_id: taskId },
+            _max: { order_index: true },
+        });
+        const order_index = dto.order_index ?? (maxOrder._max.order_index ?? 0) + 1;
+        return this.prisma.task_library_subtask_templates.create({
+            data: { task_library_id: taskId, subtask_key: dto.subtask_key, name: dto.name, description: dto.description, is_auto_only: dto.is_auto_only ?? false, order_index },
+        });
+    }
+
+    async updateSubtask(taskId: number, subtaskId: number, dto: UpdateSubtaskTemplateDto, userId: number) {
+        await this.findOne(taskId, userId);
+        const subtask = await this.prisma.task_library_subtask_templates.findFirst({ where: { id: subtaskId, task_library_id: taskId } });
+        if (!subtask) throw new NotFoundException(`Subtask ${subtaskId} not found on task ${taskId}`);
+        return this.prisma.task_library_subtask_templates.update({ where: { id: subtaskId }, data: dto });
+    }
+
+    async removeSubtask(taskId: number, subtaskId: number, userId: number) {
+        await this.findOne(taskId, userId);
+        const subtask = await this.prisma.task_library_subtask_templates.findFirst({ where: { id: subtaskId, task_library_id: taskId } });
+        if (!subtask) throw new NotFoundException(`Subtask ${subtaskId} not found on task ${taskId}`);
+        return this.prisma.task_library_subtask_templates.delete({ where: { id: subtaskId } });
     }
 }

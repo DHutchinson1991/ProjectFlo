@@ -63,8 +63,8 @@ export class ContractTemplateVariablesService {
           orderBy: { order_index: 'asc' },
         },
         schedule_films: { include: { film: true } },
-        schedule_day_operators: {
-          include: { crew_member: { include: { contact: true } }, job_role: true },
+        schedule_day_crew_slots: {
+          include: { crew: { include: { contact: true } }, job_role: true },
         },
       },
     });
@@ -76,7 +76,7 @@ export class ContractTemplateVariablesService {
     const pkg = inquiry.selected_package;
     const eventDays = inquiry.schedule_event_days || [];
     const films = inquiry.schedule_films || [];
-    const operators = inquiry.schedule_day_operators || [];
+    const crewSlots = inquiry.schedule_day_crew_slots || [];
 
     const brand = contact?.brand_id
       ? await this.prisma.brands.findUnique({ where: { id: contact.brand_id } })
@@ -92,8 +92,8 @@ export class ContractTemplateVariablesService {
     const weddingDate = inquiry.wedding_date;
 
     const filmNames = films.map((f) => f.film?.name).filter(Boolean);
-    const crewList = operators.map((op) => {
-      const c = op.crew_member?.contact;
+    const crewList = crewSlots.map((op) => {
+      const c = op.crew?.contact;
       const name = c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'TBC';
       return `${op.label ?? op.job_role?.display_name ?? op.job_role?.name ?? 'Crew'}: ${name}`;
     }).filter(Boolean);
@@ -136,12 +136,12 @@ export class ContractTemplateVariablesService {
       'event.locations': locations.join(', '),
       'event.subjects': subjects.join(', '),
       'package.name': pkg?.name || '',
-      'package.price': formatCurrency(pkg ? Number(pkg.base_price) : null, pkg?.currency),
+      'package.price': formatCurrency(estimate ? Number(estimate.total_amount) : null, pkg?.currency),
       'package.currency': pkg?.currency || DEFAULT_CURRENCY,
       'films.list': filmNames.join(', '),
       'films.count': String(filmNames.length),
       'crew.list': crewList.join('\n'),
-      'crew.count': String(operators.length),
+      'crew.count': String(crewSlots.length),
       'estimate.total': formatCurrency(estimate ? Number(estimate.total_amount) : null, pkg?.currency),
       'estimate.deposit': formatCurrency(estimate ? Number(estimate.deposit_required) : null, pkg?.currency),
       'estimate.tax_rate': estimate?.tax_rate ? `${Number(estimate.tax_rate)}%` : '',

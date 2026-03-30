@@ -83,37 +83,37 @@ export class PaymentBracketsController {
     return this.assignmentsService.assignBracket(dto);
   }
 
-  @Delete('contributor/:contributorId/job-role/:jobRoleId')
-  async unassignBracket(
-    @Param('contributorId', ParseIntPipe) contributorId: number,
+  @Delete('crew/:crewId/job-role/:jobRoleId')
+  async unassignCrewBracket(
+    @Param('crewId', ParseIntPipe) crewId: number,
     @Param('jobRoleId', ParseIntPipe) jobRoleId: number,
   ) {
-    return this.assignmentsService.unassignBracket(contributorId, jobRoleId);
+    return this.assignmentsService.unassignBracket(crewId, jobRoleId);
   }
 
-  @Patch('contributor/:contributorId/job-role/:jobRoleId/unmanned')
-  async toggleUnmanned(
-    @Param('contributorId', ParseIntPipe) contributorId: number,
+  @Patch('crew/:crewId/job-role/:jobRoleId/unmanned')
+  async toggleCrewUnmanned(
+    @Param('crewId', ParseIntPipe) crewId: number,
     @Param('jobRoleId', ParseIntPipe) jobRoleId: number,
     @Body(new ValidationPipe({ transform: true })) body: ToggleUnmannedDto,
   ) {
-    return this.assignmentsService.toggleUnmanned(contributorId, jobRoleId, body.is_unmanned);
+    return this.assignmentsService.toggleUnmanned(crewId, jobRoleId, body.is_unmanned);
   }
 
   // ─── Query helpers ───────────────────────────────────────
 
-  @Get('contributor/:contributorId')
-  async findContributorBrackets(
-    @Param('contributorId', ParseIntPipe) contributorId: number,
+  @Get('crew/:crewId')
+  async findCrewBrackets(
+    @Param('crewId', ParseIntPipe) crewId: number,
   ) {
-    return this.assignmentsService.findContributorBrackets(contributorId);
+    return this.assignmentsService.findCrewBrackets(crewId);
   }
 
-  @Get('effective-rate/:contributorId/:jobRoleId')
-  async findEffectiveRate(
-    @Param('contributorId', ParseIntPipe) contributorId: number,
+  @Get('effective-rate/crew/:crewId/:jobRoleId')
+  async findCrewEffectiveRate(
+    @Param('crewId', ParseIntPipe) crewId: number,
     @Param('jobRoleId', ParseIntPipe) jobRoleId: number,
   ) {
-    return this.assignmentsService.findEffectiveRate(contributorId, jobRoleId);
+    return this.assignmentsService.findEffectiveRate(crewId, jobRoleId);
   }
 }
