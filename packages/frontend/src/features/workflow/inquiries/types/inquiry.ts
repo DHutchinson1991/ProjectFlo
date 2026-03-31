@@ -220,6 +220,7 @@ export interface InquiryCrewAvailabilityRow {
     conflicts: InquiryAvailabilityConflict[];
     alternatives: InquiryAvailabilityAlternativeCrew[];
     is_on_site?: boolean;
+    confirmed?: boolean;
     availability_request_id?: number | null;
     availability_request_status?: 'pending' | 'confirmed' | 'declined' | 'cancelled' | null;
 }

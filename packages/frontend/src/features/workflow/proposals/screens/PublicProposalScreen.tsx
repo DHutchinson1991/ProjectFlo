@@ -1,25 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Box, Typography } from '@mui/material';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import ProposalAcceptanceBar from '../components/ProposalAcceptanceBar';
-import ProposalRenderer from '../components/ProposalRenderer';
+import ProposalView from '../components/ProposalView';
 import { scaleIn, shimmer } from '@/features/workflow/proposals/utils/portal/animations';
 import { getThemeColors } from '@/features/workflow/proposals/utils/portal/themes';
 import { publicProposalsApi } from '../api';
 import { proposalKeys } from '../constants';
-import { usePublicProposal } from '../hooks';
+import { usePublicProposal, useSectionViewTracker } from '../hooks';
 
 export function PublicProposalScreen() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const token = String(params.token);
+  const isPreview = searchParams.get('preview') === 'true';
   const queryClient = useQueryClient();
-  const { proposal, isLoading: loading, error } = usePublicProposal(token);
+  const { proposal, isLoading: loading, error } = usePublicProposal(token, isPreview);
+  const { onSectionView, onSectionDuration } = useSectionViewTracker(isPreview ? '' : token);
 
   const [responding, setResponding] = useState(false);
   const [responseSuccess, setResponseSuccess] = useState<string | null>(null);
+
+  const handleSectionNote = useCallback(
+    (sectionType: string, note: string) => {
+      if (isPreview) return;
+      publicProposalsApi.saveSectionNote(token, sectionType, note).then(() => {
+        queryClient.invalidateQueries({ queryKey: proposalKeys.publicDetail(token) });
+      }).catch(() => {});
+    },
+    [token, isPreview, queryClient],
+  );
 
   const handleAccept = async () => {
     if (!proposal) return;
@@ -130,7 +143,7 @@ export function PublicProposalScreen() {
   const isDark = !content?.theme || content.theme === 'cinematic-dark';
 
   return (
-    <ProposalRenderer
+    <ProposalView
       content={content}
       brand={proposal.brand}
       estimate={estimate}
@@ -142,6 +155,10 @@ export function PublicProposalScreen() {
       venueDetails={inquiry.venue_details}
       venueAddress={inquiry.venue_address}
       colors={colors}
+      onSectionView={onSectionView}
+      onSectionDuration={onSectionDuration}
+      onSectionNote={isPreview ? undefined : handleSectionNote}
+      sectionNotes={proposal.section_notes}
       ctaSlot={
         <ProposalAcceptanceBar
           colors={colors}

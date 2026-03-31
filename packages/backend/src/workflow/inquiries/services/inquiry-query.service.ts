@@ -67,7 +67,7 @@ export class InquiryQueryService {
                 event_type: { select: { id: true, name: true } },
                 schedule_location_slots: {
                     orderBy: { order_index: 'asc' }, take: 1,
-                    include: { location: { select: { name: true, address_line1: true, lat: true, lng: true } } },
+                    include: { location: { select: { name: true, address_line1: true, address_line2: true, city: true, state: true, country: true, postal_code: true, lat: true, lng: true } } },
                 },
                 schedule_day_crew_slots: {
                     where: {
@@ -108,12 +108,16 @@ export class InquiryQueryService {
             : null;
 
         const detailSlot = inquiry.schedule_location_slots?.[0];
+        const loc = detailSlot?.location;
+        const fullAddress = loc
+            ? [loc.address_line1, loc.address_line2, loc.city, loc.state, loc.country, loc.postal_code].filter(Boolean).join(', ') || null
+            : (detailSlot?.address ?? null);
 
         return {
             id: inquiry.id, status: inquiry.status, event_date: inquiry.wedding_date, wedding_date: inquiry.wedding_date,
             source: inquiry.lead_source || 'OTHER', notes: inquiry.notes,
             venue_details: detailSlot?.location?.name ?? detailSlot?.name ?? null,
-            venue_address: detailSlot?.location?.address_line1 ?? detailSlot?.address ?? null,
+            venue_address: fullAddress,
             venue_lat: detailSlot?.location?.lat ?? null, venue_lng: detailSlot?.location?.lng ?? null,
             lead_source: inquiry.lead_source, lead_source_details: inquiry.lead_source_details,
             selected_package_id: inquiry.selected_package_id, source_package_id: inquiry.source_package_id ?? null,
@@ -122,7 +126,7 @@ export class InquiryQueryService {
             created_at: inquiry.created_at, updated_at: inquiry.updated_at,
             contact: { id: inquiry.contact.id, first_name: inquiry.contact.first_name, last_name: inquiry.contact.last_name, email: inquiry.contact.email, phone_number: inquiry.contact.phone_number, company_name: inquiry.contact.company_name, brand_id: inquiry.contact.brand_id },
             brand_id: inquiry.contact.brand_id, contact_id: inquiry.contact_id,
-            event_type_id: inquiry.event_type_id ?? null, event_type: inquiry.event_type ?? null,
+            event_type_id: inquiry.event_type_id ?? null, event_type: inquiry.event_type?.name ?? null,
             estimates: inquiry.estimates, proposals: inquiry.proposals, quotes: inquiry.quotes,
             contracts: inquiry.contracts, invoices: inquiry.invoices,
             lead_producer: leadProducer,

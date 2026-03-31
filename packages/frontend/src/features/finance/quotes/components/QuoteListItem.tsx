@@ -82,7 +82,7 @@ const QuoteListItem: React.FC<QuoteListItemProps> = ({
                         }}
                     />
                     <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: '#f59e0b', fontFamily: 'monospace', minWidth: 70, textAlign: 'right' }}>
-                        {formatCurrency(qPostTax, currency, 0)}
+                        {formatCurrency(qPostTax, currency)}
                     </Typography>
                     <Box sx={{ display: 'flex', ml: 0.5 }}>
                         <Tooltip title={quote.is_primary ? 'Primary' : 'Set as Primary'}>

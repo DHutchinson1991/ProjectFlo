@@ -29,7 +29,7 @@ export function useProposalShareLink() {
 
   const openPreview = useCallback(async (inquiryId: number, proposal: Proposal) => {
     const share = await getShareUrl(inquiryId, proposal);
-    window.open(`/proposals/${share.token}`, '_blank');
+    window.open(`/proposals/${share.token}?preview=true`, '_blank');
     return share;
   }, [getShareUrl]);
 

@@ -102,6 +102,33 @@ export default function CrewAvailabilityRequestDialog({
     }
   }
 
+  // Per-role before/onday/after hour breakdown from previewTasks
+  const PHASE_TO_GROUP: Partial<Record<string, "before" | "onday" | "after">> = {
+    Creative_Development: "before",
+    Pre_Production: "before",
+    Production: "onday",
+    Post_Production: "after",
+    Delivery: "after",
+  };
+  const taskHoursByRole = new Map<string, { before: number; onday: number; after: number }>();
+  const normName = crewName.trim().toLowerCase();
+  const roleNames = new Set(
+    rows
+      .flatMap((r) => [r.job_role?.display_name, r.job_role?.name, r.label])
+      .filter((n): n is string => Boolean(n)),
+  );
+  for (const t of (previewTasks ?? [])) {
+    if (ADMIN_PHASES.has(t.phase)) continue;
+    const matches =
+      (t.assigned_to_name && t.assigned_to_name.trim().toLowerCase() === normName) ||
+      (t.role_name && roleNames.has(t.role_name));
+    if (!matches) continue;
+    const key = t.role_name ?? "General";
+    if (!taskHoursByRole.has(key)) taskHoursByRole.set(key, { before: 0, onday: 0, after: 0 });
+    const group = PHASE_TO_GROUP[t.phase];
+    if (group) taskHoursByRole.get(key)![group] += t.total_hours ?? 0;
+  }
+
   const fmtHours = (h: number) => (h > 0 ? `${h}h` : null);
 
   return (
@@ -196,6 +223,13 @@ export default function CrewAvailabilityRequestDialog({
                     : null;
                   const roleKey = row.job_role?.display_name || row.job_role?.name || row.label;
                   const roleCost = roleKey ? costByRole.get(roleKey) : undefined;
+                  const roleHours = roleKey ? taskHoursByRole.get(roleKey) : undefined;
+                  const extraHoursLabel = roleHours
+                    ? [
+                        roleHours.before > 0 && `Before: ${roleHours.before}h`,
+                        roleHours.after > 0 && `After: ${roleHours.after}h`,
+                      ].filter(Boolean).join(" · ")
+                    : null;
                   return (
                     <Box key={row.id} sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
                       <CalendarToday sx={{ fontSize: 12, color: "#60a5fa", flexShrink: 0, mt: 0.35 }} />
@@ -210,6 +244,11 @@ export default function CrewAvailabilityRequestDialog({
                             {venueDetails}
                           </Typography>
                         )}
+                        {extraHoursLabel && (
+                          <Typography sx={{ fontSize: "0.69rem", color: "#64748b", mt: 0.1 }}>
+                            {extraHoursLabel}
+                          </Typography>
+                        )}
                       </Box>
                     </Box>
                   );
@@ -220,13 +259,28 @@ export default function CrewAvailabilityRequestDialog({
                   const role = row.label || row.job_role?.display_name || row.job_role?.name || "Role";
                   const roleKey = row.job_role?.display_name || row.job_role?.name || row.label;
                   const roleCost = roleKey ? costByRole.get(roleKey) : undefined;
+                  const roleHours = roleKey ? taskHoursByRole.get(roleKey) : undefined;
+                  const extraHoursLabel = roleHours
+                    ? [
+                        roleHours.before > 0 && `Before: ${roleHours.before}h`,
+                        roleHours.onday > 0 && `On day: ${roleHours.onday}h`,
+                        roleHours.after > 0 && `After: ${roleHours.after}h`,
+                      ].filter(Boolean).join(" · ")
+                    : null;
                   return (
-                    <Box key={row.id} sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                      <WorkOutline sx={{ fontSize: 12, color: "#64748b", flexShrink: 0 }} />
-                      <Typography sx={{ fontSize: "0.78rem", color: "#94a3b8" }}>
-                        {role} — remote / project work
-                        {roleCost ? <span style={{ color: "#34d399", marginLeft: 6 }}>{formatCurrency(roleCost)}</span> : null}
-                      </Typography>
+                    <Box key={row.id} sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
+                      <WorkOutline sx={{ fontSize: 12, color: "#64748b", flexShrink: 0, mt: 0.35 }} />
+                      <Box>
+                        <Typography sx={{ fontSize: "0.78rem", color: "#94a3b8" }}>
+                          {role} — remote / project work
+                          {roleCost ? <span style={{ color: "#34d399", marginLeft: 6 }}>{formatCurrency(roleCost)}</span> : null}
+                        </Typography>
+                        {extraHoursLabel && (
+                          <Typography sx={{ fontSize: "0.69rem", color: "#64748b", mt: 0.1 }}>
+                            {extraHoursLabel}
+                          </Typography>
+                        )}
+                      </Box>
                     </Box>
                   );
                 })}

@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class UpdateInstanceLocationSlotDto {
   @IsOptional()
@@ -12,4 +12,16 @@ export class UpdateInstanceLocationSlotDto {
   @IsOptional()
   @IsString()
   notes?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  location_id?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  lat?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  lng?: number | null;
 }

@@ -16,7 +16,7 @@ export type PageCtx =
 
 export function parseContext(pathname: string): PageCtx {
   if (/\/manager\/active-tasks/.test(pathname)) return { type: "hidden" };
-  const inq = pathname.match(/\/sales\/inquiries\/(\d+)/);
+  const inq = pathname.match(/\/inquiries\/(\d+)/);
   if (inq) return { type: "inquiry", id: Number(inq[1]) };
   const proj = pathname.match(/\/projects\/(\d+)/);
   if (proj) return { type: "project", id: Number(proj[1]) };
@@ -45,7 +45,6 @@ export function getNavUrl(task: ActiveTask): string | null {
     }
 
     const n = (task.name + " " + (task.description ?? "")).toLowerCase();
-    if (n.includes("review needs assessment")) return `${base}?open=needs-assessment`;
     if (n.includes("needs assessment") || n.includes("assessment form")) return `${base}/needs-assessment`;
     if (n.includes("package") && (n.includes("select") || n.includes("review") || n.includes("scope") || n.includes("present"))) return `${base}/package`;
     if (n.includes("contract") || n.includes("sign agreement")) return `${base}#contracts-section`;

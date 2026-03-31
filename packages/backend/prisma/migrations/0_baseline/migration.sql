@@ -20,7 +20,7 @@ CREATE TYPE "AudioEquipment" AS ENUM ('LAPEL_MIC', 'WIRELESS_MIC', 'AMBIENT_MIC'
 CREATE TYPE "VideoStyleType" AS ENUM ('FULL', 'MONTAGE', 'CINEMATIC');
 
 -- CreateEnum
-CREATE TYPE "contacts_type" AS ENUM ('Client_Lead', 'Client', 'Contributor', 'Vendor');
+CREATE TYPE "contacts_type" AS ENUM ('Client_Lead', 'Client', 'Crew', 'Vendor');
 
 -- CreateEnum
 CREATE TYPE "pricing_type_options" AS ENUM ('Hourly', 'Fixed');
@@ -29,25 +29,13 @@ CREATE TYPE "pricing_type_options" AS ENUM ('Hourly', 'Fixed');
 CREATE TYPE "project_phase" AS ENUM ('Lead', 'Inquiry', 'Booking', 'Creative_Development', 'Pre_Production', 'Production', 'Post_Production', 'Delivery');
 
 -- CreateEnum
-CREATE TYPE "task_trigger_type" AS ENUM ('always', 'per_project', 'per_film', 'per_film_with_music', 'per_film_with_graphics', 'per_event_day', 'per_crew_member', 'per_location', 'per_activity', 'per_activity_crew', 'per_film_scene');
+CREATE TYPE "due_date_offset_reference" AS ENUM ('inquiry_created', 'booking_date', 'event_date', 'delivery_date');
 
 -- CreateEnum
-CREATE TYPE "billable_item_pricing_type" AS ENUM ('Fixed', 'Unit');
+CREATE TYPE "task_trigger_type" AS ENUM ('always', 'per_project', 'per_film', 'per_film_with_music', 'per_film_with_graphics', 'per_event_day', 'per_crew', 'per_location', 'per_activity', 'per_activity_crew', 'per_film_scene');
 
 -- CreateEnum
 CREATE TYPE "inquiries_status" AS ENUM ('New', 'Qualified', 'Contacted', 'Discovery_Call', 'Proposal_Sent', 'Booked', 'Closed_Lost');
-
--- CreateEnum
-CREATE TYPE "contributors_type" AS ENUM ('Internal', 'External', 'Freelance');
-
--- CreateEnum
-CREATE TYPE "builds_status" AS ENUM ('Inquiry', 'Proposal_Sent', 'Booked', 'Completed', 'Archived');
-
--- CreateEnum
-CREATE TYPE "change_order_status" AS ENUM ('Pending_Approval', 'Approved', 'Rejected');
-
--- CreateEnum
-CREATE TYPE "discount_type_enum" AS ENUM ('Percentage', 'Fixed');
 
 -- CreateEnum
 CREATE TYPE "tasks_status" AS ENUM ('To_Do', 'Ready_to_Start', 'In_Progress', 'Completed', 'Archived');
@@ -77,9 +65,6 @@ CREATE TYPE "activity_status" AS ENUM ('Pending', 'Completed');
 CREATE TYPE "document_status" AS ENUM ('Active', 'Archived');
 
 -- CreateEnum
-CREATE TYPE "task_comment_visibility" AS ENUM ('Internal', 'Client_Visible');
-
--- CreateEnum
 CREATE TYPE "calendar_sync_provider" AS ENUM ('Google');
 
 -- CreateEnum
@@ -99,9 +84,6 @@ CREATE TYPE "AudioTrackType" AS ENUM ('SPEECH', 'AMBIENT', 'MUSIC');
 
 -- CreateEnum
 CREATE TYPE "TrackType" AS ENUM ('VIDEO', 'AUDIO', 'GRAPHICS', 'MUSIC');
-
--- CreateEnum
-CREATE TYPE "SubjectCategory" AS ENUM ('PEOPLE', 'OBJECTS', 'LOCATIONS');
 
 -- CreateEnum
 CREATE TYPE "SceneType" AS ENUM ('MOMENTS', 'MONTAGE');
@@ -146,10 +128,10 @@ CREATE TYPE "equipment_maintenance_type" AS ENUM ('ROUTINE', 'REPAIR', 'UPGRADE'
 CREATE TYPE "equipment_availability_status" AS ENUM ('AVAILABLE', 'BOOKED', 'IN_USE', 'UNAVAILABLE', 'TENTATIVE');
 
 -- CreateEnum
-CREATE TYPE "inquiry_availability_request_status" AS ENUM ('pending', 'confirmed', 'declined', 'cancelled');
+CREATE TYPE "inquiry_equipment_reservation_status" AS ENUM ('reserved', 'confirmed', 'cancelled');
 
 -- CreateEnum
-CREATE TYPE "inquiry_equipment_reservation_status" AS ENUM ('reserved', 'confirmed', 'cancelled');
+CREATE TYPE "inquiry_crew_availability_request_status" AS ENUM ('pending', 'confirmed', 'declined', 'cancelled');
 
 -- CreateTable
 CREATE TABLE "brands" (
@@ -210,15 +192,26 @@ CREATE TABLE "brand_settings" (
 );
 
 -- CreateTable
-CREATE TABLE "user_brands" (
+CREATE TABLE "brand_finance_settings" (
     "id" SERIAL NOT NULL,
-    "user_id" INTEGER NOT NULL,
     "brand_id" INTEGER NOT NULL,
-    "role" TEXT NOT NULL DEFAULT 'Member',
+    "onsite_half_day_max_hours" INTEGER NOT NULL DEFAULT 6,
+    "onsite_full_day_max_hours" INTEGER NOT NULL DEFAULT 12,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "brand_finance_settings_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "brand_members" (
+    "id" SERIAL NOT NULL,
+    "crew_id" INTEGER NOT NULL,
+    "brand_id" INTEGER NOT NULL,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "joined_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "user_brands_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "brand_members_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -234,6 +227,17 @@ CREATE TABLE "contacts" (
     "archived_at" TIMESTAMP(3),
 
     CONSTRAINT "contacts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_accounts" (
+    "id" SERIAL NOT NULL,
+    "contact_id" INTEGER NOT NULL,
+    "password_hash" TEXT NOT NULL,
+    "system_role_id" INTEGER,
+    "archived_at" TIMESTAMP(3),
+
+    CONSTRAINT "user_accounts_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -255,7 +259,7 @@ CREATE TABLE "coverage" (
     "audio_pattern" TEXT,
     "frequency_response" TEXT,
     "equipment_assignments" JSONB,
-    "operator_id" INTEGER,
+    "crew_id" INTEGER,
     "job_role_id" INTEGER,
     "is_template" BOOLEAN NOT NULL DEFAULT false,
     "video_style_type" "VideoStyleType",
@@ -388,51 +392,13 @@ CREATE TABLE "film_change_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "operator_types" (
-    "id" SERIAL NOT NULL,
-    "name" TEXT NOT NULL,
-    "default_hourly_rate" DECIMAL(8,2),
-    "default_fixed_price" DECIMAL(10,2),
-    "pricing_type" "pricing_type_options" NOT NULL DEFAULT 'Hourly',
-
-    CONSTRAINT "operator_types_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "billable_items" (
-    "id" SERIAL NOT NULL,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "category" TEXT,
-    "price" DECIMAL(10,2) NOT NULL,
-    "pricing_type" "billable_item_pricing_type" NOT NULL DEFAULT 'Fixed',
-    "is_active" BOOLEAN NOT NULL DEFAULT true,
-
-    CONSTRAINT "billable_items_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "task_templates" (
-    "id" SERIAL NOT NULL,
-    "name" TEXT NOT NULL,
-    "phase" TEXT,
-    "effort_hours" DECIMAL(8,2),
-    "effort_calculation_rules" JSONB,
-    "pricing_type" "pricing_type_options" NOT NULL DEFAULT 'Hourly',
-    "fixed_price" DECIMAL(10,2),
-    "average_duration_hours" DECIMAL(8,2),
-
-    CONSTRAINT "task_templates_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "roles" (
+CREATE TABLE "system_roles" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
     "brand_id" INTEGER,
 
-    CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "system_roles_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -586,18 +552,6 @@ CREATE TABLE "discovery_questionnaire_submissions" (
 );
 
 -- CreateTable
-CREATE TABLE "activity_logs" (
-    "id" SERIAL NOT NULL,
-    "inquiry_id" INTEGER NOT NULL,
-    "type" TEXT NOT NULL,
-    "description" TEXT NOT NULL,
-    "metadata" JSONB,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "activity_logs_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "clients" (
     "id" SERIAL NOT NULL,
     "contact_id" INTEGER NOT NULL,
@@ -629,6 +583,7 @@ CREATE TABLE "projects" (
     "wedding_date" TIMESTAMP(3) NOT NULL,
     "booking_date" TIMESTAMP(3),
     "edit_start_date" TIMESTAMP(3),
+    "delivery_date" TIMESTAMP(3),
     "phase" TEXT,
     "package_contents_snapshot" JSONB,
     "archived_at" TIMESTAMP(3),
@@ -637,30 +592,13 @@ CREATE TABLE "projects" (
 );
 
 -- CreateTable
-CREATE TABLE "contributors" (
+CREATE TABLE "crew" (
     "id" SERIAL NOT NULL,
     "contact_id" INTEGER NOT NULL,
-    "role_id" INTEGER,
-    "contributor_type" "contributors_type",
-    "password_hash" TEXT NOT NULL,
-    "archived_at" TIMESTAMP(3),
-    "default_hourly_rate" DECIMAL(8,2) NOT NULL DEFAULT 0.00,
-    "is_crew" BOOLEAN NOT NULL DEFAULT false,
     "crew_color" TEXT,
     "bio" TEXT,
-    "default_camera_id" INTEGER,
 
-    CONSTRAINT "contributors_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "contributor_skill_rates" (
-    "id" SERIAL NOT NULL,
-    "contributor_id" INTEGER NOT NULL,
-    "task_template_id" INTEGER NOT NULL,
-    "rate" DECIMAL(8,2) NOT NULL,
-
-    CONSTRAINT "contributor_skill_rates_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "crew_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -686,6 +624,7 @@ CREATE TABLE "payment_brackets" (
     "display_name" TEXT,
     "level" INTEGER NOT NULL DEFAULT 1,
     "hourly_rate" DECIMAL(8,2) NOT NULL,
+    "half_day_rate" DECIMAL(8,2),
     "day_rate" DECIMAL(8,2),
     "overtime_rate" DECIMAL(8,2),
     "description" TEXT,
@@ -698,9 +637,9 @@ CREATE TABLE "payment_brackets" (
 );
 
 -- CreateTable
-CREATE TABLE "contributor_job_roles" (
+CREATE TABLE "crew_job_roles" (
     "id" SERIAL NOT NULL,
-    "contributor_id" INTEGER NOT NULL,
+    "crew_id" INTEGER NOT NULL,
     "job_role_id" INTEGER NOT NULL,
     "payment_bracket_id" INTEGER,
     "is_primary" BOOLEAN NOT NULL DEFAULT false,
@@ -708,141 +647,13 @@ CREATE TABLE "contributor_job_roles" (
     "assigned_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "assigned_by" INTEGER,
 
-    CONSTRAINT "contributor_job_roles_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "project_assignments" (
-    "id" SERIAL NOT NULL,
-    "project_id" INTEGER NOT NULL,
-    "contributor_id" INTEGER NOT NULL,
-    "role_id" INTEGER NOT NULL,
-
-    CONSTRAINT "project_assignments_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "editing_style_requirements" (
-    "id" SERIAL NOT NULL,
-    "editing_style_id" INTEGER NOT NULL,
-    "billable_item_id" INTEGER NOT NULL,
-    "quantity" INTEGER NOT NULL DEFAULT 1,
-
-    CONSTRAINT "editing_style_requirements_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "builds" (
-    "id" SERIAL NOT NULL,
-    "client_id" INTEGER,
-    "inquiry_id" INTEGER,
-    "project_id" INTEGER,
-    "status" "builds_status" NOT NULL,
-    "configuration_locked_at" TIMESTAMP(3),
-    "approved_price" DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-    "live_price" DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-    "total_paid" DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-    "archived_at" TIMESTAMP(3),
-
-    CONSTRAINT "builds_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "build_coverage_assignments" (
-    "id" SERIAL NOT NULL,
-    "build_id" INTEGER NOT NULL,
-    "coverage_id" INTEGER NOT NULL,
-    "operator_type_id" INTEGER NOT NULL,
-    "quantity" INTEGER NOT NULL DEFAULT 1,
-    "rate_at_time_of_add" DECIMAL(8,2) NOT NULL,
-
-    CONSTRAINT "build_coverage_assignments_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "build_films" (
-    "id" SERIAL NOT NULL,
-    "build_id" INTEGER NOT NULL,
-    "film_id" INTEGER NOT NULL,
-
-    CONSTRAINT "build_films_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "build_scenes" (
-    "id" SERIAL NOT NULL,
-    "build_film_id" INTEGER NOT NULL,
-    "coverage_id" INTEGER NOT NULL,
-    "editing_style_id" INTEGER NOT NULL,
-    "target_minutes" DECIMAL(8,2),
-    "is_included" BOOLEAN DEFAULT true,
-    "calculated_price" DECIMAL(10,2),
-
-    CONSTRAINT "build_scenes_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "build_billable_items" (
-    "id" SERIAL NOT NULL,
-    "build_id" INTEGER NOT NULL,
-    "billable_item_id" INTEGER NOT NULL,
-    "quantity" INTEGER NOT NULL DEFAULT 1,
-    "price_at_time_of_add" DECIMAL(10,2) NOT NULL,
-    "notes" TEXT,
-
-    CONSTRAINT "build_billable_items_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "build_change_orders" (
-    "id" SERIAL NOT NULL,
-    "build_id" INTEGER NOT NULL,
-    "version_number" INTEGER NOT NULL,
-    "price_delta" DECIMAL(10,2) NOT NULL,
-    "new_total_approved_price" DECIMAL(10,2) NOT NULL,
-    "description" TEXT NOT NULL,
-    "status" "change_order_status" NOT NULL,
-    "discount_type" "discount_type_enum",
-    "discount_percentage" DECIMAL(5,2),
-    "discount_amount" DECIMAL(10,2),
-    "discount_reason" TEXT,
-    "created_at" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "build_change_orders_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "build_snapshots" (
-    "id" SERIAL NOT NULL,
-    "build_id" INTEGER NOT NULL,
-    "change_order_id" INTEGER NOT NULL,
-    "snapshot_data" JSONB NOT NULL,
-    "created_at" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "build_snapshots_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "tasks" (
-    "id" SERIAL NOT NULL,
-    "project_id" INTEGER NOT NULL,
-    "build_scene_id" INTEGER NOT NULL,
-    "task_template_id" INTEGER NOT NULL,
-    "planned_duration_hours" DECIMAL(8,2),
-    "actual_duration_hours" DECIMAL(8,2),
-    "status" "tasks_status" NOT NULL DEFAULT 'To_Do',
-    "due_date" TIMESTAMP(3),
-    "assigned_to_contributor_id" INTEGER,
-    "is_client_visible" BOOLEAN DEFAULT false,
-    "rate_at_time_of_assignment" DECIMAL(8,2) NOT NULL DEFAULT 0.00,
-
-    CONSTRAINT "tasks_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "crew_job_roles_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "calendar_events" (
     "id" SERIAL NOT NULL,
-    "contributor_id" INTEGER NOT NULL,
+    "crew_id" INTEGER NOT NULL,
     "project_id" INTEGER,
     "title" TEXT NOT NULL,
     "start_time" TIMESTAMP(3) NOT NULL,
@@ -887,7 +698,7 @@ CREATE TABLE "event_tags" (
 CREATE TABLE "event_attendees" (
     "id" SERIAL NOT NULL,
     "event_id" INTEGER NOT NULL,
-    "contributor_id" INTEGER,
+    "crew_id" INTEGER,
     "contact_id" INTEGER,
     "email" TEXT,
     "name" TEXT,
@@ -912,7 +723,7 @@ CREATE TABLE "event_reminders" (
 -- CreateTable
 CREATE TABLE "calendar_settings" (
     "id" SERIAL NOT NULL,
-    "contributor_id" INTEGER NOT NULL,
+    "crew_id" INTEGER NOT NULL,
     "default_view" TEXT NOT NULL DEFAULT 'WEEK',
     "working_hours_start" TEXT NOT NULL DEFAULT '09:00',
     "working_hours_end" TEXT NOT NULL DEFAULT '17:00',
@@ -936,21 +747,6 @@ CREATE TABLE "project_assets" (
     "asset_type" "project_asset_type",
 
     CONSTRAINT "project_assets_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "contributor_task_benchmarks" (
-    "id" SERIAL NOT NULL,
-    "contributor_id" INTEGER NOT NULL,
-    "task_template_id" INTEGER NOT NULL,
-    "contributor_default_hours" DECIMAL(8,2),
-    "contributor_average_hours" DECIMAL(8,2),
-    "contributor_best_hours" DECIMAL(8,2),
-    "completed_count" INTEGER NOT NULL DEFAULT 0,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "contributor_task_benchmarks_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1125,7 +921,7 @@ CREATE TABLE "quote_payment_milestones" (
 -- CreateTable
 CREATE TABLE "audit_log" (
     "id" SERIAL NOT NULL,
-    "contributor_id" INTEGER,
+    "crew_id" INTEGER,
     "action" TEXT NOT NULL,
     "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "details" JSONB,
@@ -1136,7 +932,7 @@ CREATE TABLE "audit_log" (
 -- CreateTable
 CREATE TABLE "notifications" (
     "id" SERIAL NOT NULL,
-    "recipient_contributor_id" INTEGER NOT NULL,
+    "recipient_crew_id" INTEGER NOT NULL,
     "message" TEXT NOT NULL,
     "is_read" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
@@ -1146,18 +942,9 @@ CREATE TABLE "notifications" (
 );
 
 -- CreateTable
-CREATE TABLE "task_dependencies" (
-    "id" SERIAL NOT NULL,
-    "blocking_task_id" INTEGER NOT NULL,
-    "dependent_task_id" INTEGER NOT NULL,
-
-    CONSTRAINT "task_dependencies_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "activities" (
     "id" SERIAL NOT NULL,
-    "assigned_to_contributor_id" INTEGER NOT NULL,
+    "assigned_to_crew_id" INTEGER NOT NULL,
     "contact_id" INTEGER,
     "inquiry_id" INTEGER,
     "project_id" INTEGER,
@@ -1267,21 +1054,9 @@ CREATE TABLE "client_feedback_surveys" (
 );
 
 -- CreateTable
-CREATE TABLE "task_comments" (
-    "id" SERIAL NOT NULL,
-    "task_id" INTEGER NOT NULL,
-    "contributor_id" INTEGER,
-    "comment_text" TEXT NOT NULL,
-    "created_at" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
-    "visibility" "task_comment_visibility",
-
-    CONSTRAINT "task_comments_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "calendar_sync_tokens" (
     "id" SERIAL NOT NULL,
-    "contributor_id" INTEGER NOT NULL,
+    "crew_id" INTEGER NOT NULL,
     "provider" "calendar_sync_provider" NOT NULL,
     "refresh_token" TEXT NOT NULL,
 
@@ -1306,7 +1081,7 @@ CREATE TABLE "timeline_layers" (
 CREATE TABLE "timeline_editing_sessions" (
     "id" SERIAL NOT NULL,
     "film_id" INTEGER NOT NULL,
-    "user_id" INTEGER NOT NULL,
+    "crew_id" INTEGER NOT NULL,
     "session_start" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "session_end" TIMESTAMP(3),
     "last_activity" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1330,36 +1105,6 @@ CREATE TABLE "workflow_templates" (
 );
 
 -- CreateTable
-CREATE TABLE "workflow_stages" (
-    "id" SERIAL NOT NULL,
-    "workflow_template_id" INTEGER NOT NULL,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "order_index" INTEGER NOT NULL,
-    "is_active" BOOLEAN NOT NULL DEFAULT true,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "workflow_stages_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "task_generation_rules" (
-    "id" SERIAL NOT NULL,
-    "workflow_stage_id" INTEGER NOT NULL,
-    "task_template_id" INTEGER NOT NULL,
-    "scene_type" "MediaType",
-    "coverage_id" INTEGER,
-    "is_required" BOOLEAN NOT NULL DEFAULT true,
-    "auto_assign_to_role" TEXT,
-    "conditions" JSONB,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "task_generation_rules_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "workflow_template_tasks" (
     "id" SERIAL NOT NULL,
     "workflow_template_id" INTEGER NOT NULL,
@@ -1374,32 +1119,6 @@ CREATE TABLE "workflow_template_tasks" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "workflow_template_tasks_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "generated_task_log" (
-    "id" SERIAL NOT NULL,
-    "project_id" INTEGER NOT NULL,
-    "task_generation_rule_id" INTEGER NOT NULL,
-    "task_id" INTEGER NOT NULL,
-    "generated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "generated_task_log_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "entity_default_tasks" (
-    "id" SERIAL NOT NULL,
-    "entity_type" TEXT NOT NULL,
-    "entity_id" INTEGER NOT NULL,
-    "task_template_id" INTEGER,
-    "task_name" TEXT NOT NULL,
-    "estimated_hours" DECIMAL(4,2) NOT NULL DEFAULT 0,
-    "order_index" INTEGER NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "entity_default_tasks_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1422,6 +1141,7 @@ CREATE TABLE "task_library" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
+    "workflow_description" TEXT,
     "phase" "project_phase" NOT NULL,
     "effort_hours" DECIMAL(8,2),
     "recorded_hours" DECIMAL(8,2),
@@ -1437,11 +1157,12 @@ CREATE TABLE "task_library" (
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "trigger_type" "task_trigger_type" NOT NULL DEFAULT 'always',
     "due_date_offset_days" INTEGER,
+    "due_date_offset_reference" "due_date_offset_reference",
     "parent_task_id" INTEGER,
-    "is_stage" BOOLEAN NOT NULL DEFAULT false,
+    "is_task_group" BOOLEAN NOT NULL DEFAULT false,
     "is_auto_only" BOOLEAN NOT NULL DEFAULT false,
-    "stage_color" TEXT,
-    "default_contributor_id" INTEGER,
+    "is_on_site" BOOLEAN NOT NULL DEFAULT false,
+    "default_crew_id" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -1452,10 +1173,10 @@ CREATE TABLE "task_library" (
 CREATE TABLE "task_library_benchmarks" (
     "id" SERIAL NOT NULL,
     "task_library_id" INTEGER NOT NULL,
-    "contributor_id" INTEGER NOT NULL,
-    "contributor_default_hours" DECIMAL(8,2),
-    "contributor_average_hours" DECIMAL(8,2),
-    "contributor_best_hours" DECIMAL(8,2),
+    "crew_id" INTEGER NOT NULL,
+    "crew_default_hours" DECIMAL(8,2),
+    "crew_average_hours" DECIMAL(8,2),
+    "crew_best_hours" DECIMAL(8,2),
     "completed_count" INTEGER NOT NULL DEFAULT 0,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -1482,6 +1203,7 @@ CREATE TABLE "task_library_subtask_templates" (
     "task_library_id" INTEGER NOT NULL,
     "subtask_key" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "description" TEXT,
     "order_index" INTEGER NOT NULL DEFAULT 0,
     "is_auto_only" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1540,8 +1262,7 @@ CREATE TABLE "inquiry_tasks" (
     "assigned_to_id" INTEGER,
     "job_role_id" INTEGER,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
-    "is_stage" BOOLEAN NOT NULL DEFAULT false,
-    "stage_color" TEXT,
+    "is_task_group" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -1579,22 +1300,6 @@ CREATE TABLE "inquiry_task_events" (
 );
 
 -- CreateTable
-CREATE TABLE "inquiry_availability_requests" (
-    "id" SERIAL NOT NULL,
-    "inquiry_id" INTEGER NOT NULL,
-    "contributor_id" INTEGER NOT NULL,
-    "project_day_operator_id" INTEGER,
-    "status" "inquiry_availability_request_status" NOT NULL DEFAULT 'pending',
-    "sent_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "responded_at" TIMESTAMP(3),
-    "notes" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "inquiry_availability_requests_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "equipment" (
     "id" SERIAL NOT NULL,
     "item_name" TEXT NOT NULL,
@@ -1623,6 +1328,7 @@ CREATE TABLE "equipment" (
     "last_maintenance" TIMESTAMP(3),
     "next_maintenance_due" TIMESTAMP(3),
     "location" TEXT,
+    "photo_url" TEXT,
     "brand_id" INTEGER,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1718,65 +1424,8 @@ CREATE TABLE "locations_library" (
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
-    "venue_floor_plan_data" JSONB,
-    "venue_floor_plan_updated_at" TIMESTAMP(3),
-    "venue_floor_plan_updated_by" INTEGER,
-    "venue_floor_plan_version" INTEGER NOT NULL DEFAULT 1,
 
     CONSTRAINT "locations_library_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "location_spaces" (
-    "id" SERIAL NOT NULL,
-    "location_id" INTEGER NOT NULL,
-    "name" TEXT NOT NULL,
-    "space_type" TEXT NOT NULL,
-    "capacity" INTEGER,
-    "dimensions_length" DECIMAL(8,2),
-    "dimensions_width" DECIMAL(8,2),
-    "dimensions_height" DECIMAL(8,2),
-    "metadata" JSONB,
-    "notes" TEXT,
-    "is_active" BOOLEAN NOT NULL DEFAULT true,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "location_spaces_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "floor_plans" (
-    "id" SERIAL NOT NULL,
-    "space_id" INTEGER NOT NULL,
-    "project_id" INTEGER,
-    "name" TEXT NOT NULL,
-    "version" INTEGER NOT NULL DEFAULT 1,
-    "fabric_data" JSONB NOT NULL,
-    "layers_data" JSONB,
-    "is_default" BOOLEAN NOT NULL DEFAULT false,
-    "is_active" BOOLEAN NOT NULL DEFAULT true,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-    "created_by_id" INTEGER,
-
-    CONSTRAINT "floor_plans_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "floor_plan_objects" (
-    "id" SERIAL NOT NULL,
-    "name" TEXT NOT NULL,
-    "category" TEXT NOT NULL,
-    "object_type" TEXT NOT NULL,
-    "fabric_template" JSONB NOT NULL,
-    "thumbnail_url" TEXT,
-    "brand_id" INTEGER,
-    "is_active" BOOLEAN NOT NULL DEFAULT true,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "floor_plan_objects_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1845,7 +1494,7 @@ CREATE TABLE "film_timeline_tracks_v2" (
     "order_index" INTEGER NOT NULL,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "is_unmanned" BOOLEAN NOT NULL DEFAULT false,
-    "contributor_id" INTEGER,
+    "crew_id" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -1857,7 +1506,6 @@ CREATE TABLE "subject_templates" (
     "id" SERIAL NOT NULL,
     "brand_id" INTEGER,
     "name" TEXT NOT NULL,
-    "category" "SubjectCategory" NOT NULL,
     "is_system" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -1886,9 +1534,7 @@ CREATE TABLE "film_subjects" (
     "id" SERIAL NOT NULL,
     "film_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
-    "category" "SubjectCategory" NOT NULL,
     "role_template_id" INTEGER,
-    "is_custom" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -2190,7 +1836,6 @@ CREATE TABLE "service_packages" (
     "description" TEXT,
     "category" TEXT,
     "category_id" INTEGER,
-    "base_price" DECIMAL(10,2) NOT NULL DEFAULT 0,
     "currency" TEXT NOT NULL DEFAULT 'USD',
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -2508,33 +2153,30 @@ CREATE TABLE "package_activity_moments" (
 );
 
 -- CreateTable
-CREATE TABLE "package_day_operators" (
+CREATE TABLE "package_crew_slots" (
     "id" SERIAL NOT NULL,
     "package_id" INTEGER NOT NULL,
-    "event_day_template_id" INTEGER NOT NULL,
-    "contributor_id" INTEGER,
-    "package_activity_id" INTEGER,
-    "position_name" TEXT NOT NULL,
-    "position_color" TEXT,
-    "job_role_id" INTEGER,
+    "package_event_day_id" INTEGER NOT NULL,
+    "crew_id" INTEGER,
+    "job_role_id" INTEGER NOT NULL,
     "hours" DECIMAL(4,1) NOT NULL DEFAULT 8,
-    "notes" TEXT,
+    "label" TEXT,
     "order_index" INTEGER NOT NULL DEFAULT 0,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "package_day_operators_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "package_crew_slots_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "package_day_operator_equipment" (
+CREATE TABLE "package_crew_slot_equipment" (
     "id" SERIAL NOT NULL,
-    "package_day_operator_id" INTEGER NOT NULL,
+    "package_crew_slot_id" INTEGER NOT NULL,
     "equipment_id" INTEGER NOT NULL,
     "is_primary" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "package_day_operator_equipment_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "package_crew_slot_equipment_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -2545,7 +2187,6 @@ CREATE TABLE "package_day_subjects" (
     "role_template_id" INTEGER,
     "name" TEXT NOT NULL,
     "count" INTEGER,
-    "category" "SubjectCategory" NOT NULL DEFAULT 'PEOPLE',
     "notes" TEXT,
     "order_index" INTEGER NOT NULL DEFAULT 0,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -2688,7 +2329,7 @@ CREATE TABLE "project_film_timeline_tracks" (
     "order_index" INTEGER NOT NULL,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "is_unmanned" BOOLEAN NOT NULL DEFAULT false,
-    "contributor_id" INTEGER,
+    "crew_id" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -2703,9 +2344,7 @@ CREATE TABLE "project_film_subjects" (
     "project_film_id" INTEGER NOT NULL,
     "source_subject_id" INTEGER,
     "name" TEXT NOT NULL,
-    "category" "SubjectCategory" NOT NULL,
     "role_template_id" INTEGER,
-    "is_custom" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -2924,7 +2563,6 @@ CREATE TABLE "project_day_subjects" (
     "real_name" TEXT,
     "count" INTEGER,
     "member_names" JSONB,
-    "category" "SubjectCategory" NOT NULL DEFAULT 'PEOPLE',
     "notes" TEXT,
     "order_index" INTEGER NOT NULL DEFAULT 0,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -2953,45 +2591,42 @@ CREATE TABLE "project_location_slots" (
 );
 
 -- CreateTable
-CREATE TABLE "project_day_operators" (
+CREATE TABLE "project_crew_slots" (
     "id" SERIAL NOT NULL,
     "project_id" INTEGER,
     "inquiry_id" INTEGER,
     "project_event_day_id" INTEGER NOT NULL,
-    "project_activity_id" INTEGER,
-    "source_package_operator_id" INTEGER,
-    "contributor_id" INTEGER,
-    "position_name" TEXT NOT NULL,
-    "position_color" TEXT,
-    "job_role_id" INTEGER,
+    "source_slot_id" INTEGER,
+    "crew_id" INTEGER,
+    "job_role_id" INTEGER NOT NULL,
     "hours" DECIMAL(4,1) NOT NULL DEFAULT 8,
-    "notes" TEXT,
+    "label" TEXT,
     "order_index" INTEGER NOT NULL DEFAULT 0,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "project_day_operators_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "project_crew_slots_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "project_day_operator_equipment" (
+CREATE TABLE "project_crew_slot_equipment" (
     "id" SERIAL NOT NULL,
-    "project_day_operator_id" INTEGER NOT NULL,
+    "project_crew_slot_id" INTEGER NOT NULL,
     "equipment_id" INTEGER NOT NULL,
     "is_primary" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "project_day_operator_equipment_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "project_crew_slot_equipment_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "project_operator_activity_assignments" (
+CREATE TABLE "project_crew_slot_activities" (
     "id" SERIAL NOT NULL,
-    "project_day_operator_id" INTEGER NOT NULL,
+    "project_crew_slot_id" INTEGER NOT NULL,
     "project_activity_id" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "project_operator_activity_assignments_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "project_crew_slot_activities_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -3015,13 +2650,13 @@ CREATE TABLE "project_location_activity_assignments" (
 );
 
 -- CreateTable
-CREATE TABLE "operator_activity_assignments" (
+CREATE TABLE "package_crew_slot_activities" (
     "id" SERIAL NOT NULL,
-    "package_day_operator_id" INTEGER NOT NULL,
+    "package_crew_slot_id" INTEGER NOT NULL,
     "package_activity_id" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "operator_activity_assignments_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "package_crew_slot_activities_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -3277,7 +2912,7 @@ CREATE TABLE "inquiry_equipment_reservations" (
     "id" SERIAL NOT NULL,
     "inquiry_id" INTEGER NOT NULL,
     "equipment_id" INTEGER NOT NULL,
-    "project_day_operator_equipment_id" INTEGER NOT NULL,
+    "project_crew_slot_equipment_id" INTEGER NOT NULL,
     "equipment_availability_id" INTEGER,
     "status" "inquiry_equipment_reservation_status" NOT NULL DEFAULT 'reserved',
     "reserved_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -3285,6 +2920,21 @@ CREATE TABLE "inquiry_equipment_reservations" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "inquiry_equipment_reservations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "inquiry_crew_availability_requests" (
+    "id" SERIAL NOT NULL,
+    "inquiry_id" INTEGER NOT NULL,
+    "crew_id" INTEGER NOT NULL,
+    "project_crew_slot_id" INTEGER,
+    "status" "inquiry_crew_availability_request_status" NOT NULL DEFAULT 'pending',
+    "sent_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "cancelled_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "inquiry_crew_availability_requests_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -3300,13 +2950,16 @@ CREATE INDEX "brand_settings_category_idx" ON "brand_settings"("category");
 CREATE UNIQUE INDEX "brand_settings_brand_id_key_key" ON "brand_settings"("brand_id", "key");
 
 -- CreateIndex
-CREATE INDEX "user_brands_user_id_idx" ON "user_brands"("user_id");
+CREATE UNIQUE INDEX "brand_finance_settings_brand_id_key" ON "brand_finance_settings"("brand_id");
 
 -- CreateIndex
-CREATE INDEX "user_brands_brand_id_idx" ON "user_brands"("brand_id");
+CREATE INDEX "brand_members_crew_id_idx" ON "brand_members"("crew_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_brands_user_id_brand_id_key" ON "user_brands"("user_id", "brand_id");
+CREATE INDEX "brand_members_brand_id_idx" ON "brand_members"("brand_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "brand_members_crew_id_brand_id_key" ON "brand_members"("crew_id", "brand_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "contacts_email_key" ON "contacts"("email");
@@ -3319,6 +2972,12 @@ CREATE INDEX "contacts_type_idx" ON "contacts"("type");
 
 -- CreateIndex
 CREATE INDEX "contacts_brand_id_idx" ON "contacts"("brand_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_accounts_contact_id_key" ON "user_accounts"("contact_id");
+
+-- CreateIndex
+CREATE INDEX "user_accounts_system_role_id_idx" ON "user_accounts"("system_role_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "coverage_name_key" ON "coverage"("name");
@@ -3357,19 +3016,10 @@ CREATE INDEX "film_timeline_tracks_track_type_idx" ON "film_timeline_tracks"("tr
 CREATE UNIQUE INDEX "film_timeline_tracks_film_id_order_index_key" ON "film_timeline_tracks"("film_id", "order_index");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "operator_types_name_key" ON "operator_types"("name");
+CREATE UNIQUE INDEX "system_roles_name_key" ON "system_roles"("name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "billable_items_name_key" ON "billable_items"("name");
-
--- CreateIndex
-CREATE UNIQUE INDEX "task_templates_name_key" ON "task_templates"("name");
-
--- CreateIndex
-CREATE UNIQUE INDEX "roles_name_key" ON "roles"("name");
-
--- CreateIndex
-CREATE INDEX "roles_brand_id_idx" ON "roles"("brand_id");
+CREATE INDEX "system_roles_brand_id_idx" ON "system_roles"("brand_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "permissions_action_name_key" ON "permissions"("action_name");
@@ -3435,13 +3085,7 @@ CREATE INDEX "projects_source_package_id_idx" ON "projects"("source_package_id")
 CREATE UNIQUE INDEX "projects_client_id_wedding_date_key" ON "projects"("client_id", "wedding_date");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "contributors_contact_id_key" ON "contributors"("contact_id");
-
--- CreateIndex
-CREATE INDEX "contributors_is_crew_idx" ON "contributors"("is_crew");
-
--- CreateIndex
-CREATE UNIQUE INDEX "contributor_skill_rates_contributor_id_task_template_id_key" ON "contributor_skill_rates"("contributor_id", "task_template_id");
+CREATE UNIQUE INDEX "crew_contact_id_key" ON "crew"("contact_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "job_roles_name_key" ON "job_roles"("name");
@@ -3465,43 +3109,22 @@ CREATE UNIQUE INDEX "payment_brackets_job_role_id_name_key" ON "payment_brackets
 CREATE UNIQUE INDEX "payment_brackets_job_role_id_level_key" ON "payment_brackets"("job_role_id", "level");
 
 -- CreateIndex
-CREATE INDEX "contributor_job_roles_contributor_id_idx" ON "contributor_job_roles"("contributor_id");
+CREATE INDEX "crew_job_roles_crew_id_idx" ON "crew_job_roles"("crew_id");
 
 -- CreateIndex
-CREATE INDEX "contributor_job_roles_job_role_id_idx" ON "contributor_job_roles"("job_role_id");
+CREATE INDEX "crew_job_roles_job_role_id_idx" ON "crew_job_roles"("job_role_id");
 
 -- CreateIndex
-CREATE INDEX "contributor_job_roles_payment_bracket_id_idx" ON "contributor_job_roles"("payment_bracket_id");
+CREATE INDEX "crew_job_roles_payment_bracket_id_idx" ON "crew_job_roles"("payment_bracket_id");
 
 -- CreateIndex
-CREATE INDEX "contributor_job_roles_is_primary_idx" ON "contributor_job_roles"("is_primary");
+CREATE INDEX "crew_job_roles_is_primary_idx" ON "crew_job_roles"("is_primary");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "contributor_job_roles_contributor_id_job_role_id_key" ON "contributor_job_roles"("contributor_id", "job_role_id");
+CREATE UNIQUE INDEX "crew_job_roles_crew_id_job_role_id_key" ON "crew_job_roles"("crew_id", "job_role_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "project_assignments_project_id_contributor_id_key" ON "project_assignments"("project_id", "contributor_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "idx_style_item_unique" ON "editing_style_requirements"("editing_style_id", "billable_item_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "builds_inquiry_id_key" ON "builds"("inquiry_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "builds_project_id_key" ON "builds"("project_id");
-
--- CreateIndex
-CREATE INDEX "tasks_status_idx" ON "tasks"("status");
-
--- CreateIndex
-CREATE INDEX "tasks_due_date_idx" ON "tasks"("due_date");
-
--- CreateIndex
-CREATE INDEX "tasks_assigned_to_contributor_id_idx" ON "tasks"("assigned_to_contributor_id");
-
--- CreateIndex
-CREATE INDEX "calendar_events_contributor_id_start_time_end_time_idx" ON "calendar_events"("contributor_id", "start_time", "end_time");
+CREATE INDEX "calendar_events_crew_id_start_time_end_time_idx" ON "calendar_events"("crew_id", "start_time", "end_time");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "tags_name_key" ON "tags"("name");
@@ -3510,7 +3133,7 @@ CREATE UNIQUE INDEX "tags_name_key" ON "tags"("name");
 CREATE UNIQUE INDEX "event_tags_event_id_tag_id_key" ON "event_tags"("event_id", "tag_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "event_attendees_event_id_contributor_id_key" ON "event_attendees"("event_id", "contributor_id");
+CREATE UNIQUE INDEX "event_attendees_event_id_crew_id_key" ON "event_attendees"("event_id", "crew_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "event_attendees_event_id_contact_id_key" ON "event_attendees"("event_id", "contact_id");
@@ -3519,10 +3142,7 @@ CREATE UNIQUE INDEX "event_attendees_event_id_contact_id_key" ON "event_attendee
 CREATE UNIQUE INDEX "event_attendees_event_id_email_key" ON "event_attendees"("event_id", "email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "calendar_settings_contributor_id_key" ON "calendar_settings"("contributor_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "contributor_task_benchmarks_task_template_id_contributor_id_key" ON "contributor_task_benchmarks"("task_template_id", "contributor_id");
+CREATE UNIQUE INDEX "calendar_settings_crew_id_key" ON "calendar_settings"("crew_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "invoices_invoice_number_key" ON "invoices"("invoice_number");
@@ -3543,7 +3163,7 @@ CREATE INDEX "quote_payment_milestones_quote_id_idx" ON "quote_payment_milestone
 CREATE INDEX "audit_log_details_idx" ON "audit_log" USING GIN ("details");
 
 -- CreateIndex
-CREATE INDEX "notifications_recipient_contributor_id_is_read_idx" ON "notifications"("recipient_contributor_id", "is_read");
+CREATE INDEX "notifications_recipient_crew_id_is_read_idx" ON "notifications"("recipient_crew_id", "is_read");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "proposals_share_token_key" ON "proposals"("share_token");
@@ -3555,22 +3175,19 @@ CREATE UNIQUE INDEX "contracts_signing_token_key" ON "contracts"("signing_token"
 CREATE UNIQUE INDEX "contract_signers_token_key" ON "contract_signers"("token");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "calendar_sync_tokens_contributor_id_key" ON "calendar_sync_tokens"("contributor_id");
+CREATE UNIQUE INDEX "calendar_sync_tokens_crew_id_key" ON "calendar_sync_tokens"("crew_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "timeline_layers_name_key" ON "timeline_layers"("name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "timeline_editing_sessions_film_id_user_id_session_start_key" ON "timeline_editing_sessions"("film_id", "user_id", "session_start");
+CREATE UNIQUE INDEX "timeline_editing_sessions_film_id_crew_id_session_start_key" ON "timeline_editing_sessions"("film_id", "crew_id", "session_start");
 
 -- CreateIndex
 CREATE INDEX "workflow_templates_brand_id_idx" ON "workflow_templates"("brand_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "workflow_templates_brand_id_name_key" ON "workflow_templates"("brand_id", "name");
-
--- CreateIndex
-CREATE UNIQUE INDEX "workflow_stages_workflow_template_id_order_index_key" ON "workflow_stages"("workflow_template_id", "order_index");
 
 -- CreateIndex
 CREATE INDEX "workflow_template_tasks_workflow_template_id_idx" ON "workflow_template_tasks"("workflow_template_id");
@@ -3580,12 +3197,6 @@ CREATE INDEX "workflow_template_tasks_workflow_template_id_phase_idx" ON "workfl
 
 -- CreateIndex
 CREATE UNIQUE INDEX "workflow_template_tasks_workflow_template_id_task_library_i_key" ON "workflow_template_tasks"("workflow_template_id", "task_library_id");
-
--- CreateIndex
-CREATE INDEX "entity_default_tasks_entity_type_entity_id_idx" ON "entity_default_tasks"("entity_type", "entity_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "entity_default_tasks_entity_type_entity_id_order_index_key" ON "entity_default_tasks"("entity_type", "entity_id", "order_index");
 
 -- CreateIndex
 CREATE INDEX "skill_role_mappings_skill_name_idx" ON "skill_role_mappings"("skill_name");
@@ -3618,13 +3229,13 @@ CREATE INDEX "task_library_phase_order_index_idx" ON "task_library"("phase", "or
 CREATE INDEX "task_library_default_job_role_id_idx" ON "task_library"("default_job_role_id");
 
 -- CreateIndex
-CREATE INDEX "task_library_default_contributor_id_idx" ON "task_library"("default_contributor_id");
+CREATE INDEX "task_library_default_crew_id_idx" ON "task_library"("default_crew_id");
 
 -- CreateIndex
 CREATE INDEX "task_library_parent_task_id_idx" ON "task_library"("parent_task_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "task_library_benchmarks_task_library_id_contributor_id_key" ON "task_library_benchmarks"("task_library_id", "contributor_id");
+CREATE UNIQUE INDEX "task_library_benchmarks_task_library_id_crew_id_key" ON "task_library_benchmarks"("task_library_id", "crew_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "task_library_skill_rates_task_library_id_skill_name_skill_l_key" ON "task_library_skill_rates"("task_library_id", "skill_name", "skill_level");
@@ -3699,15 +3310,6 @@ CREATE UNIQUE INDEX "inquiry_task_subtasks_inquiry_task_id_subtask_key_key" ON "
 CREATE INDEX "inquiry_task_events_task_id_idx" ON "inquiry_task_events"("task_id");
 
 -- CreateIndex
-CREATE INDEX "inquiry_availability_requests_inquiry_id_idx" ON "inquiry_availability_requests"("inquiry_id");
-
--- CreateIndex
-CREATE INDEX "inquiry_availability_requests_contributor_id_idx" ON "inquiry_availability_requests"("contributor_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "inquiry_availability_requests_inquiry_id_contributor_id_key" ON "inquiry_availability_requests"("inquiry_id", "contributor_id");
-
--- CreateIndex
 CREATE INDEX "equipment_brand_id_idx" ON "equipment"("brand_id");
 
 -- CreateIndex
@@ -3768,24 +3370,6 @@ CREATE INDEX "equipment_availability_inquiry_id_idx" ON "equipment_availability"
 CREATE INDEX "locations_library_brand_id_idx" ON "locations_library"("brand_id");
 
 -- CreateIndex
-CREATE INDEX "location_spaces_location_id_idx" ON "location_spaces"("location_id");
-
--- CreateIndex
-CREATE INDEX "floor_plans_space_id_idx" ON "floor_plans"("space_id");
-
--- CreateIndex
-CREATE INDEX "floor_plans_project_id_idx" ON "floor_plans"("project_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "floor_plans_space_id_project_id_version_key" ON "floor_plans"("space_id", "project_id", "version");
-
--- CreateIndex
-CREATE INDEX "floor_plan_objects_brand_id_idx" ON "floor_plan_objects"("brand_id");
-
--- CreateIndex
-CREATE INDEX "floor_plan_objects_category_idx" ON "floor_plan_objects"("category");
-
--- CreateIndex
 CREATE INDEX "films_brand_id_idx" ON "films"("brand_id");
 
 -- CreateIndex
@@ -3819,7 +3403,7 @@ CREATE INDEX "film_timeline_tracks_v2_film_id_idx" ON "film_timeline_tracks_v2"(
 CREATE INDEX "film_timeline_tracks_v2_type_idx" ON "film_timeline_tracks_v2"("type");
 
 -- CreateIndex
-CREATE INDEX "film_timeline_tracks_v2_contributor_id_idx" ON "film_timeline_tracks_v2"("contributor_id");
+CREATE INDEX "film_timeline_tracks_v2_crew_id_idx" ON "film_timeline_tracks_v2"("crew_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "film_timeline_tracks_v2_film_id_name_key" ON "film_timeline_tracks_v2"("film_id", "name");
@@ -4176,31 +3760,28 @@ CREATE INDEX "package_activity_moments_package_activity_id_idx" ON "package_acti
 CREATE UNIQUE INDEX "package_activity_moments_package_activity_id_order_index_key" ON "package_activity_moments"("package_activity_id", "order_index");
 
 -- CreateIndex
-CREATE INDEX "package_day_operators_package_id_idx" ON "package_day_operators"("package_id");
+CREATE INDEX "package_crew_slots_package_id_idx" ON "package_crew_slots"("package_id");
 
 -- CreateIndex
-CREATE INDEX "package_day_operators_event_day_template_id_idx" ON "package_day_operators"("event_day_template_id");
+CREATE INDEX "package_crew_slots_package_event_day_id_idx" ON "package_crew_slots"("package_event_day_id");
 
 -- CreateIndex
-CREATE INDEX "package_day_operators_contributor_id_idx" ON "package_day_operators"("contributor_id");
+CREATE INDEX "package_crew_slots_crew_id_idx" ON "package_crew_slots"("crew_id");
 
 -- CreateIndex
-CREATE INDEX "package_day_operators_package_activity_id_idx" ON "package_day_operators"("package_activity_id");
+CREATE INDEX "package_crew_slots_job_role_id_idx" ON "package_crew_slots"("job_role_id");
 
 -- CreateIndex
-CREATE INDEX "package_day_operators_job_role_id_idx" ON "package_day_operators"("job_role_id");
+CREATE UNIQUE INDEX "package_crew_slots_package_id_package_event_day_id_job_role_key" ON "package_crew_slots"("package_id", "package_event_day_id", "job_role_id", "order_index");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "package_day_operators_package_id_event_day_template_id_posi_key" ON "package_day_operators"("package_id", "event_day_template_id", "position_name");
+CREATE INDEX "package_crew_slot_equipment_package_crew_slot_id_idx" ON "package_crew_slot_equipment"("package_crew_slot_id");
 
 -- CreateIndex
-CREATE INDEX "package_day_operator_equipment_package_day_operator_id_idx" ON "package_day_operator_equipment"("package_day_operator_id");
+CREATE INDEX "package_crew_slot_equipment_equipment_id_idx" ON "package_crew_slot_equipment"("equipment_id");
 
 -- CreateIndex
-CREATE INDEX "package_day_operator_equipment_equipment_id_idx" ON "package_day_operator_equipment"("equipment_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "package_day_operator_equipment_package_day_operator_id_equi_key" ON "package_day_operator_equipment"("package_day_operator_id", "equipment_id");
+CREATE UNIQUE INDEX "package_crew_slot_equipment_package_crew_slot_id_equipment__key" ON "package_crew_slot_equipment"("package_crew_slot_id", "equipment_id");
 
 -- CreateIndex
 CREATE INDEX "package_day_subjects_package_id_idx" ON "package_day_subjects"("package_id");
@@ -4260,9 +3841,6 @@ CREATE INDEX "project_event_days_inquiry_id_idx" ON "project_event_days"("inquir
 CREATE INDEX "project_event_days_event_day_template_id_idx" ON "project_event_days"("event_day_template_id");
 
 -- CreateIndex
-CREATE INDEX "project_activities_project_id_idx" ON "project_activities"("project_id");
-
--- CreateIndex
 CREATE INDEX "project_activities_inquiry_id_idx" ON "project_activities"("inquiry_id");
 
 -- CreateIndex
@@ -4314,7 +3892,7 @@ CREATE INDEX "project_film_timeline_tracks_project_film_id_idx" ON "project_film
 CREATE INDEX "project_film_timeline_tracks_source_track_id_idx" ON "project_film_timeline_tracks"("source_track_id");
 
 -- CreateIndex
-CREATE INDEX "project_film_timeline_tracks_contributor_id_idx" ON "project_film_timeline_tracks"("contributor_id");
+CREATE INDEX "project_film_timeline_tracks_crew_id_idx" ON "project_film_timeline_tracks"("crew_id");
 
 -- CreateIndex
 CREATE INDEX "project_film_subjects_project_id_idx" ON "project_film_subjects"("project_id");
@@ -4494,40 +4072,37 @@ CREATE INDEX "project_location_slots_project_event_day_id_idx" ON "project_locat
 CREATE INDEX "project_location_slots_location_id_idx" ON "project_location_slots"("location_id");
 
 -- CreateIndex
-CREATE INDEX "project_day_operators_project_id_idx" ON "project_day_operators"("project_id");
+CREATE INDEX "project_crew_slots_project_id_idx" ON "project_crew_slots"("project_id");
 
 -- CreateIndex
-CREATE INDEX "project_day_operators_inquiry_id_idx" ON "project_day_operators"("inquiry_id");
+CREATE INDEX "project_crew_slots_inquiry_id_idx" ON "project_crew_slots"("inquiry_id");
 
 -- CreateIndex
-CREATE INDEX "project_day_operators_project_event_day_id_idx" ON "project_day_operators"("project_event_day_id");
+CREATE INDEX "project_crew_slots_project_event_day_id_idx" ON "project_crew_slots"("project_event_day_id");
 
 -- CreateIndex
-CREATE INDEX "project_day_operators_project_activity_id_idx" ON "project_day_operators"("project_activity_id");
+CREATE INDEX "project_crew_slots_crew_id_idx" ON "project_crew_slots"("crew_id");
 
 -- CreateIndex
-CREATE INDEX "project_day_operators_contributor_id_idx" ON "project_day_operators"("contributor_id");
+CREATE INDEX "project_crew_slots_job_role_id_idx" ON "project_crew_slots"("job_role_id");
 
 -- CreateIndex
-CREATE INDEX "project_day_operators_job_role_id_idx" ON "project_day_operators"("job_role_id");
+CREATE INDEX "project_crew_slot_equipment_project_crew_slot_id_idx" ON "project_crew_slot_equipment"("project_crew_slot_id");
 
 -- CreateIndex
-CREATE INDEX "project_day_operator_equipment_project_day_operator_id_idx" ON "project_day_operator_equipment"("project_day_operator_id");
+CREATE INDEX "project_crew_slot_equipment_equipment_id_idx" ON "project_crew_slot_equipment"("equipment_id");
 
 -- CreateIndex
-CREATE INDEX "project_day_operator_equipment_equipment_id_idx" ON "project_day_operator_equipment"("equipment_id");
+CREATE UNIQUE INDEX "project_crew_slot_equipment_project_crew_slot_id_equipment__key" ON "project_crew_slot_equipment"("project_crew_slot_id", "equipment_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "project_day_operator_equipment_project_day_operator_id_equi_key" ON "project_day_operator_equipment"("project_day_operator_id", "equipment_id");
+CREATE INDEX "project_crew_slot_activities_project_crew_slot_id_idx" ON "project_crew_slot_activities"("project_crew_slot_id");
 
 -- CreateIndex
-CREATE INDEX "project_operator_activity_assignments_project_day_operator__idx" ON "project_operator_activity_assignments"("project_day_operator_id");
+CREATE INDEX "project_crew_slot_activities_project_activity_id_idx" ON "project_crew_slot_activities"("project_activity_id");
 
 -- CreateIndex
-CREATE INDEX "project_operator_activity_assignments_project_activity_id_idx" ON "project_operator_activity_assignments"("project_activity_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "project_operator_activity_assignments_project_day_operator__key" ON "project_operator_activity_assignments"("project_day_operator_id", "project_activity_id");
+CREATE UNIQUE INDEX "project_crew_slot_activities_project_crew_slot_id_project_a_key" ON "project_crew_slot_activities"("project_crew_slot_id", "project_activity_id");
 
 -- CreateIndex
 CREATE INDEX "project_day_subject_activities_project_day_subject_id_idx" ON "project_day_subject_activities"("project_day_subject_id");
@@ -4548,13 +4123,13 @@ CREATE INDEX "project_location_activity_assignments_project_activity_id_idx" ON 
 CREATE UNIQUE INDEX "project_location_activity_assignments_project_location_slot_key" ON "project_location_activity_assignments"("project_location_slot_id", "project_activity_id");
 
 -- CreateIndex
-CREATE INDEX "operator_activity_assignments_package_day_operator_id_idx" ON "operator_activity_assignments"("package_day_operator_id");
+CREATE INDEX "package_crew_slot_activities_package_crew_slot_id_idx" ON "package_crew_slot_activities"("package_crew_slot_id");
 
 -- CreateIndex
-CREATE INDEX "operator_activity_assignments_package_activity_id_idx" ON "operator_activity_assignments"("package_activity_id");
+CREATE INDEX "package_crew_slot_activities_package_activity_id_idx" ON "package_crew_slot_activities"("package_activity_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "operator_activity_assignments_package_day_operator_id_packa_key" ON "operator_activity_assignments"("package_day_operator_id", "package_activity_id");
+CREATE UNIQUE INDEX "package_crew_slot_activities_package_crew_slot_id_package_a_key" ON "package_crew_slot_activities"("package_crew_slot_id", "package_activity_id");
 
 -- CreateIndex
 CREATE INDEX "package_day_subject_activities_package_day_subject_id_idx" ON "package_day_subject_activities"("package_day_subject_id");
@@ -4671,22 +4246,40 @@ CREATE INDEX "inquiry_equipment_reservations_inquiry_id_idx" ON "inquiry_equipme
 CREATE INDEX "inquiry_equipment_reservations_equipment_id_idx" ON "inquiry_equipment_reservations"("equipment_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "inquiry_equipment_reservations_inquiry_id_project_day_opera_key" ON "inquiry_equipment_reservations"("inquiry_id", "project_day_operator_equipment_id");
+CREATE UNIQUE INDEX "inquiry_equipment_reservations_inquiry_id_project_crew_slot_key" ON "inquiry_equipment_reservations"("inquiry_id", "project_crew_slot_equipment_id");
+
+-- CreateIndex
+CREATE INDEX "inquiry_crew_availability_requests_inquiry_id_idx" ON "inquiry_crew_availability_requests"("inquiry_id");
+
+-- CreateIndex
+CREATE INDEX "inquiry_crew_availability_requests_crew_id_idx" ON "inquiry_crew_availability_requests"("crew_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "inquiry_crew_availability_requests_inquiry_id_crew_id_key" ON "inquiry_crew_availability_requests"("inquiry_id", "crew_id");
 
 -- AddForeignKey
 ALTER TABLE "brand_settings" ADD CONSTRAINT "brand_settings_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "user_brands" ADD CONSTRAINT "user_brands_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "brand_finance_settings" ADD CONSTRAINT "brand_finance_settings_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "user_brands" ADD CONSTRAINT "user_brands_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "brand_members" ADD CONSTRAINT "brand_members_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "brand_members" ADD CONSTRAINT "brand_members_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "coverage" ADD CONSTRAINT "coverage_operator_id_fkey" FOREIGN KEY ("operator_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "user_accounts" ADD CONSTRAINT "user_accounts_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_accounts" ADD CONSTRAINT "user_accounts_system_role_id_fkey" FOREIGN KEY ("system_role_id") REFERENCES "system_roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "coverage" ADD CONSTRAINT "coverage_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "coverage" ADD CONSTRAINT "coverage_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -4713,25 +4306,25 @@ ALTER TABLE "film_equipment" ADD CONSTRAINT "film_equipment_film_id_fkey" FOREIG
 ALTER TABLE "film_timeline_tracks" ADD CONSTRAINT "film_timeline_tracks_film_id_fkey" FOREIGN KEY ("film_id") REFERENCES "film_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "film_versions" ADD CONSTRAINT "film_versions_changed_by_id_fkey" FOREIGN KEY ("changed_by_id") REFERENCES "contributors"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "film_versions" ADD CONSTRAINT "film_versions_changed_by_id_fkey" FOREIGN KEY ("changed_by_id") REFERENCES "crew"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "film_versions" ADD CONSTRAINT "film_versions_film_id_fkey" FOREIGN KEY ("film_id") REFERENCES "film_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "film_change_logs" ADD CONSTRAINT "film_change_logs_changed_by_id_fkey" FOREIGN KEY ("changed_by_id") REFERENCES "contributors"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "film_change_logs" ADD CONSTRAINT "film_change_logs_changed_by_id_fkey" FOREIGN KEY ("changed_by_id") REFERENCES "crew"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "film_change_logs" ADD CONSTRAINT "film_change_logs_film_id_fkey" FOREIGN KEY ("film_id") REFERENCES "film_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "roles" ADD CONSTRAINT "roles_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "system_roles" ADD CONSTRAINT "system_roles_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_fkey" FOREIGN KEY ("permission_id") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "system_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "inquiries" ADD CONSTRAINT "inquiries_selected_package_id_fkey" FOREIGN KEY ("selected_package_id") REFERENCES "service_packages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -4782,9 +4375,6 @@ ALTER TABLE "discovery_questionnaire_submissions" ADD CONSTRAINT "discovery_ques
 ALTER TABLE "discovery_questionnaire_submissions" ADD CONSTRAINT "discovery_questionnaire_submissions_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "activity_logs" ADD CONSTRAINT "activity_logs_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "clients" ADD CONSTRAINT "clients_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -4806,112 +4396,25 @@ ALTER TABLE "projects" ADD CONSTRAINT "projects_source_package_id_fkey" FOREIGN 
 ALTER TABLE "projects" ADD CONSTRAINT "projects_workflow_template_id_fkey" FOREIGN KEY ("workflow_template_id") REFERENCES "workflow_templates"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "contributors" ADD CONSTRAINT "contributors_default_camera_id_fkey" FOREIGN KEY ("default_camera_id") REFERENCES "equipment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "contributors" ADD CONSTRAINT "contributors_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "contributors" ADD CONSTRAINT "contributors_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "contributor_skill_rates" ADD CONSTRAINT "contributor_skill_rates_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "contributor_skill_rates" ADD CONSTRAINT "contributor_skill_rates_task_template_id_fkey" FOREIGN KEY ("task_template_id") REFERENCES "task_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "crew" ADD CONSTRAINT "crew_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "payment_brackets" ADD CONSTRAINT "payment_brackets_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "contributor_job_roles" ADD CONSTRAINT "contributor_job_roles_assigned_by_fkey" FOREIGN KEY ("assigned_by") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "crew_job_roles" ADD CONSTRAINT "crew_job_roles_assigned_by_fkey" FOREIGN KEY ("assigned_by") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "contributor_job_roles" ADD CONSTRAINT "contributor_job_roles_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "crew_job_roles" ADD CONSTRAINT "crew_job_roles_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "contributor_job_roles" ADD CONSTRAINT "contributor_job_roles_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "crew_job_roles" ADD CONSTRAINT "crew_job_roles_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "contributor_job_roles" ADD CONSTRAINT "contributor_job_roles_payment_bracket_id_fkey" FOREIGN KEY ("payment_bracket_id") REFERENCES "payment_brackets"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "crew_job_roles" ADD CONSTRAINT "crew_job_roles_payment_bracket_id_fkey" FOREIGN KEY ("payment_bracket_id") REFERENCES "payment_brackets"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_assignments" ADD CONSTRAINT "project_assignments_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "project_assignments" ADD CONSTRAINT "project_assignments_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "project_assignments" ADD CONSTRAINT "project_assignments_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "editing_style_requirements" ADD CONSTRAINT "editing_style_requirements_billable_item_id_fkey" FOREIGN KEY ("billable_item_id") REFERENCES "billable_items"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "editing_style_requirements" ADD CONSTRAINT "editing_style_requirements_editing_style_id_fkey" FOREIGN KEY ("editing_style_id") REFERENCES "editing_styles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "builds" ADD CONSTRAINT "builds_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "builds" ADD CONSTRAINT "builds_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "builds" ADD CONSTRAINT "builds_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_coverage_assignments" ADD CONSTRAINT "build_coverage_assignments_build_id_fkey" FOREIGN KEY ("build_id") REFERENCES "builds"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_coverage_assignments" ADD CONSTRAINT "build_coverage_assignments_coverage_id_fkey" FOREIGN KEY ("coverage_id") REFERENCES "coverage"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_coverage_assignments" ADD CONSTRAINT "build_coverage_assignments_operator_type_id_fkey" FOREIGN KEY ("operator_type_id") REFERENCES "operator_types"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_films" ADD CONSTRAINT "build_films_build_id_fkey" FOREIGN KEY ("build_id") REFERENCES "builds"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_films" ADD CONSTRAINT "build_films_film_id_fkey" FOREIGN KEY ("film_id") REFERENCES "film_library"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_scenes" ADD CONSTRAINT "build_scenes_build_film_id_fkey" FOREIGN KEY ("build_film_id") REFERENCES "build_films"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_scenes" ADD CONSTRAINT "build_scenes_coverage_id_fkey" FOREIGN KEY ("coverage_id") REFERENCES "coverage"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_scenes" ADD CONSTRAINT "build_scenes_editing_style_id_fkey" FOREIGN KEY ("editing_style_id") REFERENCES "editing_styles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_billable_items" ADD CONSTRAINT "build_billable_items_billable_item_id_fkey" FOREIGN KEY ("billable_item_id") REFERENCES "billable_items"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_billable_items" ADD CONSTRAINT "build_billable_items_build_id_fkey" FOREIGN KEY ("build_id") REFERENCES "builds"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_change_orders" ADD CONSTRAINT "build_change_orders_build_id_fkey" FOREIGN KEY ("build_id") REFERENCES "builds"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_snapshots" ADD CONSTRAINT "build_snapshots_build_id_fkey" FOREIGN KEY ("build_id") REFERENCES "builds"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "build_snapshots" ADD CONSTRAINT "build_snapshots_change_order_id_fkey" FOREIGN KEY ("change_order_id") REFERENCES "build_change_orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "tasks" ADD CONSTRAINT "tasks_assigned_to_contributor_id_fkey" FOREIGN KEY ("assigned_to_contributor_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "tasks" ADD CONSTRAINT "tasks_build_scene_id_fkey" FOREIGN KEY ("build_scene_id") REFERENCES "build_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "tasks" ADD CONSTRAINT "tasks_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "tasks" ADD CONSTRAINT "tasks_task_template_id_fkey" FOREIGN KEY ("task_template_id") REFERENCES "task_templates"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "calendar_events" ADD CONSTRAINT "calendar_events_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "calendar_events" ADD CONSTRAINT "calendar_events_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "calendar_events" ADD CONSTRAINT "calendar_events_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -4929,7 +4432,7 @@ ALTER TABLE "event_tags" ADD CONSTRAINT "event_tags_tag_id_fkey" FOREIGN KEY ("t
 ALTER TABLE "event_attendees" ADD CONSTRAINT "event_attendees_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_attendees" ADD CONSTRAINT "event_attendees_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "event_attendees" ADD CONSTRAINT "event_attendees_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "event_attendees" ADD CONSTRAINT "event_attendees_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "calendar_events"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -4938,19 +4441,13 @@ ALTER TABLE "event_attendees" ADD CONSTRAINT "event_attendees_event_id_fkey" FOR
 ALTER TABLE "event_reminders" ADD CONSTRAINT "event_reminders_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "calendar_events"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "calendar_settings" ADD CONSTRAINT "calendar_settings_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "calendar_settings" ADD CONSTRAINT "calendar_settings_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "project_assets" ADD CONSTRAINT "project_assets_coverage_id_fkey" FOREIGN KEY ("coverage_id") REFERENCES "coverage"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "project_assets" ADD CONSTRAINT "project_assets_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "contributor_task_benchmarks" ADD CONSTRAINT "contributor_task_benchmarks_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "contributor_task_benchmarks" ADD CONSTRAINT "contributor_task_benchmarks_task_template_id_fkey" FOREIGN KEY ("task_template_id") REFERENCES "task_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "invoices" ADD CONSTRAINT "invoices_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5004,19 +4501,13 @@ ALTER TABLE "quote_items" ADD CONSTRAINT "quote_items_quote_id_fkey" FOREIGN KEY
 ALTER TABLE "quote_payment_milestones" ADD CONSTRAINT "quote_payment_milestones_quote_id_fkey" FOREIGN KEY ("quote_id") REFERENCES "quotes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "notifications" ADD CONSTRAINT "notifications_recipient_contributor_id_fkey" FOREIGN KEY ("recipient_contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_recipient_crew_id_fkey" FOREIGN KEY ("recipient_crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "task_dependencies" ADD CONSTRAINT "task_dependencies_blocking_task_id_fkey" FOREIGN KEY ("blocking_task_id") REFERENCES "tasks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "task_dependencies" ADD CONSTRAINT "task_dependencies_dependent_task_id_fkey" FOREIGN KEY ("dependent_task_id") REFERENCES "tasks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "activities" ADD CONSTRAINT "activities_assigned_to_contributor_id_fkey" FOREIGN KEY ("assigned_to_contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "activities" ADD CONSTRAINT "activities_assigned_to_crew_id_fkey" FOREIGN KEY ("assigned_to_crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "activities" ADD CONSTRAINT "activities_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5058,49 +4549,22 @@ ALTER TABLE "contract_signers" ADD CONSTRAINT "contract_signers_contract_id_fkey
 ALTER TABLE "client_feedback_surveys" ADD CONSTRAINT "client_feedback_surveys_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "task_comments" ADD CONSTRAINT "task_comments_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "task_comments" ADD CONSTRAINT "task_comments_task_id_fkey" FOREIGN KEY ("task_id") REFERENCES "tasks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "calendar_sync_tokens" ADD CONSTRAINT "calendar_sync_tokens_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "calendar_sync_tokens" ADD CONSTRAINT "calendar_sync_tokens_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "timeline_editing_sessions" ADD CONSTRAINT "timeline_editing_sessions_film_id_fkey" FOREIGN KEY ("film_id") REFERENCES "film_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "timeline_editing_sessions" ADD CONSTRAINT "timeline_editing_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "timeline_editing_sessions" ADD CONSTRAINT "timeline_editing_sessions_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "workflow_templates" ADD CONSTRAINT "workflow_templates_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "workflow_stages" ADD CONSTRAINT "workflow_stages_workflow_template_id_fkey" FOREIGN KEY ("workflow_template_id") REFERENCES "workflow_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "task_generation_rules" ADD CONSTRAINT "task_generation_rules_coverage_id_fkey" FOREIGN KEY ("coverage_id") REFERENCES "coverage"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "task_generation_rules" ADD CONSTRAINT "task_generation_rules_task_template_id_fkey" FOREIGN KEY ("task_template_id") REFERENCES "task_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "task_generation_rules" ADD CONSTRAINT "task_generation_rules_workflow_stage_id_fkey" FOREIGN KEY ("workflow_stage_id") REFERENCES "workflow_stages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "workflow_template_tasks" ADD CONSTRAINT "workflow_template_tasks_workflow_template_id_fkey" FOREIGN KEY ("workflow_template_id") REFERENCES "workflow_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "workflow_template_tasks" ADD CONSTRAINT "workflow_template_tasks_task_library_id_fkey" FOREIGN KEY ("task_library_id") REFERENCES "task_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "generated_task_log" ADD CONSTRAINT "generated_task_log_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "generated_task_log" ADD CONSTRAINT "generated_task_log_task_id_fkey" FOREIGN KEY ("task_id") REFERENCES "tasks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "entity_default_tasks" ADD CONSTRAINT "entity_default_tasks_task_template_id_fkey" FOREIGN KEY ("task_template_id") REFERENCES "task_templates"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "skill_role_mappings" ADD CONSTRAINT "skill_role_mappings_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5118,13 +4582,13 @@ ALTER TABLE "task_library" ADD CONSTRAINT "task_library_brand_id_fkey" FOREIGN K
 ALTER TABLE "task_library" ADD CONSTRAINT "task_library_default_job_role_id_fkey" FOREIGN KEY ("default_job_role_id") REFERENCES "job_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "task_library" ADD CONSTRAINT "task_library_default_contributor_id_fkey" FOREIGN KEY ("default_contributor_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "task_library" ADD CONSTRAINT "task_library_default_crew_id_fkey" FOREIGN KEY ("default_crew_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "task_library" ADD CONSTRAINT "task_library_parent_task_id_fkey" FOREIGN KEY ("parent_task_id") REFERENCES "task_library"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "task_library_benchmarks" ADD CONSTRAINT "task_library_benchmarks_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "task_library_benchmarks" ADD CONSTRAINT "task_library_benchmarks_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "task_library_benchmarks" ADD CONSTRAINT "task_library_benchmarks_task_library_id_fkey" FOREIGN KEY ("task_library_id") REFERENCES "task_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5145,7 +4609,7 @@ ALTER TABLE "project_tasks" ADD CONSTRAINT "project_tasks_task_library_id_fkey" 
 ALTER TABLE "project_tasks" ADD CONSTRAINT "project_tasks_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "service_packages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_tasks" ADD CONSTRAINT "project_tasks_assigned_to_id_fkey" FOREIGN KEY ("assigned_to_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "project_tasks" ADD CONSTRAINT "project_tasks_assigned_to_id_fkey" FOREIGN KEY ("assigned_to_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "project_tasks" ADD CONSTRAINT "project_tasks_resolved_job_role_id_fkey" FOREIGN KEY ("resolved_job_role_id") REFERENCES "job_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -5160,10 +4624,10 @@ ALTER TABLE "inquiry_tasks" ADD CONSTRAINT "inquiry_tasks_inquiry_id_fkey" FOREI
 ALTER TABLE "inquiry_tasks" ADD CONSTRAINT "inquiry_tasks_task_library_id_fkey" FOREIGN KEY ("task_library_id") REFERENCES "task_library"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "inquiry_tasks" ADD CONSTRAINT "inquiry_tasks_completed_by_id_fkey" FOREIGN KEY ("completed_by_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "inquiry_tasks" ADD CONSTRAINT "inquiry_tasks_completed_by_id_fkey" FOREIGN KEY ("completed_by_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "inquiry_tasks" ADD CONSTRAINT "inquiry_tasks_assigned_to_id_fkey" FOREIGN KEY ("assigned_to_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "inquiry_tasks" ADD CONSTRAINT "inquiry_tasks_assigned_to_id_fkey" FOREIGN KEY ("assigned_to_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "inquiry_tasks" ADD CONSTRAINT "inquiry_tasks_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -5175,7 +4639,7 @@ ALTER TABLE "inquiry_tasks" ADD CONSTRAINT "inquiry_tasks_parent_inquiry_task_id
 ALTER TABLE "inquiry_task_subtasks" ADD CONSTRAINT "inquiry_task_subtasks_inquiry_task_id_fkey" FOREIGN KEY ("inquiry_task_id") REFERENCES "inquiry_tasks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "inquiry_task_subtasks" ADD CONSTRAINT "inquiry_task_subtasks_completed_by_id_fkey" FOREIGN KEY ("completed_by_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "inquiry_task_subtasks" ADD CONSTRAINT "inquiry_task_subtasks_completed_by_id_fkey" FOREIGN KEY ("completed_by_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "inquiry_task_subtasks" ADD CONSTRAINT "inquiry_task_subtasks_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -5184,19 +4648,13 @@ ALTER TABLE "inquiry_task_subtasks" ADD CONSTRAINT "inquiry_task_subtasks_job_ro
 ALTER TABLE "inquiry_task_events" ADD CONSTRAINT "inquiry_task_events_task_id_fkey" FOREIGN KEY ("task_id") REFERENCES "inquiry_tasks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "inquiry_availability_requests" ADD CONSTRAINT "inquiry_availability_requests_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "inquiry_availability_requests" ADD CONSTRAINT "inquiry_availability_requests_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "equipment" ADD CONSTRAINT "equipment_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "equipment" ADD CONSTRAINT "equipment_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "equipment" ADD CONSTRAINT "equipment_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "equipment" ADD CONSTRAINT "equipment_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "equipment" ADD CONSTRAINT "equipment_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "equipment_rentals" ADD CONSTRAINT "equipment_rentals_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -5208,22 +4666,22 @@ ALTER TABLE "equipment_rentals" ADD CONSTRAINT "equipment_rentals_equipment_id_f
 ALTER TABLE "equipment_rentals" ADD CONSTRAINT "equipment_rentals_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "equipment_rentals" ADD CONSTRAINT "equipment_rentals_rented_by_id_fkey" FOREIGN KEY ("rented_by_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "equipment_rentals" ADD CONSTRAINT "equipment_rentals_rented_by_id_fkey" FOREIGN KEY ("rented_by_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "equipment_maintenance" ADD CONSTRAINT "equipment_maintenance_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "equipment_maintenance" ADD CONSTRAINT "equipment_maintenance_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "equipment_maintenance" ADD CONSTRAINT "equipment_maintenance_equipment_id_fkey" FOREIGN KEY ("equipment_id") REFERENCES "equipment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "equipment_availability" ADD CONSTRAINT "equipment_availability_booked_by_id_fkey" FOREIGN KEY ("booked_by_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "equipment_availability" ADD CONSTRAINT "equipment_availability_booked_by_id_fkey" FOREIGN KEY ("booked_by_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "equipment_availability" ADD CONSTRAINT "equipment_availability_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "equipment_availability" ADD CONSTRAINT "equipment_availability_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "equipment_availability" ADD CONSTRAINT "equipment_availability_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "equipment_availability" ADD CONSTRAINT "equipment_availability_equipment_id_fkey" FOREIGN KEY ("equipment_id") REFERENCES "equipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5236,24 +4694,6 @@ ALTER TABLE "equipment_availability" ADD CONSTRAINT "equipment_availability_inqu
 
 -- AddForeignKey
 ALTER TABLE "locations_library" ADD CONSTRAINT "locations_library_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "locations_library" ADD CONSTRAINT "locations_library_venue_floor_plan_updated_by_fkey" FOREIGN KEY ("venue_floor_plan_updated_by") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "location_spaces" ADD CONSTRAINT "location_spaces_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "floor_plans" ADD CONSTRAINT "floor_plans_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "floor_plans" ADD CONSTRAINT "floor_plans_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "floor_plans" ADD CONSTRAINT "floor_plans_space_id_fkey" FOREIGN KEY ("space_id") REFERENCES "location_spaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "floor_plan_objects" ADD CONSTRAINT "floor_plan_objects_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "films" ADD CONSTRAINT "films_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5280,7 +4720,7 @@ ALTER TABLE "equipment_template_items" ADD CONSTRAINT "equipment_template_items_
 ALTER TABLE "film_timeline_tracks_v2" ADD CONSTRAINT "film_timeline_tracks_v2_film_id_fkey" FOREIGN KEY ("film_id") REFERENCES "films"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "film_timeline_tracks_v2" ADD CONSTRAINT "film_timeline_tracks_v2_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "film_timeline_tracks_v2" ADD CONSTRAINT "film_timeline_tracks_v2_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "subject_templates" ADD CONSTRAINT "subject_templates_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5511,25 +4951,22 @@ ALTER TABLE "package_activities" ADD CONSTRAINT "package_activities_package_even
 ALTER TABLE "package_activity_moments" ADD CONSTRAINT "package_activity_moments_package_activity_id_fkey" FOREIGN KEY ("package_activity_id") REFERENCES "package_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_day_operators" ADD CONSTRAINT "package_day_operators_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "service_packages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_crew_slots" ADD CONSTRAINT "package_crew_slots_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "service_packages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_day_operators" ADD CONSTRAINT "package_day_operators_event_day_template_id_fkey" FOREIGN KEY ("event_day_template_id") REFERENCES "event_days"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_crew_slots" ADD CONSTRAINT "package_crew_slots_package_event_day_id_fkey" FOREIGN KEY ("package_event_day_id") REFERENCES "package_event_days"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_day_operators" ADD CONSTRAINT "package_day_operators_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "package_crew_slots" ADD CONSTRAINT "package_crew_slots_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_day_operators" ADD CONSTRAINT "package_day_operators_package_activity_id_fkey" FOREIGN KEY ("package_activity_id") REFERENCES "package_activities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "package_crew_slots" ADD CONSTRAINT "package_crew_slots_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_day_operators" ADD CONSTRAINT "package_day_operators_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "package_crew_slot_equipment" ADD CONSTRAINT "package_crew_slot_equipment_package_crew_slot_id_fkey" FOREIGN KEY ("package_crew_slot_id") REFERENCES "package_crew_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_day_operator_equipment" ADD CONSTRAINT "package_day_operator_equipment_package_day_operator_id_fkey" FOREIGN KEY ("package_day_operator_id") REFERENCES "package_day_operators"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "package_day_operator_equipment" ADD CONSTRAINT "package_day_operator_equipment_equipment_id_fkey" FOREIGN KEY ("equipment_id") REFERENCES "equipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_crew_slot_equipment" ADD CONSTRAINT "package_crew_slot_equipment_equipment_id_fkey" FOREIGN KEY ("equipment_id") REFERENCES "equipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "package_day_subjects" ADD CONSTRAINT "package_day_subjects_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "service_packages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5628,7 +5065,7 @@ ALTER TABLE "project_film_timeline_tracks" ADD CONSTRAINT "project_film_timeline
 ALTER TABLE "project_film_timeline_tracks" ADD CONSTRAINT "project_film_timeline_tracks_source_track_id_fkey" FOREIGN KEY ("source_track_id") REFERENCES "film_timeline_tracks_v2"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_film_timeline_tracks" ADD CONSTRAINT "project_film_timeline_tracks_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "project_film_timeline_tracks" ADD CONSTRAINT "project_film_timeline_tracks_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "project_film_subjects" ADD CONSTRAINT "project_film_subjects_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5793,34 +5230,31 @@ ALTER TABLE "project_location_slots" ADD CONSTRAINT "project_location_slots_proj
 ALTER TABLE "project_location_slots" ADD CONSTRAINT "project_location_slots_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations_library"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_day_operators" ADD CONSTRAINT "project_day_operators_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "project_crew_slots" ADD CONSTRAINT "project_crew_slots_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_day_operators" ADD CONSTRAINT "project_day_operators_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "project_crew_slots" ADD CONSTRAINT "project_crew_slots_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_day_operators" ADD CONSTRAINT "project_day_operators_project_event_day_id_fkey" FOREIGN KEY ("project_event_day_id") REFERENCES "project_event_days"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "project_crew_slots" ADD CONSTRAINT "project_crew_slots_project_event_day_id_fkey" FOREIGN KEY ("project_event_day_id") REFERENCES "project_event_days"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_day_operators" ADD CONSTRAINT "project_day_operators_project_activity_id_fkey" FOREIGN KEY ("project_activity_id") REFERENCES "project_activities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "project_crew_slots" ADD CONSTRAINT "project_crew_slots_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_day_operators" ADD CONSTRAINT "project_day_operators_contributor_id_fkey" FOREIGN KEY ("contributor_id") REFERENCES "contributors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "project_crew_slots" ADD CONSTRAINT "project_crew_slots_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_day_operators" ADD CONSTRAINT "project_day_operators_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "project_crew_slot_equipment" ADD CONSTRAINT "project_crew_slot_equipment_project_crew_slot_id_fkey" FOREIGN KEY ("project_crew_slot_id") REFERENCES "project_crew_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_day_operator_equipment" ADD CONSTRAINT "project_day_operator_equipment_project_day_operator_id_fkey" FOREIGN KEY ("project_day_operator_id") REFERENCES "project_day_operators"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "project_crew_slot_equipment" ADD CONSTRAINT "project_crew_slot_equipment_equipment_id_fkey" FOREIGN KEY ("equipment_id") REFERENCES "equipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_day_operator_equipment" ADD CONSTRAINT "project_day_operator_equipment_equipment_id_fkey" FOREIGN KEY ("equipment_id") REFERENCES "equipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "project_crew_slot_activities" ADD CONSTRAINT "project_crew_slot_activities_project_crew_slot_id_fkey" FOREIGN KEY ("project_crew_slot_id") REFERENCES "project_crew_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_operator_activity_assignments" ADD CONSTRAINT "project_operator_activity_assignments_project_day_operator_fkey" FOREIGN KEY ("project_day_operator_id") REFERENCES "project_day_operators"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "project_operator_activity_assignments" ADD CONSTRAINT "project_operator_activity_assignments_project_activity_id_fkey" FOREIGN KEY ("project_activity_id") REFERENCES "project_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "project_crew_slot_activities" ADD CONSTRAINT "project_crew_slot_activities_project_activity_id_fkey" FOREIGN KEY ("project_activity_id") REFERENCES "project_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "project_day_subject_activities" ADD CONSTRAINT "project_day_subject_activities_project_day_subject_id_fkey" FOREIGN KEY ("project_day_subject_id") REFERENCES "project_day_subjects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5835,10 +5269,10 @@ ALTER TABLE "project_location_activity_assignments" ADD CONSTRAINT "project_loca
 ALTER TABLE "project_location_activity_assignments" ADD CONSTRAINT "project_location_activity_assignments_project_activity_id_fkey" FOREIGN KEY ("project_activity_id") REFERENCES "project_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "operator_activity_assignments" ADD CONSTRAINT "operator_activity_assignments_package_day_operator_id_fkey" FOREIGN KEY ("package_day_operator_id") REFERENCES "package_day_operators"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_crew_slot_activities" ADD CONSTRAINT "package_crew_slot_activities_package_crew_slot_id_fkey" FOREIGN KEY ("package_crew_slot_id") REFERENCES "package_crew_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "operator_activity_assignments" ADD CONSTRAINT "operator_activity_assignments_package_activity_id_fkey" FOREIGN KEY ("package_activity_id") REFERENCES "package_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_crew_slot_activities" ADD CONSTRAINT "package_crew_slot_activities_package_activity_id_fkey" FOREIGN KEY ("package_activity_id") REFERENCES "package_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "package_day_subject_activities" ADD CONSTRAINT "package_day_subject_activities_package_day_subject_id_fkey" FOREIGN KEY ("package_day_subject_id") REFERENCES "package_day_subjects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5926,4 +5360,13 @@ ALTER TABLE "inquiry_equipment_reservations" ADD CONSTRAINT "inquiry_equipment_r
 
 -- AddForeignKey
 ALTER TABLE "inquiry_equipment_reservations" ADD CONSTRAINT "inquiry_equipment_reservations_equipment_id_fkey" FOREIGN KEY ("equipment_id") REFERENCES "equipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "inquiry_crew_availability_requests" ADD CONSTRAINT "inquiry_crew_availability_requests_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "inquiry_crew_availability_requests" ADD CONSTRAINT "inquiry_crew_availability_requests_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "inquiry_crew_availability_requests" ADD CONSTRAINT "inquiry_crew_availability_requests_project_crew_slot_id_fkey" FOREIGN KEY ("project_crew_slot_id") REFERENCES "project_crew_slots"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 

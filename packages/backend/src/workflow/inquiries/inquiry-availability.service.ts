@@ -36,6 +36,13 @@ export class InquiryAvailabilityService {
             orderBy: [{ project_event_day_id: 'asc' }, { order_index: 'asc' }],
         });
 
+        // Fetch existing availability requests upfront (one per crew per inquiry)
+        const existingRequests = await this.prisma.inquiry_crew_availability_requests.findMany({
+            where: { inquiry_id: inquiryId },
+            select: { id: true, crew_id: true, status: true },
+        });
+        const requestByCrew = new Map(existingRequests.map((r) => [r.crew_id, r]));
+
         const rows = await Promise.all(slots.map(async (slot) => {
             const isOnSite = slot.job_role?.on_site ?? false;
             const timeRange = this.getEventDayTimeRange(slot.project_event_day);
@@ -72,6 +79,9 @@ export class InquiryAvailabilityService {
                 conflict_reason: !slot.crew_id ? 'No crew assigned' : conflicts.length > 0 ? 'Crew has an overlapping booking' : null,
                 conflicts,
                 alternatives,
+                confirmed: slot.confirmed,
+                availability_request_id: slot.crew_id ? (requestByCrew.get(slot.crew_id)?.id ?? null) : null,
+                availability_request_status: slot.crew_id ? (requestByCrew.get(slot.crew_id)?.status ?? null) : null,
             };
         }));
 
@@ -220,6 +230,83 @@ export class InquiryAvailabilityService {
 
     private async syncAutoSubtask(inquiryId: number, subtaskKey: InquiryTaskSubtaskKey, isComplete: boolean) {
         await this.inquiryTasksService.setAutoSubtaskStatus(inquiryId, subtaskKey, isComplete);
+    }
+
+    async sendAvailabilityRequest(
+        inquiryId: number,
+        crewId: number,
+        projectCrewSlotId: number | undefined,
+        brandId: number,
+    ) {
+        await this.verifyInquiryOwnership(inquiryId, brandId);
+
+        const request = await this.prisma.inquiry_crew_availability_requests.upsert({
+            where: { inquiry_id_crew_id: { inquiry_id: inquiryId, crew_id: crewId } },
+            create: {
+                inquiry_id: inquiryId,
+                crew_id: crewId,
+                project_crew_slot_id: projectCrewSlotId ?? null,
+                status: 'pending',
+                sent_at: new Date(),
+            },
+            update: {
+                status: 'pending',
+                sent_at: new Date(),
+                project_crew_slot_id: projectCrewSlotId ?? null,
+                cancelled_at: null,
+            },
+        });
+
+        await this.syncAutoSubtask(inquiryId, 'send_crew_availability_requests', true);
+
+        return { id: request.id, status: request.status };
+    }
+
+    async updateAvailabilityRequest(
+        inquiryId: number,
+        requestId: number,
+        status: 'pending' | 'confirmed' | 'declined' | 'cancelled',
+        brandId: number,
+    ) {
+        await this.verifyInquiryOwnership(inquiryId, brandId);
+
+        const request = await this.prisma.inquiry_crew_availability_requests.update({
+            where: { id: requestId },
+            data: {
+                status,
+                cancelled_at: status === 'cancelled' ? new Date() : null,
+            },
+        });
+
+        return { id: request.id, status: request.status };
+    }
+
+    async toggleSlotConfirmed(inquiryId: number, slotId: number, confirmed: boolean, brandId: number) {
+        await this.verifyInquiryOwnership(inquiryId, brandId);
+
+        const slot = await this.prisma.projectCrewSlot.findFirst({
+            where: { id: slotId, inquiry_id: inquiryId },
+        });
+        if (!slot) throw new NotFoundException('Crew slot not found');
+
+        const updated = await this.prisma.projectCrewSlot.update({
+            where: { id: slotId },
+            data: { confirmed },
+            select: { id: true, confirmed: true },
+        });
+
+        return updated;
+    }
+
+    async confirmAllSlotsForCrew(inquiryId: number, crewId: number, confirmed: boolean, brandId: number) {
+        await this.verifyInquiryOwnership(inquiryId, brandId);
+
+        await this.prisma.projectCrewSlot.updateMany({
+            where: { inquiry_id: inquiryId, crew_id: crewId },
+            data: { confirmed },
+        });
+
+        return { crew_id: crewId, confirmed };
     }
 
     /**

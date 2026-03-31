@@ -147,6 +147,15 @@ export class InquiryWizardLinkService {
             select: { id: true },
         });
 
+        // Prefill location slots + subject names (mirrors linkToExistingInquiry)
+        const prefillContactName = [inferredInquiry.first_name, inferredInquiry.last_name].filter(Boolean).join(' ');
+        try {
+            await this.prefillService.prefillLocationSlots(createdInquiry.id, responses, brandId);
+            await this.prefillService.prefillSubjectNames(createdInquiry.id, responses, prefillContactName);
+        } catch (err) {
+            console.error(`NA prefill error for new inquiry ${createdInquiry.id}:`, err);
+        }
+
         return { inquiryId: createdInquiry.id, contactId: linkedContact?.id };
     }
 

@@ -23,6 +23,33 @@ export interface ProposalProjectSummary {
   project_name?: string | null;
 }
 
+export interface ProposalSectionView {
+  section_type: string;
+  viewed_at: Date;
+  duration_seconds: number;
+}
+
+export interface ProposalSectionNote {
+  section_type: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProposalContractSignerSummary {
+  status: string;
+  viewed_at: Date | null;
+  signed_at: Date | null;
+}
+
+export interface ProposalContractSummary {
+  id: number;
+  status: string;
+  sent_at: Date | null;
+  signed_date: Date | null;
+  signers: ProposalContractSignerSummary[];
+}
+
 export interface Proposal {
   id: number;
   inquiry_id: number;
@@ -36,10 +63,15 @@ export interface Proposal {
   client_response: string | null;
   client_response_at: Date | null;
   client_response_message: string | null;
+  viewed_at: Date | null;
+  view_count: number;
   created_at: Date;
   updated_at: Date;
   inquiry?: ProposalInquirySummary;
   project?: ProposalProjectSummary | null;
+  section_views?: ProposalSectionView[];
+  section_notes?: ProposalSectionNote[];
+  contract?: ProposalContractSummary | null;
 }
 
 export interface CreateProposalData {
@@ -69,13 +101,24 @@ export interface ProposalApiResponse {
   client_response: string | null;
   client_response_at: string | null;
   client_response_message: string | null;
+  viewed_at: string | null;
+  view_count: number;
   created_at: string;
   updated_at: string;
   inquiry?: {
     id: number;
     contact?: ProposalContactSummary;
+    contracts?: Array<{
+      id: number;
+      status: string;
+      sent_at: string | null;
+      signed_date: string | null;
+      signers: Array<{ status: string; viewed_at: string | null; signed_at: string | null }>;
+    }>;
   };
   project?: ProposalProjectSummary | null;
+  section_views?: Array<{ section_type: string; viewed_at: string; duration_seconds: number }>;
+  section_notes?: Array<{ section_type: string; note: string; created_at: string; updated_at: string }>;
 }
 
 export interface PublicPackageItem {
@@ -118,6 +161,7 @@ export interface PublicProposal {
   client_response_message: string | null;
   inquiry: PublicProposalInquiry;
   brand: PublicProposalBrand | null;
+  section_notes?: ProposalSectionNote[];
 }
 
 export interface ProposalShareTokenResponse {
@@ -188,6 +232,35 @@ export interface PublicProposalMoment {
   is_required: boolean;
 }
 
+export interface PublicProposalCrewSlotEquipment {
+  equipment: {
+    id: number;
+    item_name: string;
+  };
+}
+
+export interface PublicProposalCrewSlot {
+  id: number;
+  order_index: number;
+  label: string | null;
+  crew_id: number | null;
+  confirmed: boolean;
+  crew: {
+    contact: {
+      first_name: string | null;
+      last_name: string | null;
+    } | null;
+  } | null;
+  job_role: {
+    name: string;
+    display_name: string | null;
+    on_site: boolean;
+    category: string | null;
+  };
+  equipment: PublicProposalCrewSlotEquipment[];
+  activity_assignments: { project_activity_id: number }[];
+}
+
 export interface PublicProposalActivity {
   id: number;
   name: string;
@@ -200,6 +273,12 @@ export interface PublicProposalActivity {
   order_index: number;
   notes: string | null;
   moments: PublicProposalMoment[];
+  location_assignments?: {
+    project_location_slot: {
+      name: string | null;
+      location: { name: string; address_line1: string | null } | null;
+    };
+  }[];
 }
 
 export interface PublicProposalSubject {
@@ -221,6 +300,8 @@ export interface PublicProposalLocationSlot {
     address_line1: string | null;
     city: string | null;
     state: string | null;
+    lat: number | null;
+    lng: number | null;
   } | null;
 }
 
@@ -234,6 +315,7 @@ export interface PublicProposalEventDay {
   activities: PublicProposalActivity[];
   subjects: PublicProposalSubject[];
   location_slots: PublicProposalLocationSlot[];
+  day_crew_slots?: PublicProposalCrewSlot[];
 }
 
 export interface PublicProposalFilm {
@@ -245,5 +327,19 @@ export interface PublicProposalFilm {
     film_type: string;
     target_duration_min: number | null;
     target_duration_max: number | null;
+    _count?: { scenes: number };
+    scenes?: {
+      id: number;
+      name: string;
+      order_index: number;
+      duration_seconds: number | null;
+      mode: string;
+      moments?: { id: number; name: string; order_index: number; duration: number }[];
+      location_assignment?: { location: { name: string; address_line1: string | null } } | null;
+    }[];
+    equipment_assignments?: {
+      quantity: number;
+      equipment: { item_name: string; category: string | null };
+    }[];
   };
 }

@@ -11,13 +11,41 @@ export class ProjectCrewSlotsService {
 
     async assignProjectCrewToSlot(slotId: number, dto: { crew_id?: number | null }, brandId?: number) {
         const existing = await this.prisma.projectCrewSlot.findFirst({ 
-            where: { id: slotId }
+            where: { id: slotId },
+            include: { project_event_day: { select: { id: true } } },
         });
         if (!existing) throw new NotFoundException('Project crew slot not found');
 
         if (dto.crew_id) {
             const crew = await this.prisma.crew.findUnique({ where: { id: dto.crew_id } });
             if (!crew) throw new NotFoundException('Crew not found');
+        }
+
+        // Detect duplicate: if the new crew already has a slot with the same
+        // job_role_id on the same event day, swap the old crew onto that slot
+        // instead of creating a duplicate assignment.
+        if (dto.crew_id && existing.job_role_id && existing.crew_id && existing.crew_id !== dto.crew_id) {
+            const duplicateSlot = await this.prisma.projectCrewSlot.findFirst({
+                where: {
+                    id: { not: slotId },
+                    crew_id: dto.crew_id,
+                    job_role_id: existing.job_role_id,
+                    project_event_day_id: existing.project_event_day_id,
+                    inquiry_id: existing.inquiry_id,
+                    project_id: existing.project_id,
+                },
+            });
+            if (duplicateSlot) {
+                // True swap: move old crew to the duplicate slot
+                await this.prisma.projectCrewSlot.update({
+                    where: { id: duplicateSlot.id },
+                    data: { crew_id: existing.crew_id },
+                });
+                await this._cascadeCrewChange(
+                    { inquiry_id: duplicateSlot.inquiry_id, project_id: duplicateSlot.project_id, crew_id: dto.crew_id, job_role_id: duplicateSlot.job_role_id },
+                    existing.crew_id,
+                );
+            }
         }
 
         const updated = await this.prisma.projectCrewSlot.update({

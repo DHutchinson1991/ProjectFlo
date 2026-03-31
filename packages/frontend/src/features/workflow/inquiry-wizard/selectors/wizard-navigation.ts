@@ -37,7 +37,15 @@ export function computeScreens(r: AnyRecord, cfg: EventTypeConfig): ScreenId[] {
     const et = (r.event_type || "").toLowerCase();
 
     list.push("date");
-    if (cfg.showPartner) list.push("partner");
+    if (cfg.showPartner) {
+        list.push("your_name", "your_role");
+        const role = ((r.contact_role as string) || "").toLowerCase();
+        if (role === "bride" || role === "groom") {
+            list.push("partner_role", "partner");
+        } else if (role === "other") {
+            list.push("bride_groom_names");
+        }
+    }
     if (et === "birthday") list.push("birthday_contact");
     list.push("venue");
     if (cfg.showGuests) list.push("guests");
@@ -69,7 +77,15 @@ export function computePublicScreens(r: AnyRecord, cfg: EventTypeConfig): Screen
     const et = (r.event_type || "").toLowerCase();
 
     list.push("date");
-    if (cfg.showPartner) list.push("partner");
+    if (cfg.showPartner) {
+        list.push("your_name", "your_role");
+        const role = ((r.contact_role as string) || "").toLowerCase();
+        if (role === "bride" || role === "groom") {
+            list.push("partner_role", "partner");
+        } else if (role === "other") {
+            list.push("bride_groom_names");
+        }
+    }
     if (et === "birthday") list.push("birthday_contact");
     list.push("venue");
     if (cfg.showGuests) list.push("guests");

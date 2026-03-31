@@ -150,65 +150,65 @@ export function createPackageScheduleApi(packageId: number, brandId: number): Sc
     ownerId: packageId,
 
     activities: {
-      getAll: () => api.schedule.packageActivities.getAll(packageId),
+      getAll: () => scheduleApi.packageActivities.getAll(packageId),
       getByDay: (dayId) => {
         // PackageScheduleCard fetches all then filters — but we can use getByDay if available
         // For now, fetch all and the component filters
-        return api.schedule.packageActivities.getAll(packageId);
+        return scheduleApi.packageActivities.getAll(packageId);
       },
       create: (dayId, data) =>
-        api.schedule.packageActivities.create(packageId, {
+        scheduleApi.packageActivities.create(packageId, {
           package_event_day_id: dayId,
           ...data,
         }),
       update: (activityId, data) =>
-        api.schedule.packageActivities.update(activityId, data),
+        scheduleApi.packageActivities.update(activityId, data),
       delete: (activityId) =>
-        api.schedule.packageActivities.delete(activityId),
+        scheduleApi.packageActivities.delete(activityId),
     },
 
     moments: {
       getByActivity: (activityId) =>
-        api.schedule.packageActivityMoments.getAll(activityId),
+        scheduleApi.packageActivityMoments.getAll(activityId),
       create: (activityId, data) =>
-        api.schedule.packageActivityMoments.create(activityId, data),
+        scheduleApi.packageActivityMoments.create(activityId, data),
       update: (momentId, data) =>
-        api.schedule.packageActivityMoments.update(momentId, data),
+        scheduleApi.packageActivityMoments.update(momentId, data),
       delete: (momentId) =>
-        api.schedule.packageActivityMoments.delete(momentId),
+        scheduleApi.packageActivityMoments.delete(momentId),
       reorder: (activityId, momentIds) =>
-        api.schedule.packageActivityMoments.reorder(activityId, momentIds),
+        scheduleApi.packageActivityMoments.reorder(activityId, momentIds),
     },
 
     subjects: {
       create: (dayId, data) =>
-        api.schedule.packageEventDaySubjects.create(packageId, {
+        scheduleApi.packageEventDaySubjects.create(packageId, {
           event_day_template_id: dayId,
           ...data,
         }),
       update: (subjectId, data) =>
-        api.schedule.packageEventDaySubjects.update(subjectId, data),
+        scheduleApi.packageEventDaySubjects.update(subjectId, data),
       delete: (subjectId) =>
-        api.schedule.packageEventDaySubjects.delete(subjectId),
+        scheduleApi.packageEventDaySubjects.delete(subjectId),
       assignActivity: (subjectId, activityId) =>
-        api.schedule.packageEventDaySubjects.assignActivity(subjectId, activityId),
+        scheduleApi.packageEventDaySubjects.assignActivity(subjectId, activityId),
       unassignActivity: (subjectId, activityId) =>
-        api.schedule.packageEventDaySubjects.unassignActivity(subjectId, activityId),
+        scheduleApi.packageEventDaySubjects.unassignActivity(subjectId, activityId),
     },
 
     locationSlots: {
       create: (dayId, data) =>
-        api.schedule.packageLocationSlots.create(packageId, {
+        scheduleApi.packageLocationSlots.create(packageId, {
           event_day_template_id: dayId,
           ...(data || {}),
         }),
       update: () => Promise.resolve(null),
       delete: (slotId) =>
-        api.schedule.packageLocationSlots.delete(slotId),
+        scheduleApi.packageLocationSlots.delete(slotId),
       assignActivity: (slotId, activityId) =>
-        api.schedule.packageLocationSlots.assignActivity(slotId, activityId),
+        scheduleApi.packageLocationSlots.assignActivity(slotId, activityId),
       unassignActivity: (slotId, activityId) =>
-        api.schedule.packageLocationSlots.unassignActivity(slotId, activityId),
+        scheduleApi.packageLocationSlots.unassignActivity(slotId, activityId),
     },
 
     crewSlots: {
@@ -240,17 +240,17 @@ export function createPackageScheduleApi(packageId: number, brandId: number): Sc
     },
 
     eventDays: {
-      getAll: () => api.schedule.packageEventDays.getAll(packageId),
-      add: (dayId) => api.schedule.packageEventDays.add(packageId, dayId),
-      remove: (dayId) => api.schedule.packageEventDays.remove(packageId, dayId),
-      create: (data) => api.schedule.packageEventDays.add(packageId, data.event_day_template_id ?? data.id),
+      getAll: () => scheduleApi.packageEventDays.getAll(packageId),
+      add: (dayId) => scheduleApi.packageEventDays.add(packageId, dayId),
+      remove: (dayId) => scheduleApi.packageEventDays.remove(packageId, dayId),
+      create: (data) => scheduleApi.packageEventDays.add(packageId, data.event_day_template_id ?? data.id),
       update: (_dayId, _data) => Promise.resolve(null), // package event days don't have direct update
-      delete: (dayId) => api.schedule.packageEventDays.remove(packageId, dayId),
+      delete: (dayId) => scheduleApi.packageEventDays.remove(packageId, dayId),
     },
 
     brandEventDays: {
-      getAll: (bId) => api.schedule.eventDays.getAll(bId),
-      create: (bId, data) => api.schedule.eventDays.create(bId, data),
+      getAll: (bId) => scheduleApi.eventDays.getAll(bId),
+      create: (bId, data) => scheduleApi.eventDays.create(bId, data),
     },
   };
 }
@@ -263,73 +263,73 @@ export function createProjectScheduleApi(projectId: number): ScheduleApi {
     ownerId: projectId,
 
     activities: {
-      getAll: () => api.schedule.projectAllActivities.getAll(projectId),
-      getByDay: (dayId) => api.schedule.projectActivities.getByDay(projectId, dayId),
+      getAll: () => scheduleApi.projectAllActivities.getAll(projectId),
+      getByDay: (dayId) => scheduleApi.projectActivities.getByDay(projectId, dayId),
       create: (dayId, data) =>
-        api.schedule.projectActivities.create(projectId, {
+        scheduleApi.projectActivities.create(projectId, {
           project_event_day_id: dayId,
           ...data,
         }),
       update: (activityId, data) =>
-        api.schedule.projectActivities.update(activityId, data),
+        scheduleApi.projectActivities.update(activityId, data),
       delete: (activityId) =>
-        api.schedule.projectActivities.delete(activityId),
+        scheduleApi.projectActivities.delete(activityId),
     },
 
     moments: {
       getByActivity: (activityId) =>
-        api.schedule.instanceMoments.getByActivity(activityId),
+        scheduleApi.instanceMoments.getByActivity(activityId),
       create: (activityId, data) =>
-        api.schedule.instanceMoments.createForProject(projectId, {
+        scheduleApi.instanceMoments.createForProject(projectId, {
           project_activity_id: activityId,
           ...data,
         }),
       update: (momentId, data) =>
-        api.schedule.instanceMoments.update(momentId, data),
+        scheduleApi.instanceMoments.update(momentId, data),
       delete: (momentId) =>
-        api.schedule.instanceMoments.delete(momentId),
+        scheduleApi.instanceMoments.delete(momentId),
       reorder: (activityId, momentIds) =>
-        api.schedule.instanceMoments.reorder(activityId, momentIds),
+        scheduleApi.instanceMoments.reorder(activityId, momentIds),
     },
 
     subjects: {
       create: (dayId, data) => {
         const { package_activity_id, ...rest } = data;
-        return api.schedule.instanceSubjects.createForProject(projectId, {
+        return scheduleApi.instanceSubjects.createForProject(projectId, {
           project_event_day_id: dayId,
           project_activity_id: data.project_activity_id ?? package_activity_id,
           ...rest,
         });
       },
       update: (subjectId, data) =>
-        api.schedule.instanceSubjects.update(subjectId, data),
+        scheduleApi.instanceSubjects.update(subjectId, data),
       delete: (subjectId) =>
-        api.schedule.instanceSubjects.delete(subjectId),
+        scheduleApi.instanceSubjects.delete(subjectId),
       assignActivity: (subjectId, activityId) =>
-        api.schedule.instanceSubjects.assignActivity(subjectId, activityId),
+        scheduleApi.instanceSubjects.assignActivity(subjectId, activityId),
       unassignActivity: (subjectId, activityId) =>
-        api.schedule.instanceSubjects.unassignActivity(subjectId, activityId),
+        scheduleApi.instanceSubjects.unassignActivity(subjectId, activityId),
     },
 
     locationSlots: {
       create: (dayId, data) =>
-        api.schedule.instanceLocationSlots.createForProject(projectId, {
+        scheduleApi.instanceLocationSlots.createForProject(projectId, {
           project_event_day_id: dayId,
           ...(data || {}),
         }),
       update: (slotId, data) =>
-        api.schedule.instanceLocationSlots.update(slotId, data),
+        scheduleApi.instanceLocationSlots.update(slotId, data),
       delete: (slotId) =>
-        api.schedule.instanceLocationSlots.delete(slotId),
+        scheduleApi.instanceLocationSlots.delete(slotId),
       assignActivity: (slotId, activityId) =>
-        api.schedule.instanceLocationSlots.assignActivity(slotId, activityId),
+        scheduleApi.instanceLocationSlots.assignActivity(slotId, activityId),
       unassignActivity: (slotId, activityId) =>
-        api.schedule.instanceLocationSlots.unassignActivity(slotId, activityId),
+        scheduleApi.instanceLocationSlots.unassignActivity(slotId, activityId),
     },
 
     crewSlots: {
       add: async (dayId, data) => {
-        const created = await api.schedule.instanceCrewSlots.createForProject(projectId, {
+        const created = await scheduleApi.instanceCrewSlots.createForProject(projectId, {
           project_event_day_id: dayId,
           label: data.label,
           crew_id: data.crew_id,
@@ -337,31 +337,31 @@ export function createProjectScheduleApi(projectId: number): ScheduleApi {
           hours: data.hours,
         });
         if (data.activity_id && created && typeof created === 'object' && 'id' in created) {
-          await api.schedule.instanceCrewSlots.assignActivity(Number((created as { id: unknown }).id), data.activity_id);
+          await scheduleApi.instanceCrewSlots.assignActivity(Number((created as { id: unknown }).id), data.activity_id);
         }
         return created;
       },
       remove: (crewSlotId) =>
-        api.schedule.instanceCrewSlots.delete(crewSlotId),
+        scheduleApi.instanceCrewSlots.delete(crewSlotId),
       assign: (crewSlotId, crewId) =>
-        api.schedule.instanceCrewSlots.assignCrew(crewSlotId, crewId),
+        scheduleApi.instanceCrewSlots.assignCrew(crewSlotId, crewId),
       assignActivity: (crewSlotId, activityId) =>
-        api.schedule.instanceCrewSlots.assignActivity(crewSlotId, activityId),
+        scheduleApi.instanceCrewSlots.assignActivity(crewSlotId, activityId),
       unassignActivity: (crewSlotId, activityId) =>
-        api.schedule.instanceCrewSlots.unassignActivity(crewSlotId, activityId),
+        scheduleApi.instanceCrewSlots.unassignActivity(crewSlotId, activityId),
       setEquipment: (crewSlotId, equipment) =>
-        api.schedule.instanceCrewSlots.setEquipment(crewSlotId, equipment),
+        scheduleApi.instanceCrewSlots.setEquipment(crewSlotId, equipment),
       refreshAll: () =>
-        api.schedule.instanceCrewSlots.getForProject(projectId),
+        scheduleApi.instanceCrewSlots.getForProject(projectId),
     },
 
     eventDays: {
-      getAll: () => api.schedule.projectInstanceEventDays.getAll(projectId),
+      getAll: () => scheduleApi.projectInstanceEventDays.getAll(projectId),
       add: (_dayId) => Promise.resolve(null), // N/A for instance mode
-      remove: (dayId) => api.schedule.projectEventDays.delete(dayId),
-      create: (data) => api.schedule.projectEventDays.create(projectId, data),
-      update: (dayId, data) => api.schedule.projectEventDays.update(dayId, data),
-      delete: (dayId) => api.schedule.projectEventDays.delete(dayId),
+      remove: (dayId) => scheduleApi.projectEventDays.delete(dayId),
+      create: (data) => scheduleApi.projectEventDays.create(projectId, data),
+      update: (dayId, data) => scheduleApi.projectEventDays.update(dayId, data),
+      delete: (dayId) => scheduleApi.projectEventDays.delete(dayId),
     },
   };
 }
@@ -374,73 +374,73 @@ export function createInquiryScheduleApi(inquiryId: number): ScheduleApi {
     ownerId: inquiryId,
 
     activities: {
-      getAll: () => api.schedule.inquiryActivities.getAll(inquiryId),
-      getByDay: (dayId) => api.schedule.inquiryActivities.getByDay(inquiryId, dayId),
+      getAll: () => scheduleApi.inquiryActivities.getAll(inquiryId),
+      getByDay: (dayId) => scheduleApi.inquiryActivities.getByDay(inquiryId, dayId),
       create: (dayId, data) =>
-        api.schedule.inquiryActivities.create(inquiryId, {
+        scheduleApi.inquiryActivities.create(inquiryId, {
           project_event_day_id: dayId,
           ...data,
         }),
       update: (activityId, data) =>
-        api.schedule.inquiryActivities.update(activityId, data),
+        scheduleApi.inquiryActivities.update(activityId, data),
       delete: (activityId) =>
-        api.schedule.inquiryActivities.delete(activityId),
+        scheduleApi.inquiryActivities.delete(activityId),
     },
 
     moments: {
       getByActivity: (activityId) =>
-        api.schedule.instanceMoments.getByActivity(activityId),
+        scheduleApi.instanceMoments.getByActivity(activityId),
       create: (activityId, data) =>
-        api.schedule.instanceMoments.createForInquiry(inquiryId, {
+        scheduleApi.instanceMoments.createForInquiry(inquiryId, {
           project_activity_id: activityId,
           ...data,
         }),
       update: (momentId, data) =>
-        api.schedule.instanceMoments.update(momentId, data),
+        scheduleApi.instanceMoments.update(momentId, data),
       delete: (momentId) =>
-        api.schedule.instanceMoments.delete(momentId),
+        scheduleApi.instanceMoments.delete(momentId),
       reorder: (activityId, momentIds) =>
-        api.schedule.instanceMoments.reorder(activityId, momentIds),
+        scheduleApi.instanceMoments.reorder(activityId, momentIds),
     },
 
     subjects: {
       create: (dayId, data) => {
         const { package_activity_id, ...rest } = data;
-        return api.schedule.instanceSubjects.createForInquiry(inquiryId, {
+        return scheduleApi.instanceSubjects.createForInquiry(inquiryId, {
           project_event_day_id: dayId,
           project_activity_id: data.project_activity_id ?? package_activity_id,
           ...rest,
         });
       },
       update: (subjectId, data) =>
-        api.schedule.instanceSubjects.update(subjectId, data),
+        scheduleApi.instanceSubjects.update(subjectId, data),
       delete: (subjectId) =>
-        api.schedule.instanceSubjects.delete(subjectId),
+        scheduleApi.instanceSubjects.delete(subjectId),
       assignActivity: (subjectId, activityId) =>
-        api.schedule.instanceSubjects.assignActivity(subjectId, activityId),
+        scheduleApi.instanceSubjects.assignActivity(subjectId, activityId),
       unassignActivity: (subjectId, activityId) =>
-        api.schedule.instanceSubjects.unassignActivity(subjectId, activityId),
+        scheduleApi.instanceSubjects.unassignActivity(subjectId, activityId),
     },
 
     locationSlots: {
       create: (dayId, data) =>
-        api.schedule.instanceLocationSlots.createForInquiry(inquiryId, {
+        scheduleApi.instanceLocationSlots.createForInquiry(inquiryId, {
           project_event_day_id: dayId,
           ...(data || {}),
         }),
       update: (slotId, data) =>
-        api.schedule.instanceLocationSlots.update(slotId, data),
+        scheduleApi.instanceLocationSlots.update(slotId, data),
       delete: (slotId) =>
-        api.schedule.instanceLocationSlots.delete(slotId),
+        scheduleApi.instanceLocationSlots.delete(slotId),
       assignActivity: (slotId, activityId) =>
-        api.schedule.instanceLocationSlots.assignActivity(slotId, activityId),
+        scheduleApi.instanceLocationSlots.assignActivity(slotId, activityId),
       unassignActivity: (slotId, activityId) =>
-        api.schedule.instanceLocationSlots.unassignActivity(slotId, activityId),
+        scheduleApi.instanceLocationSlots.unassignActivity(slotId, activityId),
     },
 
     crewSlots: {
       add: async (dayId, data) => {
-        const created = await api.schedule.instanceCrewSlots.createForInquiry(inquiryId, {
+        const created = await scheduleApi.instanceCrewSlots.createForInquiry(inquiryId, {
           project_event_day_id: dayId,
           label: data.label,
           crew_id: data.crew_id,
@@ -448,31 +448,31 @@ export function createInquiryScheduleApi(inquiryId: number): ScheduleApi {
           hours: data.hours,
         });
         if (data.activity_id && created && typeof created === 'object' && 'id' in created) {
-          await api.schedule.instanceCrewSlots.assignActivity(Number((created as { id: unknown }).id), data.activity_id);
+          await scheduleApi.instanceCrewSlots.assignActivity(Number((created as { id: unknown }).id), data.activity_id);
         }
         return created;
       },
       remove: (crewSlotId) =>
-        api.schedule.instanceCrewSlots.delete(crewSlotId),
+        scheduleApi.instanceCrewSlots.delete(crewSlotId),
       assign: (crewSlotId, crewId) =>
-        api.schedule.instanceCrewSlots.assignCrew(crewSlotId, crewId),
+        scheduleApi.instanceCrewSlots.assignCrew(crewSlotId, crewId),
       assignActivity: (crewSlotId, activityId) =>
-        api.schedule.instanceCrewSlots.assignActivity(crewSlotId, activityId),
+        scheduleApi.instanceCrewSlots.assignActivity(crewSlotId, activityId),
       unassignActivity: (crewSlotId, activityId) =>
-        api.schedule.instanceCrewSlots.unassignActivity(crewSlotId, activityId),
+        scheduleApi.instanceCrewSlots.unassignActivity(crewSlotId, activityId),
       setEquipment: (crewSlotId, equipment) =>
-        api.schedule.instanceCrewSlots.setEquipment(crewSlotId, equipment),
+        scheduleApi.instanceCrewSlots.setEquipment(crewSlotId, equipment),
       refreshAll: () =>
-        api.schedule.instanceCrewSlots.getForInquiry(inquiryId),
+        scheduleApi.instanceCrewSlots.getForInquiry(inquiryId),
     },
 
     eventDays: {
-      getAll: () => api.schedule.inquiryEventDays.getAll(inquiryId),
+      getAll: () => scheduleApi.inquiryEventDays.getAll(inquiryId),
       add: (_dayId) => Promise.resolve(null), // N/A for instance mode
-      remove: (dayId) => api.schedule.inquiryEventDays.delete(dayId),
-      create: (data) => api.schedule.inquiryEventDays.create(inquiryId, data),
-      update: (dayId, data) => api.schedule.inquiryEventDays.update(dayId, data),
-      delete: (dayId) => api.schedule.inquiryEventDays.delete(dayId),
+      remove: (dayId) => scheduleApi.inquiryEventDays.delete(dayId),
+      create: (data) => scheduleApi.inquiryEventDays.create(inquiryId, data),
+      update: (dayId, data) => scheduleApi.inquiryEventDays.update(dayId, data),
+      delete: (dayId) => scheduleApi.inquiryEventDays.delete(dayId),
     },
   };
 }

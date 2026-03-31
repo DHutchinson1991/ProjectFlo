@@ -223,7 +223,7 @@ export function useInstanceScheduleData(
 
         try {
           const templates = await request<any[]>(
-            `/subjects/roles/brand/${brandId}`,
+            `/api/subjects/roles/brand/${brandId}`,
             {},
             { includeBrandQuery: false },
           );

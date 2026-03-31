@@ -18,7 +18,9 @@ import { useWizardComputed } from "../hooks/useWizardComputed";
 import { useBuilderPackage } from "../hooks/useBuilderPackage";
 import {
     WizardLayout, WelcomeScreen, EventTypeScreen, DateScreen, GuestsScreen,
-    PartnerScreen, BirthdayContactScreen, VenueScreen, ForkScreen, BudgetScreen,
+    YourNameScreen, YourRoleScreen, PartnerRoleScreen,
+    PartnerScreen, BrideGroomNamesScreen, BirthdayContactScreen,
+    VenueScreen, ForkScreen, BudgetScreen,
     PackagesScreen, BuilderScreen, PaymentTermsScreen, SpecialScreen, SourceScreen,
     CallOfferScreen, CallDetailsScreen, ContactScreen, SummaryScreen,
 } from "../components";
@@ -92,7 +94,8 @@ export default function InquiryWizardStudioScreen() {
             if (currentScreenId === "event_type" && !responses.event_type) valid = false;
             if (currentScreenId === "date" && !responses.wedding_date) valid = false;
             if (currentScreenId === "fork" && !responses.package_path) valid = false;
-            if (currentScreenId === "contact" && (!responses.contact_first_name || !responses.contact_email)) valid = false;
+            if (currentScreenId === "contact" && (!responses.contact_email || !responses.contact_phone)) valid = false;
+            if (currentScreenId === "your_name" && !responses.contact_first_name) valid = false;
             if (!valid) { setValidationShake(true); setTimeout(() => setValidationShake(false), 600); return; }
         }
         if (currentScreenId === "builder" && (responses.builder_step || 1) < 3) {
@@ -105,7 +108,7 @@ export default function InquiryWizardStudioScreen() {
     }, [currentScreenId, responses, goNext, handleChange, currentBrand, builderPackageId, saveBuilderPackage]);
 
     const handleSubmit = async () => {
-        if (!template || !responses.contact_first_name || !responses.contact_email) { goTo("contact"); return; }
+        if (!template || !responses.contact_first_name || !responses.contact_email || !responses.contact_phone) { goTo("contact"); return; }
         try {
             setSubmitting(true); setError(null);
             const selectedPkgId = responses.selected_package ? Number(responses.selected_package) : null;
@@ -144,7 +147,11 @@ export default function InquiryWizardStudioScreen() {
             case "event_type": return <EventTypeScreen ctx={ctx} />;
             case "date": return <DateScreen ctx={ctx} />;
             case "guests": return <GuestsScreen ctx={ctx} />;
+            case "your_name": return <YourNameScreen ctx={ctx} />;
+            case "your_role": return <YourRoleScreen ctx={ctx} />;
+            case "partner_role": return <PartnerRoleScreen ctx={ctx} />;
             case "partner": return <PartnerScreen ctx={ctx} />;
+            case "bride_groom_names": return <BrideGroomNamesScreen ctx={ctx} />;
             case "birthday_contact": return <BirthdayContactScreen ctx={ctx} />;
             case "venue": return <VenueScreen ctx={ctx} />;
             case "fork": return <ForkScreen ctx={ctx} />;

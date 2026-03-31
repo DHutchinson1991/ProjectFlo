@@ -8,13 +8,11 @@ export { EstimatesCard } from '@/features/finance/estimates/components/Estimates
 export { ProposalsCard } from './ProposalsCard';
 export { QuotesCard } from '@/features/finance/quotes/components/QuotesCard';
 export { ContractsCard } from '@/features/finance/contracts/components/ContractsCard';
-export { CallsCard } from './CallsCard';
+export { DiscoveryCallCard } from './discovery-call-card';
 export { ProposalReviewCard } from './ProposalReviewCard';
 export { ClientApprovalCard } from './ClientApprovalCard';
 
-export { default as NeedsAssessmentDialog } from './NeedsAssessmentDialog';
-export { default as DiscoveryQuestionnaireCard } from './DiscoveryQuestionnaireCard';
-export { default as DiscoveryQuestionnaireFormDialog } from './DiscoveryQuestionnaireFormDialog';
+export { DiscoveryQuestionnaireCard, DiscoveryQuestionnaireFormDialog } from './discovery-questionnaire-card';
 
 export { default as ClientInfoCard } from './ClientInfoCard';
 export { default as QualifyCard } from './QualifyCard';
@@ -22,7 +20,7 @@ export { default as PaymentTermsCard } from '@/features/finance/payment-schedule
 
 // Inquiry sub-components (from [id]/components/)
 export { default as AddressSearch } from './AddressSearch';
-export { default as AvailabilityCard } from './AvailabilityCard';
+export { default as AvailabilityCard } from './availability-card';
 export { default as CrewAvailabilityRequestDialog } from './CrewAvailabilityRequestDialog';
 export { default as EquipmentReservationDialog } from './EquipmentReservationDialog';
 export { default as EventDetailsCard } from './EventDetailsCard';

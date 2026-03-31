@@ -24,6 +24,8 @@ function mapProposalApiResponse(apiResponse: ProposalApiResponse): Proposal {
     client_response: apiResponse.client_response ?? null,
     client_response_at: apiResponse.client_response_at ? new Date(apiResponse.client_response_at) : null,
     client_response_message: apiResponse.client_response_message ?? null,
+    viewed_at: apiResponse.viewed_at ? new Date(apiResponse.viewed_at) : null,
+    view_count: apiResponse.view_count ?? 0,
     created_at: new Date(apiResponse.created_at),
     updated_at: new Date(apiResponse.updated_at),
     inquiry: apiResponse.inquiry?.contact
@@ -37,6 +39,30 @@ function mapProposalApiResponse(apiResponse: ProposalApiResponse): Proposal {
         }
       : undefined,
     project: apiResponse.project ?? null,
+    section_views: apiResponse.section_views?.map((sv) => ({
+      section_type: sv.section_type,
+      viewed_at: new Date(sv.viewed_at),
+      duration_seconds: sv.duration_seconds ?? 0,
+    })),
+    section_notes: apiResponse.section_notes?.map((sn) => ({
+      section_type: sn.section_type,
+      note: sn.note,
+      created_at: sn.created_at,
+      updated_at: sn.updated_at,
+    })),
+    contract: apiResponse.inquiry?.contracts?.[0]
+      ? {
+          id: apiResponse.inquiry.contracts[0].id,
+          status: apiResponse.inquiry.contracts[0].status,
+          sent_at: apiResponse.inquiry.contracts[0].sent_at ? new Date(apiResponse.inquiry.contracts[0].sent_at) : null,
+          signed_date: apiResponse.inquiry.contracts[0].signed_date ? new Date(apiResponse.inquiry.contracts[0].signed_date) : null,
+          signers: (apiResponse.inquiry.contracts[0].signers ?? []).map((s) => ({
+            status: s.status,
+            viewed_at: s.viewed_at ? new Date(s.viewed_at) : null,
+            signed_at: s.signed_at ? new Date(s.signed_at) : null,
+          })),
+        }
+      : null,
   };
 }
 
@@ -84,11 +110,21 @@ export function createProposalsApi(client: ApiClient) {
 
 export function createPublicProposalsApi(client: ApiClient) {
   return {
-    getByShareToken: (token: string): Promise<PublicProposal> =>
-      client.get<PublicProposal>(`/api/proposals/share/${encodeURIComponent(token)}`, { skipBrandContext: true, skipAuth: true }),
+    getByShareToken: (token: string, preview = false): Promise<PublicProposal> =>
+      client.get<PublicProposal>(`/api/proposals/share/${encodeURIComponent(token)}${preview ? '?preview=true' : ''}`, { skipBrandContext: true, skipAuth: true }),
 
     respond: (token: string, response: ProposalClientResponse, message?: string): Promise<PublicProposal> =>
       client.post<PublicProposal>(`/api/proposals/share/${encodeURIComponent(token)}/respond`, { response, message }, { skipBrandContext: true, skipAuth: true }),
+
+    trackSectionView: (token: string, sectionType: string, durationSeconds?: number): Promise<void> =>
+      client.post(
+        `/api/proposals/share/${encodeURIComponent(token)}/section-view`,
+        { section_type: sectionType, duration_seconds: durationSeconds },
+        { skipBrandContext: true, skipAuth: true },
+      ),
+
+    saveSectionNote: (token: string, sectionType: string, note: string): Promise<{ id: number; section_type: string; note: string }> =>
+      client.post(`/api/proposals/share/${encodeURIComponent(token)}/section-note`, { section_type: sectionType, note }, { skipBrandContext: true, skipAuth: true }),
   };
 }
 

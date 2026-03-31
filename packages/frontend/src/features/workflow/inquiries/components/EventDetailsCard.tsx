@@ -1,25 +1,16 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import {
     Box,
     Typography,
     CardContent,
     Stack,
-    TextField,
-    IconButton,
     Chip,
-    CircularProgress,
-    Select,
-    MenuItem,
-    FormControl,
-    InputLabel,
 } from '@mui/material';
 import {
     Place,
-    Edit,
-    CheckCircle,
     AccessTime,
     NearMe,
     LocationOff,
@@ -28,13 +19,10 @@ import {
 } from '@mui/icons-material';
 import CelebrationIcon from '@mui/icons-material/Celebration';
 import { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
-import { geocodeAddress } from '@/features/workflow/locations/api/geocoding.api';
 import { inquiriesApi } from '@/features/workflow/inquiries';
 import { useBrand } from '@/features/platform/brand';
-import { scheduleApi } from '@/features/workflow/scheduling/instance';
 import { humanize } from '../lib';
 import { useEventDetailsData } from '../hooks/useEventDetailsData';
-import AddressSearch, { type AddressSelection } from './AddressSearch';
 
 // Dynamic-import the map (Leaflet needs `window`)
 const VenueMap = dynamic(() => import('./VenueMap'), { ssr: false });
@@ -85,7 +73,6 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
     submission,
     WorkflowCard,
 }) => {
-    const [isEditing, setIsEditing] = useState(false);
     const { currentBrand } = useBrand();
     const { eventTypeOptions, ceremonySlot, slotsLoading, venueCoords: geocodedVenueCoords, brandCoords } = useEventDetailsData(
         inquiry,
@@ -93,11 +80,7 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         currentBrand,
     );
 
-    const [selectedEventTypeId, setSelectedEventTypeId] = useState<number | null>(inquiry.event_type_id ?? null);
-
-    useEffect(() => {
-        setSelectedEventTypeId(inquiry.event_type_id ?? null);
-    }, [inquiry.event_type_id]);
+    const dateInputRef = useRef<HTMLInputElement>(null);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const responses = (submission?.responses ?? {}) as Record<string, any>;
@@ -151,63 +134,15 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
         return formatDistance(km);
     }, [hasVenueCoords, brandCoords, displayLat, displayLng]);
 
-    /* ---- save handler ---- */
-    const handleSave = async () => {
+    /* ---- inline date save ---- */
+    const handleDateChange = async (newDate: string) => {
+        if (!newDate) return;
+        setFormData(prev => ({ ...prev, wedding_date: newDate }));
         try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const payload: any = {};
-            if (formData.wedding_date) payload.wedding_date = formData.wedding_date;
-            // Save event type FK when changed
-            payload.event_type_id = selectedEventTypeId ?? null;
-            await inquiriesApi.update(inquiry.id, payload);
-
-            // Sync the ceremony location slot with the new address (venue data lives on location slots now)
-            if (ceremonySlot?.id) {
-                const shortName = formData.venue_address?.split(',')[0]?.trim() || '';
-                await scheduleApi.instanceLocationSlots.update(ceremonySlot.id, {
-                    name: shortName || null,
-                    address: formData.venue_address || null,
-                });
-                // Update local ceremony slot state so view mode reflects immediately
-                const coords = formData.venue_address
-                    ? await geocodeAddress(formData.venue_address)
-                    : null;
-                setCeremonySlot(prev => prev ? {
-                    ...prev,
-                    name: shortName,
-                    address: formData.venue_address || '',
-                    lat: coords?.lat ?? null,
-                    lng: coords?.lng ?? null,
-                } : null);
-            }
-
-            setIsEditing(false);
+            await inquiriesApi.update(inquiry.id, { wedding_date: newDate });
             if (onRefresh) await onRefresh();
         } catch (error) {
-            console.error('Failed to update event details:', error);
-            alert('Failed to update event details');
-        }
-    };
-
-    /* ---- address autocomplete callback ---- */
-    const handleAddressSelect = (result: AddressSelection | null) => {
-        if (result) {
-            setFormData((prev) => ({
-                ...prev,
-                venue_address: result.display_name,
-                venue_details: result.display_name.split(',')[0], // Short name
-                venue_lat: result.lat,
-                venue_lng: result.lng,
-            }));
-        } else {
-            // "Set as unknown"
-            setFormData((prev) => ({
-                ...prev,
-                venue_address: '',
-                venue_details: '',
-                venue_lat: null,
-                venue_lng: null,
-            }));
+            console.error('Failed to update event date:', error);
         }
     };
 
@@ -222,10 +157,11 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
     /* ---- short venue label ---- */
     const slotAddress = ceremonySlot?.address || '';
     const slotName = ceremonySlot?.name || '';
+    const venueName = ceremonySlot?.venueName || '';
 
     const venueShortName = slotsLoading
         ? ''
-        : (slotName || slotAddress.split(',')[0]?.trim() || '');
+        : (venueName || slotName || slotAddress.split(',')[0]?.trim() || '');
     const venueFullAddress = slotsLoading
         ? ''
         : (slotAddress || '');
@@ -237,8 +173,13 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
     const structuredAddress: { label: string; value: string }[] = (() => {
         const fields = ceremonySlot?.addressFields;
         if (fields) {
+            // Strip venue name from address_line1 to avoid duplication (e.g. "Buckatree Hall Hotel, Ercall Lane...")
+            let street = fields.address_line1 || '';
+            if (venueShortName && street.startsWith(venueShortName)) {
+                street = street.slice(venueShortName.length).replace(/^[,\s]+/, '');
+            }
             return [
-                fields.address_line1 && { label: 'Street', value: fields.address_line1 },
+                street && { label: 'Street', value: street },
                 fields.address_line2 && { label: 'Street 2', value: fields.address_line2 },
                 fields.city && { label: 'City', value: fields.city },
                 fields.county && { label: 'County', value: fields.county },
@@ -284,59 +225,18 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                             />
                         )}
                     </Box>
-                    <IconButton
-                        size="small"
-                        onClick={() => (isEditing ? handleSave() : setIsEditing(true))}
-                        sx={{ color: '#94a3b8' }}
-                    >
-                        {isEditing ? <CheckCircle color="primary" sx={{ fontSize: 20 }} /> : <Edit sx={{ fontSize: 18 }} />}
-                    </IconButton>
                 </Box>
 
-                {isEditing ? (
-                    /* ============ EDIT MODE ============ */
-                    <Box sx={{ p: 2.5 }}>
-                        <Stack spacing={2.5}>
-                            <TextField
-                                label="Event Date"
-                                type="date"
-                                fullWidth
-                                size="small"
-                                value={formData.wedding_date}
-                                onChange={(e) => setFormData({ ...formData, wedding_date: e.target.value })}
-                                InputLabelProps={{ shrink: true }}
-                                sx={{
-                                    '& .MuiOutlinedInput-root': {
-                                        bgcolor: 'rgba(15, 23, 42, 0.6)',
-                                        color: '#e2e8f0',
-                                        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(51, 65, 85, 0.4)' },
-                                    },
-                                    '& .MuiInputLabel-root': { color: '#64748b' },
-                                }}
-                            />
+                {/* Hidden date input for popup picker */}
+                <input
+                    ref={dateInputRef}
+                    type="date"
+                    value={formData.wedding_date}
+                    onChange={(e) => handleDateChange(e.target.value)}
+                    style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
+                />
 
-                        <FormControl fullWidth size="small">
-                            <InputLabel sx={{ color: '#64748b' }}>Event Type</InputLabel>
-                            <Select
-                                label="Event Type"
-                                value={selectedEventTypeId ?? ''}
-                                onChange={(e) => setSelectedEventTypeId(e.target.value ? Number(e.target.value) : null)}
-                                sx={{
-                                    bgcolor: 'rgba(15, 23, 42, 0.6)',
-                                    color: '#e2e8f0',
-                                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(51, 65, 85, 0.4)' },
-                                }}
-                            >
-                                <MenuItem value=""><em>Not set</em></MenuItem>
-                                {eventTypeOptions.map((et) => (
-                                    <MenuItem key={et.id} value={et.id}>{et.name}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        </Stack>
-                    </Box>
-                ) : (
-                    /* ============ VIEW MODE ============ */
+                    {/* ============ VIEW MODE ============ */}
                     <>
                     <Box sx={{
                         display: 'flex',
@@ -360,7 +260,12 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                         background: 'linear-gradient(135deg, #ec4899, #f43f5e)',
                                         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                                         boxShadow: '0 4px 12px rgba(236, 72, 153, 0.25)',
-                                    }}>
+                                        cursor: 'pointer',
+                                        transition: 'transform 0.15s, box-shadow 0.15s',
+                                        '&:hover': { transform: 'scale(1.08)', boxShadow: '0 6px 16px rgba(236, 72, 153, 0.35)' },
+                                    }}
+                                    onClick={() => dateInputRef.current?.showPicker?.()}
+                                    >
                                         <Typography sx={{ fontSize: '0.55rem', fontWeight: 700, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>
                                             {monthShort}
                                         </Typography>
@@ -374,7 +279,12 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                                         bgcolor: 'rgba(100, 116, 139, 0.1)',
                                         border: '2px dashed rgba(100, 116, 139, 0.2)',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    }}>
+                                        cursor: 'pointer',
+                                        transition: 'border-color 0.15s',
+                                        '&:hover': { borderColor: 'rgba(236, 72, 153, 0.4)' },
+                                    }}
+                                    onClick={() => dateInputRef.current?.showPicker?.()}
+                                    >
                                         <AccessTime sx={{ color: '#475569', fontSize: 20 }} />
                                     </Box>
                                 )}
@@ -586,7 +496,6 @@ const EventDetailsCard: React.FC<EventDetailsCardProps> = ({
                         </Box>
                     )}
                     </>
-                )}
             </CardContent>
         </WorkflowCard>
     );

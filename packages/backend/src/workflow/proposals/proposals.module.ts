@@ -6,9 +6,11 @@ import { ProposalLifecycleService } from './services/proposal-lifecycle.service'
 import { ProposalContentGeneratorService } from './services/proposal-content-generator.service';
 import { PrismaModule } from '../../platform/prisma/prisma.module';
 import { TasksModule } from '../tasks/tasks.module';
+import { QuotesModule } from '../../finance/quotes/quotes.module';
+import { ContractsModule } from '../../finance/contracts/contracts.module';
 
 @Module({
-    imports: [PrismaModule, TasksModule],
+    imports: [PrismaModule, TasksModule, QuotesModule, ContractsModule],
     controllers: [ProposalsController, PublicProposalsController],
     providers: [
         ProposalCrudService,

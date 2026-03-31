@@ -46,6 +46,20 @@ When reducing many migrations into one baseline (e.g. to clean up history):
    ```
    The `|| true` makes it permanently safe — subsequent deploys silently skip it.
 
+## Migration history health
+
+### Resolved: schema drift from `db push` (2026-03-31)
+
+Repeated `pnpm db:push` operations had caused migration history to diverge from the actual DB. This was resolved by regenerating the baseline from the current schema and squashing all incremental migrations into it. `prisma migrate dev` now works cleanly.
+
+**Preventive rules (ongoing):**
+1. After using `pnpm db:push` during development, always create a proper migration before committing: `npx prisma migrate dev --name "describe-change"`.
+2. If `prisma migrate dev` ever shows "We need to reset the public schema" — **abort immediately** and re-baseline using § Squashing migrations above.
+3. Run `prisma migrate status` periodically to catch drift early.
+4. `pnpm db:push` is for rapid local prototyping only — never the final state for a schema change.
+
+---
+
 ## Backfill scripts
 
 Located in `packages/backend/scripts/`. Run manually via `node scripts/<name>.js` from the backend directory.

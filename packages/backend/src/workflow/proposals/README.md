@@ -5,7 +5,7 @@
 
 ## Responsibility
 
-Manages `Proposal` records attached to inquiries. Handles AI-assisted content generation, share-token email delivery, and client response tracking (accept/decline).
+Manages `Proposal` records attached to inquiries. Handles AI-assisted content generation, share-token email delivery, client response tracking (accept/decline), and section-level engagement telemetry.
 
 ## Exposed Surface
 
@@ -24,6 +24,7 @@ Manages `Proposal` records attached to inquiries. Handles AI-assisted content ge
 - Content (hero title, intro, sections) is generated from package templates with AI overrides.
 - Sharing creates a signed JWT share token embedded in the email link.
 - Clients can accept or decline via the public share-token endpoint (no login required).
+- Public share flow tracks section-level views, dwell-time duration, and per-section notes.
 
 ## API Endpoints
 
@@ -35,8 +36,10 @@ Manages `Proposal` records attached to inquiries. Handles AI-assisted content ge
 | PATCH | `/proposals/:id` | JWT | Update proposal |
 | DELETE | `/proposals/:id` | JWT | Delete proposal |
 | POST | `/proposals/:id/send` | JWT | Send proposal email |
-| GET | `/public/proposals/:token` | None | Fetch proposal by share token |
-| POST | `/public/proposals/:token/respond` | None | Accept/decline proposal |
+| GET | `/api/proposals/share/:token` | None | Fetch proposal by share token |
+| POST | `/api/proposals/share/:token/respond` | None | Accept/decline proposal |
+| POST | `/api/proposals/share/:token/section-view` | None | Track section view + optional `duration_seconds` increment |
+| POST | `/api/proposals/share/:token/section-note` | None | Upsert section note for a proposal section |
 
 ## Files
 

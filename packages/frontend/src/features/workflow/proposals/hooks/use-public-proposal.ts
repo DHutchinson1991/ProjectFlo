@@ -4,14 +4,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { publicProposalsApi } from '../api';
 import { proposalKeys } from '../constants';
 
-export function usePublicProposal(token: string | null | undefined) {
+export function usePublicProposal(token: string | null | undefined, preview = false) {
   const queryClient = useQueryClient();
   const normalizedToken = token ?? null;
 
   const query = useQuery({
     queryKey: proposalKeys.publicDetail(normalizedToken),
-    queryFn: () => publicProposalsApi.getByShareToken(normalizedToken!),
+    queryFn: () => publicProposalsApi.getByShareToken(normalizedToken!, preview),
     enabled: !!normalizedToken,
+    refetchInterval: preview ? false : 30_000,
   });
 
   const reload = () =>

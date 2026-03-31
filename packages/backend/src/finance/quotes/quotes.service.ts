@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import { PrismaService } from '../../platform/prisma/prisma.service';
@@ -12,10 +12,70 @@ import { QUOTE_ITEMS_INCLUDE, mapQuoteResponse } from './mappers/quote-response.
 
 @Injectable()
 export class QuotesService {
+    private readonly logger = new Logger(QuotesService.name);
+
     constructor(
         private prisma: PrismaService,
         private inquiryTasksService: InquiryTasksService,
     ) { }
+
+    /**
+     * Auto-create a quote from the primary estimate for an inquiry.
+     * Called when a proposal is created. No-ops if no primary estimate exists
+     * or a quote already exists for this inquiry.
+     */
+    async createFromEstimate(inquiryId: number): Promise<Quote | null> {
+        // Skip if a quote already exists for this inquiry
+        const existingQuote = await this.prisma.quotes.findFirst({
+            where: { inquiry_id: inquiryId },
+        });
+        if (existingQuote) {
+            this.logger.log(`Quote already exists for inquiry ${inquiryId}, skipping auto-create`);
+            return null;
+        }
+
+        // Find the primary estimate with items
+        const primaryEstimate = await this.prisma.estimates.findFirst({
+            where: { inquiry_id: inquiryId, is_primary: true },
+            include: { items: true },
+        });
+        if (!primaryEstimate) {
+            this.logger.warn(`No primary estimate found for inquiry ${inquiryId}, cannot auto-create quote`);
+            return null;
+        }
+
+        const items = (primaryEstimate.items || []).map((item) => ({
+            description: item.description,
+            category: item.category ?? undefined,
+            unit: item.unit ?? undefined,
+            service_date: item.service_date ? item.service_date.toISOString().split('T')[0] : undefined,
+            start_time: item.start_time ?? undefined,
+            end_time: item.end_time ?? undefined,
+            quantity: Number(item.quantity),
+            unit_price: Number(item.unit_price),
+        }));
+
+        const quoteNumber = `QUO-${Date.now()}`;
+        const now = new Date();
+        const expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+        const createDto: CreateQuoteDto = {
+            quote_number: quoteNumber,
+            title: `Quote from ${primaryEstimate.title || 'Estimate'}`,
+            issue_date: now.toISOString().split('T')[0],
+            expiry_date: expiryDate.toISOString().split('T')[0],
+            tax_rate: primaryEstimate.tax_rate ? Number(primaryEstimate.tax_rate) : 0,
+            deposit_required: primaryEstimate.deposit_required ? Number(primaryEstimate.deposit_required) : 0,
+            payment_method: primaryEstimate.payment_method ?? undefined,
+            installments: primaryEstimate.installments ?? undefined,
+            notes: primaryEstimate.notes ?? undefined,
+            is_primary: true,
+            items,
+        } as CreateQuoteDto;
+
+        this.logger.log(`Auto-creating quote from estimate ${primaryEstimate.id} for inquiry ${inquiryId}`);
+        return this.create(inquiryId, createDto);
+    }
 
     async create(inquiryId: number, createQuoteDto: CreateQuoteDto): Promise<Quote> {
         // Calculate total amount from items using Decimal for precision

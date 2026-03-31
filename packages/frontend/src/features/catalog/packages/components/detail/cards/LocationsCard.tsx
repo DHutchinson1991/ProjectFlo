@@ -1,14 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
     Box, Typography, Button,
-    IconButton, Chip,
+    IconButton, Chip, ClickAwayListener,
+    CircularProgress,
 } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material';
 import PlaceIcon from '@mui/icons-material/Place';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
 
 import { scheduleApi } from '@/features/workflow/scheduling/package-template';
 import { useOptionalScheduleApi } from '@/features/workflow/scheduling/shared';
@@ -18,6 +21,7 @@ import type {
     PackageLocationSlotRecord,
 } from '../../../types';
 import { ScheduleCardShell } from './ScheduleCardShell';
+import { searchVenues, type NominatimResult } from '@/features/workflow/locations/api/geocoding.api';
 
 /* ================================================================== */
 /*  Props                                                              */
@@ -60,11 +64,60 @@ export function LocationsCard({
     const hasOwner = !!contextApi || !!packageId;
     const isInstanceMode = !!contextApi && contextApi.mode !== 'package';
 
-    // ─── Inline editing state (instance mode) ────────────────────────
-    const [editingNameId, setEditingNameId] = useState<number | null>(null);
-    const [editingNameValue, setEditingNameValue] = useState('');
-    const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
-    const [editingAddressValue, setEditingAddressValue] = useState('');
+    // ─── Venue search state (instance mode) ────────────────────────
+    const [searchingSlotId, setSearchingSlotId] = useState<number | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<NominatimResult[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+    const debounceRef = useRef<number | null>(null);
+
+    const handleVenueSearch = useCallback((q: string) => {
+        setSearchQuery(q);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        if (q.length < 3) { setSearchResults([]); setSearchDropdownOpen(false); return; }
+        setSearchLoading(true);
+        debounceRef.current = window.setTimeout(async () => {
+            const results = await searchVenues(q);
+            setSearchResults(results);
+            setSearchDropdownOpen(results.length > 0);
+            setSearchLoading(false);
+        }, 400);
+    }, []);
+
+    const formatShort = (r: NominatimResult): string => {
+        const a = r.address;
+        if (!a) return r.display_name;
+        const parts: string[] = [];
+        if (a.road) parts.push([a.house_number, a.road].filter(Boolean).join(' '));
+        const city = a.city || a.town || a.village;
+        if (city) parts.push(city);
+        if (a.state || a.county) parts.push(a.state || a.county || '');
+        if (a.postcode) parts.push(a.postcode);
+        return parts.filter(Boolean).join(', ') || r.display_name;
+    };
+
+    const handleVenueSelect = useCallback(async (r: NominatimResult, slotId: number) => {
+        const name = r.name || r.display_name.split(',')[0].trim();
+        const address = formatShort(r);
+        const lat = parseFloat(r.lat);
+        const lng = parseFloat(r.lon);
+        setSearchingSlotId(null);
+        setSearchQuery('');
+        setSearchResults([]);
+        setSearchDropdownOpen(false);
+        try {
+            const updated = await locationApi.update(slotId, { name, address, lat, lng } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+            setPackageLocationSlots(prev => prev.map((s: any) => s.id === slotId ? { ...s, name: updated?.name ?? name, address: updated?.address ?? address } : s)); // eslint-disable-line @typescript-eslint/no-explicit-any
+        } catch (err) { console.error('Failed to update location slot:', err); }
+    }, [locationApi, setPackageLocationSlots]);
+
+    const openSearch = useCallback((slotId: number, currentName?: string) => {
+        setSearchingSlotId(slotId);
+        setSearchQuery(currentName || '');
+        setSearchResults([]);
+        setSearchDropdownOpen(false);
+    }, []);
 
     // ─── Derived values ──────────────────────────────────────────────
     const activeEventDayId = scheduleActiveDayId || packageEventDays[0]?.id;
@@ -134,143 +187,145 @@ export function LocationsCard({
                             }}
                         >
                             <PlaceIcon sx={{ fontSize: 12, color: '#f59e0b', flexShrink: 0, mt: isInstanceMode ? 0.4 : 0 }} />
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Box
+                                sx={{
+                                    flex: 1, minWidth: 0, position: 'relative',
+                                    ...(isInstanceMode ? { cursor: 'pointer', borderRadius: '3px', px: 0.25, '&:hover': { bgcolor: 'rgba(245,158,11,0.06)' }, transition: 'background 0.15s' } : {}),
+                                }}
+                                onClick={isInstanceMode ? (e: React.MouseEvent) => { e.stopPropagation(); openSearch(slot.id, (slot as any).name ?? ''); } : undefined}
+                            >
+                                {(() => {
+                                    const slotName: string = (slot as any).name ?? '';
+                                    const slotAddress: string = (slot as any).address ?? '';
+                                    const addrFirstPart = slotAddress.split(',')[0]?.trim() || '';
+
+                                    // Determine venue name vs street address.
+                                    // If address starts with a segment that differs from
+                                    // slotName and doesn't start with a digit, it's the
+                                    // venue name (e.g. "Buckatree Hall Hotel").
+                                    let displayName = '';
+                                    let displayAddress = slotAddress;
+
+                                    if (addrFirstPart && addrFirstPart !== slotName && !/^\d/.test(addrFirstPart)) {
+                                        // Address leads with venue name
+                                        displayName = addrFirstPart;
+                                        displayAddress = slotAddress.slice(addrFirstPart.length).replace(/^[,\s]+/, '');
+                                    } else if (slotName && !slotName.includes(',')) {
+                                        // Clean single-segment name — use it directly
+                                        displayName = slotName;
+                                        if (displayAddress.startsWith(slotName)) {
+                                            displayAddress = displayAddress.slice(slotName.length).replace(/^[,\s]+/, '');
+                                        }
+                                    } else if (slotName) {
+                                        // Name is address-like (commas + digits): take first part
+                                        displayName = slotName.split(',')[0].trim();
+                                        displayAddress = slotAddress || slotName.slice(displayName.length).replace(/^[,\s]+/, '');
+                                    }
+                                    return (<>
                                 <Typography variant="body2" component="div" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
                                     Location {slot.location_number}
                                     {isInstanceMode ? (
-                                        editingNameId === slot.id ? (
-                                            <Box
-                                                component="input"
-                                                type="text"
-                                                autoFocus
-                                                value={editingNameValue}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingNameValue(e.target.value)}
-                                                onBlur={async () => {
-                                                    const val = editingNameValue.trim() || null;
-                                                    setEditingNameId(null);
-                                                    if (val !== ((slot as any).name ?? null)) {
-                                                        try {
-                                                            const updated = await locationApi.update(slot.id, { name: val });
-                                                            setPackageLocationSlots(prev => prev.map((s: any) => s.id === slot.id ? { ...s, name: updated?.name ?? val } : s));
-                                                        } catch { /* ignore */ }
-                                                    }
-                                                }}
-                                                onKeyDown={(e: React.KeyboardEvent) => {
-                                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                                                    if (e.key === 'Escape') setEditingNameId(null);
-                                                    e.stopPropagation();
-                                                }}
-                                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                                                sx={{
-                                                    ml: 0.5,
-                                                    border: '1px solid rgba(245,158,11,0.4)',
-                                                    borderRadius: '3px',
-                                                    bgcolor: 'rgba(245,158,11,0.08)',
-                                                    color: '#94a3b8',
-                                                    fontSize: '0.72rem',
-                                                    fontWeight: 400,
-                                                    py: '1px',
-                                                    px: '4px',
-                                                    outline: 'none',
-                                                    width: 120,
-                                                    fontFamily: 'inherit',
-                                                }}
-                                            />
-                                        ) : (
-                                            <Box
-                                                component="span"
-                                                onClick={(e: React.MouseEvent) => {
-                                                    e.stopPropagation();
-                                                    setEditingNameId(slot.id);
-                                                    setEditingNameValue((slot as any).name ?? '');
-                                                }}
-                                                sx={{
-                                                    color: (slot as any).name ? '#94a3b8' : 'rgba(255,255,255,0.15)',
-                                                    fontWeight: 400,
-                                                    fontStyle: (slot as any).name ? 'normal' : 'italic',
-                                                    fontSize: (slot as any).name ? 'inherit' : '0.65rem',
-                                                    cursor: 'pointer',
-                                                    borderRadius: '3px',
-                                                    ml: 0.25,
-                                                    px: 0.25,
-                                                    '&:hover': { bgcolor: 'rgba(245,158,11,0.08)' },
-                                                    transition: 'background 0.15s',
-                                                }}
-                                            >
-                                                {(slot as any).name ? ` · ${(slot as any).name}` : '· Add name...'}
-                                            </Box>
-                                        )
-                                    ) : (slot as any).name ? (
-                                        <Box component="span" sx={{ color: '#94a3b8', fontWeight: 400 }}> · {(slot as any).name}</Box>
-                                    ) : null}
-                                </Typography>
-                                {/* Address line (instance mode) */}
-                                {isInstanceMode && (
-                                    editingAddressId === slot.id ? (
                                         <Box
-                                            component="input"
-                                            type="text"
-                                            autoFocus
-                                            value={editingAddressValue}
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingAddressValue(e.target.value)}
-                                            onBlur={async () => {
-                                                const val = editingAddressValue.trim() || null;
-                                                setEditingAddressId(null);
-                                                if (val !== ((slot as any).address ?? null)) {
-                                                    try {
-                                                        const updated = await locationApi.update(slot.id, { address: val });
-                                                        setPackageLocationSlots(prev => prev.map((s: any) => s.id === slot.id ? { ...s, address: updated?.address ?? val } : s));
-                                                    } catch { /* ignore */ }
-                                                }
-                                            }}
-                                            onKeyDown={(e: React.KeyboardEvent) => {
-                                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                                                if (e.key === 'Escape') setEditingAddressId(null);
-                                                e.stopPropagation();
-                                            }}
-                                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                                            placeholder="Enter address..."
+                                            component="span"
                                             sx={{
-                                                width: '100%',
-                                                border: '1px solid rgba(245,158,11,0.3)',
-                                                borderRadius: '3px',
-                                                bgcolor: 'rgba(245,158,11,0.06)',
-                                                color: '#94a3b8',
-                                                fontSize: '0.62rem',
-                                                py: '2px',
-                                                px: '6px',
-                                                outline: 'none',
-                                                fontFamily: 'inherit',
-                                                mt: 0.25,
-                                            }}
-                                        />
-                                    ) : (
-                                        <Typography
-                                            variant="caption"
-                                            onClick={(e: React.MouseEvent) => {
-                                                e.stopPropagation();
-                                                setEditingAddressId(slot.id);
-                                                setEditingAddressValue((slot as any).address ?? '');
-                                            }}
-                                            sx={{
-                                                color: (slot as any).address ? '#64748b' : 'rgba(255,255,255,0.12)',
-                                                fontSize: '0.55rem',
-                                                display: 'block',
-                                                mt: -0.2,
-                                                fontStyle: (slot as any).address ? 'normal' : 'italic',
-                                                cursor: 'pointer',
-                                                borderRadius: '3px',
-                                                px: 0.25,
-                                                '&:hover': { bgcolor: 'rgba(245,158,11,0.06)' },
-                                                transition: 'background 0.15s',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
+                                                color: displayName ? '#94a3b8' : 'rgba(255,255,255,0.15)',
+                                                fontWeight: 400,
+                                                fontStyle: displayName ? 'normal' : 'italic',
+                                                fontSize: displayName ? 'inherit' : '0.65rem',
+                                                ml: 0.25,
                                             }}
                                         >
-                                            {(slot as any).address || 'Add address...'}
-                                        </Typography>
-                                    )
+                                            {displayName ? ` · ${displayName}` : '· Search venue...'}
+                                        </Box>
+                                    ) : displayName ? (
+                                        <Box component="span" sx={{ color: '#94a3b8', fontWeight: 400 }}> · {displayName}</Box>
+                                    ) : null}
+                                </Typography>
+                                {/* Address line */}
+                                {isInstanceMode && displayAddress && (
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: '#64748b',
+                                            fontSize: '0.6rem',
+                                            display: 'block',
+                                            mt: -0.2,
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {displayAddress}
+                                    </Typography>
+                                )}
+                                    </>);
+                                })()}
+                                {/* Venue search popover */}
+                                {searchingSlotId === slot.id && (
+                                    <ClickAwayListener onClickAway={() => { setSearchingSlotId(null); setSearchQuery(''); setSearchResults([]); }}>
+                                        <Box sx={{ position: 'absolute', top: -4, left: -8, right: -8, zIndex: 30 }} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                                            <Box sx={{
+                                                display: 'flex', alignItems: 'center', gap: 0.5,
+                                                bgcolor: 'rgba(16,18,22,0.95)', border: '1px solid rgba(245,158,11,0.3)',
+                                                borderRadius: '8px', px: 1, py: 0.25,
+                                            }}>
+                                                <SearchIcon sx={{ fontSize: 14, color: 'rgba(245,158,11,0.5)' }} />
+                                                <Box
+                                                    component="input"
+                                                    type="text"
+                                                    autoFocus
+                                                    value={searchQuery}
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVenueSearch(e.target.value)}
+                                                    onFocus={() => searchResults.length > 0 && setSearchDropdownOpen(true)}
+                                                    placeholder="Search venue name or address..."
+                                                    sx={{
+                                                        flex: 1, border: 'none', outline: 'none',
+                                                        bgcolor: 'transparent', color: '#e2e8f0',
+                                                        fontSize: '0.72rem', fontFamily: 'inherit',
+                                                        py: '4px', '&::placeholder': { color: 'rgba(148,163,184,0.4)' },
+                                                    }}
+                                                />
+                                                {searchLoading ? (
+                                                    <CircularProgress size={12} sx={{ color: 'rgba(245,158,11,0.5)' }} />
+                                                ) : searchQuery ? (
+                                                    <IconButton size="small" onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchDropdownOpen(false); }} sx={{ p: 0.25, color: 'rgba(148,163,184,0.4)' }}>
+                                                        <CloseIcon sx={{ fontSize: 12 }} />
+                                                    </IconButton>
+                                                ) : null}
+                                            </Box>
+                                            {searchDropdownOpen && searchResults.length > 0 && (
+                                                <Box sx={{
+                                                    mt: 0.5, bgcolor: 'rgba(16,18,22,0.97)', border: '1px solid rgba(245,158,11,0.2)',
+                                                    borderRadius: '8px', maxHeight: 220, overflowY: 'auto', py: 0.5,
+                                                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                                                }}>
+                                                    {searchResults.map((r, idx) => (
+                                                        <Box
+                                                            key={r.place_id}
+                                                            onClick={() => handleVenueSelect(r, slot.id)}
+                                                            sx={{
+                                                                px: 1.5, py: 1, cursor: 'pointer',
+                                                                display: 'flex', alignItems: 'flex-start', gap: 1,
+                                                                borderBottom: idx < searchResults.length - 1 ? '1px solid rgba(52,58,68,0.2)' : 'none',
+                                                                '&:hover': { bgcolor: 'rgba(245,158,11,0.06)' },
+                                                                transition: 'background 0.15s',
+                                                            }}
+                                                        >
+                                                            <PlaceIcon sx={{ fontSize: 14, color: '#f59e0b', mt: 0.25, flexShrink: 0 }} />
+                                                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                                                                <Typography sx={{ color: '#f1f5f9', fontSize: '0.72rem', fontWeight: 600, lineHeight: 1.3 }}>
+                                                                    {r.name || formatShort(r)}
+                                                                </Typography>
+                                                                <Typography sx={{ color: '#64748b', fontSize: '0.55rem', mt: 0.15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                    {r.display_name}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Box>
+                                                    ))}
+                                                </Box>
+                                            )}
+                                        </Box>
+                                    </ClickAwayListener>
                                 )}
                                 {!isInstanceMode && assignedCount > 0 && (
                                     <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.55rem', display: 'block', mt: -0.2 }}>

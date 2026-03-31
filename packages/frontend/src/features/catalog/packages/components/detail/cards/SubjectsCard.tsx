@@ -276,7 +276,7 @@ export function SubjectsCard({
                                                         try {
                                                             const updated = await subjectApi.update(subj.id, { real_name: val });
                                                             setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, real_name: updated?.real_name ?? val } : s));
-                                                        } catch { /* ignore */ }
+                                                        } catch (err) { console.error('Failed to save real_name:', err); }
                                                     }
                                                 }}
                                                 onKeyDown={(e: React.KeyboardEvent) => {

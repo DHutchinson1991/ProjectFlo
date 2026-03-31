@@ -49,6 +49,10 @@ export const STEP_AMBIENCE: Record<string, { c1: string; c2: string; c1pos: stri
     source:       { c1: "#a78bfa", c2: "#34d399", c1pos: "top: 15%; left: 12%",  c2pos: "bottom: 20%; right: 8%" },
     call_offer:   { c1: "#38bdf8", c2: "#7c4dff", c1pos: "top: 12%; right: 10%", c2pos: "bottom: 15%; left: 10%" },
     call_details: { c1: "#38bdf8", c2: "#c084fc", c1pos: "top: 18%; left: 6%",   c2pos: "bottom: 12%; right: 12%" },
+    your_name:    { c1: "#fb7185", c2: "#a78bfa", c1pos: "top: 14%; left: 10%",  c2pos: "bottom: 16%; right: 12%" },
+    your_role:    { c1: "#e879f9", c2: "#fb7185", c1pos: "top: 16%; right: 10%", c2pos: "bottom: 14%; left: 8%" },
+    partner_role: { c1: "#f472b6", c2: "#c084fc", c1pos: "top: 18%; left: 12%",  c2pos: "bottom: 12%; right: 10%" },
+    bride_groom_names: { c1: "#fb7185", c2: "#38bdf8", c1pos: "top: 12%; right: 8%", c2pos: "bottom: 20%; left: 10%" },
     contact:      { c1: "#7c4dff", c2: "#a855f7", c1pos: "top: 20%; right: 8%",  c2pos: "bottom: 15%; left: 10%" },
     summary:      { c1: "#22c55e", c2: "#38bdf8", c1pos: "top: 10%; left: 10%",  c2pos: "bottom: 18%; right: 10%" },
 };
@@ -200,6 +204,14 @@ export const LEAD_SOURCES = [
 
 export const BIRTHDAY_RELATIONS = ["Parent", "Sibling", "Friend", "Partner", "Colleague", "Other"];
 
+export const OTHER_ROLES = [
+    "Mother of the Bride", "Father of the Bride",
+    "Mother of the Groom", "Father of the Groom",
+    "Maid of Honour", "Best Man",
+    "Wedding Planner", "Bridesmaid", "Groomsman",
+    "Friend of the Couple", "Other",
+];
+
 export const CALL_TIME_OPTIONS = [
     "Morning (8am–12pm)", "Afternoon (12pm–5pm)", "Evening (5pm–9pm)", "Flexible",
 ];
@@ -214,4 +226,4 @@ export const SEASONS = [
     { label: "Winter", months: [11, 0, 1] as const, emoji: "❄️" },
 ] as const;
 
-export const REQUIRED: Set<ScreenId> = new Set(["event_type", "date", "fork", "contact"]);
+export const REQUIRED: Set<ScreenId> = new Set(["event_type", "date", "fork", "contact", "your_name"]);

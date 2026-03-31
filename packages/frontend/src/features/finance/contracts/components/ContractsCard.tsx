@@ -16,9 +16,9 @@ import { useInquiryContracts, useContractListMutations } from '../hooks';
 
 /* ── Status chip helper ──────────────────────────────────────────── */
 
-const statusConfig: Record<string, { color: 'default' | 'info' | 'success' | 'warning'; icon: React.ReactNode }> = {
+const statusConfig: Record<string, { color: 'default' | 'info' | 'success' | 'warning'; icon: React.ReactNode; label?: string }> = {
     Draft: { color: 'default', icon: <Edit sx={{ fontSize: 14 }} /> },
-    Sent: { color: 'info', icon: <Send sx={{ fontSize: 14 }} /> },
+    Sent: { color: 'info', icon: <Visibility sx={{ fontSize: 14 }} />, label: 'Published' },
     Signed: { color: 'success', icon: <CheckCircle sx={{ fontSize: 14 }} /> },
 };
 
@@ -78,7 +78,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
             await sendContract.mutateAsync({ contractId: sendContractId, data: { signers: validSigners } });
             setSendOpen(false);
             if (onRefresh) onRefresh();
-            setSnack({ open: true, message: 'Contract sent for signing!', severity: 'success' });
+            setSnack({ open: true, message: 'Contract published to proposal!', severity: 'success' });
         } catch {
             setSnack({ open: true, message: 'Failed to send contract', severity: 'error' });
         }
@@ -146,7 +146,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                         </Box>
                         <Typography sx={{ color: '#94a3b8', fontSize: '0.85rem', fontWeight: 500 }}>No contracts yet</Typography>
                         <Typography sx={{ color: '#475569', fontSize: '0.72rem', mt: 0.5 }}>
-                            A Professional Services Agreement will be created automatically when the inquiry is qualified
+                            A Professional Services Agreement will be created automatically when the proposal is generated
                         </Typography>
                     </Box>
                 ) : (
@@ -161,7 +161,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                         primary={
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                 <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: '#e2e8f0' }}>{contract.title}</Typography>
-                                                <Chip icon={cfg.icon as React.ReactElement} label={contract.status} size="small" color={cfg.color} variant="outlined"
+                                                <Chip icon={cfg.icon as React.ReactElement} label={cfg.label || contract.status} size="small" color={cfg.color} variant="outlined"
                                                     sx={{ height: 22, fontSize: '0.65rem', fontWeight: 600 }} />
                                                 {signerTotal > 0 && (
                                                     <Chip
@@ -207,7 +207,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                             </IconButton>
                                         </Tooltip>
                                         {contract.status === 'Draft' && (
-                                            <Tooltip title="Send for signing">
+                                            <Tooltip title="Publish to proposal">
                                                 <IconButton size="small" onClick={() => handleOpenSend(contract.id)}>
                                                     <Send sx={{ fontSize: 16, color: '#6366f1' }} />
                                                 </IconButton>
@@ -262,7 +262,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                 }}
                                 sx={{ textTransform: 'none', borderRadius: 2 }}
                             >
-                                Send for Signing
+                                Publish to Proposal
                             </Button>
                         )}
                         <Button
@@ -294,7 +294,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                         </Typography>
                         {!previewContract?.signers || previewContract.signers.length === 0 ? (
                             <Typography sx={{ color: '#94a3b8', fontSize: '0.78rem' }}>
-                                No signers added yet. Click "Send for Signing" to add recipients and generate links.
+                                No signers added yet. Publish the contract to add signers and make it viewable in the proposal.
                             </Typography>
                         ) : (
                             <Stack spacing={1}>
@@ -334,10 +334,10 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
             {/* ── Send for Signing Dialog ─────────────────────────────────── */}
             <Dialog open={sendOpen} onClose={() => setSendOpen(false)} maxWidth="sm" fullWidth
                 PaperProps={{ sx: { bgcolor: '#1e293b', borderRadius: 3, border: '1px solid rgba(148,163,184,0.12)' } }}>
-                <DialogTitle sx={{ color: '#f1f5f9', fontWeight: 700, pb: 0 }}>Send Contract for Signing</DialogTitle>
+                <DialogTitle sx={{ color: '#f1f5f9', fontWeight: 700, pb: 0 }}>Publish Contract to Proposal</DialogTitle>
                 <DialogContent sx={{ pt: 2 }}>
                     <Typography sx={{ color: '#94a3b8', fontSize: '0.82rem', mb: 2 }}>
-                        Add signers who need to sign this contract. Each signer will receive a unique signing link.
+                        The contract will be viewable in the client proposal. Add the signers who will need to sign.
                     </Typography>
                     <Stack spacing={2}>
                         {signerRows.map((row, idx) => (
@@ -378,7 +378,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                     <Button variant="contained" disabled={sendContract.isPending} onClick={handleSend}
                         startIcon={sendContract.isPending ? <CircularProgress size={16} /> : <Send />}
                         sx={{ borderRadius: 2, textTransform: 'none', bgcolor: '#6366f1', '&:hover': { bgcolor: '#4f46e5' } }}>
-                        {sendContract.isPending ? 'Sending...' : 'Send for Signing'}
+                        {sendContract.isPending ? 'Publishing...' : 'Publish'}
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -1,5 +1,5 @@
 // Calendar API — backward-compat named exports.
-// External consumers (CallsCard, ProposalReviewCard) import individual functions from here.
+// External consumers (DiscoveryCallCard, ProposalReviewCard) import individual functions from here.
 // New code should import { calendarApi } from './index' instead.
 
 export type {

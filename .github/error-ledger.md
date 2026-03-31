@@ -17,6 +17,22 @@ After a pattern appears ≥2 times or is high-impact, update the relevant `.gith
 
 <!-- Add new entries below this line -->
 
+## [2026-03-31] Migration history drift — `prisma migrate dev` demanded full schema reset (DATA LOSS RISK)
+- **Trigger**: After adding `inquiry_crew_availability_requests` model, the agent ran `prisma migrate dev` to create a named migration. Prisma detected that the actual DB schema no longer matches the recorded migration history (caused by repeated `pnpm db:push` operations that modify the DB without creating migration files). Prisma's only option was to **reset the entire public schema** — dropping all tables and data.
+- **Category**: Pattern (high-impact, systemic)
+- **Root cause**: The project has accumulated schema drift over time. Every `pnpm db:push` applies changes directly to the DB but creates no migration file. After enough pushes, the migration history (`prisma/migrations/`) and the actual DB diverge so far that `prisma migrate dev` cannot reconcile them without a full reset. This is a compounding problem — the longer it goes unaddressed, the harder it becomes to create proper migrations again.
+- **Impact**: (1) Cannot safely create named migrations for production deployment. (2) Any agent or developer running `prisma migrate dev` risks destroying the local database. (3) The existing migration files are effectively out of sync with reality.
+- **Resolution**: (1) Regenerated `0_baseline/migration.sql` from the full current schema via `prisma migrate diff --from-empty --to-schema-datamodel`. (2) Deleted all 9 incremental migration folders (their changes are now captured in the baseline). (3) Cleared `_prisma_migrations` table and marked only `0_baseline` as applied. (4) Verified: `prisma migrate status` → "1 migration found, Database schema is up to date". (5) Confirmed `prisma migrate dev --create-only` produces an empty migration (zero drift). Migration system is fully healthy.
+- **Instruction updated**: `migrations.instructions.md` — added "Migration history health" section, updated with resolved status
+- **Status**: Resolved
+
+## [2026-03-31] pnpm db:generate timed out during baseline migration analysis after schema change
+- **Trigger**: After adding a new Prisma model (`inquiry_crew_availability_requests`) to `schema.prisma`, `pnpm db:generate` was run with a 60s timeout. Prisma spent the entire timeout period printing hundreds of baseline migration drift analysis lines (`[+] Added index on columns...`, `[+] Added foreign key on columns...`) before reaching actual client generation. The command moved to a background terminal and never visibly completed, stalling the agent session. All new `this.prisma.inquiry_crew_availability_requests` references showed `Property does not exist on type 'PrismaService'` until the client was regenerated in a later session.
+- **Category**: Pattern
+- **Resolution**: In the follow-up session, ran `pnpm db:generate` again with a 90s timeout — it completed in ~3.5s (the baseline analysis had already been cached/resolved). The fix was simply re-running the command. Going forward: if `pnpm db:generate` times out, retry it — the baseline analysis only happens once and subsequent runs are fast.
+- **Instruction updated**: none
+- **Status**: Open
+
 ## [2026-03-29] Assumed event-type nested arrays were safe in all wizard render paths
 - **Trigger**: Fixed an initial null-safety crash in `getAllRoleIds`, but missed additional direct `.sort()`/`.find()` usage of `selectedEventType.subject_types` and `selectedEventType.event_days` in render and handlers, causing repeated runtime crashes on partial payloads.
 - **Category**: Pattern

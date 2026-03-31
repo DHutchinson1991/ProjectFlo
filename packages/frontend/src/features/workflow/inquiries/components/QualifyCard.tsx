@@ -109,7 +109,7 @@ function buildWelcomeDraft(
   const primaryEst = inquiry.estimates?.find(e => e.is_primary) ?? inquiry.estimates?.[0];
   const estimateTotal = (primaryEst ? computeTaxBreakdown(Number(primaryEst.total_amount ?? 0), taxRate).total : 0)
     || (inquiry.primary_estimate_total ?? 0);
-  const currency = bestEstimate?.currency ?? inquiry.selected_package?.currency ?? inquiry.package_contents_snapshot?.currency ?? DEFAULT_CURRENCY;
+  const currency = primaryEst?.currency ?? inquiry.selected_package?.currency ?? inquiry.package_contents_snapshot?.currency ?? DEFAULT_CURRENCY;
   const packagePriceStr = estimateTotal > 0 ? formatCurrency(estimateTotal, currency) : null;
   if (packageName && packagePriceStr) confirmedDetails.push(`Package: ${packageName} (estimated ${packagePriceStr})`);
   else if (packageName) confirmedDetails.push(`Package: ${packageName}`);

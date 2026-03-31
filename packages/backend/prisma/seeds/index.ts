@@ -195,6 +195,15 @@ async function main() {
         finalSummary.skipped += layer5Summary.skipped;
         finalSummary.total   += layer5Summary.total;
 
+        // ── Post-brand: contract clauses + templates (need brands to exist)
+        logger.info('8️⃣  Contract clauses & templates');
+        const { seedContractsForBrands } = await import('./system-finance.seed');
+        const contractsSummary = await seedContractsForBrands(prisma);
+        finalSummary.created += contractsSummary.created;
+        finalSummary.updated += contractsSummary.updated;
+        finalSummary.skipped += contractsSummary.skipped;
+        finalSummary.total   += contractsSummary.total;
+
         const perBrandRun: PerBrandRun = {};
         await printFinalMetrics(prisma, finalSummary, beforeGlobal, beforeBrand, perBrandRun);
         logger.success('Your database is now ready for development and testing!');

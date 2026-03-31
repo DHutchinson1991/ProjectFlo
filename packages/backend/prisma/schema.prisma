@@ -430,6 +430,7 @@ model inquiries {
   inquiry_tasks                        inquiry_tasks[]
   equipment_reservations               inquiry_equipment_reservations[]
   equipment_availability_blocks        equipment_availability[]
+  crew_availability_requests           inquiry_crew_availability_requests[]
 
   // Schedule snapshot (owned while inquiry, transferred to project on booking)
   schedule_event_days          ProjectEventDay[]
@@ -690,6 +691,7 @@ model Crew {
   notifications_received         notifications[]
   package_crew_assignments       PackageCrewSlot[]
   project_crew_assignments       ProjectCrewSlot[]
+  crew_availability_requests     inquiry_crew_availability_requests[]
 
   task_library_benchmarks        task_library_benchmarks[]
   default_task_library_entries   task_library[]                @relation("TaskLibraryDefaultCrew")
@@ -1175,10 +1177,41 @@ model proposals {
   client_response String?    // "Accepted" | "ChangesRequested"
   client_response_at DateTime?
   client_response_message String?
+  viewed_at       DateTime?
+  view_count      Int        @default(0)
   inquiry         inquiries  @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   project         projects?  @relation(fields: [project_id], references: [id])
+  section_views   proposal_section_views[]
+  section_notes   proposal_section_notes[]
 
   @@map("proposals")
+}
+
+model proposal_section_views {
+  id               Int      @id @default(autoincrement())
+  proposal_id      Int
+  section_type     String   // e.g. "hero", "pricing", "schedule", "films", "team", etc.
+  viewed_at        DateTime @default(now())
+  duration_seconds Int      @default(0)
+  proposal         proposals @relation(fields: [proposal_id], references: [id], onDelete: Cascade)
+
+  @@unique([proposal_id, section_type])
+  @@index([proposal_id])
+  @@map("proposal_section_views")
+}
+
+model proposal_section_notes {
+  id           Int      @id @default(autoincrement())
+  proposal_id  Int
+  section_type String
+  note         String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  proposal     proposals @relation(fields: [proposal_id], references: [id], onDelete: Cascade)
+
+  @@unique([proposal_id, section_type])
+  @@index([proposal_id])
+  @@map("proposal_section_notes")
 }
 
 model contracts {
@@ -3995,6 +4028,7 @@ model ProjectCrewSlot {
   hours                Decimal  @default(8) @db.Decimal(4, 1)
   label                String? // Optional display override
   order_index          Int      @default(0)
+  confirmed            Boolean  @default(false)
   created_at           DateTime @default(now())
   updated_at           DateTime @updatedAt
 
@@ -4005,6 +4039,7 @@ model ProjectCrewSlot {
   job_role             job_roles         @relation(fields: [job_role_id], references: [id], onDelete: Restrict)
   equipment            ProjectCrewSlotEquipment[]
   activity_assignments ProjectCrewSlotActivity[]
+  availability_requests inquiry_crew_availability_requests[]
 
   @@index([project_id])
   @@index([inquiry_id])
@@ -4471,5 +4506,33 @@ model inquiry_equipment_reservations {
 enum inquiry_equipment_reservation_status {
   reserved
   confirmed
+  cancelled
+}
+
+model inquiry_crew_availability_requests {
+  id                   Int                                      @id @default(autoincrement())
+  inquiry_id           Int
+  crew_id              Int
+  project_crew_slot_id Int?
+  status               inquiry_crew_availability_request_status @default(pending)
+  sent_at              DateTime                                 @default(now())
+  cancelled_at         DateTime?
+  created_at           DateTime                                 @default(now())
+  updated_at           DateTime                                 @updatedAt
+
+  inquiry inquiries        @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  crew    Crew             @relation(fields: [crew_id], references: [id], onDelete: Cascade)
+  slot    ProjectCrewSlot? @relation(fields: [project_crew_slot_id], references: [id], onDelete: SetNull)
+
+  @@unique([inquiry_id, crew_id])
+  @@index([inquiry_id])
+  @@index([crew_id])
+  @@map("inquiry_crew_availability_requests")
+}
+
+enum inquiry_crew_availability_request_status {
+  pending
+  confirmed
+  declined
   cancelled
 }

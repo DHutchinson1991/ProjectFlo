@@ -213,6 +213,101 @@ async function seedContractClauses(countryCode = 'GB'): Promise<SeedSummary> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CONTRACT TEMPLATES  (brand-scoped — requires clauses to exist first)
+// ─────────────────────────────────────────────────────────────────────────────
+const TEMPLATE_DEFS = [
+    {
+        name: 'Professional Services Agreement',
+        description: 'Standard contract for videography/photography services covering scope of work, payment, liability, IP, and general terms.',
+        categories: ['Scope of Work', 'Payment Terms', 'Cancellation & Rescheduling', 'Liability & Insurance', 'Intellectual Property', 'Confidentiality', 'Force Majeure', 'General Provisions'],
+    },
+    {
+        name: 'Talent Release Form',
+        description: 'Release form for talent/subjects granting permission to use their likeness in productions.',
+        categories: ['Talent Release Form'],
+    },
+    {
+        name: 'Location Release Agreement',
+        description: 'Agreement with property owners for filming at their locations, covering access, liability, and restoration.',
+        categories: ['Location Release Agreement'],
+    },
+];
+
+async function seedContractTemplates(): Promise<SeedSummary> {
+    logger.startTimer('contract-templates');
+    logger.processing('Seeding default contract templates...');
+
+    const brands = await prisma.brands.findMany({ where: { is_active: true } });
+    if (brands.length === 0) {
+        logger.info('No active brands found — skipping contract templates', 'normal');
+        return { created: 0, updated: 0, skipped: 0, total: 0 };
+    }
+
+    let created = 0;
+    let skipped = 0;
+
+    for (const brand of brands) {
+        const categories = await prisma.contract_clause_categories.findMany({
+            where: { brand_id: brand.id },
+            include: { clauses: { where: { is_active: true }, orderBy: { order_index: 'asc' } } },
+            orderBy: { order_index: 'asc' },
+        });
+
+        if (categories.length === 0) {
+            logger.skipped(`Brand "${brand.name}"`, 'no clause categories — seed clauses first');
+            skipped++;
+            continue;
+        }
+
+        const catMap = new Map(categories.map((c) => [c.name.toLowerCase(), c.clauses]));
+
+        const getClauseIds = (categoryNames: string[]): number[] => {
+            const ids: number[] = [];
+            for (const name of categoryNames) {
+                const clauses = catMap.get(name.toLowerCase());
+                if (clauses) {
+                    for (const cl of clauses) {
+                        if (cl.clause_type === 'STANDARD') ids.push(cl.id);
+                    }
+                }
+            }
+            return ids;
+        };
+
+        for (const def of TEMPLATE_DEFS) {
+            const clauseIds = getClauseIds(def.categories);
+            if (clauseIds.length === 0) continue;
+
+            const existing = await prisma.contract_templates.findFirst({
+                where: { brand_id: brand.id, name: def.name },
+            });
+            if (existing) {
+                skipped++;
+                continue;
+            }
+
+            await prisma.contract_templates.create({
+                data: {
+                    brand_id: brand.id,
+                    name: def.name,
+                    description: def.description,
+                    is_default: true,
+                    template_clauses: {
+                        create: clauseIds.map((cId, i) => ({ clause_id: cId, order_index: i })),
+                    },
+                },
+            });
+            created++;
+            logger.created(`Template "${def.name}" for "${brand.name}"`);
+        }
+    }
+
+    logger.smartSummary('Contract templates', created, 0, created + skipped);
+    logger.endTimer('contract-templates', 'Contract templates');
+    return { created, updated: 0, skipped, total: created + skipped };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ROOT
 // ─────────────────────────────────────────────────────────────────────────────
 async function main(db: PrismaClient): Promise<SeedSummary> {
@@ -227,6 +322,25 @@ async function main(db: PrismaClient): Promise<SeedSummary> {
     const total = sumSummaries(s1, s2);
     logger.success(`System Finance done — Created: ${total.created}, Updated: ${total.updated}`);
     logger.endTimer('system-finance', 'System Finance');
+    return total;
+}
+
+/**
+ * Post-brand pass: seeds contract clauses + templates for all brands.
+ * Call this from the orchestrator AFTER brand seeds have run.
+ */
+export async function seedContractsForBrands(db: PrismaClient): Promise<SeedSummary> {
+    prisma = db;
+    logger.sectionHeader('Contract Clauses & Templates (post-brand)');
+    logger.startTimer('contracts-post-brand');
+
+    const s1 = await seedContractClauses();
+    logger.sectionDivider('Contract Templates');
+    const s2 = await seedContractTemplates();
+
+    const total = sumSummaries(s1, s2);
+    logger.success(`Contracts done — Created: ${total.created}, Skipped: ${total.skipped}`);
+    logger.endTimer('contracts-post-brand', 'Contracts post-brand');
     return total;
 }
 

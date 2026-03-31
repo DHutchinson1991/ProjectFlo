@@ -98,6 +98,90 @@ function buildDrawerTree(tasks: ActiveTask[]): DrawerTreeItem[] {
   return items;
 }
 
+// ── Task-to-card glow mapping ────────────────────────────────
+// Maps task names → section DOM IDs in the inquiry overview
+const TASK_SECTION_MAP: Record<string, string> = {
+  // ── Inquiry stage ──
+  'Review Inquiry': 'needs-assessment-section',
+  'Verify Contact Details': 'contact-info-section',
+  'Verify Event Date': 'needs-assessment-section',
+  'Confirm Package Selection': 'package-scope-section',
+  'Check Crew Availability': 'availability-section',
+  'Check Equipment Availability': 'availability-section',
+  'Resolve Availability Conflicts': 'availability-section',
+  'Send Availability Requests': 'availability-section',
+  'Reserve Equipment': 'availability-section',
+  // ── Qualify & Respond stage ──
+  'Qualify & Respond': 'qualify-respond-section',
+  'Review Estimate': 'estimates-section',
+  'Schedule Discovery Call': 'calls-section',
+  'Qualify Inquiry': 'qualify-respond-section',
+  'Send Welcome Response': 'qualify-respond-section',
+  'Qualify': 'qualify-respond-section',
+  'Send Welcome': 'qualify-respond-section',
+  // ── Discovery stage ──
+  'Discovery Call': 'discovery-questionnaire-section',
+  // ── Estimates ──
+  'Estimate Preparation': 'estimates-section',
+  // ── Proposal stage ──
+  'Generate Quote': 'quotes-section',
+  'Prepare Contract': 'contracts-section',
+  'Create & Review Proposal': 'proposals-section',
+  'Send Proposal': 'proposals-section',
+  'Contract Sent': 'contracts-section',
+  // ── Booking stage ──
+  'Contract Signed': 'contracts-section',
+  'Raise Deposit Invoice': 'contracts-section',
+  'Block Wedding Date': 'approval-section',
+  'Confirm Booking': 'approval-section',
+  'Send Welcome Pack': 'approval-section',
+};
+
+// Maps stage (task group) names → section DOM IDs
+const STAGE_SECTION_MAP: Record<string, string> = {
+  'Inquiry': 'needs-assessment-section',
+  'Review Inquiry': 'needs-assessment-section',
+  'Qualify & Respond': 'qualify-respond-section',
+  'Discovery': 'calls-section',
+  'Discovery Call': 'calls-section',
+  'Proposal': 'proposals-section',
+  'Proposals': 'proposals-section',
+  'Proposal Review': 'proposal-review-section',
+  'Client Approval': 'approval-section',
+  'Contracts': 'contracts-section',
+  'Booking': 'contracts-section',
+};
+
+function getSectionIdForTask(taskName: string, stageName?: string): string | null {
+  // Direct task name lookup first
+  if (TASK_SECTION_MAP[taskName]) return TASK_SECTION_MAP[taskName];
+  // Derive from parent stage name
+  if (stageName && STAGE_SECTION_MAP[stageName]) return STAGE_SECTION_MAP[stageName];
+  return null;
+}
+
+function getGlowColor(status: string): string {
+  if (status === 'Completed') return 'rgba(148, 163, 184, 0.35)'; // silver
+  if (status === 'To_Do' || status === 'Ready_to_Start') return 'rgba(16, 185, 129, 0.4)'; // green
+  return 'rgba(220, 60, 80, 0.35)'; // reddish for In_Progress, overdue, etc.
+}
+
+function setCardGlow(sectionId: string, color: string) {
+  const el = document.getElementById(sectionId);
+  if (el) {
+    el.setAttribute('data-task-glow', color);
+    el.style.setProperty('--task-glow-color', color);
+  }
+}
+
+function clearCardGlow(sectionId: string) {
+  const el = document.getElementById(sectionId);
+  if (el) {
+    el.removeAttribute('data-task-glow');
+    el.style.removeProperty('--task-glow-color');
+  }
+}
+
 // ══════════════════════════════════════════════════════════════
 // DrawerTaskGroupRow
 // ══════════════════════════════════════════════════════════════
@@ -113,10 +197,29 @@ function DrawerTaskGroupRow({ stage, subtasks, onNavigate, subtasksByParent }: {
   const total = subtasks.length;
   const progress = total > 0 ? (done / total) * 100 : 0;
 
+  // Stage-level glow on hover
+  const stageGlowRef = React.useRef<string | null>(null);
+  const handleStageEnter = () => {
+    const sid = STAGE_SECTION_MAP[stage.name];
+    if (sid) {
+      stageGlowRef.current = sid;
+      const stageColor = done === total ? 'rgba(148, 163, 184, 0.35)' : 'rgba(87, 155, 252, 0.35)';
+      setCardGlow(sid, stageColor);
+    }
+  };
+  const handleStageLeave = () => {
+    if (stageGlowRef.current) {
+      clearCardGlow(stageGlowRef.current);
+      stageGlowRef.current = null;
+    }
+  };
+
   return (
     <Box>
       <Box
         onClick={() => setOpen(!open)}
+        onMouseEnter={handleStageEnter}
+        onMouseLeave={handleStageLeave}
         sx={{
           display: "flex", alignItems: "center", gap: 1,
           height: 34, pl: 1.5, pr: 1.5,
@@ -159,7 +262,7 @@ function DrawerTaskGroupRow({ stage, subtasks, onNavigate, subtasksByParent }: {
       <Collapse in={open}>
         {subtasks.map(task => (
           <Box key={`${task.source}-${task.id}`} sx={{ borderLeft: `2px solid ${color}33` }}>
-            <DrawerTaskRow task={task} subtasks={subtasksByParent.get(task.id) ?? []} onNavigate={onNavigate} />
+            <DrawerTaskRow task={task} subtasks={subtasksByParent.get(task.id) ?? []} onNavigate={onNavigate} stageName={stage.name} />
           </Box>
         ))}
       </Collapse>
@@ -170,7 +273,7 @@ function DrawerTaskGroupRow({ stage, subtasks, onNavigate, subtasksByParent }: {
 // ══════════════════════════════════════════════════════════════
 // DrawerTaskRow
 // ══════════════════════════════════════════════════════════════
-function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false }: { task: ActiveTask; onNavigate: (task: ActiveTask) => void; subtasks?: ActiveTask[]; nested?: boolean }) {
+function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false, stageName }: { task: ActiveTask; onNavigate: (task: ActiveTask) => void; subtasks?: ActiveTask[]; nested?: boolean; stageName?: string }) {
   const [hovered, setHovered] = useState(false);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [events, setEvents] = useState<InquiryTaskEvent[] | null>(null);
@@ -179,6 +282,24 @@ function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false }: { ta
   const [subtasksOpen, setSubtasksOpen] = useState(false);
   const isCompleted = task.status === "Completed";
   const isAuto = task.is_auto_only ?? false;
+
+  // Card glow on hover
+  const glowSectionRef = React.useRef<string | null>(null);
+  const handleRowEnter = () => {
+    setHovered(true);
+    const sid = getSectionIdForTask(task.name, stageName);
+    if (sid) {
+      glowSectionRef.current = sid;
+      setCardGlow(sid, getGlowColor(task.status));
+    }
+  };
+  const handleRowLeave = () => {
+    setHovered(false);
+    if (glowSectionRef.current) {
+      clearCardGlow(glowSectionRef.current);
+      glowSectionRef.current = null;
+    }
+  };
   const overdue = isOverdue(task, timezone);
   const navUrl = getNavUrl(task);
   const cfg = STATUS_CFG[task.status] ?? STATUS_CFG.To_Do;
@@ -209,8 +330,8 @@ function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false }: { ta
     <Box sx={{ borderBottom: "1px solid rgba(255,255,255,0.035)", "&:last-child": { borderBottom: "none" } }}>
       <Box
         onClick={() => navUrl && onNavigate(task)}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        onMouseEnter={handleRowEnter}
+        onMouseLeave={handleRowLeave}
         sx={{
           display: "grid",
           gridTemplateColumns: GRID,
@@ -349,7 +470,7 @@ function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false }: { ta
 
       <Collapse in={subtasksOpen}>
         {subtasks.map((subtask) => (
-          <DrawerTaskRow key={`${subtask.source}-${subtask.id}`} task={subtask} onNavigate={onNavigate} nested />
+          <DrawerTaskRow key={`${subtask.source}-${subtask.id}`} task={subtask} onNavigate={onNavigate} nested stageName={stageName} />
         ))}
       </Collapse>
 
@@ -434,6 +555,22 @@ export default function GlobalTaskDrawer() {
         pb: "18px",
       }}
     >
+      {/* Global style for task-to-card glow */}
+      <style>{`
+        [data-task-glow] > .MuiCard-root,
+        [data-task-glow] > .MuiBox-root {
+          box-shadow: 0 0 24px var(--task-glow-color, transparent),
+                      0 0 48px var(--task-glow-color, transparent),
+                      0 2px 12px rgba(0,0,0,0.15) !important;
+          border-color: var(--task-glow-color, rgba(52,58,68,0.2)) !important;
+          transition: box-shadow 0.3s ease, border-color 0.3s ease !important;
+        }
+        #contact-info-section[data-task-glow] {
+          background: color-mix(in srgb, var(--task-glow-color, transparent) 8%, transparent);
+          border-radius: 12px;
+          transition: background 0.3s ease !important;
+        }
+      `}</style>
       {/* ── Clipboard shape (decorative, sits behind the bar) ── */}
       <Box
         onClick={() => setExpanded(e => !e)}

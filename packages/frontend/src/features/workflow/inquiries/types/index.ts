@@ -28,9 +28,13 @@ export type {
     DiscoveryQuestion,
     DiscoveryQuestionnaireTemplate,
     DiscoveryQuestionnaireSubmission,
+    CreateDiscoverySubmissionPayload,
 } from './discovery-questionnaire';
 
-// Brand (MeetingSettings for CallsCard)
+// Schedule snapshot types (used by discovery questionnaire components)
+export type { SnapshotActivity, SnapshotMoment } from './schedule-snapshot';
+
+// Brand (MeetingSettings for DiscoveryCallCard)
 export type { MeetingSettings } from '@/features/platform/brand/types';
 
 // Task-library (TaskAutoGenerationPreviewTask for AvailabilityCard)
@@ -61,5 +65,16 @@ export interface InquiryScheduleDiffResult {
     changed?: unknown[];
 }
 
-export type InquiryAvailabilityRequestStatus = 'confirmed' | 'declined' | 'cancelled';
+export type InquiryAvailabilityRequestStatus = 'pending' | 'confirmed' | 'declined' | 'cancelled';
 export type InquiryEquipmentReservationStatus = 'confirmed' | 'cancelled';
+
+// Availability card state types
+export type {
+    RequestState,
+    RequestMap,
+    ReservationState,
+    ReservationMap,
+    CrewDialogState,
+    EquipmentDialogState,
+    MergedCrewGroup,
+} from './availability';

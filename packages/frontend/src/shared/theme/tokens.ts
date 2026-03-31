@@ -116,9 +116,11 @@ export const statusColors: Record<string, string> = {
   // Documents (estimates, quotes, contracts)
   Draft: colors.muted,
   Sent: colors.info,
+  Viewed: colors.accent,
   Accepted: colors.success,
   Signed: colors.success,
   Declined: colors.error,
+  ChangesRequested: colors.warning,
   Expired: colors.warning,
 
   // Inquiries / pipeline

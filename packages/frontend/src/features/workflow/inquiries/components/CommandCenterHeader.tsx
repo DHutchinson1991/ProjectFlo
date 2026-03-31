@@ -102,8 +102,12 @@ export default function CommandCenterHeader({
             await inquiriesApi.update(inquiry.id, payload);
             setEditingField(null);
             await onRefresh();
-        } catch {
-            onSnackbar('Failed to update contact');
+        } catch (err: unknown) {
+            let msg = 'Failed to update contact';
+            if (err instanceof Error) {
+                try { const body = JSON.parse(err.message); if (body?.message) msg = body.message; } catch { /* use default */ }
+            }
+            onSnackbar(msg);
         }
     };
 
@@ -175,6 +179,19 @@ export default function CommandCenterHeader({
                     py: 2,
                 }}
             >
+                {/* Contact details wrapper (glow target) */}
+                <Box
+                    id="contact-info-section"
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        borderRadius: 2,
+                        px: 1,
+                        py: 0.5,
+                        mx: -1,
+                    }}
+                >
                 {/* Avatar with status indicator */}
                 <Box sx={{ position: 'relative', flexShrink: 0 }}>
                     <Box
@@ -329,6 +346,8 @@ export default function CommandCenterHeader({
                             </Typography>
                         </Box>
                     )}
+                </Box>
+
                 </Box>
 
                 {/* Right side: metrics pills + assessment button */}

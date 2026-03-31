@@ -95,6 +95,10 @@ export function createInquiriesApi(client: ApiClient) {
             reservationId: number,
             status: InquiryEquipmentReservationStatus,
         ) => client.patch<{ id: number; status: string }>(`/api/inquiries/${inquiryId}/equipment-reservations/${reservationId}`, { status }),
+        toggleSlotConfirmed: (inquiryId: number, slotId: number, confirmed: boolean) =>
+            client.patch<{ id: number; confirmed: boolean }>(`/api/inquiries/${inquiryId}/crew-slots/${slotId}/confirm`, { confirmed }),
+        confirmAllSlotsForCrew: (inquiryId: number, crewId: number, confirmed: boolean) =>
+            client.patch<{ crew_id: number; confirmed: boolean }>(`/api/inquiries/${inquiryId}/crew-slots/confirm-all`, { crew_id: crewId, confirmed }),
         swapEquipment: (inquiryId: number, assignmentId: number, newEquipmentId: number) =>
             client.patch<{ id: number; old_equipment_id: number; new_equipment_id: number }>(
                 `/api/inquiries/${inquiryId}/equipment-assignments/${assignmentId}/swap`,
@@ -153,6 +157,8 @@ export function createDiscoveryQuestionnaireTemplatesApi(client: ApiClient) {
             client.get(`/api/discovery-questionnaire/templates/${id}`),
         update: (id: number, data: Partial<DiscoveryQuestionnaireTemplate>): Promise<DiscoveryQuestionnaireTemplate> =>
             client.put(`/api/discovery-questionnaire/templates/${id}`, data),
+        resetToDefault: (): Promise<DiscoveryQuestionnaireTemplate> =>
+            client.post('/api/discovery-questionnaire/templates/reset', {}),
     };
 }
 

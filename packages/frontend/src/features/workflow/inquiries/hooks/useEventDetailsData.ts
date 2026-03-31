@@ -21,6 +21,7 @@ type CeremonySlotAddressFields = {
 export interface CeremonySlotSummary {
     id: number;
     name: string;
+    venueName: string;
     address: string;
     lat: number | null;
     lng: number | null;
@@ -51,6 +52,12 @@ export function useEventDetailsData(
 ) {
     const eventTypesQuery = useEventTypes();
 
+    // Wizard responses may carry venue_name and coords that the slot / library entry lacks
+    const wizResponses = (submission?.responses ?? {}) as Record<string, unknown>;
+    const wizVenueName = typeof wizResponses.venue_name === 'string' ? wizResponses.venue_name.trim() : '';
+    const wizLat = wizResponses.venue_lat != null ? Number(wizResponses.venue_lat) : null;
+    const wizLng = wizResponses.venue_lng != null ? Number(wizResponses.venue_lng) : null;
+
     const ceremonySlotQuery = useQuery({
         queryKey: ['workflow', 'inquiries', inquiry.id, 'ceremony-slot'],
         queryFn: async (): Promise<CeremonySlotSummary | null> => {
@@ -79,6 +86,8 @@ export function useEventDetailsData(
                 state?: string;
                 postal_code?: string;
                 country?: string;
+                lat?: number | null;
+                lng?: number | null;
             } | undefined;
 
             const slotName = typeof ceremony.name === 'string' ? ceremony.name : location?.name || '';
@@ -95,15 +104,57 @@ export function useEventDetailsData(
 
             if (!slotName && !fullAddress) return null;
 
-            const coords = await geocodeAddress(fullAddress || slotName);
+            // Extract venue name – cascade through all possible sources:
+            // 1. location.name  (library entry, set correctly by wizard prefill)
+            // 2. slot name       (projectLocationSlot.name, also set by prefill)
+            // 3. address_line1 first part (legacy: display_name stored there)
+            // Legacy records stored the address string in location.name — detect that.
+            let derivedVenueName = location?.name || '';
+            const looksLikeAddress = derivedVenueName.includes(',') && /\d/.test(derivedVenueName);
+            if (looksLikeAddress) derivedVenueName = ''; // discard address-like names
+
+            if (!derivedVenueName && slotName && !slotName.includes(',')) {
+                derivedVenueName = slotName;
+            }
+            if (!derivedVenueName && location?.address_line1) {
+                const firstPart = location.address_line1.split(',')[0]?.trim() || '';
+                if (firstPart && !/^\d/.test(firstPart)) {
+                    derivedVenueName = firstPart;
+                }
+            }
+            // Last resort: use wizard submission venue_name
+            if (!derivedVenueName && wizVenueName) {
+                derivedVenueName = wizVenueName;
+            }
+
+            // Prefer coordinates already stored on the library entry (from wizard or manual entry)
+            const storedLat = location?.lat ?? null;
+            const storedLng = location?.lng ?? null;
+            let lat = storedLat;
+            let lng = storedLng;
+
+            // Fallback: wizard submission coords
+            if (lat == null || lng == null) {
+                lat = wizLat;
+                lng = wizLng;
+            }
+
+            // Fallback: geocode the address if still no coordinates
+            if (lat == null || lng == null) {
+                const coords = await geocodeAddress(fullAddress || slotName);
+                lat = coords?.lat ?? null;
+                lng = coords?.lng ?? null;
+            }
+
             const slotIndex = slots.indexOf(ceremony) + 1;
 
             return {
                 id: ceremony.id as number,
                 name: slotName,
+                venueName: derivedVenueName,
                 address: fullAddress,
-                lat: coords?.lat ?? null,
-                lng: coords?.lng ?? null,
+                lat,
+                lng,
                 slotIndex,
                 totalSlots: slots.length,
                 updatedAt: new Date(ceremony.updated_at as string),

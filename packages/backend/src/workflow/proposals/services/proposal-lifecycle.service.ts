@@ -42,15 +42,63 @@ export class ProposalLifecycleService {
         return token;
     }
 
-    async findByShareToken(token: string) {
+    async findByShareToken(token: string, preview = false) {
         const proposal = await this.prisma.proposals.findUnique({
             where: { share_token: token },
             include: this._shareTokenInclude(),
         });
         if (!proposal) throw new NotFoundException('Proposal not found');
 
+        // Only track views for client access, not studio preview
+        if (!preview) {
+            await this.prisma.proposals.update({
+                where: { id: proposal.id },
+                data: {
+                    viewed_at: proposal.viewed_at ?? new Date(),
+                    view_count: { increment: 1 },
+                },
+            });
+        }
+
         const brand = await this._findBrandForProposal(proposal.inquiry.contact_id);
-        return { ...proposal, brand };
+        return {
+            ...proposal,
+            viewed_at: preview ? proposal.viewed_at : (proposal.viewed_at ?? new Date()),
+            view_count: preview ? proposal.view_count : proposal.view_count + 1,
+            brand,
+        };
+    }
+
+    async recordSectionView(token: string, sectionType: string, durationSeconds?: number) {
+        const proposal = await this.prisma.proposals.findUnique({
+            where: { share_token: token },
+            select: { id: true },
+        });
+        if (!proposal) throw new NotFoundException('Proposal not found');
+
+        await this.prisma.proposal_section_views.upsert({
+            where: { proposal_id_section_type: { proposal_id: proposal.id, section_type: sectionType } },
+            create: { proposal_id: proposal.id, section_type: sectionType, duration_seconds: durationSeconds ?? 0 },
+            update: durationSeconds ? { duration_seconds: { increment: durationSeconds } } : {},
+        });
+
+        return { recorded: true };
+    }
+
+    async saveSectionNote(token: string, sectionType: string, note: string) {
+        const proposal = await this.prisma.proposals.findUnique({
+            where: { share_token: token },
+            select: { id: true },
+        });
+        if (!proposal) throw new NotFoundException('Proposal not found');
+
+        const result = await this.prisma.proposal_section_notes.upsert({
+            where: { proposal_id_section_type: { proposal_id: proposal.id, section_type: sectionType } },
+            create: { proposal_id: proposal.id, section_type: sectionType, note },
+            update: { note },
+        });
+
+        return { id: result.id, section_type: result.section_type, note: result.note };
     }
 
     async respondToProposal(token: string, response: string, message?: string) {
@@ -118,6 +166,9 @@ export class ProposalLifecycleService {
 
     private _shareTokenInclude() {
         return {
+            section_notes: {
+                select: { section_type: true, note: true, created_at: true, updated_at: true },
+            },
             inquiry: {
                 include: {
                     contact: { select: { first_name: true, last_name: true, email: true } },
@@ -132,18 +183,67 @@ export class ProposalLifecycleService {
                                     id: true, name: true, description: true, color: true, icon: true,
                                     start_time: true, end_time: true, duration_minutes: true, order_index: true, notes: true,
                                     moments: { orderBy: { order_index: 'asc' as const }, select: { id: true, name: true, order_index: true, duration_seconds: true, is_required: true } },
+                                    location_assignments: {
+                                        select: {
+                                            project_location_slot: {
+                                                select: { name: true, location: { select: { name: true, address_line1: true } } },
+                                            },
+                                        },
+                                    },
                                 },
                             },
                             subjects: { orderBy: { order_index: 'asc' as const }, select: { id: true, name: true, real_name: true, count: true, order_index: true } },
                             location_slots: {
                                 orderBy: { order_index: 'asc' as const },
-                                select: { id: true, name: true, address: true, order_index: true, location: { select: { name: true, address_line1: true, city: true, state: true } } },
+                                select: { id: true, name: true, address: true, order_index: true, location: { select: { name: true, address_line1: true, city: true, state: true, lat: true, lng: true } } },
+                            },
+                            day_crew_slots: {
+                                orderBy: { order_index: 'asc' as const },
+                                include: {
+                                    crew: {
+                                        include: {
+                                            contact: { select: { first_name: true, last_name: true } },
+                                        },
+                                    },
+                                    job_role: { select: { name: true, display_name: true, on_site: true, category: true } },
+                                    equipment: {
+                                        include: {
+                                            equipment: { select: { id: true, item_name: true } },
+                                        },
+                                    },
+                                    activity_assignments: {
+                                        select: { project_activity_id: true },
+                                    },
+                                },
                             },
                         },
                     },
                     schedule_films: {
                         orderBy: { order_index: 'asc' as const },
-                        select: { id: true, order_index: true, film: { select: { id: true, name: true, film_type: true, target_duration_min: true, target_duration_max: true } } },
+                        select: {
+                            id: true, order_index: true,
+                            film: {
+                                select: {
+                                    id: true, name: true, film_type: true,
+                                    target_duration_min: true, target_duration_max: true,
+                                    _count: { select: { scenes: true } },
+                                    scenes: {
+                                        orderBy: { order_index: 'asc' as const },
+                                        select: {
+                                            id: true, name: true, order_index: true, duration_seconds: true, mode: true,
+                                            moments: { orderBy: { order_index: 'asc' as const }, select: { id: true, name: true, order_index: true, duration: true } },
+                                            location_assignment: { select: { location: { select: { name: true, address_line1: true } } } },
+                                        },
+                                    },
+                                    equipment_assignments: {
+                                        select: {
+                                            quantity: true,
+                                            equipment: { select: { item_name: true, category: true } },
+                                        },
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
             },

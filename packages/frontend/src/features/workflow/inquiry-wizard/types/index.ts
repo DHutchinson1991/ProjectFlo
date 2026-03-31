@@ -142,7 +142,8 @@ export interface InquiryWizardSubmissionPayload {
 }
 
 export type ScreenId =
-    | "welcome" | "event_type" | "date" | "guests" | "partner"
+    | "welcome" | "event_type" | "date" | "guests"
+    | "your_name" | "your_role" | "partner_role" | "partner" | "bride_groom_names"
     | "birthday_contact" | "venue" | "fork"
     | "budget" | "packages"
     | "activities" | "coverage" | "deliverables" | "crew_slots"

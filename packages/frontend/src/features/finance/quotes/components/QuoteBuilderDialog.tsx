@@ -441,9 +441,10 @@ const QuoteBuilderDialog: React.FC<QuoteBuilderDialogProps> = ({
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                         <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Cost Breakdown</Typography>
                         <Box sx={{ flex: 1, height: '1px', bgcolor: 'rgba(148,163,184,0.07)' }} />
+                        <Typography sx={{ fontSize: '0.6rem', color: '#334155', fontStyle: 'italic' }}>synced from estimate</Typography>
                     </Box>
 
-                    <LineItemEditor items={lineItems} onChange={setLineItems} currency={currency} />
+                    <LineItemEditor items={lineItems} onChange={setLineItems} currency={currency} readOnly={true} />
 
                     {/* Notes */}
                     <Box sx={{ mt: 4 }}>

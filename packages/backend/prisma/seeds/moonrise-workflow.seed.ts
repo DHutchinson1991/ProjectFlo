@@ -80,10 +80,10 @@ const PIPELINE_STAGES: StageDef[] = [
         order_index: 3,
         children: [
             { name: 'Generate Quote', description: 'Review package selections from the discovery call, adjust if needed, then generate the formal quote', effort_hours: 0.75, order_index: 1, is_auto_only: false, due_date_offset_days: 8, due_date_offset_reference: 'inquiry_created' },
-            { name: 'Prepare Contract', description: 'Auto-generate contract from template using quote values — review and customise clauses before sending', effort_hours: 0.5, order_index: 2, is_auto_only: false, due_date_offset_days: 9, due_date_offset_reference: 'inquiry_created' },
-            { name: 'Create & Review Proposal', description: 'Generate the full proposal — verify timeline, subjects, venues, package, films, quote, and personal message', effort_hours: 1.0, order_index: 3, is_auto_only: false, due_date_offset_days: 10, due_date_offset_reference: 'inquiry_created' },
-            { name: 'Send Proposal', description: 'Send the proposal to the client portal — client can Accept or Request Changes', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 11, due_date_offset_reference: 'inquiry_created' },
-            { name: 'Contract Sent', description: 'Auto-sent to client when they accept the proposal — no manual action required', effort_hours: 0, order_index: 5, is_auto_only: true, due_date_offset_days: 12, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Create & Review Proposal', description: 'Generate the full proposal — verify timeline, subjects, venues, package, films, quote, and personal message', effort_hours: 1.0, order_index: 2, is_auto_only: false, due_date_offset_days: 9, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Prepare Contract', description: 'Auto-generated from the default contract template when the proposal is created — review and customise clauses before sending', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 9, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Send Proposal', description: 'Send the proposal to the client portal — client can Accept or Request Changes', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 10, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Contract Sent', description: 'Auto-sent to client when they accept the proposal — no manual action required', effort_hours: 0, order_index: 5, is_auto_only: true, due_date_offset_days: 11, due_date_offset_reference: 'inquiry_created' },
         ],
     },
     {

@@ -368,6 +368,7 @@ Table inquiries {
   inquiry_tasks inquiry_tasks [not null]
   equipment_reservations inquiry_equipment_reservations [not null]
   equipment_availability_blocks equipment_availability [not null]
+  crew_availability_requests inquiry_crew_availability_requests [not null]
   schedule_event_days project_event_days [not null]
   schedule_activities project_activities [not null]
   schedule_films project_films [not null]
@@ -594,6 +595,7 @@ Table crew {
   notifications_received notifications [not null]
   package_crew_assignments package_crew_slots [not null]
   project_crew_assignments project_crew_slots [not null]
+  crew_availability_requests inquiry_crew_availability_requests [not null]
   task_library_benchmarks task_library_benchmarks [not null]
   default_task_library_entries task_library [not null]
   project_tasks_assigned project_tasks [not null]
@@ -1017,8 +1019,39 @@ Table proposals {
   client_response String
   client_response_at DateTime
   client_response_message String
+  viewed_at DateTime
+  view_count Int [not null, default: 0]
   inquiry inquiries [not null]
   project projects
+  section_views proposal_section_views [not null]
+  section_notes proposal_section_notes [not null]
+}
+
+Table proposal_section_views {
+  id Int [pk, increment]
+  proposal_id Int [not null]
+  section_type String [not null]
+  viewed_at DateTime [default: `now()`, not null]
+  duration_seconds Int [not null, default: 0]
+  proposal proposals [not null]
+
+  indexes {
+    (proposal_id, section_type) [unique]
+  }
+}
+
+Table proposal_section_notes {
+  id Int [pk, increment]
+  proposal_id Int [not null]
+  section_type String [not null]
+  note String [not null]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  proposal proposals [not null]
+
+  indexes {
+    (proposal_id, section_type) [unique]
+  }
 }
 
 Table contracts {
@@ -2962,6 +2995,7 @@ Table project_crew_slots {
   hours Decimal [not null, default: 8]
   label String
   order_index Int [not null, default: 0]
+  confirmed Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   project projects
@@ -2971,6 +3005,7 @@ Table project_crew_slots {
   job_role job_roles [not null]
   equipment project_crew_slot_equipment [not null]
   activity_assignments project_crew_slot_activities [not null]
+  availability_requests inquiry_crew_availability_requests [not null]
 }
 
 Table project_crew_slot_equipment {
@@ -3321,6 +3356,25 @@ Table inquiry_equipment_reservations {
 
   indexes {
     (inquiry_id, project_crew_slot_equipment_id) [unique]
+  }
+}
+
+Table inquiry_crew_availability_requests {
+  id Int [pk, increment]
+  inquiry_id Int [not null]
+  crew_id Int [not null]
+  project_crew_slot_id Int
+  status inquiry_crew_availability_request_status [not null, default: 'pending']
+  sent_at DateTime [default: `now()`, not null]
+  cancelled_at DateTime
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  inquiry inquiries [not null]
+  crew crew [not null]
+  slot project_crew_slots
+
+  indexes {
+    (inquiry_id, crew_id) [unique]
   }
 }
 
@@ -3712,6 +3766,13 @@ Enum inquiry_equipment_reservation_status {
   cancelled
 }
 
+Enum inquiry_crew_availability_request_status {
+  pending
+  confirmed
+  declined
+  cancelled
+}
+
 Ref: brand_settings.brand_id > brands.id [delete: Cascade]
 
 Ref: brand_finance_settings.brand_id - brands.id [delete: Cascade]
@@ -3897,6 +3958,10 @@ Ref: documents.project_id > projects.id [delete: Cascade]
 Ref: proposals.inquiry_id > inquiries.id [delete: Cascade]
 
 Ref: proposals.project_id > projects.id
+
+Ref: proposal_section_views.proposal_id > proposals.id [delete: Cascade]
+
+Ref: proposal_section_notes.proposal_id > proposals.id [delete: Cascade]
 
 Ref: contracts.inquiry_id > inquiries.id [delete: Cascade]
 
@@ -4447,3 +4512,9 @@ Ref: package_requests.inquiry_id > inquiries.id [delete: Cascade]
 Ref: inquiry_equipment_reservations.inquiry_id > inquiries.id [delete: Cascade]
 
 Ref: inquiry_equipment_reservations.equipment_id > equipment.id [delete: Cascade]
+
+Ref: inquiry_crew_availability_requests.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: inquiry_crew_availability_requests.crew_id > crew.id [delete: Cascade]
+
+Ref: inquiry_crew_availability_requests.project_crew_slot_id > project_crew_slots.id [delete: Set Null]

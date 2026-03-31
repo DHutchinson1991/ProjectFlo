@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { CreateProposalDto, UpdateProposalDto } from '../dto/proposals.dto';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { InquiryTasksService } from '../../tasks/inquiry/services/inquiry-tasks.service';
 import { ProposalContentGeneratorService } from './proposal-content-generator.service';
+import { QuotesService } from '../../../finance/quotes/quotes.service';
+import { ContractsService } from '../../../finance/contracts/contracts.service';
 
 const PROPOSAL_INCLUDE = {
     inquiry: {
@@ -12,17 +14,41 @@ const PROPOSAL_INCLUDE = {
             contact: {
                 select: { first_name: true, last_name: true, email: true, brand_id: true },
             },
+            contracts: {
+                orderBy: { id: 'desc' as const },
+                take: 1,
+                select: {
+                    id: true,
+                    status: true,
+                    sent_at: true,
+                    signed_date: true,
+                    signers: {
+                        select: { status: true, viewed_at: true, signed_at: true },
+                        take: 1,
+                    },
+                },
+            },
         },
     },
     project: { select: { id: true, project_name: true } },
+    section_views: {
+        select: { section_type: true, viewed_at: true, duration_seconds: true },
+    },
+    section_notes: {
+        select: { section_type: true, note: true, created_at: true, updated_at: true },
+    },
 } as const;
 
 @Injectable()
 export class ProposalCrudService {
+    private readonly logger = new Logger(ProposalCrudService.name);
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly contentGen: ProposalContentGeneratorService,
         private readonly inquiryTasksService: InquiryTasksService,
+        private readonly quotesService: QuotesService,
+        private readonly contractsService: ContractsService,
     ) {}
 
     async findAllByInquiry(inquiryId: number, brandId: number) {
@@ -79,6 +105,31 @@ export class ProposalCrudService {
         });
 
         await this.inquiryTasksService.autoCompleteByName(inquiryId, 'Create & Review Proposal');
+
+        // Auto-create a quote from the primary estimate
+        try {
+            await this.quotesService.createFromEstimate(inquiryId);
+        } catch (err) {
+            this.logger.error(`Failed to auto-create quote for inquiry ${inquiryId}: ${err instanceof Error ? err.message : err}`);
+        }
+
+        // Auto-compose a contract from the brand's default template
+        try {
+            const defaultTemplate = await this.prisma.contract_templates.findFirst({
+                where: { brand_id: brandId, is_default: true, is_active: true },
+            });
+            if (defaultTemplate) {
+                await this.contractsService.composeFromTemplate(inquiryId, brandId, {
+                    template_id: defaultTemplate.id,
+                });
+                this.logger.log(`Auto-composed contract from template "${defaultTemplate.name}" for inquiry ${inquiryId}`);
+            } else {
+                this.logger.warn(`No default contract template found for brand ${brandId} — skipping auto-contract`);
+            }
+        } catch (err) {
+            this.logger.error(`Failed to auto-compose contract for inquiry ${inquiryId}: ${err instanceof Error ? err.message : err}`);
+        }
+
         return proposal;
     }
 

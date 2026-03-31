@@ -4,12 +4,18 @@ export type {
   ProposalApiResponse,
   ProposalClientResponse,
   ProposalContactSummary,
+  ProposalContractSignerSummary,
+  ProposalContractSummary,
   ProposalInquiryHeader,
   ProposalInquirySummary,
   ProposalProjectSummary,
+  ProposalSectionNote,
+  ProposalSectionView,
   ProposalShareTokenResponse,
   PublicProposalBrand,
   PublicProposalContent,
+  PublicProposalCrewSlot,
+  PublicProposalCrewSlotEquipment,
   PublicProposalEstimate,
   PublicProposalEventDay,
   PublicProposalFilm,
@@ -17,3 +23,10 @@ export type {
   PublicProposalInquiry,
   UpdateProposalData,
 } from './proposal.types';
+
+export type {
+  SectionBaseProps,
+  PackageItem,
+  PackageData,
+  SlotGroup,
+} from './section.types';

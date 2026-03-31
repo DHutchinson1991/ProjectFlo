@@ -168,11 +168,28 @@ export class ScheduleInstanceResourceService {
     }
   }
 
-  async updateInstanceLocationSlot(slotId: number, dto: { name?: string | null; address?: string | null; notes?: string | null }) {
+  async updateInstanceLocationSlot(
+    slotId: number,
+    dto: { name?: string | null; address?: string | null; notes?: string | null; location_id?: number | null; lat?: number | null; lng?: number | null },
+  ) {
     const record = await this.prisma.projectLocationSlot.findUnique({ where: { id: slotId } });
     if (!record) throw new NotFoundException('Location slot not found');
+
+    const { lat, lng, ...slotData } = dto;
+
+    // If lat/lng provided and a library entry is linked, update the library entry coords
+    if (lat != null && lng != null && (slotData.location_id ?? record.location_id)) {
+      const libId = slotData.location_id ?? record.location_id;
+      if (libId) {
+        await this.prisma.locationsLibrary.update({
+          where: { id: libId },
+          data: { lat, lng, precision: 'EXACT', ...(slotData.name ? { name: slotData.name } : {}), ...(slotData.address ? { address_line1: slotData.address } : {}) },
+        }).catch(() => { /* library entry may not exist */ });
+      }
+    }
+
     return this.prisma.projectLocationSlot.update({
-      where: { id: slotId }, data: dto, include: this.instanceLocationSlotInclude,
+      where: { id: slotId }, data: slotData, include: this.instanceLocationSlotInclude,
     });
   }
 

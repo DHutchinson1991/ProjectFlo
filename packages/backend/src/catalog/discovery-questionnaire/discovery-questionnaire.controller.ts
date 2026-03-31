@@ -41,6 +41,11 @@ export class DiscoveryQuestionnaireController {
         return this.service.getActiveTemplate(brandId);
     }
 
+    @Post('templates/reset')
+    resetActiveTemplate(@BrandId() brandId: number) {
+        return this.service.resetActiveTemplate(brandId);
+    }
+
     @Get('templates/:id')
     getTemplate(
         @Param('id', ParseIntPipe) id: number,

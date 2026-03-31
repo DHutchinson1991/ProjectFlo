@@ -1,4 +1,4 @@
-﻿import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { $Enums } from '@prisma/client';
@@ -76,6 +76,12 @@ export class InquiryCrudService {
         const packageChanging = inquiryData.selected_package_id !== undefined && inquiryData.selected_package_id !== existingInquiry.selected_package_id;
 
         if (first_name || last_name || email || phone_number) {
+            if (email && email !== existingInquiry.contact.email) {
+                const duplicate = await this.prisma.contacts.findUnique({ where: { email }, select: { id: true } });
+                if (duplicate && duplicate.id !== existingInquiry.contact_id) {
+                    throw new ConflictException('A contact with this email already exists');
+                }
+            }
             await this.prisma.contacts.update({
                 where: { id: existingInquiry.contact_id },
                 data: { ...(first_name && { first_name }), ...(last_name && { last_name }), ...(email && { email }), ...(phone_number && { phone_number }) },

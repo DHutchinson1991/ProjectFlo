@@ -3,7 +3,7 @@ import { PrismaService } from '../../platform/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CreateDiscoveryQuestionnaireTemplateDto } from './dto/create-discovery-questionnaire-template.dto';
 import { UpdateDiscoveryQuestionnaireTemplateDto } from './dto/update-discovery-questionnaire-template.dto';
-import { DEFAULT_DISCOVERY_QUESTIONS } from './constants/default-template-questions';
+import { DEFAULT_DISCOVERY_QUESTIONS, TEMPLATE_VERSION } from './constants/default-template-questions';
 
 @Injectable()
 export class DiscoveryQuestionnaireService {
@@ -16,7 +16,14 @@ export class DiscoveryQuestionnaireService {
             where: { brand_id: brandId, is_active: true },
             include: { questions: { orderBy: { order_index: 'asc' } } },
         });
-        return existing ?? this.createDefaultTemplate(brandId);
+        if (!existing) return this.createDefaultTemplate(brandId);
+
+        // Auto-reset if template is from an older default version
+        const versionTag = `[v${TEMPLATE_VERSION}]`;
+        if (!existing.description?.includes(versionTag)) {
+            return this.resetActiveTemplate(brandId);
+        }
+        return existing;
     }
 
     async listTemplates(brandId: number) {
@@ -104,12 +111,27 @@ export class DiscoveryQuestionnaireService {
 
     // ─── Default Template ─────────────────────────────────────────────────────
 
+    async resetActiveTemplate(brandId: number) {
+        const existing = await this.prisma.discovery_questionnaire_templates.findFirst({
+            where: { brand_id: brandId, is_active: true },
+        });
+        if (existing) {
+            await this.prisma.discovery_questionnaire_questions.deleteMany({
+                where: { template_id: existing.id },
+            });
+            await this.prisma.discovery_questionnaire_templates.delete({
+                where: { id: existing.id },
+            });
+        }
+        return this.createDefaultTemplate(brandId);
+    }
+
     private createDefaultTemplate(brandId: number) {
         return this.prisma.discovery_questionnaire_templates.create({
             data: {
                 brand_id: brandId,
                 name: 'Discovery Call Guide',
-                description: 'Conversational guide and notes capture for discovery calls with couples. Sections 1–5 are shareable with the client for review.',
+                description: `Conversational guide and notes capture for discovery calls with couples. Sections 1\u20135 are shareable with the client for review. [v${TEMPLATE_VERSION}]`,
                 is_active: true,
                 questions: {
                     create: DEFAULT_DISCOVERY_QUESTIONS.map((q) => ({

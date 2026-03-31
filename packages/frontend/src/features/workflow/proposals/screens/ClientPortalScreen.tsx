@@ -53,7 +53,7 @@ import type { PortalDashboardColors } from "@/features/workflow/proposals/utils/
 import { formatDate, formatCurrency, formatAnswerValue } from "@/features/workflow/proposals/utils/portal/formatting";
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import type { PortalBrand, PortalProposalSectionData } from "@/features/workflow/proposals/types/portal";
-import ProposalRenderer from "@/features/workflow/proposals/components/ProposalRenderer";
+import ProposalView from "@/features/workflow/proposals/components/ProposalView";
 import ProposalAcceptanceBar from "@/features/workflow/proposals/components/ProposalAcceptanceBar";
 
 /* ------------------------------------------------------------------ */
@@ -1247,7 +1247,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
                                 borderRadius: '20px',
                                 overflow: 'hidden',
                             }}>
-                                <ProposalRenderer
+                                <ProposalView
                                     content={pd.content}
                                     brand={brand}
                                     estimate={sections.estimate?.data as any}

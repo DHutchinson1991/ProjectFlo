@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useBrand } from '@/features/platform/brand';
 import {
     Box,
@@ -41,15 +41,13 @@ import {
     ProposalsCard,
     QuotesCard,
     ContractsCard,
-    CallsCard,
-    ProposalReviewCard,
+    DiscoveryCallCard,
     ClientApprovalCard,
     DiscoveryQuestionnaireCard,
     QualifyCard,
     EventDetailsCard,
     AvailabilityCard,
     PackageScopeCard,
-    NeedsAssessmentDialog,
     InquirySchedulePreview,
 } from '../components';
 
@@ -59,8 +57,6 @@ import {
 /* ================================================================== */
 export default function InquiryDetailScreen() {
     const params = useParams();
-    const router = useRouter();
-    const searchParams = useSearchParams();
     const inquiryId = parseInt(params.id as string);
     const { currentBrand } = useBrand();
 
@@ -76,8 +72,7 @@ export default function InquiryDetailScreen() {
     const [pipelineTasks, setPipelineTasks] = useState<PipelineTask[]>([]);
     const [inquiryTasksData, setInquiryTasksData] = useState<InquiryTask[]>([]);
     const [hasRealTasks, setHasRealTasks] = useState(false);
-    const [crew, setCrew] = useState<BackendUserAccount[]>([]);;
-    const [needsAssessmentDialogOpen, setNeedsAssessmentDialogOpen] = useState(false);
+    const [crew, setCrew] = useState<BackendUserAccount[]>([]);
 
     /* ---- data loading ---- */
     useEffect(() => {
@@ -90,10 +85,6 @@ export default function InquiryDetailScreen() {
             loadCrew();
         }
     }, [inquiryId, currentBrand?.id]);
-
-    useEffect(() => {
-        setNeedsAssessmentDialogOpen(searchParams.get('open') === 'needs-assessment');
-    }, [searchParams]);
 
     const loadInquiry = async (showLoading = true) => {
         try {
@@ -169,14 +160,6 @@ export default function InquiryDetailScreen() {
 
     const handleRefresh = async () => {
         await Promise.all([loadInquiry(false), loadPipelineTasks()]);
-    };
-
-    const handleCloseNeedsAssessmentDialog = () => {
-        setNeedsAssessmentDialogOpen(false);
-        const params = new URLSearchParams(searchParams.toString());
-        params.delete('open');
-        const query = params.toString();
-        router.replace(query ? `/inquiries/${inquiryId}?${query}` : `/inquiries/${inquiryId}`);
     };
 
     /* ---- loading / error guards ---- */
@@ -296,6 +279,7 @@ export default function InquiryDetailScreen() {
                                 </div>
 
                                 <Stack spacing={2}>
+                                    <div id="package-scope-section">
                                     <PackageScopeCard
                                         inquiry={inquiry}
                                         onRefresh={handleRefresh}
@@ -305,6 +289,7 @@ export default function InquiryDetailScreen() {
                                         WorkflowCard={WorkflowCard}
                                         onPackageDetailsClick={() => setActiveTab('package-details')}
                                     />
+                                    </div>
 
                                     <div id="payment-terms-section">
                                         <PaymentTermsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'estimates'} activeColor={phaseColor('estimates')} />
@@ -322,22 +307,21 @@ export default function InquiryDetailScreen() {
                     <Grid item xs={12} md={4}>
                         <Stack spacing={3}>
                             <div id="calls-section">
-                                <CallsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor={phaseColor('calls')} submission={needsAssessmentSubmission} />
+                                <DiscoveryCallCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor={phaseColor('calls')} submission={needsAssessmentSubmission} />
                             </div>
+                            <div id="qualify-respond-section">
                             <QualifyCard
                                 inquiry={inquiry}
                                 inquiryTasks={inquiryTasksData}
                                 submission={needsAssessmentSubmission}
                                 onRefresh={handleRefresh}
                             />
+                            </div>
                             <div id="discovery-questionnaire-section">
                                 <DiscoveryQuestionnaireCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor="#3b82f6" />
                             </div>
                             <div id="proposals-section">
                                 <ProposalsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'proposals'} activeColor={phaseColor('proposals')} />
-                            </div>
-                            <div id="proposal-review-section">
-                                <ProposalReviewCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'proposal-review'} activeColor={phaseColor('proposal-review')} submission={needsAssessmentSubmission} />
                             </div>
                             <div id="quotes-section">
                                 <QuotesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'quotes'} activeColor={phaseColor('quotes')} />
@@ -366,13 +350,6 @@ export default function InquiryDetailScreen() {
                     <InquirySchedulePreview inquiryId={inquiry.id} sourcePackageId={inquiry.selected_package_id} />
                 </Box>
             )}
-
-            <NeedsAssessmentDialog
-                open={needsAssessmentDialogOpen}
-                onClose={handleCloseNeedsAssessmentDialog}
-                submission={needsAssessmentSubmission}
-                inquiryId={inquiry.id}
-            />
 
             {/* --- SNACKBAR --- */}
             <Snackbar
