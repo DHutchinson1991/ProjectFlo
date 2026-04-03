@@ -225,7 +225,7 @@ export function useInstanceScheduleData(
           const templates = await request<any[]>(
             `/api/subjects/roles/brand/${brandId}`,
             {},
-            { includeBrandQuery: false },
+            {},
           );
           setSubjectTemplates(templates || []);
         } catch {

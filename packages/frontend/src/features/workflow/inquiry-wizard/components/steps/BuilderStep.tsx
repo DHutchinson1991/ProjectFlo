@@ -14,7 +14,7 @@ import type { EventType, EventTypeDay, EventDayActivity } from "@/features/catal
 export default function BuilderScreen({ ctx }: { ctx: NACtx }) {
     const { responses, handleChange, maxVideographers, maxCamerasPerOp, eventTypes } = ctx;
 
-    const etName = (responses.event_type || "").toLowerCase().trim();
+    const etName = (String(responses.event_type || "")).toLowerCase().trim();
     const matchedET: EventType | undefined =
         eventTypes.find((e: EventType) => e.name?.toLowerCase().trim() === etName) ||
         eventTypes.find((e: EventType) => {
@@ -38,11 +38,11 @@ export default function BuilderScreen({ ctx }: { ctx: NACtx }) {
         return weddingDay?.event_day_template?.activity_presets?.filter((p: EventDayActivity) => p.is_active !== false) || [];
     })();
 
-    const builderStep: number = responses.builder_step || 1;
-    const selectedIds: number[] = responses.builder_activities || [];
-    const selectedFilms: Array<{ type: string; activityPresetId?: number; activityName?: string }> = responses.builder_films || [];
-    const opCount: number = responses.operator_count || 0;
-    const camCount: number = responses.camera_count || 0;
+    const builderStep: number = (responses.builder_step as number) || 1;
+    const selectedIds: number[] = (responses.builder_activities as number[]) || [];
+    const selectedFilms: Array<{ type: string; activityPresetId?: number; activityName?: string }> = (responses.builder_films as Array<{ type: string; activityPresetId?: number; activityName?: string }>) || [];
+    const opCount: number = (responses.operator_count as number) || 0;
+    const camCount: number = (responses.camera_count as number) || 0;
 
     if (presets.length > 0 && !responses._builder_initialized) {
         const commonNames = ["ceremony", "bridal prep", "couple portraits", "reception"];

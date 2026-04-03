@@ -287,7 +287,12 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
                 const payload = buildMergedPayload(existingSetup);
 
                 if (payload) {
-                    const saved = await upsertRecordingSetup(momentId, payload);
+                    const saved = await upsertRecordingSetup(momentId, payload) as {
+                        camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null }>;
+                        audio_track_ids?: number[];
+                        graphics_enabled?: boolean;
+                        graphics_title?: string | null;
+                    };
 
                     // Immediately update local state so playback screen reflects it without reload
                     const newSetup: ExistingSetup = {

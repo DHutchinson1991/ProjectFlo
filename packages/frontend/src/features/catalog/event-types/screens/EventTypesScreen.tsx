@@ -36,8 +36,10 @@ import {
 import { PRESET_COLORS } from "../constants";
 import { EventDaySection, SubjectTypeSection } from "../components";
 import type { EventType } from "../types";
+import { useBrand } from "@/features/platform/brand";
 
 export function EventTypesScreen() {
+    const { currentBrand } = useBrand();
     const eventTypesQuery = useEventTypes();
     const createEventTypeMutation = useCreateEventType();
     const updateEventTypeMutation = useUpdateEventType();
@@ -275,7 +277,7 @@ export function EventTypesScreen() {
                         linkedDays={selectedEventType.event_days}
                         eventTypeId={selectedEventType.id}
                         brandId={currentBrand!.id}
-                        onReload={load}
+                        onReload={async () => { await eventTypesQuery.refetch(); }}
                     />
 
                     <Divider sx={{ my: 4 }} />
@@ -284,7 +286,7 @@ export function EventTypesScreen() {
                         linkedSubjects={selectedEventType.subject_types}
                         eventTypeId={selectedEventType.id}
                         brandId={currentBrand!.id}
-                        onReload={load}
+                        onReload={async () => { await eventTypesQuery.refetch(); }}
                     />
                 </Box>
             ) : eventTypes.length === 0 ? (

@@ -85,7 +85,7 @@ export function usePackageActions({
                             const pf = await scheduleApi.packageFilms.create(savedPkgId, {
                                 film_id: filmId,
                                 order_index: i,
-                            });
+                            }) as PackageFilmRecord;
                             updatedItems[i] = {
                                 ...item,
                                 config: { ...item.config, package_film_id: pf.id },
@@ -155,7 +155,7 @@ export function usePackageActions({
                     const pf = await scheduleApi.packageFilms.create(packageId, {
                         film_id: film.id,
                         order_index: items.filter(i => i.type === 'film').length,
-                    });
+                    }) as PackageFilmRecord;
                     packageFilmId = pf.id;
                     setPackageFilms(prev => [...prev, pf]);
                 } catch (pfErr) {
@@ -259,7 +259,7 @@ export function usePackageActions({
                     const pf = await scheduleApi.packageFilms.create(savedPackageId, {
                         film_id: newLinkedFilmId,
                         order_index: (formData.contents?.items || []).findIndex((i: ServicePackageItem) => i.id === item.id),
-                    });
+                    }) as PackageFilmRecord;
                     packageFilmId = pf.id;
                     setPackageFilms(prev => [...prev, pf]);
                 } catch (pfErr) {

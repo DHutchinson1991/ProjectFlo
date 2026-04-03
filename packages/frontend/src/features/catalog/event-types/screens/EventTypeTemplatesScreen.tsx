@@ -1135,7 +1135,7 @@ export function EventTypeTemplatesScreen() {
                         linkedDays={selectedEventType.event_days}
                         eventTypeId={selectedEventType.id}
                         brandId={currentBrand!.id}
-                        onReload={eventTypesQuery.refetch}
+                        onReload={async () => { await eventTypesQuery.refetch(); }}
                     />
 
                     <Divider sx={{ my: 4 }} />
@@ -1144,7 +1144,7 @@ export function EventTypeTemplatesScreen() {
                         linkedSubjects={selectedEventType.subject_types}
                         eventTypeId={selectedEventType.id}
                         brandId={currentBrand!.id}
-                        onReload={eventTypesQuery.refetch}
+                        onReload={async () => { await eventTypesQuery.refetch(); }}
                     />
                 </Box>
             ) : eventTypes.length === 0 ? (

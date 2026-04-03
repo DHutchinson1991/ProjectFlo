@@ -17,7 +17,9 @@ import {
     Chip,
     CircularProgress
 } from '@mui/material';
-import { SceneMoment, formatDuration } from '@/features/content/music/types';
+import { SceneMoment, formatDuration } from '@/features/content/moments';
+
+type SceneMomentWithOptionalMusic = SceneMoment & { music?: { music_type: string } | null; description?: string | null };
 
 interface MusicItem {
     id?: number;
@@ -34,7 +36,7 @@ interface AttachMusicToMomentDialogProps {
     onClose: () => void;
     onAttach: (momentId: number) => void;
     musicItem: MusicItem | null;
-    moments: SceneMoment[];
+    moments: SceneMomentWithOptionalMusic[];
     loading?: boolean;
     saving?: boolean;
 }

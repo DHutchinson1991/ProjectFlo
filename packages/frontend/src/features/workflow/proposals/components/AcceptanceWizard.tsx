@@ -188,6 +188,7 @@ export default function AcceptanceWizard({
                 <ContractStep
                     colors={colors}
                     contractData={contractData}
+                    brandName={brandName}
                     onContinue={goNext}
                     onBack={goBack}
                     onRefresh={onRefresh}
@@ -316,12 +317,14 @@ function CongratsStep({
 function ContractStep({
     colors,
     contractData,
+    brandName,
     onContinue,
     onBack,
     onRefresh,
 }: {
     colors: PortalThemeColors;
     contractData: ContractSectionData | null;
+    brandName?: string;
     onContinue: () => void;
     onBack: () => void;
     onRefresh: () => Promise<void>;

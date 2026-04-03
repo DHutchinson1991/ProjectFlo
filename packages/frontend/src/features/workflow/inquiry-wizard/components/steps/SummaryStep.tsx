@@ -55,8 +55,8 @@ export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
 
     /* helpers for custom package summary */
     const getActivitiesLabel = (): string | undefined => {
-        const ids: number[] = responses.builder_activities || [];
-        const etName = (responses.event_type || "").toLowerCase();
+        const ids: number[] = (responses.builder_activities as number[]) || [];
+        const etName = String(responses.event_type || "").toLowerCase();
         const et = ctx.eventTypes.find((e: EventType) => e.name?.toLowerCase() === etName);
         if (!et?.event_days?.length) return ids.length ? `${ids.length} selected` : undefined;
         const day = et.event_days.sort((a: EventTypeDay, b: EventTypeDay) => (a.order_index ?? 0) - (b.order_index ?? 0))[0];
@@ -65,8 +65,8 @@ export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
     };
 
     const getCoverageLabel = (): string | undefined => {
-        const ids: number[] = responses.builder_activities || [];
-        const etName = (responses.event_type || "").toLowerCase();
+        const ids: number[] = (responses.builder_activities as number[]) || [];
+        const etName = String(responses.event_type || "").toLowerCase();
         const et = ctx.eventTypes.find((e: EventType) => e.name?.toLowerCase() === etName);
         if (!et?.event_days?.length) return undefined;
         const day = et.event_days.sort((a: EventTypeDay, b: EventTypeDay) => (a.order_index ?? 0) - (b.order_index ?? 0))[0];
@@ -77,7 +77,7 @@ export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
     };
 
     const getFilmsLabel = (): string | undefined => {
-        const films: Array<{ type: string; activityPresetId?: number; activityName?: string }> = responses.builder_films || [];
+        const films: Array<{ type: string; activityPresetId?: number; activityName?: string }> = (responses.builder_films as Array<{ type: string; activityPresetId?: number; activityName?: string }>) || [];
         if (!films.length) return undefined;
         return films.map((f) =>
             f.type === "ACTIVITY" ? `${f.activityName} Film` : f.type === "FEATURE" ? "Feature Film" : "Highlight Reel"

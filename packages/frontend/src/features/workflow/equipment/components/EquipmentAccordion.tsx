@@ -170,21 +170,21 @@ export function EquipmentAccordion({
                 {group.equipment.length > 0 ? (
                     <EquipmentTable
                         equipment={group.equipment}
-                        type={group.category}
                         crew={crew}
+                        selectedEquipmentId={null}
                         inlineEditingEquipment={inlineEditingEquipment}
                         inlineEditData={inlineEditData}
                         updateInlineEditData={updateInlineEditData}
                         startInlineEdit={startInlineEdit}
                         cancelInlineEdit={cancelInlineEdit}
                         saveInlineEdit={saveInlineEdit}
-                        setEquipmentToDelete={setEquipmentToDelete}
-                        setDeleteConfirmOpen={setDeleteConfirmOpen}
-                        quickAddType={quickAddType}
+                        quickAddCategory={quickAddType}
                         quickAddData={quickAddData}
                         cancelQuickAdd={cancelQuickAdd}
                         saveQuickAdd={saveQuickAdd}
                         updateQuickAddData={updateQuickAddData}
+                        onSelectEquipment={() => {}}
+                        onHoverEquipment={() => {}}
                     />
                 ) : (
                     <EmptyEquipmentType

@@ -198,7 +198,7 @@ function InvoiceDetail({ inv, colors, currency }: { inv: InvoiceData; colors: Po
                         return (
                             <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
                                 <Box>
-                                    <Typography sx={{ color: colors.heading, fontSize: '0.78rem' }}>{item.description}</Typography>
+                                    <Typography sx={{ color: colors.text, fontSize: '0.78rem' }}>{item.description}</Typography>
                                     {item.category && <Typography sx={{ color: colors.muted, fontSize: '0.62rem' }}>{item.category}</Typography>}
                                 </Box>
                                 <Typography sx={{ color: colors.text, fontSize: '0.78rem', fontWeight: 600 }}>

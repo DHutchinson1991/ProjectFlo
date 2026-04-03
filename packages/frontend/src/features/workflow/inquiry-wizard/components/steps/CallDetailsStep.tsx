@@ -18,8 +18,8 @@ import { DateCal } from '../InlineCalendar';
 
 export default function CallDetailsScreen({ ctx }: { ctx: NACtx }) {
     const { responses, handleChange, callSlots, callSlotsLoading, callSlotsDuration, fetchCallSlots, currentBrand } = ctx;
-    const selectedDate = responses.discovery_call_date || "";
-    const selectedTime = responses.discovery_call_time || "";
+    const selectedDate = (responses.discovery_call_date as string) || "";
+    const selectedTime = (responses.discovery_call_time as string) || "";
     const availableSlots = callSlots.filter((s) => s.available);
     const hasSlots = availableSlots.length > 0;
 
@@ -142,7 +142,7 @@ export default function CallDetailsScreen({ ctx }: { ctx: NACtx }) {
                 )}
 
                 {/* Confirmation badge */}
-                {selectedDate && selectedTime && responses.discovery_call_method && (
+                {selectedDate && selectedTime && (responses.discovery_call_method as string) && (
                     <Box sx={{
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5,
                         py: 1.5, px: 3, borderRadius: "16px", mx: "auto",
@@ -151,7 +151,7 @@ export default function CallDetailsScreen({ ctx }: { ctx: NACtx }) {
                     }}>
                         <CheckIcon sx={{ fontSize: 18, color: C.success }} />
                         <Typography sx={{ color: C.text, fontSize: "0.82rem", fontWeight: 500 }}>
-                            {`${responses.discovery_call_method} · ${fnsFormat(parseISO(selectedDate), "EEE, d MMM")} · ${formatSlotLabel(selectedTime)}`}
+                            {`${String(responses.discovery_call_method)} · ${fnsFormat(parseISO(selectedDate), "EEE, d MMM")} · ${formatSlotLabel(selectedTime)}`}
                         </Typography>
                     </Box>
                 )}

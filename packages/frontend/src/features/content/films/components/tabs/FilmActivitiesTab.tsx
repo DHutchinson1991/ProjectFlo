@@ -37,8 +37,8 @@ export const FilmActivitiesTab: React.FC<FilmActivitiesTabProps> = ({ packageId 
         ])
             .then(([acts, days]) => {
                 if (!mounted) return;
-                setActivities(acts || []);
-                setEventDays(days || []);
+                setActivities((acts as ActivityRecord[]) || []);
+                setEventDays((days as PackageEventDay[]) || []);
             })
             .catch(() => {
                 if (mounted) setError('Failed to load activities');

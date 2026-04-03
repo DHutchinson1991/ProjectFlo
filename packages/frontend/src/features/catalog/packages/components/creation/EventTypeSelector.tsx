@@ -117,7 +117,7 @@ export default function EventTypeSelector({
 
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
-      {(eventTypes as EventTypeForWizard[]).map((et) => {
+      {(eventTypes as unknown as EventTypeForWizard[]).map((et) => {
         const isSelected = selectedEventTypeId === et.id;
         const color = et.color || '#f59e0b';
 

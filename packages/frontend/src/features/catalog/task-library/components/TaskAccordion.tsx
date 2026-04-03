@@ -9,7 +9,7 @@ import {
 import {
     Add as AddIcon,
 } from "@mui/icons-material";
-import { TaskLibrary, TaskLibraryPhaseGroup, JobRole, SkillRoleMapping } from "@/features/catalog/task-library/types";
+import { TaskLibrary, TaskLibraryPhaseGroup, JobRole, SkillRoleMapping, Crew } from "@/features/catalog/task-library/types";
 import { TaskGroupHeader } from "@/shared/ui/tasks";
 import { getPhaseConfig } from "@/shared/ui/tasks";
 import { sumEffortHours } from "@/shared/utils/hours";
@@ -36,11 +36,12 @@ interface TaskAccordionProps {
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
     jobRoles: JobRole[];
     allMappings: SkillRoleMapping[];
-    crew: { id: number; contact: { first_name?: string; last_name?: string } }[];
+    crew: Crew[];
     expandedTaskId: number | null;
     onToggleExpand: (taskId: number) => void;
     onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;
     onUpdateCrew: (taskId: number, crewId: number | null) => Promise<void>;
+    onUpdateTask?: (taskId: number, data: Partial<TaskLibrary>) => Promise<void>;
 }
 
 export function TaskAccordion({
@@ -68,6 +69,7 @@ export function TaskAccordion({
     onToggleExpand,
     onUpdateRoleSkills,
     onUpdateCrew,
+    onUpdateTask,
 }: TaskAccordionProps) {
     const cfg = getPhaseConfig(group.phase);
     const leafTasks = group.tasks.filter(t => !t.is_task_group);
@@ -128,12 +130,7 @@ export function TaskAccordion({
                 <TaskTable
                     tasks={group.tasks}
                     phase={group.phase}
-                    inlineEditingTask={inlineEditingTask}
-                    inlineEditData={inlineEditData}
-                    updateInlineEditData={updateInlineEditData}
-                    startInlineEdit={startInlineEdit}
-                    cancelInlineEdit={cancelInlineEdit}
-                    saveInlineEdit={saveInlineEdit}
+                    onUpdateTask={onUpdateTask ?? (async () => {})}
                     setTaskToDelete={setTaskToDelete}
                     setDeleteConfirmOpen={setDeleteConfirmOpen}
                     isDragging={isDragging}

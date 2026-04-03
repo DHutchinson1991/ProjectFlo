@@ -139,6 +139,10 @@ export const MUSIC_TYPE_LABELS: Record<MusicType, string> = {
   [MusicType.CUSTOM]: 'Custom',
 };
 
+export const MUSIC_TYPE_OPTIONS: { value: MusicType; label: string }[] = (Object.keys(MUSIC_TYPE_LABELS) as MusicType[]).map(
+  (value) => ({ value, label: MUSIC_TYPE_LABELS[value] })
+);
+
 export const getMusicTypeColor = (type: MusicType): string => {
   const colors: Record<MusicType, string> = {
     [MusicType.NONE]: '#6B7280',

@@ -88,7 +88,7 @@ export function useFilmSchedule(
         // Load event day templates
         if (brandId) {
           const days = await scheduleApi.eventDays.getAll(brandId);
-          if (mounted) setEventDays(days);
+          if (mounted) setEventDays(days as EventDay[]);
         }
 
         // Instance owner context (project / inquiry): use resolved endpoint

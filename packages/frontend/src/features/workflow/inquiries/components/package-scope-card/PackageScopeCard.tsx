@@ -66,7 +66,7 @@ const PackageScopeCard: React.FC<PackageScopeCardProps> = ({
         scheduleApi.inquiryFilms.getAll(inquiry.id)
             .then((films) => {
                 if (cancelled) return;
-                setLiveFilms(films || []);
+                setLiveFilms((films as InquiryFilmRecord[]) || []);
                 setHasLoadedLiveFilms(true);
             })
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

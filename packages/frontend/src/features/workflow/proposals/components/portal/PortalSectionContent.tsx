@@ -71,7 +71,7 @@ export interface PackageData {
 /* ── Structured layout definitions ───────────────────────── */
 
 type FieldDef = [key: string, label: string];
-interface SectionDef { label: string; rows: FieldDef[][] }
+interface SectionDef { label: string; rows: FieldDef[][]; twoColumn?: boolean; left?: string[][][]; right?: string }
 
 function buildQuestionnaireLayout(contactRole: string | undefined): SectionDef[] {
     const isOther = contactRole !== undefined && contactRole !== 'bride' && contactRole !== 'groom';

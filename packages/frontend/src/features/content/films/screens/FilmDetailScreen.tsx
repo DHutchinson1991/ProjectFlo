@@ -163,7 +163,7 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
         filmReady: !!film,
         setTracks,
         setEquipmentAssignmentsBySlot,
-        createSubject,
+        createSubject: async (data) => { await createSubject(data); },
         loadAll,
     });
 

@@ -127,7 +127,7 @@ export function LocationsListScreen() {
                 <FormControl size="small" sx={{ minWidth: 130 }}>
                     <Select
                         value={capacityFilter}
-                        onChange={(e) => setCapacityFilter(e.target.value)}
+                        onChange={(e) => setCapacityFilter(e.target.value as LocationCapacityFilter)}
                         displayEmpty
                         sx={{ borderRadius: 1.5, fontSize: '0.75rem', height: 32, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' } }}
                     >

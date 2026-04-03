@@ -229,7 +229,7 @@ export function ClientPortalScreen({ token }: { token: string }) {
         setLoadingPackages(true);
         try {
             const result = await clientPortalApi.getPackageOptions(token);
-            setAvailablePackages(result.packages ?? []);
+            setAvailablePackages((result.packages as Array<{ id: number; name: string; description: string | null; category: string | null; currency: string; contents: unknown }>) ?? []);
         } catch { setAvailablePackages([]); } finally { setLoadingPackages(false); }
     };
 

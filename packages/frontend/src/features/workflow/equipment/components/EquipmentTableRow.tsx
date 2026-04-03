@@ -162,10 +162,7 @@ export function EquipmentTableRow({
             <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                 <EquipmentTableRowActions
                     isEditing={isEditing}
-                    onStartEdit={() => startInlineEdit(item)}
-                    onSaveEdit={saveInlineEdit}
                     onCancelEdit={cancelInlineEdit}
-                    onDelete={() => { setEquipmentToDelete(item); setDeleteConfirmOpen(true); }}
                 />
             </TableCell>
         </TableRow>

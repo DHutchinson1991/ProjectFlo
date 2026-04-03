@@ -5,7 +5,7 @@ import { calendarQueryKeys } from '@/features/workflow/calendar/constants/query-
 import { useAuth } from '@/features/platform/auth';
 import { useBrand } from '@/features/platform/brand';
 import { useMeetingSettings } from '@/features/platform/settings/hooks';
-import type { Inquiry, NeedsAssessmentSubmission } from '../../types';
+import type { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
 import { mapMethodToMeetingType } from '@/shared/utils/meeting';
 
 interface UseDiscoveryCallCardArgs {

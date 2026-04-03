@@ -41,8 +41,8 @@ export const FilmLocationsTab: React.FC<FilmLocationsTabProps> = ({ filmId, bran
         if (pkgLoading) return <Box sx={{ p: 2, display: "flex", justifyContent: "center" }}><CircularProgress size={24} /></Box>;
         if (pkgError) return <Alert severity="error" sx={{ m: 2 }}>{pkgError}</Alert>;
 
-        const typedSlots = (slots || []) as LocationSlot[];
-        const eventDays = (rawEventDays || []) as EventDay[];
+        const typedSlots = (slots || []) as unknown as LocationSlot[];
+        const eventDays = (rawEventDays || []) as unknown as EventDay[];
         const allAssigned = typedSlots.filter((s) => (s.activity_assignments?.length || 0) > 0);
         const packageLocations = activityId
             ? allAssigned.filter((s) =>

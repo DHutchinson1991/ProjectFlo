@@ -97,7 +97,7 @@ const PackageSelector: React.FC<PackageSelectorProps> = ({
                                                         <Chip label={info.tierLabel} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.6rem', borderRadius: 0.5 }} />
                                                     )}
                                                     <Typography sx={{ fontSize: '0.7rem', color: '#64748b', fontFamily: 'monospace', ml: 0.5 }}>
-                                                        {formatCurrency(getEffectivePrice(pkg), currencyCode)}
+                                                        {formatCurrency(getEffectivePrice(pkg as any), currencyCode)}
                                                     </Typography>
                                                 </Box>
                                             </Box>

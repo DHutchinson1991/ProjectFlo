@@ -65,12 +65,6 @@ export function useCrew() {
         loading,
         error,
         getCrewById: (id: string) => crewOptions.find(c => c.id === id) ?? null,
-        crew: crewOptions,
-        currentUserCrew: currentUserCrew,
-        otherCrew: otherCrew,
-        getCrewById: (id: string) => crewOptions.find(c => c.id === id) ?? null,
     };
 }
-
-export type CrewOption = CrewOption;
 

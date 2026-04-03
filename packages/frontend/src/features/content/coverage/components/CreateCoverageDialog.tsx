@@ -25,7 +25,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 // Import equipment category enum if you need it
-import { EquipmentCategory } from '@/lib/types/equipment';
+import { EquipmentCategory } from '@/features/workflow/equipment/types/equipment.types';
 import {
   CoverageType,
   ShotType,

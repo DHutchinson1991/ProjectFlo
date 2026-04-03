@@ -324,7 +324,7 @@ export function FilmCreationWizard({
         const seenCameraIds = new Set<number>();
         const seenAudioIds = new Set<number>();
         const crewSlots = externalCrewSlots ?? (packageId ? await crewSlotsApi.packageDay.getAll(packageId) : []);
-        (crewSlots || []).forEach((op: Record<string, unknown>) => {
+        ((crewSlots as Record<string, unknown>[]) || []).forEach((op) => {
           ((op.equipment as Record<string, unknown>[]) || []).forEach((eq: Record<string, unknown>) => {
             const eqInner = eq.equipment as Record<string, unknown> | undefined;
             const cat = ((eqInner?.category as string) || '').toUpperCase();
@@ -373,13 +373,13 @@ export function FilmCreationWizard({
           film_id: newFilm.id,
           order_index: 0,
         });
-        ownerFilmId = linked.id;
+        ownerFilmId = (linked as { id: number }).id;
       } else {
         const packageFilm = await scheduleApi.packageFilms.create(packageId!, {
           film_id: newFilm.id,
           order_index: 0,
         });
-        ownerFilmId = packageFilm.id;
+        ownerFilmId = (packageFilm as { id: number }).id;
       }
 
       // 3. Create scenes

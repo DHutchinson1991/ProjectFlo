@@ -131,7 +131,7 @@ export const AddEditActivityDialog: React.FC<AddEditActivityDialogProps> = ({
         try {
             const apiPresets = await scheduleApi.activityPresets.getAll(eventDayId);
             if (apiPresets && apiPresets.length > 0) {
-                setResolvedPresets(apiPresets.map((p: { name: string; color?: string }) => ({
+                setResolvedPresets((apiPresets as Array<{ name: string; color?: string }>).map((p) => ({
                     name: p.name,
                     color: p.color || ACTIVITY_COLORS[0],
                 })));

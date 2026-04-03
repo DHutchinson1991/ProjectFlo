@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, FormControl, InputLabel, Select, MenuItem, Box, Chip, Typography } from '@mui/material';
-import { Crew } from '@/lib/types/domains/users';
-import { Equipment } from '@/lib/types/equipment';
+import { Crew } from '@/shared/types/users';
+import { Equipment } from '@/features/workflow/equipment/types/equipment.types';
 
 // Temporary props interface based on usage inference
 interface TemplateCustomizationDialogProps {

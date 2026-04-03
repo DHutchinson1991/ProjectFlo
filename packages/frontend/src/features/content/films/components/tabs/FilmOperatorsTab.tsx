@@ -44,7 +44,7 @@ export const FilmCrewSlotsTab: React.FC<FilmCrewSlotsTabProps> = ({
           filmsApi.tracks.getAll(filmId),
         ]);
         if (isMounted) {
-          setCrewSlots(opData || []);
+          setCrewSlots((opData as PackageCrewSlot[]) || []);
           setTracks((trackData || []) as unknown as TrackRecord[]);
         }
       } catch (err) {

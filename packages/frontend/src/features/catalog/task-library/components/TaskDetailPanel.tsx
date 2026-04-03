@@ -279,7 +279,7 @@ export function TaskDetailPanel({ task, isSelected, onClose, onTaskUpdated }: Pr
         if (trimmed !== (task.description ?? null)) {
             try {
                 await taskLibraryApi.update(task.id, { description: trimmed } as never);
-                onTaskUpdated?.(task.id, t => ({ ...t, description: trimmed }));
+                onTaskUpdated?.(task.id, t => ({ ...t, description: trimmed ?? undefined }));
             } catch { /* silent */ }
         }
     };

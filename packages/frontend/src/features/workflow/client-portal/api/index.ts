@@ -14,7 +14,7 @@ export function createClientPortalApi(client: ApiClient) {
             client.get(`/api/client-portal/${encodeURIComponent(token)}`, { skipBrandContext: true, skipAuth: true }),
         generateToken: (inquiryId: number): Promise<{ portal_token: string }> =>
             client.post(`/api/inquiries/${inquiryId}/portal-token`),
-        getPackageOptions: (token: string): Promise<Record<string, unknown>[]> =>
+        getPackageOptions: (token: string): Promise<Record<string, unknown>> =>
             client.get(`/api/client-portal/${encodeURIComponent(token)}/packages`, { skipBrandContext: true, skipAuth: true }),
         submitPackageRequest: (token: string, data: Record<string, unknown>): Promise<Record<string, unknown>> =>
             client.post(`/api/client-portal/${encodeURIComponent(token)}/package-request`, data, { skipBrandContext: true, skipAuth: true }),

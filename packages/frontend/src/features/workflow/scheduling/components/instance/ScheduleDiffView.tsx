@@ -116,13 +116,14 @@ export default function ScheduleDiffView({ open, onClose, owner }: ScheduleDiffV
             : scheduleApi.scheduleDiff.inquiry(owner.id);
 
         fetchDiff
-            .then((res: ScheduleDiffData) => {
+            .then((res) => {
+                const data = res as ScheduleDiffData;
                 if (!cancelled) {
-                    setData(res);
+                    setData(data);
                     // Auto-expand categories that have changes
                     const expanded: Record<string, boolean> = {};
-                    if (res.diffs) {
-                        for (const [key, items] of Object.entries(res.diffs)) {
+                    if (data.diffs) {
+                        for (const [key, items] of Object.entries(data.diffs)) {
                             expanded[key] = (items as DiffItem[]).length > 0;
                         }
                     }

@@ -45,10 +45,10 @@ export function useScheduleData({
       try {
         if (packageId) {
           const days = await scheduleApi.packageEventDays.getAll(packageId);
-          if (isMounted) setEventDays(days);
+          if (isMounted) setEventDays(days as unknown as EventDay[]);
         } else if (brandId) {
           const days = await scheduleApi.eventDays.getAll(brandId);
-          if (isMounted) setEventDays(days);
+          if (isMounted) setEventDays(days as unknown as EventDay[]);
         }
 
         if (mode === "package" && packageId) {
@@ -61,7 +61,7 @@ export function useScheduleData({
         }
 
         if (mode === "film") {
-          const filmData = await scheduleApi.film.get(filmId);
+          const filmData = await scheduleApi.film.get(filmId) as { scenes?: Array<{ id: number; schedule?: SceneSchedule }> } | null;
           if (isMounted && filmData?.scenes) {
             setFilmScenes(filmData.scenes as ScheduleScene[]);
             const map = new Map<number, SceneSchedule>();
@@ -75,7 +75,10 @@ export function useScheduleData({
             setFuture([]);
           }
         } else if (mode === "package" && contextId) {
-          const pfData = await scheduleApi.packageFilms.getSchedule(contextId);
+          const pfData = await scheduleApi.packageFilms.getSchedule(contextId) as {
+            film?: { scenes?: Array<{ id: number; schedule?: SceneSchedule }> };
+            scene_schedules?: Array<{ scene_id: number; [key: string]: unknown }>;
+          } | null;
           if (isMounted && pfData?.film?.scenes) {
             setFilmScenes(pfData.film.scenes as ScheduleScene[]);
             const map = new Map<number, SceneSchedule>();

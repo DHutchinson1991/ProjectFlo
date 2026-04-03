@@ -146,7 +146,7 @@ export function PaymentMethodsSettings() {
             if (bankAccountName.trim()) c.account_name = bankAccountName.trim();
             if (bankSortCode.trim()) c.sort_code = bankSortCode.trim();
             if (bankAccountNumber.trim()) c.account_number = bankAccountNumber.trim();
-            return Object.keys(c).length ? c : undefined;
+            return Object.keys(c).length ? (c as Record<string, unknown>) : undefined;
         }
         return undefined;
     };

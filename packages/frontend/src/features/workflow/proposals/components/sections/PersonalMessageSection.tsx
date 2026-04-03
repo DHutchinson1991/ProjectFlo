@@ -60,7 +60,7 @@ export default function PersonalMessageSection({ content, brand, producerName, p
         const raw = blocksToHtml(pm?.data);
         // Split "Dear Name, ..." into greeting + body when it arrives as a single block
         if (raw) {
-            const match = raw.match(/^<p>(Dear\s+\w+,)\s*(.*)<\/p>$/s);
+            const match = raw.match(/^<p>(Dear\s+\w+,)\s*([\s\S]*)<\/p>$/);
             if (match) {
                 greeting = match[1];
                 bodyHtml = `<p>${match[2]}</p>`;

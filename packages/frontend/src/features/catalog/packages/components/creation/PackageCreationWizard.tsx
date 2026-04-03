@@ -172,9 +172,18 @@ const normalizeEventTypeForWizard = (eventType: EventTypeForWizard | EventType):
   const linkedSubjectTypes = Array.isArray(eventType.subject_types) ? eventType.subject_types : [];
   const subjectTypes = linkedSubjectTypes.length > 0 ? linkedSubjectTypes : mapSubjectRolesToSubjectTypes(eventType);
 
-  return {
+  return ({
     ...eventType,
-    event_days: eventDays,
+    event_days: eventDays.map(day => ({
+      ...day,
+      event_day_template: {
+        ...day.event_day_template,
+        activity_presets: (day.event_day_template?.activity_presets ?? []).map(ap => ({
+          ...ap,
+          moments: (ap as { moments?: unknown[] }).moments ?? [],
+        })),
+      },
+    })),
     subject_types: subjectTypes.map((subjectType) => {
       const template = subjectType.subject_type_template;
       const roles = Array.isArray(template?.roles) ? template.roles : [];
@@ -184,14 +193,14 @@ const normalizeEventTypeForWizard = (eventType: EventTypeForWizard | EventType):
         subject_type_template: {
           ...template,
           roles: roles.map((role) => ({
-            ...role,
-            is_group: Boolean(role.is_group),
-            never_group: Boolean(role.never_group),
+            ...(role as object),
+            is_group: Boolean((role as { is_group?: unknown }).is_group),
+            never_group: Boolean((role as { never_group?: unknown }).never_group),
           })),
         },
       };
     }),
-  };
+  }) as unknown as EventTypeForWizard;
 };
 
 interface PackageCreationWizardProps {

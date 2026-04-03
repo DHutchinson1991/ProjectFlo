@@ -13,7 +13,7 @@ import {
     Typography,
     Button,
 } from '@mui/material';
-import { MeetingType } from '@/features/workflow/calendar/types';
+import { MeetingType } from '@/features/workflow/calendar';
 import type { MeetingFormData } from './types';
 import { calculateEndTime } from '@/shared/utils/dateTime';
 

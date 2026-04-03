@@ -7,7 +7,8 @@ import CreateMusicDialog from './CreateMusicDialog';
 import AttachMusicToMomentDialog from './AttachMusicToMomentDialog';
 import { musicApi } from '@/features/content/music/api/music';
 import { momentsApi } from '@/features/content/music/api/moments';
-import type { CreateMusicLibraryItemDto, MusicLibraryItem, SceneMoment, MusicType, UpdateMusicLibraryItemDto } from '@/features/content/music/types';
+import type { CreateMusicLibraryItemDto, MusicLibraryItem, MusicType, UpdateMusicLibraryItemDto } from '@/features/content/music/types';
+import type { SceneMoment } from '@/features/content/moments/types/moments-legacy';
 
 interface MusicItem {
     id?: number;
@@ -241,13 +242,13 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
                 </Alert>
             )}
             <MusicTable
-                musicItems={displayItems}
+                musicItems={displayItems as any[]}
                 title="Music Tracks"
                 onAddMusic={() => dispatch({ type: 'OPEN_CREATE' })}
-                onEditMusic={(item) => dispatch({ type: 'OPEN_CREATE', item })}
-                onRemoveMusic={handleRemoveMusic}
-                onAttachToMoment={(item) => dispatch({ type: 'OPEN_ATTACH', item })}
-                onDetachFromMoment={handleDetachFromMoment}
+                onEditMusic={(item) => dispatch({ type: 'OPEN_CREATE', item: item as any })}
+                onRemoveMusic={(item) => handleRemoveMusic(item as any)}
+                onAttachToMoment={(item) => dispatch({ type: 'OPEN_ATTACH', item: item as any })}
+                onDetachFromMoment={(item) => handleDetachFromMoment(item as any)}
             />
             <CreateMusicDialog
                 open={state.createDialogOpen}
@@ -263,7 +264,7 @@ const MusicManagement: React.FC<MusicManagementProps> = ({
                 onClose={() => dispatch({ type: 'CLOSE_ATTACH' })}
                 onAttach={handleAttachMusic}
                 musicItem={state.attachingMusicItem}
-                moments={state.moments}
+                moments={state.moments as any[]}
                 saving={state.saving}
             />
         </Box>

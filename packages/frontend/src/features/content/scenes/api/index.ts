@@ -77,19 +77,13 @@ export const createScenesApi = (client: ApiClient) => ({
         client.get(`/api/music/scenes/${sceneId}/music`),
 
       create: (sceneId: number, data: CreateSceneMusicDto): Promise<SceneMusic> =>
-        client.post(`/api/music/scenes/${sceneId}/music`, {
-          film_scene_id: sceneId,
-          ...data,
-        }),
+        client.post(`/api/music/scenes/${sceneId}/music`, data),
 
       update: (sceneId: number, data: UpdateSceneMusicDto): Promise<SceneMusic> =>
         client.patch(`/api/music/scenes/${sceneId}/music`, data),
 
       upsert: (sceneId: number, data: CreateSceneMusicDto | UpdateSceneMusicDto): Promise<SceneMusic> =>
-        client.post(`/api/music/scenes/${sceneId}/music`, {
-          film_scene_id: sceneId,
-          ...data,
-        }),
+        client.post(`/api/music/scenes/${sceneId}/music`, data),
 
       delete: (sceneId: number): Promise<void> =>
         client.delete(`/api/music/scenes/${sceneId}/music`),

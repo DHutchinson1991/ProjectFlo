@@ -1,4 +1,4 @@
-import { EventType, MeetingType } from '@/features/workflow/calendar/types';
+import { EventType, MeetingType } from '@/features/workflow/calendar';
 
 export interface MeetingEvent {
     id: number;

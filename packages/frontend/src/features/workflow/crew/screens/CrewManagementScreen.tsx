@@ -521,6 +521,7 @@ export default function CrewManagementScreen() {
       level: t.level,
       hourly_rate: 0,
       day_rate: 0,
+      half_day_rate: 0,
       overtime_rate: 0,
       description: "",
       color: t.color,
@@ -1288,7 +1289,7 @@ export default function CrewManagementScreen() {
                                             onChange={(e) => {
                                               const bId = e.target.value as number | "";
                                               if (bId === "") {
-                                                if (currentBracket) unassignMut.mutate({ cId: panelMember.id, rId: jr.job_role_id });
+                                                if (currentBracket) unassignMut.mutate({ crewId: panelMember.id, jobRoleId: jr.job_role_id });
                                               } else {
                                                 assignMut.mutate({ crew_id: panelMember.id, job_role_id: jr.job_role_id, payment_bracket_id: bId as number });
                                               }
@@ -1511,7 +1512,7 @@ export default function CrewManagementScreen() {
                                               label={crewName(m.crew)}
                                               size="small"
                                               variant="outlined"
-                                              onDelete={() => unassignMut.mutate({ cId: m.crew_id, rId: m.job_role_id })}
+                                              onDelete={() => unassignMut.mutate({ crewId: m.crew_id, jobRoleId: m.job_role_id })}
                                               deleteIcon={<Tooltip title="Remove from tier"><CloseIcon sx={{ fontSize: 11 }} /></Tooltip>}
                                               sx={{ fontSize: "0.7rem", height: 21, borderColor: alpha(accent, 0.3), "& .MuiChip-deleteIcon": { color: "text.disabled", "&:hover": { color: "error.main" } } }}
                                             />

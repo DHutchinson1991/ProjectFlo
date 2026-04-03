@@ -28,4 +28,4 @@ export type { SchedulePackageApi } from './package-template';
 export type { ScheduleInstanceApi } from './instance';
 export type { CrewSlotsApi } from './shared';
 
-export type ScheduleApi = typeof scheduleApi;
+export type ScheduleApiInstance = typeof scheduleApi;

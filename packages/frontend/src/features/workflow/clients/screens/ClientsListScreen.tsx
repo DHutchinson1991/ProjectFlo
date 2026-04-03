@@ -21,6 +21,12 @@ import {
     Tabs,
     Tab,
     Link,
+    TableContainer,
+    Table,
+    TableHead,
+    TableRow,
+    TableCell,
+    TableBody,
 } from '@mui/material';
 import { StudioTable, type StudioColumn } from '@/shared/ui';
 import { sectionColors } from '@/shared/theme/tokens';

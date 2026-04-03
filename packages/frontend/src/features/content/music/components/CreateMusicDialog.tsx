@@ -63,7 +63,7 @@ const CreateMusicDialog: React.FC<CreateMusicDialogProps> = ({
         music_name: '',
         artist: '',
         duration: 0,
-        music_type: 'MODERN',
+        music_type: MusicType.MODERN,
         file_path: '',
         notes: ''
     });
@@ -87,7 +87,7 @@ const CreateMusicDialog: React.FC<CreateMusicDialogProps> = ({
                 music_name: '',
                 artist: '',
                 duration: 0,
-                music_type: 'MODERN',
+                music_type: MusicType.MODERN,
                 file_path: '',
                 notes: ''
             });
@@ -131,7 +131,7 @@ const CreateMusicDialog: React.FC<CreateMusicDialogProps> = ({
             music_name: '',
             artist: '',
             duration: 0,
-            music_type: 'MODERN',
+            music_type: MusicType.MODERN,
             file_path: '',
             notes: ''
         });

@@ -153,7 +153,7 @@ export type ScreenId =
     | "contact" | "summary";
 
 export type Direction = "forward" | "back";
-export type AnyRecord = Record<string, unknown>;
+export type AnyRecord = Record<string, any>;
 
 export interface ActivityOption {
     key: string;

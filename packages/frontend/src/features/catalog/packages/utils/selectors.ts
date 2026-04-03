@@ -73,5 +73,5 @@ export function computeEquipmentCost(
     crewSlots: PackageCrewSlotRecord[],
     _allEquipment: EquipmentRecord[],
 ): number {
-    return computeEquipmentBreakdown(crewSlots).dailyCost;
+    return computeEquipmentBreakdown(crewSlots as unknown as Parameters<typeof computeEquipmentBreakdown>[0]).dailyCost;
 }

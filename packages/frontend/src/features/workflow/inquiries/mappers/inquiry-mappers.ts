@@ -102,6 +102,8 @@ export function mapProposalResponse(apiResponse: ProposalApiResponse): Proposal 
         client_response: apiResponse.client_response ?? null,
         client_response_at: apiResponse.client_response_at ? new Date(apiResponse.client_response_at) : null,
         client_response_message: apiResponse.client_response_message ?? null,
+        viewed_at: (apiResponse as any).viewed_at ? new Date((apiResponse as any).viewed_at) : null,
+        view_count: (apiResponse as any).view_count ?? 0,
         created_at: new Date(apiResponse.created_at),
         updated_at: new Date(apiResponse.updated_at),
         inquiry: apiResponse.inquiry ? {

@@ -19,9 +19,9 @@ export function useInquiryProposalHeader(inquiryId: number | null | undefined) {
       return {
         id: inquiry.id,
         contact: {
-          first_name: inquiry.contact.first_name,
-          last_name: inquiry.contact.last_name,
-          email: inquiry.contact.email,
+          first_name: inquiry.contact.first_name ?? '',
+          last_name: inquiry.contact.last_name ?? '',
+          email: inquiry.contact.email ?? '',
         },
       };
     },

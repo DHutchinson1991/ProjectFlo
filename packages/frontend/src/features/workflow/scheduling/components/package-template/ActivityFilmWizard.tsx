@@ -207,13 +207,13 @@ export function ActivityFilmWizard({
                     film_id: newFilm.id,
                     order_index: 0,
                 });
-                ownerFilmId = linked.id;
+                ownerFilmId = (linked as { id: number }).id;
             } else {
                 const packageFilm = await scheduleApi.packageFilms.create(packageId!, {
                     film_id: newFilm.id,
                     order_index: 0,
                 });
-                ownerFilmId = packageFilm.id;
+                ownerFilmId = (packageFilm as { id: number }).id;
             }
 
             // 3. Create a scene for each selected activity and link them

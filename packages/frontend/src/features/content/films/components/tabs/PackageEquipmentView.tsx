@@ -74,7 +74,7 @@ export function PackageEquipmentView({ packageId }: { packageId: number; filmId?
     useEffect(() => {
         let mounted = true;
         crewSlotsApi.packageDay.getAll(packageId).then((ops) => {
-            if (mounted) setCrewSlots(ops || []);
+            if (mounted) setCrewSlots((ops as PackageCrewSlot[]) || []);
         }).catch(() => {}).finally(() => {
             if (mounted) setLoading(false);
         });

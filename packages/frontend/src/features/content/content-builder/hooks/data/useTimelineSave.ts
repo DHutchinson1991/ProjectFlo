@@ -156,7 +156,7 @@ export const useTimelineSave = (
                                     };
                                     console.log(`  📍 [SAVE] Beat ${beatIndex + 1}/${(scene as any).beats.length}: ${beat.name} (${beat.duration_seconds}s)`);
                                     
-                                    const beatResult = await beatsCreate(newDatabaseId, beatData);
+                                    const beatResult = await beatsCreate(newDatabaseId, beatData) as { id: number };
                                     savedBeats.push(beatResult);
                                     console.log(`  ✅ [SAVE] Beat created: ID ${beatResult.id}`);
                                 }

@@ -27,7 +27,7 @@ export function useSchedulePresetActions({
       if (!brandId) { setError("Brand is required to save shared presets."); return; }
       const name = presetNameDraft.trim();
       if (!name) { setError("Enter a preset name first."); return; }
-      const saved = await scheduleApi.presets.upsert(brandId, { name, schedule_data: Array.from(scheduleMap.values()) });
+      const saved = await scheduleApi.presets.upsert(brandId, { name, schedule_data: Array.from(scheduleMap.values()) }) as { id: number; name: string };
       await loadPresets();
       setSelectedPresetId(saved.id);
       setPresetNameDraft(saved.name);
@@ -53,7 +53,7 @@ export function useSchedulePresetActions({
       if (!selectedPresetId) { setError("Select a preset to rename."); return; }
       const newName = presetNameDraft.trim();
       if (!newName) { setError("Enter a new preset name."); return; }
-      const renamed = await scheduleApi.presets.rename(brandId, selectedPresetId, newName);
+      const renamed = await scheduleApi.presets.rename(brandId, selectedPresetId, newName) as { id: number; name: string };
       await loadPresets();
       setSelectedPresetId(renamed.id);
       setPresetNameDraft(renamed.name);

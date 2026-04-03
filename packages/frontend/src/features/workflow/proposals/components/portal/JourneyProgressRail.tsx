@@ -204,7 +204,7 @@ export function JourneyProgressRail({ steps, colors, currentStepRef, onStepCtaCl
                         step={step}
                         isLast={isLast}
                         colors={colors}
-                        ref={isCurrent ? currentStepRef : undefined}
+                        ref={isCurrent ? currentStepRef as React.RefObject<HTMLDivElement> : undefined}
                         onStepCtaClick={onStepCtaClick}
                         onStepClick={onStepClick}
                         isStepClickable={isStepClickable}

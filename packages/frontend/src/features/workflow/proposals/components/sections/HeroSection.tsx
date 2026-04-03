@@ -38,7 +38,7 @@ const phaseVariants = {
         y: 0,
         transition: {
             duration: 0.9,
-            ease: [0.25, 0.46, 0.45, 0.94],  // easeOutQuad
+            ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number],  // easeOutQuad
         },
     },
     exit: {
@@ -48,7 +48,7 @@ const phaseVariants = {
         y: 0,
         transition: {
             duration: 0.5,
-            ease: [0.55, 0.06, 0.68, 0.19],   // easeInCubic — fast fade
+            ease: [0.55, 0.06, 0.68, 0.19] as [number, number, number, number],   // easeInCubic — fast fade
         },
     },
 };
@@ -57,9 +57,9 @@ const scrollHintVariants = {
     hidden: { opacity: 0 },
     visible: {
         opacity: 1,
-        transition: { duration: 1.2, ease: "easeOut" },
+        transition: { duration: 1.2, ease: "easeOut" as const },
     },
-};
+} as const;
 
 /* Phase 3 gets its own container variant — no blur/scale, children animate individually */
 const phase3ContainerVariants = {

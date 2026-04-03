@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Stack } from "@mui/material";
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { TaskLibrary, TaskLibraryPhaseGroup, ProjectPhase, JobRole, SkillRoleMapping } from "@/features/catalog/task-library/types";
+import { TaskLibrary, TaskLibraryPhaseGroup, ProjectPhase, JobRole, SkillRoleMapping, Crew } from "@/features/catalog/task-library/types";
 import { DroppableZone } from "./DroppableZone";
 import { TaskAccordion } from "./TaskAccordion";
 import { DragOverlayTask } from "./DragOverlayTask";
@@ -30,7 +30,7 @@ interface TaskAccordionListProps {
     updateQuickAddData: (field: keyof TaskLibrary, value: unknown) => void;
     jobRoles: JobRole[];
     allMappings: SkillRoleMapping[];
-    crew: { id: number; contact: { first_name?: string; last_name?: string } }[];
+    crew: Crew[];
     expandedTaskId: number | null;
     onToggleExpand: (taskId: number) => void;
     onUpdateRoleSkills: (taskId: number, data: { default_job_role_id?: number | null; skills_needed?: string[] }) => Promise<void>;

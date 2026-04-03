@@ -95,7 +95,7 @@ export function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: 
                     name: form.name,
                     description: form.description || undefined,
                     order_index: eventDays.length,
-                });
+                }) as { id?: number } | null | undefined;
                 if (newDay?.id) {
                     await eventTypesApi.linkEventDay(eventTypeId, { event_day_template_id: newDay.id });
                 }
@@ -152,10 +152,10 @@ export function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: 
                 default_duration_minutes: presetForm.default_duration_minutes ? parseInt(presetForm.default_duration_minutes, 10) : undefined,
             };
             if (editingPreset) {
-                await api.schedule.activityPresets.update(editingPreset.id, data);
+                await scheduleApi.activityPresets.update(editingPreset.id, data);
             } else {
                 const existingPresets = eventDays.find(d => d.id === presetTargetId)?.activity_presets || [];
-                await api.schedule.activityPresets.create(presetTargetId, { ...data, order_index: existingPresets.length });
+                await scheduleApi.activityPresets.create(presetTargetId, { ...data, order_index: existingPresets.length });
             }
             setPresetDialogOpen(false);
             await onReload();
@@ -169,7 +169,7 @@ export function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: 
     const handlePresetDelete = async (presetId: number) => {
         if (!window.confirm("Remove this activity preset?")) return;
         try {
-            await api.schedule.activityPresets.delete(presetId);
+            await scheduleApi.activityPresets.delete(presetId);
             await onReload();
         } catch {
             setError("Failed to delete preset");
@@ -207,11 +207,11 @@ export function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: 
                 is_key_moment: momentForm.is_key_moment,
             };
             if (editingMoment) {
-                await api.schedule.presetMoments.update(editingMoment.id, data);
+                await scheduleApi.presetMoments.update(editingMoment.id, data);
             } else {
                 const preset = eventDays.flatMap(d => d.activity_presets || []).find(p => p.id === momentTargetPresetId);
                 const existingMoments = preset?.moments || [];
-                await api.schedule.presetMoments.create(momentTargetPresetId, { ...data, order_index: existingMoments.length });
+                await scheduleApi.presetMoments.create(momentTargetPresetId, { ...data, order_index: existingMoments.length });
             }
             setMomentDialogOpen(false);
             await onReload();
@@ -225,7 +225,7 @@ export function EventDaySection({ linkedDays, eventTypeId, brandId, onReload }: 
     const handleMomentDelete = async (momentId: number) => {
         if (!window.confirm("Remove this moment?")) return;
         try {
-            await api.schedule.presetMoments.delete(momentId);
+            await scheduleApi.presetMoments.delete(momentId);
             await onReload();
         } catch {
             setError("Failed to delete moment");

@@ -70,7 +70,7 @@ export function useTaskLibraryData() {
         jobRoles,
         allMappings,
         loadAllMappings,
-        crew: crew as Array<{ id: number; contact: { first_name?: string; last_name?: string } }>,
+        crew,
         loadTasks,
     };
 }

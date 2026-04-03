@@ -286,9 +286,9 @@ export default function TeamTiersSection({ content, eventDays, colors, isDark, c
     const { onSiteMerged, leadershipGroups, postProdGroups } = buildTeamTiers(allCrewSlots);
 
     const phases: PhaseConfig[] = [
-        { label: "Planning", groups: leadershipGroups, color: (d) => d ? "#66bb6a" : "#388e3c" },
-        { label: "Coverage", groups: onSiteMerged, color: (d) => d ? "#42a5f5" : "#1976d2" },
-        { label: "Post Production", groups: postProdGroups, color: (d) => d ? "#8f6197" : "#5c186e" },
+        { label: "Planning", groups: leadershipGroups, color: (d: boolean) => d ? "#66bb6a" : "#388e3c" },
+        { label: "Coverage", groups: onSiteMerged, color: (d: boolean) => d ? "#42a5f5" : "#1976d2" },
+        { label: "Post Production", groups: postProdGroups, color: (d: boolean) => d ? "#8f6197" : "#5c186e" },
     ].filter((p) => p.groups.length > 0);
 
     return (

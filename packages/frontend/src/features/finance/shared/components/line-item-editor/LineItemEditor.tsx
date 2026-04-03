@@ -52,12 +52,11 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({ items, onChange, curren
 
         if (field === 'quantity' || field === 'unit_price') {
             const numVal = parseFloat(value);
-            // @ts-expect-error dynamic key assignment
             item[field] = isNaN(numVal) ? 0 : numVal;
             item.total = computeLineTotal(item.quantity, item.unit_price);
         } else {
-            // @ts-expect-error dynamic key assignment
-            item[field] = value;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (item as any)[field] = value;
         }
 
         newItems[index] = item;

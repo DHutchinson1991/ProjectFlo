@@ -12,6 +12,7 @@ import { ScheduleCardGrid } from '@/features/workflow/scheduling/components';
 import { FilmCreationWizard } from '@/features/workflow/scheduling/film-wizard';
 
 import { usePackageData, usePackageActions } from '../hooks';
+import type { PackageFilmRecord } from '../types';
 import {
     SummaryCard, CrewCard, EquipmentCard,
     DeliverablesCard, SubjectsCard, LocationsCard,
@@ -243,7 +244,7 @@ export function PackageDetailScreen({ packageIdParam }: { packageIdParam: string
                         });
                         setFormData({ ...formData, contents: { ...formData.contents, items } });
                         filmsApi.films.getById(result.filmId).then(newFilm => setFilms(prev => [...prev, newFilm])).catch(() => {});
-                        scheduleApi.packageFilms.getAll(packageId).then(pfs => setPackageFilms(pfs)).catch(() => {});
+                        scheduleApi.packageFilms.getAll(packageId).then(pfs => setPackageFilms(pfs as PackageFilmRecord[])).catch(() => {});
                     }}
                 />
             )}

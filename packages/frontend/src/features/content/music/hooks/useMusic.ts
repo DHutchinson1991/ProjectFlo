@@ -37,7 +37,7 @@ export const useMusic = () => {
     setError(null);
     try {
       const data = await musicMomentsApi.getSceneMomentMusic(momentId);
-      setMomentMusic(data);
+      setMomentMusic(data as any);
       return data;
     } catch (err) {
       setMomentMusic(null);
@@ -66,14 +66,14 @@ export const useMusic = () => {
   }, []);
 
   const createMomentMusic = useCallback(async (momentId: number, payload: CreateMomentMusicDto) => {
-    const created = await musicMomentsApi.createSceneMomentMusic(momentId, payload);
-    setMomentMusic(created);
+    const created = await musicMomentsApi.createSceneMomentMusic(momentId, payload as any);
+    setMomentMusic(created as any);
     return created;
   }, []);
 
   const updateMomentMusic = useCallback(async (momentId: number, payload: UpdateMomentMusicDto) => {
-    const updated = await musicMomentsApi.updateSceneMomentMusic(momentId, payload);
-    setMomentMusic(updated);
+    const updated = await musicMomentsApi.updateSceneMomentMusic(momentId, payload as any);
+    setMomentMusic(updated as any);
     return updated;
   }, []);
 
