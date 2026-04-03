@@ -358,11 +358,15 @@ export function useMomentEditorState({
                 const subjectTrackIds = Array.from(new Set([...selectedCameraTrackIds, ...selectedAudioTrackIds]));
                 await onUpsertRecordingSetup(moment.id as number, {
                     camera_track_ids: selectedCameraTrackIds,
-                    camera_assignments: subjectTrackIds.map(trackId => ({
-                        track_id: trackId,
-                        subject_ids: cameraSubjectSelections[trackId] || [],
-                        shot_type: cameraShotSelections[trackId] || undefined,
-                    })),
+                    camera_assignments: subjectTrackIds.map(trackId => {
+                        const track = allTracks.find(t => t.id === trackId);
+                        return {
+                            track_id: trackId,
+                            track_type: track?.track_type?.toString().toLowerCase() || undefined,
+                            subject_ids: cameraSubjectSelections[trackId] || [],
+                            shot_type: cameraShotSelections[trackId] || undefined,
+                        };
+                    }),
                     audio_track_ids: selectedAudioTrackIds,
                     graphics_enabled: graphicsEnabled,
                     graphics_title: graphicsEnabled ? (graphicsTitle.trim() || null) : null,

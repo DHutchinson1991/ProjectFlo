@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react';
 import { proposalsApi } from '../api';
+import { clientPortalApi } from '@/features/workflow/client-portal/api';
 import type { Proposal } from '../types';
 
 export function useProposalShareLink() {
@@ -13,29 +14,30 @@ export function useProposalShareLink() {
     return proposalsApi.generateShareToken(inquiryId, proposal.id);
   }, []);
 
-  const getShareUrl = useCallback(async (inquiryId: number, proposal: Proposal) => {
-    const token = await getShareToken(inquiryId, proposal);
+  /** Get the shareable portal URL for a proposal */
+  const getPortalUrl = useCallback(async (inquiryId: number) => {
+    const { portal_token } = await clientPortalApi.generateToken(inquiryId);
     return {
-      token,
-      url: `${window.location.origin}/proposals/${token}`,
+      token: portal_token,
+      url: `${window.location.origin}/portal/${portal_token}?tab=proposal`,
     };
-  }, [getShareToken]);
+  }, []);
 
-  const copyShareUrl = useCallback(async (inquiryId: number, proposal: Proposal) => {
-    const share = await getShareUrl(inquiryId, proposal);
+  const copyShareUrl = useCallback(async (inquiryId: number) => {
+    const share = await getPortalUrl(inquiryId);
     await navigator.clipboard.writeText(share.url);
     return share;
-  }, [getShareUrl]);
+  }, [getPortalUrl]);
 
-  const openPreview = useCallback(async (inquiryId: number, proposal: Proposal) => {
-    const share = await getShareUrl(inquiryId, proposal);
-    window.open(`/proposals/${share.token}?preview=true`, '_blank');
-    return share;
-  }, [getShareUrl]);
+  /** Opens the client portal with the proposal tab selected and ?preview to skip analytics */
+  const openPreview = useCallback(async (inquiryId: number) => {
+    const { portal_token } = await clientPortalApi.generateToken(inquiryId);
+    window.open(`/portal/${portal_token}?tab=proposal&preview`, '_blank');
+  }, []);
 
   return {
     getShareToken,
-    getShareUrl,
+    getPortalUrl,
     copyShareUrl,
     openPreview,
   };

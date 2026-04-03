@@ -35,6 +35,8 @@ interface SubjectsCardProps {
     scheduleActiveDayId: number | null;
     selectedActivityId: number | null;
     cardSx: SxProps<Theme>;
+    /** When true, hides all inline editing (real_name, count, member_names). */
+    readOnly?: boolean;
 }
 
 /* ================================================================== */
@@ -51,6 +53,7 @@ export function SubjectsCard({
     scheduleActiveDayId,
     selectedActivityId,
     cardSx,
+    readOnly = false,
 }: SubjectsCardProps) {
     // ─── ScheduleApi adapter (use context if available, else direct package API) ──
     const contextApi = useOptionalScheduleApi();
@@ -261,7 +264,7 @@ export function SubjectsCard({
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                                 <Typography variant="body2" component="div" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
                                     {subj.name}
-                                    {isInstanceMode && !isGroup && subj.name.toLowerCase() !== 'guests' ? (
+                                    {isInstanceMode && !readOnly && !isGroup && subj.name.toLowerCase() !== 'guests' ? (
                                         editingRealNameId === subj.id ? (
                                             <Box
                                                 component="input"
@@ -336,7 +339,7 @@ export function SubjectsCard({
                             </Box>
 
                             {/* Group toggle icon — hidden for fixed-group and never-group roles */}
-                            {!isFixedGroup && !isNeverGroup && (
+                            {!readOnly && !isFixedGroup && !isNeverGroup && (
                             <Tooltip title={isGroup ? 'Remove group' : 'Make group'} arrow placement="top">
                                 <IconButton
                                     size="small"
@@ -356,7 +359,11 @@ export function SubjectsCard({
                             )}
 
                             {/* Count stepper — only when group */}
-                            {isGroup && (
+                            {isGroup && (readOnly ? (
+                                <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#a78bfa', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                                    ×{currentCount}
+                                </Typography>
+                            ) : (
                                 <Box
                                     onClick={e => e.stopPropagation()}
                                     sx={{ display: 'flex', alignItems: 'center', gap: 0.15, flexShrink: 0 }}
@@ -406,8 +413,9 @@ export function SubjectsCard({
                                         <Box component="span" sx={{ fontSize: 13, lineHeight: 1, fontWeight: 700 }}>+</Box>
                                     </IconButton>
                                 </Box>
-                            )}
+                            ))}
 
+                            {!readOnly && (
                             <Box className="subj-del" sx={{ opacity: 0, transition: 'opacity 0.15s' }}>
                                 <IconButton
                                     size="small"
@@ -424,10 +432,11 @@ export function SubjectsCard({
                                     <DeleteIcon sx={{ fontSize: 11 }} />
                                 </IconButton>
                             </Box>
+                            )}
                         </Box>
 
                         {/* Member name slots — instance mode, named groups only (not Guests) */}
-                        {isInstanceMode && isNamedGroup && currentCount > 0 && (
+                        {isInstanceMode && !readOnly && isNamedGroup && currentCount > 0 && (
                             <Box sx={{ pl: 3.5, pb: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                                 {Array.from({ length: currentCount }, (_, idx) => {
                                     const names: string[] = Array.isArray((subj as any).member_names) ? (subj as any).member_names : [];
@@ -478,7 +487,7 @@ export function SubjectsCard({
                     })}
 
                     {/* Template suggestions: show if matched template has unassigned roles */}
-                    {suggestedRoles.length > 0 && (
+                    {!readOnly && suggestedRoles.length > 0 && (
                         <Box sx={{ mt: daySubjects.length > 0 ? 1.5 : 0 }}>
                             {daySubjects.length === 0 && (
                                 <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.58rem', display: 'block', mb: 0.75 }}>
@@ -507,6 +516,7 @@ export function SubjectsCard({
                     )}
 
                     {/* Add custom subject button */}
+                    {!readOnly && (
                     <Box sx={{ mt: (daySubjects.length > 0 || suggestedRoles.length > 0) ? 1.5 : 0.5, display: 'flex', justifyContent: 'center' }}>
                         {hasOwner && packageEventDays.length > 0 && (
                             <Button
@@ -524,6 +534,7 @@ export function SubjectsCard({
                             </Button>
                         )}
                     </Box>
+                    )}
                 </Box>
             </ScheduleCardShell>
 

@@ -4,7 +4,7 @@ import React from 'react';
 import { Box, Typography, CardContent, Chip } from '@mui/material';
 import { Phone } from '@mui/icons-material';
 import type { WorkflowCardProps } from '../../lib';
-import { WorkflowCard } from '../WorkflowCard';
+import { WorkflowCard } from '@/shared/ui/WorkflowCard';
 import { useDiscoveryCallCard } from '../../hooks/use-discovery-call-card';
 import SlotPicker from './SlotPicker';
 import MeetingCard from './MeetingCard';

@@ -5,6 +5,10 @@ export class CreateInvoiceItemDto {
     @IsString()
     description: string;
 
+    @IsOptional()
+    @IsString()
+    category?: string;
+
     @IsNumber({ maxDecimalPlaces: 2 })
     quantity: number = 1;
 

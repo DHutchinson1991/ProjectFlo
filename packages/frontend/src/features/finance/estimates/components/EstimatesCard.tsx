@@ -10,16 +10,24 @@ import { useBrand } from '@/features/platform/brand';
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import type { Estimate, EstimateSnapshot } from '@/features/finance/estimates/types';
 import type { WorkflowCardProps } from '@/features/workflow/inquiries/lib';
-import { WorkflowCard } from '@/features/workflow/inquiries/components/WorkflowCard';
+import { WorkflowCard } from '@/shared/ui/WorkflowCard';
 import { useEstimateAutoGen } from '../hooks/useEstimateAutoGen';
 import EstimateListItem from './EstimateListItem';
 import EstimateVersionPopover from './EstimateVersionPopover';
 import EstimateBuilderDialog from './EstimateBuilderDialog';
-import type { LineItem } from '@/features/workflow/inquiries/components/LineItemEditor';
+import type { LineItem } from '@/features/finance/shared/components/line-item-editor';
 
-type EstimatesCardProps = WorkflowCardProps;
+interface EstimatesCardProps extends WorkflowCardProps {
+    collapsedByDefault?: boolean;
+}
 
-const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isActive, activeColor }) => {
+const EstimatesCard: React.FC<EstimatesCardProps> = ({
+    inquiry,
+    onRefresh,
+    isActive,
+    activeColor,
+    collapsedByDefault = false,
+}) => {
     const { currentBrand } = useBrand();
     const currency = currentBrand?.currency ?? DEFAULT_CURRENCY;
 
@@ -66,10 +74,11 @@ const EstimatesCard: React.FC<EstimatesCardProps> = ({ inquiry, onRefresh, isAct
                     return;
                 }
             }
+            if (collapsedByDefault) return;
             const primary = estimates.find((e) => e.is_primary);
             if (primary) setExpandedId(primary.id);
         }
-    }, [estimates]);
+    }, [collapsedByDefault, estimates]);
 
     // Load snapshots when accordion expands
     useEffect(() => {

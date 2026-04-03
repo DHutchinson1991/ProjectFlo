@@ -17,4 +17,8 @@ export class UpdateInvoiceItemDto {
     @IsOptional()
     @IsNumber({ maxDecimalPlaces: 2 })
     unit_price?: number;
+
+    @IsOptional()
+    @IsString()
+    category?: string;
 }

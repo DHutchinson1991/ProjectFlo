@@ -39,7 +39,7 @@ import { formatCurrency } from '@/features/workflow/proposals/utils/portal/forma
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import { computeTaxBreakdown } from '@/shared/utils/pricing';
 import { useBrand } from '@/features/platform/brand';
-import { InquirySchedulePreview } from '../components';
+import { ScheduleTab } from '../components/tabs';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -419,7 +419,7 @@ export default function PackageReviewScreen() {
 
             {/* ── Schedule Editor (full width) ── */}
             {inquiry.selected_package_id ? (
-                <InquirySchedulePreview inquiryId={inquiry.id} sourcePackageId={inquiry.selected_package_id} />
+                <ScheduleTab inquiryId={inquiry.id} sourcePackageId={inquiry.selected_package_id} />
             ) : (
                 <Box
                     sx={{

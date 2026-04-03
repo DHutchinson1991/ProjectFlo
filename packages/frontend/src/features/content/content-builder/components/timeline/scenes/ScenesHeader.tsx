@@ -122,7 +122,8 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
     }, [onUpdateScene, scenes]);
 
     // ─── Package activities ───────────────────────────────────────────────
-    const { packageId, trackDefaults } = useContentBuilder();
+    const { packageId, trackDefaults, instanceOwnerType, instanceOwnerId } = useContentBuilder();
+    const isInstanceOwner = Boolean(instanceOwnerType && instanceOwnerId);
     const [packageActivities, setPackageActivities] = React.useState<Array<{
         id: number;
         name: string;
@@ -131,12 +132,54 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
         end_time?: string | null;
         duration_minutes?: number | null;
         package_event_day_id: number;
+        event_day_template_id?: number | null;
         dayName?: string;
     }>>([]);
     const [packageSubjects, setPackageSubjects] = React.useState<any[]>([]);
     const [packageCrewSlots, setPackageCrewSlots] = React.useState<any[]>([]);
 
     React.useEffect(() => {
+        // Instance context: load from project/inquiry APIs
+        if (isInstanceOwner && instanceOwnerId) {
+            let mounted = true;
+            const getActivities = instanceOwnerType === 'project'
+                ? scheduleApi.projectAllActivities.getAll
+                : scheduleApi.inquiryActivities.getAll;
+            const getEventDays = instanceOwnerType === 'project'
+                ? scheduleApi.projectInstanceEventDays.getAll
+                : scheduleApi.inquiryEventDays.getAll;
+            const getSubjects = instanceOwnerType === 'project'
+                ? scheduleApi.instanceSubjects.getForProject
+                : scheduleApi.instanceSubjects.getForInquiry;
+            const getCrewSlots = instanceOwnerType === 'project'
+                ? scheduleApi.instanceCrewSlots.getForProject
+                : scheduleApi.instanceCrewSlots.getForInquiry;
+
+            Promise.all([
+                getActivities(instanceOwnerId),
+                getEventDays(instanceOwnerId),
+                getSubjects(instanceOwnerId),
+                getCrewSlots(instanceOwnerId),
+            ]).then(([acts, days, subjects, crewSlots]) => {
+                if (!mounted) return;
+                const dayNameMap = new Map<number, string>();
+                (days as any[] || []).forEach((d: any) => {
+                    dayNameMap.set(d.id, d.name);
+                });
+                setPackageActivities((acts as any[] || []).map((a: any) => ({
+                    ...a,
+                    dayName: dayNameMap.get(a.project_event_day_id) ?? 'Day',
+                    // Normalise: use package_event_day_id as the key the rest of the code expects
+                    package_event_day_id: a.project_event_day_id ?? a.package_event_day_id,
+                    event_day_template_id: a.project_event_day_id ?? a.event_day_template_id,
+                })));
+                setPackageSubjects(subjects as any[] || []);
+                setPackageCrewSlots(crewSlots as any[] || []);
+            }).catch(() => {});
+            return () => { mounted = false; };
+        }
+
+        // Package template context: load from package APIs
         if (!packageId) return;
         let mounted = true;
         Promise.all([
@@ -163,7 +206,7 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
             setPackageCrewSlots(crewSlots || []);
         }).catch(() => {});
         return () => { mounted = false; };
-    }, [packageId]);
+    }, [packageId, isInstanceOwner, instanceOwnerType, instanceOwnerId]);
 
     // ─── Schedule integration ────────────────────────────────────────────
     const { currentBrand } = useBrand();
@@ -172,7 +215,7 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
         getSceneSchedule,
         updateSceneSchedule,
         saveSceneSchedule,
-    } = useFilmSchedule(filmId ?? null, brandId ?? null, packageId ?? null);
+    } = useFilmSchedule(filmId ?? null, brandId ?? null, packageId ?? null, instanceOwnerType, instanceOwnerId);
 
     // Moment schedule
     const momentSceneId = activeSceneForEdit?.id;

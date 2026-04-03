@@ -69,6 +69,20 @@ export const fieldSx = {
   "& .MuiInputLabel-root.Mui-focused": { color: colors.accent },
 } as const;
 
+/** Compact dialog TextField override (blue accent, no border-radius). */
+export const compactFieldSx = {
+  "& .MuiOutlinedInput-root": {
+    bgcolor: "rgba(15,23,42,0.3)",
+    "& fieldset": { borderColor: "rgba(52,58,68,0.6)" },
+    "&:hover fieldset": { borderColor: "rgba(96,165,250,0.4)" },
+    "&.Mui-focused fieldset": { borderColor: "#60a5fa" },
+  },
+  "& .MuiInputLabel-root": { color: "#64748b" },
+  "& .MuiInputLabel-root.Mui-focused": { color: "#60a5fa" },
+  "& .MuiInputBase-input": { color: "#e2e8f0", fontSize: "0.8rem" },
+  "& .MuiInputBase-inputMultiline": { fontSize: "0.78rem" },
+} as const;
+
 /* ── Section colours ──────────────────────────────────────── */
 
 /**

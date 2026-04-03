@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../platform/prisma/prisma.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { roundMoney } from '../shared/pricing.utils';
@@ -6,10 +6,17 @@ import { CreatePaymentScheduleTemplateDto } from './dto/create-payment-schedule-
 import { UpdatePaymentScheduleTemplateDto } from './dto/update-payment-schedule-template.dto';
 import { ApplyScheduleToEstimateDto } from './dto/apply-schedule-to-estimate.dto';
 import { ApplyScheduleToQuoteDto } from './dto/apply-schedule-to-quote.dto';
+import { InvoicesService } from '../invoices/invoices.service';
 
 @Injectable()
 export class PaymentSchedulesService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(PaymentSchedulesService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => InvoicesService))
+    private invoicesService: InvoicesService,
+  ) {}
 
   // ── Templates CRUD ─────────────────────────────────────────────────────────
 
@@ -177,7 +184,61 @@ export class PaymentSchedulesService {
       });
     });
 
-    return this.getMilestonesForEstimate(estimateId);
+    const result = await this.getMilestonesForEstimate(estimateId);
+
+    // Propagate milestone changes to quote + regenerate draft invoices
+    await this.regenerateInvoicesFromEstimate(estimateId);
+
+    return result;
+  }
+
+  /**
+   * After estimate milestones change, propagate to any existing quote
+   * and regenerate draft invoices.
+   */
+  private async regenerateInvoicesFromEstimate(estimateId: number) {
+    const estimate = await this.prisma.estimates.findUnique({
+      where: { id: estimateId },
+      select: {
+        inquiry_id: true,
+        inquiry: { select: { contact: { select: { brand_id: true } } } },
+      },
+    });
+    if (!estimate?.inquiry?.contact?.brand_id) return;
+
+    // Also sync milestones to the primary quote if one exists
+    const quote = await this.prisma.quotes.findFirst({
+      where: { inquiry_id: estimate.inquiry_id, is_primary: true },
+    });
+    if (quote) {
+      const freshMilestones = await this.getMilestonesForEstimate(estimateId);
+      await this.prisma.$transaction(async (tx) => {
+        await tx.quote_payment_milestones.deleteMany({ where: { quote_id: quote.id } });
+        if (freshMilestones.length > 0) {
+          await tx.quote_payment_milestones.createMany({
+            data: freshMilestones.map(m => ({
+              quote_id: quote.id,
+              label: m.label,
+              amount: m.amount,
+              due_date: m.due_date,
+              status: m.status,
+              notes: m.notes,
+              order_index: m.order_index,
+            })),
+          });
+        }
+      });
+      this.logger.log(`Synced ${freshMilestones.length} milestones from estimate to quote ${quote.id}`);
+    }
+
+    try {
+      await this.invoicesService.autoGenerateFromQuoteMilestones(
+        estimate.inquiry_id,
+        estimate.inquiry.contact.brand_id,
+      );
+    } catch (err) {
+      this.logger.error(`Failed to regenerate invoices after estimate milestone change: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   async getMilestonesForEstimate(estimateId: number) {
@@ -223,7 +284,31 @@ export class PaymentSchedulesService {
       });
     });
 
-    return this.getMilestonesForQuote(quoteId);
+    const result = await this.getMilestonesForQuote(quoteId);
+
+    // Regenerate draft invoices to reflect new milestones
+    await this.regenerateInvoicesFromQuote(quoteId);
+
+    return result;
+  }
+  private async regenerateInvoicesFromQuote(quoteId: number) {
+    const quote = await this.prisma.quotes.findUnique({
+      where: { id: quoteId },
+      select: {
+        inquiry_id: true,
+        inquiry: { select: { contact: { select: { brand_id: true } } } },
+      },
+    });
+    if (!quote?.inquiry?.contact?.brand_id) return;
+
+    try {
+      await this.invoicesService.autoGenerateFromQuoteMilestones(
+        quote.inquiry_id,
+        quote.inquiry.contact.brand_id,
+      );
+    } catch (err) {
+      this.logger.error(`Failed to regenerate invoices after quote milestone change: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   async getMilestonesForQuote(quoteId: number) {

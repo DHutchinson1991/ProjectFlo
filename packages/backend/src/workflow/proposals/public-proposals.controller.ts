@@ -13,7 +13,7 @@ import { Type } from 'class-transformer';
 
 class RespondToProposalDto {
     @IsString()
-    @IsIn(['Accepted', 'ChangesRequested'])
+    @IsIn(['Accepted', 'ChangesRequested', 'Reconsideration'])
     response: string;
 
     @IsString()

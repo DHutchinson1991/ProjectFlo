@@ -33,6 +33,8 @@ Table brands {
   bank_account_name String
   bank_sort_code String
   bank_account_number String
+  stripe_account_id String
+  stripe_onboarding_complete Boolean [not null, default: false]
   crew_payment_terms String [default: '50% on booking confirmation, 50% within 7 days of delivery']
   crew_response_deadline_days Int [default: 5]
   service_types String[] [not null]
@@ -79,6 +81,8 @@ Table brands {
   contract_clauses contract_clauses [not null]
   contract_templates contract_templates [not null]
   finance_settings brand_finance_settings
+  invoices invoices [not null]
+  payment_methods payment_methods [not null]
 }
 
 Table brand_settings {
@@ -781,21 +785,34 @@ Table project_assets {
 
 Table invoices {
   id Int [pk, increment]
+  brand_id Int
   project_id Int
   quote_id Int
   proposal_id Int
+  milestone_id Int
   invoice_number String [unique, not null]
+  title String
   issue_date DateTime [not null]
   due_date DateTime [not null]
+  subtotal Decimal
+  tax_rate Decimal [default: 0]
+  amount Decimal [not null]
   amount_paid Decimal [default: 0]
   status String [not null, default: 'Draft']
-  amount Decimal [not null]
+  currency String [default: 'USD']
+  notes String
+  terms String
+  payment_method String
   inquiry_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [default: `now()`, not null]
   items invoice_items [not null]
   inquiry inquiries [not null]
+  brand brands
   project projects
   quote quotes
   proposal proposals
+  milestone quote_payment_milestones
   payments payments [not null]
 }
 
@@ -803,6 +820,7 @@ Table invoice_items {
   id Int [pk, increment]
   invoice_id Int [not null]
   description String [not null]
+  category String
   quantity Decimal [not null, default: 1]
   unit_price Decimal [not null]
   invoice invoices [not null]
@@ -815,6 +833,14 @@ Table payments {
   amount Decimal [not null]
   payment_method String
   transaction_id String
+  stripe_checkout_session_id String
+  stripe_payment_intent_id String
+  receipt_url String
+  card_brand String
+  card_last4 String
+  payer_email String
+  currency String
+  created_at DateTime [default: `now()`, not null]
   invoice invoices [not null]
 }
 
@@ -941,6 +967,7 @@ Table quote_payment_milestones {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   quote quotes [not null]
+  invoices invoices [not null]
 }
 
 Table audit_log {
@@ -1221,6 +1248,10 @@ Table task_library {
   is_task_group Boolean [not null, default: false]
   is_auto_only Boolean [not null, default: false]
   is_on_site Boolean [not null, default: false]
+  is_customer_facing Boolean [not null, default: false]
+  customer_description String
+  requires_client_action Boolean [not null, default: false]
+  client_deliverable_description String
   default_crew_id Int
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
@@ -3252,6 +3283,25 @@ Table crew_payment_rules {
   task_library task_library
 }
 
+Table payment_methods {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  type PaymentMethodType [not null]
+  label String [not null]
+  is_default Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  instructions String
+  config Json
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+
+  indexes {
+    (brand_id, label) [unique]
+  }
+}
+
 Table estimate_payment_milestones {
   id Int [pk, increment]
   estimate_id Int [not null]
@@ -3551,6 +3601,13 @@ Enum activity_type {
 Enum activity_status {
   Pending
   Completed
+}
+
+Enum PaymentMethodType {
+  BANK_TRANSFER
+  CREDIT_CARD
+  CASH
+  STRIPE
 }
 
 Enum document_status {
@@ -3903,11 +3960,15 @@ Ref: project_assets.project_id > projects.id [delete: Cascade]
 
 Ref: invoices.inquiry_id > inquiries.id [delete: Cascade]
 
+Ref: invoices.brand_id > brands.id
+
 Ref: invoices.project_id > projects.id
 
 Ref: invoices.quote_id > quotes.id
 
 Ref: invoices.proposal_id > proposals.id
+
+Ref: invoices.milestone_id > quote_payment_milestones.id
 
 Ref: invoice_items.invoice_id > invoices.id [delete: Cascade]
 
@@ -4490,6 +4551,8 @@ Ref: crew_payment_templates.brand_id > brands.id [delete: Cascade]
 Ref: crew_payment_rules.template_id > crew_payment_templates.id [delete: Cascade]
 
 Ref: crew_payment_rules.task_library_id > task_library.id [delete: Set Null]
+
+Ref: payment_methods.brand_id > brands.id [delete: Cascade]
 
 Ref: estimate_payment_milestones.estimate_id > estimates.id [delete: Cascade]
 

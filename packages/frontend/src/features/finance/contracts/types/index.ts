@@ -96,6 +96,7 @@ export interface UpdateContractData {
     content?: OutputData;
     status?: ContractStatus;
     project_id?: number;
+    signed_date?: Date | string | null;
 }
 
 export interface ContractClauseCategory {

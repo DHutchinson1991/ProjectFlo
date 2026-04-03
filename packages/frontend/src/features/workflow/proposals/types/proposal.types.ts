@@ -1,6 +1,6 @@
 import type { OutputData } from '@editorjs/editorjs';
 
-export type ProposalClientResponse = 'Accepted' | 'ChangesRequested';
+export type ProposalClientResponse = 'Accepted' | 'ChangesRequested' | 'Reconsideration';
 
 export interface ProposalContactSummary {
   first_name: string;
@@ -138,6 +138,15 @@ export interface PublicPackage {
   } | null;
 }
 
+export interface PublicProposalTask {
+  id: number;
+  name: string;
+  phase: string;
+  is_task_group: boolean;
+  parent_task_id: number | null;
+  order_index: number;
+}
+
 export interface PublicProposalInquiry {
   id: number;
   wedding_date: string | null;
@@ -148,6 +157,75 @@ export interface PublicProposalInquiry {
   selected_package: PublicPackage | null;
   schedule_event_days: PublicProposalEventDay[];
   schedule_films: PublicProposalFilm[];
+  quotes?: PublicProposalQuote[];
+  contracts?: PublicProposalContractPreview[];
+}
+
+export interface PublicProposalQuoteItem {
+  id: number;
+  description: string;
+  category: string | null;
+  quantity: string | number;
+  unit: string | null;
+  unit_price: string | number;
+}
+
+export interface PublicProposalQuotePaymentMilestone {
+  id: number;
+  label: string;
+  amount: string | number;
+  due_date: string;
+  status: string;
+}
+
+export interface PublicProposalQuote {
+  id: number;
+  quote_number: string;
+  title: string | null;
+  status: string;
+  issue_date: string;
+  expiry_date: string;
+  total_amount: string | number;
+  tax_rate: string | number | null;
+  deposit_required: string | number | null;
+  currency: string | null;
+  notes: string | null;
+  payment_method: string | null;
+  items: PublicProposalQuoteItem[];
+  payment_milestones: PublicProposalQuotePaymentMilestone[];
+}
+
+export interface PublicProposalContractSigner {
+  id: number;
+  name: string;
+  role: string;
+  status: string;
+  signed_at: string | null;
+  viewed_at: string | null;
+}
+
+export interface PublicProposalContractPreview {
+  id: number;
+  title: string;
+  status: string;
+  rendered_html: string | null;
+  sent_at: string | null;
+  signed_date: string | null;
+  signers: PublicProposalContractSigner[];
+}
+
+export interface PublicProposalTaskDetail {
+  name: string;
+  description: string | null;
+  requiresAction: boolean;
+  deliverable: string | null;
+}
+
+export interface PublicProposalPhase {
+  phase: string;
+  taskCount: number;
+  tasks: string[];
+  taskDetails?: PublicProposalTaskDetail[];
 }
 
 export interface PublicProposal {
@@ -162,6 +240,10 @@ export interface PublicProposal {
   inquiry: PublicProposalInquiry;
   brand: PublicProposalBrand | null;
   section_notes?: ProposalSectionNote[];
+  /** Generated personal message from backend template (not stored in DB) */
+  personalMessage?: string | null;
+  /** Distinct project phases from task library */
+  projectPhases?: PublicProposalPhase[];
 }
 
 export interface ProposalShareTokenResponse {
@@ -236,6 +318,7 @@ export interface PublicProposalCrewSlotEquipment {
   equipment: {
     id: number;
     item_name: string;
+    category: string;
   };
 }
 
@@ -277,6 +360,13 @@ export interface PublicProposalActivity {
     project_location_slot: {
       name: string | null;
       location: { name: string; address_line1: string | null } | null;
+    };
+  }[];
+  subject_assignments?: {
+    project_day_subject: {
+      id: number;
+      name: string;
+      real_name: string | null;
     };
   }[];
 }
@@ -342,4 +432,32 @@ export interface PublicProposalFilm {
       equipment: { item_name: string; category: string | null };
     }[];
   };
+  instance_tracks?: {
+    id: number;
+    name: string;
+    type: string;
+    order_index: number;
+    is_active: boolean;
+    is_unmanned: boolean;
+    crew_id: number | null;
+    crew: {
+      contact: { first_name: string | null; last_name: string | null } | null;
+    } | null;
+  }[];
+  instance_subjects?: { id: number; name: string }[];
+  instance_scenes?: {
+    id: number;
+    name: string;
+    order_index: number;
+    moments?: {
+      id: number;
+      name: string;
+      order_index: number;
+      duration: number;
+      recording_setup?: {
+        audio_track_ids: number[];
+        camera_assignments?: { track_id: number; subject_ids: number[]; subject_names?: string[]; shot_type: string | null }[];
+      } | null;
+    }[];
+  }[];
 }

@@ -36,8 +36,8 @@ export function getNavUrl(task: ActiveTask): string | null {
       resolve_availability_conflicts: "availability-section",
       send_crew_availability_requests: "availability-section",
       reserve_equipment: "availability-section",
-      mark_inquiry_qualified: "qualify-section",
-      send_welcome_response: "qualify-section",
+      mark_inquiry_qualified: "qualify-respond-section",
+      send_welcome_response: "qualify-respond-section",
     };
 
     if (task.task_kind === "subtask" && task.subtask_key && subtaskSectionMap[task.subtask_key]) {
@@ -51,12 +51,12 @@ export function getNavUrl(task: ActiveTask): string | null {
     if (n.includes("proposal review") || n.includes("review proposal")) return `${base}#proposal-review-section`;
     if (n.includes("proposal")) return `${base}#proposals-section`;
     if (n.includes("availability") || n.includes("crew") || n.includes("equipment")) return `${base}#availability-section`;
-    if (n.includes("qualify")) return `${base}#qualify-section`;
+    if (n.includes("qualify")) return `${base}#qualify-respond-section`;
     if (n.includes("quote")) return `${base}#quotes-section`;
     if (n.includes("estimate") || n.includes("budget")) return `${base}#estimates-section`;
     if (n.includes("discovery") || n.includes("questionnaire")) return `${base}#discovery-questionnaire-section`;
     if (n.includes("call") || n.includes("meeting") || n.includes("consultation")) return `${base}#calls-section`;
-    if (n.includes("approval") || n.includes("client review")) return `${base}#approval-section`;
+    if (n.includes("approval") || n.includes("client review")) return `${base}#proposals-section`;
     return base;
   }
   if (task.source === "project" && task.project_id) return `/projects/${task.project_id}`;

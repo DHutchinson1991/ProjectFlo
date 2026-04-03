@@ -57,7 +57,7 @@ export function InquiryProposalsScreen() {
 
   const handleCopyLink = async (proposal: Proposal) => {
     try {
-      await copyShareUrl(inquiryId, proposal);
+      await copyShareUrl(inquiryId);
       showNotification('Share link copied!', 'success');
     } catch {
       showNotification('Failed to copy link', 'error');

@@ -16,7 +16,7 @@ import { useBrand } from '@/features/platform/brand';
 import type { Estimate } from '@/features/finance/estimates/types';
 import type { Quote } from '@/features/finance/quotes/types';
 import type { WorkflowCardProps } from '@/features/workflow/inquiries/lib/types';
-import { WorkflowCard } from '@/features/workflow/inquiries/components/WorkflowCard';
+import { WorkflowCard } from '@/shared/ui/WorkflowCard';
 import { roundMoney } from '@/shared/utils/pricing';
 import { formatCurrency, DEFAULT_CURRENCY } from '@projectflo/shared';
 

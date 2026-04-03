@@ -1,72 +1,199 @@
 "use client";
 
-import { Box, Typography, Divider } from "@mui/material";
+import React from "react";
+import { Box, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { sanitizeHtml } from "@/features/workflow/proposals/utils/portal/formatting";
 import type { SectionBaseProps, PublicProposalContent, PublicProposalBrand } from "@/features/workflow/proposals/types";
 import { isSectionVisible, getSectionTitle } from "@/features/workflow/proposals/utils/portal/section-helpers";
-import RevealBox from "./RevealBox";
+import { useReveal, revealSx } from "@/features/workflow/proposals/utils/portal/animations";
+import { useProposalScrollRef } from "@/features/workflow/proposals/components/ProposalScrollContext";
 
 interface PersonalMessageSectionProps extends SectionBaseProps {
     content: PublicProposalContent | null;
     brand: PublicProposalBrand | null;
+    producerName?: string | null;
+    /** Backend-generated personal message (not from DB content) */
+    personalMessage?: string | null;
 }
+
+/* ── Helpers ── */
 
 /** Convert EditorJS-style blocks to simple HTML. Falls back to data.body if present. */
 function blocksToHtml(data: Record<string, unknown> | undefined): string | null {
     if (!data) return null;
-    // Legacy: already-rendered HTML in body field
     if (typeof data.body === "string" && data.body) return data.body;
-    // EditorJS blocks array
     const blocks = data.blocks as Array<{ type: string; data: Record<string, unknown> }> | undefined;
     if (!Array.isArray(blocks) || blocks.length === 0) return null;
-    return blocks
-        .map((b) => {
-            const text = (b.data?.text as string) || "";
-            switch (b.type) {
-                case "header": {
-                    const level = (b.data?.level as number) || 2;
-                    return `<h${level}>${text}</h${level}>`;
-                }
-                case "list": {
-                    const items = (b.data?.items as string[]) || [];
-                    const tag = b.data?.style === "ordered" ? "ol" : "ul";
-                    return `<${tag}>${items.map((i) => `<li>${i}</li>`).join("")}</${tag}>`;
-                }
-                default:
-                    return `<p>${text}</p>`;
+    return blocks.map((b) => {
+        const text = (b.data?.text as string) || "";
+        switch (b.type) {
+            case "header": return `<h${(b.data?.level as number) || 2}>${text}</h${(b.data?.level as number) || 2}>`;
+            case "list": {
+                const items = (b.data?.items as string[]) || [];
+                const tag = b.data?.style === "ordered" ? "ol" : "ul";
+                return `<${tag}>${items.map((i) => `<li>${i}</li>`).join("")}</${tag}>`;
             }
-        })
-        .join("");
+            default: return `<p>${text}</p>`;
+        }
+    }).join("");
 }
 
-export default function PersonalMessageSection({ content, brand, colors, isDark, cardSx }: PersonalMessageSectionProps) {
+/* ── Main component ── */
+
+export default function PersonalMessageSection({ content, brand, producerName, personalMessage, colors }: PersonalMessageSectionProps) {
     if (!isSectionVisible(content, "text")) return null;
 
+    // Prefer the backend-generated template message; fall back to DB content
     const pm = content?.sections?.find((s) => s.type === "text");
-    const pmHtml = blocksToHtml(pm?.data);
-    if (!pmHtml) return null;
+    let greeting: string | null = null;
+    let bodyHtml: string | null;
+    if (personalMessage) {
+        const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const parts = personalMessage.split('|');
+        if (parts.length > 1) {
+            greeting = parts[0];
+            bodyHtml = `<p>${esc(parts.slice(1).join('|'))}</p>`;
+        } else {
+            bodyHtml = `<p>${esc(personalMessage)}</p>`;
+        }
+    } else {
+        const raw = blocksToHtml(pm?.data);
+        // Split "Dear Name, ..." into greeting + body when it arrives as a single block
+        if (raw) {
+            const match = raw.match(/^<p>(Dear\s+\w+,)\s*(.*)<\/p>$/s);
+            if (match) {
+                greeting = match[1];
+                bodyHtml = `<p>${match[2]}</p>`;
+            } else {
+                bodyHtml = raw;
+            }
+        } else {
+            bodyHtml = null;
+        }
+    }
+    if (!bodyHtml && !greeting) return null;
 
     const brandName = brand?.display_name || brand?.name || "";
+    const sigName = producerName || brandName || null;
+
+    const scrollRootRef = useProposalScrollRef();
+    const { ref, visible } = useReveal({ threshold: 0.15, rootRef: scrollRootRef });
 
     return (
-        <RevealBox>
-            <Box sx={{ textAlign: "center", py: { xs: 1, md: 1.5 } }}>
-                <Typography sx={{ color: colors.accent, textTransform: "uppercase", letterSpacing: 2, fontSize: "0.65rem", fontWeight: 700, mb: 2 }}>
-                    {getSectionTitle(content, "text", "A Note For You")}
-                </Typography>
-                <Box
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(pmHtml) }}
-                    sx={{
-                        "& p": { color: colors.text, fontSize: { xs: "0.95rem", md: "1.05rem" }, lineHeight: 1.9, mb: 2, fontWeight: 300, "&:last-child": { mb: 0 } },
-                        "& h2": { color: colors.text, fontSize: "1.2rem", fontWeight: 500, mt: 3, mb: 1.5 },
-                        "& h3": { color: colors.text, fontSize: "1.05rem", fontWeight: 500, mt: 2, mb: 1 },
-                        "& ul, & ol": { color: colors.text, pl: 2.5, mb: 2, "& li": { fontSize: "0.95rem", lineHeight: 1.7, mb: 0.5 } },
-                    }}
-                />
-                <Divider sx={{ borderColor: alpha(colors.border, 0.4), my: 2 }} />
-                <Typography sx={{ color: colors.muted, fontSize: "0.75rem", fontStyle: "italic" }}>— {brandName || "Your team"}</Typography>
-            </Box>
-        </RevealBox>
+        <Box
+            ref={ref}
+            sx={{
+                maxWidth: 620,
+                mx: "auto",
+                px: { xs: 1, md: 0 },
+                py: { xs: 2, md: 3 },
+                ...revealSx(visible),
+            }}
+        >
+            {/* Section label */}
+            <Typography sx={{
+                color: colors.accent,
+                textTransform: "uppercase",
+                letterSpacing: "0.22em",
+                fontSize: "0.6rem",
+                fontWeight: 700,
+                mb: { xs: 3.5, md: 4.5 },
+                textAlign: "center",
+            }}>
+                {getSectionTitle(content, "text", "A Note For You")}
+            </Typography>
+
+            {/* Greeting — pulled out as its own element */}
+            {greeting && (
+                <Box sx={{ textAlign: "center", mb: { xs: 2, md: 2.5 } }}>
+                    <Typography sx={{
+                        color: alpha(colors.text, 0.92),
+                        fontFamily: '"Cormorant Garamond", "Playfair Display", Georgia, serif',
+                        fontSize: { xs: "1.35rem", md: "1.55rem" },
+                        fontStyle: "italic",
+                        fontWeight: 400,
+                        lineHeight: 1.6,
+                    }}>
+                        {greeting}
+                    </Typography>
+
+                    {/* Thin accent divider */}
+                    <Box sx={{
+                        width: 40,
+                        height: "1px",
+                        bgcolor: alpha(colors.accent, 0.3),
+                        mx: "auto",
+                        mt: { xs: 2, md: 2.5 },
+                    }} />
+                </Box>
+            )}
+
+            {/* Letter body */}
+            {bodyHtml && (
+                <Box sx={{
+                    position: "relative",
+                    px: { xs: 2.5, md: 4 },
+                    py: { xs: 1.5, md: 2 },
+                    textAlign: "center",
+                }}>
+                    <Box
+                        dangerouslySetInnerHTML={{ __html: bodyHtml }}
+                        sx={{
+                            color: alpha(colors.text, 0.6),
+                            fontFamily: '"Cormorant Garamond", "Playfair Display", Georgia, serif',
+                            fontSize: { xs: "1.15rem", md: "1.35rem" },
+                            fontStyle: "italic",
+                            fontWeight: 300,
+                            lineHeight: 1.75,
+                            "& p": { mb: 1 },
+                            "& p:last-child": { mb: 0 },
+                        }}
+                    />
+                </Box>
+            )}
+
+            {/* Signature */}
+            {sigName && (
+                <Box sx={{
+                    mt: { xs: 4, md: 5 },
+                    px: { xs: 2.5, md: 4 },
+                    textAlign: "center",
+                }}>
+                    {/* Rule */}
+                    <Box sx={{
+                        width: 48,
+                        height: "1px",
+                        bgcolor: alpha(colors.accent, 0.4),
+                        mb: 2.5,
+                        mx: "auto",
+                    }} />
+
+                    {/* Role label */}
+                    <Typography sx={{
+                        fontFamily: '"Cormorant Garamond", Georgia, serif',
+                        fontSize: "0.62rem",
+                        fontWeight: 400,
+                        letterSpacing: "0.2em",
+                        textTransform: "uppercase",
+                        color: alpha(colors.muted, 0.75),
+                        mb: 0.75,
+                    }}>
+                        Your producer
+                    </Typography>
+
+                    {/* Name in script */}
+                    <Typography sx={{
+                        fontFamily: '"Great Vibes", "Dancing Script", cursive',
+                        fontSize: { xs: "2.1rem", md: "2.5rem" },
+                        fontWeight: 400,
+                        color: colors.text,
+                        lineHeight: 1.2,
+                        letterSpacing: "0.01em",
+                    }}>
+                        {sigName}
+                    </Typography>
+                </Box>
+            )}
+        </Box>
     );
 }

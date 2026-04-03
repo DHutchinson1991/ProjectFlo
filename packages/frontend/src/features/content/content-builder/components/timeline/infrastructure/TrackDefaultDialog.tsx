@@ -34,6 +34,7 @@ import {
     MusicNote as MusicIcon,
 } from "@mui/icons-material";
 import { scenesApi } from "@/features/content/scenes/api";
+import { useOptionalFilmApi } from "@/features/content/films/components/FilmApiContext";
 import type { TimelineTrack, TimelineScene } from "@/features/content/content-builder/types/timeline";
 import type { TrackDefault } from "../../../context/ContentBuilderContext";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
@@ -82,7 +83,7 @@ const getTrackIcon = (trackType: string) => {
     }
 };
 
-type CameraAssignment = { track_id: number; subject_ids?: number[]; shot_type?: string | null };
+type CameraAssignment = { track_id: number; track_type?: string; subject_ids?: number[]; shot_type?: string | null };
 type ExistingSetup = {
     camera_track_ids?: number[];
     camera_assignments?: CameraAssignment[];
@@ -112,8 +113,10 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
     onClose,
     onSaveDefault,
 }) => {
-    // Pull setScenes so we can update local state immediately after each API save
-    const { setScenes } = useContentBuilder();
+    // Pull setScenes, tracks so we can update local state immediately after each API save
+    const { setScenes, tracks: allTracks } = useContentBuilder();
+    const filmApi = useOptionalFilmApi();
+    const upsertRecordingSetup = filmApi?.moments?.upsertRecordingSetup ?? scenesApi.moments.upsertRecordingSetup;
 
     const isVideo = track.track_type?.toUpperCase() === "VIDEO";
     const isAudio = track.track_type?.toUpperCase() === "AUDIO";
@@ -177,6 +180,16 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
         return result;
     };
 
+    // Baseline IDs derived from all tracks when no existing setup is present
+    const allVideoTrackIds = React.useMemo(
+        () => (allTracks || []).filter((t) => t.track_type?.toUpperCase() === 'VIDEO').map((t) => t.id),
+        [allTracks],
+    );
+    const allAudioTrackIds = React.useMemo(
+        () => (allTracks || []).filter((t) => t.track_type?.toUpperCase() === 'AUDIO').map((t) => t.id),
+        [allTracks],
+    );
+
     const buildMergedPayload = (existingSetup: ExistingSetup) => {
         if (isVideo) {
             const otherAssignments: CameraAssignment[] = (existingSetup?.camera_assignments || []).filter(
@@ -188,33 +201,48 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
                 shot_type: selectedShot || undefined,
             };
             const allAssignments = [...otherAssignments, thisAssignment];
-            const otherCameraIds = (existingSetup?.camera_assignments || [])
-                .filter((a) => a.track_id !== track.id)
-                .map((a) => a.track_id);
-            const uniqueCameraIds = Array.from(new Set([
-                ...(existingSetup?.camera_track_ids || otherCameraIds),
-                track.id,
-            ]));
+            // When there's no existing setup, default to ALL video tracks so we
+            // don't wipe other cameras when only applying subjects to one track.
+            const baseCameraIds = existingSetup
+                ? (existingSetup.camera_track_ids ?? (existingSetup.camera_assignments || []).map((a) => a.track_id))
+                : allVideoTrackIds;
+            const uniqueCameraIds = Array.from(new Set([...baseCameraIds, track.id]));
+            // When there's no existing setup, include ALL audio tracks by default.
+            const baseAudioIds = existingSetup ? (existingSetup.audio_track_ids ?? []) : allAudioTrackIds;
             return {
                 camera_track_ids: uniqueCameraIds,
                 camera_assignments: allAssignments,
-                audio_track_ids: existingSetup?.audio_track_ids ?? [],
+                audio_track_ids: baseAudioIds,
                 graphics_enabled: existingSetup?.graphics_enabled ?? false,
                 graphics_title: existingSetup?.graphics_title ?? null,
             };
         }
 
         if (isAudio) {
-            const existingAudioIds: number[] = existingSetup?.audio_track_ids ?? [];
+            const existingAudioIds: number[] = existingSetup?.audio_track_ids ?? (existingSetup ? [] : allAudioTrackIds);
             let newAudioIds: number[];
             if (audioEnabled) {
                 newAudioIds = Array.from(new Set([...existingAudioIds, track.id]));
             } else {
                 newAudioIds = existingAudioIds.filter((id) => id !== track.id);
             }
+            const baseCameraIds = existingSetup
+                ? (existingSetup.camera_track_ids ?? [])
+                : allVideoTrackIds;
+            // Merge audio track subject assignment into camera_assignments
+            const otherAssignments: CameraAssignment[] = (existingSetup?.camera_assignments || []).filter(
+                (a) => a.track_id !== track.id
+            );
+            const thisAssignment: CameraAssignment = {
+                track_id: track.id,
+                track_type: 'audio',
+                subject_ids: selectedSubjects,
+                shot_type: null,
+            };
+            const allAssignments = [...otherAssignments, thisAssignment];
             return {
-                camera_track_ids: existingSetup?.camera_track_ids ?? [],
-                camera_assignments: existingSetup?.camera_assignments ?? [],
+                camera_track_ids: baseCameraIds,
+                camera_assignments: allAssignments,
                 audio_track_ids: newAudioIds,
                 graphics_enabled: existingSetup?.graphics_enabled ?? false,
                 graphics_title: existingSetup?.graphics_title ?? null,
@@ -259,7 +287,7 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
                 const payload = buildMergedPayload(existingSetup);
 
                 if (payload) {
-                    const saved = await scenesApi.moments.upsertRecordingSetup(momentId, payload);
+                    const saved = await upsertRecordingSetup(momentId, payload);
 
                     // Immediately update local state so playback screen reflects it without reload
                     const newSetup: ExistingSetup = {
@@ -487,35 +515,78 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
                         </Stack>
                     )}
 
-                    {/* Audio toggle */}
+                    {/* Audio controls */}
                     {isAudio && (
-                        <Box
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                bgcolor: "rgba(255,255,255,0.04)",
-                                border: "1px solid rgba(255,255,255,0.08)",
-                                borderRadius: 1,
-                                px: 1.5,
-                                py: 1,
-                            }}
-                        >
-                            <Box>
-                                <Typography sx={{ color: "rgba(255,255,255,0.85)", fontSize: "0.82rem", fontWeight: 500 }}>
-                                    Enabled by default
-                                </Typography>
-                                <Typography sx={{ color: "rgba(255,255,255,0.35)", fontSize: "0.69rem", mt: 0.25 }}>
-                                    Include this audio track in all moments
-                                </Typography>
+                        <Stack spacing={1.5}>
+                            <Box
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    bgcolor: "rgba(255,255,255,0.04)",
+                                    border: "1px solid rgba(255,255,255,0.08)",
+                                    borderRadius: 1,
+                                    px: 1.5,
+                                    py: 1,
+                                }}
+                            >
+                                <Box>
+                                    <Typography sx={{ color: "rgba(255,255,255,0.85)", fontSize: "0.82rem", fontWeight: 500 }}>
+                                        Enabled by default
+                                    </Typography>
+                                    <Typography sx={{ color: "rgba(255,255,255,0.35)", fontSize: "0.69rem", mt: 0.25 }}>
+                                        Include this audio track in all moments
+                                    </Typography>
+                                </Box>
+                                <Checkbox
+                                    checked={audioEnabled}
+                                    onChange={(e) => setAudioEnabled(e.target.checked)}
+                                    disabled={isApplying}
+                                    sx={{ color: "rgba(255,255,255,0.3)", "&.Mui-checked": { color: trackColor } }}
+                                />
                             </Box>
-                            <Checkbox
-                                checked={audioEnabled}
-                                onChange={(e) => setAudioEnabled(e.target.checked)}
-                                disabled={isApplying}
-                                sx={{ color: "rgba(255,255,255,0.3)", "&.Mui-checked": { color: trackColor } }}
-                            />
-                        </Box>
+
+                            <FormControl size="small" fullWidth>
+                                <InputLabel shrink sx={{ color: "rgba(255,255,255,0.45)", fontSize: "0.78rem" }}>
+                                    Subjects
+                                </InputLabel>
+                                <Select
+                                    multiple
+                                    label="Subjects"
+                                    value={selectedSubjects}
+                                    onChange={(e) => setSelectedSubjects(e.target.value as number[])}
+                                    renderValue={() => (
+                                        <Typography sx={{ fontSize: "0.82rem", color: subjectNames.length ? "#fff" : "rgba(255,255,255,0.35)" }}>
+                                            {subjectNames.length ? subjectNames.join(", ") : "No subjects"}
+                                        </Typography>
+                                    )}
+                                    disabled={isApplying || packageSubjects.length === 0}
+                                    sx={{
+                                        color: "white",
+                                        "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.12)" },
+                                        "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.25)" },
+                                        "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: trackColor },
+                                    }}
+                                >
+                                    {packageSubjects.length === 0 ? (
+                                        <MenuItem disabled>No subjects available</MenuItem>
+                                    ) : (
+                                        packageSubjects.map((s) => (
+                                            <MenuItem key={s.id} value={s.id}>
+                                                <Checkbox
+                                                    checked={selectedSubjects.includes(s.id)}
+                                                    size="small"
+                                                    sx={{ py: 0.25, "&.Mui-checked": { color: trackColor } }}
+                                                />
+                                                <ListItemText
+                                                    primary={<Typography sx={{ fontSize: "0.82rem" }}>{s.name as string}</Typography>}
+                                                />
+                                            </MenuItem>
+                                        ))
+                                    )}
+                                </Select>
+                            </FormControl>
+                        </Stack>
                     )}
 
                     {!isVideo && !isAudio && (

@@ -138,6 +138,8 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
     // Derive subjects assigned to the selected activity.
     // Includes: (a) explicitly assigned to this activity, (b) day-level subjects on
     // the same event day with no specific activity assignment (available everywhere).
+    // Supports both package (package_activity_id, event_day_template_id) and
+    // instance (project_activity_id, project_event_day_id) field naming.
     const inheritedSubjects = React.useMemo(() => {
         if (!selectedActivity) return [];
         // Use event_day_template_id (the template ID) to match with subject/crew slot records.
@@ -145,11 +147,15 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
         const eventDayId = selectedActivity.event_day_template_id ?? selectedActivity.package_event_day_id;
         return activitySubjects.filter((s: any) => {
             // Explicitly assigned to this activity (direct or M2M)
-            if (s.package_activity_id === selectedActivity.id) return true;
-            if (s.activity_assignments?.some((a: any) => a.package_activity_id === selectedActivity.id)) return true;
+            const directActivityId = s.package_activity_id ?? s.project_activity_id;
+            if (directActivityId === selectedActivity.id) return true;
+            if (s.activity_assignments?.some((a: any) =>
+                (a.package_activity_id ?? a.project_activity_id) === selectedActivity.id
+            )) return true;
             // Day-level subject: same event day, no activity assignment at all
-            const hasNoAssignment = !s.package_activity_id && (!s.activity_assignments || s.activity_assignments.length === 0);
-            if (hasNoAssignment && s.event_day_template_id === eventDayId) return true;
+            const hasNoAssignment = !directActivityId && (!s.activity_assignments || s.activity_assignments.length === 0);
+            const subjectDayId = s.event_day_template_id ?? s.project_event_day_id;
+            if (hasNoAssignment && subjectDayId === eventDayId) return true;
             return false;
         });
     }, [activitySubjects, selectedActivity]);
@@ -163,11 +169,15 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
         const eventDayId = selectedActivity.event_day_template_id ?? selectedActivity.package_event_day_id;
         const matched = activityCrewSlots.filter((o: any) => {
             // Explicitly assigned to this activity (direct or M2M)
-            if (o.package_activity_id === selectedActivity.id) return true;
-            if (o.activity_assignments?.some((a: any) => a.package_activity_id === selectedActivity.id)) return true;
+            const directActivityId = o.package_activity_id ?? o.project_activity_id;
+            if (directActivityId === selectedActivity.id) return true;
+            if (o.activity_assignments?.some((a: any) =>
+                (a.package_activity_id ?? a.project_activity_id) === selectedActivity.id
+            )) return true;
             // Day-level crew slot: same event day, no activity assignment at all
-            const hasNoAssignment = !o.package_activity_id && (!o.activity_assignments || o.activity_assignments.length === 0);
-            if (hasNoAssignment && o.event_day_template_id === eventDayId) return true;
+            const hasNoAssignment = !directActivityId && (!o.activity_assignments || o.activity_assignments.length === 0);
+            const crewDayId = o.event_day_template_id ?? o.project_event_day_id;
+            if (hasNoAssignment && crewDayId === eventDayId) return true;
             return false;
         });
         // Deduplicate by crew_id (same person on multiple days)

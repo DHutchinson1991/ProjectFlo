@@ -19,8 +19,8 @@ import { RequestBadge } from './RequestBadge';
 import { ReserveBadge } from './ReserveBadge';
 import { CrewRow, formatDayHeader } from './CrewRow';
 import { EquipmentRow } from './EquipmentRow';
-import CrewAvailabilityRequestDialog from '../CrewAvailabilityRequestDialog';
-import EquipmentReservationDialog from '../EquipmentReservationDialog';
+import CrewAvailabilityRequestDialog from '../crew-availability-request-dialog';
+import EquipmentReservationDialog from '../equipment-reservation-dialog';
 
 interface AvailabilityCardProps {
     inquiry: Inquiry;

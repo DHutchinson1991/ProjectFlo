@@ -115,7 +115,7 @@ export default function PublicInquiryWizardScreen() {
             const pToken = (result as unknown as { inquiry?: { portal_token?: string } })?.inquiry?.portal_token;
             if (pToken) {
                 setPortalToken(pToken);
-                setTimeout(() => { window.location.href = `/portal/portal/${pToken}`; }, 2500);
+                window.location.href = `/portal/portal/${pToken}`;
             }
         } catch { setError('Failed to submit. Please try again.'); } finally { setSubmitting(false); }
     };

@@ -96,4 +96,20 @@ export class CreateTaskLibraryDto {
     @IsOptional()
     @IsBoolean()
     is_on_site?: boolean;
+
+    @IsOptional()
+    @IsBoolean()
+    is_customer_facing?: boolean;
+
+    @IsOptional()
+    @IsString()
+    customer_description?: string;
+
+    @IsOptional()
+    @IsBoolean()
+    requires_client_action?: boolean;
+
+    @IsOptional()
+    @IsString()
+    client_deliverable_description?: string;
 }

@@ -7,6 +7,7 @@ import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { Quote } from './entities/quote.entity';
 import { Decimal } from '@prisma/client/runtime/library';
 import { computeItemsTotalDecimal } from '../shared/pricing.utils';
+import { roundMoney } from '../shared/pricing.utils';
 import { InquiryTasksService } from '../../workflow/tasks/inquiry/services/inquiry-tasks.service';
 import { QUOTE_ITEMS_INCLUDE, mapQuoteResponse } from './mappers/quote-response.mapper';
 
@@ -34,10 +35,10 @@ export class QuotesService {
             return null;
         }
 
-        // Find the primary estimate with items
+        // Find the primary estimate with items and payment milestones
         const primaryEstimate = await this.prisma.estimates.findFirst({
             where: { inquiry_id: inquiryId, is_primary: true },
-            include: { items: true },
+            include: { items: true, payment_milestones: { orderBy: { order_index: 'asc' } } },
         });
         if (!primaryEstimate) {
             this.logger.warn(`No primary estimate found for inquiry ${inquiryId}, cannot auto-create quote`);
@@ -74,7 +75,84 @@ export class QuotesService {
         } as CreateQuoteDto;
 
         this.logger.log(`Auto-creating quote from estimate ${primaryEstimate.id} for inquiry ${inquiryId}`);
-        return this.create(inquiryId, createDto);
+        const quote = await this.create(inquiryId, createDto);
+
+        // Copy payment milestones from estimate to quote.
+        // If the estimate has a template but no resolved milestones, resolve them now.
+        let estimateMilestones = primaryEstimate.payment_milestones || [];
+
+        if (estimateMilestones.length === 0 && primaryEstimate.schedule_template_id) {
+            // Resolve milestones from the template inline
+            const inquiry = await this.prisma.inquiries.findUnique({
+                where: { id: inquiryId },
+                select: { wedding_date: true, created_at: true },
+            });
+            const template = await this.prisma.payment_schedule_templates.findUnique({
+                where: { id: primaryEstimate.schedule_template_id },
+                include: { rules: { orderBy: { order_index: 'asc' } } },
+            });
+            if (template && inquiry) {
+                const bookingDate = inquiry.created_at;
+                const eventDate = inquiry.wedding_date ?? new Date(bookingDate.getTime() + 180 * 24 * 60 * 60 * 1000);
+                const total = Number(primaryEstimate.total_amount);
+
+                const resolved = template.rules.map((rule, i) => {
+                    const amount = rule.amount_type === 'PERCENT'
+                        ? roundMoney((Number(rule.amount_value) / 100) * total)
+                        : Number(rule.amount_value);
+
+                    let dueDate: Date;
+                    switch (rule.trigger_type) {
+                        case 'AFTER_BOOKING': { dueDate = new Date(bookingDate); dueDate.setDate(dueDate.getDate() + (rule.trigger_days ?? 0)); break; }
+                        case 'BEFORE_EVENT': { dueDate = new Date(eventDate); dueDate.setDate(dueDate.getDate() - (rule.trigger_days ?? 0)); break; }
+                        case 'AFTER_EVENT': { dueDate = new Date(eventDate); dueDate.setDate(dueDate.getDate() + (rule.trigger_days ?? 0)); break; }
+                        default: dueDate = new Date(bookingDate);
+                    }
+
+                    return {
+                        label: rule.label,
+                        amount: new Decimal(amount),
+                        due_date: dueDate,
+                        status: 'PENDING',
+                        notes: null as string | null,
+                        order_index: rule.order_index ?? i,
+                    };
+                });
+
+                // Also persist to the estimate for consistency
+                await this.prisma.estimate_payment_milestones.createMany({
+                    data: resolved.map(m => ({ ...m, estimate_id: primaryEstimate.id })),
+                });
+                this.logger.log(`Resolved ${resolved.length} milestones from template for estimate ${primaryEstimate.id}`);
+                estimateMilestones = resolved as typeof estimateMilestones;
+            }
+        }
+
+        if (estimateMilestones.length > 0) {
+            await this.prisma.$transaction(async (tx) => {
+                await tx.quote_payment_milestones.createMany({
+                    data: estimateMilestones.map((m) => ({
+                        quote_id: quote.id,
+                        label: m.label,
+                        amount: m.amount,
+                        due_date: m.due_date,
+                        status: m.status,
+                        notes: m.notes,
+                        order_index: m.order_index,
+                    })),
+                });
+                // Copy the schedule template reference
+                if (primaryEstimate.schedule_template_id) {
+                    await tx.quotes.update({
+                        where: { id: quote.id },
+                        data: { schedule_template_id: primaryEstimate.schedule_template_id },
+                    });
+                }
+            });
+            this.logger.log(`Copied ${estimateMilestones.length} payment milestones from estimate to quote ${quote.id}`);
+        }
+
+        return quote;
     }
 
     async create(inquiryId: number, createQuoteDto: CreateQuoteDto): Promise<Quote> {

@@ -131,6 +131,24 @@ export interface PublicFilm {
 
 export type PortalProposalStatus = 'review_pending' | 'changes_requested' | 'accepted';
 
+/* ── Journey Tracker ─────────────────────────────────────── */
+
+export type JourneyStepStatus = 'completed' | 'active' | 'waiting' | 'upcoming' | 'locked';
+
+export type JourneyStepSide = 'studio' | 'client';
+
+export interface JourneyStep {
+    key: string;
+    label: string;
+    status: JourneyStepStatus;
+    icon: string;
+    side: JourneyStepSide;
+    waitingMessage?: string;
+    completedAt?: string;
+    cta?: { label: string; href: string };
+    summary?: string;
+}
+
 export interface PortalProposalSectionData {
     proposal_status: string;
     share_token: string | null;

@@ -15,6 +15,10 @@ interface SubTaskDef {
     is_auto_only: boolean;
     due_date_offset_days: number | null;
     due_date_offset_reference: string;
+    is_customer_facing?: boolean;
+    customer_description?: string;
+    requires_client_action?: boolean;
+    client_deliverable_description?: string;
 }
 
 interface StageDef {
@@ -60,8 +64,8 @@ const PIPELINE_STAGES: StageDef[] = [
         phase: $Enums.project_phase.Inquiry,
         order_index: 1,
         children: [
-            { name: 'Review Inquiry', description: 'Review what the client submitted — check their responses, date availability, and crew conflicts before responding', effort_hours: 0.25, order_index: 1, is_auto_only: false, due_date_offset_days: 1, due_date_offset_reference: 'inquiry_created' },
-            { name: 'Qualify & Respond', description: 'Confirm availability, introduce yourself, share portfolio, and transition the inquiry to Contacted', effort_hours: 0.25, order_index: 2, is_auto_only: false, due_date_offset_days: 2, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Review Inquiry', description: 'Review what the client submitted — check their responses, date availability, and crew conflicts before responding', effort_hours: 0.25, order_index: 1, is_auto_only: false, due_date_offset_days: 1, due_date_offset_reference: 'inquiry_created', is_customer_facing: true, customer_description: 'We\'re reviewing your inquiry and checking availability for your date.' },
+            { name: 'Qualify & Respond', description: 'Confirm availability, introduce yourself, share portfolio, and transition the inquiry to Contacted', effort_hours: 0.25, order_index: 2, is_auto_only: false, due_date_offset_days: 2, due_date_offset_reference: 'inquiry_created', is_customer_facing: true, customer_description: 'We\'re confirming availability and preparing a personal response to your inquiry.' },
         ],
     },
     {
@@ -70,7 +74,7 @@ const PIPELINE_STAGES: StageDef[] = [
         phase: $Enums.project_phase.Inquiry,
         order_index: 2,
         children: [
-            { name: 'Discovery Call', description: 'Conduct the call, then save post-call notes or transcript in the Discovery Questionnaire section', effort_hours: 0.25, order_index: 1, is_auto_only: false, due_date_offset_days: 7, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Discovery Call', description: 'Conduct the call, then save post-call notes or transcript in the Discovery Questionnaire section', effort_hours: 0.25, order_index: 1, is_auto_only: false, due_date_offset_days: 7, due_date_offset_reference: 'inquiry_created', is_customer_facing: true, customer_description: 'A relaxed video call to learn about your day, your vision, and what matters most to you — so we can plan something truly personal.', requires_client_action: true, client_deliverable_description: 'A personalised plan shaped around everything you share during the call' },
         ],
     },
     {
@@ -79,11 +83,12 @@ const PIPELINE_STAGES: StageDef[] = [
         phase: $Enums.project_phase.Booking,
         order_index: 3,
         children: [
-            { name: 'Generate Quote', description: 'Review package selections from the discovery call, adjust if needed, then generate the formal quote', effort_hours: 0.75, order_index: 1, is_auto_only: false, due_date_offset_days: 8, due_date_offset_reference: 'inquiry_created' },
-            { name: 'Create & Review Proposal', description: 'Generate the full proposal — verify timeline, subjects, venues, package, films, quote, and personal message', effort_hours: 1.0, order_index: 2, is_auto_only: false, due_date_offset_days: 9, due_date_offset_reference: 'inquiry_created' },
-            { name: 'Prepare Contract', description: 'Auto-generated from the default contract template when the proposal is created — review and customise clauses before sending', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 9, due_date_offset_reference: 'inquiry_created' },
-            { name: 'Send Proposal', description: 'Send the proposal to the client portal — client can Accept or Request Changes', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 10, due_date_offset_reference: 'inquiry_created' },
-            { name: 'Contract Sent', description: 'Auto-sent to client when they accept the proposal — no manual action required', effort_hours: 0, order_index: 5, is_auto_only: true, due_date_offset_days: 11, due_date_offset_reference: 'inquiry_created' },
+            { name: 'Generate Quote', description: 'Review package selections from the discovery call, adjust if needed, then generate the formal quote', effort_hours: 0.75, order_index: 1, is_auto_only: false, due_date_offset_days: 8, due_date_offset_reference: 'inquiry_created', is_customer_facing: true, customer_description: 'We\'re preparing a detailed quote based on your package and requirements.' },
+            { name: 'Create & Review Proposal', description: 'Generate the full proposal — verify timeline, subjects, venues, package, films, quote, and personal message', effort_hours: 1.0, order_index: 2, is_auto_only: false, due_date_offset_days: 9, due_date_offset_reference: 'inquiry_created', is_customer_facing: true, customer_description: 'We\'re putting together a detailed proposal tailored to your day — including your package, timeline, and films.', client_deliverable_description: 'A personalised proposal you can review and approve in your client portal' },
+            { name: 'Prepare Contract', description: 'Auto-generated from the default contract template when the proposal is created — review and customise clauses before sending', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 9, due_date_offset_reference: 'inquiry_created', is_customer_facing: true, customer_description: 'Your contract is being prepared with all the details from your proposal.' },
+            { name: 'Send Proposal', description: 'Send the proposal to the client portal — client can Accept or Request Changes', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 10, due_date_offset_reference: 'inquiry_created', is_customer_facing: true, customer_description: 'Your proposal is ready! Review your package details, timeline, and pricing — then accept or request changes.', requires_client_action: true, client_deliverable_description: 'Your complete proposal available in the client portal' },
+            { name: 'Contract Sent', description: 'Auto-sent to client when they accept the proposal — no manual action required', effort_hours: 0, order_index: 5, is_auto_only: true, due_date_offset_days: 11, due_date_offset_reference: 'inquiry_created', is_customer_facing: true, customer_description: 'Your contract is ready for signing — review the terms and sign electronically in your portal.', requires_client_action: true, client_deliverable_description: 'Your contract document ready for e-signature' },
+            { name: 'Sign Contract', description: 'Counter-sign the contract on behalf of the studio — open the contract, click Publish, add yourself as a Studio signer and your signature is applied automatically', effort_hours: 0.1, order_index: 6, is_auto_only: false, due_date_offset_days: 12, due_date_offset_reference: 'inquiry_created', is_customer_facing: true, customer_description: 'We\'re signing the contract on our end to finalise the agreement.' },
         ],
     },
     {
@@ -92,11 +97,11 @@ const PIPELINE_STAGES: StageDef[] = [
         phase: $Enums.project_phase.Booking,
         order_index: 4,
         children: [
-            { name: 'Contract Signed', description: 'Auto-completes when all signers have signed in the client portal', effort_hours: 0, order_index: 1, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date' },
-            { name: 'Raise Deposit Invoice', description: 'Auto-generated from the estimate deposit amount when the contract is signed', effort_hours: 0, order_index: 2, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date' },
-            { name: 'Block Wedding Date', description: 'Wedding day calendar block auto-created when inquiry status changes to Booked', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date' },
-            { name: 'Confirm Booking', description: 'Change inquiry status to Booked — triggers calendar block and completes this task', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 1, due_date_offset_reference: 'booking_date' },
-            { name: 'Send Welcome Pack', description: 'Unlock the Welcome Pack section in the client portal — introduces what happens next', effort_hours: 0.15, order_index: 5, is_auto_only: false, due_date_offset_days: 2, due_date_offset_reference: 'booking_date' },
+            { name: 'Contract Signed', description: 'Auto-completes when all signers have signed in the client portal', effort_hours: 0, order_index: 1, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Both parties have signed — your booking is being confirmed!' },
+            { name: 'Raise Deposit Invoice', description: 'Auto-generated from the estimate deposit amount when the contract is signed', effort_hours: 0, order_index: 2, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Your deposit invoice has been raised to secure your date.', requires_client_action: true, client_deliverable_description: 'Deposit invoice sent to your email' },
+            { name: 'Block Wedding Date', description: 'Wedding day calendar block auto-created when inquiry status changes to Booked', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Your date is officially reserved — no one else can book it.' },
+            { name: 'Confirm Booking', description: 'Change inquiry status to Booked — triggers calendar block and completes this task', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 1, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Your booking is confirmed! We\'re officially on board for your big day.' },
+            { name: 'Send Welcome Pack', description: 'Unlock the Welcome Pack section in the client portal — introduces what happens next', effort_hours: 0.15, order_index: 5, is_auto_only: false, due_date_offset_days: 2, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Your welcome pack is ready — it covers everything you need to know about what happens next.', client_deliverable_description: 'Welcome pack with next steps, timeline overview, and preparation guide' },
         ],
     },
 ];
@@ -108,6 +113,7 @@ const PIPELINE_TASK_SKILLS: Record<string, { skills_needed: string[] }> = {
     'Discovery Call':         { skills_needed: ['Consultation', 'Communication', 'Client Relations'] },
     'Generate Quote':         { skills_needed: ['Pricing', 'Planning', 'Client Relations'] },
     'Prepare Contract':       { skills_needed: ['Legal', 'Documentation', 'Contract Management'] },
+    'Sign Contract':          { skills_needed: ['Legal', 'Documentation', 'Contract Management'] },
     'Create & Review Proposal': { skills_needed: ['Creative Direction', 'Presentation', 'Pricing'] },
     'Send Proposal':          { skills_needed: ['Communication', 'Client Relations'] },
     'Confirm Booking':        { skills_needed: ['Client Relations', 'Documentation'] },
@@ -181,6 +187,10 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
                         parent_task_id: parentTask.id,
                         is_auto_only: child.is_auto_only,
                         is_active: true,
+                        is_customer_facing: child.is_customer_facing ?? false,
+                        customer_description: child.customer_description ?? null,
+                        requires_client_action: child.requires_client_action ?? false,
+                        client_deliverable_description: child.client_deliverable_description ?? null,
                     },
                 });
                 childCreated++;
@@ -198,6 +208,10 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
                         parent_task_id: parentTask.id,
                         is_auto_only: child.is_auto_only,
                         is_active: true,
+                        is_customer_facing: child.is_customer_facing ?? false,
+                        customer_description: child.customer_description ?? null,
+                        requires_client_action: child.requires_client_action ?? false,
+                        client_deliverable_description: child.client_deliverable_description ?? null,
                     },
                 });
                 childUpdated++;
@@ -271,6 +285,10 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.booking_date,
             order_index: 1,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'We\'ll work together to shape the creative direction for your films — your preferences, must-have moments, and the overall feel you\'re going for.',
+            requires_client_action: true,
+            client_deliverable_description: 'A creative brief capturing your vision, style preferences, and key moments',
         },
         {
             name: "Style Guide Creation",
@@ -283,6 +301,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.booking_date,
             order_index: 2,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'We\'re creating a visual style guide that defines the colour palette, tones, and overall aesthetic for your films.',
         },
         {
             name: "Shot List Planning",
@@ -295,6 +315,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.booking_date,
             order_index: 3,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'We\'re planning the specific shots and sequences for your day — the must-have moments and cinematic details.',
         },
         {
             name: "Mood Board Creation",
@@ -307,6 +329,10 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.booking_date,
             order_index: 4,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'We\'ll share visual mood boards that capture the look and feel we\'re going for — your feedback helps us refine the direction.',
+            requires_client_action: true,
+            client_deliverable_description: 'Visual mood boards for your review and approval',
         },
         {
             name: "Creative Concept Approval",
@@ -319,6 +345,10 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.booking_date,
             order_index: 5,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'We\'ll present our creative plan for your day — once you\'re happy, we lock it in and move to planning.',
+            requires_client_action: true,
+            client_deliverable_description: 'Final creative concept document for your sign-off',
         },
 
         // PRE-PRODUCTION PHASE
@@ -333,6 +363,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 1,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'We\'ll visit your venues to find the best spots for filming — lighting, backdrops, and angles that tell your story.',
         },
         {
             name: "Equipment Preparation",
@@ -345,6 +377,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 2,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'All cameras, lenses, audio gear, and stabilisers are being tested and packed for your day.',
         },
         {
             name: "Timeline Coordination",
@@ -357,6 +391,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 3,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'We\'re coordinating the filming timeline with your schedule, venue, and other vendors to ensure a smooth flow.',
         },
         {
             name: "Vendor Coordination",
@@ -369,6 +405,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 4,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'We\'re reaching out to your other vendors — photographer, DJ, planner — to align on timing and logistics.',
         },
         {
             name: "Client Pre-Production Meeting",
@@ -381,6 +419,10 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 5,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'A final check-in before your big day to go over the timeline, answer any last questions, and make sure everything is set.',
+            requires_client_action: true,
+            client_deliverable_description: 'Confirmed day-of timeline and final preparation checklist',
         },
 
         // PRODUCTION PHASE
@@ -399,6 +441,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 1,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'Our videographers are capturing every moment — from the big events to the little details that make your day unique.',
         },
         {
             name: "Audio Coverage",
@@ -413,6 +457,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 2,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'Crystal-clear audio is being recorded for speeches, vows, and ambient sound throughout your day.',
         },
 
         // POST-PRODUCTION PHASE
@@ -428,6 +474,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 1,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'We\'re carefully reviewing all footage from your day and selecting the very best moments for your films.',
         },
         {
             name: "Audio Enhancement",
@@ -441,6 +489,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 2,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'Your audio is being cleaned and enhanced — crisp vows, speeches, and ambient sound for an immersive experience.',
         },
         {
             name: "Color Grading",
@@ -454,6 +504,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 3,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'Every frame is being colour-graded to give your films that beautiful, cinematic look.',
         },
         {
             name: "Music Selection and Licensing",
@@ -467,6 +519,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 4,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'We\'re hand-picking music that perfectly complements the emotion and energy of your day.',
         },
         {
             name: "Title Cards and Graphics",
@@ -480,6 +534,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 5,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'Custom title cards and graphic elements are being designed to give your films a polished, cinematic finish.',
         },
         {
             name: "Rough Cut",
@@ -493,6 +549,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.event_date,
             order_index: 6,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'The first rough cut of your films is being assembled — piecing together the story of your day.',
         },
         {
             name: "Client Review and Revisions",
@@ -506,6 +564,10 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 7,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'Your films are ready for review! Watch them, share your feedback, and we\'ll make any revisions you need.',
+            requires_client_action: true,
+            client_deliverable_description: 'Draft films for your review with a revision request form',
         },
 
         // DELIVERY PHASE
@@ -520,6 +582,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 1,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'Your films are being rendered in full quality — the final step before delivery.',
         },
         {
             name: "Quality Control Check",
@@ -532,6 +596,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 2,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'Every film is going through a final quality check to make sure it\'s absolutely perfect.',
         },
         {
             name: "USB/Physical Media Preparation",
@@ -544,6 +610,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 3,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'Your films are being loaded onto a beautifully presented USB drive for you to keep forever.',
+            client_deliverable_description: 'Custom USB drive with all your films in full quality',
         },
         {
             name: "Online Gallery Setup",
@@ -556,6 +625,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 4,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'Your private online gallery is being set up — you\'ll receive a link to stream, download, and share your films.',
+            client_deliverable_description: 'Private online gallery with streaming and download access',
         },
         {
             name: "Client Delivery Coordination",
@@ -568,6 +640,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 5,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'We\'re coordinating the final delivery of your films — you\'ll be notified as soon as everything is ready.',
+            client_deliverable_description: 'Your completed films delivered digitally and on physical media',
         },
         {
             name: "Final Invoice and Payment",
@@ -580,6 +655,9 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 6,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'Your final invoice is being prepared — the remaining balance for your completed films.',
+            client_deliverable_description: 'Final invoice with payment details',
         },
         {
             name: "Project Archive",
@@ -592,6 +670,8 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
             due_date_offset_reference: $Enums.due_date_offset_reference.delivery_date,
             order_index: 7,
             brand_id: brandId,
+            is_customer_facing: true,
+            customer_description: 'All your project files are being safely archived so your films are preserved for the future.',
         },
     ];
 
@@ -627,6 +707,10 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     is_on_site: (task as any).is_on_site ?? false,
                     trigger_type: task.trigger_type,
+                    is_customer_facing: (task as any).is_customer_facing ?? false,
+                    customer_description: (task as any).customer_description ?? null,
+                    requires_client_action: (task as any).requires_client_action ?? false,
+                    client_deliverable_description: (task as any).client_deliverable_description ?? null,
                 },
             });
             skipped++;
@@ -635,6 +719,26 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
     }
     const summary: SeedSummary = { created, updated: 0, skipped, total: created + skipped };
     logger.summary('Task library items', summary);
+
+    // ─── ASSIGN 'Sign Contract' to Daniel Hutchinson ─────────────────
+    const daniel = await prisma.crew.findFirst({
+        where: { contact: { first_name: { equals: 'Daniel', mode: 'insensitive' }, last_name: { equals: 'Hutchinson', mode: 'insensitive' } } },
+        select: { id: true },
+    });
+    if (daniel) {
+        const signContractTask = await prisma.task_library.findFirst({
+            where: { name: 'Sign Contract', brand_id: brandId },
+        });
+        if (signContractTask) {
+            await prisma.task_library.update({
+                where: { id: signContractTask.id },
+                data: { default_crew_id: daniel.id },
+            });
+            logger.created('Sign Contract assigned', '→ Daniel Hutchinson');
+        }
+    } else {
+        logger.skipped('Sign Contract crew assignment', 'Daniel Hutchinson not found — run team seeds first');
+    }
 
     const totalPipelineTasks = PIPELINE_STAGES.length + PIPELINE_STAGES.reduce((sum, s) => sum + s.children.length, 0);
     return totalPipelineTasks + taskLibraryItems.length;

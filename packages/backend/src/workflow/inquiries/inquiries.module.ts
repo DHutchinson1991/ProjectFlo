@@ -3,6 +3,7 @@ import { InquiriesController } from './inquiries.controller';
 import { ClientPortalService } from './client-portal.service';
 import { ClientPortalDataService } from './services/client-portal-data.service';
 import { ClientPortalSectionsService } from './services/client-portal-sections.service';
+import { ClientPortalJourneyService } from './services/client-portal-journey.service';
 import { ClientPortalActionsService } from './services/client-portal-actions.service';
 import { PublicClientPortalController } from './public-client-portal.controller';
 import { PrismaModule } from '../../platform/prisma/prisma.module';
@@ -30,6 +31,7 @@ import { InquiryLifecycleService } from './services/inquiry-lifecycle.service';
         ClientPortalService,
         ClientPortalDataService,
         ClientPortalSectionsService,
+        ClientPortalJourneyService,
         ClientPortalActionsService,
         InquiryAvailabilityService,
         InquiryCrewAvailabilityService,

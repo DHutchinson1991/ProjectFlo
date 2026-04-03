@@ -401,7 +401,7 @@ function ScheduleEditorContent({
                             if (sourcePackageId) params.set('packageId', String(sourcePackageId));
                             if (pf.film_id) params.set('filmId', String(pf.film_id));
                             if (linkedActivityId) params.set('activityId', String(linkedActivityId));
-                            router.push(`/designer/instance-films/${pf.id}?${params.toString()}`);
+                            router.push(`/instance-films/${pf.id}?${params.toString()}`);
                         }}
                         onDeleteFilm={handleDeleteFilm}
                         onAddFilm={() => setFilmWizardOpen(true)}
@@ -421,6 +421,7 @@ function ScheduleEditorContent({
                         scheduleActiveDayId={activeDayId}
                         selectedActivityId={selectedActivityId}
                         cardSx={cardSx}
+                        readOnly
                     />
                     <Box sx={{ mt: 2.5 }} />
                     <LocationsCard

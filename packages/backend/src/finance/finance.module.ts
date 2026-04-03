@@ -7,6 +7,8 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { EstimatesModule } from './estimates/estimates.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { BrandFinanceSettingsModule } from './brand-finance-settings/brand-finance-settings.module';
+import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
+import { StripeModule } from './stripe/stripe.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { BrandFinanceSettingsModule } from './brand-finance-settings/brand-finan
     EstimatesModule,
     ContractsModule,
     BrandFinanceSettingsModule,
+    PaymentMethodsModule,
+    StripeModule,
   ],
   exports: [
     CrewPaymentTemplatesModule,
@@ -28,6 +32,8 @@ import { BrandFinanceSettingsModule } from './brand-finance-settings/brand-finan
     EstimatesModule,
     ContractsModule,
     BrandFinanceSettingsModule,
+    PaymentMethodsModule,
+    StripeModule,
   ],
 })
 export class FinanceModule {}

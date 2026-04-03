@@ -18,7 +18,7 @@ import { getStepMeta } from '../../constants/discovery-questionnaire-config';
 import { DiscoveryQuestionField } from './DiscoveryQuestionField';
 import { DiscoverySentimentPanel } from './DiscoverySentimentPanel';
 import { useDiscoveryCallForm } from '../../hooks/use-discovery-questionnaire-card';
-import { DialogHeader, SectionHeader, ScriptHintBlock, BottomNav, SuccessScreen, TranscriptSection } from './DiscoveryDialogLayout';
+import { DialogHeader, SectionHeader, ScriptHintBlock, BottomNav, SuccessScreen } from './DiscoveryDialogLayout';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -252,12 +252,6 @@ export default function DiscoveryQuestionnaireFormDialog({
                                     }}
                                 />
                             </Box>
-
-                            <TranscriptSection
-                                recordingConsent={form.recordingConsent}
-                                transcript={form.transcript}
-                                onTranscriptChange={form.setTranscript}
-                            />
                         </Box>
                     </Box>
                 )}

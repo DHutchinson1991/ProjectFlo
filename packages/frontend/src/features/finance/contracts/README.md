@@ -16,6 +16,7 @@ Owns inquiry contract delivery plus template, clause, preview, and public signin
 | `index.ts` | Public feature exports |
 
 ## Business rules / invariants
+- Signer roles available: `client`, `studio`, `talent`, `property_owner`, `witness`. The **`studio`** role auto-signs on publish — no signing link is generated for the studio.
 - Contract delivery remains inquiry-scoped under `/api/inquiries/:inquiryId/contracts/*`.
 - Public signing uses the public API client; `useSigningContract` and `useSubmitSignature` are brand-free (no `brandId` in key).
 - Contract template and clause settings share the same finance/contracts ownership as inquiry contract composition.

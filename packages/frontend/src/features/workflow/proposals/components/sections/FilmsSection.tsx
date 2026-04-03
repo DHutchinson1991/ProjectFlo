@@ -30,6 +30,10 @@ interface FlatMoment {
     locationName: string | null;
     durationSec: number;
     startSec: number; // cumulative start offset
+    recordingSetup?: {
+        audio_track_ids: number[];
+        camera_assignments?: { track_id: number; subject_ids: number[]; subject_names?: string[]; shot_type: string | null }[];
+    } | null;
 }
 
 function formatRuntime(min: number | null, max: number | null): string | null {
@@ -72,8 +76,28 @@ function ViewfinderCorners({ color }: { color: string }) {
     );
 }
 
+/** Person silhouette SVG for viewfinder subject display */
+function PersonSilhouette({ color = "#e3f2fd", opacity = 1 }: { color?: string; opacity?: number }) {
+    return (
+        <svg viewBox="0 0 24 60" style={{ width: "100%", height: "100%", filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" }}>
+            <path
+                d="M12,2 C14.5,2 16.5,4 16.5,6.5 C16.5,9 14.5,11 12,11 C9.5,11 7.5,9 7.5,6.5 C7.5,4 9.5,2 12,2 Z M6,14 C6,12.5 7,12 8.5,12 L15.5,12 C17,12 18,12.5 18,14 L19.5,28 C19.6,29 18.8,30 18,30 L16.5,30 L16.5,58 C16.5,59 15.5,60 14.5,60 L9.5,60 C8.5,60 7.5,59 7.5,58 L7.5,30 L6,30 C5.2,30 4.4,29 4.5,28 L6,14 Z"
+                fill={color}
+                opacity={opacity}
+            />
+        </svg>
+    );
+}
+
+function getSubjectLayout(count: number): { x: number }[] {
+    if (count <= 1) return [{ x: 50 }];
+    if (count === 2) return [{ x: 30 }, { x: 70 }];
+    if (count === 3) return [{ x: 25 }, { x: 50 }, { x: 75 }];
+    return [{ x: 20 }, { x: 40 }, { x: 60 }, { x: 80 }];
+}
+
 /** Individual film card with collapsed/expanded + auto-play */
-function FilmCard({ pf, colors, isDark }: { pf: PublicProposalFilm; colors: FilmsSectionProps["colors"]; isDark: boolean }) {
+function FilmCard({ pf, colors }: { pf: PublicProposalFilm; colors: FilmsSectionProps["colors"]; isDark?: boolean }) {
     const [expanded, setExpanded] = useState(false);
     const [elapsedSec, setElapsedSec] = useState(0);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -81,34 +105,70 @@ function FilmCard({ pf, colors, isDark }: { pf: PublicProposalFilm; colors: Film
     const f = pf.film;
     const typeLabel = formatFilmType(f.film_type);
     const runtimeLabel = formatRuntime(f.target_duration_min, f.target_duration_max);
-    const scenes = f.scenes ?? [];
+
+    // Instance tracks — set by user in the instance film editor
+    const videoTracks = pf.instance_tracks?.filter(t => t.type === 'VIDEO' && t.is_active) ?? [];
+    const audioTracks = pf.instance_tracks?.filter(t => t.type === 'AUDIO' && t.is_active) ?? [];
+    const hasInstanceTracks = videoTracks.length > 0 || audioTracks.length > 0;
+
+    // Normalized camera/audio views — prefer instance tracks, fall back to library equipment
     const equipment = f.equipment_assignments ?? [];
+    const equipmentCameras = equipment.filter((e) => CAMERA_PATTERNS.test(e.equipment.item_name));
+    const equipmentAudio = equipment.filter((e) => MIC_PATTERNS.test(e.equipment.item_name));
+    const cameraViews: { id: number | null; label: string }[] = hasInstanceTracks
+        ? videoTracks.map((t) => ({ id: t.id, label: t.name }))
+        : equipmentCameras.flatMap((e) => Array.from({ length: e.quantity }, () => ({ id: null, label: e.equipment.item_name })));
+    const audioViews: { label: string }[] = hasInstanceTracks
+        ? audioTracks.map((t) => ({ label: t.name }))
+        : equipmentAudio.flatMap((e) => Array.from({ length: e.quantity }, () => ({ label: e.equipment.item_name })));
+    const cameraCount = cameraViews.length;
+    const audioCount = audioViews.length;
 
-    const cameras = equipment.filter((e) => CAMERA_PATTERNS.test(e.equipment.item_name));
-    const audio = equipment.filter((e) => MIC_PATTERNS.test(e.equipment.item_name));
-    const cameraCount = cameras.reduce((sum, e) => sum + e.quantity, 0);
-    const audioCount = audio.reduce((sum, e) => sum + e.quantity, 0);
+    // Subject lookup: id → name (day subjects from schedule_event_days) — kept for potential future use
+    // Subject names are now pre-resolved server-side in camera_assignments.subject_names
 
-    const totalSeconds = scenes.reduce((sum, s) => {
-        if (s.duration_seconds) return sum + s.duration_seconds;
-        return sum + (s.moments?.reduce((ms, m) => ms + m.duration, 0) ?? 0);
-    }, 0);
+    // Use instance scenes/moments if available, else fall back to library film scenes
+    const instanceScenes = pf.instance_scenes ?? [];
+    const useInstanceData = instanceScenes.length > 0;
+    const libScenes = f.scenes ?? [];
+
+    const totalSeconds = useInstanceData
+        ? instanceScenes.reduce((sum, s) => sum + (s.moments?.reduce((ms, m) => ms + m.duration, 0) ?? 0), 0)
+        : libScenes.reduce((sum, s) => {
+            if (s.duration_seconds) return sum + s.duration_seconds;
+            return sum + (s.moments?.reduce((ms, m) => ms + m.duration, 0) ?? 0);
+        }, 0);
 
     // Flatten all scenes+moments into a linear playlist with durations
     const flatMoments: FlatMoment[] = (() => {
         const result: FlatMoment[] = [];
         let cumulative = 0;
-        for (const s of scenes) {
-            const loc = extractLocationName(s.location_assignment?.location);
-            const moments = s.moments ?? [];
-            if (moments.length === 0) {
-                const dur = s.duration_seconds ?? 60;
-                result.push({ sceneName: s.name, sceneIndex: s.order_index, momentName: "", locationName: loc, durationSec: dur, startSec: cumulative });
-                cumulative += dur;
-            } else {
-                for (const m of moments) {
-                    result.push({ sceneName: s.name, sceneIndex: s.order_index, momentName: m.name, locationName: loc, durationSec: m.duration, startSec: cumulative });
-                    cumulative += m.duration;
+        if (useInstanceData) {
+            for (const s of instanceScenes) {
+                const moments = s.moments ?? [];
+                if (moments.length === 0) {
+                    result.push({ sceneName: s.name, sceneIndex: s.order_index, momentName: "", locationName: null, durationSec: 60, startSec: cumulative, recordingSetup: null });
+                    cumulative += 60;
+                } else {
+                    for (const m of moments) {
+                        result.push({ sceneName: s.name, sceneIndex: s.order_index, momentName: m.name, locationName: null, durationSec: m.duration, startSec: cumulative, recordingSetup: m.recording_setup ?? null });
+                        cumulative += m.duration;
+                    }
+                }
+            }
+        } else {
+            for (const s of libScenes) {
+                const loc = extractLocationName(s.location_assignment?.location);
+                const moments = s.moments ?? [];
+                if (moments.length === 0) {
+                    const dur = s.duration_seconds ?? 60;
+                    result.push({ sceneName: s.name, sceneIndex: s.order_index, momentName: "", locationName: loc, durationSec: dur, startSec: cumulative, recordingSetup: null });
+                    cumulative += dur;
+                } else {
+                    for (const m of moments) {
+                        result.push({ sceneName: s.name, sceneIndex: s.order_index, momentName: m.name, locationName: loc, durationSec: m.duration, startSec: cumulative, recordingSetup: null });
+                        cumulative += m.duration;
+                    }
                 }
             }
         }
@@ -253,29 +313,85 @@ function FilmCard({ pf, colors, isDark }: { pf: PublicProposalFilm; colors: Film
                                     </Typography>
                                 </Box>
                                 <Box sx={{ display: "flex", gap: expanded ? 1.5 : 0.75, flex: 1 }}>
-                                    {cameras.map((cam, i) => (
-                                        <Box key={i} sx={{
-                                            flex: 1, position: "relative", borderRadius: 1,
-                                            bgcolor: alpha("#fff", 0.03),
-                                            border: `1px solid ${alpha("#fff", 0.06)}`,
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            minHeight: 0,
-                                        }}>
-                                            <ViewfinderCorners color="#fff" />
-                                            <Box sx={{
-                                                position: "absolute", top: expanded ? 6 : 4, left: "50%", transform: "translateX(-50%)",
-                                                bgcolor: alpha("#4caf50", 0.15), border: `1px solid ${alpha("#4caf50", 0.3)}`,
-                                                borderRadius: 1, px: expanded ? 1 : 0.5, py: 0.2,
+                                    {cameraViews.map((cam, i) => {
+                                        const assignment = cam.id != null
+                                            ? current?.recordingSetup?.camera_assignments?.find(a => a.track_id === cam.id)
+                                            : undefined;
+                                        // Use pre-resolved subject_names from backend (no cross-table ID mapping needed)
+                                        const subjectNames = assignment?.subject_names ?? [];
+                                        const layout = getSubjectLayout(subjectNames.length);
+                                        return (
+                                            <Box key={i} sx={{
+                                                flex: 1, position: "relative", borderRadius: 1,
+                                                bgcolor: alpha("#fff", 0.03),
+                                                border: `1px solid ${alpha("#fff", 0.06)}`,
+                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                minHeight: 0, overflow: "hidden",
                                             }}>
-                                                <Typography sx={{ fontSize: expanded ? "0.55rem" : "0.4rem", color: "#4caf50", fontWeight: 600, whiteSpace: "nowrap" }}>
-                                                    CAM {i + 1} · {cam.equipment.item_name}
-                                                </Typography>
+                                                <ViewfinderCorners color="#fff" />
+                                                <Box sx={{
+                                                    position: "absolute", top: expanded ? 6 : 4, left: "50%", transform: "translateX(-50%)", zIndex: 20,
+                                                    bgcolor: alpha("#4caf50", 0.15), border: `1px solid ${alpha("#4caf50", 0.3)}`,
+                                                    borderRadius: 1, px: expanded ? 1 : 0.5, py: 0.2,
+                                                }}>
+                                                    <Typography sx={{ fontSize: expanded ? "0.55rem" : "0.4rem", color: "#4caf50", fontWeight: 600, whiteSpace: "nowrap" }}>
+                                                        CAM {i + 1} · {cam.label}
+                                                    </Typography>
+                                                </Box>
+                                                {subjectNames.length > 0 ? (
+                                                    <>
+                                                        {layout.map((pos, si) => (
+                                                            <Box key={`${i}-person-${si}`}>
+                                                                {/* Silhouette */}
+                                                                <Box sx={{
+                                                                    position: "absolute",
+                                                                    left: `${pos.x}%`,
+                                                                    bottom: expanded ? "32%" : "36%",
+                                                                    width: expanded ? 24 : 16,
+                                                                    height: expanded ? 60 : 40,
+                                                                    transform: "translateX(-50%)",
+                                                                    zIndex: 10,
+                                                                }}>
+                                                                    <PersonSilhouette />
+                                                                </Box>
+                                                                {/* Name label */}
+                                                                <Box sx={{
+                                                                    position: "absolute",
+                                                                    left: `${pos.x}%`,
+                                                                    bottom: expanded ? 10 : 4,
+                                                                    transform: "translateX(-50%)",
+                                                                    zIndex: 20,
+                                                                    bgcolor: "rgba(15,23,42,0.85)",
+                                                                    border: "1px solid rgba(255,255,255,0.15)",
+                                                                    borderRadius: expanded ? "10px" : "6px",
+                                                                    px: expanded ? 1 : 0.4,
+                                                                    py: 0.15,
+                                                                    backdropFilter: "blur(8px)",
+                                                                }}>
+                                                                    <Typography sx={{
+                                                                        color: "#fff",
+                                                                        fontSize: expanded ? "0.5rem" : "0.32rem",
+                                                                        fontWeight: 700,
+                                                                        letterSpacing: 0.3,
+                                                                        whiteSpace: "nowrap",
+                                                                        overflow: "hidden",
+                                                                        textOverflow: "ellipsis",
+                                                                        maxWidth: expanded ? 100 : 60,
+                                                                    }}>
+                                                                        {subjectNames[si]}
+                                                                    </Typography>
+                                                                </Box>
+                                                            </Box>
+                                                        ))}
+                                                    </>
+                                                ) : (
+                                                    <Typography sx={{ fontSize: expanded ? "0.55rem" : "0.4rem", color: alpha("#fff", 0.2), textTransform: "uppercase", letterSpacing: 1.5, fontWeight: 500 }}>
+                                                        Empty Frame
+                                                    </Typography>
+                                                )}
                                             </Box>
-                                            <Typography sx={{ fontSize: expanded ? "0.55rem" : "0.4rem", color: alpha("#fff", 0.2), textTransform: "uppercase", letterSpacing: 1.5, fontWeight: 500 }}>
-                                                Empty Frame
-                                            </Typography>
-                                        </Box>
-                                    ))}
+                                        );
+                                    })}
                                 </Box>
                             </>
                         )}
@@ -289,7 +405,7 @@ function FilmCard({ pf, colors, isDark }: { pf: PublicProposalFilm; colors: Film
                                     </Typography>
                                 </Box>
                                 <Box sx={{ display: "flex", gap: expanded ? 1 : 0.5 }}>
-                                    {audio.map((mic, i) => (
+                                    {audioViews.map((mic, i) => (
                                         <Box key={i} sx={{
                                             display: "flex", alignItems: "center", gap: 0.5,
                                             bgcolor: alpha("#4caf50", 0.1), border: `1px solid ${alpha("#4caf50", 0.2)}`,
@@ -297,7 +413,7 @@ function FilmCard({ pf, colors, isDark }: { pf: PublicProposalFilm; colors: Film
                                         }}>
                                             <MicIcon sx={{ fontSize: expanded ? 14 : 10, color: "#4caf50" }} />
                                             <Typography sx={{ fontSize: expanded ? "0.6rem" : "0.42rem", color: "#fff", fontWeight: 500 }}>
-                                                Audio {i + 1} · {mic.equipment.item_name}
+                                                Audio {i + 1} · {mic.label}
                                             </Typography>
                                         </Box>
                                     ))}

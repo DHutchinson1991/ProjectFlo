@@ -11,7 +11,7 @@ import {
     format as fnsFormat,
     startOfMonth, endOfMonth, startOfWeek, endOfWeek,
     addMonths, subMonths, eachDayOfInterval, isSameMonth,
-    isSameDay, isBefore, startOfDay, parseISO,
+    isSameDay, isBefore, isAfter, startOfDay, parseISO,
 } from "date-fns";
 import { C, DAY_NAMES, MONTH_NAMES } from '../constants/wizard-config';
 import { fadeInUp } from '../constants/animations';
@@ -22,9 +22,9 @@ const glowPulse = keyframes`
 `;
 
 export const DateCal = ({
-    value, onChange: onPick, minDate, selectedBelow,
+    value, onChange: onPick, minDate, maxDate, highlightRange, selectedBelow,
 }: {
-    value: string; onChange: (v: string) => void; minDate?: Date; selectedBelow?: boolean;
+    value: string; onChange: (v: string) => void; minDate?: Date; maxDate?: Date; highlightRange?: { start: Date; end: Date }; selectedBelow?: boolean;
 }) => {
     const selected = value ? parseISO(value) : null;
     const [viewMonth, setViewMonth] = useState(() => selected || new Date());
@@ -37,6 +37,9 @@ export const DateCal = ({
     const days       = eachDayOfInterval({ start: calStart, end: calEnd });
     const today      = startOfDay(new Date());
     const min        = minDate ? startOfDay(minDate) : today;
+    const max        = maxDate ? startOfDay(maxDate) : undefined;
+    const hlStart    = highlightRange ? startOfDay(highlightRange.start) : undefined;
+    const hlEnd      = highlightRange ? startOfDay(highlightRange.end) : undefined;
     const viewYear   = viewMonth.getFullYear();
 
     const selectedBadge = selected ? (
@@ -95,19 +98,21 @@ export const DateCal = ({
                     {MONTH_NAMES.map((name, i) => {
                         const monthDate = new Date(viewYear, i, 1);
                         const isPast = isBefore(endOfMonth(monthDate), min);
+                        const isFuture = max ? isAfter(startOfMonth(monthDate), max) : false;
+                        const isDisabled = isPast || isFuture;
                         const isCur  = viewMonth.getMonth() === i && viewMonth.getFullYear() === viewYear;
                         return (
                             <Box key={name} onClick={() => {
-                                if (isPast) return;
+                                if (isDisabled) return;
                                 setViewMonth(new Date(viewYear, i, 1));
                                 setViewMode("days");
                             }} sx={{
                                 py: 1.5, textAlign: "center", borderRadius: "12px",
-                                cursor: isPast ? "default" : "pointer", userSelect: "none",
-                                transition: "all 0.15s ease", opacity: isPast ? 0.25 : 1,
+                                cursor: isDisabled ? "default" : "pointer", userSelect: "none",
+                                transition: "all 0.15s ease", opacity: isDisabled ? 0.25 : 1,
                                 bgcolor: isCur ? alpha(C.accent, 0.15) : "transparent",
                                 border: isCur ? `1px solid ${alpha(C.accent, 0.3)}` : "1px solid transparent",
-                                "&:hover": !isPast ? { bgcolor: alpha(C.accent, 0.1), borderColor: alpha(C.accent, 0.25) } : {},
+                                "&:hover": !isDisabled ? { bgcolor: alpha(C.accent, 0.1), borderColor: alpha(C.accent, 0.25) } : {},
                             }}>
                                 <Typography sx={{ fontSize: "0.85rem", fontWeight: isCur ? 600 : 400, color: isCur ? C.accent : C.text }}>
                                     {name}
@@ -133,7 +138,12 @@ export const DateCal = ({
                             const inMonth  = isSameMonth(day, viewMonth);
                             const isSel    = selected ? isSameDay(day, selected) : false;
                             const isToday  = isSameDay(day, today);
-                            const disabled = isBefore(day, min);
+                            const pastMin  = isBefore(day, min);
+                            const pastMax  = max ? isAfter(day, max) : false;
+                            const disabled = pastMin || pastMax;
+                            const inHighlight = hlStart && hlEnd
+                                ? !isBefore(day, hlStart) && !isAfter(day, hlEnd)
+                                : false;
 
                             return (
                                 <Box key={day.toISOString()}
@@ -144,8 +154,18 @@ export const DateCal = ({
                                         cursor: disabled ? "default" : "pointer", userSelect: "none",
                                         transition: "all 0.2s ease",
                                         opacity: !inMonth ? 0.2 : disabled ? 0.25 : 1,
-                                        bgcolor: isSel ? C.accent : "transparent",
-                                        border: isToday && !isSel ? `1px solid ${alpha(C.accent, 0.4)}` : "1px solid transparent",
+                                        bgcolor: isSel
+                                            ? C.accent
+                                            : inHighlight && inMonth && !disabled
+                                                ? alpha(C.accent, 0.06)
+                                                : "transparent",
+                                        border: isSel
+                                            ? "1px solid transparent"
+                                            : isToday
+                                                ? `1px solid ${alpha(C.accent, 0.4)}`
+                                                : inHighlight && inMonth && !disabled
+                                                    ? `1px solid ${alpha(C.accent, 0.15)}`
+                                                    : "1px solid transparent",
                                         boxShadow: isSel ? `0 0 12px ${alpha(C.accent, 0.35)}` : "none",
                                         "&:hover": !disabled && !isSel ? {
                                             bgcolor: alpha(C.accent, 0.1), borderColor: alpha(C.accent, 0.25),

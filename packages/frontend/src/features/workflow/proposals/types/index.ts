@@ -14,6 +14,8 @@ export type {
   ProposalShareTokenResponse,
   PublicProposalBrand,
   PublicProposalContent,
+  PublicProposalContractPreview,
+  PublicProposalContractSigner,
   PublicProposalCrewSlot,
   PublicProposalCrewSlotEquipment,
   PublicProposalEstimate,
@@ -21,6 +23,12 @@ export type {
   PublicProposalFilm,
   PublicProposal,
   PublicProposalInquiry,
+  PublicProposalQuote,
+  PublicProposalQuoteItem,
+  PublicProposalQuotePaymentMilestone,
+  PublicProposalTask,
+  PublicProposalPhase,
+  PublicProposalTaskDetail,
   UpdateProposalData,
 } from './proposal.types';
 

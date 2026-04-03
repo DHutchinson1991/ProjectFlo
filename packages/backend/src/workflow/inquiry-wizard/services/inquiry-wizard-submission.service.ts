@@ -148,6 +148,18 @@ export class InquiryWizardSubmissionService {
             },
         });
 
+        // Sync payment schedule template ID to inquiry if it was updated
+        if ('payment_schedule_template_id' in responses && submission.inquiry_id) {
+            const templateId = responses.payment_schedule_template_id;
+            await this.prisma.inquiries.update({
+                where: { id: submission.inquiry_id },
+                data: {
+                    preferred_payment_schedule_template_id:
+                        typeof templateId === 'number' ? templateId : null,
+                },
+            });
+        }
+
         return updated;
     }
 }

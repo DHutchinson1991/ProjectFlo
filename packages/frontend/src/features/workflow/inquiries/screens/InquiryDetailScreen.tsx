@@ -8,8 +8,6 @@ import {
     Typography,
     CircularProgress,
     Alert,
-    Stack,
-    Grid,
     Snackbar,
     Tabs,
     Tab,
@@ -33,23 +31,16 @@ import {
 import type { PipelineTask } from '../lib';
 
 import {
-    WorkflowCard,
     CommandCenterHeader,
-    PhaseOverview,
-    EstimatesCard,
-    PaymentTermsCard,
-    ProposalsCard,
-    QuotesCard,
-    ContractsCard,
-    DiscoveryCallCard,
-    ClientApprovalCard,
-    DiscoveryQuestionnaireCard,
-    QualifyCard,
-    EventDetailsCard,
-    AvailabilityCard,
-    PackageScopeCard,
-    InquirySchedulePreview,
 } from '../components';
+import {
+    InquiryTab,
+    DiscoveryTab,
+    ProposalTab,
+    ScheduleTab,
+    navigateToSection,
+} from '../components/tabs';
+import type { InquiryTabId } from '../components/tabs';
 
 
 /* ================================================================== */
@@ -67,7 +58,7 @@ export default function InquiryDetailScreen() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
-    const [activeTab, setActiveTab] = useState<'overview' | 'package-details'>('overview');
+    const [activeTab, setActiveTab] = useState<InquiryTabId>('inquiry');
 
     const [pipelineTasks, setPipelineTasks] = useState<PipelineTask[]>([]);
     const [inquiryTasksData, setInquiryTasksData] = useState<InquiryTask[]>([]);
@@ -162,6 +153,18 @@ export default function InquiryDetailScreen() {
         await Promise.all([loadInquiry(false), loadPipelineTasks()]);
     };
 
+    useEffect(() => {
+        const handleHashNavigation = () => {
+            const hash = window.location.hash?.replace(/^#/, '');
+            if (!hash) return;
+            navigateToSection(hash, setActiveTab);
+        };
+
+        handleHashNavigation();
+        window.addEventListener('hashchange', handleHashNavigation);
+        return () => window.removeEventListener('hashchange', handleHashNavigation);
+    }, []);
+
     /* ---- loading / error guards ---- */
     if (loading) {
         return (
@@ -199,19 +202,13 @@ export default function InquiryDetailScreen() {
             {/* --- COMMAND CENTER HEADER --- */}
             <CommandCenterHeader
                 inquiry={inquiry}
+                inquiryTasks={inquiryTasksData}
                 needsAssessmentSubmission={needsAssessmentSubmission}
                 conversionData={conversionData}
                 daysInPipeline={daysInPipeline}
                 dealValue={dealValue}
                 onRefresh={handleRefresh}
                 onSnackbar={(msg) => setSnackbar({ open: true, message: msg, severity: 'success' })}
-            />
-
-            {/* --- PHASE OVERVIEW --- */}
-            <PhaseOverview
-                inquiry={inquiry}
-                pipelineTasks={pipelineTasks}
-                hasRealTasks={hasRealTasks}
             />
 
             {/* --- TABS & CONTENT --- */}
@@ -237,118 +234,47 @@ export default function InquiryDetailScreen() {
                         },
                     }}
                 >
-                    <Tab label="Overview" value="overview" />
-                    {inquiry.selected_package_id && <Tab label="Package Details" value="package-details" />}
+                    <Tab label="Inquiry" value="inquiry" />
+                    <Tab label="Discovery" value="discovery" />
+                    <Tab label="Proposal" value="proposal" />
+                    {inquiry.selected_package_id && <Tab label="Schedule" value="schedule" />}
                 </Tabs>
             </Box>
 
-            {/* --- OVERVIEW TAB --- */}
-            {activeTab === 'overview' && (
-                <Grid container spacing={3}>
-                    {/* LEFT COLUMN */}
-                    <Grid item xs={12} md={5}>
-                        <Stack spacing={3}>
-                            <div id="needs-assessment-section">
-                                <EventDetailsCard
-                                    inquiry={inquiry}
-                                    onRefresh={handleRefresh}
-                                    isActive={currentPhase === 'needs-assessment'}
-                                    activeColor={phaseColor('needs-assessment')}
-                                    submission={needsAssessmentSubmission}
-                                    WorkflowCard={WorkflowCard}
-                                />
-                            </div>
-
-                            <Box
-                                sx={{
-                                    display: 'grid',
-                                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
-                                    gap: 2,
-                                    alignItems: 'start',
-                                }}
-                            >
-                                <div id="availability-section">
-                                    <AvailabilityCard
-                                        inquiry={inquiry}
-                                        inquiryTasks={inquiryTasksData}
-                                        isActive={currentPhase === 'needs-assessment'}
-                                        activeColor={phaseColor('needs-assessment')}
-                                        onTasksChanged={() => { loadPipelineTasks(); }}
-                                        WorkflowCard={WorkflowCard}
-                                    />
-                                </div>
-
-                                <Stack spacing={2}>
-                                    <div id="package-scope-section">
-                                    <PackageScopeCard
-                                        inquiry={inquiry}
-                                        onRefresh={handleRefresh}
-                                        isActive={currentPhase === 'needs-assessment'}
-                                        activeColor={phaseColor('needs-assessment')}
-                                        submission={needsAssessmentSubmission}
-                                        WorkflowCard={WorkflowCard}
-                                        onPackageDetailsClick={() => setActiveTab('package-details')}
-                                    />
-                                    </div>
-
-                                    <div id="payment-terms-section">
-                                        <PaymentTermsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'estimates'} activeColor={phaseColor('estimates')} />
-                                    </div>
-                                </Stack>
-                            </Box>
-
-                            <div id="estimates-section">
-                                <EstimatesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'estimates'} activeColor={phaseColor('estimates')} />
-                            </div>
-                        </Stack>
-                    </Grid>
-
-                    {/* MIDDLE COLUMN */}
-                    <Grid item xs={12} md={4}>
-                        <Stack spacing={3}>
-                            <div id="calls-section">
-                                <DiscoveryCallCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor={phaseColor('calls')} submission={needsAssessmentSubmission} />
-                            </div>
-                            <div id="qualify-respond-section">
-                            <QualifyCard
-                                inquiry={inquiry}
-                                inquiryTasks={inquiryTasksData}
-                                submission={needsAssessmentSubmission}
-                                onRefresh={handleRefresh}
-                            />
-                            </div>
-                            <div id="discovery-questionnaire-section">
-                                <DiscoveryQuestionnaireCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'calls'} activeColor="#3b82f6" />
-                            </div>
-                            <div id="proposals-section">
-                                <ProposalsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'proposals'} activeColor={phaseColor('proposals')} />
-                            </div>
-                            <div id="quotes-section">
-                                <QuotesCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'quotes'} activeColor={phaseColor('quotes')} />
-                            </div>
-                        </Stack>
-                    </Grid>
-
-                    {/* RIGHT COLUMN */}
-                    <Grid item xs={12} md={3}>
-                        <Stack spacing={3}>
-                            <div id="contracts-section">
-                                <ContractsCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'contracts'} activeColor={phaseColor('contracts')} />
-                            </div>
-                            <div id="approval-section">
-                                <ClientApprovalCard inquiry={inquiry} onRefresh={handleRefresh} isActive={currentPhase === 'approval'} activeColor={phaseColor('approval')} />
-                            </div>
-
-                        </Stack>
-                    </Grid>
-                </Grid>
+            {activeTab === 'inquiry' && (
+                <InquiryTab
+                    inquiry={inquiry}
+                    inquiryId={inquiry.id}
+                    onRefresh={handleRefresh}
+                    inquiryTasks={inquiryTasksData}
+                    submission={needsAssessmentSubmission}
+                    currentPhase={currentPhase}
+                    phaseColor={phaseColor}
+                    onTasksChanged={loadPipelineTasks}
+                    onScheduleClick={() => setActiveTab('schedule')}
+                    packageId={inquiry.selected_package_id ?? null}
+                />
             )}
 
-            {/* --- PACKAGE DETAILS TAB --- */}
-            {activeTab === 'package-details' && inquiry.selected_package_id && (
-                <Box sx={{ mb: 3 }}>
-                    <InquirySchedulePreview inquiryId={inquiry.id} sourcePackageId={inquiry.selected_package_id} />
-                </Box>
+            {activeTab === 'discovery' && (
+                <DiscoveryTab
+                    inquiry={inquiry}
+                    onRefresh={handleRefresh}
+                    currentPhase={currentPhase}
+                />
+            )}
+
+            {activeTab === 'proposal' && (
+                <ProposalTab
+                    inquiry={inquiry}
+                    onRefresh={handleRefresh}
+                    currentPhase={currentPhase}
+                    phaseColor={phaseColor}
+                />
+            )}
+
+            {activeTab === 'schedule' && inquiry.selected_package_id && (
+                <ScheduleTab inquiryId={inquiry.id} sourcePackageId={inquiry.selected_package_id} />
             )}
 
             {/* --- SNACKBAR --- */}

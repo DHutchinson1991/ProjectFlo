@@ -12,35 +12,12 @@ import {
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { Search, LocationOff, EditOutlined } from '@mui/icons-material';
+import {
+    searchNominatim,
+    type NominatimResult,
+} from '@/features/workflow/locations/api/geocoding.api';
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-export interface NominatimResult {
-    place_id: number;
-    display_name: string;
-    lat: string;
-    lon: string;
-    address?: {
-        road?: string;
-        house_number?: string;
-        city?: string;
-        town?: string;
-        village?: string;
-        state?: string;
-        postcode?: string;
-        country?: string;
-        county?: string;
-        amenity?: string;
-        building?: string;
-        leisure?: string;
-        tourism?: string;
-        historic?: string;
-        shop?: string;
-        office?: string;
-        [key: string]: string | undefined;
-    };
-}
+export type { NominatimResult };
 
 export interface AddressResult {
     display_name: string;
@@ -70,30 +47,6 @@ interface AddressAutocompleteProps {
     colors: AddressAutocompleteColors;
     error?: string;
     fieldSx?: object;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Nominatim API                                                      */
-/* ------------------------------------------------------------------ */
-async function searchNominatim(query: string): Promise<NominatimResult[]> {
-    if (!query || query.length < 3) return [];
-    const params = new URLSearchParams({
-        q: query,
-        format: 'json',
-        addressdetails: '1',
-        limit: '5',
-    });
-    const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?${params}`,
-        {
-            headers: {
-                Accept: 'application/json',
-                'User-Agent': 'ProjectFlo/1.0',
-            },
-        },
-    );
-    if (!res.ok) return [];
-    return res.json();
 }
 
 function extractParts(addr: NominatimResult['address']) {

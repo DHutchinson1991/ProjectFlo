@@ -204,6 +204,8 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
         .filter((assignment) => {
             const trackType = assignment.track_type?.toString().toLowerCase();
             if (trackType && trackType !== "video") return false;
+            // Exclude audio tracks that ended up in camera_assignments for subject storage
+            if (audioTrackIds.includes(assignment.track_id)) return false;
             return true;
         })
         .map((assignment) => {

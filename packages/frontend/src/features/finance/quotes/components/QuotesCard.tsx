@@ -12,11 +12,15 @@ import { useBrand } from '@/features/platform/brand';
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import type { Quote } from '@/features/finance/quotes/types';
 import type { WorkflowCardProps } from '@/features/workflow/inquiries/lib';
-import { WorkflowCard } from '@/features/workflow/inquiries/components/WorkflowCard';
+import { WorkflowCard } from '@/shared/ui/WorkflowCard';
 import QuoteListItem from './QuoteListItem';
 import QuoteBuilderDialog from './QuoteBuilderDialog';
 
-const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive, activeColor }) => {
+interface QuotesCardProps extends WorkflowCardProps {
+    collapsedByDefault?: boolean;
+}
+
+const QuotesCard: React.FC<QuotesCardProps> = ({ inquiry, onRefresh, isActive, activeColor, collapsedByDefault = false }) => {
     const { currentBrand } = useBrand();
     const currency = currentBrand?.currency ?? DEFAULT_CURRENCY;
 
@@ -56,10 +60,11 @@ const QuotesCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActive,
                     return;
                 }
             }
+            if (collapsedByDefault) return;
             const primary = quotes.find((q) => q.is_primary);
             if (primary) setExpandedId(primary.id);
         }
-    }, [quotes]);
+    }, [collapsedByDefault, quotes]);
 
     const toggleExpand = (id: number) => {
         setExpandedId(expandedId === id ? null : id);

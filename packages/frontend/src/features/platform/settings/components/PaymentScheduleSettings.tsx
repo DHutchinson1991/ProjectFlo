@@ -55,6 +55,8 @@ import type { PaymentScheduleTemplate, PaymentScheduleRule, PaymentAmountType, P
 import type { TaskLibrary } from "@/features/catalog/task-library/types";
 import { useBrand } from "@/features/platform/brand";
 import { useBrandFinanceSettings, useUpsertBrandFinanceSettings } from "@/features/finance/brand-finance-settings/hooks";
+import { PaymentMethodsSettings } from "@/features/finance/payment-methods/components/PaymentMethodsSettings";
+import { StripeConnectSettings } from "@/features/finance/stripe/components/StripeConnectSettings";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -584,31 +586,24 @@ export function PaymentScheduleSettings() {
             <Grid container spacing={3}>
                 {/* LEFT COLUMN */}
                 <Grid item xs={12} md={7}>
-                    {/* Payment Defaults */}
+                    {/* Payment Methods (new component) */}
+                    <Box sx={{ mb: 3.5 }}>
+                        <PaymentMethodsSettings />
+                    </Box>
+
+                    {/* Stripe Connect */}
+                    <Box sx={{ mb: 3.5 }}>
+                        <StripeConnectSettings />
+                    </Box>
+
+                    {/* Payment Terms */}
                     <Box sx={{ mb: 3.5 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                             <CreditCardIcon sx={{ fontSize: 18, color: 'primary.main' }} />
-                            <Typography variant="subtitle2" fontWeight={700}>Payment Defaults</Typography>
+                            <Typography variant="subtitle2" fontWeight={700}>Payment Terms</Typography>
                         </Box>
                         <Box sx={{ p: 2.5, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: (theme) => alpha(theme.palette.background.paper, 0.6) }}>
                             <Grid container spacing={2.5}>
-                                <Grid item xs={12} sm={6}>
-                                    <FormControl fullWidth size="small">
-                                        <InputLabel>Default Payment Method</InputLabel>
-                                        <Select label="Default Payment Method"
-                                            value={paymentSettings.default_payment_method}
-                                            onChange={e => setPaymentSettings(s => ({ ...s, default_payment_method: e.target.value }))}
-                                            sx={{ borderRadius: 2 }}>
-                                            <MenuItem value="Bank Transfer">Bank Transfer</MenuItem>
-                                            <MenuItem value="Credit Card">Credit Card</MenuItem>
-                                            <MenuItem value="PayPal">PayPal</MenuItem>
-                                            <MenuItem value="Stripe">Stripe</MenuItem>
-                                            <MenuItem value="Cash">Cash</MenuItem>
-                                            <MenuItem value="Cheque">Cheque</MenuItem>
-                                            <MenuItem value="Other">Other</MenuItem>
-                                        </Select>
-                                    </FormControl>
-                                </Grid>
                                 <Grid item xs={12} sm={6}>
                                     <FormControl fullWidth size="small">
                                         <InputLabel>Payment Terms</InputLabel>
@@ -625,38 +620,6 @@ export function PaymentScheduleSettings() {
                                             <MenuItem value={90}>Net 90 — 90 days</MenuItem>
                                         </Select>
                                     </FormControl>
-                                </Grid>
-                                <Grid item xs={12}>
-                                    <Divider sx={{ my: 0.5 }} />
-                                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>Bank Details</Typography>
-                                </Grid>
-                                <Grid item xs={12} sm={6}>
-                                    <TextField label="Bank Name" fullWidth size="small"
-                                        value={paymentSettings.bank_name}
-                                        onChange={e => setPaymentSettings(s => ({ ...s, bank_name: e.target.value }))}
-                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                                    />
-                                </Grid>
-                                <Grid item xs={12} sm={6}>
-                                    <TextField label="Account Name" fullWidth size="small"
-                                        value={paymentSettings.bank_account_name}
-                                        onChange={e => setPaymentSettings(s => ({ ...s, bank_account_name: e.target.value }))}
-                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                                    />
-                                </Grid>
-                                <Grid item xs={12} sm={6}>
-                                    <TextField label="Sort Code" fullWidth size="small"
-                                        value={paymentSettings.bank_sort_code}
-                                        onChange={e => setPaymentSettings(s => ({ ...s, bank_sort_code: e.target.value }))}
-                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                                    />
-                                </Grid>
-                                <Grid item xs={12} sm={6}>
-                                    <TextField label="Account Number" fullWidth size="small"
-                                        value={paymentSettings.bank_account_number}
-                                        onChange={e => setPaymentSettings(s => ({ ...s, bank_account_number: e.target.value }))}
-                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                                    />
                                 </Grid>
                             </Grid>
                         </Box>

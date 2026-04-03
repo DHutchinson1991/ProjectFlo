@@ -12,7 +12,7 @@ export function usePublicProposal(token: string | null | undefined, preview = fa
     queryKey: proposalKeys.publicDetail(normalizedToken),
     queryFn: () => publicProposalsApi.getByShareToken(normalizedToken!, preview),
     enabled: !!normalizedToken,
-    refetchInterval: preview ? false : 30_000,
+    refetchInterval: preview ? false : 5_000,
   });
 
   const reload = () =>

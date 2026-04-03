@@ -43,6 +43,9 @@ model brands {
   bank_account_name            String?
   bank_sort_code               String?
   bank_account_number          String?
+  // Stripe Connect
+  stripe_account_id            String?
+  stripe_onboarding_complete   Boolean                        @default(false)
   // Crew engagement defaults
   crew_payment_terms           String?                        @default("50% on booking confirmation, 50% within 7 days of delivery")
   crew_response_deadline_days  Int?                           @default(5)
@@ -93,6 +96,8 @@ model brands {
   contract_clauses              contract_clauses[]
   contract_templates            contract_templates[]
   finance_settings              brand_finance_settings?
+  invoices                      invoices[]
+  payment_methods               payment_methods[]
 
   @@map("brands")
 }
@@ -903,23 +908,40 @@ model project_assets {
 
 model invoices {
   id             Int             @id @default(autoincrement())
+  brand_id       Int?
   project_id     Int?
   quote_id       Int?
   proposal_id    Int?
+  milestone_id   Int?
   invoice_number String          @unique
+  title          String?
   issue_date     DateTime
   due_date       DateTime
+  subtotal       Decimal?        @db.Decimal(10, 2)
+  tax_rate       Decimal?        @default(0) @db.Decimal(5, 2)
+  amount         Decimal         @db.Decimal(10, 2)
   amount_paid    Decimal?        @default(0.00) @db.Decimal(10, 2)
   status         String          @default("Draft")
-  amount         Decimal         @db.Decimal(10, 2)
+  currency       String?         @default("USD") @db.VarChar(3)
+  notes          String?         @db.Text
+  terms          String?         @db.Text
+  payment_method String?
   inquiry_id     Int
+  created_at     DateTime        @default(now())
+  updated_at     DateTime        @default(now()) @updatedAt
   items          invoice_items[]
   inquiry        inquiries       @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  brand          brands?         @relation(fields: [brand_id], references: [id])
   project        projects?       @relation(fields: [project_id], references: [id])
   quote          quotes?         @relation(fields: [quote_id], references: [id])
   proposal       proposals?      @relation(fields: [proposal_id], references: [id])
+  milestone      quote_payment_milestones? @relation(fields: [milestone_id], references: [id])
   payments       payments[]
 
+  @@index([inquiry_id])
+  @@index([brand_id])
+  @@index([quote_id])
+  @@index([status])
   @@map("invoices")
 }
 
@@ -927,6 +949,7 @@ model invoice_items {
   id          Int      @id @default(autoincrement())
   invoice_id  Int
   description String
+  category    String?
   quantity    Decimal  @default(1) @db.Decimal(10, 2)
   unit_price  Decimal  @db.Decimal(10, 2)
   invoice     invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
@@ -935,14 +958,23 @@ model invoice_items {
 }
 
 model payments {
-  id             Int       @id @default(autoincrement())
-  invoice_id     Int
-  payment_date   DateTime? @default(now())
-  amount         Decimal   @db.Decimal(10, 2)
-  payment_method String?
-  transaction_id String?
-  invoice        invoices  @relation(fields: [invoice_id], references: [id])
+  id                          Int       @id @default(autoincrement())
+  invoice_id                  Int
+  payment_date                DateTime? @default(now())
+  amount                      Decimal   @db.Decimal(10, 2)
+  payment_method              String?
+  transaction_id              String?
+  stripe_checkout_session_id  String?
+  stripe_payment_intent_id    String?
+  receipt_url                 String?
+  card_brand                  String?
+  card_last4                  String?
+  payer_email                 String?
+  currency                    String?   @db.VarChar(3)
+  created_at                  DateTime  @default(now())
+  invoice                     invoices  @relation(fields: [invoice_id], references: [id])
 
+  @@index([stripe_checkout_session_id])
   @@map("payments")
 }
 
@@ -1084,6 +1116,7 @@ model quote_payment_milestones {
   updated_at  DateTime @updatedAt
 
   quote quotes @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+  invoices invoices[]
 
   @@index([quote_id])
   @@map("quote_payment_milestones")
@@ -1416,6 +1449,10 @@ model task_library {
   is_task_group            Boolean                    @default(false) // True = task group container (collapsible section within a phase)
   is_auto_only             Boolean                    @default(false) // True = auto-completes only, cannot be manually toggled
   is_on_site               Boolean                    @default(false) // True = on-site work (billed at day rate); false = off-site (billed hourly)
+  is_customer_facing       Boolean                    @default(false) // True = visible on client portal
+  customer_description     String?                    // Customer-friendly description shown on client portal (falls back to description if null)
+  requires_client_action   Boolean                    @default(false) // True = task requires client input/approval
+  client_deliverable_description String?              // What the client receives when this task is complete
   default_crew_id   Int?                       // Auto-resolved when exactly 1 crew record has the role
   created_at               DateTime                   @default(now())
   updated_at               DateTime                   @updatedAt
@@ -1983,6 +2020,13 @@ enum activity_type {
 enum activity_status {
   Pending
   Completed
+}
+
+enum PaymentMethodType {
+  BANK_TRANSFER
+  CREDIT_CARD
+  CASH
+  STRIPE
 }
 
 enum document_status {
@@ -4359,6 +4403,27 @@ model crew_payment_rules {
   @@index([template_id])
   @@index([task_library_id])
   @@map("crew_payment_rules")
+}
+
+// ── Payment methods — brand-scoped payment options shown to clients ──
+model payment_methods {
+  id           Int               @id @default(autoincrement())
+  brand_id     Int
+  type         PaymentMethodType
+  label        String            // Display name, e.g. "Bank Transfer", "Pay by Card"
+  is_default   Boolean           @default(false)
+  is_active    Boolean           @default(true)
+  instructions String?           @db.Text // Free-text shown to client (e.g. "Post cheque to…")
+  config       Json?             // Type-specific details (bank fields, Stripe link, etc.)
+  order_index  Int               @default(0)
+  created_at   DateTime          @default(now())
+  updated_at   DateTime          @updatedAt
+
+  brand brands @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+
+  @@unique([brand_id, label])
+  @@index([brand_id])
+  @@map("payment_methods")
 }
 
 // Resolved milestones per estimate — concrete dates + amounts calculated at estimate creation/send time

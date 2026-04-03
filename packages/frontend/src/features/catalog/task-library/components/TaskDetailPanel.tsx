@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
     Box, Typography, Chip, Divider, IconButton, Stack, alpha,
-    TextField, Button, InputBase,
+    TextField, Button, InputBase, Switch, Tabs, Tab, Collapse,
 } from "@mui/material";
 import {
     Assignment as TaskIcon,
@@ -21,6 +21,10 @@ import {
     Delete as DeleteIcon,
     Add as AddIcon,
     Edit as EditIcon,
+    Visibility as VisibilityIcon,
+    ExpandMore as ExpandMoreIcon,
+    PanTool as ActionRequiredIcon,
+    CardGiftcard as DeliverableIcon,
 } from "@mui/icons-material";
 import {
     TaskLibrary, TaskLibrarySubtaskTemplate,
@@ -28,9 +32,10 @@ import {
     PHASE_LABELS, PRICING_TYPE_LABELS, TRIGGER_TYPE_LABELS,
     UpdateSubtaskTemplateDto, CreateSubtaskTemplateDto,
 } from "@/features/catalog/task-library/types";
-import { getPhaseConfig } from "@/shared/ui/tasks";
+import { getPhaseConfig, PHASE_STUDIO_DESCRIPTIONS, PHASE_CUSTOMER_DESCRIPTIONS } from "@/shared/ui/tasks";
 import { formatCurrency, DEFAULT_CURRENCY } from "@projectflo/shared";
 import { taskLibraryApi } from "@/features/catalog/task-library/api";
+import { settingsApi } from "@/features/platform/settings/api";
 
 // ─── Label maps ────────────────────────────────────────────────────────────────
 
@@ -106,7 +111,112 @@ export function TaskDetailPanel({ task, isSelected, onClose, onTaskUpdated }: Pr
     const [newStepName, setNewStepName] = useState('');
     const [editingWorkflowDesc, setEditingWorkflowDesc] = useState(false);
     const [workflowDescValue, setWorkflowDescValue] = useState('');
+    const [editingStudioDesc, setEditingStudioDesc] = useState(false);
+    const [studioDescValue, setStudioDescValue] = useState('');
+    const [editingCustomerDesc, setEditingCustomerDesc] = useState(false);
+    const [customerDescValue, setCustomerDescValue] = useState('');
+    const [editingDeliverable, setEditingDeliverable] = useState(false);
+    const [deliverableValue, setDeliverableValue] = useState('');
+    const [descTab, setDescTab] = useState(0); // 0 = Studio, 1 = Customer
+    const [phaseExpanded, setPhaseExpanded] = useState(false);
     const addStepInputRef = useRef<HTMLInputElement>(null);
+
+    // Phase description editing state
+    const [editingPhaseStudioDesc, setEditingPhaseStudioDesc] = useState(false);
+    const [phaseStudioDescValue, setPhaseStudioDescValue] = useState('');
+    const [editingPhaseCustomerDesc, setEditingPhaseCustomerDesc] = useState(false);
+    const [phaseCustomerDescValue, setPhaseCustomerDescValue] = useState('');
+    // Overrides loaded from brand_settings (null = not loaded yet / no override)
+    const [phaseStudioOverride, setPhaseStudioOverride] = useState<string | null>(null);
+    const [phaseCustomerOverride, setPhaseCustomerOverride] = useState<string | null>(null);
+
+    // Load phase description overrides from brand_settings
+    useEffect(() => {
+        if (!task) return;
+        const brandId = task.brand_id;
+        const phase = task.phase;
+        if (!brandId || !phase) return;
+
+        let cancelled = false;
+
+        const loadOverrides = async () => {
+            try {
+                const studioSetting = await settingsApi.getByKey(brandId, `phase_desc_studio_${phase}`);
+                if (!cancelled && studioSetting?.value) setPhaseStudioOverride(studioSetting.value);
+            } catch { /* no override exists */ }
+            try {
+                const customerSetting = await settingsApi.getByKey(brandId, `phase_desc_customer_${phase}`);
+                if (!cancelled && customerSetting?.value) setPhaseCustomerOverride(customerSetting.value);
+            } catch { /* no override exists */ }
+        };
+
+        // Reset overrides when phase changes
+        setPhaseStudioOverride(null);
+        setPhaseCustomerOverride(null);
+        setEditingPhaseStudioDesc(false);
+        setEditingPhaseCustomerDesc(false);
+        loadOverrides();
+
+        return () => { cancelled = true; };
+    }, [task?.brand_id, task?.phase]);
+
+    // Upsert helper for brand settings
+    const upsertPhaseDescription = useCallback(async (
+        brandId: number, key: string, value: string, category: string,
+    ) => {
+        try {
+            await settingsApi.update(brandId, key, { value });
+        } catch {
+            // Setting doesn't exist yet — create it
+            await settingsApi.create(brandId, {
+                key,
+                value,
+                data_type: 'string',
+                category,
+                description: `Phase description override`,
+            });
+        }
+    }, []);
+
+    const handlePhaseStudioDescBlur = useCallback(async () => {
+        setEditingPhaseStudioDesc(false);
+        if (!task) return;
+        const trimmed = phaseStudioDescValue.trim();
+        const defaultDesc = PHASE_STUDIO_DESCRIPTIONS[task.phase] ?? '';
+        const currentOverride = phaseStudioOverride;
+
+        // If blank or same as default, store nothing (remove override concept — store as-is)
+        if (trimmed === (currentOverride ?? defaultDesc)) return; // no change
+
+        setPhaseStudioOverride(trimmed || null);
+        try {
+            if (trimmed) {
+                await upsertPhaseDescription(task.brand_id, `phase_desc_studio_${task.phase}`, trimmed, 'phase_descriptions');
+            } else {
+                // Clear override — delete the setting
+                try { await settingsApi.delete(task.brand_id, `phase_desc_studio_${task.phase}`); } catch { /* */ }
+            }
+        } catch { /* silent */ }
+    }, [task, phaseStudioDescValue, phaseStudioOverride, upsertPhaseDescription]);
+
+    const handlePhaseCustomerDescBlur = useCallback(async () => {
+        setEditingPhaseCustomerDesc(false);
+        if (!task) return;
+        const trimmed = phaseCustomerDescValue.trim();
+        const defaultDesc = PHASE_CUSTOMER_DESCRIPTIONS[task.phase] ?? '';
+        const currentOverride = phaseCustomerOverride;
+
+        if (trimmed === (currentOverride ?? defaultDesc)) return; // no change
+
+        setPhaseCustomerOverride(trimmed || null);
+        try {
+            if (trimmed) {
+                await upsertPhaseDescription(task.brand_id, `phase_desc_customer_${task.phase}`, trimmed, 'phase_descriptions');
+            } else {
+                try { await settingsApi.delete(task.brand_id, `phase_desc_customer_${task.phase}`); } catch { /* */ }
+            }
+        } catch { /* silent */ }
+    }, [task, phaseCustomerDescValue, phaseCustomerOverride, upsertPhaseDescription]);
 
     if (!task) return <PanelPlaceholder />;
 
@@ -159,6 +269,59 @@ export function TaskDetailPanel({ task, isSelected, onClose, onTaskUpdated }: Pr
             try {
                 await taskLibraryApi.update(task.id, { workflow_description: trimmed } as never);
                 onTaskUpdated?.(task.id, t => ({ ...t, workflow_description: trimmed }));
+            } catch { /* silent */ }
+        }
+    };
+
+    const handleStudioDescBlur = async () => {
+        setEditingStudioDesc(false);
+        const trimmed = studioDescValue.trim() || null;
+        if (trimmed !== (task.description ?? null)) {
+            try {
+                await taskLibraryApi.update(task.id, { description: trimmed } as never);
+                onTaskUpdated?.(task.id, t => ({ ...t, description: trimmed }));
+            } catch { /* silent */ }
+        }
+    };
+
+    const handleCustomerFacingToggle = async () => {
+        const newValue = !task.is_customer_facing;
+        onTaskUpdated?.(task.id, t => ({ ...t, is_customer_facing: newValue }));
+        try {
+            await taskLibraryApi.update(task.id, { is_customer_facing: newValue } as never);
+        } catch {
+            onTaskUpdated?.(task.id, t => ({ ...t, is_customer_facing: !newValue }));
+        }
+    };
+
+    const handleCustomerDescBlur = async () => {
+        setEditingCustomerDesc(false);
+        const trimmed = customerDescValue.trim() || null;
+        if (trimmed !== (task.customer_description ?? null)) {
+            try {
+                await taskLibraryApi.update(task.id, { customer_description: trimmed } as never);
+                onTaskUpdated?.(task.id, t => ({ ...t, customer_description: trimmed }));
+            } catch { /* silent */ }
+        }
+    };
+
+    const handleRequiresClientActionToggle = async () => {
+        const newValue = !task.requires_client_action;
+        onTaskUpdated?.(task.id, t => ({ ...t, requires_client_action: newValue }));
+        try {
+            await taskLibraryApi.update(task.id, { requires_client_action: newValue } as never);
+        } catch {
+            onTaskUpdated?.(task.id, t => ({ ...t, requires_client_action: !newValue }));
+        }
+    };
+
+    const handleDeliverableBlur = async () => {
+        setEditingDeliverable(false);
+        const trimmed = deliverableValue.trim() || null;
+        if (trimmed !== (task.client_deliverable_description ?? null)) {
+            try {
+                await taskLibraryApi.update(task.id, { client_deliverable_description: trimmed } as never);
+                onTaskUpdated?.(task.id, t => ({ ...t, client_deliverable_description: trimmed }));
             } catch { /* silent */ }
         }
     };
@@ -234,8 +397,17 @@ export function TaskDetailPanel({ task, isSelected, onClose, onTaskUpdated }: Pr
                         <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2, mb: 0.25 }} noWrap>
                             {task.name}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary" noWrap>
+                        <Typography variant="caption" sx={{
+                            color: phaseColor,
+                            cursor: "pointer",
+                            "&:hover": { textDecoration: "underline" },
+                        }} noWrap onClick={() => setPhaseExpanded(p => !p)}>
                             {PHASE_LABELS[task.phase]} · {pricingLabel}
+                            <ExpandMoreIcon sx={{
+                                fontSize: 14, ml: 0.25, verticalAlign: "middle",
+                                transform: phaseExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                                transition: "transform 0.2s",
+                            }} />
                         </Typography>
                     </Box>
                     {isSelected && (
@@ -288,20 +460,331 @@ export function TaskDetailPanel({ task, isSelected, onClose, onTaskUpdated }: Pr
                             }}
                         />
                     )}
+                    <Chip
+                        icon={<VisibilityIcon sx={{ fontSize: "0.75rem !important" }} />}
+                        label={task.is_customer_facing ? "Customer Facing" : "Internal Only"}
+                        size="small"
+                        onClick={canEdit ? handleCustomerFacingToggle : undefined}
+                        sx={{
+                            cursor: canEdit ? "pointer" : "default",
+                            bgcolor: task.is_customer_facing ? "rgba(79,172,254,0.12)" : "rgba(255,255,255,0.05)",
+                            color: task.is_customer_facing ? "#4facfe" : "text.disabled",
+                            border: `1px solid ${task.is_customer_facing ? "rgba(79,172,254,0.25)" : "rgba(255,255,255,0.1)"}`,
+                            fontWeight: 700, fontSize: "0.7rem",
+                            "&:hover": canEdit ? { bgcolor: task.is_customer_facing ? "rgba(79,172,254,0.2)" : "rgba(255,255,255,0.08)" } : {},
+                        }}
+                    />
                 </Box>
+
+                {/* Phase description (expandable) */}
+                <Collapse in={phaseExpanded}>
+                    <Box sx={{ mt: 1.5 }}>
+                        <Tabs
+                            value={phaseExpanded ? (descTab === 0 ? 0 : 1) : 0}
+                            onChange={(_, v) => setDescTab(v)}
+                            variant="fullWidth"
+                            sx={{
+                                minHeight: 28,
+                                "& .MuiTab-root": { minHeight: 28, py: 0.5, fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" },
+                                "& .MuiTabs-indicator": { bgcolor: phaseColor, height: 2 },
+                            }}
+                        >
+                            <Tab label="Studio" />
+                            <Tab label="Customer" />
+                        </Tabs>
+                        <Box sx={{ px: 0.5, pt: 0.75, pb: 0.5 }}>
+                            {descTab === 0 ? (
+                                /* Phase studio description — editable */
+                                editingPhaseStudioDesc ? (
+                                    <TextField
+                                        fullWidth multiline minRows={2} maxRows={6} autoFocus
+                                        value={phaseStudioDescValue}
+                                        onChange={e => setPhaseStudioDescValue(e.target.value)}
+                                        onBlur={handlePhaseStudioDescBlur}
+                                        onKeyDown={e => { if (e.key === 'Escape') setEditingPhaseStudioDesc(false); }}
+                                        placeholder="Describe this phase for your studio team..."
+                                        size="small"
+                                        sx={{
+                                            "& .MuiInputBase-root": { bgcolor: "rgba(255,255,255,0.04)", borderRadius: 1.5, fontSize: "0.75rem", color: "text.secondary", lineHeight: 1.6 },
+                                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.15)" },
+                                        }}
+                                    />
+                                ) : (
+                                    <Box
+                                        onClick={() => {
+                                            if (!canEdit) return;
+                                            setPhaseStudioDescValue(phaseStudioOverride ?? PHASE_STUDIO_DESCRIPTIONS[task.phase] ?? '');
+                                            setEditingPhaseStudioDesc(true);
+                                        }}
+                                        sx={{
+                                            cursor: canEdit ? "text" : "default",
+                                            borderRadius: 1.5,
+                                            px: canEdit ? 0.75 : 0,
+                                            py: canEdit ? 0.5 : 0,
+                                            border: canEdit ? "1px solid transparent" : "none",
+                                            "&:hover": canEdit ? { border: "1px solid rgba(255,255,255,0.1)", bgcolor: "rgba(255,255,255,0.03)" } : {},
+                                            transition: "all 0.15s",
+                                        }}
+                                    >
+                                        {(phaseStudioOverride ?? PHASE_STUDIO_DESCRIPTIONS[task.phase]) ? (
+                                            <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", lineHeight: 1.6 }}>
+                                                {phaseStudioOverride ?? PHASE_STUDIO_DESCRIPTIONS[task.phase]}
+                                            </Typography>
+                                        ) : canEdit ? (
+                                            <Typography sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.2)", lineHeight: 1.6, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                <EditIcon sx={{ fontSize: 11 }} /> Add studio phase description...
+                                            </Typography>
+                                        ) : (
+                                            <Typography sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.2)", fontStyle: "italic" }}>
+                                                No studio description available.
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                )
+                            ) : (
+                                /* Phase customer description — editable */
+                                editingPhaseCustomerDesc ? (
+                                    <TextField
+                                        fullWidth multiline minRows={2} maxRows={6} autoFocus
+                                        value={phaseCustomerDescValue}
+                                        onChange={e => setPhaseCustomerDescValue(e.target.value)}
+                                        onBlur={handlePhaseCustomerDescBlur}
+                                        onKeyDown={e => { if (e.key === 'Escape') setEditingPhaseCustomerDesc(false); }}
+                                        placeholder="Describe this phase for your clients..."
+                                        size="small"
+                                        sx={{
+                                            "& .MuiInputBase-root": { bgcolor: "rgba(255,255,255,0.04)", borderRadius: 1.5, fontSize: "0.75rem", color: "text.secondary", lineHeight: 1.6 },
+                                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.15)" },
+                                        }}
+                                    />
+                                ) : (
+                                    <Box
+                                        onClick={() => {
+                                            if (!canEdit) return;
+                                            setPhaseCustomerDescValue(phaseCustomerOverride ?? PHASE_CUSTOMER_DESCRIPTIONS[task.phase] ?? '');
+                                            setEditingPhaseCustomerDesc(true);
+                                        }}
+                                        sx={{
+                                            cursor: canEdit ? "text" : "default",
+                                            borderRadius: 1.5,
+                                            px: canEdit ? 0.75 : 0,
+                                            py: canEdit ? 0.5 : 0,
+                                            border: canEdit ? "1px solid transparent" : "none",
+                                            "&:hover": canEdit ? { border: "1px solid rgba(255,255,255,0.1)", bgcolor: "rgba(255,255,255,0.03)" } : {},
+                                            transition: "all 0.15s",
+                                        }}
+                                    >
+                                        {(phaseCustomerOverride ?? PHASE_CUSTOMER_DESCRIPTIONS[task.phase]) ? (
+                                            <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", lineHeight: 1.6 }}>
+                                                {phaseCustomerOverride ?? PHASE_CUSTOMER_DESCRIPTIONS[task.phase]}
+                                            </Typography>
+                                        ) : canEdit ? (
+                                            <Typography sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.2)", lineHeight: 1.6, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                <EditIcon sx={{ fontSize: 11 }} /> Add customer phase description...
+                                            </Typography>
+                                        ) : (
+                                            <Typography sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.2)", fontStyle: "italic" }}>
+                                                No customer description available for this phase.
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                )
+                            )}
+                        </Box>
+                    </Box>
+                </Collapse>
             </Box>
 
             {/* ── Body ── */}
             <Box sx={{ flex: 1, overflowY: "auto", p: 2.5, pt: 1.5 }}>
 
-                {/* Description */}
-                {task.description && (
+                {/* ── Tabbed Description (Studio / Customer) ── */}
+                <SectionLabel>Description</SectionLabel>
+                <Divider sx={{ borderColor: "rgba(255,255,255,0.06)", mb: 0 }} />
+                <Tabs
+                    value={descTab}
+                    onChange={(_, v) => setDescTab(v)}
+                    variant="fullWidth"
+                    sx={{
+                        minHeight: 28, mb: 0.5,
+                        "& .MuiTab-root": { minHeight: 28, py: 0.5, fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" },
+                        "& .MuiTabs-indicator": { bgcolor: descTab === 0 ? phaseColor : "#4facfe", height: 2 },
+                    }}
+                >
+                    <Tab label="Studio" />
+                    <Tab label="Customer" />
+                </Tabs>
+
+                {descTab === 0 ? (
+                    /* Studio description — editable */
+                    <Box sx={{ mb: 1 }}>
+                        {editingStudioDesc ? (
+                            <TextField
+                                fullWidth multiline minRows={2} maxRows={5} autoFocus
+                                value={studioDescValue}
+                                onChange={e => setStudioDescValue(e.target.value)}
+                                onBlur={handleStudioDescBlur}
+                                onKeyDown={e => { if (e.key === 'Escape') setEditingStudioDesc(false); }}
+                                placeholder="Internal task description..."
+                                size="small"
+                                sx={{
+                                    "& .MuiInputBase-root": { bgcolor: "rgba(255,255,255,0.04)", borderRadius: 1.5, fontSize: "0.8125rem", color: "text.secondary" },
+                                    "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.15)" },
+                                }}
+                            />
+                        ) : (
+                            <Box
+                                onClick={() => {
+                                    if (!canEdit) return;
+                                    setStudioDescValue(task.description ?? '');
+                                    setEditingStudioDesc(true);
+                                }}
+                                sx={{
+                                    cursor: canEdit ? "text" : "default",
+                                    borderRadius: 1.5,
+                                    px: canEdit ? 1.25 : 0,
+                                    py: canEdit ? 0.75 : 0,
+                                    border: canEdit ? "1px solid transparent" : "none",
+                                    "&:hover": canEdit ? { border: "1px solid rgba(255,255,255,0.1)", bgcolor: "rgba(255,255,255,0.03)" } : {},
+                                    transition: "all 0.15s",
+                                }}
+                            >
+                                {task.description ? (
+                                    <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary", lineHeight: 1.55 }}>
+                                        {task.description}
+                                    </Typography>
+                                ) : canEdit ? (
+                                    <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.2)", lineHeight: 1.55, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                        <EditIcon sx={{ fontSize: 12 }} /> Add studio description...
+                                    </Typography>
+                                ) : (
+                                    <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.2)", fontStyle: "italic" }}>
+                                        No studio description
+                                    </Typography>
+                                )}
+                            </Box>
+                        )}
+                    </Box>
+                ) : (
+                    /* Customer description — editable, shown on client portal */
+                    <Box sx={{ mb: 1 }}>
+                        {editingCustomerDesc ? (
+                            <TextField
+                                fullWidth multiline minRows={2} maxRows={5} autoFocus
+                                value={customerDescValue}
+                                onChange={e => setCustomerDescValue(e.target.value)}
+                                onBlur={handleCustomerDescBlur}
+                                onKeyDown={e => { if (e.key === 'Escape') setEditingCustomerDesc(false); }}
+                                placeholder="Describe what the customer will see for this task..."
+                                size="small"
+                                sx={{
+                                    "& .MuiInputBase-root": { bgcolor: "rgba(255,255,255,0.04)", borderRadius: 1.5, fontSize: "0.8125rem", color: "text.secondary" },
+                                    "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.15)" },
+                                }}
+                            />
+                        ) : (
+                            <Box
+                                onClick={() => {
+                                    if (!canEdit) return;
+                                    setCustomerDescValue(task.customer_description ?? '');
+                                    setEditingCustomerDesc(true);
+                                }}
+                                sx={{
+                                    cursor: canEdit ? "text" : "default",
+                                    borderRadius: 1.5,
+                                    px: canEdit ? 1.25 : 0,
+                                    py: canEdit ? 0.75 : 0,
+                                    border: canEdit ? "1px solid transparent" : "none",
+                                    "&:hover": canEdit ? { border: "1px solid rgba(255,255,255,0.1)", bgcolor: "rgba(255,255,255,0.03)" } : {},
+                                    transition: "all 0.15s",
+                                }}
+                            >
+                                {task.customer_description ? (
+                                    <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary", lineHeight: 1.55 }}>
+                                        {task.customer_description}
+                                    </Typography>
+                                ) : canEdit ? (
+                                    <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.2)", lineHeight: 1.55, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                        <EditIcon sx={{ fontSize: 12 }} /> Add customer description...
+                                    </Typography>
+                                ) : (
+                                    <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.2)", fontStyle: "italic" }}>
+                                        Falls back to task description
+                                    </Typography>
+                                )}
+                            </Box>
+                        )}
+                    </Box>
+                )}
+
+                {/* ── Client Portal Extras (only when customer-facing) ── */}
+                {task.is_customer_facing && (
                     <>
-                        <SectionLabel>Description</SectionLabel>
-                        <Divider sx={{ borderColor: "rgba(255,255,255,0.06)", mb: 1 }} />
-                        <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary", lineHeight: 1.55, mb: 1 }}>
-                            {task.description}
-                        </Typography>
+                        <DetailRow
+                            label="Requires Client Action"
+                            value={
+                                <Switch
+                                    size="small"
+                                    checked={!!task.requires_client_action}
+                                    onChange={canEdit ? handleRequiresClientActionToggle : undefined}
+                                    disabled={!canEdit}
+                                    sx={{
+                                        "& .MuiSwitch-switchBase.Mui-checked": { color: "#ffb74d" },
+                                        "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { bgcolor: "rgba(255,183,77,0.4)" },
+                                    }}
+                                />
+                            }
+                        />
+
+                        {/* Deliverable description */}
+                        <Box sx={{ py: 0.5 }}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
+                                <DeliverableIcon sx={{ fontSize: 13, color: "text.disabled" }} />
+                                <Typography sx={{ fontSize: "0.75rem", color: "text.disabled" }}>Client Deliverable</Typography>
+                            </Box>
+                            {editingDeliverable ? (
+                                <TextField
+                                    fullWidth multiline minRows={2} maxRows={4} autoFocus
+                                    value={deliverableValue}
+                                    onChange={e => setDeliverableValue(e.target.value)}
+                                    onBlur={handleDeliverableBlur}
+                                    onKeyDown={e => { if (e.key === 'Escape') setEditingDeliverable(false); }}
+                                    placeholder="What does the client receive when this task is done?"
+                                    size="small"
+                                    sx={{
+                                        "& .MuiInputBase-root": { bgcolor: "rgba(255,255,255,0.04)", borderRadius: 1.5, fontSize: "0.8125rem", color: "text.secondary" },
+                                        "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.15)" },
+                                    }}
+                                />
+                            ) : (
+                                <Box
+                                    onClick={() => {
+                                        if (!canEdit) return;
+                                        setDeliverableValue(task.client_deliverable_description ?? '');
+                                        setEditingDeliverable(true);
+                                    }}
+                                    sx={{
+                                        cursor: canEdit ? "text" : "default",
+                                        borderRadius: 1.5,
+                                        px: canEdit ? 1.25 : 0,
+                                        py: canEdit ? 0.75 : 0,
+                                        border: canEdit ? "1px solid transparent" : "none",
+                                        "&:hover": canEdit ? { border: "1px solid rgba(255,255,255,0.1)", bgcolor: "rgba(255,255,255,0.03)" } : {},
+                                        transition: "all 0.15s",
+                                    }}
+                                >
+                                    {task.client_deliverable_description ? (
+                                        <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary", lineHeight: 1.55 }}>
+                                            {task.client_deliverable_description}
+                                        </Typography>
+                                    ) : canEdit ? (
+                                        <Typography sx={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.2)", lineHeight: 1.55, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                            <EditIcon sx={{ fontSize: 12 }} /> Add deliverable description...
+                                        </Typography>
+                                    ) : null}
+                                </Box>
+                            )}
+                        </Box>
                     </>
                 )}
 

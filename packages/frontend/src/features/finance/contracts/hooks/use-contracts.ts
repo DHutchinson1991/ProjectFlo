@@ -113,7 +113,12 @@ export function useContractListMutations(inquiryId: number | null | undefined) {
         onSuccess: invalidateList,
     });
 
-    return { sendContract };
+    const deleteContract = useMutation({
+        mutationFn: (contractId: number) => contractsApi.delete(id!, contractId),
+        onSuccess: invalidateList,
+    });
+
+    return { sendContract, deleteContract };
 }
 
 /** Contract-detail mutations (update, sync, send) */

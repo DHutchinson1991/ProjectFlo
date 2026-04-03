@@ -4,6 +4,7 @@ import {
     Post,
     Param,
     Body,
+    Query,
     ValidationPipe,
 } from '@nestjs/common';
 import { ClientPortalService } from './client-portal.service';
@@ -17,9 +18,22 @@ export class PublicClientPortalController {
         return this.clientPortalService.getPortalByToken(token);
     }
 
+    @Get(':token/payments')
+    async getPayments(
+        @Param('token') token: string,
+        @Query('preview') preview?: string,
+    ) {
+        return this.clientPortalService.getPaymentsData(token, preview === 'true');
+    }
+
     @Get(':token/packages')
     async getPackages(@Param('token') token: string) {
         return this.clientPortalService.getPackageOptions(token);
+    }
+
+    @Get(':token/payment-schedules')
+    async getPaymentScheduleOptions(@Param('token') token: string) {
+        return this.clientPortalService.getPaymentScheduleOptions(token);
     }
 
     @Post(':token/package-request')
@@ -36,5 +50,13 @@ export class PublicClientPortalController {
         @Body(new ValidationPipe({ transform: true })) body: { response: string; message?: string },
     ) {
         return this.clientPortalService.respondToProposalByPortalToken(token, body.response, body.message);
+    }
+
+    @Post(':token/section-note')
+    async saveSectionNote(
+        @Param('token') token: string,
+        @Body(new ValidationPipe({ transform: true })) body: { section_type: string; note: string },
+    ) {
+        return this.clientPortalService.saveSectionNote(token, body.section_type, body.note);
     }
 }

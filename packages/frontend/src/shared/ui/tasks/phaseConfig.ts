@@ -48,3 +48,26 @@ export function hexToRgba(hex: string, alpha: number): string {
     const b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+
+// ─── Phase descriptions ────────────────────────────────────────────────────
+
+/** Studio-facing phase descriptions — comprehensive, operational detail */
+export const PHASE_STUDIO_DESCRIPTIONS: Record<string, string> = {
+    Lead:                 'Initial interest and lead capture. Qualify prospects, gather contact details, and assess fit before moving to inquiry.',
+    Inquiry:              'Active discovery and needs assessment. Run questionnaires, consultations, and scope conversations to understand the project requirements.',
+    Booking:              'Contract signing, payment collection, and onboarding. Finalise the package, send the proposal, and secure the booking.',
+    Creative_Development: 'Concept planning, mood boards, style guides, creative briefs, and shot lists. Align creative vision with the client before production begins.',
+    Pre_Production:       'Scheduling, crew assignment, equipment booking, location scouting, and logistics preparation. Everything required before cameras roll.',
+    Production:           'On-site filming, live event coverage, and all day-of capture activities. Manage crew, schedule, and deliverables in real-time.',
+    Post_Production:      'Editing, color grading, sound design, visual effects, and assembly of final deliverables. Iterative review and revision process.',
+    Delivery:             'Final review, client revisions, export, and handoff of finished films and assets. Archive project and close out.',
+};
+
+/** Customer-facing phase descriptions — friendly, client-visible language */
+export const PHASE_CUSTOMER_DESCRIPTIONS: Record<string, string> = {
+    Creative_Development: 'Concept planning, mood boards, and creative vision for your film.',
+    Pre_Production:       'Scheduling, shot planning, and logistics preparation.',
+    Production:           'On-site filming and live event coverage.',
+    Post_Production:      'Editing, color grading, sound design, and visual effects.',
+    Delivery:             'Final review, revisions, and delivery of your finished films.',
+};

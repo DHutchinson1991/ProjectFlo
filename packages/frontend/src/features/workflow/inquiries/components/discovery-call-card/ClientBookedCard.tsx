@@ -3,7 +3,8 @@
 import React from 'react';
 import { Box, Typography, Stack, Button } from '@mui/material';
 import { AccessTime, CalendarToday, EventAvailable, EditCalendar } from '@mui/icons-material';
-import { formatSlotLabel, getMethodIcon } from './helpers';
+import { formatSlotLabel } from '@/shared/utils/dateTime';
+import { getMethodIcon } from '@/shared/utils/meeting';
 
 interface ClientBookedCardProps {
     reqDate: string;

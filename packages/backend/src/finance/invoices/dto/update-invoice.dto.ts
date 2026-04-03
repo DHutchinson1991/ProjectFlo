@@ -9,6 +9,10 @@ export class UpdateInvoiceDto {
     invoice_number?: string;
 
     @IsOptional()
+    @IsString()
+    title?: string;
+
+    @IsOptional()
     @IsDateString()
     issue_date?: string;
 
@@ -21,7 +25,28 @@ export class UpdateInvoiceDto {
     status?: InvoiceStatus;
 
     @IsOptional()
+    @IsNumber()
     project_id?: number;
+
+    @IsOptional()
+    @IsNumber({ maxDecimalPlaces: 2 })
+    tax_rate?: number;
+
+    @IsOptional()
+    @IsString()
+    currency?: string;
+
+    @IsOptional()
+    @IsString()
+    notes?: string;
+
+    @IsOptional()
+    @IsString()
+    terms?: string;
+
+    @IsOptional()
+    @IsString()
+    payment_method?: string;
 
     @IsOptional()
     @IsArray()

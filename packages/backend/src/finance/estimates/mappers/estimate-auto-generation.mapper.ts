@@ -165,8 +165,11 @@ export function buildCrewMapFromTasks(
 
 export function buildPostProductionItems(allCrewMap: Map<string, CrewEntry>): AutoEstimateItem[] {
   const items: AutoEstimateItem[] = [];
+  // Include any entry that has post-production film costs, regardless of its
+  // primary category.  Coverage-role crew whose category was promoted to
+  // Planning still carry ppFilmCosts that must be emitted here.
   const postEntries = Array.from(allCrewMap.values()).filter(
-    (e) => e.category === 'Post-Production',
+    (e) => e.category === 'Post-Production' || e.ppFilmCosts.size > 0,
   );
   if (postEntries.length === 0) return items;
 
@@ -186,7 +189,10 @@ export function buildPostProductionItems(allCrewMap: Map<string, CrewEntry>): Au
       else byFilm.get(filmKey)!.set(crewKey, { name: entry.name, role: entry.role, hours: filmCost.hours, cost: filmCost.cost, rate: entry.rate });
     }
 
-    if (deliveryCost > 0.001) {
+    // Only emit non-film leftover hours as "Post-Production: General" for entries
+    // whose primary category IS Post-Production.  For entries promoted to
+    // Planning/Coverage the leftover is already emitted in the main loop.
+    if (entry.category === 'Post-Production' && deliveryCost > 0.001) {
       if (!byFilm.has('General')) byFilm.set('General', new Map());
       const crewKey = `${entry.name}|${entry.role}`;
       const ex = byFilm.get('General')!.get(crewKey);
@@ -228,17 +234,23 @@ export function buildCrewItemsFromTasks(
 
   for (const entry of allCrewMap.values()) {
     if (entry.category !== 'Planning' && entry.category !== 'Coverage') continue;
-    if (entry.hours > 0) {
+    // Subtract post-production hours already tracked in ppFilmCosts so they
+    // aren't double-counted under Planning/Coverage.
+    const ppHours = Array.from(entry.ppFilmCosts.values()).reduce((s, v) => s + v.hours, 0);
+    const ppCost  = Array.from(entry.ppFilmCosts.values()).reduce((s, v) => s + v.cost, 0);
+    const planHours = entry.hours - ppHours;
+    const planCost  = entry.cost  - ppCost;
+    if (planHours > 0) {
       const derivedRate =
         entry.rate > 0
           ? entry.rate
-          : entry.hours > 0
-            ? entry.cost / entry.hours
-            : entry.cost;
+          : planHours > 0
+            ? planCost / planHours
+            : planCost;
       items.push({
         description: entry.role ? `${entry.name} - ${entry.role}` : entry.name,
         category: entry.category,
-        quantity: roundMoney(entry.hours),
+        quantity: roundMoney(planHours),
         unit: 'Hours',
         unit_price: roundMoney(derivedRate),
       });

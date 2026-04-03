@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Box, Typography, CircularProgress, Stack } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import {
@@ -9,7 +9,7 @@ import {
     Videocam as VideocamIcon,
     AccessTime as AccessTimeIcon,
 } from "@mui/icons-material";
-import { format as fnsFormat, parseISO } from "date-fns";
+import { format as fnsFormat, parseISO, addDays } from "date-fns";
 import { C } from '../../constants/wizard-config';
 import { chipBounce, fadeInUp } from '../../constants/animations';
 import { NACtx } from '../../types';
@@ -17,11 +17,15 @@ import { Q } from '../QuestionWrapper';
 import { DateCal } from '../InlineCalendar';
 
 export default function CallDetailsScreen({ ctx }: { ctx: NACtx }) {
-    const { responses, handleChange, callSlots, callSlotsLoading, callSlotsDuration, fetchCallSlots } = ctx;
+    const { responses, handleChange, callSlots, callSlotsLoading, callSlotsDuration, fetchCallSlots, currentBrand } = ctx;
     const selectedDate = responses.discovery_call_date || "";
     const selectedTime = responses.discovery_call_time || "";
     const availableSlots = callSlots.filter((s) => s.available);
     const hasSlots = availableSlots.length > 0;
+
+    const validityDays = currentBrand?.inquiry_validity_days ?? 14;
+    const today = useMemo(() => new Date(), []);
+    const maxDate = useMemo(() => addDays(today, validityDays), [today, validityDays]);
 
     const handleDatePick = (date: string) => {
         handleChange("discovery_call_date", date);
@@ -73,7 +77,10 @@ export default function CallDetailsScreen({ ctx }: { ctx: NACtx }) {
                     <Typography sx={{ color: C.muted, fontSize: "0.76rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", mb: 1.5, textAlign: "center" }}>
                         Choose a date
                     </Typography>
-                    <DateCal value={selectedDate} onChange={handleDatePick} minDate={new Date()} />
+                    <DateCal value={selectedDate} onChange={handleDatePick} minDate={today} maxDate={maxDate} highlightRange={{ start: today, end: maxDate }} />
+                    <Typography sx={{ color: alpha(C.muted, 0.5), fontSize: "0.72rem", mt: 1.2, textAlign: "center", lineHeight: 1.5 }}>
+                        Highlighted dates are within the {validityDays}-day inquiry window
+                    </Typography>
                 </Box>
 
                 {/* Time slots */}

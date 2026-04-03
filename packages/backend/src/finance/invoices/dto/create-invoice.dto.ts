@@ -13,6 +13,10 @@ export class CreateInvoiceDto {
     @IsString()
     invoice_number: string;
 
+    @IsOptional()
+    @IsString()
+    title?: string;
+
     @IsDateString()
     issue_date: string;
 
@@ -24,7 +28,40 @@ export class CreateInvoiceDto {
     status?: InvoiceStatus = InvoiceStatus.DRAFT;
 
     @IsOptional()
+    @IsNumber()
     project_id?: number;
+
+    @IsOptional()
+    @IsNumber()
+    quote_id?: number;
+
+    @IsOptional()
+    @IsNumber()
+    proposal_id?: number;
+
+    @IsOptional()
+    @IsNumber()
+    milestone_id?: number;
+
+    @IsOptional()
+    @IsNumber({ maxDecimalPlaces: 2 })
+    tax_rate?: number;
+
+    @IsOptional()
+    @IsString()
+    currency?: string;
+
+    @IsOptional()
+    @IsString()
+    notes?: string;
+
+    @IsOptional()
+    @IsString()
+    terms?: string;
+
+    @IsOptional()
+    @IsString()
+    payment_method?: string;
 
     @IsArray()
     @ValidateNested({ each: true })

@@ -98,4 +98,20 @@ export class UpdateTaskLibraryDto {
     @IsOptional()
     @IsBoolean()
     is_on_site?: boolean;
+
+    @IsOptional()
+    @IsBoolean()
+    is_customer_facing?: boolean;
+
+    @IsOptional()
+    @IsString()
+    customer_description?: string | null;
+
+    @IsOptional()
+    @IsBoolean()
+    requires_client_action?: boolean;
+
+    @IsOptional()
+    @IsString()
+    client_deliverable_description?: string | null;
 }

@@ -362,23 +362,60 @@ export function useCreateSceneForm({
             if (newScene.id && filmId && (selectedActivityIds.length > 0 || scheduleDuration)) {
                 try {
                     const primaryActivity = pkgActivities.find((a) => a.id === selectedActivityIds[0]);
-                    const upsertSceneSchedule =
-                        instanceOwnerType === "project"
-                            ? scheduleApi.projectFilms.upsertSceneSchedule
-                            : instanceOwnerType === "inquiry"
-                              ? scheduleApi.inquiryFilms.upsertSceneSchedule
-                              : scheduleApi.film.upsertScene;
                     const eventDayId = primaryActivity
                         ? (pkgEventDays.find((d) => d._joinId === primaryActivity.package_event_day_id)?.id ?? null)
                         : null;
-                    await upsertSceneSchedule(filmId, {
-                        scene_id: newScene.id,
-                        ...(isInstanceOwner
-                            ? { project_activity_id: primaryActivity?.id ?? null, project_event_day_id: eventDayId }
-                            : { event_day_template_id: eventDayId }),
-                        scheduled_start_time: null,
-                        scheduled_duration_minutes: scheduleDuration ? parseInt(scheduleDuration, 10) : null,
-                    });
+
+                    if (isInstanceOwner) {
+                        // Look up the instance film ID (ProjectFilm)
+                        const getFilms = instanceOwnerType === "project"
+                            ? scheduleApi.projectFilms.getAll
+                            : scheduleApi.inquiryFilms.getAll;
+                        const instanceFilms = await getFilms(instanceOwnerId!) as any[];
+                        const matchingIF = (instanceFilms || []).find((f: any) => f.film_id === filmId);
+                        if (matchingIF) {
+                            const upsertSceneSchedule =
+                                instanceOwnerType === "project"
+                                    ? scheduleApi.projectFilms.upsertSceneSchedule
+                                    : scheduleApi.inquiryFilms.upsertSceneSchedule;
+                            await upsertSceneSchedule(matchingIF.id, {
+                                scene_id: newScene.id,
+                                project_activity_id: primaryActivity?.id ?? null,
+                                project_event_day_id: eventDayId,
+                                scheduled_start_time: null,
+                                scheduled_duration_minutes: scheduleDuration ? parseInt(scheduleDuration, 10) : null,
+                            });
+                        }
+                    } else if (packageId) {
+                        // Package template context: use PackageFilmSceneSchedule which supports package_activity_id
+                        const packageFilms = await scheduleApi.packageFilms.getAll(packageId) as any[];
+                        const matchingPF = (packageFilms || []).find((pf: any) => pf.film_id === filmId);
+                        if (matchingPF) {
+                            await scheduleApi.packageFilms.upsertSceneSchedule(matchingPF.id, {
+                                scene_id: newScene.id,
+                                event_day_template_id: eventDayId,
+                                package_activity_id: primaryActivity?.id ?? null,
+                                scheduled_start_time: null,
+                                scheduled_duration_minutes: scheduleDuration ? parseInt(scheduleDuration, 10) : null,
+                            });
+                        } else {
+                            // Fallback: base film schedule (no activity linking)
+                            await scheduleApi.film.upsertScene(filmId, {
+                                scene_id: newScene.id,
+                                event_day_template_id: eventDayId,
+                                scheduled_start_time: null,
+                                scheduled_duration_minutes: scheduleDuration ? parseInt(scheduleDuration, 10) : null,
+                            });
+                        }
+                    } else {
+                        // Standalone film context
+                        await scheduleApi.film.upsertScene(filmId, {
+                            scene_id: newScene.id,
+                            event_day_template_id: eventDayId,
+                            scheduled_start_time: null,
+                            scheduled_duration_minutes: scheduleDuration ? parseInt(scheduleDuration, 10) : null,
+                        });
+                    }
                 } catch (schedErr) {
                     console.error("Failed to save scene schedule:", schedErr);
                 }

@@ -7,6 +7,7 @@ import { InquiryTasksService } from '../../tasks/inquiry/services/inquiry-tasks.
 import { ProposalContentGeneratorService } from './proposal-content-generator.service';
 import { QuotesService } from '../../../finance/quotes/quotes.service';
 import { ContractsService } from '../../../finance/contracts/contracts.service';
+import { InvoicesService } from '../../../finance/invoices/invoices.service';
 
 const PROPOSAL_INCLUDE = {
     inquiry: {
@@ -49,6 +50,7 @@ export class ProposalCrudService {
         private readonly inquiryTasksService: InquiryTasksService,
         private readonly quotesService: QuotesService,
         private readonly contractsService: ContractsService,
+        private readonly invoicesService: InvoicesService,
     ) {}
 
     async findAllByInquiry(inquiryId: number, brandId: number) {
@@ -128,6 +130,13 @@ export class ProposalCrudService {
             }
         } catch (err) {
             this.logger.error(`Failed to auto-compose contract for inquiry ${inquiryId}: ${err instanceof Error ? err.message : err}`);
+        }
+
+        // Auto-generate invoices from quote payment milestones
+        try {
+            await this.invoicesService.autoGenerateFromQuoteMilestones(inquiryId, brandId);
+        } catch (err) {
+            this.logger.error(`Failed to auto-generate invoices for inquiry ${inquiryId}: ${err instanceof Error ? err.message : err}`);
         }
 
         return proposal;

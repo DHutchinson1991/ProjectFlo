@@ -5,7 +5,8 @@
   "private": true,
   "packageManager": "pnpm@8.15.9",
   "scripts": {
-    "dev": "concurrently \"pnpm --filter backend run start:dev\" \"pnpm --filter frontend run dev\"",
+    "dev": "concurrently -n backend,frontend,stripe -c blue,green,magenta \"pnpm --filter backend run start:dev\" \"pnpm --filter frontend run dev\" \"pnpm run stripe:listen\"",
+    "stripe:listen": "node tools/stripe-listen.js",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "format": "prettier --write \"packages/**/*.{js,ts,jsx,tsx,json}\"",

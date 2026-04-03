@@ -26,6 +26,7 @@ import { useBrand } from '@/features/platform/brand';
 import { proposalsApi } from '../api';
 import { proposalKeys } from '../constants';
 import { useProposalDetail, useProposalShareLink } from '../hooks';
+import { clientPortalApi } from '@/features/workflow/client-portal/api';
 
 const STATUS_CONFIG: Record<string, { bg: string; color: string; label: string }> = {
   Draft: { bg: alpha('#ff9800', 0.15), color: '#ffb74d', label: 'Draft' },
@@ -42,7 +43,7 @@ export function ProposalDetailScreen() {
   const inquiryId = Number(params.id);
   const proposalId = Number(params.proposalId);
   const brandId = currentBrand?.id ?? null;
-  const { copyShareUrl, getShareToken } = useProposalShareLink();
+  const { copyShareUrl } = useProposalShareLink();
   const { proposal, isLoading, error } = useProposalDetail(inquiryId, proposalId);
 
   const [notification, setNotification] = useState<{ message: string; severity: 'success' | 'error' | 'info' } | null>(null);
@@ -64,14 +65,7 @@ export function ProposalDetailScreen() {
     if (!proposal) return;
 
     try {
-      const share = await copyShareUrl(inquiryId, proposal);
-      if (!proposal.share_token) {
-        queryClient.setQueryData(proposalKeys.detail(brandId, inquiryId, proposal.id), {
-          ...proposal,
-          share_token: share.token,
-        });
-        await queryClient.invalidateQueries({ queryKey: proposalKeys.byInquiry(brandId, inquiryId) });
-      }
+      await copyShareUrl(inquiryId);
       setNotification({ message: 'Share link copied!', severity: 'success' });
     } catch {
       setNotification({ message: 'Failed to copy link.', severity: 'error' });
@@ -82,15 +76,8 @@ export function ProposalDetailScreen() {
     if (!proposal) return;
 
     try {
-      const token = await getShareToken(inquiryId, proposal);
-      if (!proposal.share_token) {
-        queryClient.setQueryData(proposalKeys.detail(brandId, inquiryId, proposal.id), {
-          ...proposal,
-          share_token: token,
-        });
-        await queryClient.invalidateQueries({ queryKey: proposalKeys.byInquiry(brandId, inquiryId) });
-      }
-      window.open(`/proposals/${token}`, '_blank');
+      const { portal_token } = await clientPortalApi.generateToken(inquiryId);
+      window.open(`/portal/${portal_token}?tab=proposal&preview`, '_blank');
     } catch {
       setNotification({ message: 'Failed to generate preview link.', severity: 'error' });
     }

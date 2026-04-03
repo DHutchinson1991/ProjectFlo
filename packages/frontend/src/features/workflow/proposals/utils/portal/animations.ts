@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { keyframes } from "@mui/material/styles";
 
 /* ------------------------------------------------------------------ */
@@ -55,24 +56,72 @@ export const subtleFloat = keyframes`
     50%      { transform: translateY(-8px) scale(1.02); }
 `;
 
+/* ── Journey tracker animations ──────────────────────────── */
+
+/** Energetic pulse for the active step icon */
+export const journeyPulse = keyframes`
+    0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.4); }
+    50%  { transform: scale(1.06); box-shadow: 0 0 20px 6px rgba(96, 165, 250, 0.15); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.4); }
+`;
+
+/** Calm, slow breathing for waiting state */
+export const journeyBreathe = keyframes`
+    0%, 100% { transform: scale(1); opacity: 0.9; }
+    50%      { transform: scale(1.03); opacity: 1; }
+`;
+
+/** Orbit ring that rotates around the icon */
+export const journeyOrbit = keyframes`
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+`;
+
+/** Icon entrance: starts small + transparent, grows in */
+export const journeyIconEnter = keyframes`
+    0%   { opacity: 0; transform: scale(0.3) rotate(-10deg); }
+    60%  { opacity: 1; transform: scale(1.08) rotate(2deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0deg); }
+`;
+
+/** Icon exit: shrinks and fades */
+export const journeyIconExit = keyframes`
+    0%   { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.5); }
+`;
+
+/** Checkmark stamp for completed steps during playthrough */
+export const journeyCheckStamp = keyframes`
+    0%   { opacity: 0; transform: scale(0); }
+    50%  { opacity: 1; transform: scale(1.3); }
+    100% { opacity: 1; transform: scale(1); }
+`;
+
 /* ------------------------------------------------------------------ */
 /* Scroll-reveal hook                                                  */
 /* ------------------------------------------------------------------ */
 
-export function useReveal(opts?: { threshold?: number; rootMargin?: string }) {
+export function useReveal(opts?: { threshold?: number; rootMargin?: string; rootRef?: RefObject<HTMLElement | null> | null }) {
     const ref = useRef<HTMLDivElement>(null);
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
         const el = ref.current;
         if (!el) return;
+        // Read .current inside useEffect — guaranteed to be the real element
+        // after the DOM commits. Passing null means "use viewport".
+        const rootEl = opts?.rootRef?.current ?? null;
         const observer = new IntersectionObserver(
             ([entry]) => { if (entry.isIntersecting) setVisible(true); },
-            { threshold: opts?.threshold ?? 0.15, rootMargin: opts?.rootMargin ?? "0px 0px -40px 0px" },
+            {
+                threshold: opts?.threshold ?? 0.15,
+                rootMargin: opts?.rootMargin ?? "0px 0px -40px 0px",
+                root: rootEl,
+            },
         );
         observer.observe(el);
         return () => observer.disconnect();
-    }, [opts?.threshold, opts?.rootMargin]);
+    }, [opts?.threshold, opts?.rootMargin, opts?.rootRef]);
 
     return { ref, visible };
 }

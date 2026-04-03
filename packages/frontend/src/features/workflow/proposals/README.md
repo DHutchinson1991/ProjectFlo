@@ -16,11 +16,16 @@ Owns the frontend proposal workflow for studio inquiry proposals and the public 
 | `screens/InquiryProposalsScreen.tsx` | Studio proposal list and actions for an inquiry |
 | `screens/ProposalDetailScreen.tsx` | Studio single-proposal actions and status view |
 | `screens/PublicProposalScreen.tsx` | Public proposal share page and response flow |
-| `screens/ClientPortalScreen.tsx` | Client portal dashboard embedding proposal view |
+| `screens/ClientPortalScreen.tsx` | Client portal dashboard embedding proposal view; sticky top menu includes `Meetings`, `Inquiry`, and `Proposal` page links, while Discovery Call steps in the journey can open a details modal |
+| `screens/PaymentsPortalScreen.tsx` | Client payment portal timeline, inline Stripe checkout actions, and success/cancel return banners |
+| `components/portal/FilmJourneyTracker.tsx` | Overview hero for the client portal journey with the animated icon/ring, editorial heading, and progress meter |
+| `components/portal/JourneyProgressRail.tsx` | Linear portal journey list with step state badges, CTA buttons, and current-step scroll targeting |
+| `components/portal/PortalOverviewPanels.tsx` | Four-panel overview grid linking the client to estimate, questionnaire, proposal, and contract/payment surfaces |
 | `components/ProposalView.tsx` | Orchestrator — composes all section components into the full proposal page |
 | `components/SectionTracker.tsx` | Intersection + dwell-time tracker for section view and duration telemetry |
 | `components/SectionNoteInput.tsx` | Inline per-section client note input on public proposal view |
-| `components/ProposalAcceptanceBar.tsx` | Accept / request-changes CTA bar |
+| `components/ProposalAcceptanceBar.tsx` | Accept / request-changes / reconsideration CTA bar; hides itself when the AcceptanceWizard is active |
+| `components/AcceptanceWizard.tsx` | Multi-step guided flow after proposal acceptance: Congrats → Contract Review & Sign → Payments Overview |
 | `components/ProposalStatusChip.tsx` | Shared status chip for proposal state display |
 | `components/EditorBlock.tsx` | Studio-side EditorJS rich text editor (not used in client view) |
 | `components/sections/` | 11 section components + shared types/utils extracted from ProposalView |
@@ -32,7 +37,9 @@ Owns the frontend proposal workflow for studio inquiry proposals and the public 
 | `components/sections/FilmsSection.tsx` | Film deliverables with type and duration |
 | `components/sections/ScheduleTimelineSection.tsx` | Day timeline with activities, moments |
 | `components/sections/SubjectsSection.tsx` | Key people grid (subjects) |
-| `components/sections/LocationsSection.tsx` | Location list with addresses. **No longer rendered standalone** — location data is now embedded inside `EventDetailsSection`. Component kept for reference. |
+| `components/payments-portal/PaymentsInvoiceCard.tsx` | Invoice detail + payment history rows, including receipt links when available |
+| `components/payments-portal/payments-helpers.tsx` | Shared portal payment types, including enriched Stripe payment metadata |
+| `features/finance/stripe/components/AcceptedPaymentMethods.tsx` | Reusable accepted-method logos used beside Stripe checkout CTAs |
 | `components/sections/TeamTiersSection.tsx` | Tiered crew org-chart (leadership/production/post-prod) with equipment bezier connectors |
 | `components/sections/FooterSection.tsx` | Brand info and contact details |
 | `components/sections/section-utils.tsx` | UI primitives: `SectionDivider`, `RevealBox` |
@@ -50,6 +57,13 @@ Owns the frontend proposal workflow for studio inquiry proposals and the public 
 - Duration telemetry is displayed in studio proposal engagement UI per tracked section.
 - Route files are thin shells only; proposal loading, actions, and notifications live in feature `screens/`.
 - Share links are generated through the feature hook and never by legacy `proposalsService` exports.
+- Stripe portal returns (`?payment=success|cancelled`) must surface immediate client feedback banners on the payments screen.
+- Payment history rows must prefer recorded Stripe metadata (card brand/last4, receipt URL) when present.
+- Client portal top menu should expose Meetings/Inquiry/Proposal as in-page destinations, and Discovery Call tracker steps should support opening a call-details modal.
+- The overview tab pairs the animated hero with a linear journey list and four quick-link overview panels; the hero animation remains the canonical motion treatment for portal progress.
+- After accepting a proposal, the client enters a guided AcceptanceWizard (congrats → contract signing → payments overview). The wizard auto-detects returning visitors who accepted but haven't signed the contract yet.
+- Clients can submit a proposal "for reconsideration" — a softer alternative to "request changes" — which sets `client_response: 'Reconsideration'` and keeps the proposal in Sent status for studio review. The journey step shows "Under Review" with a studio-side waiting state.
+- The AcceptanceWizard embeds contract signing inline (reuses `useSigningContract`/`useSubmitSignature` hooks) and shows payment data inline, avoiding page navigations.
 
 ## Related modules
 - **Backend**: `packages/backend/src/workflow/proposals` and related inquiry proposal controllers/services

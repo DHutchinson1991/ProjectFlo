@@ -69,6 +69,10 @@ export interface TaskLibrary extends BaseEntity {
     parent_task_id?: number | null;
     is_task_group?: boolean;
     is_on_site?: boolean;
+    is_customer_facing?: boolean;
+    customer_description?: string | null;
+    requires_client_action?: boolean;
+    client_deliverable_description?: string | null;
     children?: TaskLibrary[];
     task_library_subtask_templates?: TaskLibrarySubtaskTemplate[];
 }
@@ -142,6 +146,10 @@ export interface CreateTaskLibraryDto {
     default_crew_id?: number;
     skills_needed?: string[];
     is_on_site?: boolean;
+    is_customer_facing?: boolean;
+    customer_description?: string;
+    requires_client_action?: boolean;
+    client_deliverable_description?: string;
 }
 
 export interface UpdateTaskLibraryDto extends Partial<CreateTaskLibraryDto> {

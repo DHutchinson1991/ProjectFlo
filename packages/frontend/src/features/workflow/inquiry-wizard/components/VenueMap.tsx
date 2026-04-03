@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { MapContainer, TileLayer, Marker } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 
 /* ── Fix default Leaflet marker icons in Next.js ──────────────── */
@@ -17,6 +17,17 @@ const greenPin = new L.Icon({
     popupAnchor: [1, -34],
     shadowSize: [41, 41],
 });
+
+/* ── Force Leaflet to recalculate size after dynamic-import mount ── */
+function InvalidateSize() {
+    const map = useMap();
+    React.useEffect(() => {
+        // Small delay lets the flex container finish layout before Leaflet measures
+        const t = setTimeout(() => map.invalidateSize(), 150);
+        return () => clearTimeout(t);
+    }, [map]);
+    return null;
+}
 
 interface VenueMapProps {
     lat: number;
@@ -51,6 +62,7 @@ export default function VenueMap({ lat, lng, height = 300, interactive = false }
                     maxZoom={19}
                 />
                 <Marker position={[lat, lng]} icon={greenPin} />
+                <InvalidateSize />
             </MapContainer>
         </div>
     );

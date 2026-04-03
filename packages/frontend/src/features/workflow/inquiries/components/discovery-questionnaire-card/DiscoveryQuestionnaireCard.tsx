@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
     Box,
     Typography,
@@ -21,64 +21,24 @@ import {
     AccessTime,
     DescriptionOutlined,
     VideocamOff,
-    LocalFireDepartment,
-    AccountBalanceWallet,
-    ThumbUpAlt,
-    FlagOutlined,
 } from '@mui/icons-material';
-import { discoveryQuestionnaireSubmissionsApi } from '@/features/workflow/inquiries/api';
 import { useBrand } from '@/features/platform/brand';
 import { useAuth } from '@/features/platform/auth';
 import { DiscoveryQuestionnaireSubmission } from '@/features/workflow/inquiries/types';
-import { WorkflowCard } from '../WorkflowCard';
+import { WorkflowCard } from '@/shared/ui/WorkflowCard';
 import DiscoveryQuestionnaireFormDialog from './DiscoveryQuestionnaireFormDialog';
 import type { WorkflowCardProps } from '../../lib';
+
+interface DiscoveryCardProps extends Omit<WorkflowCardProps, 'submission'> {
+    submission: DiscoveryQuestionnaireSubmission | null;
+    onRefreshSubmission: () => Promise<void>;
+}
 
 // ─── Accent colour ────────────────────────────────────────────────────────────
 const ACCENT = '#3b82f6';
 
-// ─── Key response fields to highlight ─────────────────────────────────────────
-const KEY_FIELDS: Array<{ key: string; label: string }> = [
-    { key: 'film_vibe', label: 'Vibe' },
-    { key: 'style_preferences', label: 'Style' },
-    { key: 'camera_comfort', label: 'Camera Comfort' },
-    { key: 'desired_products', label: 'Products' },
-    { key: 'highlight_length', label: 'Film Length' },
-    { key: 'budget_fit', label: 'Budget Fit' },
-    { key: 'decision_timeline', label: 'Decision' },
-    { key: 'ready_for_proposal', label: 'Proposal?' },
-];
-
 // Keys that aren't real questionnaire answers (metadata / internal)
 const META_KEYS = new Set(['recording_consent', 'opening_notes', 'closing_notes', 'payment_terms_confirmed']);
-
-// ─── Sentiment definitions (match dialog) ─────────────────────────────────────
-const SENTIMENT_DEFS = [
-    {
-        key: 'excitement',
-        label: 'Excitement',
-        icon: LocalFireDepartment,
-        colors: { High: '#10b981', Moderate: '#f59e0b', Low: '#ef4444' } as Record<string, string>,
-    },
-    {
-        key: 'budget_comfort',
-        label: 'Budget',
-        icon: AccountBalanceWallet,
-        colors: { Comfortable: '#10b981', Stretching: '#f59e0b', Concerned: '#ef4444' } as Record<string, string>,
-    },
-    {
-        key: 'decision_readiness',
-        label: 'Decision',
-        icon: ThumbUpAlt,
-        colors: { Ready: '#10b981', Warm: '#f59e0b', 'Early Stage': '#64748b' } as Record<string, string>,
-    },
-    {
-        key: 'red_flags',
-        label: 'Red Flags',
-        icon: FlagOutlined,
-        colors: { None: '#10b981', Minor: '#f59e0b', Significant: '#ef4444' } as Record<string, string>,
-    },
-];
 
 function fmtVal(v: unknown): string {
     if (!v) return '';
@@ -101,40 +61,25 @@ function formatDuration(seconds: number): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const DiscoveryQuestionnaireCard: React.FC<WorkflowCardProps> = ({
+const DiscoveryQuestionnaireCard: React.FC<DiscoveryCardProps> = ({
     inquiry,
     onRefresh,
     isActive,
     activeColor,
+    submission,
+    onRefreshSubmission,
 }) => {
     const { currentBrand } = useBrand();
     const { user } = useAuth();
-    const [submission, setSubmission] = useState<DiscoveryQuestionnaireSubmission | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
 
-    useEffect(() => {
-        if (!inquiry?.id) return;
-        discoveryQuestionnaireSubmissionsApi
-            .getByInquiryId(inquiry.id)
-            .then((s) => {
-                if (s && typeof s === 'object' && 'id' in s) {
-                    setSubmission(s);
-                } else {
-                    setSubmission(null);
-                }
-            })
-            .catch(() => setSubmission(null));
-    }, [inquiry?.id]);
-
-    const handleSubmitted = async (s: DiscoveryQuestionnaireSubmission) => {
-        setSubmission(s);
+    const handleSubmitted = async (_s: DiscoveryQuestionnaireSubmission) => {
         setDialogOpen(false);
+        await onRefreshSubmission();
         if (onRefresh) await onRefresh();
     };
 
     const responses = (submission?.responses ?? {}) as Record<string, unknown>;
-    const sentiment = (submission?.sentiment ?? {}) as Record<string, string>;
-    const visibleFields = KEY_FIELDS.filter(({ key }) => fmtVal(responses[key]));
 
     const totalQuestions = useMemo(() => {
         const questions = submission?.template?.questions;
@@ -279,155 +224,29 @@ const DiscoveryQuestionnaireCard: React.FC<WorkflowCardProps> = ({
                                 )}
                             </Stack>
 
-                            {/* ── Two-column layout: Left (2/3) + Right sentiment (1/3) ── */}
-                            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                                {/* Left column — reserved for future features */}
-                                <Box sx={{ flex: '1 1 66%', minWidth: 0 }}>
-                                    {/* Call notes */}
-                                    {submission.call_notes && (
-                                        <Tooltip title={submission.call_notes} placement="top" arrow>
-                                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75, mb: 1.5 }}>
-                                                <NoteAltOutlined sx={{ fontSize: 14, color: '#f59e0b', mt: 0.2, flexShrink: 0 }} />
-                                                <Typography
-                                                    sx={{
-                                                        color: '#94a3b8',
-                                                        fontSize: '0.75rem',
-                                                        fontStyle: 'italic',
-                                                        display: '-webkit-box',
-                                                        WebkitLineClamp: 3,
-                                                        WebkitBoxOrient: 'vertical',
-                                                        overflow: 'hidden',
-                                                        cursor: 'default',
-                                                        lineHeight: 1.6,
-                                                    }}
-                                                >
-                                                    {submission.call_notes}
-                                                </Typography>
-                                            </Box>
-                                        </Tooltip>
-                                    )}
-
-                                    {/* Key highlights */}
-                                    {visibleFields.length > 0 && (
-                                        <Stack spacing={0.5}>
-                                            {visibleFields.slice(0, 4).map(({ key, label }) => (
-                                                <Box key={key} sx={{ display: 'flex', gap: 1, alignItems: 'baseline' }}>
-                                                    <Typography sx={{ color: '#475569', fontSize: '0.72rem', fontWeight: 600, minWidth: 72, flexShrink: 0 }}>
-                                                        {label}
-                                                    </Typography>
-                                                    <Typography
-                                                        sx={{
-                                                            color: '#94a3b8',
-                                                            fontSize: '0.72rem',
-                                                            lineHeight: 1.4,
-                                                            overflow: 'hidden',
-                                                            textOverflow: 'ellipsis',
-                                                            whiteSpace: 'nowrap',
-                                                        }}
-                                                    >
-                                                        {fmtVal(responses[key])}
-                                                    </Typography>
-                                                </Box>
-                                            ))}
-                                        </Stack>
-                                    )}
-                                </Box>
-
-                                {/* Right column — Sentiment 4×2 grid (1/3 width) */}
-                                <Box sx={{ flex: '0 0 34%' }}>
-                                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 0.75 }}>
-                                        {SENTIMENT_DEFS.map(({ key, label, icon: Icon, colors }) => {
-                                            const val = sentiment[key];
-                                            const color = val ? (colors[val] ?? '#64748b') : '#334155';
-                                            return (
-                                                <Box
-                                                    key={key}
-                                                    sx={{
-                                                        display: 'flex',
-                                                        flexDirection: 'column',
-                                                        alignItems: 'center',
-                                                        gap: 0.25,
-                                                        py: 1,
-                                                        px: 0.5,
-                                                        borderRadius: 2,
-                                                        bgcolor: val ? `${color}08` : 'rgba(100,116,139,0.03)',
-                                                        border: `1px solid ${val ? `${color}20` : 'rgba(100,116,139,0.06)'}`,
-                                                        transition: 'all 0.15s ease',
-                                                        ...(val && {
-                                                            '&:hover': {
-                                                                bgcolor: `${color}10`,
-                                                                borderColor: `${color}30`,
-                                                            },
-                                                        }),
-                                                    }}
-                                                >
-                                                    <Box
-                                                        sx={{
-                                                            width: 24,
-                                                            height: 24,
-                                                            borderRadius: '50%',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            bgcolor: val ? `${color}15` : 'rgba(100,116,139,0.06)',
-                                                        }}
-                                                    >
-                                                        <Icon sx={{ fontSize: 13, color: val ? color : '#475569' }} />
-                                                    </Box>
-                                                    <Typography sx={{ color: val ? '#94a3b8' : '#475569', fontSize: '0.55rem', fontWeight: 500, lineHeight: 1.2, textAlign: 'center' }}>
-                                                        {label}
-                                                    </Typography>
-                                                    <Typography sx={{ color: val ? color : '#334155', fontSize: '0.67rem', fontWeight: 700, lineHeight: 1.1, textAlign: 'center' }}>
-                                                        {val || '—'}
-                                                    </Typography>
-                                                </Box>
-                                            );
-                                        })}
-                                        {/* Placeholder tiles for row 2 */}
-                                        {[
-                                            { label: 'Fit Score', icon: CheckCircle },
-                                            { label: 'Follow-up', icon: AccessTime },
-                                            { label: 'Referral', icon: GraphicEq },
-                                            { label: 'Vibe Match', icon: LocalFireDepartment },
-                                        ].map(({ label, icon: PlaceholderIcon }) => (
-                                            <Box
-                                                key={label}
-                                                sx={{
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    alignItems: 'center',
-                                                    gap: 0.25,
-                                                    py: 1,
-                                                    px: 0.5,
-                                                    borderRadius: 2,
-                                                    bgcolor: 'rgba(100,116,139,0.02)',
-                                                    border: '1px dashed rgba(100,116,139,0.1)',
-                                                }}
-                                            >
-                                                <Box
-                                                    sx={{
-                                                        width: 24,
-                                                        height: 24,
-                                                        borderRadius: '50%',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        bgcolor: 'rgba(100,116,139,0.04)',
-                                                    }}
-                                                >
-                                                    <PlaceholderIcon sx={{ fontSize: 13, color: '#334155' }} />
-                                                </Box>
-                                                <Typography sx={{ color: '#334155', fontSize: '0.55rem', fontWeight: 500, lineHeight: 1.2, textAlign: 'center' }}>
-                                                    {label}
-                                                </Typography>
-                                                <Typography sx={{ color: '#1e293b', fontSize: '0.67rem', fontWeight: 700, lineHeight: 1.1, textAlign: 'center' }}>
-                                                    —
-                                                </Typography>
-                                            </Box>
-                                        ))}
+                            {/* ── Call notes ───────────────────────────────── */}
+                            {submission.call_notes && (
+                                <Tooltip title={submission.call_notes} placement="top" arrow>
+                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75, mb: 2 }}>
+                                        <NoteAltOutlined sx={{ fontSize: 14, color: '#f59e0b', mt: 0.2, flexShrink: 0 }} />
+                                        <Typography
+                                            sx={{
+                                                color: '#94a3b8',
+                                                fontSize: '0.75rem',
+                                                fontStyle: 'italic',
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 3,
+                                                WebkitBoxOrient: 'vertical',
+                                                overflow: 'hidden',
+                                                cursor: 'default',
+                                                lineHeight: 1.6,
+                                            }}
+                                        >
+                                            {submission.call_notes}
+                                        </Typography>
                                     </Box>
-                                </Box>
-                            </Box>
+                                </Tooltip>
+                            )}
 
                             {/* ── Progress bar ─────────────────────────────── */}
                             <Box sx={{ mb: 2 }}>

@@ -1,4 +1,4 @@
-﻿export { PHASE_CONFIG, PHASE_ORDER, getPhaseConfig, hexToRgba } from './phaseConfig';
+﻿export { PHASE_CONFIG, PHASE_ORDER, getPhaseConfig, hexToRgba, PHASE_STUDIO_DESCRIPTIONS, PHASE_CUSTOMER_DESCRIPTIONS } from './phaseConfig';
 export type { PhaseConfig } from './phaseConfig';
 export { TaskGroupHeader } from './TaskGroupHeader';
 export type { TaskGroupHeaderProps } from './TaskGroupHeader';

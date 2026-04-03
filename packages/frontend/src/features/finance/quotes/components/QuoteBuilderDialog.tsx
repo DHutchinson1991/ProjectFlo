@@ -17,7 +17,7 @@ import { useBrand } from '@/features/platform/brand';
 import { FinanceSummarySidebar } from '@/features/finance/shared';
 import { computeTaxBreakdown, computeLineTotal } from '@/shared/utils/pricing';
 import { formatCurrency, DEFAULT_CURRENCY } from '@projectflo/shared';
-import LineItemEditor, { LineItem } from '@/features/workflow/inquiries/components/LineItemEditor';
+import LineItemEditor, { LineItem } from '@/features/finance/shared/components/line-item-editor';
 import type { Quote, QuoteItem, QuotePaymentMilestone } from '../types';
 import type { Estimate, EstimateItem } from '@/features/finance/estimates/types';
 import type { FinanceMilestone } from '@/features/finance/shared/types';

@@ -132,9 +132,9 @@ const TASK_SECTION_MAP: Record<string, string> = {
   // ── Booking stage ──
   'Contract Signed': 'contracts-section',
   'Raise Deposit Invoice': 'contracts-section',
-  'Block Wedding Date': 'approval-section',
-  'Confirm Booking': 'approval-section',
-  'Send Welcome Pack': 'approval-section',
+  'Block Wedding Date': 'qualify-respond-section',
+  'Confirm Booking': 'qualify-respond-section',
+  'Send Welcome Pack': 'qualify-respond-section',
 };
 
 // Maps stage (task group) names → section DOM IDs
@@ -146,10 +146,10 @@ const STAGE_SECTION_MAP: Record<string, string> = {
   'Discovery Call': 'calls-section',
   'Proposal': 'proposals-section',
   'Proposals': 'proposals-section',
-  'Proposal Review': 'proposal-review-section',
-  'Client Approval': 'approval-section',
+  'Proposal Review': 'proposals-section',
+  'Client Approval': 'proposals-section',
   'Contracts': 'contracts-section',
-  'Booking': 'contracts-section',
+  'Booking': 'qualify-respond-section',
 };
 
 function getSectionIdForTask(taskName: string, stageName?: string): string | null {

@@ -2,6 +2,23 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { randomUUID } from 'crypto';
 
+/** Standalone intro-message generator — usable outside the service class.
+ *  Returns `greeting|body` — the pipe separates the salutation from the message. */
+export function generateIntroMessageFromTemplate(eventType: string, firstName: string): string {
+    switch (eventType.toLowerCase()) {
+        case 'wedding':
+            return `Dear ${firstName},|Thank you for considering us to capture your wedding day. We're truly honoured and excited to be part of this incredible chapter in your love story — and we can't wait to bring your vision to life.`;
+        case 'birthday':
+            return `Dear ${firstName},|We're thrilled to help make your birthday celebration one to remember. Every special moment deserves to be captured beautifully, and we'd love to do exactly that for you.`;
+        case 'corporate':
+            return `Dear ${firstName},|Thank you for considering us for your corporate event. We understand the importance of professional, polished content and we're ready to deliver exactly that.`;
+        case 'anniversary':
+            return `Dear ${firstName},|Congratulations on this wonderful milestone. We'd love to help you celebrate and capture the magic of your anniversary in a way you'll treasure forever.`;
+        default:
+            return `Dear ${firstName},|Thank you for choosing us for your upcoming ${eventType.toLowerCase()}. We can't wait to create something truly memorable for you.`;
+    }
+}
+
 interface ProposalDefaults {
     introMessageTemplate?: string;
     heroTitleTemplate?: string;
@@ -86,18 +103,7 @@ export class ProposalContentGeneratorService {
         if (template) {
             return this.resolveTemplate(template, { first_name: firstName, last_name: _lastName, event_type: eventType });
         }
-        switch (eventType.toLowerCase()) {
-            case 'wedding':
-                return `Dear ${firstName}, thank you for considering us to capture your wedding day. We're truly honoured and excited to be part of this incredible chapter in your love story. Here's what we have in mind for you.`;
-            case 'birthday':
-                return `Dear ${firstName}, we're thrilled to help make your birthday celebration one to remember! Here's our plan to capture all the joy and special moments of your big day.`;
-            case 'corporate':
-                return `Dear ${firstName}, thank you for considering us for your corporate event. We understand the importance of professional, polished content and we're ready to deliver exactly that.`;
-            case 'anniversary':
-                return `Dear ${firstName}, congratulations on this wonderful milestone! We'd love to help you celebrate and capture the magic of your anniversary.`;
-            default:
-                return `Dear ${firstName}, thank you for choosing us for your upcoming ${eventType.toLowerCase()}. We can't wait to create something truly memorable for you. Here's what we've prepared.`;
-        }
+        return generateIntroMessageFromTemplate(eventType, firstName);
     }
 
     private resolveTemplate(template: string, vars: Record<string, string>): string {
@@ -121,7 +127,7 @@ export class ProposalContentGeneratorService {
                 case 'pricing': sections.push({ id: sId, type: 'pricing', isVisible: true, data: { packageId: inquiry.selected_package_id || null, items: [], showLineItems: true, showTotal: true, allowAddons: false } }); break;
                 case 'package-details': sections.push({ id: sId, type: 'package-details', isVisible: true, data: { title: 'Your Package', showDescription: true, showItems: true } }); break;
                 case 'films': sections.push({ id: sId, type: 'films', isVisible: true, data: { title: 'Your Films', showDuration: true } }); break;
-                case 'schedule': sections.push({ id: sId, type: 'schedule', isVisible: true, data: { ownerType: 'inquiry', ownerId: inquiry.id, title: 'Your Day Timeline', showDetails: true } }); break;
+                case 'schedule': sections.push({ id: sId, type: 'schedule', isVisible: true, data: { ownerType: 'inquiry', ownerId: inquiry.id, title: 'Your Timeline', showDetails: true } }); break;
                 case 'subjects': sections.push({ id: sId, type: 'subjects', isVisible: true, data: { title: 'Key People', showRealNames: true } }); break;
                 case 'locations': sections.push({ id: sId, type: 'locations', isVisible: true, data: { title: 'Locations', showAddress: true } }); break;
                 case 'crew': sections.push({ id: sId, type: 'crew', isVisible: true, data: { title: 'Your Team' } }); break;
@@ -143,7 +149,7 @@ export class ProposalContentGeneratorService {
             { id: id(), type: 'pricing', isVisible: true, data: { packageId: inquiry.selected_package_id || null, items: [], showLineItems: true, showTotal: true, allowAddons: false } },
             { id: id(), type: 'package-details', isVisible: true, data: { title: 'Your Package', showDescription: true, showItems: true } },
             { id: id(), type: 'films', isVisible: true, data: { title: 'Your Films', showDuration: true } },
-            { id: id(), type: 'schedule', isVisible: true, data: { ownerType: 'inquiry', ownerId: inquiry.id, title: 'Your Day Timeline', showDetails: true } },
+            { id: id(), type: 'schedule', isVisible: true, data: { ownerType: 'inquiry', ownerId: inquiry.id, title: 'Your Timeline', showDetails: true } },
             { id: id(), type: 'subjects', isVisible: true, data: { title: 'Key People', showRealNames: true } },
             { id: id(), type: 'locations', isVisible: true, data: { title: 'Locations', showAddress: true } },
             { id: id(), type: 'terms', isVisible: true, data: { title: 'Terms & Conditions', termsText: defaults.termsText || '' } },

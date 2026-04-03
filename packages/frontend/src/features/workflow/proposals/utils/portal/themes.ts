@@ -49,8 +49,8 @@ export function getThemeColors(theme?: string): PortalThemeColors {
         case "cinematic-dark":
         default:
             return {
-                bg: "#09090b", card: "#18181b", text: "#fafafa", muted: "#a1a1aa",
-                accent: "#7c4dff", border: "#27272a", accentSoft: "#1e1b4b",
+                bg: "#0c0c10", card: "#1a1a22", text: "#f4f4f5", muted: "#a1a1aa",
+                accent: "#7c4dff", border: "#2a2a35", accentSoft: "#1e1b4b",
                 gradient1: "#7c4dff", gradient2: "#a855f7",
             };
     }

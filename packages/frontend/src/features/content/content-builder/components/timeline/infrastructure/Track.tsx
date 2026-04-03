@@ -33,6 +33,29 @@ const Track: React.FC<TimelineTrackProps> = ({
     const { equipmentAssignmentsBySlot, trackDefaults, setTrackDefault, scenes, packageSubjects } = useContentBuilder();
     const [defaultDialogOpen, setDefaultDialogOpen] = React.useState(false);
 
+    // Derive current default from scenes data when in-memory default is absent (e.g. after page load)
+    const currentDefault = React.useMemo(() => {
+        if (trackDefaults[track.id]) return trackDefaults[track.id];
+        const isVideo = track.track_type?.toUpperCase() === 'VIDEO';
+        const isAudio = track.track_type?.toUpperCase() === 'AUDIO';
+        for (const scene of scenes) {
+            const moments = (scene as unknown as { moments?: Array<{ recording_setup?: { camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null }>; audio_track_ids?: number[] } }> }).moments ?? [];
+            for (const moment of moments) {
+                const setup = moment.recording_setup;
+                if (!setup) continue;
+                if (isVideo) {
+                    const assignment = setup.camera_assignments?.find((a) => a.track_id === track.id);
+                    if (assignment) {
+                        return { subject_ids: assignment.subject_ids ?? [], shot_type: assignment.shot_type ?? "" };
+                    }
+                } else if (isAudio && Array.isArray(setup.audio_track_ids)) {
+                    return { subject_ids: [], shot_type: "", audio_enabled: setup.audio_track_ids.includes(track.id) };
+                }
+            }
+        }
+        return undefined;
+    }, [trackDefaults, track.id, track.track_type, scenes]);
+
     const { isOver, setNodeRef } = useDroppable({
         id: `timeline-track-${track.id}`,
         data: {
@@ -234,7 +257,7 @@ const Track: React.FC<TimelineTrackProps> = ({
                 <TrackDefaultDialog
                     open={defaultDialogOpen}
                     track={track}
-                    currentDefault={trackDefaults[track.id]}
+                    currentDefault={currentDefault}
                     packageSubjects={packageSubjects as Array<{ id: number; name: string }>}
                     scenes={scenes}
                     onClose={() => setDefaultDialogOpen(false)}

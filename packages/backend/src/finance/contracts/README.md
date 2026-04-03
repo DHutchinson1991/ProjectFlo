@@ -24,6 +24,7 @@ CRUD for contracts, contract templates, and contract clauses. Contracts are gene
 - Template variables are resolved at compose/preview time from inquiry + contact + brand data.
 - `escapeHtml` sanitizes user-supplied text before interpolation into HTML content.
 - Contract signing uses a unique `signer_token` for unauthenticated access.
+- Signer role **`studio`** is auto-signed immediately when the contract is published — status set to `signed`, `signature_text` set to the signer's name, no signing link required.
 - Submitting a signature auto-completes the "Send Contract" inquiry task and generates a deposit invoice.
 - Default clauses are seeded per country code (common + GB/US overrides + Talent/Location Release).
 

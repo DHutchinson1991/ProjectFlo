@@ -138,6 +138,13 @@ export function PublicProposalScreen() {
   const inquiry = proposal.inquiry;
   const contact = inquiry.contact;
   const estimate = inquiry.estimates?.[0];
+  const rawQuote = inquiry.quotes?.[0] ?? null;
+  const contract = inquiry.contracts?.[0] ?? null;
+
+  // If quote exists but has no payment milestones, fall back to estimate milestones
+  const quote = rawQuote && !(rawQuote.payment_milestones?.length) && (estimate as any)?.payment_milestones?.length
+    ? { ...rawQuote, payment_milestones: (estimate as any).payment_milestones }
+    : rawQuote;
   const clientName = `${contact.first_name} ${contact.last_name}`;
   const alreadyResponded = !!proposal.client_response;
   const isDark = !content?.theme || content.theme === 'cinematic-dark';
@@ -150,15 +157,20 @@ export function PublicProposalScreen() {
       pkg={inquiry.selected_package}
       eventDays={inquiry.schedule_event_days || []}
       films={inquiry.schedule_films || []}
+      phases={proposal.projectPhases || []}
       clientName={clientName}
       weddingDate={inquiry.wedding_date}
       venueDetails={inquiry.venue_details}
       venueAddress={inquiry.venue_address}
       colors={colors}
+      quote={quote}
+      contract={contract}
       onSectionView={onSectionView}
       onSectionDuration={onSectionDuration}
       onSectionNote={isPreview ? undefined : handleSectionNote}
       sectionNotes={proposal.section_notes}
+      personalMessage={proposal.personalMessage}
+      expiryDate={(estimate as any)?.expiry_date ?? null}
       ctaSlot={
         <ProposalAcceptanceBar
           colors={colors}
@@ -170,6 +182,7 @@ export function PublicProposalScreen() {
           responseSuccess={!!responseSuccess}
           onAccept={handleAccept}
           onRequestChanges={handleRequestChanges}
+          sectionNotes={proposal.section_notes}
         />
       }
     />

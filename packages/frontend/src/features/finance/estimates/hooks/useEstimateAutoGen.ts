@@ -14,7 +14,7 @@ import {
     NON_DELIVERY_PHASES,
 } from '@/shared/utils/rates';
 import type { RateResolvable, CrewAccum } from '@/shared/utils/rates';
-import type { LineItem } from '@/features/workflow/inquiries/components/LineItemEditor';
+import type { LineItem } from '@/features/finance/shared/components/line-item-editor';
 import type { Inquiry } from '@/features/workflow/inquiries/types';
 
 const makeTempId = () => `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

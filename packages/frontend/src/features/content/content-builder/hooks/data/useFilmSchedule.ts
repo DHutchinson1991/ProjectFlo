@@ -52,11 +52,15 @@ export interface SceneScheduleData {
  * @param brandId   - The brand ID for event day templates
  * @param packageId - Optional package context; when provided, saves use
  *                    PackageFilmSceneSchedule (which supports package_activity_id)
+ * @param instanceOwnerType - Optional instance context ('project' | 'inquiry')
+ * @param instanceOwnerId   - Optional instance owner ID (project or inquiry ID)
  */
 export function useFilmSchedule(
   filmId: number | null | undefined,
   brandId: number | null | undefined,
   packageId?: number | null | undefined,
+  instanceOwnerType?: 'project' | 'inquiry' | null,
+  instanceOwnerId?: number | null,
 ) {
   const [eventDays, setEventDays] = useState<EventDay[]>([]);
   const [scheduleMap, setScheduleMap] = useState<Map<number, SceneScheduleData>>(new Map());
@@ -65,10 +69,13 @@ export function useFilmSchedule(
   const loadedRef = useRef<string | null>(null);
   // Tracks the resolved packageFilmId when a packageId is provided
   const packageFilmIdRef = useRef<number | null>(null);
+  // Tracks the resolved instance film ID (ProjectFilm) when in instance context
+  const instanceFilmIdRef = useRef<number | null>(null);
+  const isInstanceOwner = Boolean(instanceOwnerType && instanceOwnerId);
 
   // Load schedule data
   useEffect(() => {
-    const key = `${filmId}-${brandId}-${packageId ?? 0}`;
+    const key = `${filmId}-${brandId}-${packageId ?? 0}-${instanceOwnerType ?? ''}-${instanceOwnerId ?? 0}`;
     if (!filmId || loadedRef.current === key) return;
     let mounted = true;
 
@@ -76,6 +83,7 @@ export function useFilmSchedule(
       setLoading(true);
       setError(null);
       packageFilmIdRef.current = null;
+      instanceFilmIdRef.current = null;
       try {
         // Load event day templates
         if (brandId) {
@@ -83,14 +91,71 @@ export function useFilmSchedule(
           if (mounted) setEventDays(days);
         }
 
+        // Instance owner context (project / inquiry): use resolved endpoint
+        if (isInstanceOwner && instanceOwnerId) {
+          // Look up the instance film ID for saving later
+          const getFilms = instanceOwnerType === 'project'
+            ? scheduleApi.projectFilms.getAll
+            : scheduleApi.inquiryFilms.getAll;
+          const instanceFilms = await getFilms(instanceOwnerId) as any[];
+          const matchingIF = (instanceFilms || []).find((f: any) => f.film_id === filmId);
+          if (matchingIF) {
+            instanceFilmIdRef.current = matchingIF.id;
+          }
+
+          // Also look up packageFilm for the resolved endpoint
+          let packageFilmId: number | undefined;
+          if (packageId) {
+            const packageFilms = await scheduleApi.packageFilms.getAll(packageId) as any[];
+            const matchingPF = (packageFilms || []).find((pf: any) => pf.film_id === filmId);
+            if (matchingPF) {
+              packageFilmIdRef.current = matchingPF.id;
+              packageFilmId = matchingPF.id;
+            }
+          }
+
+          // Use the resolved endpoint which merges project → package → film defaults
+          const resolved = await scheduleApi.getResolved(filmId, {
+            packageFilmId,
+            projectFilmId: matchingIF?.id,
+          }) as any;
+
+          if (mounted && resolved?.scenes) {
+            const map = new Map<number, SceneScheduleData>();
+            for (const scene of resolved.scenes) {
+              // Extract the best activity ID: project override first, then package override
+              const projectActivityId = scene.project_override?.project_activity_id ?? null;
+              const packageActivityId = scene.package_override?.package_activity_id ?? null;
+              // Normalise to package_activity_id in local state for consistency
+              const activityId = projectActivityId ?? packageActivityId;
+
+              map.set(scene.scene_id, {
+                scene_id: scene.scene_id,
+                event_day_template_id: scene.event_day?.id ?? null,
+                package_activity_id: activityId,
+                scheduled_start_time: scene.scheduled_start_time ?? null,
+                scheduled_duration_minutes: scene.scheduled_duration_minutes ?? null,
+                moment_schedules: scene.moment_schedules ?? null,
+                beat_schedules: scene.beat_schedules ?? null,
+                notes: scene.notes ?? null,
+                order_index: scene.order_index,
+                event_day: scene.event_day ?? null,
+              });
+            }
+            setScheduleMap(map);
+            loadedRef.current = key;
+            return;
+          }
+        }
+
         // When a packageId is provided, load the package-specific scene schedules
         // (PackageFilmSceneSchedule supports package_activity_id)
         if (packageId) {
-          const packageFilms = await scheduleApi.packageFilms.getAll(packageId);
+          const packageFilms = await scheduleApi.packageFilms.getAll(packageId) as any[];
           const matchingPF = (packageFilms || []).find((pf: any) => pf.film_id === filmId);
           if (matchingPF) {
             packageFilmIdRef.current = matchingPF.id;
-            const pfData = await scheduleApi.packageFilms.getSchedule(matchingPF.id);
+            const pfData = await scheduleApi.packageFilms.getSchedule(matchingPF.id) as any;
             if (mounted && pfData?.scene_schedules) {
               const map = new Map<number, SceneScheduleData>();
               for (const sched of pfData.scene_schedules) {
@@ -104,7 +169,7 @@ export function useFilmSchedule(
         }
 
         // Fallback: load base film schedule (no package_activity_id)
-        const filmData = await scheduleApi.film.get(filmId);
+        const filmData = await scheduleApi.film.get(filmId) as any;
         if (mounted && filmData?.scenes) {
           const map = new Map<number, SceneScheduleData>();
           for (const scene of filmData.scenes) {
@@ -126,7 +191,7 @@ export function useFilmSchedule(
 
     load();
     return () => { mounted = false; };
-  }, [filmId, brandId, packageId]);
+  }, [filmId, brandId, packageId, instanceOwnerType, instanceOwnerId, isInstanceOwner]);
 
   // ─── Scene-level schedule ──────────────────────────────────────────
 
@@ -157,10 +222,27 @@ export function useFilmSchedule(
       if (!sched) return;
 
       try {
+        const instanceFilmId = instanceFilmIdRef.current;
         const packageFilmId = packageFilmIdRef.current;
-        if (packageFilmId) {
+
+        if (instanceFilmId && isInstanceOwner) {
+          // Instance context: save to ProjectFilmSceneSchedule (project_activity_id)
+          const upsertFn = instanceOwnerType === 'project'
+            ? scheduleApi.projectFilms.upsertSceneSchedule
+            : scheduleApi.inquiryFilms.upsertSceneSchedule;
+          await upsertFn(instanceFilmId, {
+            scene_id: sceneId,
+            project_activity_id: sched.package_activity_id ?? null,
+            project_event_day_id: sched.event_day_template_id ?? null,
+            scheduled_start_time: sched.scheduled_start_time ?? null,
+            scheduled_duration_minutes: sched.scheduled_duration_minutes ?? null,
+            moment_schedules: sched.moment_schedules ?? null,
+            beat_schedules: sched.beat_schedules ?? null,
+            notes: sched.notes ?? null,
+          });
+        } else if (packageFilmId) {
           // In package context: save to PackageFilmSceneSchedule (supports package_activity_id)
-          await api.schedule.packageFilms.upsertSceneSchedule(packageFilmId, {
+          await scheduleApi.packageFilms.upsertSceneSchedule(packageFilmId, {
             scene_id: sceneId,
             event_day_template_id: sched.event_day_template_id ?? null,
             package_activity_id: sched.package_activity_id ?? null,
@@ -172,7 +254,7 @@ export function useFilmSchedule(
           });
         } else {
           // Standalone film context: save to base FilmSceneSchedule
-          await api.schedule.film.upsertScene(filmId, {
+          await scheduleApi.film.upsertScene(filmId, {
             scene_id: sceneId,
             event_day_template_id: sched.event_day_template_id ?? null,
             scheduled_start_time: sched.scheduled_start_time ?? null,
@@ -187,7 +269,7 @@ export function useFilmSchedule(
         throw err;
       }
     },
-    [filmId, scheduleMap]
+    [filmId, scheduleMap, isInstanceOwner, instanceOwnerType]
   );
 
   // ─── Moment-level schedule ─────────────────────────────────────────

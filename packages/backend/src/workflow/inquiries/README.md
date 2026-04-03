@@ -7,7 +7,9 @@ Owns inquiry lifecycle logic, public client portal data, proposal/contract porta
 | File | Purpose |
 |------|---------|
 | `inquiries.service.ts` | Core inquiry updates, package selection, and schedule-snapshot orchestration |
-| `client-portal.service.ts` | Shapes the public portal response for portal/proposal/contract experiences |
+| `client-portal.service.ts` | Facade/orchestration for client portal payload assembly |
+| `services/client-portal-data.service.ts` | Builds tokenized portal data (proposal, invoices, payments, summary) |
+| `services/client-portal-sections.service.ts` | Maps portal section payloads and normalized invoice projections |
 | `public-client-portal.controller.ts` | Public token-based portal endpoints |
 | `inquiry-availability.service.ts` | Availability and auto-subtask sync logic |
 
@@ -16,6 +18,8 @@ Owns inquiry lifecycle logic, public client portal data, proposal/contract porta
 - Package assignment for budget-only inquiries belongs in the inquiry package scope workflow; do not force package selection in needs-assessment submission.
 - Public portal, proposal review, and contract signing are one client-facing workflow and must share consistent token-driven inquiry data.
 - Inquiry-owned schedule snapshots are the editable copy; package templates are only the source.
+- Portal invoice payloads should include recorded payment metadata when available (`transaction_id`, `receipt_url`, `card_brand`, `card_last4`, `payer_email`, `currency`).
+- `paid_date` in portal invoice responses must be derived from recorded payments for `Paid` invoices.
 
 ## Active design notes
 - **Package assignment / safe swap**: studio-side package assignment belongs in the inquiry PackageScope flow. Package swaps must preserve user-entered schedule data wherever practical instead of wiping and recloning blindly.

@@ -32,4 +32,16 @@ export class ClientPortalService {
     respondToProposalByPortalToken(token: string, response: string, message?: string) {
         return this.actionsService.respondToProposalByPortalToken(token, response, message);
     }
+
+    getPaymentsData(token: string, preview = false) {
+        return this.dataService.getPaymentsDataByToken(token, preview);
+    }
+
+    saveSectionNote(token: string, sectionType: string, note: string) {
+        return this.dataService.saveSectionNote(token, sectionType, note);
+    }
+
+    getPaymentScheduleOptions(token: string) {
+        return this.dataService.getPaymentScheduleOptions(token);
+    }
 }

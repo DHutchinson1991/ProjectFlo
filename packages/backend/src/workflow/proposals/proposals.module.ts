@@ -8,9 +8,10 @@ import { PrismaModule } from '../../platform/prisma/prisma.module';
 import { TasksModule } from '../tasks/tasks.module';
 import { QuotesModule } from '../../finance/quotes/quotes.module';
 import { ContractsModule } from '../../finance/contracts/contracts.module';
+import { InvoicesModule } from '../../finance/invoices/invoices.module';
 
 @Module({
-    imports: [PrismaModule, TasksModule, QuotesModule, ContractsModule],
+    imports: [PrismaModule, TasksModule, QuotesModule, ContractsModule, InvoicesModule],
     controllers: [ProposalsController, PublicProposalsController],
     providers: [
         ProposalCrudService,

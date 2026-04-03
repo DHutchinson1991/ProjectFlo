@@ -4,7 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Typography, Stack, Button, CircularProgress } from '@mui/material';
 import { AccessTime } from '@mui/icons-material';
 import { calendarApi } from '@/features/workflow/calendar/api';
-import { chipBounce, formatSlotLabel, type SlotInfo } from './helpers';
+import { formatSlotLabel } from '@/shared/utils/dateTime';
+import { chipBounce, type SlotInfo } from './helpers';
 
 interface SlotPickerProps {
     brandId: number;

@@ -61,11 +61,30 @@ export class ContractSigningService {
 
     await this.prisma.contract_signers.createMany({ data: signerData });
 
+    // Auto-sign studio signers immediately — no signing link required
+    const studioSigners = await this.prisma.contract_signers.findMany({
+      where: { contract_id: id, role: 'studio' },
+    });
+    for (const studioSigner of studioSigners) {
+      await this.prisma.contract_signers.update({
+        where: { id: studioSigner.id },
+        data: {
+          status: 'signed',
+          signed_at: new Date(),
+          signature_text: studioSigner.name,
+        },
+      });
+    }
+
+    const now = new Date();
+    const signingDeadline = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+
     return this.prisma.contracts.update({
       where: { id },
       data: {
         status: ContractStatus.SENT,
-        sent_at: new Date(),
+        sent_at: now,
+        signed_date: signingDeadline,
         signing_token: contract.signing_token || randomUUID(),
         rendered_html: html,
       },

@@ -17,7 +17,7 @@ import {
 } from '@mui/icons-material';
 import { getPhaseWidgets, getStepMeta } from '../../constants/discovery-questionnaire-config';
 import type { PhaseWidget } from '../../constants/discovery-questionnaire-config';
-import { TagChipInput } from './TagChipInput';
+import { TagChipInput } from '@/shared/ui/ChipInput';
 
 export interface DiscoverySentimentPanelProps {
     sectionName: string;
