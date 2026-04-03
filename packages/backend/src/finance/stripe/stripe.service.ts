@@ -10,7 +10,7 @@ import { PrismaService } from '../../platform/prisma/prisma.service';
 
 @Injectable()
 export class StripeService {
-  private readonly stripe: Stripe;
+  private readonly stripe: Stripe | null;
   private readonly logger = new Logger(StripeService.name);
   private readonly webhookSecret: string;
   private readonly frontendUrl: string;
@@ -22,10 +22,19 @@ export class StripeService {
     const secretKey = this.config.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
       this.logger.warn('STRIPE_SECRET_KEY not set — Stripe features disabled');
+      this.stripe = null;
+    } else {
+      this.stripe = new Stripe(secretKey, { apiVersion: '2025-02-24.acacia' });
     }
-    this.stripe = new Stripe(secretKey || '', { apiVersion: '2025-02-24.acacia' });
     this.webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET', '');
     this.frontendUrl = this.config.get<string>('FRONTEND_URL', 'http://localhost:3001');
+  }
+
+  private get stripeClient(): Stripe {
+    if (!this.stripe) {
+      throw new BadRequestException('Stripe is not configured on this server');
+    }
+    return this.stripe;
   }
 
   /* ─── Connect: Express account onboarding ─── */
@@ -44,7 +53,7 @@ export class StripeService {
       return { url: link.url };
     }
 
-    const account = await this.stripe.accounts.create({
+    const account = await this.stripeClient.accounts.create({
       type: 'express',
       email: brand.email || undefined,
       business_profile: {
@@ -100,7 +109,7 @@ export class StripeService {
       };
     }
 
-    const account = await this.stripe.accounts.retrieve(brand.stripe_account_id);
+    const account = await this.stripeClient.accounts.retrieve(brand.stripe_account_id);
 
     // Persist completion status if newly completed
     if (account.charges_enabled && !brand.stripe_onboarding_complete) {
@@ -127,7 +136,7 @@ export class StripeService {
     if (!brand?.stripe_account_id) {
       throw new BadRequestException('No Stripe account connected');
     }
-    const link = await this.stripe.accounts.createLoginLink(brand.stripe_account_id);
+    const link = await this.stripeClient.accounts.createLoginLink(brand.stripe_account_id);
     return { url: link.url };
   }
 
@@ -160,7 +169,7 @@ export class StripeService {
       throw new BadRequestException('Invoice is already fully paid');
     }
 
-    const session = await this.stripe.checkout.sessions.create(
+    const session = await this.stripeClient.checkout.sessions.create(
       {
         mode: 'payment',
         line_items: [
@@ -197,7 +206,7 @@ export class StripeService {
   /* ─── Webhook handling ─── */
 
   constructWebhookEvent(payload: Buffer, signature: string): Stripe.Event {
-    return this.stripe.webhooks.constructEvent(
+    return this.stripeClient.webhooks.constructEvent(
       payload,
       signature,
       this.webhookSecret,
@@ -228,7 +237,7 @@ export class StripeService {
   private async createAccountLink(
     accountId: string,
   ): Promise<Stripe.AccountLink> {
-    return this.stripe.accountLinks.create({
+    return this.stripeClient.accountLinks.create({
       account: accountId,
       refresh_url: `${this.frontendUrl}/settings?stripe_refresh=true`,
       return_url: `${this.frontendUrl}/settings?stripe_onboarded=true`,
@@ -271,7 +280,7 @@ export class StripeService {
             }))?.stripe_account_id
           : undefined;
 
-        const pi = await this.stripe.paymentIntents.retrieve(
+        const pi = await this.stripeClient.paymentIntents.retrieve(
           session.payment_intent as string,
           { expand: ['latest_charge'] },
           stripeAccountId ? { stripeAccount: stripeAccountId } : undefined,
