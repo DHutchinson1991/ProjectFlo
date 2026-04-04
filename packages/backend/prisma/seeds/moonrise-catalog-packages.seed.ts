@@ -261,6 +261,61 @@ async function seedWeddingPackages(brandId: number): Promise<SeedSummary> {
     logger.created(`"${pkgDef.name}" (${pkgDef.films.length} films, ${pkgDef.crewSlotCount} crew, ${activityCount} activities, ${momentCount} moments)`);
   }
 
+  // Create Wedding package set + assign packages to slots
+  const weddingEventType = await prisma.eventType.findFirst({ where: { brand_id: brandId, name: 'Wedding' } });
+  const weddingCategory = await prisma.service_package_categories.findFirst({ where: { brand_id: brandId, name: 'Wedding' } });
+
+  // Ensure the Wedding category exists (link to event type)
+  let categoryId = weddingCategory?.id ?? null;
+  if (!weddingCategory) {
+    const cat = await prisma.service_package_categories.create({
+      data: { brand_id: brandId, name: 'Wedding', description: 'Wedding videography packages', order_index: 0, is_active: true, event_type_id: weddingEventType?.id ?? null },
+    });
+    categoryId = cat.id;
+  }
+
+  let weddingSet = await prisma.package_sets.findFirst({ where: { brand_id: brandId, name: 'Wedding Packages' } });
+  if (!weddingSet) {
+    weddingSet = await prisma.package_sets.create({
+      data: {
+        brand_id: brandId, name: 'Wedding Packages', description: 'Our wedding videography packages',
+        emoji: '💒', category_id: categoryId, event_type_id: weddingEventType?.id ?? null, is_active: true, order_index: 0,
+      },
+    });
+
+    const SLOT_TIERS = ['Budget', 'Basic', 'Standard', 'Premium'] as const;
+    for (let i = 0; i < SLOT_TIERS.length; i++) {
+      await prisma.package_set_slots.create({
+        data: { package_set_id: weddingSet.id, slot_label: SLOT_TIERS[i], order_index: i },
+      });
+    }
+    logger.created('Wedding Packages set (4 slots)');
+  }
+
+  // Assign the 4 wedding packages to slots (Budget→Starter, Basic→Essentials, Standard→Highlights, Premium→Film)
+  const PACKAGE_SLOT_MAP: Record<string, string> = {
+    'The Starter Package': 'Budget',
+    'The Essentials Package': 'Basic',
+    'The Highlights Package': 'Standard',
+    'The Film Package': 'Premium',
+  };
+
+  const weddingSetWithSlots = await prisma.package_sets.findFirst({
+    where: { id: weddingSet.id },
+    include: { slots: { orderBy: { order_index: 'asc' } } },
+  });
+
+  if (weddingSetWithSlots) {
+    for (const [pkgName, slotLabel] of Object.entries(PACKAGE_SLOT_MAP)) {
+      const pkg = await prisma.service_packages.findFirst({ where: { brand_id: brandId, name: pkgName } });
+      const slot = weddingSetWithSlots.slots.find((s) => s.slot_label === slotLabel);
+      if (pkg && slot && !slot.service_package_id) {
+        await prisma.package_set_slots.update({ where: { id: slot.id }, data: { service_package_id: pkg.id } });
+        logger.created(`Assigned "${pkgName}" → ${slotLabel} slot`, undefined, 'verbose');
+      }
+    }
+  }
+
   const total = created + skipped;
   logger.summary('Wedding packages', { created, updated: 0, skipped, total });
   return { created, updated: 0, skipped, total };
