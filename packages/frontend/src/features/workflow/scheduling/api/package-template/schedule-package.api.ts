@@ -122,6 +122,8 @@ export function createSchedulePackageApi(client: ApiClient) {
                 location_number?: number;
             }): Promise<any> =>
                 client.post(`/api/schedule/packages/${packageId}/location-slots`, data),
+            update: (slotId: number, data: { location_number?: number }): Promise<any> =>
+                client.patch(`/api/schedule/packages/location-slots/${slotId}`, data),
             delete: (slotId: number): Promise<void> =>
                 client.delete(`/api/schedule/packages/location-slots/${slotId}`),
             assignActivity: (slotId: number, activityId: number): Promise<any> =>
@@ -130,11 +132,89 @@ export function createSchedulePackageApi(client: ApiClient) {
                 client.delete(`/api/schedule/packages/location-slots/${slotId}/activities/${activityId}`),
         },
 
+        packageSpaceSlots: {
+            getAll: (packageId: number, eventDayId?: number): Promise<any[]> =>
+                client.get(`/api/schedule/packages/${packageId}/space-slots${eventDayId ? `?eventDayId=${eventDayId}` : ''}`),
+            create: (packageId: number, data: {
+                event_day_template_id: number;
+                label: string;
+                location_slot_id?: number;
+                location_space_id?: number;
+                space_type_tags?: string[];
+            }): Promise<any> =>
+                client.post(`/api/schedule/packages/${packageId}/space-slots`, data),
+            update: (slotId: number, data: {
+                label?: string;
+                location_slot_id?: number | null;
+                location_space_id?: number | null;
+                space_type_tags?: string[];
+            }): Promise<any> =>
+                client.patch(`/api/schedule/packages/space-slots/${slotId}`, data),
+            delete: (slotId: number): Promise<void> =>
+                client.delete(`/api/schedule/packages/space-slots/${slotId}`),
+            assignActivity: (slotId: number, activityId: number): Promise<any> =>
+                client.post(`/api/schedule/packages/space-slots/${slotId}/activities/${activityId}`, {}),
+            unassignActivity: (slotId: number, activityId: number): Promise<any> =>
+                client.delete(`/api/schedule/packages/space-slots/${slotId}/activities/${activityId}`),
+            importFromVenue: (packageId: number, slotId: number, locationId: number): Promise<{ slots: any[]; results: { created: number; merged: number; skipped: number } }> =>
+                client.post(`/api/schedule/packages/${packageId}/location-slots/${slotId}/import-spaces/${locationId}`, {}),
+        },
+
         packageFilms: {
             getAll: (packageId: number): Promise<any[]> =>
                 client.get(`/api/schedule/packages/${packageId}/films`),
             create: (packageId: number, data: { film_id: number; order_index?: number; notes?: string }): Promise<any> =>
                 client.post(`/api/schedule/packages/${packageId}/films`, data),
+            createContent: (packageId: number, data: {
+                film_type: string;
+                film_name?: string;
+                montage_preset_id?: number;
+                selected_activity_ids: number[];
+                structure_template_id?: number;
+                scene_configs: Array<{
+                    activity_id: number;
+                    mode: 'REALTIME' | 'MONTAGE';
+                    montage_duration_seconds?: number;
+                    montage_style?: string;
+                    montage_bpm?: number;
+                }>;
+                scene_assignments: Array<{
+                    scene_index: number;
+                    activity_ids: number[];
+                    moment_ids_by_activity: Array<{ activity_id: number; moment_ids: number[] }>;
+                }>;
+                audio_configs: Array<{
+                    scene_index: number;
+                    source_type?: string | null;
+                    source_activity_id?: number;
+                    source_moment_id?: number;
+                    track_type: string;
+                    notes?: string;
+                }>;
+                duration_overrides: Array<{ scene_index: number; duration_seconds: number }>;
+                combine_montage: boolean;
+                combined_montage_style?: string;
+                combined_montage_duration?: number;
+                scene_order: Array<{
+                    id: string;
+                    label: string;
+                    mode: 'REALTIME' | 'MONTAGE';
+                    activity_ids: number[];
+                    style?: string;
+                    is_combined: boolean;
+                }>;
+            }): Promise<{
+                filmId: number;
+                filmName: string;
+                packageFilmId: number;
+                scenesCreated: number;
+                momentsPopulated: number;
+                activityIds: number[];
+                backgroundScenePrepStarted: number;
+                backgroundScenePrepMode: 'async';
+                runId: string;
+            }> =>
+                client.post(`/api/schedule/packages/${packageId}/films/create-content`, data),
             update: (packageFilmId: number, data: unknown): Promise<any> =>
                 client.patch(`/api/schedule/packages/films/${packageFilmId}`, data),
             delete: (packageFilmId: number): Promise<void> =>

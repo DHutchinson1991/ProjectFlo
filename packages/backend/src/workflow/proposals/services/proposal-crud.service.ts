@@ -85,7 +85,6 @@ export class ProposalCrudService {
             where: { id: inquiryId, contact: { brand_id: brandId } },
             include: {
                 contact: true,
-                event_type: true,
                 selected_package: { select: { id: true, name: true, currency: true } },
             },
         });

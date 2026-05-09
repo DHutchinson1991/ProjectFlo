@@ -132,7 +132,8 @@ EXAMPLES:
 
 ENVIRONMENT VARIABLES:
     ADMIN_EMAIL     Admin email (required)
-    ADMIN_PASSWORD  Admin password (required)
+    ADMIN_PASSWORD  Admin password (preferred for login)
+    ADMIN_SEED_PASSWORD  Fallback password if ADMIN_PASSWORD is unset
     API_BASE_URL    Override API URL
 `);
 }
@@ -283,13 +284,13 @@ async function getToken(options = {}) {
 
         // Validate env vars
         const adminEmail = process.env.ADMIN_EMAIL;
-        const adminPassword = process.env.ADMIN_PASSWORD;
+        const adminPassword = process.env.ADMIN_PASSWORD || process.env.ADMIN_SEED_PASSWORD;
         if (!adminEmail || !adminPassword) {
-            throw new Error('Missing ADMIN_EMAIL and/or ADMIN_PASSWORD in .env');
+            throw new Error('Missing ADMIN_EMAIL and either ADMIN_PASSWORD or ADMIN_SEED_PASSWORD in .env');
         }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(adminEmail)) throw new Error('Invalid ADMIN_EMAIL format');
-        if (adminPassword.length < 6) throw new Error('ADMIN_PASSWORD must be ≥6 characters');
+        if (adminPassword.length < 6) throw new Error('Password must be >= 6 characters');
 
         const authService = new ScriptAuthService({ environment: options.env });
 

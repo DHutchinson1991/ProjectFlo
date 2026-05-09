@@ -5,17 +5,17 @@ import { ContractStatus } from '../dto/create-contract.dto';
 import { Contract } from '../entities/contract.entity';
 import { ContractsService, CONTRACT_INCLUDE } from '../contracts.service';
 import { randomUUID } from 'crypto';
-import { InquiryTasksService } from '../../../workflow/tasks/inquiry/services/inquiry-tasks.service';
-import { InvoicesService } from '../../invoices/invoices.service';
+import type { InquiryTasksService } from '../../../workflow/tasks/inquiry/services/inquiry-tasks.service';
+import type { InvoicesService } from '../../invoices/invoices.service';
 
 @Injectable()
 export class ContractSigningService {
   constructor(
     private prisma: PrismaService,
     private contractsService: ContractsService,
-    @Inject(forwardRef(() => InquiryTasksService))
+    @Inject(forwardRef(() => require('../../../workflow/tasks/inquiry/services/inquiry-tasks.service').InquiryTasksService))
     private inquiryTasksService: InquiryTasksService,
-    @Inject(forwardRef(() => InvoicesService))
+    @Inject(forwardRef(() => require('../../invoices/invoices.service').InvoicesService))
     private invoicesService: InvoicesService,
   ) {}
 
@@ -52,7 +52,34 @@ export class ContractSigningService {
       where: { contract_id: id },
     });
 
-    const signerData = dto.signers.map((s) => ({
+    // Ensure a producer signer exists — auto-add from lead producer or brand if missing
+    const hasProducerSigner = dto.signers.some((s) => s.role === 'producer');
+    const finalSigners = [...dto.signers];
+    if (!hasProducerSigner) {
+      // Try lead producer from crew slots, fall back to brand
+      const inquiry = await this.prisma.inquiries.findUnique({
+        where: { id: inquiryId },
+        include: {
+          schedule_day_crew_slots: {
+            take: 1,
+            include: { crew: { include: { contact: true } } },
+          },
+          contact: { include: { brand: true } },
+        },
+      });
+      const crewSlot = inquiry?.schedule_day_crew_slots?.[0];
+      const producer = crewSlot?.crew?.contact;
+      const brand = inquiry?.contact?.brand;
+      finalSigners.unshift({
+        name: producer
+          ? `${producer.first_name || ''} ${producer.last_name || ''}`.trim() || brand?.name || 'Producer'
+          : brand?.name || 'Producer',
+        email: producer?.email || '',
+        role: 'producer',
+      });
+    }
+
+    const signerData = finalSigners.map((s) => ({
       contract_id: id,
       name: s.name,
       email: s.email,
@@ -63,7 +90,7 @@ export class ContractSigningService {
 
     // Auto-sign studio signers immediately — no signing link required
     const studioSigners = await this.prisma.contract_signers.findMany({
-      where: { contract_id: id, role: 'studio' },
+      where: { contract_id: id, role: 'producer' },
     });
     for (const studioSigner of studioSigners) {
       await this.prisma.contract_signers.update({
@@ -93,7 +120,8 @@ export class ContractSigningService {
   }
 
   async findBySignerToken(token: string) {
-    const signer = await this.prisma.contract_signers.findUnique({
+    // Try signer-level token first
+    let signer = await this.prisma.contract_signers.findUnique({
       where: { token },
       include: {
         contract: {
@@ -104,6 +132,24 @@ export class ContractSigningService {
         },
       },
     });
+
+    // Fall back to contract-level signing_token (used by client portal)
+    if (!signer) {
+      const contract = await this.prisma.contracts.findUnique({
+        where: { signing_token: token },
+        include: {
+          inquiry: { include: { contact: true } },
+          signers: { orderBy: { created_at: 'asc' } },
+        },
+      });
+      if (contract) {
+        // Pick the first client signer (or first signer if none has role 'client')
+        const clientSigner = contract.signers.find((s) => s.role === 'client') ?? contract.signers[0];
+        if (clientSigner) {
+          signer = { ...clientSigner, contract };
+        }
+      }
+    }
 
     if (!signer) {
       throw new NotFoundException('Invalid or expired signing link');
@@ -138,15 +184,31 @@ export class ContractSigningService {
         role: s.role,
         status: s.status,
         signed_at: s.signed_at,
+        signature_text: s.status === 'signed' ? s.signature_text : null,
       })),
     };
   }
 
   async submitSignature(token: string, signatureText: string, signerIp?: string) {
-    const signer = await this.prisma.contract_signers.findUnique({
+    // Try signer-level token first
+    let signer = await this.prisma.contract_signers.findUnique({
       where: { token },
       include: { contract: { include: { signers: true } } },
     });
+
+    // Fall back to contract-level signing_token (used by client portal)
+    if (!signer) {
+      const contract = await this.prisma.contracts.findUnique({
+        where: { signing_token: token },
+        include: { signers: true },
+      });
+      if (contract) {
+        const clientSigner = contract.signers.find((s) => s.role === 'client') ?? contract.signers[0];
+        if (clientSigner) {
+          signer = { ...clientSigner, contract };
+        }
+      }
+    }
 
     if (!signer) {
       throw new NotFoundException('Invalid or expired signing link');
@@ -184,6 +246,12 @@ export class ContractSigningService {
       await this.invoicesService.autoGenerateDepositInvoice(inquiryId);
     }
 
-    return { success: true, allSigned };
+    // Fetch portal token so the client can be redirected to payments
+    const inquiry = await this.prisma.inquiries.findUnique({
+      where: { id: signer.contract.inquiry_id },
+      select: { portal_token: true },
+    });
+
+    return { success: true, allSigned, portalToken: inquiry?.portal_token ?? null };
   }
 }

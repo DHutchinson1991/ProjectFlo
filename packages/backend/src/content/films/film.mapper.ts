@@ -41,7 +41,7 @@ type FilmTrackInput = {
 
 type FilmSubjectInput = {
   id: number;
-  film_id: number;
+  package_id: number;
   name: string;
   role_template_id?: number | null;
   created_at: Date;
@@ -51,6 +51,7 @@ type FilmSubjectInput = {
 type TrackRef = { name?: string; type?: unknown };
 
 type CameraAssignmentInput = {
+  id: number;
   track_id: number;
   track?: TrackRef | null;
   subject_ids?: number[];
@@ -85,7 +86,6 @@ type SubjectRoleTemplateInput = {
   id: number;
   role_name: string;
   description: string | null;
-  is_core: boolean;
 };
 
 type MomentSubjectAssignmentInput = {
@@ -235,7 +235,7 @@ export class FilmMapper {
       })),
       subjects: (film.subjects || []).map((subject) => ({
         id: subject.id,
-        film_id: subject.film_id,
+        package_id: subject.package_id,
         name: subject.name,
         role_template_id: subject.role_template_id ?? null,
         created_at: subject.created_at,
@@ -284,6 +284,7 @@ export class FilmMapper {
             audio_track_ids: scene.recording_setup.audio_track_ids,
             graphics_enabled: scene.recording_setup.graphics_enabled,
             camera_assignments: scene.recording_setup.camera_assignments.map((a) => ({
+              id: a.id,
               track_id: a.track_id,
               track_name: a.track?.name || String(a.track_id),
               track_type: a.track?.type ? String(a.track.type) : undefined,
@@ -347,7 +348,6 @@ export class FilmMapper {
                         id: assignment.subject.role_template.id,
                         role_name: assignment.subject.role_template.role_name,
                         description: assignment.subject.role_template.description,
-                        is_core: assignment.subject.role_template.is_core,
                       }
                     : null,
                 }
@@ -362,6 +362,7 @@ export class FilmMapper {
             graphics_enabled: moment.recording_setup.graphics_enabled,
             graphics_title: moment.recording_setup.graphics_title ?? null,
             camera_assignments: moment.recording_setup.camera_assignments.map((a) => ({
+              id: a.id,
               track_id: a.track_id,
               track_name: a.track?.name || String(a.track_id),
               track_type: a.track?.type ? String(a.track.type) : undefined,

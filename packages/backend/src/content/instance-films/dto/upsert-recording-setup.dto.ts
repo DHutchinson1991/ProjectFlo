@@ -18,6 +18,13 @@ export class UpsertRecordingSetupDto {
   audio_track_ids?: number[];
 
   @IsOptional()
+  @IsArray()
+  audio_assignments?: Array<{
+    track_id: number;
+    subject_ids?: number[];
+  }>;
+
+  @IsOptional()
   @IsBoolean()
   graphics_enabled?: boolean;
 

@@ -31,6 +31,12 @@ export class EstimateLifecycleService {
       include: { items: { select: { id: true, description: true, quantity: true, unit_price: true } } },
     });
 
+    await this.inquiryTasksService.setAutoSubtaskStatus(
+      inquiryId,
+      'review_estimate',
+      true,
+    );
+
     return {
       ...updatedEstimate,
       total_amount: Number(updatedEstimate.total_amount),
@@ -105,6 +111,12 @@ export class EstimateLifecycleService {
 
     const total = computeItemsTotal(newItems);
     await this.replaceItems(id, newItems, total, inquiry.selected_package?.name, 'Draft');
+
+    await this.inquiryTasksService.setAutoSubtaskStatus(
+      inquiryId,
+      'review_estimate',
+      true,
+    );
 
     return this.loadEstimateResponse(id);
   }

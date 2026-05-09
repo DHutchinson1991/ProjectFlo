@@ -51,7 +51,7 @@ import { LocationsCard } from '@/features/catalog/packages/components/detail/car
 import { CrewCard } from '@/features/catalog/packages/components/detail/cards/CrewCard';
 import { EquipmentCard } from '@/features/catalog/packages/components/detail/cards/EquipmentCard';
 import { SummaryCard } from '@/features/catalog/packages/components/detail/cards/SummaryCard';
-import { PackageScheduleCard } from '../package-template/PackageScheduleCard';
+import { PackageTimelineCard } from '../package-template/PackageScheduleCard';
 import { FilmCreationWizard } from '../film-wizard';
 import { DeliverablesCard } from './DeliverablesCard';
 import { ScheduleCardGrid } from '../shared';
@@ -346,7 +346,7 @@ function ScheduleEditorContent({
             />
 
             {/* ── Timeline Schedule Bar ── */}
-            <PackageScheduleCard
+            <PackageTimelineCard
                 packageId={null}
                 brandId={safeBrandId ?? 0}
                 packageEventDays={eventDays}

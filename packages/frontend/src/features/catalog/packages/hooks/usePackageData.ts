@@ -2,15 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-import { servicePackageCategoriesApi, servicePackagesApi } from '@/features/catalog/packages/api';
+import { servicePackagesApi } from '@/features/catalog/packages/api';
 import { filmsApi } from '@/features/content/films/api';
 import { crewApi, jobRolesApi } from '@/features/workflow/crew/api';
 import { equipmentApi } from '@/features/workflow/equipment/api';
 import { crewSlotsApi } from '@/features/workflow/scheduling/shared';
 import { scheduleApi } from '@/features/workflow/scheduling/package-template';
+import type { EventDay } from '@/features/workflow/scheduling/package-template';
 import { taskLibraryApi } from '@/features/catalog/task-library/api';
 import { rolesApi } from '@/features/content/subjects/api/roles.api';
-import type { EventDay } from '@/features/workflow/scheduling/package-template';
 import { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import type { JobRole } from '@/features/catalog/task-library/types';
 import type { TaskAutoGenerationPreview } from '@/features/catalog/task-library/types';
@@ -46,8 +46,6 @@ export interface UsePackageDataReturn {
     setFormData: React.Dispatch<React.SetStateAction<Partial<ServicePackage>>>;
 
     // Reference data (read-only for the component — loaded once)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    categories: any[];
     subjectTemplates: SubjectType[];
     crew: CrewOption[];
     jobRoles: JobRole[];
@@ -108,8 +106,6 @@ export function usePackageData({
 
     // Reference Data
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [categories, setCategories] = useState<any[]>([]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [films, setFilms] = useState<any[]>([]);
     const [subjectTemplates, setSubjectTemplates] = useState<SubjectType[]>([]);
     const [packageFilms, setPackageFilms] = useState<PackageFilmRecord[]>([]);
@@ -143,11 +139,7 @@ export function usePackageData({
         setIsLoading(true);
         setError(null);
         try {
-            const [allCats, allFilms] = await Promise.all([
-                servicePackageCategoriesApi.getAll(brandId),
-                filmsApi.films.getAll(),
-            ]);
-            setCategories(allCats);
+            const allFilms = await filmsApi.films.getAll();
 
             // Fetch full film details with scenes for each film
             const filmsWithDetails = await Promise.all(
@@ -155,9 +147,11 @@ export function usePackageData({
             );
             setFilms(filmsWithDetails);
 
+            let allTemplates: SubjectType[] = [];
             try {
                 const templates = await rolesApi.getRoles(brandId) as unknown as SubjectType[];
-                setSubjectTemplates(templates || []);
+                allTemplates = templates || [];
+                setSubjectTemplates(allTemplates);
             } catch (templateError) {
                 console.warn('Failed to load subject templates:', templateError);
             }
@@ -184,6 +178,8 @@ export function usePackageData({
                 } catch {
                     setError('Package not found');
                 }
+
+                void allTemplates;
 
                 // Load PackageFilm join table records
                 try {
@@ -353,7 +349,6 @@ export function usePackageData({
         setFormData,
 
         // Reference data (read-only)
-        categories,
         subjectTemplates,
         crew,
         jobRoles,

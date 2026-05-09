@@ -1,4 +1,4 @@
-import { FilmScene } from '@prisma/client';
+import { FilmScene, Prisma } from '@prisma/client';
 import {
     SceneResponseDto,
     BeatSummary,
@@ -10,10 +10,12 @@ import {
 type TrackRef = { name?: string; type?: unknown };
 
 type CameraAssignmentInput = {
+    id: number;
     track_id: number;
     subject_ids?: number[];
     shot_type?: string | null;
     track?: TrackRef | null;
+    pipeline_data?: Prisma.JsonValue | null;
 };
 
 type RecordingSetupInput = {
@@ -47,7 +49,6 @@ type SubjectRoleTemplate = {
     id: number;
     role_name: string;
     description: string | null;
-    is_core: boolean;
 };
 
 type MomentSubjectInput = {
@@ -122,13 +123,29 @@ export class SceneMapper {
         }
         if (rs.camera_assignments) {
             result.camera_assignments = rs.camera_assignments.map(
-                (a: CameraAssignmentInput): CameraAssignmentSummary => ({
-                    track_id: a.track_id,
-                    track_name: a.track?.name || String(a.track_id),
-                    track_type: a.track?.type ? String(a.track.type) : undefined,
-                    subject_ids: a.subject_ids ?? [],
-                    shot_type: a.shot_type ?? null,
-                }),
+                (a: CameraAssignmentInput): CameraAssignmentSummary => {
+                    const summary: CameraAssignmentSummary = {
+                        id: a.id,
+                        track_id: a.track_id,
+                        track_name: a.track?.name || String(a.track_id),
+                        track_type: a.track?.type ? String(a.track.type) : undefined,
+                        subject_ids: a.subject_ids ?? [],
+                        shot_type: a.shot_type ?? null,
+                    };
+                    // Pass through AI director notes from pipeline_data
+                    const pd = a.pipeline_data;
+                    if (pd && typeof pd === 'object' && !Array.isArray(pd) && 'director' in pd) {
+                        const dir = pd.director;
+                        if (dir && typeof dir === 'object' && !Array.isArray(dir)) {
+                            summary.director_notes = {
+                                emotionalTone: String(dir.emotionalTone ?? dir.emotionalBeat ?? ''),
+                                compositionNotes: String(dir.compositionNotes ?? ''),
+                                source: dir.source ? String(dir.source) : undefined,
+                            };
+                        }
+                    }
+                    return summary;
+                },
             );
         }
         return result;
@@ -168,7 +185,6 @@ export class SceneMapper {
                                 id: ms.subject.role_template.id,
                                 role_name: ms.subject.role_template.role_name,
                                 description: ms.subject.role_template.description,
-                                is_core: ms.subject.role_template.is_core,
                             }
                           : null,
                   }

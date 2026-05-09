@@ -9,13 +9,9 @@ import {
     Step,
     StepLabel,
     StepConnector,
-    TextField,
-    Checkbox,
-    FormControlLabel,
     CircularProgress,
     Chip,
     Stack,
-    Collapse,
 } from "@mui/material";
 import { alpha, keyframes, styled } from "@mui/material/styles";
 import {
@@ -25,11 +21,8 @@ import {
     Payments as PaymentsIcon,
     ArrowForward as ArrowForwardIcon,
     ArrowBack as ArrowBackIcon,
-    HourglassEmpty,
-    Visibility,
 } from "@mui/icons-material";
 import type { PortalThemeColors } from "@/features/workflow/proposals/utils/portal/themes";
-import { useSigningContract, useSubmitSignature } from "@/features/finance/contracts/hooks";
 import { clientPortalApi } from "@/features/workflow/client-portal/api";
 
 /* ── Animations ────────────────────────────────────────────── */
@@ -332,34 +325,7 @@ function ContractStep({
     const signingToken = contractData?.signing_token ?? null;
     const contractSigned = contractData?.contract_status === "Signed";
 
-    // Load the full contract via signing API
-    const { data: signingData, isPending: loadingContract } = useSigningContract(signingToken);
-    const submitSignature = useSubmitSignature(signingToken);
-
-    const [signatureText, setSignatureText] = useState("");
-    const [agreed, setAgreed] = useState(false);
-    const [signed, setSigned] = useState(false);
-    const [submitError, setSubmitError] = useState("");
-
-    const isSigned = signed || contractSigned || signingData?.signer?.status === "signed";
-
-    // After signing, refresh portal data so the overall state updates
-    useEffect(() => {
-        if (signed) {
-            onRefresh();
-        }
-    }, [signed, onRefresh]);
-
-    const handleSign = async () => {
-        if (!signatureText.trim() || !agreed) return;
-        setSubmitError("");
-        try {
-            await submitSignature.mutateAsync(signatureText.trim());
-            setSigned(true);
-        } catch {
-            setSubmitError("Failed to submit signature. Please try again.");
-        }
-    };
+    const isSigned = contractSigned;
 
     return (
         <Box sx={{ animation: `${fadeInUp} 0.4s ease both` }}>
@@ -393,6 +359,37 @@ function ContractStep({
                         }}
                     >
                         Continue to Payments
+                    </Button>
+                </Box>
+            )}
+
+            {/* Contract not yet signed — redirect to signing page */}
+            {!isSigned && signingToken && (
+                <Box sx={{ textAlign: "center", py: 4 }}>
+                    <ContractIcon sx={{ fontSize: 48, color: colors.accent, mb: 2 }} />
+                    <Typography sx={{ color: colors.text, fontWeight: 700, fontSize: "1.2rem", mb: 1 }}>
+                        Review & Sign Your Contract
+                    </Typography>
+                    <Typography sx={{
+                        color: colors.muted, fontSize: "0.88rem",
+                        maxWidth: 420, mx: "auto", lineHeight: 1.6, mb: 3,
+                    }}>
+                        Your contract is ready for review. Click below to view the full contract and sign it.
+                    </Typography>
+                    <Button
+                        variant="contained"
+                        size="large"
+                        endIcon={<ArrowForwardIcon />}
+                        href={`/sign/${signingToken}`}
+                        sx={{
+                            background: `linear-gradient(135deg, ${colors.gradient1}, ${colors.gradient2})`,
+                            color: "#fff", px: 5, py: 1.5, borderRadius: 3,
+                            textTransform: "none", fontWeight: 700,
+                            boxShadow: `0 8px 32px ${alpha(colors.gradient1, 0.3)}`,
+                            "&:hover": { transform: "translateY(-2px)" },
+                        }}
+                    >
+                        Review & Sign Contract
                     </Button>
                 </Box>
             )}
@@ -436,230 +433,6 @@ function ContractStep({
                         >
                             Skip for Now
                         </Button>
-                    </Box>
-                </Box>
-            )}
-
-            {/* Contract loading */}
-            {!isSigned && signingToken && loadingContract && (
-                <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-                    <CircularProgress sx={{ color: colors.accent }} />
-                </Box>
-            )}
-
-            {/* Contract signing form */}
-            {!isSigned && signingToken && signingData && !loadingContract && (
-                <Box>
-                    {/* Header */}
-                    <Box sx={{ textAlign: "center", mb: 3 }}>
-                        <ContractIcon sx={{ fontSize: 36, color: "#6366f1", mb: 1 }} />
-                        <Typography sx={{
-                            fontSize: { xs: "1.3rem", md: "1.5rem" },
-                            fontWeight: 800, color: colors.text, mb: 0.5,
-                        }}>
-                            {signingData.contract.title}
-                        </Typography>
-                        <Typography sx={{ color: colors.muted, fontSize: "0.88rem" }}>
-                            Please review the contract below and sign at the bottom.
-                        </Typography>
-                    </Box>
-
-                    {/* Signer status */}
-                    {signingData.signers.length > 1 && (
-                        <Box sx={{
-                            mb: 3, p: 2,
-                            bgcolor: alpha(colors.card, 0.5),
-                            borderRadius: 2.5,
-                            border: `1px solid ${alpha(colors.border, 0.3)}`,
-                        }}>
-                            <Typography sx={{
-                                color: colors.muted, fontSize: "0.72rem", fontWeight: 600,
-                                mb: 1, textTransform: "uppercase", letterSpacing: "0.05em",
-                            }}>
-                                All Signers
-                            </Typography>
-                            <Stack spacing={0.5}>
-                                {signingData.signers.map((s, i) => (
-                                    <Box key={i} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                        {s.status === "signed" ? (
-                                            <CheckCircleIcon sx={{ fontSize: 16, color: "#22c55e" }} />
-                                        ) : s.status === "viewed" ? (
-                                            <Visibility sx={{ fontSize: 16, color: "#3b82f6" }} />
-                                        ) : (
-                                            <HourglassEmpty sx={{ fontSize: 16, color: alpha(colors.muted, 0.5) }} />
-                                        )}
-                                        <Typography sx={{ color: colors.text, fontSize: "0.82rem" }}>
-                                            {s.name}{" "}
-                                            <span style={{ color: alpha(colors.muted, 0.7) }}>({s.role})</span>
-                                        </Typography>
-                                        <Chip
-                                            label={s.status}
-                                            size="small"
-                                            sx={{
-                                                height: 18, fontSize: "0.62rem", fontWeight: 600, ml: "auto",
-                                                bgcolor: s.status === "signed"
-                                                    ? alpha("#22c55e", 0.12)
-                                                    : s.status === "viewed"
-                                                        ? alpha("#3b82f6", 0.12)
-                                                        : alpha(colors.muted, 0.1),
-                                                color: s.status === "signed"
-                                                    ? "#22c55e"
-                                                    : s.status === "viewed"
-                                                        ? "#3b82f6"
-                                                        : colors.muted,
-                                            }}
-                                        />
-                                    </Box>
-                                ))}
-                            </Stack>
-                        </Box>
-                    )}
-
-                    {/* Contract body */}
-                    <Box sx={{
-                        bgcolor: "#fff", borderRadius: 3, p: { xs: 3, md: 5 }, mb: 3,
-                        color: "#1e293b", lineHeight: 1.7, fontSize: "0.92rem",
-                        boxShadow: `0 4px 24px ${alpha("#000", 0.15)}`,
-                        maxHeight: 500, overflowY: "auto",
-                        "& .contract-section": { mb: 3 },
-                        "& .contract-section h3": {
-                            fontSize: "1rem", fontWeight: 700, color: "#1e293b",
-                            mb: 1, borderBottom: "1px solid #e2e8f0", pb: 0.5,
-                        },
-                        "& .contract-section p": {
-                            fontSize: "0.88rem", lineHeight: 1.7, color: "#334155",
-                        },
-                    }}>
-                        {signingData.contract.rendered_html ? (
-                            <div dangerouslySetInnerHTML={{ __html: signingData.contract.rendered_html }} />
-                        ) : (
-                            <Typography sx={{ color: "#64748b", fontStyle: "italic" }}>
-                                No contract content available.
-                            </Typography>
-                        )}
-                    </Box>
-
-                    {/* Signing section */}
-                    <Box sx={{
-                        p: { xs: 3, md: 4 },
-                        bgcolor: alpha(colors.card, 0.7),
-                        borderRadius: 3,
-                        border: `1px solid ${alpha("#6366f1", 0.2)}`,
-                    }}>
-                        <Typography sx={{
-                            color: colors.text, fontWeight: 700,
-                            fontSize: "1.05rem", mb: 0.5,
-                        }}>
-                            Sign this Contract
-                        </Typography>
-                        <Typography sx={{
-                            color: colors.muted, fontSize: "0.85rem", mb: 3,
-                        }}>
-                            By typing your full legal name below, you are agreeing to
-                            all terms in this contract.
-                        </Typography>
-
-                        <TextField
-                            fullWidth
-                            label="Type your full legal name"
-                            value={signatureText}
-                            onChange={(e) => setSignatureText(e.target.value)}
-                            placeholder={signingData.signer.name}
-                            sx={{
-                                mb: 2,
-                                "& .MuiInputBase-input": {
-                                    fontFamily: '"Dancing Script", "Brush Script MT", cursive',
-                                    fontSize: "1.5rem",
-                                    color: colors.text,
-                                    py: 1.5,
-                                },
-                                "& .MuiOutlinedInput-root": {
-                                    "& fieldset": { borderColor: alpha("#6366f1", 0.3) },
-                                    "&.Mui-focused fieldset": { borderColor: "#6366f1" },
-                                },
-                            }}
-                            InputLabelProps={{ sx: { color: colors.muted } }}
-                        />
-
-                        {/* Signature preview */}
-                        <Collapse in={!!signatureText}>
-                            <Box sx={{
-                                mb: 2, p: 2, textAlign: "center",
-                                borderBottom: "2px solid #6366f1",
-                                bgcolor: alpha("#fff", 0.03),
-                                borderRadius: "4px 4px 0 0",
-                            }}>
-                                <Typography sx={{
-                                    fontFamily: '"Dancing Script", "Brush Script MT", cursive',
-                                    fontSize: "1.8rem", color: colors.text, fontWeight: 700,
-                                }}>
-                                    {signatureText}
-                                </Typography>
-                                <Typography sx={{ color: alpha(colors.muted, 0.5), fontSize: "0.72rem", mt: 0.5 }}>
-                                    {new Date().toLocaleDateString("en-GB", {
-                                        day: "numeric", month: "long", year: "numeric",
-                                    })}
-                                </Typography>
-                            </Box>
-                        </Collapse>
-
-                        <FormControlLabel
-                            control={
-                                <Checkbox
-                                    checked={agreed}
-                                    onChange={(e) => setAgreed(e.target.checked)}
-                                    sx={{ color: alpha(colors.muted, 0.5), "&.Mui-checked": { color: "#6366f1" } }}
-                                />
-                            }
-                            label={
-                                <Typography sx={{ color: colors.text, fontSize: "0.82rem" }}>
-                                    I have read and agree to all terms and conditions in this contract.
-                                </Typography>
-                            }
-                            sx={{ mb: 2 }}
-                        />
-
-                        {submitError && (
-                            <Typography sx={{ color: "#ef4444", fontSize: "0.82rem", mb: 2 }}>
-                                {submitError}
-                            </Typography>
-                        )}
-
-                        <Box sx={{ display: "flex", gap: 2, justifyContent: "space-between" }}>
-                            <Button
-                                variant="outlined"
-                                startIcon={<ArrowBackIcon />}
-                                onClick={onBack}
-                                sx={{
-                                    color: colors.muted,
-                                    borderColor: alpha(colors.muted, 0.25),
-                                    textTransform: "none", borderRadius: 2,
-                                    "&:hover": { borderColor: colors.muted },
-                                }}
-                            >
-                                Back
-                            </Button>
-                            <Button
-                                variant="contained"
-                                size="large"
-                                disabled={!signatureText.trim() || !agreed || submitSignature.isPending}
-                                onClick={handleSign}
-                                startIcon={submitSignature.isPending
-                                    ? <CircularProgress size={18} color="inherit" />
-                                    : <ContractIcon />
-                                }
-                                sx={{
-                                    bgcolor: "#6366f1",
-                                    color: "#fff",
-                                    px: 4, py: 1.25, borderRadius: 2.5,
-                                    textTransform: "none", fontWeight: 700,
-                                    "&:hover": { bgcolor: "#4f46e5" },
-                                    "&:disabled": { bgcolor: alpha("#6366f1", 0.3), color: alpha("#fff", 0.5) },
-                                }}
-                            >
-                                {submitSignature.isPending ? "Signing..." : "Sign Contract"}
-                            </Button>
-                        </Box>
                     </Box>
                 </Box>
             )}

@@ -4,7 +4,7 @@ import { publicInquiryWizardApi } from '../api';
 import type { PublicWizardTemplate, InquiryWizardTemplate } from '../types';
 import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import type { PackageSet } from '@/features/catalog/packages/types/package-set.types';
-import type { EventType } from '@/features/catalog/event-types/types';
+import type { EventType } from '@/features/catalog/package-templates/types';
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
 
 interface PublicWizardData {

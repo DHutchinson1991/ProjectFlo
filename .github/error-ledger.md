@@ -17,6 +17,196 @@ After a pattern appears ≥2 times or is high-impact, update the relevant `.gith
 
 <!-- Add new entries below this line -->
 
+## [2026-04-28] Backend SWC dev watcher missed baseUrl after build-only fix
+- **Trigger**: The Windows SWC `failed to canonicalize jsc.baseUrl(\`\`)` failure was fixed only in `tsconfig.build.json`, but `nest start --watch` reads `tsconfig.json`. The dev watcher therefore kept panicking and could continue serving stale compiled code while source edits looked correct on disk.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Moved the SWC-only `jsc.baseUrl = "."` setting into `packages/backend/swc.config.json`, pointed Nest's SWC builder at it, and set `swcrc = false` so SWC does not rediscover a cwd-level `.swcrc` per input file on Windows. TypeScript configs remain free of deprecated `baseUrl` and `ignoreDeprecations` version mismatches. Kept the duplicate Day Blueprint create guard structural so Prisma `P2002` is translated even if `instanceof` misses.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-28] Payment schedule baseline repair restored relation without generated client and rule model
+- **Trigger**: During Prisma baseline repair, `payment_schedule_templates` was corrected to expose a `rules` relation, but the `payment_schedule_rules` model itself was still missing from `schema.prisma` and the Prisma client was not regenerated before judging the backend watcher errors as stale. The backend TSC watcher therefore kept reporting `rules` and `payment_schedule_rules` as missing across payment schedules, quotes, contract variables, and portal services.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Restored the `payment_schedule_rules` Prisma model with cascade relation to `payment_schedule_templates`, regenerated the squashed `0_baseline` migration and DBML, killed the backend process that was locking Prisma's Windows query-engine DLL, regenerated Prisma Client, and fixed the remaining Day Blueprint generator spec constructor mismatch found by backend typecheck.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-25] Partial day-blueprint refactor left a stray async call fragment that broke TypeScript parsing
+- **Trigger**: A follow-up edit in `day-blueprint-authoring.service.ts` removed the old sandbox-default path incompletely and left a dangling `await this.defaults.ensureSandboxAttachedToActivity(tx, {` line inside `createActivity()`. TypeScript then reported hundreds of downstream `TS1005` parser errors across the file, obscuring the real cause and blocking backend validation.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Removed the stray partial call, kept `createActivity()` on the single valid `ensureActivityLocationDefaults(...)` path, and revalidated the touched backend services with editor diagnostics plus repo-root backend typecheck.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-24] Day blueprint version detail underfetched authored activity context
+- **Trigger**: `DayBlueprintVersionsService.findOne()` returned days, activities, and raw moments, but omitted `activity_locations` plus moment `actions` and `placements` even though the Day Designer UI and README treat those as first-class authored data. The frontend therefore had to render a thinner left rail and could not reliably drive package-style activity counts or right-panel moment editing from the canonical detail response.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Expanded the version-detail include tree to return activity locations with location roles and nested moment actions/placements, then rewired the frontend editor around the active-day activities table and context-panel moment editing instead of the old focused center editor.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-24] Day Designer AI generation wrote durations without activity start times
+- **Trigger**: `DayBlueprintAiGeneratorService` asked Gemma only for names, descriptions, and durations, then persisted AI-created activities without `default_start_time`. The Day Designer timeline and package snapshotter both read `default_start_time`, so AI-generated blueprint days appeared as unscheduled even though the user expected a planned schedule.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Updated the AI generator to request HH:MM activity start times, persist them on generated activities, and fall back to a sequential schedule when the model returns durations only. Added a focused unit spec to lock the behavior.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-23] Package AI history counted planner transition events as separate tasks
+- **Trigger**: `PackagePlanningProgressService.recordStep()` appended both `started` and terminal planner states into `planner-summary.json`, and `PackageAiRunsService` later treated those rows as unique tasks. Completed runs therefore reloaded as partial progress such as `8/15 tasks complete`, while the task sidebar also duplicated finished work under in-progress rows.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Planner summaries now upsert the latest state per logical step, and the package AI history reader normalizes older persisted runs by collapsing duplicate step transitions and ignoring terminal `done`/`error` markers when building recorded progress.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-22] Package planning SSE marked completion before package blocking finished
+- **Trigger**: `PackagePlanningOrchestratorService` set `planning_status = READY` and emitted the terminal planning SSE `done` event as soon as activity planning finished, but `PackageCreationPipelineService` still ran `PackageBlockingPlannerService` afterward. The package detail progress bar therefore disappeared while backend Gemma/blocking logs continued for the same package-creation run.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Deferred the package-creation terminal READY/`done` transition until the blocking phase completes, added a blocking progress step to the shared planning SSE stream, and documented that package-creation planning stays in `PLANNING` through blocking while replan-only runs still terminate at activity-planning completion.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-22] Moment recording setup created duplicate track rows when audio subjects overlapped active audio tracks
+- **Trigger**: Moment editor saves can send the same audio track through shared per-track assignment data and `audio_track_ids` at the same time. `MomentRecordingSetupService.upsertRecordingSetup()` diffed camera and audio arrays separately and used `cameraSubjectAssignment.create()` for missing rows, so an overlapping audio track hit Prisma `P2002` on (`recording_setup_id`, `track_id`) and the failed PATCH left the UI waiting for a refresh to show the real backend state.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Normalized incoming moment recording assignments by `track_id`, switched the write path to transactional Prisma `upsert()` calls on the composite unique, and preserved `audio_assignments` in frontend local state so audio subject changes render immediately.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-22] Ceremony camera seeding and static shot inference treated framing as distance-only
+- **Trigger**: The floor-plan sync service auto-seeded ceremony cameras at legacy coordinates that fell inside seating/aisle space, and the downstream coverage/spatial/blocking classifiers treated framing as distance-only. That left locked-off cameras physically too central for clean closeups, downgraded some static closeups to wides, and let narrow-FOV cameras keep too many targeted subjects, producing repeated editorial-vs-geometry shot conflicts.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Migrated untouched legacy auto-seeded cameras to aisle/perimeter ceremony templates with base FOV values, preserved static closeups for unmanned cameras while coercing only `TRACKING` to static equivalents, and made both spatial shot inference and blocking subject-count caps respect camera FOV instead of raw distance alone.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-22] Film prep SSE treated recoverable stage failures as terminal and hid later progress
+- **Trigger**: `ScenePreparationService` catches stage-level failures for casting/actions/coverage/director and continues with the remaining prep pipeline, but `ScenePreparationController.streamPrepEvents()` closed the SSE stream on any `status === 'failed'`. The frontend hook therefore lost later progress events, and the package detail row could disappear or look frozen even though prep was still running.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Kept the SSE stream open until the final `done` event, added backend event timestamps/durations plus more specific stage labels, and upgraded the frontend progress row to show elapsed stage history and inline error context instead of a single stale label.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+
+## [2026-04-22] Content-creator run logs looked finished while background scene prep was still directing cameras
+- **Trigger**: `SchedulePackageContentCreationService` wrote `result.json` and marked the run completed immediately after film/scene creation, but `SchedulePackageService.upsertPackageFilmSceneSchedule()` launched `scenePrep.prepareScene()` as fire-and-forget work for activity-linked scenes. Operators reading the content-creator run log could see a completed run while the backend console still spent minutes in coverage/director steps, which looked like a hang or half-finished run.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Added explicit async background-prep metadata to the create-content result, documented the boundary in backend/frontend READMEs, logged background prepareScene launch in `SchedulePackageService`, and wrote a background-scene-prep note into the run log.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-22] Blocking treated filtered crowd groups as duplicate subjects and dropped their action mapping
+- **Trigger**: `BlockingDirectorService.planBlockingCore()` filtered large group subjects like `Guests` out of the AI input to avoid aisle placement, but the post-filter warning still reported the count delta as "Deduplicated ... duplicate subject name(s)". Because `parseResponse()` only built `results.subjects` from AI rows that matched the filtered input, guest crowd rows never made it into `subject_actions` or downstream subject-id resolution even when cameras still targeted `Guests` by name.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Kept large crowd groups in blocking as fixed context subjects, preserved their base crowd positions during parse, reused those base rows when the AI omitted them, and changed duplicate logging so it only reports real name collisions.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-22] Gemma client dropped transient LM Studio fetch failures on the first attempt
+- **Trigger**: `GemmaService.executePost()` issued a single `fetch()` per LLM call. When LM Studio was running but briefly reset the socket, warmed a model, or returned a transient retryable status, package-planning steps like `ActivityDescriptionStep` failed immediately with the opaque message `fetch failed` even though the next step could succeed seconds later.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Added bounded retry/backoff for retryable LM Studio connection failures and HTTP statuses in `GemmaService`, and wrapped terminal network failures with clearer request-purpose context so planner warnings show what actually failed.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-21] Content creator package films lost camera targets and shot badges when AI camera rows were malformed
+- **Trigger**: `BlockingDirectorService.parseResponse()` only accepted camera plans from `parsed.cameras`. When Gemma returned camera rows inside `subjects[]` with `subjectNames`, package blocking wrote `camera_subject_plan = {}` for that moment, so `SchedulePackageService.autoCreateRecordingSetups()` created film `CameraSubjectAssignment.subject_ids = []`. At the same time, `ScenePreparationService` kept coverage shot types only in `pipeline_data`, so the UI showed `TARGETED SUBJECTS (0)` and `No shot type` on content-creator films even when coverage planning succeeded.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Hardened blocking parse to recover misplaced camera rows from `subjects[]`, persisted package camera plans into film assignments again, and taught scene prep to write enum-safe coverage shot types into `cameraSubjectAssignment.shot_type` while keeping non-enum values like `TRACKING` in pipeline data only. Also tightened the camera-coverage skill prompt to avoid assigning the full roster to every camera.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-21] Gemma client let stalled LM Studio calls hang long-running content prep indefinitely
+- **Trigger**: `scene-preparation.service.ts` emits coverage progress before awaiting `CameraCoverageStep.execute()`, but `GemmaService.chat()` had no timeout or abort signal. If LM Studio stopped responding, the pipeline remained pinned on "Planning camera coverage" forever with no failure event.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Added a hard `GEMMA_TIMEOUT_MS` request timeout in `GemmaService` for chat/tool/vision/model requests so hung provider calls fail fast and upstream pipelines can emit failure and continue.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-20] Package-template refactor left deprecated package-set frontend bound to deleted category APIs
+- **Trigger**: The package-template/event-category refactor removed the backend `package-categories` surface, but the frontend packages feature still exported `package-categories.api.ts`, kept an unused `EditPackageSetDialog` wired to `/api/package-categories`, and typed legacy package sets with `event_type_id` instead of the backend's current `event_category` contract.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Removed the dead package-category API/export and unused dialog, switched the remaining legacy package-set DTOs/screens to `event_category`, and updated the packages feature README so future work starts from the template/event-category model.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-20] Brand service enablement assumed package-template absence meant all provisioning rows were absent
+- **Trigger**: Enabling a service type used `BrandProvisioningService` prechecks that only looked for an existing package template, while the service-type provisioners still used blind `create()` calls for `subject_roles`, `package_templates`, `package_template_*` links, and `package_sets`. A brand with pre-existing subject roles but no package template hit Prisma `P2002` on `(brand_id, role_name)` and the frontend saw a 500 when creating a service.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Made the Wedding/Birthday/Engagement provisioners idempotent with `upsert()` for unique rows and explicit ensure logic for default set slots, and updated the brands module README to reflect the current package-template-based provisioning model.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-20] Space-slot floor-plan service mixed persistence, layout seeding, and blocking environment assembly
+- **Trigger**: `space-slot-spatial.service.ts` had grown to own slot CRUD/sync, deterministic layout seeding, and AI blocking-environment assembly in one file, so route and service ownership no longer matched the actual responsibilities.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Split the module into `SpaceSlotSpatialService`, `SpaceSlotLayoutService`, and `SpaceSlotBlockingEnvironmentService`, and moved AI environment routes under `api/space-slots/:slotId/blocking-environment`.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-20] Module relocation left stale relative imports in moved planner files
+- **Trigger**: After moving `activity-planning` from `src/ai/` to `src/content/`, a few service/type imports still used the pre-move relative layout (`activity-planning.types` and `PackageCreationRunLogger` paths), which would have broken the moved slice despite the broader consumer rewiring being correct.
+- **Category**: Pattern
+- **Resolution**: Fixed the stale relative imports immediately, added a focused orchestrator spec for the moved module, and revalidated the slice before continuing.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-20] Logging instructions point to a missing backend LoggerService path
+- **Trigger**: `logging.instructions.md` directs backend work to `packages/backend/src/platform/logging/logger.service.ts`, but that path does not exist in the current workspace and the touched backend modules use Nest `Logger` directly.
+- **Category**: Context (high-impact)
+- **Resolution**: Implemented the package-creator file logging with local logger utilities under `ai/activity-planning/logging/` and recorded the instruction mismatch here so future agents do not block on the missing file.
+- **Instruction updated**: none
+- **Status**: Open
+
+## [2026-04-20] Event-type wizard compile broke after partial DTO/logging refactor
+- **Trigger**: Logging was added in the day-content builder without declaring the service logger, and the package-builder still referenced the removed `selectedActivityIds` field after the wizard DTO standardized on `selectedActivities`.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Restored the missing logger field and updated the package-builder to read the current DTO shape so backend watch typechecking stays green.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-18] Seed skip paths deleted package child rows during idempotent reseeds
+- **Trigger**: The Moonrise package seed treated existing packages as `skipped`, but still called `packageActivityMoment.deleteMany(...)` before bailing out. That meant a normal reseed silently stripped child rows from previously seeded packages while claiming the run was idempotent.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Removed the destructive deletes from the skip branches, moved base package-set scaffolding into the services seed, and added an explicit seed-data rule that skip paths must not mutate existing data.
+- **Instruction updated**: `seed-data.instructions.md`
+- **Status**: Resolved
+
+## [2026-04-16] Scene prep overwrote editorial shot intent with raw spatial inference
+- **Trigger**: The scene-preparation pipeline persisted `spatialFrame.inferredShotType` back onto camera assignments during prep, so far-distance geometry repeatedly rewrote planned/manual shots as `ESTABLISHING_SHOT`.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Added an explicit shot-decision resolver that treats spatial inference as evidence only, preserves assignment or coverage intent as the authoritative shot type, and exposes both resolved and raw values to preview consumers.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-16] Package content rows were locked by non-active CREATED planning state
+- **Trigger**: The frontend planning-progress hook opened its SSE connection when a package was merely in the default `CREATED` state, not only during an active `PLANNING` run. The Content tab then treated every film row as blocked, so clicks did nothing and stale “AI is planning” UI could linger for minutes.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Limited the planning SSE hook to active `PLANNING` runs only and decoupled film-row navigation from background progress visibility so existing films remain clickable while prep finishes.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-16] Film prep SSE hook aborted on temporary UI flag changes and left content rows stuck in progress
+- **Trigger**: The frontend film-progress hook was intended to stay connected until the backend sent its final prep event, but the effect still depended on the transient `enabled` flag. When the package page cleared its short-lived build state, React ran the cleanup and aborted the SSE stream mid-flight.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Kept the connection alive after first start, limited teardown to unmount / film changes, and documented the hook invariant in the films feature README.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-16] Activity planning ignored activity-specific people when generating prep moments
+- **Trigger**: The planning refactor moved subject-to-activity assignment into the AI pipeline, but schedule moment generation still seeded prep moments from the shared Getting Ready knowledge base without filtering by the activity's assigned people. New subjects created later also were not auto-linked back into universal ceremony/reception activities.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Filtered knowledge-base moment entries and scene moment subjects by the activity's assigned people, restored auto-linking for newly added ceremony/reception subjects, and added deterministic universal-activity guardrails after the LLM subject-assignment step.
+- **Instruction updated**: none
+- **Status**: Resolved
+
+## [2026-04-11] Broad schema rename corrupted unrelated Prisma model names and reverse relations
+- **Trigger**: During the `FilmSubject` → `PackageDaySubject` merge, a broad schema edit left behind accidental Prisma damage (`model MomePackageDaySubject`, missing `SceneCameraAssignment` / `FilmLocation`, stray subject relations on `PackageEventDayLocation`, and missing reverse relation fields).
+- **Category**: Pattern (high-impact)
+- **Resolution**: Restored the missing models/fields, removed the stray relations, reran `pnpm -w run db:generate`, and added an explicit database-design rule to verify Prisma immediately after any broad schema rename.
+- **Instruction updated**: `database-design.instructions.md`
+- **Status**: Resolved
+
 ## [2026-03-31] Migration history drift — `prisma migrate dev` demanded full schema reset (DATA LOSS RISK)
 - **Trigger**: After adding `inquiry_crew_availability_requests` model, the agent ran `prisma migrate dev` to create a named migration. Prisma detected that the actual DB schema no longer matches the recorded migration history (caused by repeated `pnpm db:push` operations that modify the DB without creating migration files). Prisma's only option was to **reset the entire public schema** — dropping all tables and data.
 - **Category**: Pattern (high-impact, systemic)
@@ -34,6 +224,13 @@ After a pattern appears ≥2 times or is high-impact, update the relevant `.gith
 - **Status**: Open
 
 ## [2026-03-29] Assumed event-type nested arrays were safe in all wizard render paths
+## [2026-04-21] Event-type cache hid out-of-band template subject changes from the package wizard
+- **Trigger**: The frontend `useEventTypes` hook cached package-template-backed event types for 5 minutes without refetching on mount. After provisioning or DB backfill changed Wedding template subjects, the package creation wizard and detail views could keep using a stale pre-change template, so Officiant stayed missing and unrelated fallback roles still appeared until cache expiry or a full refresh.
+- **Category**: Pattern (high-impact)
+- **Resolution**: Kept the legacy query cache window but forced `refetchOnMount: 'always'` so event-type consumers pick up subject-role changes as soon as the screen opens.
+- **Instruction updated**: none
+- **Status**: Resolved
+
 - **Trigger**: Fixed an initial null-safety crash in `getAllRoleIds`, but missed additional direct `.sort()`/`.find()` usage of `selectedEventType.subject_types` and `selectedEventType.event_days` in render and handlers, causing repeated runtime crashes on partial payloads.
 - **Category**: Pattern
 - **Resolution**: Added wizard-level payload normalization plus centralized safe helpers (`getEventTypeDays`/`getEventTypeSubjects`) and replaced direct array access in render/handlers with guarded copy-before-sort usage.

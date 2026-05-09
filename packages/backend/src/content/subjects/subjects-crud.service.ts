@@ -9,22 +9,59 @@ import { SubjectPriority } from '@prisma/client';
 export class SubjectsCrudService {
     constructor(private prisma: PrismaService) {}
 
+    /** Resolve the package_id for a film (via PackageFilm). */
+    private async getPackageIdForFilm(filmId: number): Promise<number> {
+        const pf = await this.prisma.packageFilm.findFirst({
+            where: { film_id: filmId },
+            select: { package_id: true },
+        });
+        if (!pf) throw new NotFoundException(`Film ${filmId} is not assigned to any package`);
+        return pf.package_id;
+    }
+
     async create(createSubjectDto: CreateSubjectDto) {
         const filmId = createSubjectDto.film_id!;
+        const packageId = await this.getPackageIdForFilm(filmId);
 
-        const film = await this.prisma.film.findUnique({
-            where: { id: filmId },
-        });
-        if (!film) {
-            throw new NotFoundException(`Film with ID ${filmId} not found`);
+        // Determine event_day_template_id — explicit, or infer from film's first activity
+        let eventDayId = createSubjectDto.event_day_template_id;
+        if (!eventDayId) {
+            const activity = await this.prisma.sceneMoment.findFirst({
+                where: { film_scene: { film_id: filmId }, source_activity_id: { not: null } },
+                select: { source_activity_id: true },
+            });
+            if (activity?.source_activity_id) {
+                const act = await this.prisma.packageActivity.findUnique({
+                    where: { id: activity.source_activity_id },
+                    select: { package_event_day_id: true },
+                });
+                eventDayId = act?.package_event_day_id;
+            }
+            // Fallback: first event day in package
+            if (!eventDayId) {
+                const firstDay = await this.prisma.packageEventDay.findFirst({
+                    where: { package_id: packageId },
+                    orderBy: { order_index: 'asc' },
+                    select: { id: true },
+                });
+                if (!firstDay) throw new BadRequestException('Package has no event days');
+                eventDayId = firstDay.id;
+            }
         }
 
-        const existingSubject = await this.prisma.filmSubject.findUnique({
-            where: { film_id_name: { film_id: filmId, name: createSubjectDto.name } },
+        // Uniqueness check
+        const existing = await this.prisma.packageDaySubject.findUnique({
+            where: {
+                package_id_event_day_template_id_name: {
+                    package_id: packageId,
+                    event_day_template_id: eventDayId,
+                    name: createSubjectDto.name,
+                },
+            },
         });
-        if (existingSubject) {
+        if (existing) {
             throw new BadRequestException(
-                `A subject with name "${createSubjectDto.name}" already exists in this film`,
+                `A subject with name "${createSubjectDto.name}" already exists`,
             );
         }
 
@@ -39,41 +76,50 @@ export class SubjectsCrudService {
             }
         }
 
-        const subject = await this.prisma.filmSubject.create({
+        const subject = await this.prisma.packageDaySubject.create({
             data: {
-                film_id: filmId,
+                package_id: packageId,
+                event_day_template_id: eventDayId,
                 name: createSubjectDto.name,
                 role_template_id: createSubjectDto.role_template_id,
             },
             include: { role_template: true },
         });
 
-        const filmScenes = await this.prisma.filmScene.findMany({
-            where: { film_id: filmId },
-            select: { id: true },
-        });
+        // Auto-assign as BACKGROUND to all existing moments in this film
         const filmMoments = await this.prisma.sceneMoment.findMany({
             where: { film_scene: { film_id: filmId } },
-            select: { id: true },
+            select: { id: true, name: true, source_activity_id: true },
         });
 
-        if (filmScenes.length > 0) {
-            await this.prisma.filmSceneSubject.createMany({
-                data: filmScenes.map((scene) => ({
-                    scene_id: scene.id,
-                    subject_id: subject.id,
-                    priority: SubjectPriority.BACKGROUND,
-                })),
-                skipDuplicates: true,
-            });
-        }
         if (filmMoments.length > 0) {
+            const roleName = subject.role_template?.role_name || subject.name;
+            const momentsWithActivity = filmMoments.filter(m => m.source_activity_id);
+            const activityIds = [...new Set(momentsWithActivity.map(m => m.source_activity_id!))];
+            const templateMoments = activityIds.length > 0
+                ? await this.prisma.packageActivityMoment.findMany({
+                    where: { package_activity_id: { in: activityIds } },
+                    select: { package_activity_id: true, name: true, subject_actions: true },
+                })
+                : [];
+            const templateMap = new Map(templateMoments.map(t => [`${t.package_activity_id}:${t.name}`, t.subject_actions]));
+
             await this.prisma.filmSceneMomentSubject.createMany({
-                data: filmMoments.map((moment) => ({
-                    moment_id: moment.id,
-                    subject_id: subject.id,
-                    priority: SubjectPriority.BACKGROUND,
-                })),
+                data: filmMoments.map((moment) => {
+                    let actionDesc: string | undefined;
+                    if (moment.source_activity_id) {
+                        const actions = templateMap.get(`${moment.source_activity_id}:${moment.name}`);
+                        if (actions && typeof actions === 'object' && !Array.isArray(actions)) {
+                            actionDesc = (actions as Record<string, string>)[roleName] ?? undefined;
+                        }
+                    }
+                    return {
+                        moment_id: moment.id,
+                        subject_id: subject.id,
+                        priority: SubjectPriority.BACKGROUND,
+                        action_description: actionDesc ?? undefined,
+                    };
+                }),
                 skipDuplicates: true,
             });
         }
@@ -83,12 +129,11 @@ export class SubjectsCrudService {
 
     async findAll(filmId: number) {
         const film = await this.prisma.film.findUnique({ where: { id: filmId } });
-        if (!film) {
-            throw new NotFoundException(`Film with ID ${filmId} not found`);
-        }
+        if (!film) throw new NotFoundException(`Film with ID ${filmId} not found`);
 
-        const subjects = await this.prisma.filmSubject.findMany({
-            where: { film_id: filmId },
+        const packageId = await this.getPackageIdForFilm(filmId);
+        const subjects = await this.prisma.packageDaySubject.findMany({
+            where: { package_id: packageId },
             include: { role_template: true },
             orderBy: { created_at: 'desc' },
         });
@@ -96,85 +141,80 @@ export class SubjectsCrudService {
     }
 
     async findOne(id: number) {
-        const subject = await this.prisma.filmSubject.findUnique({
+        const subject = await this.prisma.packageDaySubject.findUnique({
             where: { id },
-            include: { film: true, role_template: true },
+            include: { role_template: true },
         });
-        if (!subject) {
-            throw new NotFoundException(`Subject with ID ${id} not found`);
-        }
+        if (!subject) throw new NotFoundException(`Subject with ID ${id} not found`);
         return mapToSubjectResponse(subject);
     }
 
     async update(id: number, updateSubjectDto: UpdateSubjectDto) {
-        const subject = await this.prisma.filmSubject.findUnique({ where: { id } });
-        if (!subject) {
-            throw new NotFoundException(`Subject with ID ${id} not found`);
-        }
+        const subject = await this.prisma.packageDaySubject.findUnique({ where: { id } });
+        if (!subject) throw new NotFoundException(`Subject with ID ${id} not found`);
 
         if (updateSubjectDto.name && updateSubjectDto.name !== subject.name) {
-            const existingSubject = await this.prisma.filmSubject.findUnique({
-                where: { film_id_name: { film_id: subject.film_id, name: updateSubjectDto.name } },
+            const existing = await this.prisma.packageDaySubject.findUnique({
+                where: {
+                    package_id_event_day_template_id_name: {
+                        package_id: subject.package_id,
+                        event_day_template_id: subject.event_day_template_id,
+                        name: updateSubjectDto.name,
+                    },
+                },
             });
-            if (existingSubject) {
+            if (existing) {
                 throw new BadRequestException(
-                    `A subject with name "${updateSubjectDto.name}" already exists in this film`,
+                    `A subject with name "${updateSubjectDto.name}" already exists`,
                 );
             }
         }
 
-        const updated = await this.prisma.filmSubject.update({
+        const updated = await this.prisma.packageDaySubject.update({
             where: { id },
-            data: updateSubjectDto,
+            data: {
+                name: updateSubjectDto.name,
+                role_template_id: updateSubjectDto.role_template_id,
+            },
             include: { role_template: true },
         });
         return mapToSubjectResponse(updated);
     }
 
     async remove(id: number) {
-        const subject = await this.prisma.filmSubject.findUnique({ where: { id } });
-        if (!subject) {
-            throw new NotFoundException(`Subject with ID ${id} not found`);
-        }
+        const subject = await this.prisma.packageDaySubject.findUnique({ where: { id } });
+        if (!subject) throw new NotFoundException(`Subject with ID ${id} not found`);
 
+        // Clean subject_ids arrays in camera assignments that reference this subject
         const [sceneAssignments, momentAssignments] = await this.prisma.$transaction([
             this.prisma.sceneCameraAssignment.findMany({
-                where: { recording_setup: { scene: { film_id: subject.film_id } } },
+                where: { subject_ids: { has: id } },
                 select: { id: true, subject_ids: true },
             }),
             this.prisma.cameraSubjectAssignment.findMany({
-                where: { recording_setup: { moment: { film_scene: { film_id: subject.film_id } } } },
+                where: { subject_ids: { has: id } },
                 select: { id: true, subject_ids: true },
             }),
         ]);
 
         const updates = [
-            ...sceneAssignments.map((assignment) => {
-                const next = assignment.subject_ids.filter((subjectId) => subjectId !== id);
-                if (next.length === assignment.subject_ids.length) return null;
+            ...sceneAssignments.map((a) => {
+                const next = a.subject_ids.filter((sid) => sid !== id);
                 return this.prisma.sceneCameraAssignment.update({
-                    where: { id: assignment.id },
-                    data: { subject_ids: next },
+                    where: { id: a.id }, data: { subject_ids: next },
                 });
             }),
-            ...momentAssignments.map((assignment) => {
-                const next = assignment.subject_ids.filter((subjectId) => subjectId !== id);
-                if (next.length === assignment.subject_ids.length) return null;
+            ...momentAssignments.map((a) => {
+                const next = a.subject_ids.filter((sid) => sid !== id);
                 return this.prisma.cameraSubjectAssignment.update({
-                    where: { id: assignment.id },
-                    data: { subject_ids: next },
+                    where: { id: a.id }, data: { subject_ids: next },
                 });
             }),
-        ].filter(
-            (update): update is ReturnType<typeof this.prisma.sceneCameraAssignment.update> =>
-                !!update,
-        );
+        ];
 
-        if (updates.length) {
-            await this.prisma.$transaction(updates);
-        }
+        if (updates.length) await this.prisma.$transaction(updates);
 
-        await this.prisma.filmSubject.delete({ where: { id } });
+        await this.prisma.packageDaySubject.delete({ where: { id } });
         return { message: `Subject with ID ${id} deleted successfully` };
     }
 

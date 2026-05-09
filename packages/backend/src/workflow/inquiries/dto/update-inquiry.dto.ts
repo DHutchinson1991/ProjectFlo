@@ -51,10 +51,6 @@ export class UpdateInquiryDto {
     preferred_payment_schedule_template_id?: number | null;
 
     @IsOptional()
-    @IsInt()
-    event_type_id?: number | null;
-
-    @IsOptional()
     @IsString()
-    event_type?: string | null;
+    event_category?: string | null;
 }

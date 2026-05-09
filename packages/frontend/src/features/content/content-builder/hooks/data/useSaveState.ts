@@ -1,8 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { TimelineScene, SaveState } from '@/features/content/content-builder/types/timeline';
 
+const AUTO_SAVE_DELAY = 1500;
+
 /**
- * Hook for managing save state and unsaved changes detection
+ * Hook for managing save state with auto-save on change (debounced).
+ * Automatically persists timeline changes after a short delay.
  */
 export const useSaveState = (
     scenes: TimelineScene[],
@@ -17,11 +20,12 @@ export const useSaveState = (
 
     const [lastSavedScenes, setLastSavedScenes] = useState<string>("");
     const [initialLoad, setInitialLoad] = useState(true);
+    const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isSavingRef = useRef(false);
 
     // Detect changes in scenes
     useEffect(() => {
         if (initialLoad) {
-            // On first load, consider it as the "saved" state
             setLastSavedScenes(JSON.stringify(scenes));
             setInitialLoad(false);
             return;
@@ -33,53 +37,69 @@ export const useSaveState = (
         setSaveState((prev: SaveState) => ({
             ...prev,
             hasUnsavedChanges: hasChanges,
-            saveError: hasChanges ? null : prev.saveError, // Clear error when changes are detected
+            saveError: hasChanges ? null : prev.saveError,
         }));
     }, [scenes, lastSavedScenes, initialLoad]);
 
-    const handleSave = useCallback(async () => {
-        if (!onSave || saveState.isSaving) {
-            console.log('⚠️ [USESAVESTATE] Early exit - onSave missing or already saving');
-            return;
-        }
+    const executeSave = useCallback(async () => {
+        if (!onSave || isSavingRef.current) return;
 
-        console.log('💾 [USESAVESTATE] Starting save...');
-        setSaveState((prev: SaveState) => ({
-            ...prev,
-            isSaving: true,
-            saveError: null,
-        }));
+        isSavingRef.current = true;
+        setSaveState((prev: SaveState) => ({ ...prev, isSaving: true, saveError: null }));
 
         try {
-            console.log('💾 [USESAVESTATE] Calling onSave callback...');
             await onSave(scenes);
-            console.log('✅ [USESAVESTATE] onSave callback completed successfully');
-
-            // Update the "saved" state
-            console.log('💾 [USESAVESTATE] Updating saved scenes state...');
             setLastSavedScenes(JSON.stringify(scenes));
-            console.log('💾 [USESAVESTATE] Setting saveState to saved...');
-            setSaveState((prev: SaveState) => {
-                const newState = {
-                    ...prev,
-                    hasUnsavedChanges: false,
-                    lastSavedAt: new Date(),
-                    isSaving: false,
-                    saveError: null,
-                };
-                console.log('💾 [USESAVESTATE] New save state:', newState);
-                return newState;
-            });
-            console.log('✅ [USESAVESTATE] Save completed successfully');
+            setSaveState((prev: SaveState) => ({
+                ...prev,
+                hasUnsavedChanges: false,
+                lastSavedAt: new Date(),
+                isSaving: false,
+                saveError: null,
+            }));
         } catch (error) {
-            console.error('❌ [USESAVESTATE] Save failed:', error);
+            console.error('[AUTOSAVE] Save failed:', error);
             setSaveState((prev: SaveState) => ({
                 ...prev,
                 isSaving: false,
                 saveError: error instanceof Error ? error.message : "Failed to save",
             }));
+        } finally {
+            isSavingRef.current = false;
         }
-    }, [onSave, scenes, saveState.isSaving]);
+    }, [onSave, scenes]);
+
+    // Auto-save when changes are detected (debounced)
+    useEffect(() => {
+        if (initialLoad || !saveState.hasUnsavedChanges || !onSave) return;
+
+        if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+        autoSaveTimer.current = setTimeout(() => {
+            executeSave();
+        }, AUTO_SAVE_DELAY);
+
+        return () => {
+            if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+        };
+    }, [saveState.hasUnsavedChanges, initialLoad, executeSave, onSave]);
+
+    // Flush pending auto-save on unmount
+    useEffect(() => {
+        return () => {
+            if (autoSaveTimer.current) {
+                clearTimeout(autoSaveTimer.current);
+                autoSaveTimer.current = null;
+            }
+        };
+    }, []);
+
+    const handleSave = useCallback(async () => {
+        if (autoSaveTimer.current) {
+            clearTimeout(autoSaveTimer.current);
+            autoSaveTimer.current = null;
+        }
+        await executeSave();
+    }, [executeSave]);
 
     const markAsSaved = useCallback(() => {
         setLastSavedScenes(JSON.stringify(scenes));

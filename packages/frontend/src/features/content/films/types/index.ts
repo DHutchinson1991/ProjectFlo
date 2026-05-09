@@ -4,7 +4,6 @@
  */
 
 import type { FilmScene } from '@/features/content/scenes/types';
-import type { FilmSubject } from '@/features/content/subjects/types';
 import type { FilmTimelineTrack } from './tracks';
 import type { FilmLocationAssignment } from '@/features/workflow/locations/types';
 import type { MontagePreset } from './montage-presets';
@@ -42,7 +41,6 @@ export interface Film {
   };
   montage_preset?: MontagePreset | null;
   tracks?: FilmTimelineTrack[];
-  subjects?: FilmSubject[];
   locations?: FilmLocationAssignment[];
   scenes?: FilmScene[];
 }
@@ -114,6 +112,5 @@ export interface UpdateTimelineLayerDto {
  */
 export interface FilmResponse extends Film {
   tracks: FilmTimelineTrack[];
-  subjects: FilmSubject[];
   scenes: FilmScene[];
 }

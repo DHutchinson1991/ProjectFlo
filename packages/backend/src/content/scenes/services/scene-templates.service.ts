@@ -8,7 +8,6 @@ type SceneWithMomentsBeatsSetupSubjects = Prisma.FilmSceneGetPayload<{
         moments: true;
         beats: true;
         recording_setup: { include: { camera_assignments: true } };
-        subjects: { include: { subject: true } };
     };
 }>;
 
@@ -93,10 +92,14 @@ export class SceneTemplatesService {
         const scene = await this.prisma.filmScene.findUnique({
             where: { id: sceneId },
             include: {
-                moments: { orderBy: { order_index: 'asc' } },
+                moments: {
+                    orderBy: { order_index: 'asc' },
+                    include: {
+                        subjects: { include: { subject: true } },
+                    },
+                },
                 beats: { orderBy: { order_index: 'asc' } },
                 recording_setup: { include: { camera_assignments: true } },
-                subjects: { include: { subject: true } },
             },
         });
         if (!scene) {
@@ -115,8 +118,18 @@ export class SceneTemplatesService {
         const { moments: templateMoments, type: templateType } = this.determineTemplateMomentsAndType(scene);
         const recordingSetup = this.mapRecordingSetup(scene.recording_setup);
 
+        // Derive scene subjects from moment subject assignments (FilmSceneMomentSubject)
+        const momentSubjects = scene.moments.flatMap(m => m.subjects || []);
+        // Deduplicate by subject_id, keeping first occurrence
+        const seen = new Set<number>();
+        const sceneSubjects = momentSubjects.filter(ms => {
+            if (seen.has(ms.subject_id)) return false;
+            seen.add(ms.subject_id);
+            return true;
+        });
+
         const suggestedSubjectsData = await this.buildSuggestedSubjects(
-            scene.subjects,
+            sceneSubjects,
             film.brand_id,
         );
 
@@ -216,7 +229,7 @@ export class SceneTemplatesService {
     }
 
     private async buildSuggestedSubjects(
-        sceneSubjects: Array<{ subject: { name: string } | null; priority: string }>,
+        sceneSubjects: Array<{ subject: { name: string } | null; priority: string | null }>,
         brandId: number,
     ): Promise<Array<{ subject_template_id: number; is_required: boolean }>> {
         if (!sceneSubjects || sceneSubjects.length === 0) return [];

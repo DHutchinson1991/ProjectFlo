@@ -121,7 +121,9 @@ export function useMomentEditorState({
 
     // ─── Derived subjects / crew from activity ────────────────────────────────
     const inheritedSubjects = React.useMemo(() => {
-        if (!activity) return [];
+        // When no activity is linked, expose all package subjects so
+        // the recording-setup dropdowns can still resolve names and allow selection.
+        if (!activity) return activitySubjects as Array<{ id: number; name: string; [key: string]: unknown }>;
         const eventDayId = activity.event_day_template_id ?? activity.package_event_day_id;
         return activitySubjects.filter((s: any) => {
             if (s.package_activity_id === activity.id) return true;
@@ -164,8 +166,15 @@ export function useMomentEditorState({
     );
 
     const fallbackSetup = (moment as any)?.recording_setup || sceneRecordingSetup;
+    // Keep a ref so the init effect always reads the latest value without
+    // re-running when auto-save updates the parent state.
+    const fallbackSetupRef = React.useRef(fallbackSetup);
+    fallbackSetupRef.current = fallbackSetup;
 
     // ─── Recording setup sync effect ──────────────────────────────────────────
+    // Only populates local state on dialog open or moment change.
+    // After init, local state is the source of truth (auto-save writes out,
+    // but we never read back from fallbackSetup until next open/moment change).
     React.useEffect(() => {
         if (!moment || !open) {
             prevOpenRef.current = open;
@@ -174,31 +183,34 @@ export function useMomentEditorState({
         const momentId = moment.id;
         const justOpened = open && !prevOpenRef.current;
         const momentChanged = momentId !== prevMomentIdRef.current;
-        if (!justOpened && !momentChanged && isSetupDirty) {
+        // Only initialise on first open or when switching moments
+        if (!justOpened && !momentChanged) {
             prevOpenRef.current = open;
             prevMomentIdRef.current = momentId;
             return;
         }
-        const cameraIds: number[] = fallbackSetup?.camera_assignments?.map((a: any) => a.track_id)
+        const setup = fallbackSetupRef.current;
+        const cameraIds: number[] = setup?.camera_assignments?.map((a: any) => a.track_id)
             || videoTracks.map(t => t.id);
-        const audioIds: number[] = fallbackSetup?.audio_track_ids || audioTracks.map(t => t.id);
-        const graphicsDefault = fallbackSetup ? !!fallbackSetup?.graphics_enabled : false;
-        const graphicsTitleDefault = typeof (fallbackSetup as any)?.graphics_title === "string"
-            ? (fallbackSetup as any).graphics_title : "";
-        const assignmentLookup = new Map<number, number[]>(
-            (fallbackSetup?.camera_assignments || []).map((a: any) => [a.track_id, (a.subject_ids || []) as number[]]),
-        );
+        const audioIds: number[] = setup?.audio_track_ids || audioTracks.map(t => t.id);
+        const graphicsDefault = setup ? !!setup?.graphics_enabled : false;
+        const graphicsTitleDefault = typeof (setup as any)?.graphics_title === "string"
+            ? (setup as any).graphics_title : "";
+        const assignmentLookup = new Map<number, number[]>([
+            ...(setup?.camera_assignments || []).map((a: any) => [a.track_id, (a.subject_ids || []) as number[]]),
+            ...(setup?.audio_assignments || []).map((a: any) => [a.track_id, (a.subject_ids || []) as number[]]),
+        ]);
         const shotLookup = new Map(
-            (fallbackSetup?.camera_assignments || []).map((a: any) => [a.track_id, a.shot_type || ""]),
+            (setup?.camera_assignments || []).map((a: any) => [a.track_id, a.shot_type || ""]),
         );
         if (Object.keys(trackDefaults).length > 0) {
             [...videoTracks, ...audioTracks].forEach(track => {
                 const def = trackDefaults[track.id];
                 if (!def) return;
-                if (!assignmentLookup.has(track.id) && def.subject_ids?.length) {
-                    assignmentLookup.set(track.id, def.subject_ids as number[]);
-                }
-                if (!shotLookup.has(track.id) && def.shot_type) {
+                // Only fall back to track default shot type — never backfill subjects.
+                // Empty subjects is a valid state; backfilling caused all subjects to
+                // silently appear on every moment and get persisted on first edit.
+                if (!shotLookup.get(track.id) && def.shot_type) {
                     shotLookup.set(track.id, def.shot_type);
                 }
             });
@@ -210,29 +222,22 @@ export function useMomentEditorState({
         setCameraSubjectSelections(prev => {
             const next = { ...prev };
             Array.from(new Set([...cameraIds, ...audioIds])).forEach(trackId => {
-                if (!next[trackId]) {
-                    next[trackId] = assignmentLookup.get(trackId) || [];
-                } else if (assignmentLookup.has(trackId)) {
-                    next[trackId] = assignmentLookup.get(trackId) || [];
-                }
+                next[trackId] = assignmentLookup.get(trackId) || [];
             });
             return next;
         });
         setCameraShotSelections(prev => {
             const next: Record<number, ShotType | ""> = { ...prev };
             cameraIds.forEach(trackId => {
-                if (!next[trackId]) {
-                    next[trackId] = (shotLookup.get(trackId) as ShotType) || "";
-                } else if (shotLookup.has(trackId)) {
-                    next[trackId] = (shotLookup.get(trackId) as ShotType) || "";
-                }
+                next[trackId] = (shotLookup.get(trackId) as ShotType) || "";
             });
             return next;
         });
         setIsSetupDirty(false);
         prevOpenRef.current = open;
         prevMomentIdRef.current = momentId;
-    }, [moment, open, fallbackSetup, videoTracks, audioTracks, isSetupDirty, trackDefaults]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [moment, open, videoTracks, audioTracks, trackDefaults]);
 
     // ─── Music load effect ────────────────────────────────────────────────────
     React.useEffect(() => {
@@ -341,38 +346,61 @@ export function useMomentEditorState({
         } finally { setIsSavingMusic(false); }
     };
 
+    // ─── Auto-save recording setup on change (debounced) ────────────────
+    const autoSaveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const saveRecordingSetup = React.useCallback(async () => {
+        if (!moment || !onUpsertRecordingSetup || readOnly) return;
+        if (shouldLog) {
+            console.info("[MOMENT] Auto-saving recording setup", {
+                momentId: moment.id,
+                camera_track_ids: selectedCameraTrackIds,
+                audio_track_ids: selectedAudioTrackIds,
+                graphics_enabled: graphicsEnabled,
+            });
+        }
+        setIsSavingSetup(true);
+        try {
+            const subjectTrackIds = Array.from(new Set([...selectedCameraTrackIds, ...selectedAudioTrackIds]));
+            await onUpsertRecordingSetup(moment.id as number, {
+                camera_track_ids: selectedCameraTrackIds,
+                camera_assignments: subjectTrackIds.map(trackId => {
+                    const track = allTracks.find(t => t.id === trackId);
+                    return {
+                        track_id: trackId,
+                        track_type: track?.track_type?.toString().toLowerCase() || undefined,
+                        subject_ids: cameraSubjectSelections[trackId] || [],
+                        shot_type: cameraShotSelections[trackId] || undefined,
+                    };
+                }),
+                audio_track_ids: selectedAudioTrackIds,
+                graphics_enabled: graphicsEnabled,
+                graphics_title: graphicsEnabled ? (graphicsTitle.trim() || null) : null,
+            });
+            if (shouldLog) console.info("[MOMENT] Recording setup auto-saved", { momentId: moment.id });
+        } finally { setIsSavingSetup(false); }
+    }, [moment, onUpsertRecordingSetup, readOnly, shouldLog, selectedCameraTrackIds, selectedAudioTrackIds, cameraSubjectSelections, cameraShotSelections, graphicsEnabled, graphicsTitle, allTracks]);
+
+    React.useEffect(() => {
+        if (!isSetupDirty || !open || !moment) return;
+        if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+        autoSaveTimer.current = setTimeout(() => {
+            saveRecordingSetup();
+            setIsSetupDirty(false);
+        }, 800);
+        return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+    }, [isSetupDirty, open, moment, saveRecordingSetup]);
+
     const handleSaveWithSetup = async () => {
         if (!moment) return;
-        if (onUpsertRecordingSetup && !readOnly) {
-            if (shouldLog) {
-                if (typeof window !== "undefined") (window as any).__debugMomentId = moment.id;
-                console.info("[MOMENT] Saving recording setup", {
-                    momentId: moment.id,
-                    camera_track_ids: selectedCameraTrackIds,
-                    audio_track_ids: selectedAudioTrackIds,
-                    graphics_enabled: graphicsEnabled,
-                });
-            }
-            setIsSavingSetup(true);
-            try {
-                const subjectTrackIds = Array.from(new Set([...selectedCameraTrackIds, ...selectedAudioTrackIds]));
-                await onUpsertRecordingSetup(moment.id as number, {
-                    camera_track_ids: selectedCameraTrackIds,
-                    camera_assignments: subjectTrackIds.map(trackId => {
-                        const track = allTracks.find(t => t.id === trackId);
-                        return {
-                            track_id: trackId,
-                            track_type: track?.track_type?.toString().toLowerCase() || undefined,
-                            subject_ids: cameraSubjectSelections[trackId] || [],
-                            shot_type: cameraShotSelections[trackId] || undefined,
-                        };
-                    }),
-                    audio_track_ids: selectedAudioTrackIds,
-                    graphics_enabled: graphicsEnabled,
-                    graphics_title: graphicsEnabled ? (graphicsTitle.trim() || null) : null,
-                });
-                if (shouldLog) console.info("[MOMENT] Recording setup saved", { momentId: moment.id });
-            } finally { setIsSavingSetup(false); }
+        // Flush any pending auto-save immediately
+        if (autoSaveTimer.current) {
+            clearTimeout(autoSaveTimer.current);
+            autoSaveTimer.current = null;
+        }
+        if (isSetupDirty && onUpsertRecordingSetup && !readOnly) {
+            await saveRecordingSetup();
+            setIsSetupDirty(false);
         }
         if (!isMusicTrack && (momentMusicEnabled || momentMusic)) {
             await handleSaveMomentMusic();

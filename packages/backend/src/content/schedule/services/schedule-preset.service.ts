@@ -118,6 +118,7 @@ export class SchedulePresetService {
         event_day_template_id: eventDayId,
         name: dto.name,
         description: dto.description,
+        location_label: dto.location_label,
         color: dto.color,
         icon: dto.icon,
         default_start_time: dto.default_start_time,

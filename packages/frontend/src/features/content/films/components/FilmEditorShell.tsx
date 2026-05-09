@@ -55,10 +55,10 @@ export function FilmEditorShell({
     }
 
     return (
-        <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-            <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
-                <Box sx={{ flex: 1, overflow: "visible", p: 0 }}>
-                    {packageAlert}
+        <Box sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", bgcolor: "#000" }}>
+            {packageAlert ? <Box sx={{ flexShrink: 0 }}>{packageAlert}</Box> : null}
+            <Box sx={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
+                <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden", p: 0 }}>
                     {children}
                 </Box>
             </Box>

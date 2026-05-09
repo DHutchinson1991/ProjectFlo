@@ -56,7 +56,7 @@ Table brands {
   task_library task_library [not null]
   brand_members brand_members [not null]
   service_packages service_packages [not null]
-  service_package_categories service_package_categories [not null]
+  package_templates package_templates [not null]
   films films [not null]
   montage_presets montage_presets [not null]
   film_structure_templates film_structure_templates [not null]
@@ -68,8 +68,6 @@ Table brands {
   equipment_templates equipment_templates [not null]
   event_days event_days [not null]
   schedule_presets schedule_presets [not null]
-  event_subtypes event_subtypes [not null]
-  event_types event_types [not null]
   workflow_templates workflow_templates [not null]
   package_sets package_sets [not null]
   skill_role_mappings skill_role_mappings [not null]
@@ -83,6 +81,12 @@ Table brands {
   finance_settings brand_finance_settings
   invoices invoices [not null]
   payment_methods payment_methods [not null]
+  shot_previews shot_previews [not null]
+  floor_plan_presets floor_plan_presets [not null]
+  moment_knowledge_bases moment_knowledge_bases [not null]
+  crew_presets crew_presets [not null]
+  day_blueprints day_blueprints [not null]
+  day_blueprint_location_roles day_blueprint_location_roles [not null]
 }
 
 Table brand_settings {
@@ -146,6 +150,7 @@ Table contacts {
   event_attendees event_attendees [not null]
   inquiries inquiries [not null]
   inquiry_wizard_submissions needs_assessment_submissions [not null]
+  projects projects [not null]
   project_day_subjects project_day_subjects [not null]
 }
 
@@ -352,11 +357,10 @@ Table inquiries {
   source_package_id Int
   package_contents_snapshot Json
   guest_count String
-  event_type_id Int
+  event_category String
   portal_token String [unique]
   selected_package service_packages
   source_package_for_inquiry service_packages
-  event_type event_types
   activities activities [not null]
   calendar_events calendar_events [not null]
   client clients
@@ -379,6 +383,7 @@ Table inquiries {
   schedule_day_crew_slots project_crew_slots [not null]
   schedule_subjects project_day_subjects [not null]
   schedule_location_slots project_location_slots [not null]
+  schedule_space_slots project_space_slots [not null]
   schedule_activity_moments project_activity_moments [not null]
   schedule_film_tracks project_film_timeline_tracks [not null]
   schedule_film_subjects project_film_subjects [not null]
@@ -387,6 +392,9 @@ Table inquiries {
   schedule_film_moments project_film_scene_moments [not null]
   schedule_film_beats project_film_scene_beats [not null]
   schedule_film_equipment project_film_equipment_assignments [not null]
+  schedule_camera_positions project_scene_camera_positions [not null]
+  schedule_subject_positions project_scene_subject_positions [not null]
+  project projects
   package_requests package_requests [not null]
   preferred_payment_schedule_template_id Int
   preferred_payment_schedule payment_schedule_templates
@@ -523,17 +531,26 @@ Table client_users {
 Table projects {
   id Int [pk, increment]
   client_id Int [not null]
+  inquiry_id Int [unique]
+  contact_id Int
   workflow_template_id Int
   brand_id Int
   source_package_id Int
+  event_category String
   project_name String
   wedding_date DateTime [not null]
   booking_date DateTime
   edit_start_date DateTime
   delivery_date DateTime
-  phase String
+  phase project_phase [not null, default: 'Booking']
+  status project_status [not null, default: 'Active']
   package_contents_snapshot Json
+  notes String
+  guest_count String
+  portal_token String [unique]
   archived_at DateTime
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [default: `now()`, not null]
   activities activities [not null]
   calendar_events calendar_events [not null]
   client_feedback_surveys client_feedback_surveys [not null]
@@ -548,10 +565,13 @@ Table projects {
   project_expenses project_expenses [not null]
   brand brands
   client clients [not null]
+  contact contacts
+  source_inquiry inquiries
   source_package service_packages
   workflow_template workflow_templates
   proposals proposals [not null]
   quotes quotes [not null]
+  inquiry_tasks inquiry_tasks [not null]
   project_tasks project_tasks [not null]
   project_event_days project_event_days [not null]
   project_films project_films [not null]
@@ -559,6 +579,7 @@ Table projects {
   project_crew_slots project_crew_slots [not null]
   project_subjects project_day_subjects [not null]
   project_location_slots project_location_slots [not null]
+  project_space_slots project_space_slots [not null]
   project_activity_moments project_activity_moments [not null]
   project_film_tracks project_film_timeline_tracks [not null]
   project_film_subjects project_film_subjects [not null]
@@ -567,6 +588,8 @@ Table projects {
   project_film_moments project_film_scene_moments [not null]
   project_film_beats project_film_scene_beats [not null]
   project_film_equipment project_film_equipment_assignments [not null]
+  project_camera_positions project_scene_camera_positions [not null]
+  project_subject_positions project_scene_subject_positions [not null]
 
   indexes {
     (client_id, wedding_date) [unique]
@@ -610,6 +633,7 @@ Table crew {
   timeline_tracks film_timeline_tracks_v2 [not null]
   project_film_timeline_tracks project_film_timeline_tracks [not null]
   brand_memberships brand_members [not null]
+  crew_preset_slots crew_preset_slots [not null]
 }
 
 Table job_roles {
@@ -632,6 +656,7 @@ Table job_roles {
   default_task_library task_library [not null]
   inquiry_tasks inquiry_tasks [not null]
   inquiry_task_subtasks inquiry_task_subtasks [not null]
+  crew_preset_slots crew_preset_slots [not null]
 }
 
 Table payment_brackets {
@@ -677,6 +702,32 @@ Table crew_job_roles {
   indexes {
     (crew_id, job_role_id) [unique]
   }
+}
+
+Table crew_presets {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  is_default Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  slots crew_preset_slots [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table crew_preset_slots {
+  id Int [pk, increment]
+  preset_id Int [not null]
+  job_role_id Int [not null]
+  crew_id Int
+  order_index Int [not null, default: 0]
+  preset crew_presets [not null]
+  job_role job_roles [not null]
+  crew crew
 }
 
 Table calendar_events {
@@ -1247,6 +1298,7 @@ Table task_library {
   parent_task_id Int
   is_task_group Boolean [not null, default: false]
   is_auto_only Boolean [not null, default: false]
+  is_lead_task Boolean [not null, default: false]
   is_on_site Boolean [not null, default: false]
   is_customer_facing Boolean [not null, default: false]
   customer_description String
@@ -1356,6 +1408,7 @@ Table project_tasks {
 Table inquiry_tasks {
   id Int [pk, increment]
   inquiry_id Int [not null]
+  project_id Int
   task_library_id Int
   parent_inquiry_task_id Int
   name String [not null]
@@ -1375,6 +1428,7 @@ Table inquiry_tasks {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   inquiry inquiries [not null]
+  project projects
   task_library task_library
   completed_by crew
   assigned_to crew
@@ -1560,6 +1614,309 @@ Table locations_library {
   project_film_locations project_film_locations [not null]
   project_film_scene_locations project_film_scene_locations [not null]
   brand brands
+  spaces location_spaces [not null]
+  floor_plans floor_plans [not null]
+}
+
+Table location_spaces {
+  id Int [pk, increment]
+  location_id Int [not null]
+  name String [not null]
+  space_type String
+  capacity Int
+  dimensions_length Float
+  dimensions_width Float
+  dimensions_height Float
+  description String
+  indoor_outdoor IndoorOutdoor
+  natural_light NaturalLight
+  flooring String
+  ceiling_style String
+  key_features String
+  accessibility_notes String
+  notes String
+  floor_plan_id Int
+  boundary_json Json
+  fill_color String
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  location locations_library [not null]
+  floor_plan floor_plans
+  type_tags location_space_type_tags [not null]
+  package_space_slots package_space_slots [not null]
+  project_space_slots project_space_slots [not null]
+  scene_spaces film_scene_spaces [not null]
+  camera_positions scene_camera_positions [not null]
+  subject_positions scene_subject_positions [not null]
+  moment_camera_positions moment_camera_positions [not null]
+  moment_subject_positions moment_subject_positions [not null]
+  project_scene_spaces project_film_scene_spaces [not null]
+  project_camera_positions project_scene_camera_positions [not null]
+  project_subject_positions project_scene_subject_positions [not null]
+}
+
+Table location_space_type_tags {
+  id Int [pk, increment]
+  location_space_id Int [not null]
+  space_type SpaceType [not null]
+  description String
+  created_at DateTime [default: `now()`, not null]
+  location_space location_spaces [not null]
+
+  indexes {
+    (location_space_id, space_type) [unique]
+  }
+}
+
+Table floor_plans {
+  id Int [pk, increment]
+  location_id Int [not null]
+  name String [not null, default: 'Default']
+  canvas_width Int [not null, default: 1000]
+  canvas_height Int [not null, default: 1000]
+  layout_json Json
+  is_default Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  location locations_library [not null]
+  objects floor_plan_objects [not null]
+  space_zones location_spaces [not null]
+}
+
+Table floor_plan_objects {
+  id Int [pk, increment]
+  floor_plan_id Int [not null]
+  object_type FloorPlanObjectType [not null]
+  label String
+  x Float [not null]
+  y Float [not null]
+  width Float [not null, default: 50]
+  height Float [not null, default: 50]
+  rotation Float [not null, default: 0]
+  metadata Json
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  floor_plan floor_plans [not null]
+}
+
+Table floor_plan_presets {
+  id Int [pk, increment]
+  brand_id Int
+  name String [not null]
+  description String
+  space_type SpaceType
+  guest_capacity Int
+  canvas_width Int [not null, default: 1000]
+  canvas_height Int [not null, default: 1000]
+  layout_json Json
+  thumbnail_path String
+  is_system_seeded Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands
+  objects floor_plan_preset_objects [not null]
+  camera_presets floor_plan_preset_cameras [not null]
+  subject_presets floor_plan_preset_subjects [not null]
+  space_slots package_space_slots [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table floor_plan_preset_objects {
+  id Int [pk, increment]
+  preset_id Int [not null]
+  object_type FloorPlanObjectType [not null]
+  label String
+  x Float [not null]
+  y Float [not null]
+  width Float [not null, default: 50]
+  height Float [not null, default: 50]
+  rotation Float [not null, default: 0]
+  metadata Json
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  preset floor_plan_presets [not null]
+}
+
+Table floor_plan_preset_cameras {
+  id Int [pk, increment]
+  preset_id Int [not null]
+  label String
+  x Float [not null]
+  y Float [not null]
+  rotation Float [not null, default: 0]
+  focal_length_mm Int
+  is_unmanned Boolean [not null, default: false]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  preset floor_plan_presets [not null]
+}
+
+Table floor_plan_preset_subjects {
+  id Int [pk, increment]
+  preset_id Int [not null]
+  label String
+  x Float [not null]
+  y Float [not null]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  preset floor_plan_presets [not null]
+}
+
+Table space_slot_objects {
+  id Int [pk, increment]
+  package_space_slot_id Int [not null]
+  object_type FloorPlanObjectType [not null]
+  label String
+  x Float [not null]
+  y Float [not null]
+  width Float [not null, default: 50]
+  height Float [not null, default: 50]
+  rotation Float [not null, default: 0]
+  metadata Json
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  space_slot package_space_slots [not null]
+  bound_subjects space_slot_subject_positions [not null]
+}
+
+Table space_slot_camera_positions {
+  id Int [pk, increment]
+  package_space_slot_id Int [not null]
+  crew_slot_id Int
+  label String
+  x Float [not null]
+  y Float [not null]
+  rotation Float [not null, default: 0]
+  focal_length_mm Int
+  fov_angle Float
+  is_unmanned Boolean [not null, default: false]
+  facing_target_type FacingTargetType [not null, default: 'ANGLE']
+  facing_target_id Int
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  space_slot package_space_slots [not null]
+  crew_slot package_crew_slots
+  moment_overrides space_slot_moment_cameras [not null]
+  scene_instances scene_camera_positions [not null]
+}
+
+Table space_slot_subject_positions {
+  id Int [pk, increment]
+  package_space_slot_id Int [not null]
+  day_subject_id Int
+  label String
+  x Float [not null]
+  y Float [not null]
+  rotation Float [not null, default: 0]
+  bound_object_id Int
+  bound_offset_x Float [not null, default: 0]
+  bound_offset_y Float [not null, default: 0]
+  facing_target_type FacingTargetType [not null, default: 'ANGLE']
+  facing_target_id Int
+  seated Boolean [not null, default: false]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  space_slot package_space_slots [not null]
+  day_subject package_day_subjects
+  bound_object space_slot_objects
+  moment_overrides space_slot_moment_subjects [not null]
+  scene_instances scene_subject_positions [not null]
+}
+
+Table space_slot_moment_cameras {
+  id Int [pk, increment]
+  camera_position_id Int [not null]
+  moment_id Int [not null]
+  x Float [not null]
+  y Float [not null]
+  rotation Float [not null, default: 0]
+  fov_angle Float
+  facing_target_type FacingTargetType
+  facing_target_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  camera_position space_slot_camera_positions [not null]
+  moment package_activity_moments [not null]
+
+  indexes {
+    (camera_position_id, moment_id) [unique]
+  }
+}
+
+Table space_slot_moment_subjects {
+  id Int [pk, increment]
+  subject_position_id Int [not null]
+  moment_id Int [not null]
+  x Float [not null]
+  y Float [not null]
+  rotation Float [not null, default: 0]
+  present Boolean [not null, default: true]
+  seated Boolean
+  bound_object_id Int
+  bound_offset_x Float
+  bound_offset_y Float
+  facing_target_type FacingTargetType
+  facing_target_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  subject_position space_slot_subject_positions [not null]
+  moment package_activity_moments [not null]
+
+  indexes {
+    (subject_position_id, moment_id) [unique]
+  }
+}
+
+Table space_slot_zones {
+  id Int [pk, increment]
+  package_space_slot_id Int [not null]
+  name String [not null]
+  label String
+  polygon Json [not null]
+  color String
+  description String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  space_slot package_space_slots [not null]
+
+  indexes {
+    (package_space_slot_id, name) [unique]
+  }
+}
+
+Table package_space_slot_type_tags {
+  id Int [pk, increment]
+  package_space_slot_id Int [not null]
+  space_type SpaceType [not null]
+  created_at DateTime [default: `now()`, not null]
+  package_space_slot package_space_slots [not null]
+
+  indexes {
+    (package_space_slot_id, space_type) [unique]
+  }
+}
+
+Table project_space_slot_type_tags {
+  id Int [pk, increment]
+  project_space_slot_id Int [not null]
+  space_type SpaceType [not null]
+  created_at DateTime [default: `now()`, not null]
+  project_space_slot project_space_slots [not null]
+
+  indexes {
+    (project_space_slot_id, space_type) [unique]
+  }
 }
 
 Table films {
@@ -1575,13 +1932,13 @@ Table films {
   brand brands [not null]
   montage_preset montage_presets
   tracks film_timeline_tracks_v2 [not null]
-  subjects film_subjects [not null]
-  locations film_locations [not null]
   scenes film_scenes [not null]
   equipment_assignments film_equipment_assignments [not null]
+  film_locations film_locations [not null]
   scene_schedules film_scene_schedules [not null]
   package_films package_films [not null]
   project_films project_films [not null]
+  shot_previews shot_previews [not null]
 }
 
 Table film_equipment_assignments {
@@ -1647,6 +2004,8 @@ Table film_timeline_tracks_v2 {
   crew crew
   camera_assignments camera_subject_assignments [not null]
   scene_camera_assignments scene_camera_assignments [not null]
+  scene_camera_positions scene_camera_positions [not null]
+  moment_camera_positions moment_camera_positions [not null]
   project_instances project_film_timeline_tracks [not null]
 
   indexes {
@@ -1674,57 +2033,24 @@ Table subject_roles {
   brand_id Int [not null]
   role_name String [not null]
   description String
-  is_core Boolean [not null, default: false]
   is_group Boolean [not null, default: false]
   never_group Boolean [not null, default: false]
   order_index Int [not null, default: 0]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   brand brands [not null]
-  film_subjects film_subjects [not null]
   package_day_subjects package_day_subjects [not null]
   project_day_subjects project_day_subjects [not null]
   project_film_subjects project_film_subjects [not null]
   event_day_subject_roles event_day_subject_roles [not null]
-  event_type_subjects event_type_subjects [not null]
-  event_subtype_subjects event_subtype_subjects [not null]
+  package_template_subjects package_template_subjects [not null]
+  day_blueprint_subject_roles day_blueprint_subject_roles [not null]
+  day_blueprint_moment_actions day_blueprint_moment_actions [not null]
+  day_blueprint_moment_placements day_blueprint_moment_placements [not null]
+  package_activity_moment_actions package_activity_moment_actions [not null]
 
   indexes {
     (brand_id, role_name) [unique]
-  }
-}
-
-Table film_subjects {
-  id Int [pk, increment]
-  film_id Int [not null]
-  name String [not null]
-  role_template_id Int
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  film films [not null]
-  role_template subject_roles
-  scene_subjects film_scene_subjects [not null]
-  moment_subjects film_scene_moment_subjects [not null]
-  project_instances project_film_subjects [not null]
-
-  indexes {
-    (film_id, name) [unique]
-  }
-}
-
-Table film_locations {
-  id Int [pk, increment]
-  film_id Int [not null]
-  location_id Int [not null]
-  notes String
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  film films [not null]
-  location locations_library [not null]
-  project_instances project_film_locations [not null]
-
-  indexes {
-    (film_id, location_id) [unique]
   }
 }
 
@@ -1788,13 +2114,14 @@ Table film_scenes {
   order_index Int [not null]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
+  source_activity_id Int
   film films [not null]
   template scene_templates
+  source_activity package_activities
   moments film_scene_moments [not null]
   beats film_scene_beats [not null]
   recording_setup scene_recording_setups
   scene_music scene_music
-  subjects film_scene_subjects [not null]
   location_assignment film_scene_locations
   schedule film_scene_schedules
   package_schedules package_film_scene_schedules [not null]
@@ -1803,6 +2130,25 @@ Table film_scenes {
   audio_sources scene_audio_sources [not null]
   beat_source_refs film_scene_beats [not null]
   audio_source_refs scene_audio_sources [not null]
+  scene_spaces film_scene_spaces [not null]
+  camera_positions scene_camera_positions [not null]
+  subject_positions scene_subject_positions [not null]
+}
+
+Table film_locations {
+  id Int [pk, increment]
+  film_id Int [not null]
+  location_id Int [not null]
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film films [not null]
+  location locations_library [not null]
+  project_instances project_film_locations [not null]
+
+  indexes {
+    (film_id, location_id) [unique]
+  }
 }
 
 Table film_scene_locations {
@@ -1815,6 +2161,116 @@ Table film_scene_locations {
   location locations_library [not null]
 }
 
+Table film_scene_spaces {
+  id Int [pk, increment]
+  scene_id Int [not null]
+  space_id Int [not null]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  scene film_scenes [not null]
+  space location_spaces [not null]
+
+  indexes {
+    (scene_id, space_id) [unique]
+  }
+}
+
+Table scene_camera_positions {
+  id Int [pk, increment]
+  scene_id Int [not null]
+  track_id Int [not null]
+  space_id Int [not null]
+  source_space_slot_camera_position_id Int
+  x Float [not null]
+  y Float [not null]
+  rotation Float [not null, default: 0]
+  focal_length_mm Int
+  fov_angle Float
+  is_unmanned Boolean [not null, default: false]
+  label String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  scene film_scenes [not null]
+  track film_timeline_tracks_v2 [not null]
+  space location_spaces [not null]
+  source space_slot_camera_positions
+  project_instances project_scene_camera_positions [not null]
+  moment_overrides moment_camera_positions [not null]
+  camera_assignments camera_subject_assignments [not null]
+
+  indexes {
+    (scene_id, track_id) [unique]
+  }
+}
+
+Table scene_subject_positions {
+  id Int [pk, increment]
+  scene_id Int [not null]
+  subject_id Int [not null]
+  space_id Int [not null]
+  source_space_slot_subject_position_id Int
+  x Float [not null]
+  y Float [not null]
+  label String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  scene film_scenes [not null]
+  subject package_day_subjects [not null]
+  space location_spaces [not null]
+  source space_slot_subject_positions
+  project_instances project_scene_subject_positions [not null]
+  moment_overrides moment_subject_positions [not null]
+
+  indexes {
+    (scene_id, subject_id) [unique]
+  }
+}
+
+Table moment_camera_positions {
+  id Int [pk, increment]
+  moment_id Int [not null]
+  track_id Int [not null]
+  space_id Int [not null]
+  source_scene_position_id Int
+  x Float [not null]
+  y Float [not null]
+  rotation Float [not null, default: 0]
+  focal_length_mm Int
+  is_unmanned Boolean [not null, default: false]
+  label String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  moment film_scene_moments [not null]
+  track film_timeline_tracks_v2 [not null]
+  space location_spaces [not null]
+  source scene_camera_positions
+
+  indexes {
+    (moment_id, track_id) [unique]
+  }
+}
+
+Table moment_subject_positions {
+  id Int [pk, increment]
+  moment_id Int [not null]
+  subject_id Int [not null]
+  space_id Int [not null]
+  source_scene_position_id Int
+  x Float [not null]
+  y Float [not null]
+  label String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  moment film_scene_moments [not null]
+  subject package_day_subjects [not null]
+  space location_spaces [not null]
+  source scene_subject_positions
+
+  indexes {
+    (moment_id, subject_id) [unique]
+  }
+}
+
 Table scene_recording_setups {
   id Int [pk, increment]
   scene_id Int [unique, not null]
@@ -1824,38 +2280,6 @@ Table scene_recording_setups {
   updated_at DateTime [not null]
   scene film_scenes [not null]
   camera_assignments scene_camera_assignments [not null]
-}
-
-Table film_scene_subjects {
-  id Int [pk, increment]
-  scene_id Int [not null]
-  subject_id Int [not null]
-  priority SubjectPriority [not null, default: 'BACKGROUND']
-  notes String
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  scene film_scenes [not null]
-  subject film_subjects [not null]
-
-  indexes {
-    (scene_id, subject_id) [unique]
-  }
-}
-
-Table film_scene_moment_subjects {
-  id Int [pk, increment]
-  moment_id Int [not null]
-  subject_id Int [not null]
-  priority SubjectPriority [not null, default: 'BACKGROUND']
-  notes String
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  moment film_scene_moments [not null]
-  subject film_subjects [not null]
-
-  indexes {
-    (moment_id, subject_id) [unique]
-  }
 }
 
 Table scene_camera_assignments {
@@ -1871,19 +2295,41 @@ Table scene_camera_assignments {
   }
 }
 
+Table film_scene_moment_subjects {
+  id Int [pk, increment]
+  moment_id Int [not null]
+  subject_id Int [not null]
+  priority SubjectPriority [not null, default: 'BACKGROUND']
+  notes String
+  action_description String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  moment film_scene_moments [not null]
+  subject package_day_subjects [not null]
+
+  indexes {
+    (moment_id, subject_id) [unique]
+  }
+}
+
 Table film_scene_moments {
   id Int [pk, increment]
   film_scene_id Int [not null]
   name String [not null]
+  description String
   order_index Int [not null]
   duration Int [not null, default: 60]
   source_activity_id Int
+  package_activity_moment_id Int
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   film_scene film_scenes [not null]
+  source_moment package_activity_moments
   recording_setup moment_recording_setups
   moment_music moment_music
   subjects film_scene_moment_subjects [not null]
+  camera_positions moment_camera_positions [not null]
+  subject_positions moment_subject_positions [not null]
   project_instances project_film_scene_moments [not null]
 
   indexes {
@@ -1942,10 +2388,17 @@ Table camera_subject_assignments {
   id Int [pk, increment]
   recording_setup_id Int [not null]
   track_id Int [not null]
+  scene_camera_position_id Int
   subject_ids Int[] [not null]
+  visible_subject_ids Int[] [not null]
   shot_type ShotType
+  enabled Boolean [not null, default: true]
+  ai_prompt String
+  pipeline_data Json
+  spatial_hash String
   recording_setup moment_recording_setups [not null]
   track film_timeline_tracks_v2 [not null]
+  scene_camera_position scene_camera_positions
 
   indexes {
     (recording_setup_id, track_id) [unique]
@@ -1975,6 +2428,25 @@ Table moment_music {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   moment film_scene_moments [not null]
+}
+
+Table shot_previews {
+  id Int [pk, increment]
+  camera_assignment_id Int [not null]
+  source_type String [not null, default: 'package']
+  film_id Int [not null]
+  brand_id Int [not null]
+  prompt String [not null]
+  negative_prompt String
+  image_path String [not null]
+  seed Int
+  model_name String
+  status GenerationStatus [not null, default: 'PENDING']
+  error_message String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  film films [not null]
+  brand brands [not null]
 }
 
 Table montage_presets {
@@ -2053,19 +2525,24 @@ Table scene_audio_sources {
 Table service_packages {
   id Int [pk, increment]
   brand_id Int [not null]
-  wedding_type_id Int
+  created_from_package_template_id Int
+  source_day_blueprint_id Int
+  source_day_blueprint_version_id Int
   name String [not null]
   description String
-  category String
-  category_id Int
+  event_category String
   currency String [not null, default: 'USD']
   is_active Boolean [not null, default: true]
+  planning_status PlanningStatus [not null, default: 'CREATED']
+  planning_error String
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   contents Json
   brand brands [not null]
-  package_category service_package_categories
-  wedding_type event_subtypes
+  package_template package_templates
+  source_day_blueprint day_blueprints
+  source_day_blueprint_version day_blueprint_versions
+  day_blueprint_usages day_blueprint_usages [not null]
   inquiries inquiries [not null]
   inquiry_source_refs inquiries [not null]
   projects_from_package projects [not null]
@@ -2077,31 +2554,12 @@ Table service_packages {
   package_day_subjects package_day_subjects [not null]
   package_event_day_locations package_event_day_locations [not null]
   package_location_slots package_location_slots [not null]
+  package_space_slots package_space_slots [not null]
   package_versions package_versions [not null]
   package_task_overrides package_task_overrides [not null]
   package_set_slots package_set_slots [not null]
   project_tasks project_tasks [not null]
   workflow_template workflow_templates
-}
-
-Table service_package_categories {
-  id Int [pk, increment]
-  brand_id Int [not null]
-  name String [not null]
-  description String
-  order_index Int [not null, default: 0]
-  is_active Boolean [not null, default: true]
-  event_type_id Int
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  brand brands [not null]
-  event_type event_types
-  packages service_packages [not null]
-  package_sets package_sets [not null]
-
-  indexes {
-    (brand_id, name) [unique]
-  }
 }
 
 Table schedule_presets {
@@ -2115,68 +2573,6 @@ Table schedule_presets {
 
   indexes {
     (brand_id, name) [unique]
-  }
-}
-
-Table event_types {
-  id Int [pk, increment]
-  brand_id Int [not null]
-  name String [not null]
-  description String
-  icon String
-  color String
-  default_duration_hours Int
-  default_start_time String
-  typical_guest_count Int
-  is_system Boolean [not null, default: false]
-  is_active Boolean [not null, default: true]
-  order_index Int [not null, default: 0]
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  brand brands [not null]
-  event_days event_type_days [not null]
-  subject_roles event_type_subjects [not null]
-  event_subtypes event_subtypes [not null]
-  inquiries inquiries [not null]
-  package_categories service_package_categories [not null]
-  package_sets package_sets [not null]
-
-  indexes {
-    (brand_id, name) [unique]
-  }
-}
-
-Table event_type_days {
-  id Int [pk, increment]
-  event_type_id Int [not null]
-  event_day_template_id Int [not null]
-  event_subtype_id Int
-  order_index Int [not null, default: 0]
-  is_default Boolean [not null, default: true]
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  event_type event_types [not null]
-  event_day_template event_days [not null]
-  event_subtype event_subtypes
-
-  indexes {
-    (event_type_id, event_day_template_id) [unique]
-  }
-}
-
-Table event_type_subjects {
-  id Int [pk, increment]
-  event_type_id Int [not null]
-  subject_role_id Int [not null]
-  order_index Int [not null, default: 0]
-  is_default Boolean [not null, default: true]
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  event_type event_types [not null]
-  subject_role subject_roles [not null]
-
-  indexes {
-    (event_type_id, subject_role_id) [unique]
   }
 }
 
@@ -2196,7 +2592,7 @@ Table event_days {
   brand brands [not null]
   activity_presets event_day_activities [not null]
   subject_roles event_day_subject_roles [not null]
-  event_type_days event_type_days [not null]
+  package_template_days package_template_days [not null]
   film_scene_schedules film_scene_schedules [not null]
   package_scene_schedules package_film_scene_schedules [not null]
   project_event_days project_event_days [not null]
@@ -2204,6 +2600,7 @@ Table event_days {
   package_day_subjects package_day_subjects [not null]
   package_event_day_locations package_event_day_locations [not null]
   package_location_slots package_location_slots [not null]
+  package_space_slots package_space_slots [not null]
 
   indexes {
     (brand_id, name) [unique]
@@ -2215,6 +2612,7 @@ Table event_day_activities {
   event_day_template_id Int [not null]
   name String [not null]
   description String
+  location_label String
   color String
   icon String
   default_start_time String
@@ -2264,12 +2662,14 @@ Table event_day_subject_roles {
   }
 }
 
-Table event_subtypes {
+Table package_templates {
   id Int [pk, increment]
   brand_id Int
-  event_type_id Int
   name String [not null]
+  event_category String [not null]
   description String
+  icon String
+  color String
   total_duration_hours Int [not null]
   event_start_time String [not null]
   typical_guest_count Int
@@ -2279,11 +2679,10 @@ Table event_subtypes {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   brand brands
-  event_type event_types
-  activities event_subtype_activities [not null]
-  locations event_subtype_locations [not null]
-  subjects event_subtype_subjects [not null]
-  event_type_days event_type_days [not null]
+  days package_template_days [not null]
+  activities package_template_activities [not null]
+  locations package_template_locations [not null]
+  subjects package_template_subjects [not null]
   service_packages_created service_packages [not null]
 
   indexes {
@@ -2291,9 +2690,25 @@ Table event_subtypes {
   }
 }
 
-Table event_subtype_activities {
+Table package_template_days {
   id Int [pk, increment]
-  wedding_type_id Int [not null]
+  package_template_id Int [not null]
+  event_day_template_id Int [not null]
+  order_index Int [not null, default: 0]
+  is_default Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package_template package_templates [not null]
+  event_day_template event_days [not null]
+
+  indexes {
+    (package_template_id, event_day_template_id) [unique]
+  }
+}
+
+Table package_template_activities {
+  id Int [pk, increment]
+  package_template_id Int [not null]
   name String [not null]
   icon String
   color String
@@ -2303,53 +2718,54 @@ Table event_subtype_activities {
   description String
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type event_subtypes [not null]
-  moments event_subtype_activity_moments [not null]
-  activity_locations event_subtype_activity_locations [not null]
-  activity_subjects event_subtype_activity_subjects [not null]
+  package_template package_templates [not null]
+  moments package_template_moments [not null]
+  activity_locations package_template_activity_locations [not null]
+  activity_subjects package_template_activity_subjects [not null]
 
   indexes {
-    (wedding_type_id, order_index) [unique]
+    (package_template_id, order_index) [unique]
   }
 }
 
-Table event_subtype_activity_moments {
+Table package_template_moments {
   id Int [pk, increment]
-  wedding_type_activity_id Int [not null]
+  package_template_activity_id Int [not null]
   name String [not null]
   duration_seconds Int [not null, default: 60]
   order_index Int [not null, default: 0]
   is_key_moment Boolean [not null, default: false]
   description String
+  subject_actions Json
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type_activity event_subtype_activities [not null]
+  package_template_activity package_template_activities [not null]
 
   indexes {
-    (wedding_type_activity_id, order_index) [unique]
+    (package_template_activity_id, order_index) [unique]
   }
 }
 
-Table event_subtype_locations {
+Table package_template_locations {
   id Int [pk, increment]
-  wedding_type_id Int [not null]
+  package_template_id Int [not null]
   name String [not null]
   location_type String
   order_index Int [not null, default: 0]
   is_primary Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type event_subtypes [not null]
-  activity_locations event_subtype_activity_locations [not null]
+  package_template package_templates [not null]
+  activity_locations package_template_activity_locations [not null]
 
   indexes {
-    (wedding_type_id, order_index) [unique]
+    (package_template_id, order_index) [unique]
   }
 }
 
-Table event_subtype_subjects {
+Table package_template_subjects {
   id Int [pk, increment]
-  wedding_type_id Int [not null]
+  package_template_id Int [not null]
   name String [not null]
   subject_type String
   subject_role_id Int
@@ -2358,42 +2774,42 @@ Table event_subtype_subjects {
   is_primary Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type event_subtypes [not null]
+  package_template package_templates [not null]
   subject_role subject_roles
-  activity_subjects event_subtype_activity_subjects [not null]
+  activity_subjects package_template_activity_subjects [not null]
 
   indexes {
-    (wedding_type_id, order_index) [unique]
+    (package_template_id, order_index) [unique]
   }
 }
 
-Table event_subtype_activity_locations {
+Table package_template_activity_locations {
   id Int [pk, increment]
-  wedding_type_activity_id Int [not null]
-  wedding_type_location_id Int [not null]
+  package_template_activity_id Int [not null]
+  package_template_location_id Int [not null]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type_activity event_subtype_activities [not null]
-  wedding_type_location event_subtype_locations [not null]
+  package_template_activity package_template_activities [not null]
+  package_template_location package_template_locations [not null]
 
   indexes {
-    (wedding_type_activity_id, wedding_type_location_id) [unique]
+    (package_template_activity_id, package_template_location_id) [unique]
   }
 }
 
-Table event_subtype_activity_subjects {
+Table package_template_activity_subjects {
   id Int [pk, increment]
-  wedding_type_activity_id Int [not null]
-  wedding_type_subject_id Int [not null]
+  package_template_activity_id Int [not null]
+  package_template_subject_id Int [not null]
   presence_percentage Int
   is_primary_focus Boolean [not null, default: false]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  wedding_type_activity event_subtype_activities [not null]
-  wedding_type_subject event_subtype_subjects [not null]
+  package_template_activity package_template_activities [not null]
+  package_template_subject package_template_subjects [not null]
 
   indexes {
-    (wedding_type_activity_id, wedding_type_subject_id) [unique]
+    (package_template_activity_id, package_template_subject_id) [unique]
   }
 }
 
@@ -2435,8 +2851,10 @@ Table package_activities {
   id Int [pk, increment]
   package_id Int [not null]
   package_event_day_id Int [not null]
+  source_day_blueprint_activity_id Int
   name String [not null]
   description String
+  location_label String
   color String
   icon String
   start_time String
@@ -2447,21 +2865,28 @@ Table package_activities {
   updated_at DateTime [not null]
   package service_packages [not null]
   package_event_day package_event_days [not null]
+  source_day_blueprint_activity day_blueprint_activities
   scene_schedules package_film_scene_schedules [not null]
   locations package_event_day_locations [not null]
   project_activities project_activities [not null]
   crew_slot_assignments package_crew_slot_activities [not null]
   subject_assignments package_day_subject_activities [not null]
   location_assignments location_activity_assignments [not null]
+  space_assignments space_activity_assignments [not null]
   moments package_activity_moments [not null]
   beat_sources film_scene_beats [not null]
   audio_sources scene_audio_sources [not null]
+  film_scenes film_scenes [not null]
 }
 
 Table package_activity_moments {
   id Int [pk, increment]
   package_activity_id Int [not null]
+  source_day_blueprint_moment_id Int
   name String [not null]
+  description String
+  subject_actions Json
+  camera_subject_plan Json
   order_index Int [not null, default: 0]
   duration_seconds Int [not null, default: 60]
   is_required Boolean [not null, default: true]
@@ -2469,8 +2894,13 @@ Table package_activity_moments {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   package_activity package_activities [not null]
+  source_day_blueprint_moment day_blueprint_moments
+  actions package_activity_moment_actions [not null]
   beat_sources film_scene_beats [not null]
   audio_sources scene_audio_sources [not null]
+  space_slot_camera_overrides space_slot_moment_cameras [not null]
+  space_slot_subject_overrides space_slot_moment_subjects [not null]
+  scene_moments film_scene_moments [not null]
 
   indexes {
     (package_activity_id, order_index) [unique]
@@ -2494,6 +2924,7 @@ Table package_crew_slots {
   job_role job_roles [not null]
   equipment package_crew_slot_equipment [not null]
   activity_assignments package_crew_slot_activities [not null]
+  space_camera_positions space_slot_camera_positions [not null]
 
   indexes {
     (package_id, package_event_day_id, job_role_id, order_index) [unique]
@@ -2529,6 +2960,11 @@ Table package_day_subjects {
   event_day event_days [not null]
   role_template subject_roles
   activity_assignments package_day_subject_activities [not null]
+  space_positions space_slot_subject_positions [not null]
+  scene_positions scene_subject_positions [not null]
+  moment_positions moment_subject_positions [not null]
+  moment_subjects film_scene_moment_subjects [not null]
+  project_instances project_film_subjects [not null]
 
   indexes {
     (package_id, event_day_template_id, name) [unique]
@@ -2618,6 +3054,7 @@ Table project_event_days {
   day_crew_slots project_crew_slots [not null]
   subjects project_day_subjects [not null]
   location_slots project_location_slots [not null]
+  space_slots project_space_slots [not null]
 }
 
 Table project_activities {
@@ -2628,6 +3065,7 @@ Table project_activities {
   package_activity_id Int
   name String [not null]
   description String
+  location_label String
   color String
   icon String
   start_time String
@@ -2647,6 +3085,7 @@ Table project_activities {
   crew_slot_assignments project_crew_slot_activities [not null]
   subject_assignments project_day_subject_activities [not null]
   location_assignments project_location_activity_assignments [not null]
+  space_assignments project_space_activity_assignments [not null]
 }
 
 Table project_films {
@@ -2721,6 +3160,7 @@ Table project_film_timeline_tracks {
   crew crew
   camera_assignments project_camera_subject_assignments [not null]
   scene_camera_assignments project_scene_camera_assignments [not null]
+  camera_positions project_scene_camera_positions [not null]
 }
 
 Table project_film_subjects {
@@ -2736,10 +3176,11 @@ Table project_film_subjects {
   project projects
   inquiry inquiries
   project_film project_films [not null]
-  source_subject film_subjects
+  source_subject package_day_subjects
   role_template subject_roles
   scene_subjects project_film_scene_subjects [not null]
   moment_subjects project_film_scene_moment_subjects [not null]
+  scene_positions project_scene_subject_positions [not null]
 }
 
 Table project_film_locations {
@@ -2784,6 +3225,9 @@ Table project_film_scenes {
   location_assignment project_film_scene_locations
   recording_setup project_scene_recording_setups
   scene_camera_assignments project_scene_camera_assignments [not null]
+  scene_spaces project_film_scene_spaces [not null]
+  camera_positions project_scene_camera_positions [not null]
+  subject_positions project_scene_subject_positions [not null]
 }
 
 Table project_film_scene_moments {
@@ -2793,6 +3237,7 @@ Table project_film_scene_moments {
   project_scene_id Int [not null]
   source_moment_id Int
   name String [not null]
+  description String
   order_index Int [not null]
   duration Int [not null, default: 60]
   created_at DateTime [default: `now()`, not null]
@@ -2828,7 +3273,6 @@ Table project_film_scene_subjects {
   id Int [pk, increment]
   project_scene_id Int [not null]
   project_film_subject_id Int [not null]
-  source_scene_subject_id Int
   priority SubjectPriority [not null, default: 'BACKGROUND']
   notes String
   created_at DateTime [default: `now()`, not null]
@@ -2847,6 +3291,7 @@ Table project_film_scene_moment_subjects {
   project_film_subject_id Int [not null]
   priority SubjectPriority [not null, default: 'BACKGROUND']
   notes String
+  action_description String
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   project_moment project_film_scene_moments [not null]
@@ -2866,6 +3311,74 @@ Table project_film_scene_locations {
   updated_at DateTime [not null]
   project_scene project_film_scenes [not null]
   location locations_library [not null]
+}
+
+Table project_film_scene_spaces {
+  id Int [pk, increment]
+  project_scene_id Int [not null]
+  space_id Int [not null]
+  source_scene_space_id Int
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  project_scene project_film_scenes [not null]
+  space location_spaces [not null]
+
+  indexes {
+    (project_scene_id, space_id) [unique]
+  }
+}
+
+Table project_scene_camera_positions {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_scene_id Int [not null]
+  project_track_id Int [not null]
+  space_id Int [not null]
+  source_camera_position_id Int
+  x Float [not null]
+  y Float [not null]
+  rotation Float [not null, default: 0]
+  focal_length_mm Int
+  is_unmanned Boolean [not null, default: false]
+  label String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_scene project_film_scenes [not null]
+  project_track project_film_timeline_tracks [not null]
+  space location_spaces [not null]
+  source scene_camera_positions
+
+  indexes {
+    (project_scene_id, project_track_id) [unique]
+  }
+}
+
+Table project_scene_subject_positions {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_scene_id Int [not null]
+  project_subject_id Int [not null]
+  space_id Int [not null]
+  source_subject_position_id Int
+  x Float [not null]
+  y Float [not null]
+  label String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_scene project_film_scenes [not null]
+  project_subject project_film_subjects [not null]
+  space location_spaces [not null]
+  source scene_subject_positions
+
+  indexes {
+    (project_scene_id, project_subject_id) [unique]
+  }
 }
 
 Table project_film_equipment_assignments {
@@ -2933,6 +3446,8 @@ Table project_camera_subject_assignments {
   track_id Int [not null]
   subject_ids Int[] [not null]
   shot_type ShotType
+  pipeline_data Json
+  spatial_hash String
   recording_setup project_moment_recording_setups [not null]
   track project_film_timeline_tracks [not null]
 
@@ -2959,6 +3474,7 @@ Table project_activity_moments {
   project_activity_id Int [not null]
   source_package_moment_id Int
   name String [not null]
+  description String
   order_index Int [not null, default: 0]
   duration_seconds Int [not null, default: 60]
   is_required Boolean [not null, default: true]
@@ -2992,6 +3508,7 @@ Table project_day_subjects {
   role_template subject_roles
   contact contacts
   activity_assignments project_day_subject_activities [not null]
+  space_positions project_space_slot_subjects [not null]
 }
 
 Table project_location_slots {
@@ -3013,6 +3530,7 @@ Table project_location_slots {
   project_event_day project_event_days [not null]
   location locations_library
   activity_assignments project_location_activity_assignments [not null]
+  space_slots project_space_slots [not null]
 }
 
 Table project_crew_slots {
@@ -3027,6 +3545,7 @@ Table project_crew_slots {
   label String
   order_index Int [not null, default: 0]
   confirmed Boolean [not null, default: false]
+  lead_type String
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   project projects
@@ -3037,6 +3556,7 @@ Table project_crew_slots {
   equipment project_crew_slot_equipment [not null]
   activity_assignments project_crew_slot_activities [not null]
   availability_requests inquiry_crew_availability_requests [not null]
+  space_camera_positions project_space_slot_cameras [not null]
 }
 
 Table project_crew_slot_equipment {
@@ -3092,6 +3612,93 @@ Table project_location_activity_assignments {
   }
 }
 
+Table project_space_slots {
+  id Int [pk, increment]
+  project_id Int
+  inquiry_id Int
+  project_event_day_id Int [not null]
+  source_package_space_slot_id Int
+  label String [not null]
+  project_location_slot_id Int
+  location_space_id Int
+  canvas_width Int [not null, default: 1000]
+  canvas_height Int [not null, default: 1000]
+  layout_json Json
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  project projects
+  inquiry inquiries
+  project_event_day project_event_days [not null]
+  project_location_slot project_location_slots
+  location_space location_spaces
+  activity_assignments project_space_activity_assignments [not null]
+  type_tags project_space_slot_type_tags [not null]
+  objects project_space_slot_objects [not null]
+  camera_positions project_space_slot_cameras [not null]
+  subject_positions project_space_slot_subjects [not null]
+}
+
+Table project_space_activity_assignments {
+  id Int [pk, increment]
+  project_space_slot_id Int [not null]
+  project_activity_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  project_space_slot project_space_slots [not null]
+  project_activity project_activities [not null]
+
+  indexes {
+    (project_space_slot_id, project_activity_id) [unique]
+  }
+}
+
+Table project_space_slot_objects {
+  id Int [pk, increment]
+  project_space_slot_id Int [not null]
+  object_type FloorPlanObjectType [not null]
+  label String
+  x Float [not null]
+  y Float [not null]
+  width Float [not null, default: 50]
+  height Float [not null, default: 50]
+  rotation Float [not null, default: 0]
+  metadata Json
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  space_slot project_space_slots [not null]
+}
+
+Table project_space_slot_cameras {
+  id Int [pk, increment]
+  project_space_slot_id Int [not null]
+  project_crew_slot_id Int
+  label String
+  x Float [not null]
+  y Float [not null]
+  rotation Float [not null, default: 0]
+  focal_length_mm Int
+  is_unmanned Boolean [not null, default: false]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  space_slot project_space_slots [not null]
+  crew_slot project_crew_slots
+}
+
+Table project_space_slot_subjects {
+  id Int [pk, increment]
+  project_space_slot_id Int [not null]
+  project_day_subject_id Int
+  label String
+  x Float [not null]
+  y Float [not null]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  space_slot project_space_slots [not null]
+  day_subject project_day_subjects
+}
+
 Table package_crew_slot_activities {
   id Int [pk, increment]
   package_crew_slot_id Int [not null]
@@ -3123,14 +3730,64 @@ Table package_location_slots {
   package_id Int [not null]
   event_day_template_id Int [not null]
   location_number Int [not null]
+  mode LocationSlotMode [not null, default: 'SANDBOX']
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   package service_packages [not null]
   event_day event_days [not null]
   activity_assignments location_activity_assignments [not null]
+  space_slots package_space_slots [not null]
 
   indexes {
     (package_id, event_day_template_id, location_number) [unique]
+  }
+}
+
+Table package_space_slots {
+  id Int [pk, increment]
+  package_id Int [not null]
+  event_day_template_id Int [not null]
+  label String [not null]
+  description String
+  location_slot_id Int
+  location_space_id Int
+  preset_id Int
+  canvas_width Int [not null, default: 1000]
+  canvas_height Int [not null, default: 1000]
+  layout_json Json
+  background_plate_path String
+  background_plate_seed Int
+  source_day_blueprint_space_slot_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package service_packages [not null]
+  event_day event_days [not null]
+  location_slot package_location_slots
+  location_space location_spaces
+  preset floor_plan_presets
+  source_day_blueprint_space_slot day_blueprint_space_slots
+  activity_assignments space_activity_assignments [not null]
+  type_tags package_space_slot_type_tags [not null]
+  objects space_slot_objects [not null]
+  camera_positions space_slot_camera_positions [not null]
+  subject_positions space_slot_subject_positions [not null]
+  zones space_slot_zones [not null]
+
+  indexes {
+    (package_id, event_day_template_id, label) [unique]
+  }
+}
+
+Table space_activity_assignments {
+  id Int [pk, increment]
+  package_space_slot_id Int [not null]
+  package_activity_id Int [not null]
+  created_at DateTime [default: `now()`, not null]
+  package_space_slot package_space_slots [not null]
+  package_activity package_activities [not null]
+
+  indexes {
+    (package_space_slot_id, package_activity_id) [unique]
   }
 }
 
@@ -3184,15 +3841,12 @@ Table package_sets {
   name String [not null]
   description String
   emoji String [default: '📦']
-  category_id Int
-  event_type_id Int
+  event_category String
   order_index Int [not null, default: 0]
   is_active Boolean [not null, default: true]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   brand brands [not null]
-  category service_package_categories
-  event_type event_types
   slots package_set_slots [not null]
 
   indexes {
@@ -3222,9 +3876,9 @@ Table payment_schedule_templates {
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   brand brands [not null]
-  rules payment_schedule_rules [not null]
   estimates estimates [not null]
   quotes quotes [not null]
+  rules payment_schedule_rules [not null]
   contract_templates contract_templates [not null]
   inquiries inquiries [not null]
 
@@ -3428,9 +4082,421 @@ Table inquiry_crew_availability_requests {
   }
 }
 
+Table moment_knowledge_bases {
+  id Int [pk, increment]
+  brand_id Int
+  category String [not null]
+  variant String
+  reference_duration_minutes Int [not null]
+  description String
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands
+  entries moment_knowledge_entries [not null]
+
+  indexes {
+    (brand_id, category, variant) [unique]
+  }
+}
+
+Table moment_knowledge_entries {
+  id Int [pk, increment]
+  knowledge_base_id Int [not null]
+  name String [not null]
+  description String
+  order_index Float [not null, default: 0]
+  default_duration_seconds Int [not null, default: 60]
+  min_duration_seconds Int
+  max_duration_seconds Int
+  subject_actions Json
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  knowledge_base moment_knowledge_bases [not null]
+
+  indexes {
+    (knowledge_base_id, order_index) [unique]
+  }
+}
+
+Table day_blueprints {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  key String [not null]
+  display_name String [not null]
+  event_category String [not null]
+  description String
+  icon String
+  color String
+  variant_tags Json
+  latest_published_version_id Int [unique]
+  is_system_seeded Boolean [not null, default: false]
+  is_active Boolean [not null, default: true]
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  latest_published_version day_blueprint_versions
+  versions day_blueprint_versions [not null]
+  source_service_packages service_packages [not null]
+
+  indexes {
+    (brand_id, key) [unique]
+  }
+}
+
+Table day_blueprint_versions {
+  id Int [pk, increment]
+  day_blueprint_id Int [not null]
+  version_number Int [not null]
+  status DayBlueprintStatus [not null, default: 'DRAFT']
+  published_at DateTime
+  published_by_user_id Int
+  source_ai_run_id Int
+  change_summary String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  day_blueprint day_blueprints [not null]
+  latest_for_blueprint day_blueprints
+  days day_blueprint_days [not null]
+  subject_roles day_blueprint_subject_roles [not null]
+  lock_rules day_blueprint_lock_rules [not null]
+  ai_runs day_blueprint_ai_runs [not null]
+  usages day_blueprint_usages [not null]
+  space_slots day_blueprint_space_slots [not null]
+  source_service_packages service_packages [not null]
+
+  indexes {
+    (day_blueprint_id, version_number) [unique]
+  }
+}
+
+Table day_blueprint_days {
+  id Int [pk, increment]
+  day_blueprint_version_id Int [not null]
+  name String [not null]
+  description String
+  default_start_time String
+  default_duration_hours Int
+  order_index Int [not null, default: 0]
+  source_event_day_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  version day_blueprint_versions [not null]
+  activities day_blueprint_activities [not null]
+
+  indexes {
+    (day_blueprint_version_id, order_index) [unique]
+  }
+}
+
+Table day_blueprint_activities {
+  id Int [pk, increment]
+  day_blueprint_day_id Int [not null]
+  name String [not null]
+  description String
+  icon String
+  color String
+  default_start_time String
+  default_duration_minutes Int
+  duration_min_minutes Int
+  duration_max_minutes Int
+  order_index Int [not null, default: 0]
+  criticality DayBlueprintActivityCriticality [not null, default: 'REQUIRED']
+  lock_flags Json
+  source_event_day_activity_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  day day_blueprint_days [not null]
+  moments day_blueprint_moments [not null]
+  activity_locations day_blueprint_activity_locations [not null]
+  source_package_activities package_activities [not null]
+
+  indexes {
+    (day_blueprint_day_id, order_index) [unique]
+  }
+}
+
+Table day_blueprint_moments {
+  id Int [pk, increment]
+  day_blueprint_activity_id Int [not null]
+  name String [not null]
+  description String
+  duration_seconds Int [not null, default: 60]
+  order_index Int [not null, default: 0]
+  is_key_moment Boolean [not null, default: false]
+  criticality DayBlueprintMomentCriticality [not null, default: 'STANDARD']
+  lock_flags Json
+  source_event_day_activity_moment_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  activity day_blueprint_activities [not null]
+  actions day_blueprint_moment_actions [not null]
+  placements day_blueprint_moment_placements [not null]
+  source_package_activity_moments package_activity_moments [not null]
+
+  indexes {
+    (day_blueprint_activity_id, order_index) [unique]
+  }
+}
+
+Table day_blueprint_subject_roles {
+  id Int [pk, increment]
+  day_blueprint_version_id Int [not null]
+  subject_role_id Int [not null]
+  is_primary Boolean [not null, default: false]
+  typical_count Int
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  version day_blueprint_versions [not null]
+  subject_role subject_roles [not null]
+
+  indexes {
+    (day_blueprint_version_id, subject_role_id) [unique]
+  }
+}
+
+Table day_blueprint_lock_rules {
+  id Int [pk, increment]
+  day_blueprint_version_id Int [not null]
+  scope DayBlueprintLockScope [not null]
+  target_id Int
+  rule_key String [not null]
+  rule_value Json
+  notes String
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  version day_blueprint_versions [not null]
+
+  indexes {
+    (day_blueprint_version_id, scope, target_id, rule_key) [unique]
+  }
+}
+
+Table day_blueprint_ai_runs {
+  id Int [pk, increment]
+  day_blueprint_version_id Int [not null]
+  run_kind DayBlueprintAiRunKind [not null]
+  status DayBlueprintAiRunStatus [not null, default: 'PENDING']
+  run_key String
+  prompt_summary String
+  error String
+  snapshot_json Json
+  cancel_requested_at DateTime
+  started_at DateTime
+  finished_at DateTime
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  version day_blueprint_versions [not null]
+  proposals day_blueprint_ai_proposals [not null]
+}
+
+Table day_blueprint_ai_proposals {
+  id Int [pk, increment]
+  day_blueprint_ai_run_id Int [not null]
+  status DayBlueprintAiProposalStatus [not null, default: 'PROPOSED']
+  diff_json Json [not null]
+  rationale_text String
+  applied_at DateTime
+  applied_by_user_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  ai_run day_blueprint_ai_runs [not null]
+}
+
+Table day_blueprint_usages {
+  id Int [pk, increment]
+  day_blueprint_version_id Int [not null]
+  package_id Int [not null]
+  consumed_at DateTime [default: `now()`, not null]
+  is_current Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  version day_blueprint_versions [not null]
+  package service_packages [not null]
+
+  indexes {
+    (day_blueprint_version_id, package_id) [unique]
+  }
+}
+
+Table day_blueprint_location_roles {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  key String [not null]
+  display_name String [not null]
+  description String
+  icon String
+  order_index Int [not null, default: 0]
+  is_active Boolean [not null, default: true]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  activity_defaults day_blueprint_activity_locations [not null]
+  space_slots day_blueprint_space_slots [not null]
+
+  indexes {
+    (brand_id, key) [unique]
+  }
+}
+
+Table day_blueprint_activity_locations {
+  id Int [pk, increment]
+  day_blueprint_activity_id Int [not null]
+  day_blueprint_location_role_id Int [not null]
+  is_primary Boolean [not null, default: false]
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  activity day_blueprint_activities [not null]
+  location_role day_blueprint_location_roles [not null]
+
+  indexes {
+    (day_blueprint_activity_id, day_blueprint_location_role_id) [unique]
+  }
+}
+
+Table day_blueprint_space_slots {
+  id Int [pk, increment]
+  day_blueprint_version_id Int [not null]
+  day_blueprint_location_role_id Int [not null]
+  key String [not null]
+  label String [not null]
+  description String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  version day_blueprint_versions [not null]
+  location_role day_blueprint_location_roles [not null]
+  placements day_blueprint_moment_placements [not null]
+  source_package_space_slots package_space_slots [not null]
+
+  indexes {
+    (day_blueprint_version_id, day_blueprint_location_role_id, key) [unique]
+  }
+}
+
+Table day_blueprint_moment_actions {
+  id Int [pk, increment]
+  day_blueprint_moment_id Int [not null]
+  subject_role_id Int [not null]
+  action_text String [not null]
+  emphasis DayBlueprintActionEmphasis [not null, default: 'PRIMARY']
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  moment day_blueprint_moments [not null]
+  subject_role subject_roles [not null]
+
+  indexes {
+    (day_blueprint_moment_id, subject_role_id, order_index) [unique]
+  }
+}
+
+Table day_blueprint_moment_placements {
+  id Int [pk, increment]
+  day_blueprint_moment_id Int [not null]
+  day_blueprint_space_slot_id Int [not null]
+  subject_role_id Int [not null]
+  position_hint DayBlueprintPlacementPosition [not null, default: 'UNSPECIFIED']
+  facing_hint DayBlueprintPlacementFacing [not null, default: 'UNSPECIFIED']
+  notes String
+  order_index Int [not null, default: 0]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  moment day_blueprint_moments [not null]
+  space_slot day_blueprint_space_slots [not null]
+  subject_role subject_roles [not null]
+
+  indexes {
+    (day_blueprint_moment_id, day_blueprint_space_slot_id, subject_role_id, order_index) [unique]
+  }
+}
+
+Table package_activity_moment_actions {
+  id Int [pk, increment]
+  package_activity_moment_id Int [not null]
+  subject_role_id Int [not null]
+  action_text String [not null]
+  emphasis DayBlueprintActionEmphasis [not null, default: 'PRIMARY']
+  notes String
+  order_index Int [not null, default: 0]
+  source_day_blueprint_moment_action_id Int
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  package_activity_moment package_activity_moments [not null]
+  subject_role subject_roles [not null]
+
+  indexes {
+    (package_activity_moment_id, subject_role_id, order_index) [unique]
+  }
+}
+
 Enum LocationPrecision {
   EXACT
   APPROXIMATE
+}
+
+Enum IndoorOutdoor {
+  INDOOR
+  OUTDOOR
+  PARTIALLY_COVERED
+}
+
+Enum NaturalLight {
+  ABUNDANT
+  MODERATE
+  LOW
+  NONE
+}
+
+Enum SpaceType {
+  CEREMONY_AREA
+  RECEPTION_HALL
+  BRIDAL_SUITE
+  GROOM_SUITE
+  GETTING_READY_ROOM
+  OUTDOOR_AREA
+  COCKTAIL_AREA
+  DINING_AREA
+  DANCE_FLOOR
+  ENTRANCE_HALL
+  GARDEN
+  TERRACE
+  CHAPEL
+  LOUNGE
+  LIBRARY
+  PRIVATE_ROOM
+  OTHER
+}
+
+Enum FloorPlanObjectType {
+  WALL
+  DOOR
+  WINDOW
+  TABLE_ROUND
+  TABLE_RECT
+  TABLE_HEAD
+  CHAIR_ROW
+  STAGE
+  AISLE
+  ARCH
+  ALTAR
+  DANCE_FLOOR
+  BAR
+  DJ_BOOTH
+  FURNITURE
+  DECORATIVE
+  LABEL
+}
+
+Enum FacingTargetType {
+  ANGLE
+  SUBJECT
+  OBJECT
 }
 
 Enum SubjectPriority {
@@ -3457,6 +4523,13 @@ Enum ShotType {
   CUTAWAY
   INSERT_SHOT
   MASTER_SHOT
+}
+
+Enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 Enum CameraMovement {
@@ -3511,6 +4584,13 @@ Enum project_phase {
   Production
   Post_Production
   Delivery
+}
+
+Enum project_status {
+  Active
+  On_Hold
+  Completed
+  Cancelled
 }
 
 Enum due_date_offset_reference {
@@ -3817,6 +4897,18 @@ Enum equipment_availability_status {
   TENTATIVE
 }
 
+Enum PlanningStatus {
+  CREATED
+  PLANNING
+  READY
+  FAILED
+}
+
+Enum LocationSlotMode {
+  SANDBOX
+  VENUE
+}
+
 Enum inquiry_equipment_reservation_status {
   reserved
   confirmed
@@ -3828,6 +4920,83 @@ Enum inquiry_crew_availability_request_status {
   confirmed
   declined
   cancelled
+}
+
+Enum DayBlueprintStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+Enum DayBlueprintActivityCriticality {
+  REQUIRED
+  RECOMMENDED
+  OPTIONAL
+}
+
+Enum DayBlueprintMomentCriticality {
+  KEY
+  STANDARD
+  OPTIONAL
+  REMOVABLE
+}
+
+Enum DayBlueprintLockScope {
+  VERSION
+  DAY
+  ACTIVITY
+  MOMENT
+}
+
+Enum DayBlueprintAiRunKind {
+  GENERATE
+  REFINE
+  VALIDATE
+}
+
+Enum DayBlueprintAiRunStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+Enum DayBlueprintAiProposalStatus {
+  PROPOSED
+  APPLIED
+  REJECTED
+  PARTIAL
+}
+
+Enum DayBlueprintActionEmphasis {
+  PRIMARY
+  SECONDARY
+  OPTIONAL
+}
+
+Enum DayBlueprintPlacementPosition {
+  CENTER
+  STAGE_LEFT
+  STAGE_RIGHT
+  ALTAR_FRONT
+  ALTAR_BACK
+  AISLE_START
+  AISLE_END
+  FIRST_ROW_LEFT
+  FIRST_ROW_RIGHT
+  BACK
+  OFF_STAGE
+  UNSPECIFIED
+}
+
+Enum DayBlueprintPlacementFacing {
+  TOWARD_ALTAR
+  TOWARD_AISLE
+  TOWARD_AUDIENCE
+  TOWARD_PARTNER
+  TOWARD_CAMERA
+  UNSPECIFIED
 }
 
 Ref: brand_settings.brand_id > brands.id [delete: Cascade]
@@ -3880,8 +5049,6 @@ Ref: inquiries.selected_package_id > service_packages.id
 
 Ref: inquiries.source_package_id > service_packages.id
 
-Ref: inquiries.event_type_id > event_types.id
-
 Ref: inquiries.contact_id > contacts.id
 
 Ref: inquiries.preferred_payment_schedule_template_id > payment_schedule_templates.id [delete: Set Null]
@@ -3918,6 +5085,10 @@ Ref: projects.brand_id > brands.id
 
 Ref: projects.client_id > clients.id
 
+Ref: projects.contact_id > contacts.id
+
+Ref: projects.inquiry_id - inquiries.id
+
 Ref: projects.source_package_id > service_packages.id [delete: Set Null]
 
 Ref: projects.workflow_template_id > workflow_templates.id
@@ -3933,6 +5104,14 @@ Ref: crew_job_roles.crew_id > crew.id
 Ref: crew_job_roles.job_role_id > job_roles.id [delete: Cascade]
 
 Ref: crew_job_roles.payment_bracket_id > payment_brackets.id [delete: Set Null]
+
+Ref: crew_presets.brand_id > brands.id [delete: Cascade]
+
+Ref: crew_preset_slots.preset_id > crew_presets.id [delete: Cascade]
+
+Ref: crew_preset_slots.job_role_id > job_roles.id [delete: Cascade]
+
+Ref: crew_preset_slots.crew_id > crew.id [delete: Set Null]
 
 Ref: calendar_events.crew_id > crew.id [delete: Cascade]
 
@@ -4080,6 +5259,8 @@ Ref: project_tasks.resolved_bracket_id > payment_brackets.id [delete: Set Null]
 
 Ref: inquiry_tasks.inquiry_id > inquiries.id [delete: Cascade]
 
+Ref: inquiry_tasks.project_id > projects.id [delete: Set Null]
+
 Ref: inquiry_tasks.task_library_id > task_library.id [delete: Set Null]
 
 Ref: inquiry_tasks.completed_by_id > crew.id [delete: Set Null]
@@ -4130,6 +5311,50 @@ Ref: equipment_availability.inquiry_id > inquiries.id [delete: Set Null]
 
 Ref: locations_library.brand_id > brands.id
 
+Ref: location_spaces.location_id > locations_library.id [delete: Cascade]
+
+Ref: location_spaces.floor_plan_id > floor_plans.id [delete: Set Null]
+
+Ref: location_space_type_tags.location_space_id > location_spaces.id [delete: Cascade]
+
+Ref: floor_plans.location_id > locations_library.id [delete: Cascade]
+
+Ref: floor_plan_objects.floor_plan_id > floor_plans.id [delete: Cascade]
+
+Ref: floor_plan_presets.brand_id > brands.id [delete: Cascade]
+
+Ref: floor_plan_preset_objects.preset_id > floor_plan_presets.id [delete: Cascade]
+
+Ref: floor_plan_preset_cameras.preset_id > floor_plan_presets.id [delete: Cascade]
+
+Ref: floor_plan_preset_subjects.preset_id > floor_plan_presets.id [delete: Cascade]
+
+Ref: space_slot_objects.package_space_slot_id > package_space_slots.id [delete: Cascade]
+
+Ref: space_slot_camera_positions.package_space_slot_id > package_space_slots.id [delete: Cascade]
+
+Ref: space_slot_camera_positions.crew_slot_id > package_crew_slots.id [delete: Set Null]
+
+Ref: space_slot_subject_positions.package_space_slot_id > package_space_slots.id [delete: Cascade]
+
+Ref: space_slot_subject_positions.day_subject_id > package_day_subjects.id [delete: Set Null]
+
+Ref: space_slot_subject_positions.bound_object_id > space_slot_objects.id [delete: Set Null]
+
+Ref: space_slot_moment_cameras.camera_position_id > space_slot_camera_positions.id [delete: Cascade]
+
+Ref: space_slot_moment_cameras.moment_id > package_activity_moments.id [delete: Cascade]
+
+Ref: space_slot_moment_subjects.subject_position_id > space_slot_subject_positions.id [delete: Cascade]
+
+Ref: space_slot_moment_subjects.moment_id > package_activity_moments.id [delete: Cascade]
+
+Ref: space_slot_zones.package_space_slot_id > package_space_slots.id [delete: Cascade]
+
+Ref: package_space_slot_type_tags.package_space_slot_id > package_space_slots.id [delete: Cascade]
+
+Ref: project_space_slot_type_tags.project_space_slot_id > project_space_slots.id [delete: Cascade]
+
 Ref: films.brand_id > brands.id [delete: Cascade]
 
 Ref: films.montage_preset_id > montage_presets.id [delete: Set Null]
@@ -4152,14 +5377,6 @@ Ref: subject_templates.brand_id > brands.id [delete: Cascade]
 
 Ref: subject_roles.brand_id > brands.id [delete: Cascade]
 
-Ref: film_subjects.film_id > films.id [delete: Cascade]
-
-Ref: film_subjects.role_template_id > subject_roles.id [delete: Set Null]
-
-Ref: film_locations.film_id > films.id [delete: Cascade]
-
-Ref: film_locations.location_id > locations_library.id [delete: Cascade]
-
 Ref: scene_templates.brand_id > brands.id [delete: Cascade]
 
 Ref: scene_template_suggested_subjects.scene_template_id > scene_templates.id [delete: Cascade]
@@ -4172,25 +5389,65 @@ Ref: film_scenes.film_id > films.id [delete: Cascade]
 
 Ref: film_scenes.scene_template_id > scene_templates.id
 
+Ref: film_scenes.source_activity_id > package_activities.id [delete: Set Null]
+
+Ref: film_locations.film_id > films.id [delete: Cascade]
+
+Ref: film_locations.location_id > locations_library.id [delete: Cascade]
+
 Ref: film_scene_locations.scene_id - film_scenes.id [delete: Cascade]
 
 Ref: film_scene_locations.location_id > locations_library.id [delete: Cascade]
 
+Ref: film_scene_spaces.scene_id > film_scenes.id [delete: Cascade]
+
+Ref: film_scene_spaces.space_id > location_spaces.id [delete: Cascade]
+
+Ref: scene_camera_positions.scene_id > film_scenes.id [delete: Cascade]
+
+Ref: scene_camera_positions.track_id > film_timeline_tracks_v2.id [delete: Cascade]
+
+Ref: scene_camera_positions.space_id > location_spaces.id [delete: Cascade]
+
+Ref: scene_camera_positions.source_space_slot_camera_position_id > space_slot_camera_positions.id [delete: Set Null]
+
+Ref: scene_subject_positions.scene_id > film_scenes.id [delete: Cascade]
+
+Ref: scene_subject_positions.subject_id > package_day_subjects.id [delete: Cascade]
+
+Ref: scene_subject_positions.space_id > location_spaces.id [delete: Cascade]
+
+Ref: scene_subject_positions.source_space_slot_subject_position_id > space_slot_subject_positions.id [delete: Set Null]
+
+Ref: moment_camera_positions.moment_id > film_scene_moments.id [delete: Cascade]
+
+Ref: moment_camera_positions.track_id > film_timeline_tracks_v2.id [delete: Cascade]
+
+Ref: moment_camera_positions.space_id > location_spaces.id [delete: Cascade]
+
+Ref: moment_camera_positions.source_scene_position_id > scene_camera_positions.id [delete: Set Null]
+
+Ref: moment_subject_positions.moment_id > film_scene_moments.id [delete: Cascade]
+
+Ref: moment_subject_positions.subject_id > package_day_subjects.id [delete: Cascade]
+
+Ref: moment_subject_positions.space_id > location_spaces.id [delete: Cascade]
+
+Ref: moment_subject_positions.source_scene_position_id > scene_subject_positions.id [delete: Set Null]
+
 Ref: scene_recording_setups.scene_id - film_scenes.id [delete: Cascade]
-
-Ref: film_scene_subjects.scene_id > film_scenes.id [delete: Cascade]
-
-Ref: film_scene_subjects.subject_id > film_subjects.id [delete: Cascade]
-
-Ref: film_scene_moment_subjects.moment_id > film_scene_moments.id [delete: Cascade]
-
-Ref: film_scene_moment_subjects.subject_id > film_subjects.id [delete: Cascade]
 
 Ref: scene_camera_assignments.recording_setup_id > scene_recording_setups.id [delete: Cascade]
 
 Ref: scene_camera_assignments.track_id > film_timeline_tracks_v2.id [delete: Cascade]
 
+Ref: film_scene_moment_subjects.moment_id > film_scene_moments.id [delete: Cascade]
+
+Ref: film_scene_moment_subjects.subject_id > package_day_subjects.id [delete: Cascade]
+
 Ref: film_scene_moments.film_scene_id > film_scenes.id [delete: Cascade]
+
+Ref: film_scene_moments.package_activity_moment_id > package_activity_moments.id [delete: Set Null]
 
 Ref: film_scene_beats.film_scene_id > film_scenes.id [delete: Cascade]
 
@@ -4208,9 +5465,15 @@ Ref: camera_subject_assignments.recording_setup_id > moment_recording_setups.id 
 
 Ref: camera_subject_assignments.track_id > film_timeline_tracks_v2.id [delete: Cascade]
 
+Ref: camera_subject_assignments.scene_camera_position_id > scene_camera_positions.id [delete: Set Null]
+
 Ref: scene_music.film_scene_id - film_scenes.id [delete: Cascade]
 
 Ref: moment_music.moment_id - film_scene_moments.id [delete: Cascade]
+
+Ref: shot_previews.film_id > films.id [delete: Cascade]
+
+Ref: shot_previews.brand_id > brands.id [delete: Cascade]
 
 Ref: montage_presets.brand_id > brands.id [delete: Cascade]
 
@@ -4228,29 +5491,15 @@ Ref: scene_audio_sources.source_scene_id > film_scenes.id [delete: Cascade]
 
 Ref: service_packages.brand_id > brands.id [delete: Cascade]
 
-Ref: service_packages.category_id > service_package_categories.id
+Ref: service_packages.created_from_package_template_id > package_templates.id [delete: Set Null]
 
-Ref: service_packages.wedding_type_id > event_subtypes.id [delete: Set Null]
+Ref: service_packages.source_day_blueprint_id > day_blueprints.id [delete: Set Null]
+
+Ref: service_packages.source_day_blueprint_version_id > day_blueprint_versions.id [delete: Set Null]
 
 Ref: service_packages.workflow_template_id > workflow_templates.id [delete: Set Null]
 
-Ref: service_package_categories.brand_id > brands.id [delete: Cascade]
-
-Ref: service_package_categories.event_type_id > event_types.id [delete: Set Null]
-
 Ref: schedule_presets.brand_id > brands.id [delete: Cascade]
-
-Ref: event_types.brand_id > brands.id [delete: Cascade]
-
-Ref: event_type_days.event_type_id > event_types.id [delete: Cascade]
-
-Ref: event_type_days.event_day_template_id > event_days.id [delete: Cascade]
-
-Ref: event_type_days.event_subtype_id > event_subtypes.id [delete: Set Null]
-
-Ref: event_type_subjects.event_type_id > event_types.id [delete: Cascade]
-
-Ref: event_type_subjects.subject_role_id > subject_roles.id [delete: Cascade]
 
 Ref: event_days.brand_id > brands.id [delete: Cascade]
 
@@ -4262,27 +5511,29 @@ Ref: event_day_subject_roles.event_day_id > event_days.id [delete: Cascade]
 
 Ref: event_day_subject_roles.subject_role_id > subject_roles.id [delete: Cascade]
 
-Ref: event_subtypes.brand_id > brands.id [delete: Cascade]
+Ref: package_templates.brand_id > brands.id [delete: Cascade]
 
-Ref: event_subtypes.event_type_id > event_types.id [delete: Set Null]
+Ref: package_template_days.package_template_id > package_templates.id [delete: Cascade]
 
-Ref: event_subtype_activities.wedding_type_id > event_subtypes.id [delete: Cascade]
+Ref: package_template_days.event_day_template_id > event_days.id [delete: Cascade]
 
-Ref: event_subtype_activity_moments.wedding_type_activity_id > event_subtype_activities.id [delete: Cascade]
+Ref: package_template_activities.package_template_id > package_templates.id [delete: Cascade]
 
-Ref: event_subtype_locations.wedding_type_id > event_subtypes.id [delete: Cascade]
+Ref: package_template_moments.package_template_activity_id > package_template_activities.id [delete: Cascade]
 
-Ref: event_subtype_subjects.wedding_type_id > event_subtypes.id [delete: Cascade]
+Ref: package_template_locations.package_template_id > package_templates.id [delete: Cascade]
 
-Ref: event_subtype_subjects.subject_role_id > subject_roles.id [delete: Set Null]
+Ref: package_template_subjects.package_template_id > package_templates.id [delete: Cascade]
 
-Ref: event_subtype_activity_locations.wedding_type_activity_id > event_subtype_activities.id [delete: Cascade]
+Ref: package_template_subjects.subject_role_id > subject_roles.id [delete: Set Null]
 
-Ref: event_subtype_activity_locations.wedding_type_location_id > event_subtype_locations.id [delete: Cascade]
+Ref: package_template_activity_locations.package_template_activity_id > package_template_activities.id [delete: Cascade]
 
-Ref: event_subtype_activity_subjects.wedding_type_activity_id > event_subtype_activities.id [delete: Cascade]
+Ref: package_template_activity_locations.package_template_location_id > package_template_locations.id [delete: Cascade]
 
-Ref: event_subtype_activity_subjects.wedding_type_subject_id > event_subtype_subjects.id [delete: Cascade]
+Ref: package_template_activity_subjects.package_template_activity_id > package_template_activities.id [delete: Cascade]
+
+Ref: package_template_activity_subjects.package_template_subject_id > package_template_subjects.id [delete: Cascade]
 
 Ref: film_scene_schedules.film_id > films.id [delete: Cascade]
 
@@ -4298,7 +5549,11 @@ Ref: package_activities.package_id > service_packages.id [delete: Cascade]
 
 Ref: package_activities.package_event_day_id > package_event_days.id [delete: Cascade]
 
+Ref: package_activities.source_day_blueprint_activity_id > day_blueprint_activities.id [delete: Set Null]
+
 Ref: package_activity_moments.package_activity_id > package_activities.id [delete: Cascade]
+
+Ref: package_activity_moments.source_day_blueprint_moment_id > day_blueprint_moments.id [delete: Set Null]
 
 Ref: package_crew_slots.package_id > service_packages.id [delete: Cascade]
 
@@ -4384,7 +5639,7 @@ Ref: project_film_subjects.inquiry_id > inquiries.id [delete: Cascade]
 
 Ref: project_film_subjects.project_film_id > project_films.id [delete: Cascade]
 
-Ref: project_film_subjects.source_subject_id > film_subjects.id [delete: Set Null]
+Ref: project_film_subjects.source_subject_id > package_day_subjects.id [delete: Set Null]
 
 Ref: project_film_subjects.role_template_id > subject_roles.id [delete: Set Null]
 
@@ -4435,6 +5690,34 @@ Ref: project_film_scene_moment_subjects.project_film_subject_id > project_film_s
 Ref: project_film_scene_locations.project_scene_id - project_film_scenes.id [delete: Cascade]
 
 Ref: project_film_scene_locations.location_id > locations_library.id [delete: Cascade]
+
+Ref: project_film_scene_spaces.project_scene_id > project_film_scenes.id [delete: Cascade]
+
+Ref: project_film_scene_spaces.space_id > location_spaces.id [delete: Cascade]
+
+Ref: project_scene_camera_positions.project_id > projects.id [delete: Cascade]
+
+Ref: project_scene_camera_positions.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_scene_camera_positions.project_scene_id > project_film_scenes.id [delete: Cascade]
+
+Ref: project_scene_camera_positions.project_track_id > project_film_timeline_tracks.id [delete: Cascade]
+
+Ref: project_scene_camera_positions.space_id > location_spaces.id [delete: Cascade]
+
+Ref: project_scene_camera_positions.source_camera_position_id > scene_camera_positions.id [delete: Set Null]
+
+Ref: project_scene_subject_positions.project_id > projects.id [delete: Cascade]
+
+Ref: project_scene_subject_positions.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_scene_subject_positions.project_scene_id > project_film_scenes.id [delete: Cascade]
+
+Ref: project_scene_subject_positions.project_subject_id > project_film_subjects.id [delete: Cascade]
+
+Ref: project_scene_subject_positions.space_id > location_spaces.id [delete: Cascade]
+
+Ref: project_scene_subject_positions.source_subject_position_id > scene_subject_positions.id [delete: Set Null]
 
 Ref: project_film_equipment_assignments.project_id > projects.id [delete: Cascade]
 
@@ -4512,6 +5795,30 @@ Ref: project_location_activity_assignments.project_location_slot_id > project_lo
 
 Ref: project_location_activity_assignments.project_activity_id > project_activities.id [delete: Cascade]
 
+Ref: project_space_slots.project_id > projects.id [delete: Cascade]
+
+Ref: project_space_slots.inquiry_id > inquiries.id [delete: Cascade]
+
+Ref: project_space_slots.project_event_day_id > project_event_days.id [delete: Cascade]
+
+Ref: project_space_slots.project_location_slot_id > project_location_slots.id [delete: Set Null]
+
+Ref: project_space_slots.location_space_id > location_spaces.id [delete: Set Null]
+
+Ref: project_space_activity_assignments.project_space_slot_id > project_space_slots.id [delete: Cascade]
+
+Ref: project_space_activity_assignments.project_activity_id > project_activities.id [delete: Cascade]
+
+Ref: project_space_slot_objects.project_space_slot_id > project_space_slots.id [delete: Cascade]
+
+Ref: project_space_slot_cameras.project_space_slot_id > project_space_slots.id [delete: Cascade]
+
+Ref: project_space_slot_cameras.project_crew_slot_id > project_crew_slots.id [delete: Set Null]
+
+Ref: project_space_slot_subjects.project_space_slot_id > project_space_slots.id [delete: Cascade]
+
+Ref: project_space_slot_subjects.project_day_subject_id > project_day_subjects.id [delete: Set Null]
+
 Ref: package_crew_slot_activities.package_crew_slot_id > package_crew_slots.id [delete: Cascade]
 
 Ref: package_crew_slot_activities.package_activity_id > package_activities.id [delete: Cascade]
@@ -4524,6 +5831,22 @@ Ref: package_location_slots.package_id > service_packages.id [delete: Cascade]
 
 Ref: package_location_slots.event_day_template_id > event_days.id [delete: Cascade]
 
+Ref: package_space_slots.package_id > service_packages.id [delete: Cascade]
+
+Ref: package_space_slots.event_day_template_id > event_days.id [delete: Cascade]
+
+Ref: package_space_slots.location_slot_id > package_location_slots.id [delete: Set Null]
+
+Ref: package_space_slots.location_space_id > location_spaces.id [delete: Set Null]
+
+Ref: package_space_slots.preset_id > floor_plan_presets.id [delete: Set Null]
+
+Ref: package_space_slots.source_day_blueprint_space_slot_id > day_blueprint_space_slots.id [delete: Set Null]
+
+Ref: space_activity_assignments.package_space_slot_id > package_space_slots.id [delete: Cascade]
+
+Ref: space_activity_assignments.package_activity_id > package_activities.id [delete: Cascade]
+
 Ref: location_activity_assignments.package_location_slot_id > package_location_slots.id [delete: Cascade]
 
 Ref: location_activity_assignments.package_activity_id > package_activities.id [delete: Cascade]
@@ -4533,10 +5856,6 @@ Ref: package_versions.package_id > service_packages.id [delete: Cascade]
 Ref: package_task_overrides.package_id > service_packages.id [delete: Cascade]
 
 Ref: package_sets.brand_id > brands.id [delete: Cascade]
-
-Ref: package_sets.category_id > service_package_categories.id [delete: Set Null]
-
-Ref: package_sets.event_type_id > event_types.id [delete: Set Null]
 
 Ref: package_set_slots.package_set_id > package_sets.id [delete: Cascade]
 
@@ -4581,3 +5900,57 @@ Ref: inquiry_crew_availability_requests.inquiry_id > inquiries.id [delete: Casca
 Ref: inquiry_crew_availability_requests.crew_id > crew.id [delete: Cascade]
 
 Ref: inquiry_crew_availability_requests.project_crew_slot_id > project_crew_slots.id [delete: Set Null]
+
+Ref: moment_knowledge_bases.brand_id > brands.id [delete: Cascade]
+
+Ref: moment_knowledge_entries.knowledge_base_id > moment_knowledge_bases.id [delete: Cascade]
+
+Ref: day_blueprints.brand_id > brands.id [delete: Cascade]
+
+Ref: day_blueprints.latest_published_version_id - day_blueprint_versions.id [delete: Set Null]
+
+Ref: day_blueprint_versions.day_blueprint_id - day_blueprints.id [delete: Cascade]
+
+Ref: day_blueprint_days.day_blueprint_version_id > day_blueprint_versions.id [delete: Cascade]
+
+Ref: day_blueprint_activities.day_blueprint_day_id > day_blueprint_days.id [delete: Cascade]
+
+Ref: day_blueprint_moments.day_blueprint_activity_id > day_blueprint_activities.id [delete: Cascade]
+
+Ref: day_blueprint_subject_roles.day_blueprint_version_id > day_blueprint_versions.id [delete: Cascade]
+
+Ref: day_blueprint_subject_roles.subject_role_id > subject_roles.id [delete: Cascade]
+
+Ref: day_blueprint_lock_rules.day_blueprint_version_id > day_blueprint_versions.id [delete: Cascade]
+
+Ref: day_blueprint_ai_runs.day_blueprint_version_id > day_blueprint_versions.id [delete: Cascade]
+
+Ref: day_blueprint_ai_proposals.day_blueprint_ai_run_id > day_blueprint_ai_runs.id [delete: Cascade]
+
+Ref: day_blueprint_usages.day_blueprint_version_id > day_blueprint_versions.id [delete: Cascade]
+
+Ref: day_blueprint_usages.package_id > service_packages.id [delete: Cascade]
+
+Ref: day_blueprint_location_roles.brand_id > brands.id [delete: Cascade]
+
+Ref: day_blueprint_activity_locations.day_blueprint_activity_id > day_blueprint_activities.id [delete: Cascade]
+
+Ref: day_blueprint_activity_locations.day_blueprint_location_role_id > day_blueprint_location_roles.id [delete: Cascade]
+
+Ref: day_blueprint_space_slots.day_blueprint_version_id > day_blueprint_versions.id [delete: Cascade]
+
+Ref: day_blueprint_space_slots.day_blueprint_location_role_id > day_blueprint_location_roles.id [delete: Cascade]
+
+Ref: day_blueprint_moment_actions.day_blueprint_moment_id > day_blueprint_moments.id [delete: Cascade]
+
+Ref: day_blueprint_moment_actions.subject_role_id > subject_roles.id [delete: Cascade]
+
+Ref: day_blueprint_moment_placements.day_blueprint_moment_id > day_blueprint_moments.id [delete: Cascade]
+
+Ref: day_blueprint_moment_placements.day_blueprint_space_slot_id > day_blueprint_space_slots.id [delete: Cascade]
+
+Ref: day_blueprint_moment_placements.subject_role_id > subject_roles.id [delete: Cascade]
+
+Ref: package_activity_moment_actions.package_activity_moment_id > package_activity_moments.id [delete: Cascade]
+
+Ref: package_activity_moment_actions.subject_role_id > subject_roles.id [delete: Cascade]

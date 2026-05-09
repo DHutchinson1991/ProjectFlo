@@ -57,7 +57,7 @@ export function usePackageActions({
 
     // ── Save / Create ────────────────────────────────────────────────
     const handleSave = useCallback(async () => {
-        if (!formData.name) return alert('Name is required');
+        if (!formData.name) return;
         if (!safeBrandId) return;
         const brandId = safeBrandId;
         setIsSaving(true);
@@ -212,6 +212,20 @@ export function usePackageActions({
         if (!safeBrandId) return;
         const brandId = safeBrandId;
 
+        // Gate on AI planning status: films inherit activities/moments/subjects
+        // from the package, so we block film creation until planning is READY.
+        // Existing linked films can still be configured.
+        const planningStatus = (formData as { planning_status?: string })?.planning_status;
+        const hasExistingLinkedFilm = !!item.config?.linked_film_id;
+        if (!hasExistingLinkedFilm && planningStatus && planningStatus !== 'READY') {
+            alert(
+                planningStatus === 'FAILED'
+                    ? 'Package AI planning failed. Fix the planning error before creating films.'
+                    : 'Package AI planning is still in progress. Please wait for it to finish before creating films.',
+            );
+            return;
+        }
+
         const ensurePackageSaved = async (): Promise<number> => {
             if (packageId) {
                 await servicePackagesApi.update(packageId, formData);
@@ -250,6 +264,8 @@ export function usePackageActions({
                 packageName: formData.name,
                 itemDescription: item.description,
                 subjectTemplateId: formData.contents?.subject_template_id ?? null,
+                equipmentTemplateId: formData.contents?.equipment_template_id ?? null,
+                equipmentCounts: formData.contents?.equipment_counts ?? null,
             });
 
             // Create PackageFilm record for the new linked film

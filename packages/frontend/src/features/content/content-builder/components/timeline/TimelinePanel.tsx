@@ -25,6 +25,7 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ timelineRef }) => 
     playbackState,
     viewState,
     dragState,
+    setViewState,
     handleSceneMouseDown,
     handleSceneDelete,
     setViewportWidth,
@@ -46,6 +47,7 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ timelineRef }) => 
 
   const autoFitDoneRef = useRef(false);
   const prevSceneCountRef = useRef(0);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [hoveredMomentId, setHoveredMomentId] = useState<number | null>(null);
 
   // Calculate total duration from all scenes
@@ -73,6 +75,39 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ timelineRef }) => 
 
     prevSceneCountRef.current = scenes.length;
   }, [scenes, viewState.viewportWidth, totalSceneDuration, fitToView]);
+
+  // Handle wheel events for horizontal scroll and Ctrl+wheel zoom
+  const handleWheel = useCallback((e: WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      const newZoom = Math.max(
+        TIMELINE_CONFIG.MIN_ZOOM_LEVEL,
+        Math.min(TIMELINE_CONFIG.MAX_ZOOM_LEVEL, viewState.zoomLevel * factor)
+      );
+      setZoom(newZoom);
+      return;
+    }
+    // Shift+wheel or horizontal trackpad scrolling
+    const deltaX = e.shiftKey ? e.deltaY : e.deltaX;
+    if (deltaX !== 0) {
+      e.preventDefault();
+      const effectiveDuration = Math.max(60, totalSceneDuration);
+      const timelineWidth = effectiveDuration * viewState.zoomLevel;
+      const maxScroll = Math.max(0, timelineWidth - viewState.viewportWidth);
+      setViewState(prev => ({
+        ...prev,
+        viewportLeft: Math.max(0, Math.min(maxScroll, prev.viewportLeft + deltaX)),
+      }));
+    }
+  }, [viewState.zoomLevel, viewState.viewportWidth, totalSceneDuration, setZoom, setViewState]);
+
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
   // Adapter for Timeline which expects (e, scene) parameter order
   const handleSceneMouseDownAdapter = useCallback((e: React.MouseEvent, scene: TimelineScene) => {
@@ -114,12 +149,13 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ timelineRef }) => 
   }, [setScenes]);
 
   return (
-    <Box sx={{
+    <Box ref={panelRef} data-timeline-panel sx={{
       display: "flex",
       flexDirection: "column",
-      backgroundColor: "#111",
-      borderTop: "1px solid #333",
-      minHeight: "300px"
+      height: "100%",
+      minHeight: 0,
+      background: "transparent",
+      overflow: "hidden",
     }}>
       <Timeline
         scenes={scenes}

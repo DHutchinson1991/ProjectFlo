@@ -66,4 +66,13 @@ export class InvoicesController {
   ) {
     return this.invoicesService.recordPayment(inquiryId, id, dto);
   }
+
+  @Delete(':id/payments/:paymentId')
+  voidPayment(
+    @Param('inquiryId', ParseIntPipe) inquiryId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('paymentId', ParseIntPipe) paymentId: number,
+  ) {
+    return this.invoicesService.voidPayment(inquiryId, id, paymentId);
+  }
 }

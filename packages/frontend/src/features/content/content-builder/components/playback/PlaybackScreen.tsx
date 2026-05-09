@@ -1,12 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { PlaybackScreenProps } from '@/features/content/content-builder/types/timeline';
-import { Box, Typography, Divider } from '@mui/material';
+import { Box, Typography, Divider, IconButton, Tooltip, CircularProgress } from '@mui/material';
 import CameraAltOutlinedIcon from "@mui/icons-material/CameraAltOutlined";
 import MicOutlinedIcon from "@mui/icons-material/MicOutlined";
 import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
 import MusicNoteOutlinedIcon from "@mui/icons-material/MusicNoteOutlined";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import { useContentBuilder } from "../../context/ContentBuilderContext";
 import { getEquipmentShortLabelForTrackName } from "@/features/content/films/utils/equipmentAssignments";
+import { ShotPreviewOverlay } from "@/features/content/shot-previews/components/ShotPreviewOverlay";
+import { useGenerateShotPreview } from "@/features/content/shot-previews/hooks/useShotPreviews";
 
 /**
  * PlaybackScreen Component
@@ -21,9 +24,39 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
     totalDuration,
     currentTime,
     className = '',
-    tracks = []
+    tracks = [],
+    showControlnetGuide = false,
+    showSpatialOverlay = false,
+    showSpatialGrid = true,
 }) => {
-    const { equipmentAssignmentsBySlot, packageSubjects, packageLocations, linkedActivityId } = useContentBuilder();
+    const { equipmentAssignmentsBySlot, packageSubjects, packageLocations, linkedActivityId, filmId, instanceOwnerType, setSelectedCameraId, setSelectedCameraSubjectIds, setCameraSubjectsByCamNum, setCameraVisibleSubjectsByCamNum } = useContentBuilder();
+
+    // SD preview generation (triggered per-card via sparkle button)
+    const generateShotPreview = useGenerateShotPreview();
+    const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set());
+
+    const handleGeneratePreview = useCallback(async (assignmentId: number) => {
+        if (!filmId || !assignmentId) return;
+        setGeneratingIds(prev => new Set(prev).add(assignmentId));
+        try {
+            await generateShotPreview.mutateAsync({
+                camera_assignment_id: assignmentId,
+                film_id: typeof filmId === 'string' ? parseInt(filmId, 10) : filmId,
+            });
+        } catch (err) {
+            console.error('[PlaybackScreen] SD preview generation failed', err);
+        } finally {
+            setGeneratingIds(prev => {
+                const next = new Set(prev);
+                next.delete(assignmentId);
+                return next;
+            });
+        }
+    }, [filmId, generateShotPreview]);
+
+    // Track which camera frame is expanded for larger view
+    const [expandedCameraId, setExpandedCameraId] = useState<number | null>(null);
+
     const formatShotLabel = (value?: string | null) => {
         if (!value) return "";
         const map: Record<string, string> = {
@@ -34,13 +67,14 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
             MEDIUM_WIDE_SHOT: "MWS",
             WIDE_SHOT: "WS",
             EXTREME_WIDE_SHOT: "EWS",
-            // Deprecated aliases fallback to closest standard
-            ESTABLISHING_SHOT: "WS",
-            DETAIL_SHOT: "CU",
-            INSERT_SHOT: "CU",
-            MASTER_SHOT: "WS",
-            TWO_SHOT: "MS",      // Fallback if strict shot type needed
-            OVER_SHOULDER: "MS", // Fallback
+            ESTABLISHING_SHOT: "EST",
+            DETAIL_SHOT: "DET",
+            INSERT_SHOT: "INS",
+            MASTER_SHOT: "MST",
+            TWO_SHOT: "TS",
+            REACTION_SHOT: "RXN",
+            OVER_SHOULDER: "OTS",
+            CUTAWAY: "CA",
         };
         return map[value] || value;
     };
@@ -62,18 +96,22 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
         // Normalize shot type
         const type = shotType.toString().toUpperCase().replace(/_/g, ' ');
         
-        // Map based strictly on requested list: ECU, CU, MCU, MS, MWS, WS, EWS
-        if (type.includes('EXTREME CLOSE')) return { scale: 6.5, yOffset: 35, label: 'ECU' }; // Eyes/Face
-        if (type.includes('MEDIUM CLOSE')) return { scale: 2.8, yOffset: 15, label: 'MCU' };  // Chest up
-        if (type.includes('CLOSE')) return { scale: 4.2, yOffset: 25, label: 'CU' };          // Head/Shoulders
-        if (type.includes('MEDIUM WIDE')) return { scale: 1.2, yOffset: 5, label: 'MWS' };    // Knees up
-        if (type.includes('MEDIUM')) return { scale: 1.9, yOffset: 10, label: 'MS' };         // Waist up
-        if (type.includes('EXTREME WIDE')) return { scale: 0.25, yOffset: 0, label: 'EWS' };  // Tiny figures
-        if (type.includes('WIDE')) return { scale: 0.55, yOffset: 0, label: 'WS' };           // Full body with space
-        
-        // Fallbacks for legacy types mapping to closest standard
-        if (type.includes('ESTABLISHING') || type.includes('MASTER')) return { scale: 0.55, yOffset: 0, label: 'WS' };
-        if (type.includes('DETAIL') || type.includes('INSERT')) return { scale: 4.2, yOffset: 25, label: 'CU' };
+        // Purpose-built mappings for both editorial shot names and camera-size labels
+        if (type.includes('EXTREME CLOSE')) return { scale: 6.5, yOffset: 35, label: 'ECU' };
+        if (type.includes('DETAIL')) return { scale: 5.2, yOffset: 30, label: 'DET' };
+        if (type.includes('INSERT')) return { scale: 5.6, yOffset: 32, label: 'INS' };
+        if (type.includes('REACTION')) return { scale: 3.6, yOffset: 18, label: 'RXN' };
+        if (type.includes('MEDIUM CLOSE')) return { scale: 2.8, yOffset: 15, label: 'MCU' };
+        if (type.includes('OVER SHOULDER')) return { scale: 2.3, yOffset: 14, label: 'OTS' };
+        if (type.includes('CLOSE')) return { scale: 4.2, yOffset: 25, label: 'CU' };
+        if (type.includes('TWO SHOT')) return { scale: 1.35, yOffset: 6, label: 'TS' };
+        if (type.includes('MEDIUM WIDE')) return { scale: 1.2, yOffset: 5, label: 'MWS' };
+        if (type.includes('MEDIUM')) return { scale: 1.9, yOffset: 10, label: 'MS' };
+        if (type.includes('MASTER')) return { scale: 0.7, yOffset: 0, label: 'MST' };
+        if (type.includes('ESTABLISHING')) return { scale: 0.38, yOffset: 0, label: 'EST' };
+        if (type.includes('EXTREME WIDE')) return { scale: 0.25, yOffset: 0, label: 'EWS' };
+        if (type.includes('CUTAWAY')) return { scale: 1.4, yOffset: 8, label: 'CA' };
+        if (type.includes('WIDE')) return { scale: 0.55, yOffset: 0, label: 'WS' };
         if (type.includes('FULL')) return { scale: 0.85, yOffset: 0, label: 'WS' };
         
         // Default
@@ -91,17 +129,6 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
         if (count === 3) return [{ x: 25 }, { x: 50 }, { x: 75 }];
         return [{ x: 20 }, { x: 40 }, { x: 60 }, { x: 80 }];
     };
-
-    // Realistic silhouette path (Person standing)
-    const PersonSilhouette = ({ color = "#fff", opacity = 1 }) => (
-        <svg viewBox="0 0 24 60" style={{ width: '100%', height: '100%', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.3))' }}>
-            <path 
-                d="M12,2 C14.5,2 16.5,4 16.5,6.5 C16.5,9 14.5,11 12,11 C9.5,11 7.5,9 7.5,6.5 C7.5,4 9.5,2 12,2 Z M6,14 C6,12.5 7,12 8.5,12 L15.5,12 C17,12 18,12.5 18,14 L19.5,28 C19.6,29 18.8,30 18,30 L16.5,30 L16.5,58 C16.5,59 15.5,60 14.5,60 L9.5,60 C8.5,60 7.5,59 7.5,58 L7.5,30 L6,30 C5.2,30 4.4,29 4.5,28 L6,14 Z" 
-                fill={color} 
-                opacity={opacity}
-            />
-        </svg>
-    );
 
     // Calculate current moment based on currentTime
     const { moment, sceneName } = useMemo(() => {
@@ -153,6 +180,31 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
         return actName ? `Location ${num} \u2013 ${actName}` : `Location ${num}`;
     }, [packageLocations, linkedActivityId]);
 
+    // Extract space name + ID from the location slot's space_slots (returned nested by backend)
+    const spaceInfo = React.useMemo(() => {
+        if (!packageLocations || packageLocations.length === 0) return { name: '', id: undefined as number | undefined };
+        const activitySlots = linkedActivityId
+            ? packageLocations.filter((s: any) =>
+                (s.activity_assignments || []).some((a: any) => a.package_activity_id === linkedActivityId)
+              )
+            : packageLocations;
+        if (activitySlots.length === 0) return { name: '', id: undefined };
+        const slot = activitySlots[0] as any;
+        const spaces: any[] = slot.space_slots || [];
+        if (spaces.length === 0) return { name: '', id: undefined };
+        // If we have a linked activity, find the space assigned to that activity
+        if (linkedActivityId) {
+            const matched = spaces.find((sp: any) =>
+                (sp.activity_assignments || []).some((a: any) => a.package_activity_id === linkedActivityId)
+            );
+            const sp = matched || spaces[0];
+            return { name: sp?.label || '', id: sp?.id as number | undefined };
+        }
+        return { name: spaces[0]?.label || '', id: spaces[0]?.id as number | undefined };
+    }, [packageLocations, linkedActivityId]);
+    const spaceName = spaceInfo.name;
+    const spaceSlotId = spaceInfo.id;
+
     const locationName = packageLocationName ||
         (moment as any)?.location?.name ||
         (moment as any)?.location_name ||
@@ -163,10 +215,12 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
     const sceneLabel = typeof sceneOrderIndex === "number" ? `Scene ${sceneOrderIndex + 1}` : "Scene";
 
     const cameraAssignments = (recordingSetup?.camera_assignments || []) as Array<{
+        id?: number;
         track_id: number;
         track_name?: string;
         track_type?: string;
         subject_ids?: number[];
+        visible_subject_ids?: number[];
         shot_type?: string | null;
     }>;
     const audioTrackIds = (recordingSetup?.audio_track_ids || []) as number[];
@@ -202,6 +256,8 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
 
     const videoCards = cameraAssignments
         .filter((assignment) => {
+            // Skip disabled cameras (toggled off in MomentPanel but data preserved)
+            if ((assignment as any).enabled === false) return false;
             const trackType = assignment.track_type?.toString().toLowerCase();
             if (trackType && trackType !== "video") return false;
             // Exclude audio tracks that ended up in camera_assignments for subject storage
@@ -215,10 +271,13 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
             const label = equipmentLabel ? `${shortLabel} · ${equipmentLabel}` : shortLabel;
             return {
                 id: assignment.track_id,
+                assignmentId: assignment.id,
                 label: label,
                 shot: formatShotLabel(assignment.shot_type),
                 shotType: assignment.shot_type,
                 subjects: buildSubjectLabel(assignment.subject_ids),
+                subjectIds: assignment.subject_ids || [],
+                visibleSubjectIds: assignment.visible_subject_ids || [],
             };
         })
         .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
@@ -233,12 +292,59 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
             };
         });
 
+    const cameraGridColumns =
+        videoCards.length <= 1
+            ? 1
+            : videoCards.length <= 2
+                ? 2
+                : videoCards.length <= 4
+                    ? 2
+                    : 3;
+    const cameraRowCount = Math.ceil(videoCards.length / cameraGridColumns);
+    const isCompactCameraLayout = cameraRowCount > 1;
+    const cameraCardAspectRatio = '16 / 9';
+    const storyboardGap = isCompactCameraLayout ? 1.5 : 2.5;
+    const cameraSectionMaxWidth =
+        videoCards.length <= 1
+            ? 620
+            : videoCards.length <= 2
+                ? 860
+                : cameraGridColumns === 2
+                    ? 700
+                    : 900;
+    const cameraCardFlexBasis =
+        videoCards.length <= 1
+            ? 'min(100%, 560px)'
+            : cameraGridColumns === 2
+                ? 'calc((100% - 12px) / 2)'
+                : 'calc((100% - 24px) / 3)';
+
     const momentMusic = (moment as any)?.moment_music || (moment as any)?.music || null;
     const sceneMusic = (currentScene as any)?.scene_music || null;
     const musicSource = momentMusic || sceneMusic || null;
 
     const graphicsCards = graphicsEnabled ? [{ id: 'gfx', title: graphicsTitle, subtitle: 'Overlay' }] : [];
     const musicCards = musicSource ? [{ id: 'music', trackName: musicSource.music_name || 'Untitled', artist: musicSource.artist }] : [];
+
+    // Publish camera → subject mapping to context so floor plan can resolve clicks.
+    // Keyed by camera number (1-based) extracted from the card's short label ("Cam 1" → 1).
+    // Use a stable key to avoid infinite re-render loops (videoCards is recreated every render)
+    const cameraSubjectsKey = videoCards.map((c) => `${c.label}:${c.subjectIds.join(',')}:${c.visibleSubjectIds.join(',')}`).join('|');
+    React.useEffect(() => {
+        const map: Record<number, number[]> = {};
+        const visibleMap: Record<number, number[]> = {};
+        videoCards.forEach((c) => {
+            const numMatch = c.label.match(/\d+/);
+            const camNum = numMatch ? parseInt(numMatch[0], 10) : 0;
+            if (camNum > 0) {
+                map[camNum] = c.subjectIds;
+                visibleMap[camNum] = c.visibleSubjectIds;
+            }
+        });
+        setCameraSubjectsByCamNum(map);
+        setCameraVisibleSubjectsByCamNum(visibleMap);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cameraSubjectsKey]);
 
     // Split coverage by type - include ALL coverage items
     const coverageByType = useMemo(() => {
@@ -401,7 +507,7 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
                 alignItems: 'center',
                 backgroundColor: '#000',
                 color: '#fff',
-                padding: 3,
+                padding: isCompactCameraLayout ? 2 : 3,
                 textAlign: 'center',
                 overflowY: 'auto'
             }}
@@ -420,7 +526,7 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
                 <Box sx={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 2,
+                    gap: storyboardGap,
                     width: '100%',
                     maxWidth: 900
                 }}>
@@ -491,33 +597,39 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
                             </>
                         )}
 
-                        {locationName && (
+                        {(locationName || spaceName) && (
                             <>
                                 <Typography sx={{ color: 'rgba(255,255,255,0.2)' }}>|</Typography>
 
-                                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                                    <Typography
-                                        variant="caption"
-                                        sx={{
-                                            color: 'rgba(255, 255, 255, 0.6)',
-                                            fontSize: '11px',
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '1px',
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        Location
-                                    </Typography>
-                                    <Typography
-                                        variant="h6"
-                                        sx={{
-                                            color: '#fff',
-                                            fontWeight: 600,
-                                            fontSize: '18px'
-                                        }}
-                                    >
-                                        {locationName}
-                                    </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                color: 'rgba(255, 255, 255, 0.6)',
+                                                fontSize: '11px',
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '1px',
+                                                fontWeight: 700,
+                                            }}
+                                        >
+                                            Location
+                                        </Typography>
+                                        <Typography
+                                            variant="h6"
+                                            sx={{
+                                                color: '#fff',
+                                                fontWeight: 600,
+                                                fontSize: '18px'
+                                            }}
+                                        >
+                                            {spaceName
+                                                ? locationName
+                                                    ? `${locationName.replace(/\s*[-–]\s*\w+$/, '')} – ${spaceName}`
+                                                    : spaceName
+                                                : locationName}
+                                        </Typography>
+                                    </Box>
                                 </Box>
                             </>
                         )}
@@ -528,7 +640,7 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
                         <>
                             <Divider sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)' }} />
                             {/* <Box> Note: Storyboard title removed as per request </Box> */}
-                            <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2.5, mt: 2 }}>
+                            <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: storyboardGap, mt: isCompactCameraLayout ? 1.25 : 2 }}>
                                     {/* 1. GRAPHICS (Top) */}
                                     {graphicsCards.length > 0 && (
                                         <Box sx={{ width: '100%' }}>
@@ -617,24 +729,71 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
                                             </Typography>
                                             <Box 
                                                 sx={{ 
-                                                    display: 'grid', 
-                                                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
-                                                    gap: 2 
+                                                    display: 'flex',
+                                                    flexWrap: 'wrap',
+                                                    justifyContent: 'center',
+                                                    gap: isCompactCameraLayout ? 1.5 : 2,
+                                                    maxWidth: cameraSectionMaxWidth,
+                                                    mx: 'auto',
+                                                    width: '100%',
                                                 }}
                                             >
-                                                {videoCards.map((card) => (
+                                                {videoCards.map((card) => {
+                                                    const isExpanded = expandedCameraId === card.id;
+                                                    const handleCameraClick = () => {
+                                                        const newExpanded = isExpanded ? null : card.id;
+                                                        setExpandedCameraId(newExpanded);
+                                                        // Update context for floor plan highlighting
+                                                        if (newExpanded) {
+                                                            setSelectedCameraId(card.id);
+                                                            // Phase D: highlight intersection of editorial ∩ visible.
+                                                            // Subjects editorially targeted but not geometrically
+                                                            // visible are surfaced by ConflictListPanel, not glowed.
+                                                            const visibleSet = new Set(card.visibleSubjectIds);
+                                                            const highlighted = card.visibleSubjectIds.length > 0
+                                                                ? card.subjectIds.filter((id) => visibleSet.has(id))
+                                                                : card.subjectIds;
+                                                            setSelectedCameraSubjectIds(highlighted);
+                                                        } else {
+                                                            setSelectedCameraId(null);
+                                                            setSelectedCameraSubjectIds([]);
+                                                        }
+                                                    };
+                                                    return (
                                                     <Box
                                                         key={`video-card-${card.id}`}
+                                                        onClick={handleCameraClick}
                                                         sx={{
+                                                            flex: {
+                                                                xs: '1 1 100%',
+                                                                md: `0 0 ${cameraCardFlexBasis}`,
+                                                            },
+                                                            maxWidth: {
+                                                                xs: '100%',
+                                                                md: cameraGridColumns === 1 ? 560 : 'none',
+                                                            },
+                                                            width: '100%',
                                                             borderRadius: 2,
                                                             bgcolor: '#000',
-                                                            aspectRatio: '16/9',
+                                                            aspectRatio: isExpanded ? 'auto' : cameraCardAspectRatio,
+                                                            height: isExpanded ? '100vh' : 'auto',
                                                             position: 'relative',
                                                             overflow: 'hidden',
-                                                            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                                                            border: '1px solid rgba(255,255,255,0.08)',
-                                                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                            '&:hover': {
+                                                            boxShadow: isExpanded ? '0 0 60px rgba(33, 150, 243, 0.3)' : '0 4px 20px rgba(0,0,0,0.4)',
+                                                            border: isExpanded ? '2px solid rgba(33, 150, 243, 0.6)' : '1px solid rgba(255,255,255,0.08)',
+                                                            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                            cursor: 'pointer',
+                                                            zIndex: isExpanded ? 1000 : 'auto',
+                                                            ...(isExpanded && {
+                                                                position: 'fixed',
+                                                                top: 0,
+                                                                left: 0,
+                                                                right: 0,
+                                                                bottom: 0,
+                                                                borderRadius: 0,
+                                                                margin: 0,
+                                                            }),
+                                                            '&:hover': !isExpanded ? {
                                                                 transform: 'translateY(-4px) scale(1.01)',
                                                                 boxShadow: '0 12px 30px rgba(33, 150, 243, 0.15)',
                                                                 borderColor: 'rgba(33, 150, 243, 0.4)',
@@ -642,7 +801,7 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
                                                                     borderColor: '#2196f3',
                                                                     opacity: 0.8
                                                                 }
-                                                            }
+                                                            } : {},
                                                         }}
                                                     >
                                                         {/* Cinematic Background */}
@@ -652,18 +811,6 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
                                                             background: 'radial-gradient(circle at 50% 30%, #1a232e 0%, #05080a 100%)',
                                                             zIndex: 0
                                                         }}>
-                                                            {/* Rule of Thirds Grid (Subtle) */}
-                                                            <Box sx={{
-                                                                position: 'absolute',
-                                                                inset: 0,
-                                                                backgroundImage: `
-                                                                    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-                                                                    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
-                                                                `,
-                                                                backgroundSize: '33.33% 33.33%',
-                                                                opacity: 0.5
-                                                            }} />
-                                                            
                                                             {/* Horizon line */}
                                                             <Box sx={{ 
                                                                 position: 'absolute', 
@@ -674,6 +821,52 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
                                                                 background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)' 
                                                             }} />
                                                         </Box>
+
+                                                        {/* AI Shot Preview Overlay */}
+                                                        <ShotPreviewOverlay
+                                                            assignmentId={card.assignmentId}
+                                                            filmId={typeof filmId === 'string' ? parseInt(filmId, 10) : filmId}
+                                                            showControlnetGuide={showControlnetGuide}
+                                                            showSpatialOverlay={showSpatialOverlay}
+                                                            showSpatialGrid={showSpatialGrid}
+                                                        />
+
+                                                        {/* Generate Preview Sparkle Button */}
+                                                        {card.assignmentId && (
+                                                            <Tooltip title="Generate AI preview" placement="left">
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={() => handleGeneratePreview(card.assignmentId!)}
+                                                                    disabled={generatingIds.has(card.assignmentId)}
+                                                                    sx={{
+                                                                        position: 'absolute',
+                                                                        top: 6,
+                                                                        right: 6,
+                                                                        zIndex: 35,
+                                                                        width: 28,
+                                                                        height: 28,
+                                                                        bgcolor: 'rgba(0, 0, 0, 0.6)',
+                                                                        backdropFilter: 'blur(4px)',
+                                                                        color: '#a78bfa',
+                                                                        opacity: 0.7,
+                                                                        transition: 'all 0.2s ease',
+                                                                        '&:hover': {
+                                                                            bgcolor: 'rgba(167, 139, 250, 0.2)',
+                                                                            opacity: 1,
+                                                                        },
+                                                                        '&.Mui-disabled': {
+                                                                            color: '#a78bfa',
+                                                                        },
+                                                                    }}
+                                                                >
+                                                                    {generatingIds.has(card.assignmentId) ? (
+                                                                        <CircularProgress size={14} sx={{ color: '#a78bfa' }} />
+                                                                    ) : (
+                                                                        <AutoAwesomeIcon sx={{ fontSize: 14 }} />
+                                                                    )}
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        )}
 
                                                         {/* Info Overlay (Top) */}
                                                         <Box sx={{ 
@@ -723,96 +916,8 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
                                                             </Box>
                                                         </Box>
 
-                                                        {/* Shot Visualization */}
-                                                        <Box sx={{
-                                                            position: 'absolute',
-                                                            inset: 0,
-                                                            zIndex: 10,
-                                                        }}>
-                                                            {(() => {
-                                                                const subjectNames = card.subjects
-                                                                    ? card.subjects.split(',').map((name) => name.trim()).filter(Boolean)
-                                                                    : [];
-                                                                const count = subjectNames.length;
-                                                                const { scale, yOffset } = count > 2 ? { scale: 0.65, yOffset: 0 } : getShotProfile(card.shotType);
-                                                                const layout = getSubjectLayout(count, scale);
-                                                                const opacity = scale < 0.5 ? 0.8 : 1;
-                                                                const color = '#e3f2fd';
-
-                                                                return count > 0 ? (
-                                                                    layout.map((item, idx) => (
-                                                                        <React.Fragment key={`${card.id}-person-group-${idx}`}>
-                                                                            {/* Silhouette */}
-                                                                            <Box
-                                                                                sx={{
-                                                                                    position: 'absolute',
-                                                                                    left: `${item.x}%`,
-                                                                                    bottom: '40%',
-                                                                                    width: '24px',
-                                                                                    height: '60px',
-                                                                                    transform: `translateX(-50%) scale(${scale}) translateY(${yOffset}%)`,
-                                                                                    transformOrigin: '50% 30%',
-                                                                                    transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                                                                                    zIndex: 10
-                                                                                }}
-                                                                            >
-                                                                                <PersonSilhouette color={color} opacity={opacity} />
-                                                                            </Box>
-                                                                            
-                                                                            {/* Floating Name Label - Pinned to bottom, separate from zoom */}
-                                                                            <Box
-                                                                                sx={{
-                                                                                    position: 'absolute',
-                                                                                    left: `${item.x}%`,
-                                                                                    bottom: '16px',
-                                                                                    transform: 'translateX(-50%)',
-                                                                                    zIndex: 40,
-                                                                                    maxWidth: '90%',
-                                                                                    display: 'flex',
-                                                                                    justifyContent: 'center',
-                                                                                    transition: 'left 0.3s ease'
-                                                                                }}
-                                                                            >
-                                                                                <Box sx={{
-                                                                                    bgcolor: 'rgba(15, 23, 42, 0.85)',
-                                                                                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                                                                                    borderRadius: '12px',
-                                                                                    padding: '4px 10px',
-                                                                                    backdropFilter: 'blur(8px)',
-                                                                                    boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
-                                                                                }}>
-                                                                                    <Typography sx={{
-                                                                                        color: '#fff',
-                                                                                        fontSize: '10px',
-                                                                                        fontWeight: 700,
-                                                                                        letterSpacing: '0.5px',
-                                                                                        whiteSpace: 'nowrap',
-                                                                                        overflow: 'hidden',
-                                                                                        textOverflow: 'ellipsis',
-                                                                                        maxWidth: '120px'
-                                                                                    }}>
-                                                                                        {subjectNames[idx]}
-                                                                                    </Typography>
-                                                                                </Box>
-                                                                            </Box>
-                                                                        </React.Fragment>
-                                                                    ))
-                                                                ) : (
-                                                                    <Box sx={{ 
-                                                                        position: 'absolute', 
-                                                                        inset: 0, 
-                                                                        display: 'flex', 
-                                                                        alignItems: 'center', 
-                                                                        justifyContent: 'center',
-                                                                        opacity: 0.3,
-                                                                        flexDirection: 'column',
-                                                                        gap: 1
-                                                                    }}>
-                                                                        <Typography sx={{ fontSize: '10px', letterSpacing: '2px', color: '#fff' }}>EMPTY FRAME</Typography>
-                                                                    </Box>
-                                                                );
-                                                            })()}
-                                                        </Box>
+                                                        {/* Subject name labels were removed — targeted-subject names now live
+                                                            inside the AI ShotPreviewOverlay SVG (gold pill under the figure). */}
 
                                                         {/* Viewfinder Corners */}
                                                         {[
@@ -839,7 +944,8 @@ export const PlaybackScreen: React.FC<PlaybackScreenProps> = ({
                                                             />
                                                         ))}
                                                     </Box>
-                                                ))}
+                                                    );
+                                                })}
                                             </Box>
                                         </Box>
                                     )}

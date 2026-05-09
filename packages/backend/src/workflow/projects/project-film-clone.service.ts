@@ -23,13 +23,13 @@ export interface FilmCloneTarget {
  *
  * Entity copy order (respecting FK dependencies):
  *   1. FilmTimelineTrack       → ProjectFilmTimelineTrack
- *   2. FilmSubject             → ProjectFilmSubject
+ *   2. PackageDaySubject       → ProjectFilmSubject
  *   3. FilmLocation            → ProjectFilmLocation
  *   4. FilmEquipmentAssignment → ProjectFilmEquipmentAssignment
  *   5. FilmScene               → ProjectFilmScene
  *   6. SceneMoment             → ProjectFilmSceneMoment
  *   7. SceneBeat               → ProjectFilmSceneBeat
- *   8. FilmSceneSubject        → ProjectFilmSceneSubject
+ *   8. MomentSubjects          → ProjectFilmSceneSubject (computed from moments)
  *   9. FilmSceneLocation       → ProjectFilmSceneLocation
  *  10. SceneRecordingSetup + SceneCameraAssignment → instance copies
  *  11. MomentRecordingSetup + CameraSubjectAssignment → instance copies
@@ -107,13 +107,19 @@ export class ProjectFilmCloneService {
 
     this.logger.debug(`  Tracks cloned: ${trackMap.size}`);
 
-    // ── 2. Clone FilmSubject → ProjectFilmSubject ──────────────────
-    const subjects = await prisma.filmSubject.findMany({
+    // ── 2. Clone PackageDaySubject → ProjectFilmSubject ──────────────
+    const pf = await prisma.packageFilm.findFirst({
       where: { film_id: filmId },
-      orderBy: { id: 'asc' },
+      select: { package_id: true },
     });
+    const subjects = pf
+      ? await prisma.packageDaySubject.findMany({
+          where: { package_id: pf.package_id },
+          orderBy: { id: 'asc' },
+        })
+      : [];
 
-    const subjectMap = new Map<number, number>(); // library subject ID → instance subject ID
+    const subjectMap = new Map<number, number>(); // PackageDaySubject.id → ProjectFilmSubject.id
 
     for (const subject of subjects) {
       const instanceSubject = await prisma.projectFilmSubject.create({
@@ -196,7 +202,6 @@ export class ProjectFilmCloneService {
             recording_setup: true,
           },
         },
-        subjects: true,
         location_assignment: true,
         recording_setup: {
           include: { camera_assignments: true },
@@ -231,6 +236,7 @@ export class ProjectFilmCloneService {
             project_scene_id: instanceScene.id,
             source_moment_id: moment.id,
             name: moment.name,
+            description: moment.description,
             order_index: moment.order_index,
             duration: moment.duration,
           },
@@ -307,19 +313,23 @@ export class ProjectFilmCloneService {
         }
       }
 
-      // ── 8. Clone FilmSceneSubject → ProjectFilmSceneSubject ─────
-      for (const ss of scene.subjects) {
-        const instanceSubjectId = subjectMap.get(ss.subject_id);
-        if (instanceSubjectId) {
-          await prisma.projectFilmSceneSubject.create({
-            data: {
-              project_scene_id: instanceScene.id,
-              project_film_subject_id: instanceSubjectId,
-              source_scene_subject_id: ss.id,
-              priority: ss.priority,
-              notes: ss.notes,
-            },
-          });
+      // ── 8. Clone scene subjects → ProjectFilmSceneSubject (from moment subjects) ─────
+      const seenSubjects = new Set<number>();
+      for (const moment of scene.moments) {
+        for (const ms of (moment.subjects || [])) {
+          if (seenSubjects.has(ms.subject_id)) continue;
+          seenSubjects.add(ms.subject_id);
+          const instanceSubjectId = subjectMap.get(ms.subject_id);
+          if (instanceSubjectId) {
+            await prisma.projectFilmSceneSubject.create({
+              data: {
+                project_scene_id: instanceScene.id,
+                project_film_subject_id: instanceSubjectId,
+                priority: ms.priority,
+                notes: ms.notes,
+              },
+            });
+          }
         }
       }
 

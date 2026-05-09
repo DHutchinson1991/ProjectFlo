@@ -3,14 +3,14 @@
 import React, { useState } from 'react';
 import {
     Box, Typography, Button, IconButton, Menu, MenuItem,
-    Chip, Stack, Tooltip, SxProps, Theme,
+    Tooltip, SxProps, Theme, Checkbox,
+    Table, TableBody, TableCell, TableHead, TableRow,
 } from '@mui/material';
-import BuildIcon from '@mui/icons-material/Build';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import MicIcon from '@mui/icons-material/Mic';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import Link from 'next/link';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
 import { formatCurrency } from '@/shared/utils/formatUtils';
 import { ServicePackage, ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
@@ -18,6 +18,7 @@ import { equipmentApi } from '@/features/workflow/equipment/api';
 import { crewSlotsApi } from '@/features/workflow/scheduling/shared';
 import type { EventDay } from '@/features/workflow/scheduling/package-template';
 import { useOptionalScheduleApi } from '@/features/workflow/scheduling/shared';
+import { detailGlassCardSx } from '../detail-tokens';
 
 import type {
     PackageCrewSlotRecord,
@@ -26,7 +27,7 @@ import type {
     UnmannedEquipmentRecord,
     EquipItem,
 } from '../../../types';
-import { ScheduleCardShell } from './ScheduleCardShell';
+
 
 // ─── Local equipment contents shape ─────────────────────────────────
 type EquipmentContentsShape = {
@@ -51,7 +52,9 @@ export interface EquipmentCardProps {
     unmannedEquipment: UnmannedEquipmentRecord[];
     setUnmannedEquipment: React.Dispatch<React.SetStateAction<UnmannedEquipmentRecord[]>>;
     currency: string;
-    cardSx: SxProps<Theme>;
+    cardSx?: SxProps<Theme>;
+    selectedEquipmentId?: number | null;
+    onSelectEquipment?: (id: number | null) => void;
 }
 
 // ─── Component ──────────────────────────────────────────────────────
@@ -70,7 +73,8 @@ export function EquipmentCard({
     unmannedEquipment,
     setUnmannedEquipment,
     currency,
-    cardSx,
+    selectedEquipmentId,
+    onSelectEquipment,
 }: EquipmentCardProps) {
     // ── Internalized UI state ──
     const [equipAssignAnchor, setEquipAssignAnchor] = useState<null | HTMLElement>(null);
@@ -79,6 +83,9 @@ export function EquipmentCard({
     const [addEquipType, setAddEquipType] = useState<'CAMERA' | 'AUDIO'>('CAMERA');
     const [trackPickerAnchor, setTrackPickerAnchor] = useState<null | HTMLElement>(null);
     const [trackPickerTarget, setTrackPickerTarget] = useState<{ equipmentId: number; slotType: 'CAMERA' | 'AUDIO' } | null>(null);
+    const [equipSwapAnchor, setEquipSwapAnchor] = useState<null | HTMLElement>(null);
+    const [equipSwapItemId, setEquipSwapItemId] = useState<number | null>(null);
+    const [equipCtxMenu, setEquipCtxMenu] = useState<{ top: number; left: number; equipmentId: number } | null>(null);
 
     // ── ScheduleApi adapter (context if available, else direct package API) ──
     const contextApi = useOptionalScheduleApi();
@@ -102,8 +109,14 @@ export function EquipmentCard({
         ? packageEventDays.find((d: EventDay) => d.id === activeDayId)
         : packageEventDays[0];
     const activeDayTemplateId = (activePackageDay as any)?.event_day_template_id || (activePackageDay as any)?.event_day?.id || null;
+    const activeJoinId: number | undefined = (activePackageDay as any)?._joinId;
 
-    const dayEquipment: EquipItem[] = activeDayId ? (dayEquipmentMap[String(activeDayId)] || []) : [];
+    // Try template ID first (new format), then join table ID (legacy packages)
+    const dayEquipment: EquipItem[] = activeDayId
+        ? (dayEquipmentMap[String(activeDayId)]
+            || (activeJoinId ? dayEquipmentMap[String(activeJoinId)] : undefined)
+            || [])
+        : [];
 
     // Fallback: derive equipment from relational crew-slot-equipment links
     const dayOpsForEquip = activeDayTemplateId
@@ -195,8 +208,21 @@ export function EquipmentCard({
         setFormData({ ...formData, contents } as Partial<ServicePackage>);
     };
 
-    const levelLabel = activeLevel === 'activity' ? 'Activity Override' : 'Event Day';
-    const levelColor = activeLevel === 'activity' ? '#a855f7' : '#f59e0b';
+    const handleSwapEquipment = async (oldEquipId: number, newEquipId: number) => {
+        if (oldEquipId === newEquipId) return;
+        const oldItem = equipmentItems.find(e => e.equipment_id === oldEquipId);
+        if (!oldItem) return;
+        const newEq = allEquipment.find(e => e.id === newEquipId);
+        if (!newEq) return;
+        // Update local formData
+        const updated = equipmentItems.map(item => {
+            if (item.equipment_id === oldEquipId) {
+                return { ...item, equipment_id: newEquipId, equipment: { id: newEq.id, item_name: newEq.item_name, model: newEq.model } };
+            }
+            return item;
+        });
+        saveEquipmentAtLevel(updated);
+    };
 
     // Build equipment → crew slot map
     const equipToCrewSlot = new Map<number, PackageCrewSlotRecord>();
@@ -209,22 +235,6 @@ export function EquipmentCard({
     const getCrewSlotForEquipment = (equipmentId: number | undefined) => {
         if (!equipmentId) return null;
         return equipToCrewSlot.get(equipmentId) || null;
-    };
-
-    const isCrewSlotAssignedToSelectedActivity = (op: PackageCrewSlotRecord | null | undefined) => {
-        if (!selectedActivityId || !op) return false;
-        if (op.activity_assignments && op.activity_assignments.length > 0) {
-            return op.activity_assignments.some(a => a.package_activity_id === selectedActivityId);
-        }
-        if (op.package_activity_id) return op.package_activity_id === selectedActivityId;
-        return false;
-    };
-
-    const isEquipmentHighlighted = (item: EquipItem, op: PackageCrewSlotRecord | null | undefined) => {
-        if (!selectedActivityId) return false;
-        if (activeLevel === 'activity') return true;
-        if (!item.equipment_id) return false;
-        return isCrewSlotAssignedToSelectedActivity(op);
     };
 
     // ── Crew slot assignment helpers ──
@@ -277,15 +287,17 @@ export function EquipmentCard({
         }
     };
 
+    const allItems = [...cameraItems, ...audioItems];
+
+    const selectedActivity = selectedActivityId ? packageActivities.find(a => a.id === selectedActivityId) : null;
+    const actColor = selectedActivity?.color || '#f59e0b';
+
     // ── Render a single equipment row ──
-    const renderEquipRow = (item: EquipItem, type: 'CAMERA' | 'AUDIO', _fallbackIndex: number) => {
+    const renderEquipRow = (item: EquipItem, type: 'CAMERA' | 'AUDIO') => {
         const isCamera = type === 'CAMERA';
         const accentColor = isCamera ? '#648CFF' : '#10b981';
-        const hoverBg = isCamera ? 'rgba(100, 140, 255, 0.06)' : 'rgba(16, 185, 129, 0.06)';
         const trackNum = item.track_number;
-        const trackLabel = trackNum ? (isCamera ? `Camera ${trackNum}` : `Audio ${trackNum}`) : (isCamera ? `Cam` : `Aud`);
         const op = getCrewSlotForEquipment(item.equipment_id);
-        const opColor = op?.crew?.crew_color || '#EC4899';
 
         let tierName: string | null = null;
         if (op?.crew && op?.job_role) {
@@ -301,10 +313,7 @@ export function EquipmentCard({
         const opName = op?.crew
             ? `${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim()
             : '';
-        const opInitials = (opName || opLabel) ? (opName || opLabel).split(' ').filter(Boolean).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() : '';
-
         const isEquipUnmanned = isCamera && unmannedEquipment.some(eq => eq.id === item.equipment_id);
-        const isHighlighted = isEquipmentHighlighted(item, op);
 
         const isEquipAssigned = (() => {
             if (!selectedActivityId) return true;
@@ -317,140 +326,130 @@ export function EquipmentCard({
             return true;
         })();
 
+        const bCellSx = { py: 1.1, px: 1.5, borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.72rem' } as const;
+
+        const isSelected = selectedEquipmentId === item.equipment_id;
+
         return (
-            <Box
+            <TableRow
                 key={item.equipment_id}
+                onClick={() => onSelectEquipment?.(isSelected ? null : item.equipment_id)}
+                onContextMenu={(e) => { e.preventDefault(); setEquipCtxMenu({ top: e.clientY, left: e.clientX, equipmentId: item.equipment_id }); }}
                 sx={{
-                    display: 'flex', alignItems: 'center', gap: 1,
-                    py: 0.75, px: 1.5, mx: -1.5, borderRadius: 1.5,
                     opacity: isEquipAssigned ? 1 : 0.3,
+                    cursor: onSelectEquipment ? 'pointer' : undefined,
                     transition: 'all 0.2s ease',
+                    bgcolor: isSelected ? 'rgba(100, 140, 255, 0.08)' : undefined,
                     '&:hover': {
-                        bgcolor: selectedActivityId
-                            ? 'rgba(236, 72, 153, 0.1)'
-                            : hoverBg,
-                        '& .equip-del': { opacity: 1 },
+                        bgcolor: isSelected
+                            ? 'rgba(100, 140, 255, 0.12)'
+                            : isCamera ? 'rgba(100, 140, 255, 0.04)' : 'rgba(16, 185, 129, 0.04)',
                     },
                 }}
             >
-                {/* Delete button */}
-                <IconButton
-                    className="equip-del"
-                    size="small"
-                    onClick={() => removeEquipmentItem(item.equipment_id)}
-                    sx={{ p: 0, opacity: 0, transition: 'opacity 0.15s', color: 'rgba(255,255,255,0.25)', '&:hover': { color: '#ef4444' } }}
-                >
-                    <DeleteIcon sx={{ fontSize: 13 }} />
-                </IconButton>
-                {/* Track label */}
-                <Box
-                    onClick={(e) => {
-                        setTrackPickerAnchor(e.currentTarget as HTMLElement);
-                        setTrackPickerTarget({ equipmentId: item.equipment_id, slotType: type });
-                    }}
-                    sx={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 44, flexShrink: 0,
-                        cursor: 'pointer', borderRadius: 1, py: 0.25, px: 0.25,
-                        transition: 'all 0.15s ease', '&:hover': { bgcolor: `${accentColor}12` },
-                    }}
-                >
-                    <Typography sx={{ fontSize: '0.45rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>Track</Typography>
-                    <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: trackNum ? accentColor : '#475569', lineHeight: 1.3 }}>{trackLabel}</Typography>
-                </Box>
-                <Box sx={{
-                    width: 26, height: 26, borderRadius: 1,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    bgcolor: `${accentColor}18`, border: `1px solid ${accentColor}35`, flexShrink: 0,
-                }}>
-                    {isCamera
-                        ? <VideocamIcon sx={{ fontSize: 13, color: accentColor }} />
-                        : <MicIcon sx={{ fontSize: 13, color: accentColor }} />
-                    }
-                </Box>
-                {/* Equipment name */}
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" sx={{
-                        fontWeight: 600, fontSize: '0.73rem', color: '#f1f5f9',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                        {item.equipment?.item_name || `${isCamera ? 'Camera' : 'Audio'}`}
+                {/* Read-only assignment checkbox (inherited from crew slot) */}
+                {selectedActivityId && (
+                    <TableCell sx={{ ...bCellSx, p: 0, textAlign: 'center' }}>
+                        <Tooltip title={op ? `Inherited from ${opName || opLabel || 'crew slot'}` : 'No crew assigned'} placement="left" arrow>
+                            <span>
+                                <Checkbox
+                                    checked={isEquipAssigned}
+                                    disabled
+                                    size="small"
+                                    sx={{
+                                        p: 0, '& .MuiSvgIcon-root': { fontSize: 15 },
+                                        color: 'rgba(255,255,255,0.08)',
+                                        '&.Mui-checked.Mui-disabled': { color: `${actColor}73` },
+                                        '&.Mui-disabled': { color: 'rgba(255,255,255,0.08)' },
+                                    }}
+                                />
+                            </span>
+                        </Tooltip>
+                    </TableCell>
+                )}
+                {/* Track */}
+                <TableCell sx={{ ...bCellSx, textAlign: 'center' }}>
+                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: trackNum ? '#94a3b8' : '#475569', lineHeight: 1 }}>
+                        {trackNum ? `${isCamera ? 'V' : 'A'}${trackNum}` : '—'}
                     </Typography>
-                    {item.equipment?.model && (
-                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.6rem', display: 'block', mt: -0.25 }}>
-                            {item.equipment.model}
-                        </Typography>
-                    )}
-                </Box>
-                {/* Day rate cost column */}
-                {(() => {
-                    const fullEq = allEquipment.find((e) => e.id === item.equipment_id);
-                    const dayRate = fullEq?.rental_price_per_day ? Number(fullEq.rental_price_per_day) : 0;
-                    return (
-                        <Typography variant="caption" sx={{
-                            color: dayRate > 0 ? '#f59e0b' : '#475569',
-                            fontWeight: 600, fontSize: '0.65rem', minWidth: 56,
-                            textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums',
+                </TableCell>
+                {/* Equipment */}
+                <TableCell sx={bCellSx}>
+                    <Box
+                        sx={{ minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: 0.25, maxWidth: '100%' }}
+                    >
+                        <Typography className="equip-name" variant="body2" sx={{
+                            fontWeight: 600, fontSize: '0.75rem', color: '#cbd5e1',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            transition: 'color 0.15s',
                         }}>
-                            {dayRate > 0 ? formatCurrency(dayRate, currency) : '—'}
+                            {item.equipment?.item_name || `${isCamera ? 'Camera' : 'Audio'}`}
                         </Typography>
-                    );
-                })()}
-                {/* Crew slot column */}
-                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ flexShrink: 0 }}>
-                    {/* UM toggle */}
-                    {isCamera && (
-                        <Tooltip title={isEquipUnmanned ? 'Camera is unmanned (static) — click to remove' : 'Mark this camera as unmanned (static)'} arrow placement="top">
+                        <KeyboardArrowDownIcon
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setEquipSwapAnchor(e.currentTarget as unknown as HTMLElement);
+                                setEquipSwapItemId(item.equipment_id);
+                            }}
+                            sx={{ fontSize: 13, color: '#475569', flexShrink: 0, cursor: 'pointer', '&:hover': { color: '#94a3b8' } }}
+                        />
+                    </Box>
+                </TableCell>
+                {/* Type */}
+                <TableCell sx={{ ...bCellSx, textAlign: 'center' }}>
+                    <Typography sx={{ fontSize: '0.55rem', fontWeight: 700, color: accentColor, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                        {isCamera ? 'Camera' : 'Audio'}
+                    </Typography>
+                </TableCell>
+                {/* Status (Manned / Unmanned) */}
+                <TableCell sx={{ ...bCellSx, textAlign: 'center' }}>
+                    {isCamera ? (
+                        <Tooltip title={isEquipUnmanned ? 'Unmanned (static) — click to toggle' : 'Manned — click to mark unmanned'} arrow placement="top">
                             <Box
                                 onClick={(e) => { e.stopPropagation(); handleToggleUnmanned(item.equipment_id); }}
                                 sx={{
-                                    width: 20, height: 20, borderRadius: '50%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    cursor: 'pointer', flexShrink: 0,
-                                    border: isEquipUnmanned ? '2px solid #94a3b8' : '2px dashed rgba(100,116,139,0.35)',
-                                    bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.18)' : 'transparent',
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                    height: 20, px: 0.75, borderRadius: 1, cursor: 'pointer',
+                                    border: isEquipUnmanned ? '1px solid rgba(148,163,184,0.4)' : '1px solid rgba(100,116,139,0.2)',
+                                    bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.12)' : 'transparent',
                                     transition: 'all 0.15s',
-                                    '&:hover': { bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.28)' : 'rgba(148,163,184,0.08)', borderColor: '#94a3b8' },
+                                    '&:hover': { bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.22)' : 'rgba(100,116,139,0.08)' },
                                 }}
                             >
-                                <Typography sx={{ fontSize: '0.4rem', fontWeight: 800, color: isEquipUnmanned ? '#94a3b8' : 'rgba(100,116,139,0.5)', lineHeight: 1, userSelect: 'none' }}>
-                                    UM
+                                <Typography sx={{ fontSize: '0.5rem', fontWeight: 700, color: isEquipUnmanned ? '#94a3b8' : '#475569', lineHeight: 1, userSelect: 'none' }}>
+                                    {isEquipUnmanned ? 'UM' : 'M'}
                                 </Typography>
                             </Box>
                         </Tooltip>
-                    )}
-                    {/* Crew slot chip or assign button */}
+                    ) : null}
+                </TableCell>
+                {/* Crew */}
+                <TableCell sx={bCellSx}>
                     {op ? (
-                        <Tooltip title={`${opLabel}${op.crew ? ` · ${`${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim()}` : ''}${isEquipUnmanned ? ' (Unmanned)' : ''} — Click to change`} arrow placement="top">
+                        <Tooltip title={`${opLabel}${op.crew ? ` · ${opName}` : ''}${isEquipUnmanned ? ' (Unmanned)' : ''} — Click to change`} arrow placement="top">
                             <Box
-                                onClick={(e) => {
-                                    setEquipAssignAnchor(e.currentTarget);
-                                    setEquipAssignTarget({ equipmentId: item.equipment_id, currentOpId: op.id });
-                                }}
                                 sx={{
-                                    display: 'flex', alignItems: 'center', gap: 0.5,
-                                    height: 24, pl: 0.25, pr: 1, borderRadius: 3,
-                                    bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.08)' : `${opColor}12`,
-                                    border: `1px solid ${isEquipUnmanned ? 'rgba(148,163,184,0.30)' : `${opColor}30`}`,
-                                    cursor: 'pointer', opacity: isEquipUnmanned ? 0.7 : 1,
-                                    transition: 'all 0.15s ease', maxWidth: 120, flexShrink: 0,
-                                    '&:hover': { bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.18)' : `${opColor}22`, borderColor: isEquipUnmanned ? 'rgba(148,163,184,0.50)' : `${opColor}50` },
+                                    display: 'inline-flex', alignItems: 'center', gap: 0.25,
+                                    opacity: isEquipUnmanned ? 0.7 : 1,
                                 }}
                             >
-                                <Box sx={{
-                                    width: 18, height: 18, borderRadius: '50%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    bgcolor: isEquipUnmanned ? 'rgba(148,163,184,0.30)' : `${opColor}30`, flexShrink: 0,
-                                }}>
-                                    <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: isEquipUnmanned ? '#94a3b8' : opColor, lineHeight: 1 }}>
-                                        {opInitials}
-                                    </Typography>
-                                </Box>
-                                <Typography sx={{
-                                    fontSize: '0.6rem', fontWeight: 700, color: isEquipUnmanned ? '#94a3b8' : opColor,
-                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1,
-                                }}>
+                                <Typography className="crew-name"
+                                    sx={{
+                                        fontSize: '0.65rem', fontWeight: 600,
+                                        color: isEquipUnmanned ? '#94a3b8' : '#cbd5e1',
+                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                    }}
+                                >
                                     {opName || opLabel || 'Crew'}
                                 </Typography>
+                                <KeyboardArrowDownIcon
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEquipAssignAnchor(e.currentTarget as unknown as HTMLElement);
+                                        setEquipAssignTarget({ equipmentId: item.equipment_id, currentOpId: op.id });
+                                    }}
+                                    sx={{ fontSize: 12, color: '#475569', flexShrink: 0, cursor: 'pointer', '&:hover': { color: '#94a3b8' } }}
+                                />
                             </Box>
                         </Tooltip>
                     ) : (
@@ -469,365 +468,217 @@ export function EquipmentCard({
                         >
                             <AddIcon sx={{ fontSize: 10, color: '#475569' }} />
                             <Typography variant="caption" sx={{ color: '#475569', fontSize: '0.55rem', fontWeight: 600 }}>
-                                Assign Crew
+                                Assign
                             </Typography>
                         </Box>
                     )}
-                </Stack>
-            </Box>
+                </TableCell>
+                {/* Rate */}
+                <TableCell sx={{ ...bCellSx, textAlign: 'right' }}>
+                    {(() => {
+                        const fullEq = allEquipment.find((e) => e.id === item.equipment_id);
+                        const dayRate = fullEq?.rental_price_per_day ? Number(fullEq.rental_price_per_day) : 0;
+                        return (
+                            <Typography variant="caption" sx={{
+                                color: dayRate > 0 ? '#f59e0b' : '#475569',
+                                fontWeight: 600, fontSize: '0.65rem', fontVariantNumeric: 'tabular-nums',
+                            }}>
+                                {dayRate > 0 ? formatCurrency(dayRate, currency) : '—'}
+                            </Typography>
+                        );
+                    })()}
+                </TableCell>
+
+            </TableRow>
         );
     };
 
-    const activeDay = packageEventDays.find(d => d.id === (scheduleActiveDayId || packageEventDays[0]?.id));
-    const selectedActivity = selectedActivityId ? packageActivities.find(a => a.id === selectedActivityId) : null;
-    const highlightedCameraCount = cameraItems.filter((item) => isEquipmentHighlighted(item, getCrewSlotForEquipment(item.equipment_id))).length;
-    const highlightedAudioCount = audioItems.filter((item) => isEquipmentHighlighted(item, getCrewSlotForEquipment(item.equipment_id))).length;
+    const hCellSx = { py: 1.25, px: 1.5, fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid rgba(255,255,255,0.06)' } as const;
 
     return (
-        <ScheduleCardShell
-            title="Equipment"
-            icon={<BuildIcon />}
-            accentColor="#10b981"
-            subtitle={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: -0.25 }}>
-                    {selectedActivity ? (
-                        <Typography sx={{ fontSize: '0.55rem', color: '#a855f7', fontWeight: 600 }}>{selectedActivity.name}</Typography>
-                    ) : activeDay && packageEventDays.length > 1 ? (
-                        <Typography sx={{ fontSize: '0.55rem', color: '#f59e0b', fontWeight: 600 }}>{activeDay.name}</Typography>
-                    ) : null}
-                    <Chip
-                        label={levelLabel}
-                        size="small"
-                        sx={{
-                            height: 14, fontSize: '0.45rem', fontWeight: 700,
-                            bgcolor: `${levelColor}15`, color: levelColor,
-                            border: `1px solid ${levelColor}30`, '& .MuiChip-label': { px: 0.5 },
-                        }}
-                    />
-                </Box>
-            }
-            headerRight={(cameraItems.length > 0 || audioItems.length > 0)
-                ? (
-                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                        {cameraItems.length > 0 && (
-                            <Chip
-                                icon={<VideocamIcon sx={{ fontSize: '11px !important' }} />}
-                                label={`${selectedActivity ? highlightedCameraCount : cameraItems.length}`}
-                                size="small"
-                                sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(100, 140, 255, 0.1)', color: '#648CFF', border: '1px solid rgba(100, 140, 255, 0.2)', '& .MuiChip-icon': { color: '#648CFF' }, '& .MuiChip-label': { px: 0.4 } }}
-                            />
-                        )}
-                        {audioItems.length > 0 && (
-                            <Chip
-                                icon={<MicIcon sx={{ fontSize: '11px !important' }} />}
-                                label={`${selectedActivity ? highlightedAudioCount : audioItems.length}`}
-                                size="small"
-                                sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', '& .MuiChip-icon': { color: '#10b981' }, '& .MuiChip-label': { px: 0.4 } }}
-                            />
-                        )}
-                    </Box>
-                )
-                : undefined
-            }
-            headerExtra={hasOverride ? (
-                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Button
-                        size="small"
-                        onClick={resetOverride}
-                        sx={{
-                            fontSize: '0.5rem', textTransform: 'none', fontWeight: 600, py: 0.15, px: 0.75,
-                            color: '#ef4444', '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.06)' },
-                        }}
-                    >
-                        Reset to Event Day
-                    </Button>
-                </Box>
-            ) : undefined}
-            cardSx={cardSx}
-        >
-
-            {/* ── Equipment Section ── */}
-            <Box sx={{ px: 2.5, pt: 1.5, pb: 1 }}>
-                {/* Section label + column header row */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-                    <Box sx={{ flex: 1 }}>
-                        <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.5rem' }}>
-                            Equipment
-                        </Typography>
-                    </Box>
-                    <Box sx={{ width: 120, textAlign: 'right' }}>
-                        <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.5rem' }}>
-                            Crew
-                        </Typography>
-                    </Box>
-                </Box>
-
-                {/* Camera rows */}
-                {cameraItems.length > 0 && (
-                    <Box sx={{ mb: audioItems.length > 0 ? 1.5 : 0 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.25 }}>
-                            <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#648CFF' }} />
-                            <Typography variant="caption" sx={{ color: '#648CFF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.5rem', flex: 1 }}>
-                                Cameras
-                            </Typography>
-                            <IconButton
-                                size="small"
-                                onClick={(e) => { setAddEquipAnchor(e.currentTarget); setAddEquipType('CAMERA'); }}
-                                sx={{ p: 0.25, color: '#648CFF', opacity: 0.6, '&:hover': { opacity: 1, bgcolor: 'rgba(100, 140, 255, 0.08)' } }}
-                            >
-                                <AddIcon sx={{ fontSize: 12 }} />
-                            </IconButton>
-                        </Box>
-                        {cameraItems.map((item, idx) => renderEquipRow(item, 'CAMERA', idx + 1))}
-                    </Box>
+        <>
+            <Box sx={detailGlassCardSx}>
+            {/* ── Section header ── */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#e2e8f0', letterSpacing: '-0.01em' }}>
+                    Equipment
+                </Typography>
+                {selectedActivity && (
+                    <Typography sx={{ fontSize: '0.55rem', color: selectedActivity.color || '#f59e0b', fontWeight: 600 }}>Filtering: {selectedActivity.name}</Typography>
                 )}
-
-                {/* Audio rows */}
-                {audioItems.length > 0 && (
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.25 }}>
-                            <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#10b981' }} />
-                            <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.5rem', flex: 1 }}>
-                                Audio
-                            </Typography>
-                            <IconButton
-                                size="small"
-                                onClick={(e) => { setAddEquipAnchor(e.currentTarget); setAddEquipType('AUDIO'); }}
-                                sx={{ p: 0.25, color: '#10b981', opacity: 0.6, '&:hover': { opacity: 1, bgcolor: 'rgba(16, 185, 129, 0.08)' } }}
-                            >
-                                <AddIcon sx={{ fontSize: 12 }} />
-                            </IconButton>
-                        </Box>
-                        {audioItems.map((item, idx) => renderEquipRow(item, 'AUDIO', idx + 1))}
-                    </Box>
-                )}
-
-                {equipmentItems.length === 0 && (
-                    <Box sx={{ textAlign: 'center', py: 2 }}>
-                        <Typography variant="caption" sx={{ color: '#475569', display: 'block', mb: 1 }}>
-                            No equipment added yet
-                        </Typography>
-                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
-                            <Button
-                                size="small"
-                                startIcon={<VideocamIcon sx={{ fontSize: 11 }} />}
-                                onClick={(e) => { setAddEquipAnchor(e.currentTarget); setAddEquipType('CAMERA'); }}
-                                sx={{ fontSize: '0.55rem', color: '#648CFF', textTransform: 'none', fontWeight: 600, py: 0.25, '&:hover': { bgcolor: 'rgba(100, 140, 255, 0.06)' } }}
-                            >
-                                Add Camera
-                            </Button>
-                            <Button
-                                size="small"
-                                startIcon={<MicIcon sx={{ fontSize: 11 }} />}
-                                onClick={(e) => { setAddEquipAnchor(e.currentTarget); setAddEquipType('AUDIO'); }}
-                                sx={{ fontSize: '0.55rem', color: '#10b981', textTransform: 'none', fontWeight: 600, py: 0.25, '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.06)' } }}
-                            >
-                                Add Audio
-                            </Button>
-                        </Box>
-                    </Box>
-                )}
-
-                {/* Equipment Total */}
-                {equipmentItems.length > 0 && (() => {
-                    const totalEquipCost = equipmentItems.reduce((sum, item) => {
-                        const fullEq = allEquipment.find((e) => e.id === item.equipment_id);
-                        return sum + (fullEq?.rental_price_per_day ? Number(fullEq.rental_price_per_day) : 0);
-                    }, 0);
-                    return (
-                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1.5, pt: 1, borderTop: '1px solid rgba(245, 158, 11, 0.15)' }}>
-                            <Typography variant="caption" sx={{ flex: 1, color: '#94a3b8', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                                Total
-                            </Typography>
-                            <Typography variant="caption" sx={{
-                                color: totalEquipCost > 0 ? '#f59e0b' : '#475569',
-                                fontWeight: 700, fontSize: '0.7rem', fontVariantNumeric: 'tabular-nums',
-                                minWidth: 56, textAlign: 'right',
-                            }}>
-                                {totalEquipCost > 0 ? formatCurrency(totalEquipCost, currency) : '—'}
-                            </Typography>
-                        </Box>
-                    );
-                })()}
-
-                {/* Bottom actions */}
-                <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'center', gap: 0.5 }}>
-                    <Button
+                <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {hasOverride && (
+                        <Button
+                            size="small"
+                            onClick={resetOverride}
+                            sx={{
+                                fontSize: '0.5rem', textTransform: 'none', fontWeight: 600, py: 0.15, px: 0.75,
+                                color: '#ef4444', '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.06)' },
+                            }}
+                        >
+                            Reset to Event Day
+                        </Button>
+                    )}
+                    <IconButton
                         size="small"
-                        startIcon={<AddIcon sx={{ fontSize: 13 }} />}
                         onClick={(e) => { setAddEquipAnchor(e.currentTarget); setAddEquipType('CAMERA'); }}
-                        sx={{ fontSize: '0.6rem', color: '#648CFF', textTransform: 'none', fontWeight: 600, py: 0.25, '&:hover': { bgcolor: 'rgba(100, 140, 255, 0.06)' } }}
+                        sx={{ p: 0.25, color: '#64748b', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.05)' } }}
                     >
-                        Add Equipment
-                    </Button>
-                    <Button
-                        size="small"
-                        href="/equipment"
-                        component={Link}
-                        sx={{ fontSize: '0.6rem', color: '#64748b', textTransform: 'none', fontWeight: 600, py: 0.25, '&:hover': { bgcolor: 'rgba(255,255,255,0.03)', color: '#94a3b8' } }}
-                    >
-                        Manage Equipment
-                    </Button>
+                        <AddIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
                 </Box>
             </Box>
 
+            {/* ── Equipment table ── */}
+            {equipmentItems.length > 0 ? (
+                <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                    <colgroup>
+                        {selectedActivityId && <col style={{ width: '4%' }} />}
+                        <col style={{ width: '7%' }} />
+                        <col style={{ width: selectedActivityId ? '33%' : '37%' }} />
+                        <col style={{ width: selectedActivityId ? '10%' : '11%' }} />
+                        <col style={{ width: selectedActivityId ? '8%' : '9%' }} />
+                        <col style={{ width: selectedActivityId ? '20%' : '21%' }} />
+                        <col style={{ width: selectedActivityId ? '18%' : '15%' }} />
+                    </colgroup>
+                    <TableHead>
+                        <TableRow sx={{ bgcolor: 'rgba(255, 255, 255, 0.02)' }}>
+                            {selectedActivityId && <TableCell sx={{ ...hCellSx, width: 28, p: 0 }} />}
+                            <TableCell sx={{ ...hCellSx, textAlign: 'center', pr: 2 }}>Track</TableCell>
+                            <TableCell sx={hCellSx}>Equipment</TableCell>
+                            <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Type</TableCell>
+                            <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Status</TableCell>
+                            <TableCell sx={hCellSx}>Crew</TableCell>
+                            <TableCell sx={{ ...hCellSx, textAlign: 'right' }}>Rate</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {allItems.map((item) => renderEquipRow(item, item.slot_type as 'CAMERA' | 'AUDIO'))}
+
+                        {/* Total row */}
+                        {(() => {
+                            const totalEquipCost = equipmentItems.reduce((sum, item) => {
+                                const fullEq = allEquipment.find((e) => e.id === item.equipment_id);
+                                return sum + (fullEq?.rental_price_per_day ? Number(fullEq.rental_price_per_day) : 0);
+                            }, 0);
+                            return (
+                                <>
+                                    {/* ── Grand Total spacer ── */}
+                                    <TableRow>
+                                        <TableCell colSpan={selectedActivityId ? 7 : 6} sx={{ py: 0.5, borderBottom: 'none', borderTop: '2px solid rgba(255,255,255,0.06)' }} />
+                                    </TableRow>
+                                    {/* ── Grand Total row ── */}
+                                    <TableRow sx={{ bgcolor: 'rgba(245, 158, 11, 0.04)' }}>
+                                        <TableCell colSpan={selectedActivityId ? 6 : 5} sx={{ py: 1.25, borderBottom: 'none', borderTop: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                                            <Typography sx={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                Total
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell sx={{ py: 1.25, textAlign: 'right', borderBottom: 'none', borderTop: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                                            <Typography sx={{
+                                                color: totalEquipCost > 0 ? '#f59e0b' : '#475569',
+                                                fontWeight: 700, fontSize: '0.95rem',
+                                                fontVariantNumeric: 'tabular-nums',
+                                            }}>
+                                                {totalEquipCost > 0 ? formatCurrency(totalEquipCost, currency) : '—'}
+                                            </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                </>
+                            );
+                        })()}
+                    </TableBody>
+                </Table>
+            ) : (
+                <Box sx={{ textAlign: 'center', py: 2 }}>
+                    <Typography variant="caption" sx={{ color: '#475569' }}>
+                        No equipment added yet
+                    </Typography>
+                </Box>
+            )}
+
+            {/* Row context menu — right-click actions */}
+            <Menu
+                open={Boolean(equipCtxMenu)}
+                onClose={() => setEquipCtxMenu(null)}
+                anchorReference="anchorPosition"
+                anchorPosition={equipCtxMenu ? { top: equipCtxMenu.top, left: equipCtxMenu.left } : undefined}
+                PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', minWidth: 160, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' } }}
+            >
+                <MenuItem
+                    onClick={() => {
+                        if (!equipCtxMenu) return;
+                        removeEquipmentItem(equipCtxMenu.equipmentId);
+                        setEquipCtxMenu(null);
+                    }}
+                    sx={{ fontSize: '0.72rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: 1 }}
+                >
+                    <DeleteIcon sx={{ fontSize: 14 }} /> Remove Equipment
+                </MenuItem>
+            </Menu>
             {/* Equipment-Crew Slot Assignment Menu */}
             <Menu
                 anchorEl={equipAssignAnchor}
                 open={Boolean(equipAssignAnchor)}
                 onClose={() => { setEquipAssignAnchor(null); setEquipAssignTarget(null); }}
-                PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', minWidth: 200, maxHeight: 300 } }}
+                PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', minWidth: 180, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' } }}
             >
-                <Box sx={{ px: 1.5, py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        Assign Crew
-                    </Typography>
-                </Box>
-                {/* Mark Unmanned option (cameras only) */}
-                {equipAssignTarget && (() => {
-                    const isCameraEquip = cameraItems.some(eq => eq.equipment_id === equipAssignTarget.equipmentId);
-                    const isCurrentlyUnmanned = unmannedEquipment.some(eq => eq.id === equipAssignTarget.equipmentId);
-                    if (!isCameraEquip) return null;
-                    return (
-                        <MenuItem
-                            onClick={async () => {
-                                setEquipAssignAnchor(null);
-                                await handleToggleUnmanned(equipAssignTarget.equipmentId);
-                                setEquipAssignTarget(null);
-                            }}
-                            sx={{
-                                fontSize: '0.7rem', color: '#94a3b8', py: 0.75,
-                                bgcolor: isCurrentlyUnmanned ? 'rgba(148, 163, 184, 0.12)' : 'transparent',
-                                '&:hover': { bgcolor: 'rgba(148, 163, 184, 0.18)' },
-                            }}
-                        >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                                <Box sx={{ width: 22, height: 22, borderRadius: '50%', bgcolor: 'rgba(148, 163, 184, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                    <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: '#94a3b8' }}>UM</Typography>
-                                </Box>
-                                <Box sx={{ flex: 1, minWidth: 0 }}>
-                                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
-                                        {isCurrentlyUnmanned ? 'Remove Unmanned' : 'Mark Unmanned'}
-                                    </Typography>
-                                    <Typography sx={{ fontSize: '0.55rem', color: '#64748b' }}>No crew needed</Typography>
-                                </Box>
-                                {isCurrentlyUnmanned && (
-                                    <Typography sx={{ fontSize: '0.5rem', color: '#94a3b8', fontWeight: 600 }}>✓</Typography>
-                                )}
-                            </Box>
-                        </MenuItem>
-                    );
-                })()}
-                {dayOpsForEquip.length === 0 ? (
-                    <MenuItem disabled sx={{ fontSize: '0.7rem', color: '#475569' }}>Add crew first</MenuItem>
-                ) : (() => {
-                    const isTargetCamera = equipAssignTarget
-                        ? cameraItems.some(eq => eq.equipment_id === equipAssignTarget.equipmentId)
-                        : false;
-                    const isTargetAudio = equipAssignTarget
-                        ? audioItems.some(eq => eq.equipment_id === equipAssignTarget.equipmentId)
-                        : false;
-                    const requiredRoleName = isTargetCamera ? 'videographer' : isTargetAudio ? 'sound_engineer' : null;
-                    const requiredRoleLabel = isTargetCamera ? 'Videographers' : isTargetAudio ? 'Sound Engineers' : null;
+                {/* Crew list — filtered by equipment type */}
+                {(() => {
+                    const targetItem = equipAssignTarget
+                        ? equipmentItems.find(e => e.equipment_id === equipAssignTarget.equipmentId)
+                        : null;
+                    const slotType = targetItem?.slot_type; // 'CAMERA' | 'AUDIO'
+                    const CAMERA_KEYWORDS = ['videographer', 'camera', 'operator', 'cinematographer', 'photographer', 'drone'];
+                    const AUDIO_KEYWORDS = ['sound', 'audio', 'mixer'];
+                    const keywords = slotType === 'CAMERA' ? CAMERA_KEYWORDS : slotType === 'AUDIO' ? AUDIO_KEYWORDS : null;
 
-                    const matchingOps = requiredRoleName
-                        ? dayOpsForEquip.filter(op => op.job_role?.name === requiredRoleName)
-                        : dayOpsForEquip;
-                    const otherOps = requiredRoleName
-                        ? dayOpsForEquip.filter(op => op.job_role?.name !== requiredRoleName)
-                        : [];
+                    const matchesRole = (op: typeof dayOpsForEquip[0]) => {
+                        if (!keywords) return true; // no filter if type unknown
+                        const roleName = (op.job_role?.name || op.label || '').toLowerCase();
+                        return keywords.some(kw => roleName.includes(kw));
+                    };
 
-                    const renderOpItem = (op: PackageCrewSlotRecord, dimmed = false) => {
-                        const opC = op.crew?.crew_color || '#EC4899';
-                        let opTierName: string | null = null;
-                        if (op.crew && op.job_role) {
-                            const jrm = op.crew.job_role_assignments?.find(cjr => cjr.job_role_id === op.job_role_id);
-                            opTierName = jrm?.payment_bracket?.name || null;
-                        }
-                        const opRoleLabel = op.job_role
-                            ? `${op.job_role.display_name || op.job_role.name}${opTierName ? ` - ${opTierName}` : ''}`
-                            : (op.label || '?');
-                        const initials = opRoleLabel.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
+                    const filtered = dayOpsForEquip.filter(matchesRole);
+
+                    if (filtered.length === 0) {
+                        return <MenuItem disabled sx={{ fontSize: '0.7rem', color: '#475569' }}>No matching crew</MenuItem>;
+                    }
+
+                    return filtered.map(op => {
                         const personName = op.crew ? `${op.crew.contact?.first_name || ''} ${op.crew.contact?.last_name || ''}`.trim() : null;
-                        const isCurrentlyAssigned = equipAssignTarget?.currentOpId === op.id;
+                        const roleLabel = op.job_role?.display_name || op.job_role?.name || op.label || '—';
+                        const label = personName ? `${personName} · ${roleLabel}` : roleLabel;
+                        const isAssigned = equipAssignTarget?.currentOpId === op.id;
                         return (
                             <MenuItem
                                 key={op.id}
                                 onClick={async () => {
                                     setEquipAssignAnchor(null);
-                                    if (!equipAssignTarget) return;
-                                    if (isCurrentlyAssigned) return;
+                                    if (!equipAssignTarget || isAssigned) return;
                                     await handleAssignCrewSlot(op.id, equipAssignTarget.equipmentId);
                                     setEquipAssignTarget(null);
                                 }}
-                                sx={{
-                                    fontSize: '0.7rem', color: dimmed ? '#64748b' : '#e2e8f0', py: 0.75,
-                                    opacity: dimmed ? 0.65 : 1,
-                                    bgcolor: isCurrentlyAssigned ? `${opC}12` : 'transparent',
-                                    '&:hover': { bgcolor: `${opC}18` },
-                                }}
+                                sx={{ fontSize: '0.72rem', color: isAssigned ? '#f59e0b' : '#cbd5e1', py: 0.75, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
                             >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                                    <Box sx={{ width: 22, height: 22, borderRadius: '50%', bgcolor: `${opC}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                        <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: opC }}>{initials}</Typography>
-                                    </Box>
-                                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 600 }}>{opRoleLabel}</Typography>
-                                        {personName && <Typography sx={{ fontSize: '0.55rem', color: '#38bdf8' }}>{personName}</Typography>}
-                                        {!personName && <Typography sx={{ fontSize: '0.55rem', color: '#f59e0b', fontStyle: 'italic' }}>Unassigned</Typography>}
-                                    </Box>
-                                    {isCurrentlyAssigned && (
-                                        <Typography sx={{ fontSize: '0.5rem', color: opC, fontWeight: 600 }}>✓</Typography>
-                                    )}
-                                </Box>
+                                {label}{isAssigned ? ' ✓' : ''}
                             </MenuItem>
                         );
-                    };
-
-                    return (
-                        <>
-                            {requiredRoleLabel && (
-                                <MenuItem disabled sx={{ fontSize: '0.5rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700, py: 0.3, minHeight: 0, opacity: '1 !important' }}>
-                                    {requiredRoleLabel}
-                                </MenuItem>
-                            )}
-                            {matchingOps.length > 0
-                                ? matchingOps.map(op => renderOpItem(op))
-                                : requiredRoleName && (
-                                    <MenuItem disabled sx={{ fontSize: '0.65rem', color: '#475569', py: 0.5 }}>
-                                        No {requiredRoleLabel?.toLowerCase()} on this day
-                                    </MenuItem>
-                                )
-                            }
-                            {otherOps.length > 0 && (
-                                <>
-                                    <MenuItem disabled sx={{ fontSize: '0.5rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700, py: 0.3, mt: 0.5, minHeight: 0, opacity: '1 !important', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                                        Other Crew
-                                    </MenuItem>
-                                    {otherOps.map(op => renderOpItem(op, true))}
-                                </>
-                            )}
-                        </>
-                    );
+                    });
                 })()}
-                {/* Unassign option */}
+                {/* Unassign */}
                 {equipAssignTarget?.currentOpId && (
-                    <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                        <MenuItem
-                            onClick={async () => {
-                                setEquipAssignAnchor(null);
-                                if (!equipAssignTarget?.currentOpId) return;
-                                await handleUnassignCrewSlot(equipAssignTarget.currentOpId, equipAssignTarget.equipmentId);
-                                setEquipAssignTarget(null);
-                            }}
-                            sx={{ fontSize: '0.7rem', color: '#ef4444', py: 0.75, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.08)' } }}
-                        >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <DeleteIcon sx={{ fontSize: 13, color: '#ef4444' }} />
-                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 600 }}>Unassign</Typography>
-                            </Box>
-                        </MenuItem>
-                    </Box>
+                    <MenuItem
+                        onClick={async () => {
+                            setEquipAssignAnchor(null);
+                            if (!equipAssignTarget?.currentOpId) return;
+                            await handleUnassignCrewSlot(equipAssignTarget.currentOpId, equipAssignTarget.equipmentId);
+                            setEquipAssignTarget(null);
+                        }}
+                        sx={{ fontSize: '0.72rem', color: '#ef4444', py: 0.75, borderTop: '1px solid rgba(255,255,255,0.06)', '&:hover': { bgcolor: 'rgba(239,68,68,0.08)' } }}
+                    >
+                        Unassign
+                    </MenuItem>
                 )}
             </Menu>
 
@@ -836,64 +687,37 @@ export function EquipmentCard({
                 anchorEl={addEquipAnchor}
                 open={Boolean(addEquipAnchor)}
                 onClose={() => setAddEquipAnchor(null)}
-                PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', minWidth: 220, maxHeight: 350 } }}
+                PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', minWidth: 200, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' } }}
             >
-                <Box sx={{ px: 1.5, py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 0.5 }}>
-                    <Button
-                        size="small"
-                        onClick={() => setAddEquipType('CAMERA')}
-                        sx={{
-                            fontSize: '0.55rem', fontWeight: 700, textTransform: 'uppercase', minWidth: 0, px: 1, py: 0.25,
-                            color: addEquipType === 'CAMERA' ? '#648CFF' : '#475569',
-                            bgcolor: addEquipType === 'CAMERA' ? 'rgba(100, 140, 255, 0.1)' : 'transparent',
-                            borderRadius: 1,
-                        }}
-                    >
-                        Cameras
-                    </Button>
-                    <Button
-                        size="small"
-                        onClick={() => setAddEquipType('AUDIO')}
-                        sx={{
-                            fontSize: '0.55rem', fontWeight: 700, textTransform: 'uppercase', minWidth: 0, px: 1, py: 0.25,
-                            color: addEquipType === 'AUDIO' ? '#10b981' : '#475569',
-                            bgcolor: addEquipType === 'AUDIO' ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
-                            borderRadius: 1,
-                        }}
-                    >
-                        Audio
-                    </Button>
-                </Box>
+                <MenuItem disabled sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px', py: 0.5, minHeight: 0, opacity: '1 !important', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 1 }}>
+                    <Box
+                        component="span"
+                        onClick={(e) => { e.stopPropagation(); setAddEquipType('CAMERA'); }}
+                        sx={{ cursor: 'pointer', color: addEquipType === 'CAMERA' ? '#648CFF' : undefined, pointerEvents: 'all' }}
+                    >Cameras</Box>
+                    <Box component="span" sx={{ color: 'rgba(255,255,255,0.1)' }}>|</Box>
+                    <Box
+                        component="span"
+                        onClick={(e) => { e.stopPropagation(); setAddEquipType('AUDIO'); }}
+                        sx={{ cursor: 'pointer', color: addEquipType === 'AUDIO' ? '#10b981' : undefined, pointerEvents: 'all' }}
+                    >Audio</Box>
+                </MenuItem>
                 {(() => {
-                    const typeColor = addEquipType === 'CAMERA' ? '#648CFF' : '#10b981';
                     const categoryFilter = addEquipType === 'CAMERA' ? ['CAMERA'] : ['AUDIO'];
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const filtered = allEquipment.filter((eq: any) => categoryFilter.some(c => (eq.category || '').toUpperCase().includes(c)));
                     const existingIds = new Set(equipmentItems.map(e => e.equipment_id));
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const available = filtered.filter((eq: any) => !existingIds.has(eq.id));
-                    if (available.length === 0) {
-                        return <MenuItem disabled sx={{ fontSize: '0.7rem', color: '#475569' }}>No {addEquipType.toLowerCase()} equipment available</MenuItem>;
-                    }
+                    if (available.length === 0) return <MenuItem disabled sx={{ fontSize: '0.72rem', color: '#475569' }}>No equipment available</MenuItem>;
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     return available.map((eq: any) => (
                         <MenuItem
                             key={eq.id}
                             onClick={() => { addEquipmentItem(eq.id, addEquipType); setAddEquipAnchor(null); }}
-                            sx={{ fontSize: '0.7rem', color: '#e2e8f0', py: 0.75, '&:hover': { bgcolor: `${typeColor}12` } }}
+                            sx={{ fontSize: '0.72rem', color: '#cbd5e1', py: 0.75, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
                         >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                                <Box sx={{ width: 24, height: 24, borderRadius: 1, bgcolor: `${typeColor}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                    {addEquipType === 'CAMERA'
-                                        ? <VideocamIcon sx={{ fontSize: 12, color: typeColor }} />
-                                        : <MicIcon sx={{ fontSize: 12, color: typeColor }} />
-                                    }
-                                </Box>
-                                <Box sx={{ flex: 1, minWidth: 0 }}>
-                                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eq.item_name}</Typography>
-                                    {eq.model && <Typography sx={{ fontSize: '0.55rem', color: '#64748b' }}>{eq.model}</Typography>}
-                                </Box>
-                            </Box>
+                            {eq.item_name}{eq.model ? ` · ${eq.model}` : ''}
                         </MenuItem>
                     ));
                 })()}
@@ -959,6 +783,46 @@ export function EquipmentCard({
                     );
                 })()}
             </Menu>
-        </ScheduleCardShell>
+
+            {/* Equipment Swap Menu */}
+            <Menu
+                anchorEl={equipSwapAnchor}
+                open={Boolean(equipSwapAnchor)}
+                onClose={() => { setEquipSwapAnchor(null); setEquipSwapItemId(null); }}
+                PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', minWidth: 200, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' } }}
+            >
+                {(() => {
+                    if (!equipSwapItemId) return null;
+                    const currentItem = equipmentItems.find(e => e.equipment_id === equipSwapItemId);
+                    if (!currentItem) return null;
+                    const isCamera = currentItem.slot_type === 'CAMERA';
+                    const categoryFilter = isCamera ? ['CAMERA'] : ['AUDIO'];
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const filtered = allEquipment.filter((eq: any) => categoryFilter.some(c => (eq.category || '').toUpperCase().includes(c)));
+                    const existingIds = new Set(equipmentItems.map(e => e.equipment_id));
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const available = filtered.filter((eq: any) => !existingIds.has(eq.id) || eq.id === equipSwapItemId);
+                    if (available.length === 0) return <MenuItem disabled sx={{ fontSize: '0.72rem', color: '#475569' }}>No equipment available</MenuItem>;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    return available.map((eq: any) => {
+                        const isCurrent = eq.id === equipSwapItemId;
+                        return (
+                            <MenuItem
+                                key={eq.id}
+                                onClick={async () => {
+                                    setEquipSwapAnchor(null);
+                                    if (!isCurrent) await handleSwapEquipment(equipSwapItemId, eq.id);
+                                    setEquipSwapItemId(null);
+                                }}
+                                sx={{ fontSize: '0.72rem', color: isCurrent ? '#f59e0b' : '#cbd5e1', py: 0.75, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                            >
+                                {eq.item_name}{eq.model ? ` · ${eq.model}` : ''}{isCurrent ? ' ✓' : ''}
+                            </MenuItem>
+                        );
+                    });
+                })()}
+            </Menu>
+            </Box>
+        </>
     );
 }

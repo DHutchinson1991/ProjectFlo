@@ -113,7 +113,7 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
     return (
         <Dialog
             open={open}
-            onClose={onClose}
+            onClose={handleSaveWithSetup}
             maxWidth="md"
             fullWidth
             PaperProps={{
@@ -131,7 +131,7 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
                 color: "white", fontSize: "1rem", fontWeight: 600, pb: 1,
             }}>
                 {isTrackMode ? "Track Assignment" : "Edit Moment"}
-                <IconButton onClick={onClose} size="small" sx={{ color: "rgba(255,255,255,0.5)" }}>
+                <IconButton onClick={handleSaveWithSetup} size="small" sx={{ color: "rgba(255,255,255,0.5)" }}>
                     <CloseIcon fontSize="small" />
                 </IconButton>
             </DialogTitle>
@@ -309,18 +309,10 @@ const MomentEditor: React.FC<MomentEditorProps> = ({
                                 Clear Override
                             </Button>
                         )}
-                        <Box sx={{ display: "flex", gap: 1 }}>
-                            <Button onClick={onClose} sx={{ color: "rgba(255,255,255,0.7)" }}>Cancel</Button>
-                            {!readOnly && (
-                                <Button
-                                    onClick={handleSaveWithSetup}
-                                    variant="contained"
-                                    disabled={Object.keys(errors).length > 0 || isSavingSetup}
-                                    sx={{ bgcolor: "#7B61FF", color: "white", "&:hover": { bgcolor: "#6b4dd9" } }}
-                                >
-                                    Save Changes
-                                </Button>
-                            )}
+                        <Box sx={{ display: "flex", gap: 1, ml: "auto" }}>
+                            <Button onClick={handleSaveWithSetup} sx={{ color: "rgba(255,255,255,0.7)" }}>
+                                {isSavingSetup ? "Saving…" : "Close"}
+                            </Button>
                         </Box>
                     </>
                 )}

@@ -1,0 +1,113 @@
+- generic [ref=e1]:
+  - alert [ref=e2]
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e7]:
+          - generic [ref=e8]: ProjectFlo
+          - generic [ref=e9]: Studio
+        - button [ref=e12] [cursor=pointer]:
+          - generic [ref=e13]:
+            - generic [ref=e14]: M
+            - paragraph [ref=e15]: Moonrise Films
+          - img [ref=e17]
+        - generic [ref=e19]:
+          - generic [ref=e25] [cursor=pointer]: "6"
+          - button [ref=e26] [cursor=pointer]:
+            - img [ref=e27]
+          - generic [ref=e29] [cursor=pointer]:
+            - generic [ref=e30]:
+              - paragraph [ref=e31]: Daniel Hutchinson
+              - generic [ref=e32]: info@dhutchinson.co.uk
+            - generic [ref=e33]: DH
+    - list [ref=e35]:
+      - link [ref=e37] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e39]
+        - generic [ref=e42]: Dashboard
+      - link [ref=e44] [cursor=pointer]:
+        - /url: /inquiries
+        - img [ref=e46]
+        - generic [ref=e49]: Inquiries
+      - link [ref=e51] [cursor=pointer]:
+        - /url: /clients
+        - img [ref=e53]
+        - generic [ref=e56]: Customers
+      - link [ref=e58] [cursor=pointer]:
+        - /url: /projects
+        - img [ref=e60]
+        - generic [ref=e63]: Projects
+      - generic [ref=e64]:
+        - link [ref=e65] [cursor=pointer]:
+          - /url: /packages
+          - img [ref=e67]
+          - generic [ref=e70]: Packages
+        - list [ref=e71]:
+          - link [ref=e72] [cursor=pointer]:
+            - /url: /packages
+            - paragraph [ref=e74]: Package Library
+          - link [ref=e75] [cursor=pointer]:
+            - /url: /packages/list
+            - paragraph [ref=e77]: All Packages
+          - link [ref=e78] [cursor=pointer]:
+            - /url: /event-type-templates
+            - paragraph [ref=e80]: Event Type Templates
+      - link [ref=e82] [cursor=pointer]:
+        - /url: /tasks
+        - img [ref=e84]
+        - generic [ref=e87]: Tasks
+      - link [ref=e89] [cursor=pointer]:
+        - /url: /crew
+        - img [ref=e91]
+        - generic [ref=e96]: Assets
+      - link [ref=e98] [cursor=pointer]:
+        - /url: /settings
+        - img [ref=e100]
+        - generic [ref=e103]: Settings
+  - dialog [ref=e108]:
+    - generic [ref=e109]:
+      - paragraph [ref=e110]: Create a Package
+      - button [ref=e111] [cursor=pointer]:
+        - img [ref=e112]
+    - generic [ref=e115]:
+      - paragraph [ref=e116]: Days
+      - paragraph [ref=e117]: Step 2 of 9
+    - generic [ref=e156]:
+      - paragraph [ref=e157]: Which days does this event include?
+      - generic [ref=e158]:
+        - generic [ref=e159] [cursor=pointer]:
+          - paragraph [ref=e161]: Pre-Wedding Day
+          - paragraph [ref=e162]: Activities before the main event — rehearsal dinner, welcome party, bridal prep shopping, etc.
+          - paragraph [ref=e163]: 6 activities · 22 moments
+        - generic [ref=e164] [cursor=pointer]:
+          - paragraph [ref=e166]: Getting Ready
+          - paragraph [ref=e167]: Morning-of preparations — hair, makeup, suit-up, detail shots, letters, gifts.
+          - paragraph [ref=e168]: 6 activities · 19 moments
+        - generic [ref=e169] [cursor=pointer]:
+          - paragraph [ref=e171]: Wedding Day
+          - paragraph [ref=e172]: The main event day — ceremony, reception, first look, portraits, toasts, first dance, etc.
+          - paragraph [ref=e173]: 12 activities · 46 moments
+        - generic [ref=e174] [cursor=pointer]:
+          - paragraph [ref=e176]: Day After Session
+          - paragraph [ref=e177]: Post-wedding creative session — trash the dress, couples portraits, drone shots, etc.
+          - paragraph [ref=e178]: 5 activities · 16 moments
+        - generic [ref=e179] [cursor=pointer]:
+          - paragraph [ref=e181]: Engagement Session
+          - paragraph [ref=e182]: Pre-wedding engagement shoot — location portraits, lifestyle footage, interview.
+          - paragraph [ref=e183]: 6 activities · 18 moments
+        - generic [ref=e184] [cursor=pointer]:
+          - paragraph [ref=e186]: Rehearsal Dinner
+          - paragraph [ref=e187]: Evening before the wedding — rehearsal, dinner, toasts, candid moments.
+          - paragraph [ref=e188]: 5 activities · 15 moments
+        - generic [ref=e189] [cursor=pointer]:
+          - paragraph [ref=e191]: Welcome Party
+          - paragraph [ref=e192]: Welcome event for destination weddings — cocktails, meet-and-greet, casual footage.
+          - paragraph [ref=e193]: 5 activities · 15 moments
+    - generic [ref=e128]:
+      - button "Back" [ref=e195] [cursor=pointer]:
+        - img [ref=e196]
+        - text: Back
+      - paragraph [ref=e129]: Step 2 of 9
+      - button "Next" [disabled] [ref=e199]:
+        - text: Next
+        - img [ref=e200]

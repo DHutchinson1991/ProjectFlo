@@ -67,6 +67,7 @@ export class ScenesCrudService {
                 template: true,
                 location_assignment: { include: { location: true } },
                 moments: {
+                    orderBy: { order_index: 'asc' },
                     include: {
                         recording_setup: {
                             include: { camera_assignments: { include: { track: true } } },

@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, Suspense, lazy } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
 import {
     Alert,
     Box,
@@ -30,10 +29,6 @@ import { LocationDetailPanel } from '../components/LocationDetailPanel';
 import { useLocationsList } from '../hooks';
 import { locationsColumns } from '../constants/locations-columns';
 
-const LocationsMap = lazy(() =>
-    import('../components/LocationsMap').then((mod) => ({ default: mod.LocationsMap })),
-);
-
 const EMPTY_FORM: CreateLocationRequest = {
     name: '',
     address_line1: '',
@@ -49,12 +44,11 @@ const EMPTY_FORM: CreateLocationRequest = {
 };
 
 export function LocationsListScreen() {
-    const router = useRouter();
     const [searchQuery, setSearchQuery] = useState('');
     const [cityFilter, setCityFilter] = useState('all');
     const [capacityFilter, setCapacityFilter] = useState<LocationCapacityFilter>('all');
 
-    const { locations, loading, isError, saveMutation } = useLocationsList({
+    const { locations, loading, isError, saveMutation, deleteMutation } = useLocationsList({
         searchQuery,
         cityFilter,
         capacityFilter,
@@ -63,11 +57,10 @@ export function LocationsListScreen() {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingLocation, setEditingLocation] = useState<LocationsLibrary | null>(null);
     const [form, setForm] = useState<CreateLocationRequest>(EMPTY_FORM);
+    const [selectedId, setSelectedId] = useState<number | null>(null);
     const [hoveredId, setHoveredId] = useState<number | null>(null);
 
     const cities = Array.from(new Set(locations.map((location) => location.city).filter(Boolean) as string[])).sort();
-
-    const hoveredLocation = hoveredId ? locations.find((l) => l.id === hoveredId) ?? null : null;
 
     const handleCreate = () => {
         setEditingLocation(null);
@@ -174,36 +167,26 @@ export function LocationsListScreen() {
                     columns={locationsColumns}
                     rows={locations}
                     getRowKey={(loc) => loc.id}
-                    onRowClick={(loc) => router.push(`/locations/${loc.id}`)}
+                    onRowClick={(loc) => setSelectedId(loc.id)}
                     onRowHover={(loc) => setHoveredId(loc?.id ?? null)}
+                    getRowAccentColor={(loc) => loc.id === selectedId ? '#10b981' : ''}
                     sectionColor={sectionColors.locations}
                     emptyMessage="No locations yet — add your first venue"
                 />
 
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'sticky', top: 24 }}>
-                    <Suspense
-                        fallback={
-                            <Box sx={{
-                                height: 380, borderRadius: 2.5, bgcolor: 'rgba(255,255,255,0.01)',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}>
-                                <CircularProgress size={24} />
-                            </Box>
-                        }
-                    >
-                        <LocationsMap
-                            locations={locations}
-                            highlightedId={hoveredId}
-                            onMarkerClick={(loc) => router.push(`/locations/${loc.id}`)}
-                            height={380}
-                        />
-                    </Suspense>
-
-                    {hoveredLocation ? (
+                    {(hoveredId ?? selectedId) ? (
                         <LocationDetailPanel
-                            location={hoveredLocation}
-                            onNavigate={(loc) => router.push(`/locations/${loc.id}`)}
+                            key={hoveredId ?? selectedId}
+                            locationId={(hoveredId ?? selectedId)!}
+                            locations={locations}
+                            onDelete={(loc) => {
+                                if (window.confirm(`Delete "${loc.name}"? This will soft-delete the location.`)) {
+                                    deleteMutation.mutate(loc.id);
+                                    setSelectedId(null);
+                                    setHoveredId(null);
+                                }
+                            }}
                         />
                     ) : (
                         <Box sx={{
@@ -212,7 +195,7 @@ export function LocationsListScreen() {
                         }}>
                             <LocationIcon sx={{ fontSize: 28, color: 'rgba(255,255,255,0.12)', mb: 1 }} />
                             <Typography sx={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.25)' }}>
-                                Hover a row to preview location details
+                                Hover or click a row to view location details
                             </Typography>
                         </Box>
                     )}

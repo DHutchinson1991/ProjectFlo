@@ -6,6 +6,11 @@ Content Builder is the visual timeline editor where you plan and organize your f
 
 Think of it like a music production timeline (like Ableton or Logic), but instead of audio samples, you're organizing **camera angles, audio sources, graphics, and music** across your film.
 
+### Spatial panel fallback
+- The Spatial tab first uses the scene's real venue floor plan when one is assigned.
+- If a scene has no venue layout, it falls back to the package's `PackageSpaceSlot` layout.
+- If the scene is not linked to a specific activity, the first package slot is used as a safe fallback instead of showing an empty panel immediately.
+
 ---
 
 ## The Big Picture: From Equipment to Moments
@@ -241,6 +246,7 @@ model SceneMusic {
 - Crew members know what to film during each moment
 - Audio team knows when their mics should be recording
 - You can verify all important moments have proper coverage
+- Audio subject targeting is returned separately as `audio_assignments`; local timeline state must keep those assignments alongside `audio_track_ids` so moment inspector changes appear immediately.
 
 ---
 
@@ -347,9 +353,12 @@ ContentBuilder
 │  └─ useSaveState (auto-save to backend)
 │
 ├─ ContentBuilderContainer (layout)
-│  ├─ PlaybackPanel (play controls, timecode)
-│  ├─ TimelinePanel (visual tracks with scenes)
-│  └─ DetailsPanel (scene properties, moments)
+│  ├─ Top workspace
+│  │  ├─ DetailsPanel (scene properties, moments)
+│  │  ├─ PlaybackPanel (play controls, timecode)
+│  │  └─ MomentPanel / SceneSettingsPanel (focused inspector)
+│  └─ Bottom timeline band
+│     └─ TimelinePanel (full-width visual tracks with scenes)
 │
 └─ Modals
    ├─ CreateSceneDialog (add new scenes)

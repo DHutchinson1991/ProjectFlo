@@ -209,6 +209,7 @@ export function BrandProvider({ children }: BrandProviderProps) {
 
     const value: BrandContextType = {
         currentBrand,
+        currentBrandId: currentBrand?.id ?? null,
         availableBrands,
         isLoading: isLoading || brandsLoading,
         error: error || (brandsError ? "Failed to load brands" : null),

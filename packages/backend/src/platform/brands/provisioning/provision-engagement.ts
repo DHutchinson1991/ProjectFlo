@@ -6,41 +6,83 @@ const DEFAULT_SLOT_TIERS = ["Budget", "Basic", "Standard", "Premium"] as const;
 export async function provisionEngagement(prisma: PrismaService, brandId: number) {
   await prisma.$transaction(async (tx) => {
     const engagementRolesData = [
-      { role_name: "Partner 1", order_index: 0, is_core: true, never_group: true, is_group: false },
-      { role_name: "Partner 2", order_index: 1, is_core: true, never_group: true, is_group: false },
-      { role_name: "Friends", order_index: 2, is_core: false, never_group: false, is_group: true },
-      { role_name: "Family", order_index: 3, is_core: false, never_group: false, is_group: true },
+      { role_name: "Partner 1", order_index: 0, never_group: true, is_group: false },
+      { role_name: "Partner 2", order_index: 1, never_group: true, is_group: false },
+      { role_name: "Friends", order_index: 2, never_group: false, is_group: true },
+      { role_name: "Family", order_index: 3, never_group: false, is_group: true },
     ];
 
-    const engagementSubjectRoles: Array<{ id: number; is_core: boolean }> = [];
+    const engagementSubjectRoles: Array<{ id: number; role_name: string }> = [];
     for (const roleData of engagementRolesData) {
-      const role = await tx.subjectRole.create({ data: { brand_id: brandId, ...roleData } });
-      engagementSubjectRoles.push({ id: role.id, is_core: roleData.is_core });
+      const role = await tx.subjectRole.upsert({
+        where: {
+          brand_id_role_name: {
+            brand_id: brandId,
+            role_name: roleData.role_name,
+          },
+        },
+        create: { brand_id: brandId, ...roleData },
+        update: {
+          is_group: roleData.is_group,
+          never_group: roleData.never_group,
+          order_index: roleData.order_index,
+        },
+      });
+      engagementSubjectRoles.push({ id: role.id, role_name: role.role_name });
     }
 
     const days = await createEngagementDayTemplates(tx, brandId);
 
-    const eventType = await tx.eventType.create({
-      data: {
+    const template = await tx.packageTemplate.upsert({
+      where: {
+        brand_id_name: {
+          brand_id: brandId,
+          name: "Engagement",
+        },
+      },
+      create: {
         brand_id: brandId,
         name: "Engagement",
         description: "Engagement shoots and celebration coverage",
-        icon: "💍",
+        icon: "\uD83D\uDC8D",
         color: "#8b5cf6",
-        default_duration_hours: 4,
-        default_start_time: "14:00",
+        event_category: "Engagement",
+        total_duration_hours: 4,
+        event_start_time: "14:00",
         typical_guest_count: 30,
-        is_system: false,
+        is_system_seeded: false,
+        is_active: true,
+        order_index: 2,
+      },
+      update: {
+        description: "Engagement shoots and celebration coverage",
+        icon: "\uD83D\uDC8D",
+        color: "#8b5cf6",
+        event_category: "Engagement",
+        total_duration_hours: 4,
+        event_start_time: "14:00",
+        typical_guest_count: 30,
+        is_system_seeded: false,
         is_active: true,
         order_index: 2,
       },
     });
 
     for (let index = 0; index < days.length; index += 1) {
-      await tx.eventTypeDay.create({
-        data: {
-          event_type_id: eventType.id,
+      await tx.packageTemplateDay.upsert({
+        where: {
+          package_template_id_event_day_template_id: {
+            package_template_id: template.id,
+            event_day_template_id: days[index].id,
+          },
+        },
+        create: {
+          package_template_id: template.id,
           event_day_template_id: days[index].id,
+          order_index: index,
+          is_default: index === 0,
+        },
+        update: {
           order_index: index,
           is_default: index === 0,
         },
@@ -48,41 +90,67 @@ export async function provisionEngagement(prisma: PrismaService, brandId: number
     }
 
     for (let index = 0; index < engagementSubjectRoles.length; index += 1) {
-      await tx.eventTypeSubject.create({
-        data: {
-          event_type_id: eventType.id,
+      await tx.packageTemplateSubject.upsert({
+        where: {
+          package_template_id_order_index: {
+            package_template_id: template.id,
+            order_index: index,
+          },
+        },
+        create: {
+          package_template_id: template.id,
+          name: engagementSubjectRoles[index].role_name,
           subject_role_id: engagementSubjectRoles[index].id,
           order_index: index,
-          is_default: engagementSubjectRoles[index].is_core,
+        },
+        update: {
+          name: engagementSubjectRoles[index].role_name,
+          subject_role_id: engagementSubjectRoles[index].id,
         },
       });
     }
 
-    const category = await tx.service_package_categories.create({
-      data: {
-        brand_id: brandId,
-        name: "Engagement",
-        description: "Engagement videography packages",
-        order_index: 2,
-        is_active: true,
-        event_type_id: eventType.id,
+    const engagementSet = await tx.package_sets.upsert({
+      where: {
+        brand_id_name: {
+          brand_id: brandId,
+          name: "Engagement Packages",
+        },
       },
-    });
-
-    const engagementSet = await tx.package_sets.create({
-      data: {
+      create: {
         brand_id: brandId,
         name: "Engagement Packages",
         description: "Our engagement photography & videography packages",
-        emoji: "💍",
-        category_id: category.id,
-        event_type_id: eventType.id,
+        emoji: "\uD83D\uDC8D",
+        event_category: "Engagement",
+        is_active: true,
+        order_index: 2,
+      },
+      update: {
+        description: "Our engagement photography & videography packages",
+        emoji: "\uD83D\uDC8D",
+        event_category: "Engagement",
         is_active: true,
         order_index: 2,
       },
     });
 
     for (let index = 0; index < DEFAULT_SLOT_TIERS.length; index += 1) {
+      const existingSlot = await tx.package_set_slots.findFirst({
+        where: {
+          package_set_id: engagementSet.id,
+          slot_label: DEFAULT_SLOT_TIERS[index],
+        },
+      });
+
+      if (existingSlot) {
+        await tx.package_set_slots.update({
+          where: { id: existingSlot.id },
+          data: { order_index: index },
+        });
+        continue;
+      }
+
       await tx.package_set_slots.create({
         data: {
           package_set_id: engagementSet.id,

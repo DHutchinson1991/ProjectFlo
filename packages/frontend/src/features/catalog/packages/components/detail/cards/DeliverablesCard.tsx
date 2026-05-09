@@ -2,19 +2,20 @@
 
 import React from 'react';
 import {
-    Box, Typography, Button, IconButton,
-    Chip, Tooltip, SxProps, Theme,
+    Box, Typography, IconButton,
+    Table, TableHead, TableBody, TableRow, TableCell,
+    Tooltip, SxProps, Theme, LinearProgress,
 } from '@mui/material';
-import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
-import { ScheduleCardShell } from './ScheduleCardShell';
-import InventoryIcon from '@mui/icons-material/Inventory';
-import LinkIcon from '@mui/icons-material/Link';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 import type { ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
 import { getFilmStats } from '../../../utils/package-helpers';
 import type { FilmData, PackageActivityRecord } from '../../../types';
+import type { UsePlanningProgressReturn } from '../../../hooks/usePlanningProgress';
+import { detailGlassCardSx, detailHeaderCellSx, detailBodyCellSx } from '../detail-tokens';
+import { FilmBuildProgressRow } from './FilmBuildProgressRow';
+import { colors } from '@/shared/theme/tokens';
 
 // ─── Props ──────────────────────────────────────────────────────────
 export interface DeliverablesCardProps {
@@ -25,7 +26,10 @@ export interface DeliverablesCardProps {
     onRemoveItem: (index: number) => void;
     onAddFilm: () => void;
     onAddService: () => void;
-    cardSx: SxProps<Theme>;
+    cardSx?: SxProps<Theme>;
+    buildingFilmIds?: Set<number>;
+    planning?: UsePlanningProgressReturn;
+    filmCreationProgress?: { label: string; progress: number } | null;
 }
 
 // ─── Component ──────────────────────────────────────────────────────
@@ -36,228 +40,226 @@ export function DeliverablesCard({
     onConfigureItem,
     onRemoveItem,
     onAddFilm,
-    onAddService,
-    cardSx,
+    buildingFilmIds,
+    filmCreationProgress,
 }: DeliverablesCardProps) {
+    const contentItems = items.filter(i => i.type === 'film');
+    const isCreatingFilm = filmCreationProgress != null;
+
+    const hCellSx = detailHeaderCellSx;
+    const bCellSx = detailBodyCellSx;
+
     return (
-        <ScheduleCardShell
-            title="Deliverables"
-            icon={<VideoLibraryIcon />}
-            accentColor="#648CFF"
-            showHeaderBorder={items.length > 0}
-            headerRight={items.length > 0
-                ? <Chip label={`${items.length}`} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(100, 140, 255, 0.1)', color: '#648CFF', border: '1px solid rgba(100, 140, 255, 0.2)', '& .MuiChip-label': { px: 0.6 } }} />
-                : undefined
-            }
-            cardSx={cardSx}
-        >
+            <Box sx={detailGlassCardSx}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                    <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#e2e8f0', letterSpacing: '-0.01em' }}>
+                        Content
+                    </Typography>
+                    <Box sx={{ ml: 'auto' }}>
+                        <IconButton
+                            size="small"
+                            onClick={onAddFilm}
+                            sx={{ p: 0.25, color: '#64748b', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                        >
+                            <AddIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                    </Box>
+                </Box>
 
-            {/* Items listing */}
-            <Box>
-                {items.length > 0 ? (
-                    <>
-                        {/* ── Column header row ── */}
-                        <Box sx={{
-                            display: 'flex', alignItems: 'center',
-                            px: 2.5, py: 0.75,
-                            borderBottom: '1px solid rgba(52,58,68,0.35)',
-                            bgcolor: 'rgba(255,255,255,0.015)',
-                        }}>
-                            <Typography sx={{ width: 54, flexShrink: 0, fontSize: '0.58rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Type</Typography>
-                            <Typography sx={{ flex: '0 0 110px', fontSize: '0.58rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Name</Typography>
-                            <Typography sx={{ flex: 1, minWidth: 0, fontSize: '0.58rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Scenes</Typography>
-                            <Typography sx={{ width: 40, flexShrink: 0, fontSize: '0.58rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', textAlign: 'right' }}>Equip</Typography>
-                            <Typography sx={{ width: 44, flexShrink: 0, fontSize: '0.58rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', textAlign: 'right' }}>Dur.</Typography>
-                            <Box sx={{ width: 24, flexShrink: 0 }} />
-                        </Box>
+                <Table size="small" sx={{ tableLayout: 'fixed' }}>
+                    <colgroup>
+                        <col style={{ width: '30%' }} />
+                        <col style={{ width: '30%' }} />
+                        <col style={{ width: '12%' }} />
+                        <col style={{ width: '12%' }} />
+                        <col style={{ width: '10%' }} />
+                        <col style={{ width: '6%' }} />
+                    </colgroup>
+                    <TableHead>
+                        <TableRow>
+                            <TableCell sx={hCellSx}>Film</TableCell>
+                            <TableCell sx={hCellSx}>Scenes</TableCell>
+                            <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Equipment</TableCell>
+                            <TableCell sx={{ ...hCellSx, textAlign: 'center' }}>Activity</TableCell>
+                            <TableCell sx={{ ...hCellSx, textAlign: 'right' }}>Duration</TableCell>
+                            <TableCell sx={{ ...hCellSx, textAlign: 'center' }} />
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {contentItems.length > 0 ? contentItems.map((item, _idx) => {
+                            const realIdx = items.indexOf(item);
+                            const film = films.find(f => f.id === item.referenceId);
+                            const isBuilding = buildingFilmIds?.has(item.referenceId || 0) ?? false;
+                            const canOpenFilm = !isBuilding;
+                            const progressLabel = isBuilding ? 'Building film...' : 'Preparing film...';
 
-                        {items.map((item, idx) => {
-                            const film = item.type === 'film' ? films.find(f => f.id === item.referenceId) : null;
+                            /* Film data not loaded yet — show placeholder row with progress bar */
+                            if (!film) {
+                                if (!isBuilding) return null;
+                                return (
+                                    <React.Fragment key={item.id || realIdx}>
+                                        <TableRow sx={{ opacity: 0.6, cursor: 'default' }}>
+                                            <TableCell sx={bCellSx}>
+                                                <Typography sx={{ fontSize: '0.73rem', fontWeight: 600, color: '#f1f5f9' }}>
+                                                    {item.description}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell sx={bCellSx} />
+                                            <TableCell sx={bCellSx} />
+                                            <TableCell sx={bCellSx} />
+                                            <TableCell sx={bCellSx} />
+                                            <TableCell sx={bCellSx} />
+                                        </TableRow>
+                                        <FilmBuildProgressRow
+                                            filmId={item.referenceId || 0}
+                                            enabled={isBuilding}
+                                            fallbackLabel="Building film..."
+                                        />
+                                    </React.Fragment>
+                                );
+                            }
+
+                            const stats = getFilmStats(films, item.referenceId || 0);
                             const linkedActivity = item.config?.activity_id
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 ? packageActivities.find((a: any) => a.id === item.config?.activity_id)
                                 : null;
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const equipCount = film.scenes?.reduce((total: number, s: any) => total + (Array.isArray(s.equipment) ? s.equipment.length : 0), 0) ?? 0;
+                            const sceneNames = film.scenes?.slice(0, 3).map((s: { id: number; name: string }) => s.name) || [];
+                            const moreScenes = (film.scenes?.length || 0) - 3;
 
-                            if (item.type === 'film' && film) {
-                                const stats = getFilmStats(films, item.referenceId || 0);
-                                return (
-                                    <Box
-                                        key={item.id || idx}
-                                        onClick={() => onConfigureItem(item)}
-                                        sx={{
-                                            display: 'flex', alignItems: 'center',
-                                            pl: 1.5, pr: 2.5, py: 1.25, gap: 0,
-                                            cursor: 'pointer',
-                                            borderBottom: '1px solid rgba(52,58,68,0.22)',
-                                            borderLeft: '3px solid rgba(100,140,255,0.4)',
-                                            bgcolor: 'rgba(100,140,255,0.025)',
-                                            transition: 'background 0.15s ease, border-color 0.15s ease',
-                                            '&:last-of-type': { borderBottom: 'none' },
-                                            '&:hover': {
-                                                bgcolor: 'rgba(100,140,255,0.07)',
-                                                borderLeftColor: '#648CFF',
-                                                '& .cnt-del': { opacity: 1 },
-                                            },
-                                        }}
-                                    >
-                                        {/* Type badge */}
-                                        <Box sx={{ width: 54, flexShrink: 0 }}>
-                                            <Box sx={{
-                                                display: 'inline-flex', alignItems: 'center', gap: 0.4,
-                                                px: 0.75, py: 0.2, borderRadius: 0.75,
-                                                bgcolor: 'rgba(100,140,255,0.12)',
-                                                border: '1px solid rgba(100,140,255,0.3)',
-                                            }}>
-                                                <VideoLibraryIcon sx={{ fontSize: 8, color: '#648CFF' }} />
-                                                <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: '#648CFF', lineHeight: 1, letterSpacing: '0.2px' }}>Film</Typography>
-                                            </Box>
-                                        </Box>
-
-                                        {/* Film name */}
-                                        <Typography sx={{ flex: '0 0 110px', fontSize: '0.75rem', fontWeight: 700, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pr: 1.5 }}>
-                                            {item.description}
-                                        </Typography>
-
-                                        {/* Scenes column */}
-                                        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.35, pr: 1 }}>
-                                            {film.scenes?.slice(0, 3).map((scene: { id: number; name: string; mode?: string }) => (
-                                                <Box key={scene.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                    {linkedActivity
-                                                        ? <Tooltip title={`Linked to: ${linkedActivity.name}`} placement="top">
-                                                            <LinkIcon sx={{ fontSize: 13, color: '#a855f7', flexShrink: 0 }} />
-                                                          </Tooltip>
-                                                        : <Box sx={{ width: 13, flexShrink: 0 }} />
-                                                    }
-                                                    <Typography sx={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                                                        {scene.name}
-                                                    </Typography>
-                                                </Box>
-                                            ))}
-                                            {(film.scenes?.length || 0) > 3 && (
-                                                <Typography sx={{ fontSize: '0.55rem', color: '#475569', pl: 2.25 }}>+{film.scenes!.length - 3} more</Typography>
-                                            )}
-                                        </Box>
-
-                                        {/* Equipment count */}
-                                        <Box sx={{ width: 40, flexShrink: 0, textAlign: 'right' }}>
-                                            {(() => {
-                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                                const equipCount = film.scenes?.reduce((total: number, s: any) => total + (Array.isArray(s.equipment) ? s.equipment.length : 0), 0) ?? 0;
-                                                return equipCount > 0 ? (
-                                                    <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{equipCount}</Typography>
-                                                ) : (
-                                                    <Typography sx={{ fontSize: '0.62rem', color: '#334155' }}>—</Typography>
-                                                );
-                                            })()}
-                                        </Box>
-
-                                        {/* Duration */}
-                                        <Box sx={{ width: 44, flexShrink: 0, textAlign: 'right' }}>
-                                            {stats.totalDuration !== '0:00' ? (
-                                                <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                                                    {stats.totalDuration}
-                                                </Typography>
-                                            ) : (
-                                                <Typography sx={{ fontSize: '0.62rem', color: '#334155' }}>—</Typography>
-                                            )}
-                                        </Box>
-
-                                        {/* Delete */}
-                                        <Box className="cnt-del" sx={{ width: 24, flexShrink: 0, opacity: 0, transition: 'opacity 0.15s', display: 'flex', justifyContent: 'flex-end' }}>
-                                            <IconButton
-                                                size="small"
-                                                onClick={(e) => { e.stopPropagation(); onRemoveItem(idx); }}
-                                                sx={{ p: 0.25, color: 'rgba(255,255,255,0.2)', '&:hover': { color: '#ef4444' } }}
-                                            >
-                                                <DeleteIcon sx={{ fontSize: 11 }} />
-                                            </IconButton>
-                                        </Box>
-                                    </Box>
-                                );
-                            }
-
-                            // Service item — compact row
                             return (
-                                <Box
-                                    key={item.id || idx}
+                                <React.Fragment key={item.id || realIdx}>
+                                <TableRow
+                                    onClick={() => { if (canOpenFilm) onConfigureItem(item); }}
                                     sx={{
-                                        display: 'flex', alignItems: 'center',
-                                        pl: 1.5, pr: 2.5, py: 1.25,
-                                        borderBottom: '1px solid rgba(52,58,68,0.22)',
-                                        borderLeft: '3px solid rgba(245,158,11,0.3)',
-                                        bgcolor: 'rgba(245,158,11,0.018)',
-                                        transition: 'background 0.15s ease, border-color 0.15s ease',
-                                        '&:last-of-type': { borderBottom: 'none' },
-                                        '&:hover': {
-                                            bgcolor: 'rgba(245,158,11,0.05)',
-                                            borderLeftColor: '#f59e0b',
+                                        cursor: canOpenFilm ? 'pointer' : 'default',
+                                        opacity: isBuilding ? 0.6 : 1,
+                                        transition: 'all 0.15s ease',
+                                        '&:hover': canOpenFilm ? {
+                                            bgcolor: 'rgba(100, 140, 255, 0.04)',
                                             '& .cnt-del': { opacity: 1 },
-                                        },
+                                        } : {},
                                     }}
                                 >
-                                    {/* Type badge */}
-                                    <Box sx={{ width: 54, flexShrink: 0 }}>
-                                        <Box sx={{
-                                            display: 'inline-flex', alignItems: 'center', gap: 0.4,
-                                            px: 0.75, py: 0.2, borderRadius: 0.75,
-                                            bgcolor: 'rgba(245,158,11,0.1)',
-                                            border: '1px solid rgba(245,158,11,0.25)',
-                                        }}>
-                                            <InventoryIcon sx={{ fontSize: 8, color: '#f59e0b' }} />
-                                            <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: '#f59e0b', lineHeight: 1, letterSpacing: '0.2px' }}>Service</Typography>
-                                        </Box>
-                                    </Box>
-                                    <Typography sx={{ flex: '0 0 110px', fontSize: '0.75rem', fontWeight: 700, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pr: 1.5 }}>
-                                        {item.description}
-                                    </Typography>
-                                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                                        <Typography sx={{ fontSize: '0.6rem', color: '#475569', fontStyle: 'italic' }}>—</Typography>
-                                    </Box>
-                                    <Box sx={{ width: 40, flexShrink: 0 }} />
-                                    <Box sx={{ width: 44, flexShrink: 0, textAlign: 'right' }}>
-                                        <Typography sx={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                                            ${item.price.toFixed(2)}
+                                    <TableCell sx={bCellSx}>
+                                        <Typography sx={{ fontSize: '0.73rem', fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {item.description}
                                         </Typography>
-                                    </Box>
-                                    <Box className="cnt-del" sx={{ width: 24, flexShrink: 0, opacity: 0, transition: 'opacity 0.15s', display: 'flex', justifyContent: 'flex-end' }}>
+                                    </TableCell>
+                                    <TableCell sx={bCellSx}>
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                                            {sceneNames.map((name, i) => (
+                                                <Typography key={i} sx={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {name}
+                                                </Typography>
+                                            ))}
+                                            {moreScenes > 0 && (
+                                                <Typography sx={{ fontSize: '0.55rem', color: '#475569' }}>+{moreScenes} more</Typography>
+                                            )}
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell sx={{ ...bCellSx, textAlign: 'center' }}>
+                                        <Typography sx={{ fontSize: '0.7rem', color: equipCount > 0 ? '#e2e8f0' : '#334155', fontFamily: 'monospace' }}>
+                                            {equipCount || '—'}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell sx={{ ...bCellSx, textAlign: 'center' }}>
+                                        {linkedActivity ? (
+                                            <Tooltip title={`Linked to: ${linkedActivity.name}`} placement="top">
+                                                <Typography sx={{ fontSize: '0.62rem', color: colors.accentLight, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {linkedActivity.name}
+                                                </Typography>
+                                            </Tooltip>
+                                        ) : (
+                                            <Typography sx={{ fontSize: '0.62rem', color: '#334155' }}>—</Typography>
+                                        )}
+                                    </TableCell>
+                                    <TableCell sx={{ ...bCellSx, textAlign: 'right' }}>
+                                        <Typography sx={{ fontSize: '0.7rem', color: stats.totalDuration !== '0:00' ? '#94a3b8' : '#334155', fontFamily: 'monospace' }}>
+                                            {stats.totalDuration !== '0:00' ? stats.totalDuration : '—'}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell sx={{ ...bCellSx, textAlign: 'center' }}>
                                         <IconButton
+                                            className="cnt-del"
                                             size="small"
-                                            onClick={() => onRemoveItem(idx)}
-                                            sx={{ p: 0.25, color: 'rgba(255,255,255,0.2)', '&:hover': { color: '#ef4444' } }}
+                                            onClick={(e) => { e.stopPropagation(); onRemoveItem(realIdx); }}
+                                            sx={{ p: 0.25, opacity: 0, transition: 'opacity 0.15s', color: 'rgba(255,255,255,0.2)', '&:hover': { color: colors.error } }}
                                         >
-                                            <DeleteIcon sx={{ fontSize: 11 }} />
+                                            <DeleteIcon sx={{ fontSize: 12 }} />
                                         </IconButton>
-                                    </Box>
-                                </Box>
+                                    </TableCell>
+                                </TableRow>
+                                {item.referenceId != null && (
+                                    <FilmBuildProgressRow
+                                        filmId={item.referenceId}
+                                        enabled={isBuilding}
+                                        fallbackLabel={progressLabel}
+                                    />
+                                )}
+                                </React.Fragment>
                             );
-                        })}
-                    </>
-                ) : (
-                    <Typography sx={{ fontSize: '0.65rem', color: '#475569', py: 1.5, textAlign: 'center', fontStyle: 'italic', px: 2.5 }}>
-                        No items yet
-                    </Typography>
-                )}
-
-                {/* Footer: Add Item buttons */}
-                <Box sx={{ mt: items.length > 0 ? 1 : 0.5, display: 'flex', justifyContent: 'center', gap: 0.5, px: 2.5, pb: 1 }}>
-                    <Button
-                        size="small"
-                        startIcon={<AddIcon sx={{ fontSize: 13 }} />}
-                        onClick={onAddFilm}
-                        sx={{ fontSize: '0.6rem', color: '#648CFF', textTransform: 'none', fontWeight: 600, py: 0.25, '&:hover': { bgcolor: 'rgba(100, 140, 255, 0.06)' } }}
-                    >
-                        Add Film
-                    </Button>
-                    <Button
-                        size="small"
-                        startIcon={<AddIcon sx={{ fontSize: 13 }} />}
-                        onClick={onAddService}
-                        sx={{ fontSize: '0.6rem', color: '#64748b', textTransform: 'none', fontWeight: 600, py: 0.25, '&:hover': { bgcolor: 'rgba(255,255,255,0.03)', color: '#94a3b8' } }}
-                    >
-                        Add Service
-                    </Button>
-                </Box>
+                        }) : (
+                            <TableRow>
+                                <TableCell colSpan={6} sx={{ ...bCellSx, borderBottom: 'none' }}>
+                                    <Typography sx={{ fontSize: '0.65rem', color: '#475569', fontStyle: 'italic', textAlign: 'center', py: 1 }}>
+                                        No content yet
+                                    </Typography>
+                                </TableCell>
+                            </TableRow>
+                        )}
+                        {isCreatingFilm && (
+                            <>
+                                <TableRow sx={{ opacity: 0.5, cursor: 'default' }}>
+                                    <TableCell sx={bCellSx}>
+                                        <Typography sx={{ fontSize: '0.73rem', fontWeight: 600, color: '#f1f5f9' }}>
+                                            New Film
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell sx={bCellSx} />
+                                    <TableCell sx={bCellSx} />
+                                    <TableCell sx={bCellSx} />
+                                    <TableCell sx={bCellSx} />
+                                    <TableCell sx={bCellSx} />
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell colSpan={6} sx={{ p: 0, border: 'none' }}>
+                                        <Box sx={{ mx: 1.5, my: 0.5, borderRadius: 1, overflow: 'hidden', bgcolor: 'rgba(100, 140, 255, 0.04)' }}>
+                                            <LinearProgress
+                                                variant="determinate"
+                                                value={filmCreationProgress.progress * 100}
+                                                sx={{
+                                                    height: 3,
+                                                    bgcolor: 'rgba(100, 140, 255, 0.08)',
+                                                    '& .MuiLinearProgress-bar': {
+                                                        background: 'linear-gradient(90deg, rgba(100,140,255,0.5), #648CFF)',
+                                                        transition: 'transform 0.4s ease',
+                                                    },
+                                                }}
+                                            />
+                                            <Box sx={{ px: 1, py: 0.25, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                <Box
+                                                    sx={{
+                                                        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                                                        border: '1.5px solid rgba(100,140,255,0.6)',
+                                                        borderTopColor: 'transparent',
+                                                        animation: 'filmBuildSpin 0.8s linear infinite',
+                                                        '@keyframes filmBuildSpin': { to: { transform: 'rotate(360deg)' } },
+                                                    }}
+                                                />
+                                                <Typography sx={{ fontSize: '0.58rem', color: '#94a3b8', fontWeight: 500, letterSpacing: '0.2px' }}>
+                                                    {filmCreationProgress.label}
+                                                </Typography>
+                                            </Box>
+                                        </Box>
+                                    </TableCell>
+                                </TableRow>
+                            </>
+                        )}
+                    </TableBody>
+                </Table>
             </Box>
-        </ScheduleCardShell>
     );
 }

@@ -300,6 +300,11 @@ export async function createMoonriseTeam(db: PrismaClient, brandId: number) {
         prisma.job_roles.findUnique({ where: { name: 'producer' } }),
         prisma.job_roles.findUnique({ where: { name: 'sound_engineer' } }),
     ]);
+    const danielAdminContact = await prisma.contacts.findUnique({
+        where: { email: 'info@dhutchinson.co.uk' },
+        include: { crew: true },
+    });
+    const danielAdminCrewMember = danielAdminContact?.crew ?? null;
 
     async function findBracket(jobRoleId: number | undefined, tierName: string) {
         if (!jobRoleId) return null;
@@ -338,7 +343,7 @@ export async function createMoonriseTeam(db: PrismaClient, brandId: number) {
         logger.created('Andy → Sound Engineer (Senior)', undefined, 'verbose');
     }
 
-    // Corri Lee → Editor (primary, lead) + Producer (senior)
+    // Corri Lee → Editor (primary, lead) + Producer (assistant — lowest bracket)
     if (editorRole) {
         const bracketId = await findBracket(editorRole.id, 'lead');
         await prisma.crewJobRole.upsert({
@@ -349,13 +354,50 @@ export async function createMoonriseTeam(db: PrismaClient, brandId: number) {
         logger.created('Corri → Editor (Lead)', undefined, 'verbose');
     }
     if (producerRole) {
-        const bracketId = await findBracket(producerRole.id, 'senior');
+        const bracketId = await findBracket(producerRole.id, 'assistant');
         await prisma.crewJobRole.upsert({
             where: { crew_id_job_role_id: { crew_id: corriCrewMember.id, job_role_id: producerRole.id } },
             update: { is_primary: false, payment_bracket_id: bracketId },
             create: { crew_id: corriCrewMember.id, job_role_id: producerRole.id, is_primary: false, payment_bracket_id: bracketId },
         });
-        logger.created('Corri → Producer (Senior)', undefined, 'verbose');
+        logger.created('Corri → Producer (Assistant)', undefined, 'verbose');
+    }
+
+    // Default package-wizard crew preset for Moonrise.
+    if (directorRole && editorRole && producerRole && videographerRole && soundEngineerRole) {
+        const existingPreset = await prisma.crewPreset.findUnique({
+            where: {
+                brand_id_name: {
+                    brand_id: brandId,
+                    name: 'Core Production Team',
+                },
+            },
+        });
+        if (!existingPreset) {
+            const existingDefaultPreset = await prisma.crewPreset.findFirst({
+                where: { brand_id: brandId, is_default: true },
+                select: { id: true },
+            });
+            const preset = await prisma.crewPreset.create({
+                data: {
+                    brand_id: brandId,
+                    name: 'Core Production Team',
+                    is_default: !existingDefaultPreset,
+                    slots: {
+                        create: [
+                            { job_role_id: directorRole.id, crew_id: danielAdminCrewMember?.id ?? null, order_index: 0 },
+                            { job_role_id: editorRole.id, crew_id: corriCrewMember.id, order_index: 1 },
+                            { job_role_id: producerRole.id, crew_id: danielAdminCrewMember?.id ?? null, order_index: 2 },
+                            { job_role_id: videographerRole.id, crew_id: andyCrewMember.id, order_index: 3 },
+                            { job_role_id: soundEngineerRole.id, crew_id: andyCrewMember.id, order_index: 4 },
+                        ],
+                    },
+                },
+            });
+            logger.created('Core Production Team preset', `Preset ${preset.is_default ? 'defaulted' : 'seeded'} for package wizard`, 'verbose');
+        } else {
+            logger.info('Core Production Team preset already exists; leaving it unchanged');
+        }
     }
 
     logger.success('Created 2 team members for Moonrise Films');

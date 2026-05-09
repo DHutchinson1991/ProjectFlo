@@ -178,7 +178,7 @@ export default function PersonalMessageSection({ content, brand, producerName, p
                         color: alpha(colors.muted, 0.75),
                         mb: 0.75,
                     }}>
-                        Your producer
+                        Your Lead Producer
                     </Typography>
 
                     {/* Name in script */}

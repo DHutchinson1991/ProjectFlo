@@ -18,7 +18,7 @@ interface FormData {
 }
 
 const DEFAULT_FORM: FormData = { name: "", description: "", category: "PEOPLE" };
-const DEFAULT_ROLE: Partial<SubjectRole> = { role_name: "", is_core: false, is_group: false, order_index: 0 };
+const DEFAULT_ROLE: Partial<SubjectRole> = { role_name: "", is_group: false, order_index: 0 };
 
 /**
  * Manages create/edit dialog state for subject role templates.
@@ -102,7 +102,6 @@ export function useSubjectTemplateForm(onSaved: () => Promise<void>) {
                     roles: validRoles.map((r, idx) => ({
                         role_name: r.role_name!,
                         description: r.description,
-                        is_core: r.is_core,
                         is_group: r.is_group,
                         order_index: idx,
                     })),

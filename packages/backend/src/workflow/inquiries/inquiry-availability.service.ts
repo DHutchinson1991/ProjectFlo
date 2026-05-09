@@ -80,6 +80,7 @@ export class InquiryAvailabilityService {
                 conflicts,
                 alternatives,
                 confirmed: slot.confirmed,
+                lead_type: slot.lead_type,
                 availability_request_id: slot.crew_id ? (requestByCrew.get(slot.crew_id)?.id ?? null) : null,
                 availability_request_status: slot.crew_id ? (requestByCrew.get(slot.crew_id)?.status ?? null) : null,
             };

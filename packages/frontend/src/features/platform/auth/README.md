@@ -53,5 +53,7 @@ auth/
 ## Notes
 - `AuthProvider` must wrap `BrandProvider` (brand resolution depends on auth state).
 - JWT refresh is handled internally every 45 minutes; consumers only need `useAuth()`.
+- `LoginForm` passes `rememberMe` into `AuthProvider`; remembered logins persist through local storage and session-only logins clear on the next browser session.
+- Initial auth bootstrap fails closed after 4 seconds when stored tokens cannot be validated, so protected routes fall back to the login modal instead of spinning indefinitely.
 - `ProtectedRoute` accepts both `requiredRole` (singular) and `requiredRoles` (array); they are merged before evaluation.
 - `LoginForm` owns all form state and submit logic. `LoginModal` and `LoginScreen` are layout shells only.

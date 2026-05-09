@@ -10,22 +10,22 @@ export type ServiceTypeKey = "WEDDING" | "BIRTHDAY" | "ENGAGEMENT";
 export class BrandProvisioningService {
   private readonly logger = new Logger(BrandProvisioningService.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async provision(brandId: number, serviceTypes: ServiceTypeKey[]): Promise<string[]> {
     const provisioned: string[] = [];
 
     for (const key of serviceTypes) {
-      const existingEventType = await this.prisma.eventType.findFirst({
+      const existing = await this.prisma.packageTemplate.findFirst({
         where: {
           brand_id: brandId,
-          name: this.getEventTypeName(key),
+          event_category: this.getEventCategory(key),
         },
       });
 
-      if (existingEventType) {
-        await this.ensurePackageCategoryAndSet(brandId, existingEventType.id, key);
-        this.logger.log(`Brand ${brandId}: ${key} already provisioned, ensured category/set`);
+      if (existing) {
+        await this.ensurePackageSet(brandId, key);
+        this.logger.log(`Brand ${brandId}: ${key} already provisioned, ensured set`);
         continue;
       }
 
@@ -48,103 +48,58 @@ export class BrandProvisioningService {
     return provisioned;
   }
 
-  private async ensurePackageCategoryAndSet(
-    brandId: number,
-    eventTypeId: number,
-    key: ServiceTypeKey,
-  ) {
-    const name = this.getEventTypeName(key);
-
-    let category = await this.prisma.service_package_categories.findFirst({
-      where: {
-        brand_id: brandId,
-        event_type_id: eventTypeId,
-      },
-    });
-
-    if (!category) {
-      category = await this.prisma.service_package_categories.findFirst({
-        where: {
-          brand_id: brandId,
-          name: { contains: name, mode: "insensitive" },
-          event_type_id: null,
-        },
-      });
-
-      if (category) {
-        await this.prisma.service_package_categories.update({
-          where: { id: category.id },
-          data: { event_type_id: eventTypeId },
-        });
-      } else {
-        category = await this.prisma.service_package_categories.create({
-          data: {
-            brand_id: brandId,
-            name,
-            description: `${name} packages`,
-            order_index: 0,
-            is_active: true,
-            event_type_id: eventTypeId,
-          },
-        });
-      }
-    }
+  private async ensurePackageSet(brandId: number, key: ServiceTypeKey) {
+    const name = this.getEventCategory(key);
 
     const setCount = await this.prisma.package_sets.count({
-      where: {
+      where: { brand_id: brandId, event_category: name },
+    });
+
+    if (setCount > 0) return;
+
+    const set = await this.prisma.package_sets.create({
+      data: {
         brand_id: brandId,
-        event_type_id: eventTypeId,
+        name: `${name} Packages`,
+        description: `Our ${name.toLowerCase()} packages`,
+        emoji: this.getEventCategoryEmoji(key),
+        event_category: name,
+        is_active: true,
+        order_index: 0,
       },
     });
 
-    if (setCount === 0) {
-      const set = await this.prisma.package_sets.create({
-        data: {
-          brand_id: brandId,
-          name: `${name} Packages`,
-          description: `Our ${name.toLowerCase()} packages`,
-          emoji: this.getEventTypeEmoji(key),
-          category_id: category.id,
-          event_type_id: eventTypeId,
-          is_active: true,
-          order_index: 0,
-        },
-      });
-
-      await this.prisma.$transaction([
-        this.prisma.package_set_slots.create({
-          data: { package_set_id: set.id, slot_label: "Budget", order_index: 0 },
-        }),
-        this.prisma.package_set_slots.create({
-          data: { package_set_id: set.id, slot_label: "Basic", order_index: 1 },
-        }),
-        this.prisma.package_set_slots.create({
-          data: { package_set_id: set.id, slot_label: "Standard", order_index: 2 },
-        }),
-        this.prisma.package_set_slots.create({
-          data: { package_set_id: set.id, slot_label: "Premium", order_index: 3 },
-        }),
-      ]);
-    }
+    await this.prisma.$transaction([
+      this.prisma.package_set_slots.create({
+        data: { package_set_id: set.id, slot_label: "Budget", order_index: 0 },
+      }),
+      this.prisma.package_set_slots.create({
+        data: { package_set_id: set.id, slot_label: "Basic", order_index: 1 },
+      }),
+      this.prisma.package_set_slots.create({
+        data: { package_set_id: set.id, slot_label: "Standard", order_index: 2 },
+      }),
+      this.prisma.package_set_slots.create({
+        data: { package_set_id: set.id, slot_label: "Premium", order_index: 3 },
+      }),
+    ]);
   }
 
-  private getEventTypeName(key: ServiceTypeKey) {
+  private getEventCategory(key: ServiceTypeKey): string {
     const names: Record<ServiceTypeKey, string> = {
       WEDDING: "Wedding",
       BIRTHDAY: "Birthday",
       ENGAGEMENT: "Engagement",
     };
-
     return names[key];
   }
 
-  private getEventTypeEmoji(key: ServiceTypeKey) {
+  private getEventCategoryEmoji(key: ServiceTypeKey): string {
     const emojis: Record<ServiceTypeKey, string> = {
-      WEDDING: "💒",
-      BIRTHDAY: "🎂",
-      ENGAGEMENT: "💍",
+      WEDDING: "\uD83D\uDC92",
+      BIRTHDAY: "\uD83C\uDF82",
+      ENGAGEMENT: "\uD83D\uDC8D",
     };
-
     return emojis[key];
   }
 }

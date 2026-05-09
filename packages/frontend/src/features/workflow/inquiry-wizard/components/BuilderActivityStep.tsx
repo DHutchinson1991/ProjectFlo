@@ -4,7 +4,7 @@ import { Box, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { Check as CheckIcon } from "@mui/icons-material";
 import { C } from '../constants/wizard-config';
-import type { EventDayActivity } from "@/features/catalog/event-types/types";
+import type { EventDayActivity } from "@/features/catalog/package-templates/types";
 
 interface Props {
     presets: EventDayActivity[];

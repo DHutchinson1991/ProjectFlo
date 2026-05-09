@@ -6,7 +6,7 @@ export const createContractSigningApi = (client: ApiClient) => ({
     getContract: (token: string): Promise<SigningContractView> =>
         client.get(`/api/signing/${token}`),
 
-    submitSignature: (token: string, signatureText: string): Promise<{ success: boolean; allSigned: boolean }> =>
+    submitSignature: (token: string, signatureText: string): Promise<{ success: boolean; allSigned: boolean; portalToken: string | null }> =>
         client.post(`/api/signing/${token}/sign`, { signature_text: signatureText }),
 });
 

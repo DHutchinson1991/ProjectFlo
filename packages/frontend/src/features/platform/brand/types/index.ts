@@ -95,6 +95,7 @@ export interface BrandMember {
 
 export interface BrandContextType {
     currentBrand: Brand | null;
+    currentBrandId: number | null;
     availableBrands: Brand[];
     isLoading: boolean;
     error: string | null;

@@ -15,7 +15,7 @@ export class InquiryTaskGeneratorService {
         const inquiry = await this.prisma.inquiries.findFirst({
             where: { id: inquiryId, archived_at: null, contact: { brand_id: brandId } },
             select: {
-                id: true, wedding_date: true, event_type_id: true, selected_package_id: true,
+                id: true, wedding_date: true, event_category: true, selected_package_id: true,
                 contact: { select: { email: true, phone_number: true } },
             },
         });

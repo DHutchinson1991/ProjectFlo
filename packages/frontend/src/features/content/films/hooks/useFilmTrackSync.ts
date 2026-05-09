@@ -4,6 +4,7 @@
 import { useRef, useEffect } from "react";
 import { servicePackagesApi } from "@/features/catalog/packages/api";
 import { filmsApi } from "@/features/content/films/api";
+import { subjectsApi } from "@/features/content/subjects/api/subjects.api";
 import { crewSlotsApi, scheduleApi } from "@/features/workflow/scheduling/api";
 import { locationsApi } from "@/features/workflow/locations/api";
 import { scenesApi } from "@/features/content/scenes/api";
@@ -22,7 +23,7 @@ interface Params {
     filmReady: boolean;
     setTracks: (tracks: any[]) => void;
     setEquipmentAssignmentsBySlot: (val: FilmEquipmentAssignmentsBySlot) => void;
-    createSubject: (data: { film_id: number; name: string; role_template_id: number }) => Promise<void>;
+    createSubject: (data: { film_id: number; name: string; role_template_id: number | undefined }) => Promise<void>;
     loadAll: () => Promise<void>;
 }
 
@@ -120,6 +121,10 @@ export function useFilmTrackSync({
                 const audioTracks = rawTracks.filter((t: any) => t.type === "AUDIO").sort(sortByNumber);
 
                 // Assign crew + equipment to camera tracks
+                // Pre-load existing assignments to skip duplicates
+                const existingAssignments = await filmsApi.equipmentAssignments.getAll(filmId);
+                const assignedEquipmentIds = new Set(existingAssignments.map((a: any) => a.equipment_id ?? a.equipment?.id));
+
                 const assignmentPromises: Promise<any>[] = [];
                 for (let i = 0; i < videoTracks.length && i < cameraCrew.length; i++) {
                     const track = videoTracks[i];
@@ -132,7 +137,7 @@ export function useFilmTrackSync({
                             }),
                         );
                     }
-                    if (opData.cameraEquipmentId) {
+                    if (opData.cameraEquipmentId && !assignedEquipmentIds.has(opData.cameraEquipmentId)) {
                         assignmentPromises.push(
                             filmsApi.equipmentAssignments.assign(filmId, {
                                 equipment_id: opData.cameraEquipmentId,
@@ -151,7 +156,7 @@ export function useFilmTrackSync({
                             filmsApi.tracks.update(filmId, track.id, { crew_id: audioData.crewId }),
                         );
                     }
-                    if (audioData.audioEquipmentId) {
+                    if (audioData.audioEquipmentId && !assignedEquipmentIds.has(audioData.audioEquipmentId)) {
                         assignmentPromises.push(
                             filmsApi.equipmentAssignments.assign(filmId, {
                                 equipment_id: audioData.audioEquipmentId,
@@ -174,18 +179,45 @@ export function useFilmTrackSync({
 
                         for (const scene of filmScenes) {
                             const sceneRec = (scene as any).recording_setup;
-                            setupPromises.push(
-                                scenesApi.scenes.recordingSetup.upsert(scene.id, {
-                                    camera_track_ids: videoTrackIds,
-                                    audio_track_ids: audioTrackIds,
-                                    graphics_enabled: sceneRec?.graphics_enabled ?? false,
-                                }).catch(() => { /* ignore */ }),
-                            );
+                            const existingSceneCameraIds = (sceneRec?.camera_assignments || []).map((a: any) => a.track_id).sort().join(',');
+                            const existingSceneAudioIds = (sceneRec?.audio_track_ids || []).sort().join(',');
+                            const newCameraIds = [...videoTrackIds].sort().join(',');
+                            const newAudioIds = [...audioTrackIds].sort().join(',');
+
+                            // Only upsert scene recording setup if tracks have changed
+                            if (existingSceneCameraIds !== newCameraIds || existingSceneAudioIds !== newAudioIds) {
+                                setupPromises.push(
+                                    scenesApi.scenes.recordingSetup.upsert(scene.id, {
+                                        camera_track_ids: videoTrackIds,
+                                        audio_track_ids: audioTrackIds,
+                                        graphics_enabled: sceneRec?.graphics_enabled ?? false,
+                                    }).catch(() => { /* ignore */ }),
+                                );
+                            }
                             for (const moment of ((scene as any).moments || [])) {
+                                // Preserve existing camera assignment data (subject_ids, shot_type)
+                                // so the sync doesn't wipe user-configured assignments
+                                const existingAssignments: any[] = moment.recording_setup?.camera_assignments || [];
+                                const existingMomentCameraIds = existingAssignments.map((a: any) => a.track_id).sort().join(',');
+                                const existingMomentAudioIds = (moment.recording_setup?.audio_track_ids || []).sort().join(',');
+
+                                // Skip upsert if tracks already match — avoids deleting+recreating assignment rows
+                                if (existingMomentCameraIds === newCameraIds && existingMomentAudioIds === newAudioIds) {
+                                    continue;
+                                }
+
+                                const mergedAssignments = videoTrackIds.map((tid: number) => {
+                                    const existing = existingAssignments.find((a: any) => a.track_id === tid);
+                                    return {
+                                        track_id: tid,
+                                        subject_ids: existing?.subject_ids || [],
+                                        shot_type: existing?.shot_type ?? null,
+                                    };
+                                });
                                 setupPromises.push(
                                     scenesApi.moments.upsertRecordingSetup(moment.id, {
                                         camera_track_ids: videoTrackIds,
-                                        camera_assignments: videoTrackIds.map((tid: number) => ({ track_id: tid })),
+                                        camera_assignments: mergedAssignments,
                                         audio_track_ids: audioTrackIds,
                                         graphics_enabled: moment.recording_setup?.graphics_enabled ?? false,
                                         graphics_title: moment.recording_setup?.graphics_title ?? null,
@@ -199,7 +231,7 @@ export function useFilmTrackSync({
                     // Non-fatal — recording setup sync failures don't block the rest
                 }
 
-                // Final reload of tracks + assignments
+                // Final reload of tracks + assignments (no loadAll — avoid full page re-render)
                 const [finalTracks, finalAssignments] = await Promise.all([
                     filmsApi.tracks.getAll(filmId),
                     filmsApi.equipmentAssignments.getAll(filmId),
@@ -207,15 +239,20 @@ export function useFilmTrackSync({
                 setTracks(finalTracks.map((t: any) => transformBackendTrack(t)));
                 setEquipmentAssignmentsBySlot(buildAssignmentsBySlot(finalAssignments));
 
-                // Sync subjects from package
+                // Sync subjects from package (skip ones that already exist)
                 try {
-                    const pkgSubjects = await scheduleApi.packageEventDaySubjects.getAll(pkgId) as Array<{
-                        name: string;
-                        role_template_id?: number | null;
-                    }>;
+                    const [pkgSubjects, existingSubjects] = await Promise.all([
+                        scheduleApi.packageEventDaySubjects.getAll(pkgId) as Promise<Array<{
+                            name: string;
+                            role_template_id?: number | null;
+                        }>>,
+                        subjectsApi.getSubjects(filmId).catch(() => []) as Promise<Array<{ name: string }>>,
+                    ]);
+                    const existingNames = new Set(existingSubjects.map((s: any) => s.name?.toLowerCase()));
                     for (const s of pkgSubjects) {
+                        if (existingNames.has(s.name?.toLowerCase())) continue;
                         try {
-                            await createSubject({ film_id: filmId, name: s.name, role_template_id: s.role_template_id ?? 0 });
+                            await createSubject({ film_id: filmId, name: s.name, role_template_id: s.role_template_id ?? undefined });
                         } catch {
                             // Ignore 400 duplicate
                         }
@@ -237,8 +274,6 @@ export function useFilmTrackSync({
                         }
                     }
                 } catch { /* non-fatal */ }
-
-                await loadAll();
             } catch (err) {
                 console.error("Failed to sync tracks from package:", err);
             }

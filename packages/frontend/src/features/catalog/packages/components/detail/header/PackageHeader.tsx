@@ -1,12 +1,12 @@
 'use client';
 
-import React from 'react';
-import {
-    Box, Typography,
-    IconButton, Breadcrumbs, Link, CircularProgress, Tooltip,
-} from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import HistoryIcon from '@mui/icons-material/History';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Box, Chip, CircularProgress, Tooltip } from '@mui/material';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
+import { PackageSurfaceHeader } from '@/shared/ui/PackageSurfaceHeader';
+import { servicePackagesApi } from '@/features/catalog/packages/api';
+import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 
 // ─── Props ───────────────────────────────────────────────────────────
 
@@ -18,6 +18,7 @@ export interface PackageHeaderProps {
     isSaving: boolean;
     onBack: () => void;
     onVersionHistory: () => void;
+    onBlueprintResynced?: () => void;
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -28,65 +29,100 @@ export function PackageHeader({
     isSaving,
     onBack,
     onVersionHistory,
+    onBlueprintResynced,
 }: PackageHeaderProps) {
+    const router = useRouter();
+    const [resyncing, setResyncing] = useState(false);
+
+    const pkg = formData as Partial<ServicePackage>;
+    const blueprint = pkg.source_day_blueprint;
+    const blueprintVersion = pkg.source_day_blueprint_version;
+    const updateAvailable = pkg.blueprint_update_available;
+
+    const handleResync = async () => {
+        if (!pkg.id || resyncing) return;
+        setResyncing(true);
+        try {
+            await servicePackagesApi.resyncBlueprint(pkg.id);
+            onBlueprintResynced?.();
+        } catch (err) {
+            console.error('Blueprint resync failed', err);
+        } finally {
+            setResyncing(false);
+        }
+    };
+
+    const chips = blueprint
+        ? [
+              {
+                  key: 'blueprint',
+                  label: (
+                      <Chip
+                          label={`Blueprint: ${blueprint.display_name}${blueprintVersion ? ` v${blueprintVersion.version_number}` : ''}`}
+                          size="small"
+                          variant="outlined"
+                          onClick={() =>
+                              router.push(
+                                  `/day-designer/${blueprint.id}${blueprintVersion ? `/${blueprintVersion.id}` : ''}`,
+                              )
+                          }
+                          sx={{
+                              fontSize: '0.68rem',
+                              height: 22,
+                              borderColor: 'rgba(100,140,255,0.35)',
+                              color: '#8fa8ff',
+                              cursor: 'pointer',
+                              '&:hover': { borderColor: 'rgba(100,140,255,0.6)', background: 'rgba(100,140,255,0.06)' },
+                          }}
+                      />
+                  ),
+              },
+              ...(updateAvailable
+                  ? [
+                        {
+                            key: 'blueprint-update',
+                            label: (
+                                <Tooltip title="A newer version of this blueprint is available. Click to update this package's activities and moments.">
+                                    <Box
+                                        sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer' }}
+                                        onClick={handleResync}
+                                    >
+                                        {resyncing ? (
+                                            <CircularProgress size={12} sx={{ color: '#f59e0b' }} />
+                                        ) : (
+                                            <AutorenewIcon sx={{ fontSize: 14, color: '#f59e0b' }} />
+                                        )}
+                                        <Chip
+                                            label="Update available"
+                                            size="small"
+                                            sx={{
+                                                fontSize: '0.66rem',
+                                                height: 20,
+                                                background: 'rgba(245,158,11,0.12)',
+                                                color: '#f59e0b',
+                                                border: '1px solid rgba(245,158,11,0.35)',
+                                                pointerEvents: 'none',
+                                            }}
+                                        />
+                                    </Box>
+                                </Tooltip>
+                            ),
+                        },
+                    ]
+                  : []),
+          ]
+        : [];
+
     return (
-        <Box>
-            <Breadcrumbs sx={{ mb: 0.75, '& .MuiBreadcrumbs-separator': { color: '#475569' } }}>
-                <Link underline="hover" sx={{ color: '#64748b' }} href="/packages">Packages</Link>
-                <Typography sx={{ color: '#94a3b8' }}>{formData.name || 'New Package'}</Typography>
-            </Breadcrumbs>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconButton onClick={onBack} sx={{ color: '#94a3b8' }}><ArrowBackIcon /></IconButton>
-
-                {/* Inline-editable package name */}
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Box
-                            component="input"
-                            value={formData.name || ''}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
-                            placeholder="Package Name"
-                            size={Math.max(8, (formData.name || 'Package Name').length + 1)}
-                            sx={{
-                                background: 'none', border: 'none', outline: 'none',
-                                fontWeight: 800, color: '#f1f5f9', fontSize: '1.8rem',
-                                fontFamily: 'inherit', lineHeight: 1.2,
-                                p: 0, m: 0,
-                                borderBottom: '2px solid transparent',
-                                transition: 'border-color 0.2s ease',
-                                '&:hover': { borderColor: 'rgba(255,255,255,0.08)' },
-                                '&:focus': { borderColor: '#648CFF' },
-                                '&::placeholder': { color: '#334155' },
-                            }}
-                        />
-                </Box>
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
-                    {isSaving && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                            <CircularProgress size={13} sx={{ color: '#64748b' }} />
-                            <Typography sx={{ fontSize: '0.78rem', color: '#64748b' }}>Saving…</Typography>
-                        </Box>
-                    )}
-
-                    {/* Version History Button */}
-                    <Tooltip title="Version History">
-                        <IconButton
-                            onClick={onVersionHistory}
-                            sx={{
-                                color: '#8b5cf6',
-                                bgcolor: 'rgba(139, 92, 246, 0.08)',
-                                border: '1px solid rgba(139, 92, 246, 0.25)',
-                                borderRadius: 2,
-                                width: 44, height: 44,
-                                '&:hover': { bgcolor: 'rgba(139, 92, 246, 0.15)', borderColor: 'rgba(139, 92, 246, 0.45)' },
-                            }}
-                        >
-                            <HistoryIcon sx={{ fontSize: 22 }} />
-                        </IconButton>
-                    </Tooltip>
-                </Box>
-            </Box>
-        </Box>
+        <PackageSurfaceHeader
+            title={formData.name || ''}
+            titlePlaceholder="Package Name"
+            editableTitle
+            chips={chips}
+            isSaving={isSaving}
+            onTitleChange={(name) => setFormData({ ...formData, name })}
+            onBack={onBack}
+            onVersionHistory={onVersionHistory}
+        />
     );
 }

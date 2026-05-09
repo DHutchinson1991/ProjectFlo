@@ -45,7 +45,7 @@ export interface FilmTrackDto {
 
 export interface FilmSubjectDto {
     id: number;
-    film_id: number;
+    package_id: number;
     name: string;
     role_template_id: number | null;
     created_at: Date;

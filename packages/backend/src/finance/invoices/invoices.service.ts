@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, Logger, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../platform/prisma/prisma.service';
-import { InquiryTasksService } from '../../workflow/tasks/inquiry/services/inquiry-tasks.service';
+import type { InquiryTasksService } from '../../workflow/tasks/inquiry/services/inquiry-tasks.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
@@ -37,7 +37,7 @@ export class InvoicesService {
 
   constructor(
     private prisma: PrismaService,
-    @Inject(forwardRef(() => InquiryTasksService))
+    @Inject(forwardRef(() => require('../../workflow/tasks/inquiry/services/inquiry-tasks.service').InquiryTasksService))
     private inquiryTasksService: InquiryTasksService,
   ) { }
 
@@ -216,14 +216,43 @@ export class InvoicesService {
     });
   }
 
+  async voidPayment(inquiryId: number, invoiceId: number, paymentId: number) {
+    const invoice = await this.findOne(inquiryId, invoiceId);
+
+    const payment = invoice.payments?.find((p) => p.id === paymentId);
+    if (!payment) {
+      throw new NotFoundException(`Payment ${paymentId} not found on invoice ${invoiceId}`);
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      await tx.payments.delete({ where: { id: paymentId } });
+
+      const newAmountPaid = Math.max(0, Number(invoice.amount_paid ?? 0) - Number(payment.amount));
+      const total = Number(invoice.amount);
+      const newStatus = newAmountPaid <= 0.01 ? 'Sent' : newAmountPaid >= total - 0.01 ? 'Paid' : 'Partially Paid';
+
+      await tx.invoices.update({
+        where: { id: invoiceId },
+        data: { amount_paid: newAmountPaid, status: newStatus },
+      });
+
+      this.logger.log(
+        `Payment voided: invoice=${invoice.invoice_number} paymentId=${paymentId} amount=${payment.amount} newStatus=${newStatus}`,
+      );
+
+      return tx.invoices.findUnique({ where: { id: invoiceId }, include: INVOICE_INCLUDE });
+    });
+  }
+
   /**
    * Auto-generate invoices from quote payment milestones.
    * Called when a proposal is created (quote auto-created from estimate).
    * Creates one invoice per payment milestone, linked to the quote and milestone.
    */
   async autoGenerateFromQuoteMilestones(inquiryId: number, brandId: number): Promise<void> {
-    // Delete existing draft invoices so we always regenerate from current milestones.
-    // Only drafts are deleted — sent/paid invoices are preserved.
+    // Delete existing draft invoices that are NOT linked to a milestone so we
+    // can recreate them.  Draft invoices linked to a milestone are also deleted
+    // because we will recreate them below if needed.
     const deleted = await this.prisma.invoices.deleteMany({
       where: { inquiry_id: inquiryId, status: 'Draft' },
     });
@@ -231,14 +260,14 @@ export class InvoicesService {
       this.logger.log(`Deleted ${deleted.count} draft invoice(s) for inquiry ${inquiryId} before regeneration`);
     }
 
-    // If any non-draft invoices exist, skip regeneration to avoid duplicates
-    const nonDraftInvoice = await this.prisma.invoices.findFirst({
+    // Collect milestone IDs that already have a non-draft invoice so we skip them
+    const existingInvoices = await this.prisma.invoices.findMany({
       where: { inquiry_id: inquiryId, status: { not: 'Draft' } },
+      select: { milestone_id: true },
     });
-    if (nonDraftInvoice) {
-      this.logger.log(`Non-draft invoices exist for inquiry ${inquiryId}, skipping regeneration`);
-      return;
-    }
+    const coveredMilestoneIds = new Set(
+      existingInvoices.map(i => i.milestone_id).filter(Boolean),
+    );
 
     // Get the primary quote with milestones and items
     const primaryQuote = await this.prisma.quotes.findFirst({
@@ -277,8 +306,12 @@ export class InvoicesService {
         (s, m) => s + Number(m.amount), 0,
       );
 
-      // Create one invoice per milestone
+      // Create one invoice per milestone (skip milestones that already have a non-draft invoice)
       for (const milestone of primaryQuote.payment_milestones) {
+        if (coveredMilestoneIds.has(milestone.id)) {
+          this.logger.log(`Milestone "${milestone.label}" already has a non-draft invoice, skipping`);
+          continue;
+        }
         const proportion = storedMilestoneSum > 0
           ? Number(milestone.amount) / storedMilestoneSum
           : 1 / primaryQuote.payment_milestones.length;
@@ -337,7 +370,12 @@ export class InvoicesService {
         this.logger.log(`Created invoice ${invoiceNumber} for milestone "${milestone.label}" (${milestoneTotal} ${currency})`);
       }
     } else {
-      // No milestones — create single invoice for the total
+      // No milestones — create single invoice for the total.
+      // Skip if a non-draft invoice already exists for this inquiry.
+      if (existingInvoices.length > 0) {
+        this.logger.log(`Non-draft invoice already exists for inquiry ${inquiryId}, skipping single-invoice generation`);
+        return;
+      }
       const now = new Date();
       const paymentDays = brand?.payment_terms_days ?? 30;
       const dueDate = new Date(now.getTime() + paymentDays * 24 * 60 * 60 * 1000);

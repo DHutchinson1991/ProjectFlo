@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useRef, useCallback } from "react";
+import React, { useRef } from "react";
 import { DndContext, useSensors, useSensor, PointerSensor, KeyboardSensor } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 
 // Import types
-import { ContentBuilderProps, TimelineScene } from '@/features/content/content-builder/types/timeline';
-import { ScenesLibrary } from '@/features/content/scenes/types';
+import { ContentBuilderProps, TimelineScene, TimelineTrack } from '@/features/content/content-builder/types/timeline';
 
 // Import new provider and container
 import { ContentBuilderProvider } from '../context/ContentBuilderContext';
@@ -28,8 +27,8 @@ import { ContentBuilderContainer } from './ContentBuilderContainer';
  * - Features are self-contained and testable
  * - Easier to understand and maintain
  */
-const DEFAULT_SCENES: any[] = [];
-const DEFAULT_TRACKS: any[] = [];
+const DEFAULT_SCENES: TimelineScene[] = [];
+const DEFAULT_TRACKS: TimelineTrack[] = [];
 
 const ContentBuilder: React.FC<ContentBuilderProps> = ({
     filmId,
@@ -40,8 +39,6 @@ const ContentBuilder: React.FC<ContentBuilderProps> = ({
     onChange,
     onSaveFilmName,
     readOnly = false,
-    rightPanel,
-    subjectCount = 0,
     packageId,
     linkedActivityId,
     instanceOwnerType,
@@ -86,12 +83,9 @@ const ContentBuilder: React.FC<ContentBuilderProps> = ({
             >
                 <ContentBuilderContainer
                     timelineRef={timelineRef}
-                    rightPanel={rightPanel}
                     film={film}
-                    subjectCount={subjectCount}
                     onSaveFilmName={onSaveFilmName}
                     packageId={packageId}
-                    linkedActivityId={linkedActivityId}
                 />
             </ContentBuilderProvider>
         </DndContext>

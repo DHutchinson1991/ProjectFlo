@@ -36,47 +36,9 @@ interface OverviewPanelItem {
 }
 
 export function PortalOverviewPanels({ sections, colors, onTabChange }: PortalOverviewPanelsProps) {
-    const contractOrInvoices = (() => {
-        if (sections.invoices && sections.invoices.status !== 'locked') {
-            return {
-                key: 'invoices',
-                eyebrow: sections.invoices.status === 'available' ? 'Ready to pay' : 'After booking',
-                title: 'Payments',
-                description: sections.invoices.status === 'available'
-                    ? 'Open invoices and payment milestones are available here.'
-                    : 'Receipts and payment history will live here once billing opens.',
-                status: sections.invoices.status,
-                accent: colors.accent,
-                tab: 'invoices' as const,
-            };
-        }
-
-        return {
-            key: 'contract',
-            eyebrow: sections.contract?.status === 'available' ? 'Action needed' : 'After proposal',
-            title: 'Contract & pay',
-            description: sections.contract?.status === 'available'
-                ? 'Review the contract and lock in your date when you are ready.'
-                : 'Contract signing and payment steps will appear here after approval.',
-            status: sections.contract?.status ?? 'locked',
-            accent: colors.accent,
-            tab: 'contract' as const,
-        };
-    })();
-
-    const panels: OverviewPanelItem[] = [
-        {
-            key: 'estimate',
-            eyebrow: sections.estimate?.status === 'available' ? 'Ready now' : 'Coming up',
-            title: 'Estimate',
-            description: sections.estimate?.status === 'available'
-                ? 'Your custom package pricing is ready to review.'
-                : 'Pricing will appear here once the studio has shaped your package.',
-            status: sections.estimate?.status ?? 'locked',
-            accent: colors.green,
-            tab: 'estimate',
-        },
-        {
+    /* ── All possible cards ──────────────────────────────────────── */
+    const allCards: Record<string, OverviewPanelItem> = {
+        questionnaire: {
             key: 'questionnaire',
             eyebrow: sections.questionnaire?.status === 'available' ? 'Action needed' : 'Inquiry details',
             title: 'Questionnaire',
@@ -87,19 +49,95 @@ export function PortalOverviewPanels({ sections, colors, onTabChange }: PortalOv
             accent: colors.accent,
             tab: 'questionnaire',
         },
-        {
+        estimate: {
+            key: 'estimate',
+            eyebrow: sections.estimate?.status === 'available' ? 'Ready now' : 'Coming up',
+            title: 'Estimate',
+            description: sections.estimate?.status === 'available'
+                ? 'Your custom package pricing is ready to review.'
+                : 'Pricing will appear here once the studio has shaped your package.',
+            status: sections.estimate?.status ?? 'locked',
+            accent: colors.green,
+            tab: 'estimate',
+        },
+        proposal: {
             key: 'proposal',
-            eyebrow: sections.proposal?.status === 'review_pending' ? 'Ready for review' : 'Coming up',
+            eyebrow: (() => {
+                const s = sections.proposal?.status;
+                if (s === 'review_pending') return 'Ready for review';
+                if (s === 'changes_requested') return 'Under review';
+                if (s === 'accepted') return 'Accepted';
+                return 'Coming up';
+            })(),
             title: 'Proposal',
             description: sections.proposal?.status === 'review_pending'
                 ? 'Your full creative proposal is ready for review and response.'
-                : 'The proposal lands here once pricing and direction are aligned.',
+                : sections.proposal?.status === 'accepted'
+                    ? 'Your approved proposal and creative direction.'
+                    : 'The proposal lands here once pricing and direction are aligned.',
             status: sections.proposal?.status ?? 'locked',
             accent: '#f59e0b',
             tab: 'proposal',
         },
-        contractOrInvoices,
-    ];
+        contract: {
+            key: 'contract',
+            eyebrow: sections.contract?.status === 'available' ? 'Action needed'
+                : sections.contract?.status === 'complete' ? 'Signed' : 'After proposal',
+            title: 'Contract',
+            description: sections.contract?.status === 'available'
+                ? 'Review the contract and lock in your date when you are ready.'
+                : sections.contract?.status === 'complete'
+                    ? 'Your signed contract is available here.'
+                    : 'Contract signing will appear here after approval.',
+            status: sections.contract?.status ?? 'locked',
+            accent: colors.accent,
+            tab: 'contract',
+        },
+        invoices: {
+            key: 'invoices',
+            eyebrow: sections.invoices?.status === 'available' ? 'Billing details' : 'After booking',
+            title: 'Payments',
+            description: sections.invoices?.status === 'available'
+                ? 'View your invoice breakdown and payment schedule.'
+                : 'Payment milestones will appear here once billing opens.',
+            status: sections.invoices?.status ?? 'locked',
+            accent: colors.accent,
+            tab: 'invoices',
+        },
+    };
+
+    /* ── Pick 2 contextual cards based on journey stage ──────────── */
+    const panels: OverviewPanelItem[] = (() => {
+        const hasInvoices = sections.invoices && sections.invoices.status !== 'locked';
+        const hasContract = sections.contract && sections.contract.status !== 'locked';
+        const contractSigned = sections.contract?.status === 'complete';
+        const proposalAccepted = sections.proposal?.status === 'accepted';
+        const hasProposal = sections.proposal && sections.proposal.status !== 'locked';
+        const hasEstimate = sections.estimate && sections.estimate.status !== 'locked';
+
+        // Post-booking: Contract (signed) + Payments
+        if (hasInvoices && contractSigned) {
+            return [allCards.contract, allCards.invoices];
+        }
+
+        // Contract ready or signed but no invoices yet: Proposal + Contract
+        if (hasContract) {
+            return [allCards.proposal, allCards.contract];
+        }
+
+        // Proposal out for review / accepted: Estimate + Proposal
+        if (hasProposal) {
+            return [allCards.estimate, allCards.proposal];
+        }
+
+        // Estimate ready, no proposal yet: Questionnaire + Estimate
+        if (hasEstimate) {
+            return [allCards.questionnaire, allCards.estimate];
+        }
+
+        // Early stage: Questionnaire + Estimate (coming up)
+        return [allCards.questionnaire, allCards.estimate];
+    })();
 
     return (
         <Box sx={{ mt: { xs: 4, md: 5 }, maxWidth: 680, mx: 'auto' }}>

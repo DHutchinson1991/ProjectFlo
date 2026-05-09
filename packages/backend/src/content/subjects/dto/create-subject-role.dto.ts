@@ -13,10 +13,6 @@ export class CreateSubjectRoleDto {
 
     @IsOptional()
     @IsBoolean()
-    is_core?: boolean;
-
-    @IsOptional()
-    @IsBoolean()
     is_group?: boolean;
 
     @IsOptional()

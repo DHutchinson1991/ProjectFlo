@@ -29,8 +29,6 @@ export function createPackageSetsApi(client: ApiClient) {
         removeSlot: (slotId: number) => client.delete<void>(`/api/package-sets/slots/${slotId}`),
         reorderSlots: (setId: number, slotIds: number[]) =>
             client.patch<PackageSet>(`/api/package-sets/${setId}/reorder-slots`, { slot_ids: slotIds }),
-        migratePackagesCategory: (setId: number, categoryId: number) =>
-            client.patch<{ updated: number }>(`/api/package-sets/${setId}/migrate-categories`, { category_id: categoryId }),
         clearAllSlotAssignments: (setId: number) =>
             client.patch<{ cleared: number }>(`/api/package-sets/${setId}/clear-assignments`, {}),
     };

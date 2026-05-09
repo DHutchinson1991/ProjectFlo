@@ -80,6 +80,7 @@ If any answer is unknown, keep investigating before editing the schema.
 - Update `prisma/schema.prisma`.
 - Create the migration.
 - Run `npx prisma generate`.
+- After any broad rename or find/replace in `schema.prisma`, inspect the touched models for accidental type/relation renames and rerun `pnpm -w run db:generate` before continuing.
 - Update backend callers, DTOs, mappers, and frontend contract code in the same change.
 - Review indexes and uniques.
 - Review seed and backfill impact.

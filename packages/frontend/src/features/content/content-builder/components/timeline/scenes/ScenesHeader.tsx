@@ -8,14 +8,13 @@ import { TimelineTrack } from "@/features/content/content-builder/types/timeline
 import { ViewState } from "@/features/content/content-builder/types/timeline";
 import MomentEditor from "../moments/MomentEditor";
 import BeatEditor from "../beats/BeatEditor";
-import { useSceneRecordingSetup, useSceneHeaderGroups, useSceneNameEditing } from "../../../hooks/scenes";
+import { useSceneHeaderGroups } from "../../../hooks/scenes";
 import { useSceneMomentInteractions } from "@/features/content/moments/hooks";
 import { useSceneBeatInteractions } from "../../../hooks/beats";
 import { useFilmSchedule } from "../../../hooks/data";
 import { useBrand } from "@/features/platform/brand";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
 import { crewSlotsApi, scheduleApi } from "@/features/workflow/scheduling/api";
-import SceneRecordingSetupModal from "./SceneRecordingSetupModal";
 import SceneGroupHeader from "./SceneGroupHeader";
 
 interface ScenesHeaderProps {
@@ -45,42 +44,8 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
     onMomentHover
 }) => {
     type SceneWithFilmId = TimelineScene & { film_id?: number };
-    const {
-        editingSceneName,
-        sceneNameDraft,
-        setSceneNameDraft,
-        startSceneNameEdit,
-        cancelSceneNameEdit,
-        saveSceneNameEdit,
-    } = useSceneNameEditing({ scenes, onUpdateScene });
 
     // State for Moment Editor
-    const {
-        recordingSetupOpen,
-        recordingSetupSceneName,
-        recordingSetupSceneLabel,
-        recordingSetupSceneIds,
-        selectedCameraTrackIds,
-        setSelectedCameraTrackIds,
-        selectedAudioTrackIds,
-        setSelectedAudioTrackIds,
-        graphicsEnabled,
-        setGraphicsEnabled,
-        isSavingRecordingSetup,
-        sceneMusicEnabled,
-        setSceneMusicEnabled,
-        sceneMusicForm,
-        setSceneMusicForm,
-        musicError,
-        videoTracks,
-        audioTracks,
-        graphicsTracks,
-        toggleIdInList,
-        openRecordingSetup,
-        closeRecordingSetup,
-        handleSaveRecordingSetup,
-        handleClearRecordingSetup,
-    } = useSceneRecordingSetup({ scenes, tracks, onUpdateScene });
 
     const {
         editingMoment,
@@ -259,29 +224,7 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
         [handleBeatSave, beatSceneId, saveSceneSchedule]
     );
 
-    // Scene-level schedule (for RecordingSetup modal)
-    const sceneScheduleForSetup = React.useMemo(() => {
-        if (!recordingSetupSceneIds.length) return null;
-        return getSceneSchedule(recordingSetupSceneIds[0]) ?? null;
-    }, [recordingSetupSceneIds, getSceneSchedule]);
 
-    const handleSceneScheduleFieldChange = React.useCallback(
-        (field: string, value: any) => {
-            if (!recordingSetupSceneIds.length) return;
-            updateSceneSchedule(recordingSetupSceneIds[0], { [field]: value });
-        },
-        [recordingSetupSceneIds, updateSceneSchedule]
-    );
-
-    const handleRecordingSetupSaveWithSchedule = React.useCallback(
-        () => {
-            handleSaveRecordingSetup();
-            if (recordingSetupSceneIds.length) {
-                saveSceneSchedule(recordingSetupSceneIds[0]);
-            }
-        },
-        [handleSaveRecordingSetup, recordingSetupSceneIds, saveSceneSchedule]
-    );
 
     return (
         <Box
@@ -297,23 +240,6 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
                 mb: 0,
             }}
         >
-            <MomentEditor
-                open={!!editingMoment}
-                moment={editingMoment}
-                allTracks={tracks}
-                sceneRecordingSetup={activeSceneForEdit?.recording_setup || null}
-                onClose={closeMomentEditor}
-                onSave={handleMomentSaveWithSchedule}
-                onUpsertRecordingSetup={handleMomentRecordingSetupSave as any}
-                onClearRecordingSetup={handleClearMomentRecordingSetup}
-                readOnly={false}
-                mode="full"
-                activity={momentActivity}
-                activitySubjects={packageSubjects}
-                activityCrewSlots={packageCrewSlots}
-                trackDefaults={trackDefaults}
-            />
-
             <BeatEditor
                 open={!!editingBeat}
                 beat={editingBeat}
@@ -327,36 +253,6 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
                 activityCrewSlots={packageCrewSlots}
             />
 
-            <SceneRecordingSetupModal
-                open={recordingSetupOpen}
-                sceneName={recordingSetupSceneName}
-                sceneLabel={recordingSetupSceneLabel}
-                sceneIds={recordingSetupSceneIds}
-                filmId={filmId}
-                isSaving={isSavingRecordingSetup}
-                videoTracks={videoTracks}
-                audioTracks={audioTracks}
-                graphicsTracks={graphicsTracks}
-                selectedCameraTrackIds={selectedCameraTrackIds}
-                selectedAudioTrackIds={selectedAudioTrackIds}
-                graphicsEnabled={graphicsEnabled}
-                sceneMusicEnabled={sceneMusicEnabled}
-                sceneMusicForm={sceneMusicForm}
-                musicError={musicError}
-                onClose={closeRecordingSetup}
-                onSave={handleRecordingSetupSaveWithSchedule}
-                onClear={handleClearRecordingSetup}
-                activities={packageActivities}
-                activitySubjects={packageSubjects}
-                activityCrewSlots={packageCrewSlots}
-                sceneSchedule={sceneScheduleForSetup}
-                onScheduleChange={handleSceneScheduleFieldChange}
-                onToggleCameraTrack={(trackId) => setSelectedCameraTrackIds(prev => toggleIdInList(prev, trackId))}
-                onToggleAudioTrack={(trackId) => setSelectedAudioTrackIds(prev => toggleIdInList(prev, trackId))}
-                onGraphicsEnabledChange={setGraphicsEnabled}
-                onSceneMusicEnabledChange={setSceneMusicEnabled}
-                onSceneMusicFormChange={setSceneMusicForm}
-            />
 
             {/* Scene group header labels */}
             <Box
@@ -412,16 +308,7 @@ const ScenesHeader: React.FC<ScenesHeaderProps> = ({
                             scheduleEndTime={scheduleEnd}
                             scheduleEventDayName={activityName}
                             onReorderScene={onReorderScene}
-                            onDeleteScene={onDeleteScene}
-                            onUpdateScene={onUpdateScene}
                             onMomentHover={onMomentHover}
-                            editingSceneName={editingSceneName}
-                            sceneNameDraft={sceneNameDraft}
-                            setSceneNameDraft={setSceneNameDraft}
-                            startSceneNameEdit={startSceneNameEdit}
-                            cancelSceneNameEdit={cancelSceneNameEdit}
-                            saveSceneNameEdit={saveSceneNameEdit}
-                            openRecordingSetup={openRecordingSetup}
                             resizingMomentId={resizingMomentId}
                             draggingMomentId={draggingMomentId}
                             onMomentDragStart={handleMomentDragStart}

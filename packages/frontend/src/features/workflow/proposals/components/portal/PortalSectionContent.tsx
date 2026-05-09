@@ -8,7 +8,6 @@ import {
 import { alpha } from '@mui/material/styles';
 import {
     Videocam as FilmIcon,
-    MarkEmailRead as MarkEmailReadIcon,
     Check as CheckIcon,
     Place as PlaceIcon,
     CalendarMonth as CalendarIcon,
@@ -900,29 +899,6 @@ export function ContractContent({ data, colors }: { data: ContractData; colors: 
                     </Stack>
                 </Box>
             )}
-        </Box>
-    );
-}
-
-/* ── Welcome Pack Section Content ────────────────────────── */
-
-export function WelcomePackContent({ sentAt, colors }: { sentAt: string; colors: PortalDashboardColors }) {
-    return (
-        <Box sx={{ px: { xs: 2.5, md: 3 }, py: 2.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, borderRadius: '12px', bgcolor: alpha('#10b981', 0.06), border: `1px solid ${alpha('#10b981', 0.15)}`, mb: 2 }}>
-                <MarkEmailReadIcon sx={{ fontSize: 32, color: '#10b981', flexShrink: 0 }} />
-                <Box>
-                    <Typography sx={{ color: colors.text, fontWeight: 700, fontSize: '0.95rem', mb: 0.25 }}>
-                        You&apos;re all booked! 🎉
-                    </Typography>
-                    <Typography sx={{ color: colors.muted, fontSize: '0.82rem', lineHeight: 1.5 }}>
-                        Your welcome pack has been sent. We&apos;re so excited to work with you!
-                    </Typography>
-                </Box>
-            </Box>
-            <Typography sx={{ color: alpha(colors.muted, 0.7), fontSize: '0.68rem', textAlign: 'right' }}>
-                Welcome pack sent on {formatDate(sentAt, { month: 'long', day: 'numeric', year: 'numeric' })}
-            </Typography>
         </Box>
     );
 }

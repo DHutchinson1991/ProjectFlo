@@ -11,6 +11,10 @@ export class UpdatePackageActivityDto {
 
   @IsOptional()
   @IsString()
+  location_label?: string;
+
+  @IsOptional()
+  @IsString()
   color?: string;
 
   @IsOptional()

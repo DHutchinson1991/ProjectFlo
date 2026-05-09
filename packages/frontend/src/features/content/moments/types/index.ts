@@ -22,6 +22,7 @@ export interface SceneMoment {
   id: number;
   film_scene_id: number;
   name: string;
+  description?: string | null;
   order_index: number;
   duration: number; // in seconds
   created_at: string;
@@ -53,6 +54,7 @@ export interface CreateSceneMomentDto {
  */
 export interface UpdateSceneMomentDto {
   name?: string;
+  description?: string;
   order_index?: number;
   duration?: number;
 }

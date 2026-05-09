@@ -1,0 +1,832 @@
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+#al2 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+#al2 {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  width: 100%;
+  background: #FAFAFA;
+  color: #3F3F46;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid #E4E4E7;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* ── HERO BLOCK ── */
+#al2 .hero {
+  background: linear-gradient(165deg, #0F0F12 0%, #0C1A2E 45%, #060D1A 100%);
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+#al2 .hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#al2 .hero-accent {
+  position: absolute;
+  top: -80px; right: 5%;
+  width: 500px; height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(220, 38, 38, 0.2) 0%, transparent 55%);
+  pointer-events: none;
+}
+
+#al2 .hero-accent2 {
+  position: absolute;
+  bottom: -100px; left: -3%;
+  width: 400px; height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(14, 165, 233, 0.1) 0%, transparent 55%);
+  pointer-events: none;
+}
+
+#al2 .hero-watermark {
+  position: absolute;
+  right: -10px; top: 50%;
+  transform: translateY(-50%);
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 200px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.025);
+  line-height: 1;
+  pointer-events: none;
+  z-index: 0;
+  letter-spacing: -0.04em;
+}
+
+#al2 .hero-inner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 40px;
+  align-items: end;
+  padding: 52px 56px 44px;
+  position: relative; z-index: 1;
+}
+
+#al2 .hero-left { display: flex; flex-direction: column; }
+
+#al2 .hero-tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: #FCA5A5;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 8px 16px;
+  border-radius: 100px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  width: fit-content;
+}
+
+#al2 .hero-tag-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #EF4444;
+  box-shadow: 0 0 12px rgba(220, 38, 38, 0.7);
+}
+
+#al2 .hero-brand {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 13px; font-weight: 700;
+  letter-spacing: 0.25em; text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+  margin-bottom: 8px;
+}
+
+#al2 .hero h1 {
+  font-size: 60px; font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  margin-bottom: 16px;
+}
+
+#al2 .hero h1 span {
+  background: linear-gradient(135deg, #FCA5A5 0%, #EF4444 40%, #B91C1C 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+#al2 .hero-line {
+  width: 80px; height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #EF4444, #0EA5E9);
+  box-shadow: 0 0 16px rgba(220, 38, 38, 0.4);
+  margin-bottom: 16px;
+}
+
+#al2 .hero-sub {
+  font-size: 15px; font-weight: 400;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.01em;
+}
+
+#al2 .hero-sub .sep {
+  display: inline-block;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  vertical-align: middle;
+  margin: 0 10px;
+}
+
+#al2 .hero-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+  min-width: 210px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+#al2 .hero-card-row {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 20px;
+}
+
+#al2 .hero-card-label {
+  font-size: 11px; font-weight: 600;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+#al2 .hero-card-value {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 14px; font-weight: 700;
+  color: #FFFFFF;
+}
+
+#al2 .hero-card-value.glow {
+  color: #FCA5A5;
+  text-shadow: 0 0 12px rgba(220, 38, 38, 0.4);
+}
+
+#al2 .hero-card-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#al2 .hero-card-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700;
+  color: #34D399;
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+  padding: 6px 14px;
+  border-radius: 100px;
+  width: fit-content;
+}
+
+#al2 .hero-card-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #34D399;
+}
+
+#al2 .stat-strip {
+  background: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  position: relative; z-index: 1;
+}
+
+#al2 .stat {
+  flex: 1;
+  padding: 18px 24px;
+  text-align: center;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#al2 .stat:last-child { border-right: none; }
+
+#al2 .stat-val {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 20px; font-weight: 700;
+  color: #FFFFFF;
+  line-height: 1;
+  margin-bottom: 5px;
+}
+
+#al2 .stat-lbl {
+  font-size: 9px; font-weight: 600;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ── LAYOUT ── */
+#al2 .layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  background: #FAFAFA;
+}
+
+#al2 .main { padding: 48px 56px; }
+#al2 .sidebar {
+  padding: 48px 36px;
+  background: #F4F4F5;
+  border-left: 1px solid #E4E4E7;
+}
+
+@media (max-width: 900px) {
+  #al2 .layout { grid-template-columns: 1fr; }
+  #al2 .sidebar { border-left: none; border-top: 1px solid #E4E4E7; }
+  #al2 .hero h1 { font-size: 40px; }
+  #al2 .hero-inner { grid-template-columns: 1fr; padding: 44px 32px 36px; }
+  #al2 .hero-card { display: none; }
+  #al2 .hero-watermark { font-size: 120px; right: -10px; }
+  #al2 .stat-strip { flex-wrap: wrap; }
+  #al2 .stat { min-width: 50%; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  #al2 .main { padding: 36px 32px; }
+  #al2 .sidebar { padding: 36px 32px; }
+  #al2 .footer { padding: 18px 32px; flex-direction: column; gap: 8px; text-align: center; }
+}
+
+/* ── SECTION HEADING ── */
+#al2 .sh {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 22px;
+}
+
+#al2 .sh-text {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: #A1A1AA;
+  white-space: nowrap;
+}
+
+#al2 .sh-line {
+  flex: 1; height: 1px;
+  background: repeating-linear-gradient(to right, #D4D4D8, #D4D4D8 4px, transparent 4px, transparent 10px);
+}
+
+#al2 .section { margin-bottom: 44px; }
+#al2 .section:last-child { margin-bottom: 0; }
+
+#al2 .main p {
+  font-size: 15px; color: #52525B; line-height: 1.85; font-weight: 400;
+}
+#al2 .main p + p { margin-top: 14px; }
+
+/* ── FEATURES ── */
+#al2 .feats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;
+}
+
+#al2 .feat {
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 14px;
+  padding: 20px;
+  display: flex; gap: 16px;
+}
+
+#al2 .feat-ico {
+  width: 40px; height: 40px; flex-shrink: 0;
+  background: linear-gradient(135deg, #FEF2F2, #FEE2E2);
+  border: 1px solid #FECACA;
+  color: #DC2626;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+#al2 .feat-ico svg { width: 18px; height: 18px; stroke: currentColor; }
+#al2 .feat-title { font-size: 14px; font-weight: 700; color: #18181B; margin-bottom: 5px; letter-spacing: -0.01em; }
+#al2 .feat-desc { font-size: 13px; color: #71717A; line-height: 1.55; }
+
+/* ── CONDITION ── */
+#al2 .cond {
+  border-radius: 14px;
+  border: 1px solid #E4E4E7;
+  background: #FFFFFF;
+  overflow: hidden;
+}
+
+#al2 .cond-header {
+  background: #F4F4F5;
+  padding: 18px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid #E4E4E7;
+}
+
+#al2 .cond-badge {
+  font-size: 14px; font-weight: 700;
+  color: #18181B;
+}
+
+#al2 .cond-rating {
+  display: flex; align-items: center; gap: 4px;
+}
+
+#al2 .cond-rating-bar {
+  width: 120px; height: 6px;
+  border-radius: 3px;
+  background: #E4E4E7;
+  overflow: hidden;
+}
+
+#al2 .cond-rating-fill {
+  width: 95%;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #EF4444, #0EA5E9);
+}
+
+#al2 .cond-rating-label {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 11px; font-weight: 700;
+  color: #DC2626;
+  margin-left: 8px;
+}
+
+#al2 .cond-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+
+#al2 .cond-row {
+  display: flex; gap: 14px; align-items: flex-start;
+  font-size: 14px; color: #52525B; line-height: 1.6;
+}
+
+#al2 .cond-icon {
+  margin-top: 3px; flex-shrink: 0;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+
+#al2 .cond-icon.ok { background: #ECFDF5; color: #10B981; }
+#al2 .cond-icon svg { width: 12px; height: 12px; stroke: currentColor; }
+
+/* ── INCLUDED ── */
+#al2 .incl { display: flex; flex-direction: column; gap: 8px; }
+
+#al2 .incl-row {
+  display: flex; align-items: center; gap: 16px;
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 12px;
+  padding: 14px 20px;
+  font-size: 14px; color: #3F3F46;
+}
+
+#al2 .incl-num {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 11px; font-weight: 700;
+  color: #DC2626;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  width: 28px; height: 28px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+#al2 .incl-name { font-weight: 600; color: #18181B; }
+#al2 .incl-detail { color: #A1A1AA; font-size: 12px; margin-left: auto; white-space: nowrap; font-weight: 500; }
+
+/* ── SHIPPING ── */
+#al2 .ship-row {
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+
+#al2 .ship-item {
+  flex: 1; min-width: 140px;
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 14px;
+}
+
+#al2 .ship-item-ico {
+  width: 36px; height: 36px;
+  background: #F4F4F5;
+  color: #A1A1AA;
+  border: 1px solid #E4E4E7;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+#al2 .ship-item-ico svg { width: 16px; height: 16px; stroke: currentColor; }
+
+#al2 .ship-item-lbl {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 10px; color: #A1A1AA; text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+#al2 .ship-item-val { font-size: 14px; font-weight: 600; color: #18181B; line-height: 1.3; }
+
+#al2 .ship-note {
+  margin-top: 14px; font-size: 13px; color: #A1A1AA;
+}
+
+/* ── SIDEBAR ── */
+#al2 .sb-head {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: #A1A1AA; margin-bottom: 16px;
+}
+
+#al2 .specs {
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 36px;
+}
+
+#al2 .spec {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 20px;
+  border-bottom: 1px solid #F4F4F5;
+  font-size: 13px;
+}
+#al2 .spec:nth-child(even) { background: #FAFAFA; }
+#al2 .spec:last-child { border-bottom: none; }
+#al2 .spec-k { color: #71717A; font-weight: 500; }
+#al2 .spec-v {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 12px; font-weight: 700; color: #18181B; text-align: right;
+}
+#al2 .spec-v.accent { color: #DC2626; }
+
+#al2 .seller-note {
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 36px;
+  position: relative;
+  overflow: hidden;
+}
+
+#al2 .seller-note::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 3px; height: 100%;
+  background: linear-gradient(180deg, #EF4444, #0EA5E9);
+  border-radius: 3px 0 0 3px;
+}
+
+#al2 .seller-note p {
+  font-size: 14px; color: #52525B; line-height: 1.7; font-style: italic;
+  padding-left: 4px;
+}
+
+#al2 .contact-box {
+  background: linear-gradient(165deg, #0C1A2E, #18181B);
+  border: none;
+  border-radius: 14px;
+  padding: 32px 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+#al2 .contact-box::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+#al2 .contact-box .c-title {
+  font-size: 15px; font-weight: 700;
+  color: #FFFFFF; margin-bottom: 8px;
+  position: relative;
+}
+
+#al2 .contact-box p {
+  font-size: 13px; color: rgba(255, 255, 255, 0.5); line-height: 1.6;
+  position: relative;
+}
+
+#al2 .contact-box .c-cta {
+  display: inline-block;
+  margin-top: 20px;
+  background: #FFFFFF;
+  color: #18181B;
+  font-weight: 700; font-size: 13px;
+  padding: 11px 28px;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  position: relative;
+  text-decoration: none;
+}
+
+/* ── FOOTER ── */
+#al2 .footer {
+  background: #F4F4F5;
+  border-top: 1px solid #E4E4E7;
+  padding: 18px 56px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+
+#al2 .footer-left { font-size: 12px; color: #71717A; font-weight: 500; }
+#al2 .footer-right { font-size: 12px; color: #71717A; font-weight: 500; }
+</style>
+
+<div id="al2">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-accent"></div>
+    <div class="hero-accent2"></div>
+    <div class="hero-watermark">NTG4+</div>
+    <div class="hero-inner">
+
+      <div class="hero-left">
+        <div class="hero-tag">
+          <span class="hero-tag-dot"></span>
+          Pro Audio / Shotgun Mic
+        </div>
+        <div class="hero-brand">RØDE</div>
+        <h1>NTG4+<br><span>Shotgun Mic</span></h1>
+        <div class="hero-line"></div>
+        <div class="hero-sub">Broadcast-Grade Supercardioid<span class="sep"></span>Built-in Battery<span class="sep"></span>Digital Switching</div>
+      </div>
+
+      <div class="hero-card">
+        <div class="hero-card-badge">
+          <span class="hero-card-badge-dot"></span>
+          Excellent Condition
+        </div>
+        <div class="hero-card-divider"></div>
+        <div class="hero-card-row">
+          <span class="hero-card-label">Polar Pattern</span>
+          <span class="hero-card-value glow">Supercardioid</span>
+        </div>
+        <div class="hero-card-row">
+          <span class="hero-card-label">Battery</span>
+          <span class="hero-card-value glow">150+ hrs</span>
+        </div>
+        <div class="hero-card-row">
+          <span class="hero-card-label">Charging</span>
+          <span class="hero-card-value">Micro-USB</span>
+        </div>
+        <div class="hero-card-row">
+          <span class="hero-card-label">Frequency</span>
+          <span class="hero-card-value">20Hz–20kHz</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="stat-strip">
+      <div class="stat">
+        <div class="stat-val">150+</div>
+        <div class="stat-lbl">Battery (hrs)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">-75dB</div>
+        <div class="stat-lbl">Self-Noise</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">3</div>
+        <div class="stat-lbl">Digital Switches</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">76Hz</div>
+        <div class="stat-lbl">HPF</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">105g</div>
+        <div class="stat-lbl">Weight</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="layout">
+    <main class="main">
+
+      <!-- OVERVIEW -->
+      <div class="section">
+        <div class="sh"><div class="sh-text">Overview</div><div class="sh-line"></div></div>
+        <p>The RØDE NTG4+ is the broadcast-grade version of RØDE's flagship shotgun microphone, built with one key advantage over the standard NTG4: an integrated rechargeable lithium battery. That means 150+ hours of operation from a single Micro-USB charge — no phantom power required. Use it with any camera, recorder, or interface, anywhere.</p>
+        <p>Super-cardioid polar pattern delivers tight, directional pickup that locks onto your subject and rejects unwanted sound from the sides and rear. Three on-body digital switches give you a high-frequency boost, a 75Hz high-pass filter, and a -10dB pad — all without touching the gain on your camera or recorder. Includes the professional Invision shock mount to isolate handling and environmental vibration.</p>
+      </div>
+
+      <!-- FEATURES -->
+      <div class="section">
+        <div class="sh"><div class="sh-text">Key Features</div><div class="sh-line"></div></div>
+        <div class="feats">
+
+          <div class="feat">
+            <div class="feat-ico">
+              <svg viewBox="0 0 17 17" fill="none"><rect x="6" y="1" width="5" height="9" rx="2.5" stroke-width="1.5"/><path d="M3.5 8.5a5 5 0 009.5 0" stroke-width="1.5" stroke-linecap="round"/><line x1="8.5" y1="13.5" x2="8.5" y2="16" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div class="feat-title">Broadcast-Grade Audio</div>
+              <div class="feat-desc">Renowned RØDE clarity — clean, detailed sound for film, broadcast, YouTube, and interviews.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-ico">
+              <svg viewBox="0 0 17 17" fill="none"><rect x="3" y="10" width="11" height="5" rx="1" stroke-width="1.5"/><path d="M6 10V8a2.5 2.5 0 015 0v2" stroke-width="1.5" stroke-linecap="round"/><line x1="8.5" y1="12" x2="8.5" y2="13.5" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div class="feat-title">Internal Rechargeable Battery</div>
+              <div class="feat-desc">150+ hours on a single Micro-USB charge. Works with any device — no phantom power needed.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-ico">
+              <svg viewBox="0 0 17 17" fill="none"><rect x="2" y="5" width="13" height="7" rx="1.5" stroke-width="1.5"/><line x1="5" y1="8.5" x2="5" y2="8.5" stroke-width="2.5" stroke-linecap="round"/><line x1="8.5" y1="8.5" x2="8.5" y2="8.5" stroke-width="2.5" stroke-linecap="round"/><line x1="12" y1="8.5" x2="12" y2="8.5" stroke-width="2.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div class="feat-title">Digital On-Body Switching</div>
+              <div class="feat-desc">High-frequency boost, 75Hz high-pass filter, and -10dB pad — all controlled directly on the mic.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-ico">
+              <svg viewBox="0 0 17 17" fill="none"><circle cx="8.5" cy="8.5" r="6.5" stroke-width="1.5"/><path d="M8.5 2C8.5 2 5 5.5 5 8.5s3.5 6.5 3.5 6.5M8.5 2c0 0 3.5 3.5 3.5 6.5S8.5 15 8.5 15" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="8.5" x2="15" y2="8.5" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div class="feat-title">Super-Cardioid Pattern</div>
+              <div class="feat-desc">Tight directional pickup. Isolates your subject and rejects background noise from the sides and rear.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-ico">
+              <svg viewBox="0 0 17 17" fill="none"><path d="M8.5 3L10 6.5H14L11 9l1.5 4-4-2.5L4.5 13 6 9 3 6.5H7Z" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+              <div class="feat-title">Invision Shock Mount</div>
+              <div class="feat-desc">Professional Rycote Lyre-based Invision mount absorbs handling noise and vibration.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-ico">
+              <svg viewBox="0 0 17 17" fill="none"><path d="M3 14V9a1 1 0 011-1h9a1 1 0 011 1v5" stroke-width="1.5" stroke-linecap="round"/><line x1="1.5" y1="14" x2="15.5" y2="14" stroke-width="1.5" stroke-linecap="round"/><path d="M6 8V6a2.5 2.5 0 015 0v2" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div class="feat-title">Low Self-Noise</div>
+              <div class="feat-desc">-75dB self-noise gives you an exceptionally clean noise floor — ideal for quiet dialogue and voiceover.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- CONDITION -->
+      <div class="section">
+        <div class="sh"><div class="sh-text">Condition</div><div class="sh-line"></div></div>
+        <div class="cond">
+          <div class="cond-header">
+            <div class="cond-badge">Used — Excellent</div>
+            <div class="cond-rating">
+              <div class="cond-rating-bar"><div class="cond-rating-fill"></div></div>
+              <div class="cond-rating-label">5/5</div>
+            </div>
+          </div>
+          <div class="cond-body">
+            <div class="cond-row">
+              <div class="cond-icon ok">
+                <svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <span><strong style="color:#18181B; font-weight:600;">Fully functional.</strong> Clean, studio-quality sound with no crackle, dropout, or interference. All three digital switches are fully responsive.</span>
+            </div>
+            <div class="cond-row">
+              <div class="cond-icon ok">
+                <svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <span><strong style="color:#18181B; font-weight:600;">Battery holds charge.</strong> The internal lithium battery charges normally and holds a full charge as expected.</span>
+            </div>
+            <div class="cond-row">
+              <div class="cond-icon ok">
+                <svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <span><strong style="color:#18181B; font-weight:600;">Well-cared for.</strong> The capsule, body, and XLR connector are all in excellent cosmetic condition. No dents or damage.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INCLUDED -->
+      <div class="section">
+        <div class="sh"><div class="sh-text">What's Included</div><div class="sh-line"></div></div>
+        <div class="incl">
+          <div class="incl-row">
+            <div class="incl-num">01</div>
+            <div><span class="incl-name">RØDE NTG4+ Shotgun Microphone</span></div>
+            <span class="incl-detail">Main unit</span>
+          </div>
+          <div class="incl-row">
+            <div class="incl-num">02</div>
+            <div><span class="incl-name">Invision Shock Mount</span></div>
+            <span class="incl-detail">Rycote Lyre</span>
+          </div>
+          <div class="incl-row">
+            <div class="incl-num">03</div>
+            <div><span class="incl-name">Foam Windshield</span></div>
+            <span class="incl-detail">WS2</span>
+          </div>
+          <div class="incl-row">
+            <div class="incl-num">04</div>
+            <div><span class="incl-name">Micro-USB Charging Cable</span></div>
+            <span class="incl-detail">As pictured</span>
+          </div>
+          <div class="incl-row">
+            <div class="incl-num">05</div>
+            <div><span class="incl-name">Original Box &amp; Documentation</span></div>
+            <span class="incl-detail">Complete</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SHIPPING -->
+      <div class="section">
+        <div class="sh"><div class="sh-text">Shipping</div><div class="sh-line"></div></div>
+        <div class="ship-row">
+          <div class="ship-item">
+            <div class="ship-item-ico">
+              <svg viewBox="0 0 17 17" fill="none"><rect x="1.5" y="5" width="10" height="8" rx="1" stroke-width="1.5"/><path d="M11.5 7.5H13l2 3v2h-3.5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="4.5" cy="14" r="1.3" stroke-width="1.5"/><circle cx="10.5" cy="14" r="1.3" stroke-width="1.5"/></svg>
+            </div>
+            <div>
+              <div class="ship-item-lbl">Packaging</div>
+              <div class="ship-item-val">Original box + bubble wrap</div>
+            </div>
+          </div>
+          <div class="ship-item">
+            <div class="ship-item-ico">
+              <svg viewBox="0 0 17 17" fill="none"><circle cx="8.5" cy="8.5" r="6.5" stroke-width="1.5"/><line x1="8.5" y1="4.5" x2="8.5" y2="9" stroke-width="1.5" stroke-linecap="round"/><line x1="8.5" y1="9" x2="11" y2="11" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div class="ship-item-lbl">Dispatch</div>
+              <div class="ship-item-val">1–2 business days</div>
+            </div>
+          </div>
+        </div>
+        <div class="ship-note">Please review all photos carefully — they form part of the item description.</div>
+      </div>
+
+    </main>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+      <div class="sb-head">Specifications</div>
+      <div class="specs">
+        <div class="spec"><span class="spec-k">Brand</span><span class="spec-v">RØDE</span></div>
+        <div class="spec"><span class="spec-k">Model</span><span class="spec-v">NTG4+</span></div>
+        <div class="spec"><span class="spec-k">Type</span><span class="spec-v">Shotgun</span></div>
+        <div class="spec"><span class="spec-k">Pattern</span><span class="spec-v accent">Supercardioid</span></div>
+        <div class="spec"><span class="spec-k">Freq. Response</span><span class="spec-v accent">20Hz–20kHz</span></div>
+        <div class="spec"><span class="spec-k">Self-Noise</span><span class="spec-v accent">-75 dB(A)</span></div>
+        <div class="spec"><span class="spec-k">SPL (max)</span><span class="spec-v">135 dB</span></div>
+        <div class="spec"><span class="spec-k">Pad</span><span class="spec-v">-10 dB</span></div>
+        <div class="spec"><span class="spec-k">High-Pass Filter</span><span class="spec-v">75 Hz</span></div>
+        <div class="spec"><span class="spec-k">Battery</span><span class="spec-v">Internal Li-ion</span></div>
+        <div class="spec"><span class="spec-k">Battery Life</span><span class="spec-v accent">150+ hrs</span></div>
+        <div class="spec"><span class="spec-k">Charging</span><span class="spec-v">Micro-USB</span></div>
+        <div class="spec"><span class="spec-k">Connector</span><span class="spec-v">XLR</span></div>
+        <div class="spec"><span class="spec-k">Weight</span><span class="spec-v">105 g</span></div>
+        <div class="spec"><span class="spec-k">Length</span><span class="spec-v">278 mm</span></div>
+        <div class="spec"><span class="spec-k">Condition</span><span class="spec-v">Excellent</span></div>
+      </div>
+
+      <div class="sb-head">Seller's Note</div>
+      <div class="seller-note">
+        <p>Genuinely excellent microphone — the built-in battery alone makes it worth the premium over the standard NTG4. Selling as I've moved to a wireless kit. If you need a reliable, broadcast-grade shotgun this is hard to beat at the price.</p>
+      </div>
+
+      <div class="contact-box">
+        <div class="c-title">Have a question?</div>
+        <p>Happy to provide extra photos, answer questions, or combine postage on multiple items.</p>
+        <div class="c-cta">Message Seller</div>
+      </div>
+
+    </aside>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-left">All photos show the actual item for sale &nbsp;·&nbsp; Please read fully before purchasing</div>
+    <div class="footer-right">30-day eBay Buyer Protection applies</div>
+  </div>
+
+</div>

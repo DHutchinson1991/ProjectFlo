@@ -25,6 +25,7 @@ import {
     ExpandMore as ExpandMoreIcon,
     PanTool as ActionRequiredIcon,
     CardGiftcard as DeliverableIcon,
+    Star as StarIcon,
 } from "@mui/icons-material";
 import {
     TaskLibrary, TaskLibrarySubtaskTemplate,
@@ -315,6 +316,16 @@ export function TaskDetailPanel({ task, isSelected, onClose, onTaskUpdated }: Pr
         }
     };
 
+    const handleLeadTaskToggle = async () => {
+        const newValue = !task.is_lead_task;
+        onTaskUpdated?.(task.id, t => ({ ...t, is_lead_task: newValue }));
+        try {
+            await taskLibraryApi.update(task.id, { is_lead_task: newValue } as never);
+        } catch {
+            onTaskUpdated?.(task.id, t => ({ ...t, is_lead_task: !newValue }));
+        }
+    };
+
     const handleDeliverableBlur = async () => {
         setEditingDeliverable(false);
         const trimmed = deliverableValue.trim() || null;
@@ -358,6 +369,7 @@ export function TaskDetailPanel({ task, isSelected, onClose, onTaskUpdated }: Pr
     const roleName = task.default_job_role
         ? (task.default_job_role.display_name || task.default_job_role.name)
         : null;
+    const isLeadTask = !!task.is_lead_task;
     const crewName = task.default_crew
         ? `${task.default_crew.contact.first_name} ${task.default_crew.contact.last_name}`.trim()
         : null;
@@ -474,6 +486,38 @@ export function TaskDetailPanel({ task, isSelected, onClose, onTaskUpdated }: Pr
                             "&:hover": canEdit ? { bgcolor: task.is_customer_facing ? "rgba(79,172,254,0.2)" : "rgba(255,255,255,0.08)" } : {},
                         }}
                     />
+                    {isLeadTask && (
+                        <Chip
+                            icon={<StarIcon sx={{ fontSize: "0.75rem !important" }} />}
+                            label={`Lead ${roleName ?? 'Task'}`}
+                            size="small"
+                            onClick={canEdit ? handleLeadTaskToggle : undefined}
+                            sx={{
+                                cursor: canEdit ? "pointer" : "default",
+                                bgcolor: "rgba(255,176,32,0.12)",
+                                color: "#FFB020",
+                                border: "1px solid rgba(255,176,32,0.25)",
+                                fontWeight: 700, fontSize: "0.7rem",
+                                "&:hover": canEdit ? { bgcolor: "rgba(255,176,32,0.2)" } : {},
+                            }}
+                        />
+                    )}
+                    {!isLeadTask && canEdit && !task.is_task_group && (
+                        <Chip
+                            icon={<StarIcon sx={{ fontSize: "0.75rem !important" }} />}
+                            label="Set as Lead"
+                            size="small"
+                            onClick={handleLeadTaskToggle}
+                            sx={{
+                                cursor: "pointer",
+                                bgcolor: "rgba(255,255,255,0.04)",
+                                color: "text.disabled",
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                fontWeight: 700, fontSize: "0.7rem",
+                                "&:hover": { bgcolor: "rgba(255,176,32,0.1)", color: "#FFB020", borderColor: "rgba(255,176,32,0.25)" },
+                            }}
+                        />
+                    )}
                 </Box>
 
                 {/* Phase description (expandable) */}

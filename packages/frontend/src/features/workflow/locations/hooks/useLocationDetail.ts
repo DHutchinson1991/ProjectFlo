@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { locationsApi } from '../api';
@@ -12,7 +12,6 @@ export const locationDetailKeys = {
 
 export function useLocationDetail(locationId: number) {
     const queryClient = useQueryClient();
-    const initialized = useRef(false);
 
     const [locationForm, setLocationForm] = useState<Partial<LocationsLibrary>>({});
     const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -23,10 +22,9 @@ export function useLocationDetail(locationId: number) {
         enabled: !!locationId,
     });
 
-    // Initialise the form once the first fetch resolves
+    // Sync the local form whenever the resolved data changes (new ID or refetch)
     useEffect(() => {
-        if (query.data && !initialized.current) {
-            initialized.current = true;
+        if (query.data) {
             setLocationForm(query.data);
         }
     }, [query.data]);

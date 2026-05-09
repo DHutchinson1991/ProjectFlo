@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Box } from '@mui/material';
+import { Box, Tooltip } from '@mui/material';
 import { useDroppable, useDraggable } from '@dnd-kit/core';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 
@@ -51,6 +51,7 @@ export function DraggableFilledSlot({ slotId, children }: { slotId: number; chil
     return (
         <Box ref={setNodeRef} sx={{ position: 'relative', opacity: isDragging ? 0.35 : 1, transition: 'opacity 0.15s' }}>
             {/* Drag handle */}
+            <Tooltip title="Drag to reorder" arrow>
             <Box
                 {...attributes}
                 {...listeners}
@@ -69,6 +70,7 @@ export function DraggableFilledSlot({ slotId, children }: { slotId: number; chil
             >
                 <DragIndicatorIcon sx={{ fontSize: 14, color: '#648CFF' }} />
             </Box>
+            </Tooltip>
             {children}
         </Box>
     );

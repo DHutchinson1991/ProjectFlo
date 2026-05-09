@@ -2,7 +2,7 @@
 
 ## What this module does
 
-Manages physical venues/locations and geocoding support. Spaces and floor-plan APIs are temporarily removed.
+Manages venues, package planning spaces, floor-plan layouts, and geocoding support.
 
 ## Key files
 
@@ -19,7 +19,8 @@ Manages physical venues/locations and geocoding support. Spaces and floor-plan A
 - All location records are tenant-scoped by `brand_id`.
 - Module route prefix remains `/api/locations`.
 - `GET /api/locations` supports optional query filters: `search`, `city`, `capacity` (`small`, `medium`, `large`, `unknown`).
-- Space and floor-plan persistence is intentionally disabled until reintroduced.
+- Package space-slot floor plans remain activity-scoped, but when an activity is linked to a film, the visible package cameras must be normalized to that film's active video tracks.
+- Stale extra package cameras should be removed during sync so blocking, preview, and track counts stay aligned.
 
 ## Related modules
 

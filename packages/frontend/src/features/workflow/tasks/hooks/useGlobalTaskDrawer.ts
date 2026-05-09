@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { activeTasksApi } from "@/features/workflow/tasks/api";
 import { ActiveTask } from "@/features/catalog/task-library/types";
 import { useBrand } from "@/features/platform/brand";
+import { useAuth } from "@/features/platform/auth";
 import { isDateOverdue, isDateToday } from "@/shared/utils/taskDates";
 
 // ── Page context parsing ──────────────────────────────────────
@@ -95,6 +96,7 @@ export interface GlobalTaskDrawerState {
   setShowAuto: (v: boolean) => void;
   // Actions
   handleNavigate: (task: ActiveTask) => void;
+  handleToggle: (task: ActiveTask) => void;
   fetchTasks: () => Promise<void>;
 }
 
@@ -102,6 +104,7 @@ export function useGlobalTaskDrawer(): GlobalTaskDrawerState {
   const pathname = usePathname();
   const router = useRouter();
   const { currentBrand } = useBrand();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const timezone = currentBrand?.timezone ?? 'UTC';
 
   const [tasks, setTasks] = useState<ActiveTask[]>([]);
@@ -123,6 +126,12 @@ export function useGlobalTaskDrawer(): GlobalTaskDrawerState {
 
   // Collapse trigger — component listens to this via pathname directly
   const fetchTasks = useCallback(async () => {
+    if (authLoading || !isAuthenticated) {
+      setTasks([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const data = await activeTasksApi.getAll();
@@ -132,10 +141,41 @@ export function useGlobalTaskDrawer(): GlobalTaskDrawerState {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authLoading, isAuthenticated]);
+
+  const handleToggle = useCallback(async (task: ActiveTask) => {
+    if (task.is_auto_only || task.is_task_group) return;
+    const newStatus = task.status === 'Completed' ? 'To_Do' : 'Completed';
+    setTasks(prev => {
+      let updated = prev.map(t =>
+        t.id === task.id && t.source === task.source
+          ? { ...t, status: newStatus, completed_at: newStatus === 'Completed' ? new Date().toISOString() : null }
+          : t
+      );
+      if (task.task_kind === 'subtask' && task.subtask_parent_id) {
+        const siblings = updated.filter(t => t.subtask_parent_id === task.subtask_parent_id);
+        const allDone = siblings.every(t => t.status === 'Completed');
+        updated = updated.map(t =>
+          t.id === task.subtask_parent_id && t.source === task.source
+            ? { ...t, status: allDone ? 'Completed' : 'To_Do', completed_at: allDone ? new Date().toISOString() : null } : t
+        );
+      } else if (task.parent_task_id) {
+        const siblings = updated.filter(t => t.parent_task_id === task.parent_task_id && !t.is_task_group && t.task_kind !== 'subtask');
+        const allDone = siblings.every(t => t.status === 'Completed');
+        updated = updated.map(t =>
+          t.id === task.parent_task_id && t.source === task.source
+            ? { ...t, status: allDone ? 'Completed' : 'To_Do', completed_at: allDone ? new Date().toISOString() : null } : t
+        );
+      }
+      return updated;
+    });
+    try { await activeTasksApi.toggle(task.id, task.source, task.task_kind ?? 'task'); } catch { fetchTasks(); }
+  }, [fetchTasks]);
 
   useEffect(() => {
-    if (ctx.type !== "hidden") fetchTasks();
+    if (ctx.type !== "hidden") {
+      void fetchTasks();
+    }
   }, [ctx.type, fetchTasks]);
 
   const contextTasks = useMemo(() => {
@@ -215,6 +255,7 @@ export function useGlobalTaskDrawer(): GlobalTaskDrawerState {
     showAuto,
     setShowAuto,
     handleNavigate,
+    handleToggle,
     fetchTasks,
   };
 }

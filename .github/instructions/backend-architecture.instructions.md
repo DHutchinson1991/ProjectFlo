@@ -82,3 +82,35 @@ Refactor immediately when:
 - A file becomes difficult to name precisely.
 - A mapper grows inside a service.
 - A file exceeds the size limits above.
+
+## Sub-module pattern
+
+When a bucket folder exceeds ~20 services or ~5,000 lines, split it into sub-modules under the same bucket. Each sub-module is a full NestJS `@Module` with its own `services/`, optional `dto/`, controller, and module file.
+
+Example (after the `shot-previews` split):
+
+```
+content/
+  activity-planning/        # LLM-based planning (casting, actions, timing, coverage)
+    activity-planning.module.ts
+    services/
+  scene-preparation/        # Scene-level prep pipeline (director, spatial, prompt)
+    scene-preparation.module.ts
+    scene-preparation.controller.ts
+    dto/
+    services/
+  frame-rendering/          # Image generation (compositor, stylist, ComfyUI)
+    frame-rendering.module.ts
+    frame-rendering.controller.ts
+    services/
+  spatial-engine/           # Floorplan data, projection, ControlNet, overlay
+    spatial-engine.module.ts
+    services/
+```
+
+Rules:
+- Each sub-module declares its own `imports`, `providers`, and `exports`.
+- Cross-sub-module dependencies flow via NestJS module imports (not direct file imports of providers).
+- Use `forwardRef(() => OtherModule)` only for genuine circular dependencies (e.g., schedule ↔ scene-preparation).
+- Shared infrastructure services (`ai/comfyui/`, `ai/gemma/`) live outside domain buckets.
+- Register all sub-modules in the bucket's parent module (e.g., `content.module.ts`).

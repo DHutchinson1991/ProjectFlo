@@ -8,7 +8,7 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
-import { CheckCircle, ErrorOutline, RadioButtonUnchecked, SwapHoriz, WarningAmber } from '@mui/icons-material';
+import { CheckCircle, ErrorOutline, RadioButtonUnchecked, Star, StarBorder, SwapHoriz, WarningAmber } from '@mui/icons-material';
 import type { InquiryCrewAvailabilityRow } from '../../types';
 
 export function formatDayHeader(date: string, start?: string | null, end?: string | null) {
@@ -24,12 +24,23 @@ export interface CrewRowProps {
     swapping?: boolean;
     confirmed?: boolean;
     onToggleConfirmed?: (slotId: number, confirmed: boolean) => void;
+    leadType?: string | null;
+    onToggleLead?: (slotId: number, leadType: string | null) => void;
+    /** Map of lead role type → crew name who currently holds it */
+    takenLeads?: Record<string, string>;
 }
 
-export function CrewRow({ row, onSwap, swapping, confirmed, onToggleConfirmed }: CrewRowProps) {
+export function CrewRow({ row, onSwap, swapping, confirmed, onToggleConfirmed, leadType, onToggleLead, takenLeads }: CrewRowProps) {
     const [showAlternatives, setShowAlternatives] = useState(false);
     const rawName = row.label || row.job_role?.display_name || row.job_role?.name || 'Crew Slot';
     const roleName = rawName.replace(/\s*\(.*\)$/, '');
+    const isProducerRole = row.job_role?.name === 'producer';
+    const isVideographerRole = row.job_role?.name === 'videographer';
+    const isEditorRole = row.job_role?.name === 'editor' || row.job_role?.name === 'video-editor';
+    const isLeadEligible = isProducerRole || isVideographerRole || isEditorRole;
+    const leadRoleType = isProducerRole ? 'producer' : isVideographerRole ? 'videographer' : isEditorRole ? 'editor' : null;
+    const isLead = leadType === leadRoleType;
+    const takenByOther = !isLead && leadRoleType && takenLeads?.[leadRoleType] ? takenLeads[leadRoleType] : null;
     const nonCurrentAlts = row.alternatives
         .filter((a) => !a.is_current)
         .sort((a, b) => (b.has_role ? 1 : 0) - (a.has_role ? 1 : 0));
@@ -83,7 +94,23 @@ export function CrewRow({ row, onSwap, swapping, confirmed, onToggleConfirmed }:
             bgcolor: isConflict ? 'rgba(245,158,11,0.04)' : 'rgba(15,23,42,0.3)',
         }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                <Box sx={{ minWidth: 0 }}>
+                <Box sx={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    {row.assigned_crew && isLeadEligible && (
+                        <Tooltip title={isLead ? `Lead ${leadRoleType} — click to remove` : takenByOther ? `${takenByOther} is lead ${leadRoleType} — click to reassign` : `Set as lead ${leadRoleType}`} arrow placement="top">
+                            <IconButton
+                                size="small"
+                                onClick={() => onToggleLead?.(row.id, isLead ? null : leadRoleType)}
+                                sx={{
+                                    p: 0.2,
+                                    color: isLead ? '#fbbf24' : takenByOther ? '#334155' : '#475569',
+                                    opacity: takenByOther ? 0.5 : 1,
+                                    '&:hover': { color: '#fbbf24', bgcolor: 'rgba(251,191,36,0.1)', opacity: 1 },
+                                }}
+                            >
+                                {isLead ? <Star sx={{ fontSize: 14 }} /> : <StarBorder sx={{ fontSize: 14 }} />}
+                            </IconButton>
+                        </Tooltip>
+                    )}
                     <Typography noWrap sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#e2e8f0' }}>
                         {roleName}
                     </Typography>

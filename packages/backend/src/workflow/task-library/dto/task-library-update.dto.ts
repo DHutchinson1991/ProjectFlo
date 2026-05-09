@@ -101,6 +101,10 @@ export class UpdateTaskLibraryDto {
 
     @IsOptional()
     @IsBoolean()
+    is_lead_task?: boolean;
+
+    @IsOptional()
+    @IsBoolean()
     is_customer_facing?: boolean;
 
     @IsOptional()

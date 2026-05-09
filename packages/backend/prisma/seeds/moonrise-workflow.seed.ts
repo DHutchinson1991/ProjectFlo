@@ -54,6 +54,7 @@ const TASK_SUBTASK_TEMPLATES: Record<string, SubtaskTemplateDef[]> = {
         { subtask_key: 'schedule_discovery_call', name: 'Schedule Discovery Call', order_index: 2, is_auto_only: false },
         { subtask_key: 'mark_inquiry_qualified', name: 'Qualify Inquiry', order_index: 3, is_auto_only: false },
         { subtask_key: 'send_welcome_response', name: 'Send Welcome Response', order_index: 4, is_auto_only: false },
+        { subtask_key: 'introduce_yourself', name: 'Introduce yourself to client', description: 'Reach out to the client as their lead producer and primary point of contact.', order_index: 5, is_auto_only: false },
     ],
 };
 
@@ -93,15 +94,19 @@ const PIPELINE_STAGES: StageDef[] = [
     },
     {
         name: 'Booking',
-        description: 'Contract signing, deposit, date block, and welcome pack',
+        description: 'Contract signing, deposit, date block, and booking confirmation',
         phase: $Enums.project_phase.Booking,
         order_index: 4,
         children: [
             { name: 'Contract Signed', description: 'Auto-completes when all signers have signed in the client portal', effort_hours: 0, order_index: 1, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Both parties have signed — your booking is being confirmed!' },
             { name: 'Raise Deposit Invoice', description: 'Auto-generated from the estimate deposit amount when the contract is signed', effort_hours: 0, order_index: 2, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Your deposit invoice has been raised to secure your date.', requires_client_action: true, client_deliverable_description: 'Deposit invoice sent to your email' },
-            { name: 'Block Wedding Date', description: 'Wedding day calendar block auto-created when inquiry status changes to Booked', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Your date is officially reserved — no one else can book it.' },
-            { name: 'Confirm Booking', description: 'Change inquiry status to Booked — triggers calendar block and completes this task', effort_hours: 0.15, order_index: 4, is_auto_only: false, due_date_offset_days: 1, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Your booking is confirmed! We\'re officially on board for your big day.' },
-            { name: 'Send Welcome Pack', description: 'Unlock the Welcome Pack section in the client portal — introduces what happens next', effort_hours: 0.15, order_index: 5, is_auto_only: false, due_date_offset_days: 2, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Your welcome pack is ready — it covers everything you need to know about what happens next.', client_deliverable_description: 'Welcome pack with next steps, timeline overview, and preparation guide' },
+            { name: 'Confirm Deposit Received', description: 'Auto-completes when the first invoice is marked as Paid — verify the deposit has cleared', effort_hours: 0, order_index: 3, is_auto_only: true, due_date_offset_days: 3, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'We\'re confirming your deposit payment has been received.' },
+            { name: 'Send Receipt', description: 'Send a payment receipt to the client after deposit is confirmed', effort_hours: 0.1, order_index: 4, is_auto_only: false, due_date_offset_days: 3, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'A receipt for your payment is on its way.', client_deliverable_description: 'Payment receipt confirming your deposit' },
+            { name: 'Review Client Proposal Notes', description: 'Review and address any notes or feedback the client left during their proposal review', effort_hours: 0.25, order_index: 5, is_auto_only: false, due_date_offset_days: 1, due_date_offset_reference: 'booking_date', is_customer_facing: false },
+            { name: 'Block Wedding Date', description: 'Wedding day calendar block auto-created when inquiry status changes to Booked', effort_hours: 0, order_index: 6, is_auto_only: true, due_date_offset_days: 0, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Your date is officially reserved — no one else can book it.' },
+            { name: 'Confirm Booking', description: 'Change inquiry status to Booked — triggers calendar block and completes this task', effort_hours: 0.15, order_index: 7, is_auto_only: false, due_date_offset_days: 1, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'Your booking is confirmed! We\'re officially on board for your big day.' },
+            { name: 'Send Booking Confirmation', description: 'Send a confirmation message to the client summarising their event date, package, and next steps', effort_hours: 0.15, order_index: 8, is_auto_only: false, due_date_offset_days: 2, due_date_offset_reference: 'booking_date', is_customer_facing: true, customer_description: 'You\'ll receive a booking confirmation with all the details for your day.', client_deliverable_description: 'Booking confirmation with event details and next steps' },
+            { name: 'Confirm crew availability', description: 'Ensure all assigned crew are confirmed and available for the shoot day(s).', effort_hours: 0.25, order_index: 9, is_auto_only: false, due_date_offset_days: -14, due_date_offset_reference: 'event_date', is_customer_facing: false },
         ],
     },
 ];
@@ -110,6 +115,7 @@ const PIPELINE_STAGES: StageDef[] = [
 const PIPELINE_TASK_SKILLS: Record<string, { skills_needed: string[] }> = {
     'Review Inquiry':         { skills_needed: ['Client Relations', 'Communication', 'Scheduling'] },
     'Qualify & Respond':      { skills_needed: ['Client Relations', 'Sales', 'Communication'] },
+    'Introduce yourself to client': { skills_needed: ['Client Relations', 'Communication'] },
     'Discovery Call':         { skills_needed: ['Consultation', 'Communication', 'Client Relations'] },
     'Generate Quote':         { skills_needed: ['Pricing', 'Planning', 'Client Relations'] },
     'Prepare Contract':       { skills_needed: ['Legal', 'Documentation', 'Contract Management'] },
@@ -117,7 +123,11 @@ const PIPELINE_TASK_SKILLS: Record<string, { skills_needed: string[] }> = {
     'Create & Review Proposal': { skills_needed: ['Creative Direction', 'Presentation', 'Pricing'] },
     'Send Proposal':          { skills_needed: ['Communication', 'Client Relations'] },
     'Confirm Booking':        { skills_needed: ['Client Relations', 'Documentation'] },
-    'Send Welcome Pack':      { skills_needed: ['Client Relations', 'Communication'] },
+    'Confirm crew availability': { skills_needed: ['Scheduling', 'Project Management', 'Communication'] },
+    'Confirm Deposit Received': { skills_needed: ['Finance', 'Client Relations'] },
+    'Send Receipt':           { skills_needed: ['Finance', 'Client Relations', 'Communication'] },
+    'Review Client Proposal Notes': { skills_needed: ['Client Relations', 'Communication', 'Creative Direction'] },
+    'Send Booking Confirmation': { skills_needed: ['Client Relations', 'Communication'] },
 };
 
 export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: number): Promise<number> {
@@ -218,6 +228,19 @@ export async function createMoonriseTaskLibrary(db: PrismaClient, brandId: numbe
                 logger.skipped(`Task updated: ${child.name}`, `→ ${stage.name}`);
             }
         }
+    }
+
+    // Deactivate any task library entries that are no longer in the seed data
+    const seededChildNames = new Set(PIPELINE_STAGES.flatMap(s => s.children.map(c => c.name)));
+    const seededStageNames = new Set(PIPELINE_STAGES.map(s => s.name));
+    const allSeededNames = new Set([...seededChildNames, ...seededStageNames]);
+    const allPipelineEntries = await prisma.task_library.findMany({
+        where: { brand_id: brandId, is_active: true, phase: { in: ['Inquiry', 'Booking'] } },
+    });
+    const staleEntries = allPipelineEntries.filter(e => !allSeededNames.has(e.name));
+    for (const stale of staleEntries) {
+        await prisma.task_library.update({ where: { id: stale.id }, data: { is_active: false } });
+        logger.skipped(`Deactivated stale task: ${stale.name}`, `no longer in seed`);
     }
 
     logger.summary('Pipeline stages', { created: stageCreated, updated: stageUpdated, skipped: stageSkipped, total: stageCreated + stageUpdated + stageSkipped });
@@ -783,6 +806,7 @@ export async function seedTaskCrewAssignments(db: PrismaClient, brandId: number)
             skills_needed: true,
             default_job_role_id: true,
             default_crew_id: true,
+            is_lead_task: true,
         },
     });
 
@@ -896,6 +920,10 @@ export async function seedTaskCrewAssignments(db: PrismaClient, brandId: number)
         if (bestCrewMember && task.default_crew_id !== bestCrewMember.id) {
             updateData.default_crew_id = bestCrewMember.id;
         }
+        // Auto-mark all producer tasks as lead tasks
+        if (roleName === 'producer' && !task.is_lead_task) {
+            updateData.is_lead_task = true;
+        }
 
         if (Object.keys(updateData).length > 0) {
             await prisma.task_library.update({
@@ -973,12 +1001,131 @@ async function main() {
         const backfilled = await backfillPipelineSkills(prisma, brand.id);
         logger.info(`Backfilled skills on ${backfilled} pipeline tasks`);
 
+        const leadCount = await seedLeadTaskLibrary(prisma, brand.id);
+        logger.success(`Lead task library: ${leadCount} items`);
+
         const summary = await seedTaskCrewAssignments(prisma, brand.id);
         logger.success(`Crew assignment complete! ${summary.created} assignments made.`);
     } catch (error) {
         logger.error(`Workflow setup failed: ${String(error)}`);
         throw error;
     }
+}
+
+// ─── Lead-specific task library definitions ──────────────────────────
+// Tasks auto-generated when a crew member is toggled as lead producer/videographer/editor.
+// Stored in task_library so they appear in the Task Library UI and are editable.
+// The `lead_role_name` maps to a job_role.name to set default_job_role_id.
+interface LeadTaskDef {
+    name: string;
+    description: string;
+    phase: $Enums.project_phase;
+    lead_role_name: string; // job_role.name — used to set default_job_role_id
+    due_date_offset_days: number | null;
+    due_date_offset_reference: $Enums.due_date_offset_reference | null;
+    order_index: number;
+    skills_needed: string[];
+}
+
+const LEAD_TASK_LIBRARY: LeadTaskDef[] = [
+    // ── Lead Videographer ──
+    { name: 'Plan shot list / creative brief', description: 'Prepare the visual approach and shot list for the shoot.',                    phase: 'Pre_Production',  lead_role_name: 'videographer', due_date_offset_days: -7, due_date_offset_reference: 'event_date',   order_index: 110, skills_needed: ['Cinematography', 'Camera Operation', 'Event Coverage'] },
+    { name: 'Equipment check & prep',          description: 'Verify all camera gear is tested, charged, and packed before the shoot.',     phase: 'Pre_Production',  lead_role_name: 'videographer', due_date_offset_days: -2, due_date_offset_reference: 'event_date',   order_index: 111, skills_needed: ['Equipment Management', 'Technical Knowledge', 'Camera Operation'] },
+    { name: 'Review raw footage quality',      description: 'Check all captured footage for quality before handoff to post-production.',   phase: 'Post_Production', lead_role_name: 'videographer', due_date_offset_days: 3,  due_date_offset_reference: 'event_date',   order_index: 112, skills_needed: ['Cinematography', 'Camera Operation'] },
+
+    // ── Lead Editor ──
+    { name: 'Review raw footage & organise',   description: 'Ingest, log, and organise all footage ready for editing.',                    phase: 'Post_Production', lead_role_name: 'editor', due_date_offset_days: 5,    due_date_offset_reference: 'event_date',     order_index: 120, skills_needed: ['Video Editing', 'Organization', 'Content Review'] },
+    { name: 'Final QC & export',               description: 'Quality-check final deliverables and export in required formats.',            phase: 'Delivery',        lead_role_name: 'editor', due_date_offset_days: null, due_date_offset_reference: null,              order_index: 121, skills_needed: ['Quality Control', 'Final Export', 'Media Rendering'] },
+];
+
+/**
+ * Seeds lead-specific tasks into the task_library.
+ * Each task has default_job_role_id set to the matching role.
+ * These are standalone tasks (not inside a task_group stage).
+ */
+/** Old standalone lead tasks that were merged into pipeline stages and should be deleted. */
+const RETIRED_LEAD_TASKS = [
+    'Introduce yourself to client',
+    'Review & approve proposal',
+    'Pre-production client check-in',
+    'Coordinate shoot-day logistics',
+    'Post-event client follow-up',
+    'Confirm crew availability',
+];
+
+export async function seedLeadTaskLibrary(db: PrismaClient, brandId: number): Promise<number> {
+    const log = createSeedLogger(SeedType.MOONRISE);
+    let count = 0;
+
+    // Clean up retired standalone lead tasks (now merged into pipeline stages)
+    const currentNames = LEAD_TASK_LIBRARY.map(d => d.name);
+    for (const name of RETIRED_LEAD_TASKS) {
+        if (currentNames.includes(name)) continue; // still active, skip
+        const old = await db.task_library.findFirst({
+            where: { name, brand_id: brandId, parent_task_id: null, is_task_group: false },
+        });
+        if (old) {
+            await db.task_library.delete({ where: { id: old.id } });
+            log.created(`Deleted retired lead task: ${name}`, 'cleanup');
+        }
+    }
+
+    // Resolve job role IDs
+    const roles = await db.job_roles.findMany({
+        where: { name: { in: ['producer', 'videographer', 'editor'] } },
+        select: { id: true, name: true },
+    });
+    const roleByName = new Map(roles.map((r) => [r.name, r.id]));
+
+    for (const def of LEAD_TASK_LIBRARY) {
+        const jobRoleId = roleByName.get(def.lead_role_name) ?? null;
+
+        const existing = await db.task_library.findFirst({
+            where: { name: def.name, brand_id: brandId },
+        });
+
+        if (existing) {
+            await db.task_library.update({
+                where: { id: existing.id },
+                data: {
+                    description: def.description,
+                    phase: def.phase,
+                    order_index: def.order_index,
+                    default_job_role_id: jobRoleId,
+                    due_date_offset_days: def.due_date_offset_days,
+                    due_date_offset_reference: def.due_date_offset_reference,
+                    skills_needed: def.skills_needed,
+                    is_lead_task: true,
+                    is_active: true,
+                },
+            });
+            log.skipped(`Lead task updated: ${def.name}`, def.lead_role_name);
+        } else {
+            await db.task_library.create({
+                data: {
+                    name: def.name,
+                    description: def.description,
+                    phase: def.phase,
+                    pricing_type: $Enums.pricing_type_options.Fixed,
+                    effort_hours: 0,
+                    order_index: def.order_index,
+                    brand_id: brandId,
+                    default_job_role_id: jobRoleId,
+                    due_date_offset_days: def.due_date_offset_days,
+                    due_date_offset_reference: def.due_date_offset_reference,
+                    skills_needed: def.skills_needed,
+                    is_lead_task: true,
+                    is_task_group: false,
+                    is_auto_only: false,
+                    is_active: true,
+                },
+            });
+            log.created(`Lead task: ${def.name}`, def.lead_role_name);
+            count++;
+        }
+    }
+
+    return count;
 }
 
 if (require.main === module) {

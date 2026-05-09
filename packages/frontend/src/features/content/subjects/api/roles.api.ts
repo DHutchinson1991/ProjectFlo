@@ -21,7 +21,7 @@ export const createRolesApi = (client: ApiClient) => ({
   createRole: (brandId: number, dto: CreateSubjectRoleDto): Promise<SubjectRole | SubjectRole[]> =>
     client.post(`/api/subjects/roles/brand/${brandId}`, dto),
 
-  updateRole: (roleId: number, dto: { role_name?: string; description?: string; is_core?: boolean }): Promise<SubjectRole> =>
+  updateRole: (roleId: number, dto: { role_name?: string; description?: string; is_group?: boolean; never_group?: boolean }): Promise<SubjectRole> =>
     client.patch(`/api/subjects/roles/${roleId}`, dto),
 
   deleteRole: (roleId: number): Promise<void> =>

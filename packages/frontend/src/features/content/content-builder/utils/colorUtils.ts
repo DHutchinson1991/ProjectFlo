@@ -95,3 +95,17 @@ export const getDefaultTrackColor = (trackType: string): string => {
         default: return "#757575";
     }
 };
+
+/**
+ * Gets the gold color for camera targeting subject outlines.
+ * Used for visual feedback when a camera is selected to show targeted subjects.
+ * 
+ * @returns Hex color code for gold (#FFD700)
+ * 
+ * @example
+ * const goldOutline = getCameraColor();
+ * // Returns: "#FFD700"
+ */
+export const getCameraColor = (): string => {
+    return "#FFD700"; // Gold for camera targeting feedback
+};

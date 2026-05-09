@@ -3,7 +3,7 @@ import { wizardStudioDataApi, inquiryWizardTemplatesApi } from '../api';
 import type { InquiryWizardTemplate } from '../types';
 import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import type { PackageSet } from '@/features/catalog/packages/types/package-set.types';
-import type { EventType } from '@/features/catalog/event-types/types';
+import type { EventType } from '@/features/catalog/package-templates/types';
 import type { WelcomeSettings } from '@/features/platform/brand/types';
 import type { Crew } from '@/shared/types/users';
 import { useBrand } from '@/features/platform/brand';

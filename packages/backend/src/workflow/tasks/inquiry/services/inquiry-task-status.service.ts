@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../../../platform/prisma/prisma.service';
-import { ContractsService } from '../../../../finance/contracts/contracts.service';
+import type { ContractsService } from '../../../../finance/contracts/contracts.service';
 import { type InquiryTaskSubtaskKey } from '../constants/inquiry-task-subtasks.constants';
 
 @Injectable()
@@ -8,7 +8,7 @@ export class InquiryTaskStatusService {
     private readonly logger = new Logger(InquiryTaskStatusService.name);
     constructor(
         private prisma: PrismaService,
-        @Inject(forwardRef(() => ContractsService))
+        @Inject(forwardRef(() => require('../../../../finance/contracts/contracts.service').ContractsService))
         private contractsService: ContractsService,
     ) {}
 
@@ -73,7 +73,7 @@ export class InquiryTaskStatusService {
         const inquiry = await this.prisma.inquiries.findUnique({
             where: { id: inquiryId },
             select: {
-                id: true, wedding_date: true, event_type_id: true, selected_package_id: true,
+                id: true, wedding_date: true, event_category: true, selected_package_id: true,
                 contact: { select: { email: true, phone_number: true } },
             },
         });
@@ -81,8 +81,17 @@ export class InquiryTaskStatusService {
 
         await this.setAutoSubtaskStatus(inquiryId, 'verify_contact_details', Boolean(inquiry.contact?.email && inquiry.contact?.phone_number));
         await this.setAutoSubtaskStatus(inquiryId, 'verify_event_date', Boolean(inquiry.wedding_date));
-        await this.setAutoSubtaskStatus(inquiryId, 'verify_event_type', Boolean(inquiry.event_type_id));
+        await this.setAutoSubtaskStatus(inquiryId, 'verify_event_type', Boolean(inquiry.event_category));
         await this.setAutoSubtaskStatus(inquiryId, 'confirm_package_selection', Boolean(inquiry.selected_package_id));
+
+        // Estimate is reviewed if any Sent estimate exists
+        const sentEstimate = await this.prisma.estimates.findFirst({
+            where: { inquiry_id: inquiryId, status: 'Sent' },
+            select: { id: true },
+        });
+        if (sentEstimate) {
+            await this.setAutoSubtaskStatus(inquiryId, 'review_estimate', true);
+        }
     }
 
     async setAutoSubtaskStatus(inquiryId: number, subtaskKey: InquiryTaskSubtaskKey, isComplete: boolean, completedById?: number) {
@@ -127,7 +136,6 @@ export class InquiryTaskStatusService {
                 data: { status: 'Qualified' },
                 include: {
                     contact: { select: { first_name: true, last_name: true, brand_id: true } },
-                    event_type: { select: { name: true } },
                 },
             });
 
@@ -143,7 +151,7 @@ export class InquiryTaskStatusService {
                     if (psaTemplate) {
                         const contactName = [inquiry.contact?.first_name, inquiry.contact?.last_name]
                             .filter(Boolean).join(' ').trim() || 'Client';
-                        const eventType = inquiry.event_type?.name || 'Event';
+                        const eventType = inquiry.event_category || 'Event';
                         const title = `${contactName} ${eventType} Professional Services Agreement`;
                         await this.contractsService.composeFromTemplate(inquiryId, brandId, {
                             template_id: psaTemplate.id, title,

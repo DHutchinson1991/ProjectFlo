@@ -17,7 +17,6 @@ type SceneWithIncludes = Prisma.FilmSceneGetPayload<{
     include: {
         moments: { include: { recording_setup: { include: { camera_assignments: true } }; subjects: true }; orderBy: { order_index: 'asc' } };
         beats: { include: { recording_setup: true }; orderBy: { order_index: 'asc' } };
-        subjects: true;
         location_assignment: true;
         recording_setup: { include: { camera_assignments: true } };
     };
@@ -55,7 +54,6 @@ export class ProjectFilmSceneCloneService {
                     include: { recording_setup: { include: { camera_assignments: true } }, subjects: true },
                 },
                 beats: { orderBy: { order_index: 'asc' }, include: { recording_setup: true } },
-                subjects: true,
                 location_assignment: true,
                 recording_setup: { include: { camera_assignments: true } },
             },
@@ -80,7 +78,7 @@ export class ProjectFilmSceneCloneService {
 
             await this._cloneMoments(prisma, ownerFields, instanceScene.id, scene.moments, trackMap, subjectMap);
             await this._cloneBeats(prisma, ownerFields, instanceScene.id, scene.beats, trackMap);
-            await this._cloneSceneSubjectsAndLocation(prisma, instanceScene.id, scene.subjects, scene.location_assignment, subjectMap);
+            await this._cloneSceneSubjectsAndLocation(prisma, instanceScene.id, scene.moments, scene.location_assignment, subjectMap);
             await this._cloneSceneRecordingSetup(prisma, instanceScene.id, scene.recording_setup, trackMap, subjectMap);
         }
 
@@ -98,7 +96,7 @@ export class ProjectFilmSceneCloneService {
     ) {
         for (const moment of moments) {
             const instanceMoment = await prisma.projectFilmSceneMoment.create({
-                data: { ...ownerFields, project_scene_id: instanceSceneId, source_moment_id: moment.id, name: moment.name, order_index: moment.order_index, duration: moment.duration },
+                data: { ...ownerFields, project_scene_id: instanceSceneId, source_moment_id: moment.id, name: moment.name, description: moment.description, order_index: moment.order_index, duration: moment.duration },
             });
             for (const ms of moment.subjects) {
                 const instanceSubjectId = subjectMap.get(ms.subject_id);
@@ -137,13 +135,21 @@ export class ProjectFilmSceneCloneService {
     private async _cloneSceneSubjectsAndLocation(
         prisma: Prisma.TransactionClient | PrismaService,
         instanceSceneId: number,
-        subjects: SceneWithIncludes['subjects'],
+        moments: SceneWithIncludes['moments'],
         locationAssignment: SceneWithIncludes['location_assignment'],
         subjectMap: Map<number, number>,
     ) {
-        for (const ss of subjects) {
-            const instanceSubjectId = subjectMap.get(ss.subject_id);
-            if (instanceSubjectId) await prisma.projectFilmSceneSubject.create({ data: { project_scene_id: instanceSceneId, project_film_subject_id: instanceSubjectId, source_scene_subject_id: ss.id, priority: ss.priority, notes: ss.notes } });
+        // Derive unique subjects from moment assignments
+        const seenSubjects = new Set<number>();
+        for (const moment of moments) {
+            for (const ms of (moment.subjects || [])) {
+                if (seenSubjects.has(ms.subject_id)) continue;
+                seenSubjects.add(ms.subject_id);
+                const instanceSubjectId = subjectMap.get(ms.subject_id);
+                if (instanceSubjectId) {
+                    await prisma.projectFilmSceneSubject.create({ data: { project_scene_id: instanceSceneId, project_film_subject_id: instanceSubjectId, priority: ms.priority, notes: ms.notes } });
+                }
+            }
         }
         if (locationAssignment) {
             await prisma.projectFilmSceneLocation.create({ data: { project_scene_id: instanceSceneId, location_id: locationAssignment.location_id, source_scene_location_id: locationAssignment.id } });

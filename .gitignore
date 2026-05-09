@@ -24,6 +24,10 @@ pnpm-debug.log*
 # Authentication tokens and secrets
 .auth/
 
+# Playwright MCP browser profiles
+.playwright-mcp/
+.playwright-mcp2/
+
 # === Build Artifacts, Cache & Output ===
 # General
 build/

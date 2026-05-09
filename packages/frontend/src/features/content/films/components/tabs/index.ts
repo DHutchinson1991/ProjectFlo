@@ -1,6 +1,7 @@
 export { FilmEquipmentTab } from './FilmEquipmentTab';
 export { FilmScenesTab } from './FilmScenesTab';
-export { FilmSubjectsTab } from './FilmSubjectsTab';
+export { SubjectsTab } from './SubjectsTab';
+export { SubjectsTab as FilmSubjectsTab } from './SubjectsTab';
 export { FilmLayersTab } from './FilmLayersTab';
 export { FilmSettingsTab } from './FilmSettingsTab';
 export { FilmCrewSlotsTab } from './FilmCrewSlotsTab';

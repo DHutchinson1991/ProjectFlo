@@ -11,6 +11,10 @@ export class UpdateEventDayActivityDto {
 
   @IsOptional()
   @IsString()
+  location_label?: string;
+
+  @IsOptional()
+  @IsString()
   color?: string;
 
   @IsOptional()

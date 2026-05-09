@@ -77,19 +77,19 @@ export class BrandsService {
     }
 
     const currentTypes = brand.service_types ?? [];
-    const eventTypes = await this.prisma.eventType.findMany({
+    const templates = await this.prisma.packageTemplate.findMany({
       where: { brand_id: id, is_active: true },
-      select: { name: true },
+      select: { event_category: true },
     });
-    const nameToKey: Record<string, string> = {
+    const categoryToKey: Record<string, string> = {
       Wedding: "WEDDING",
       Birthday: "BIRTHDAY",
       Engagement: "ENGAGEMENT",
     };
-    const derivedKeys = eventTypes
-      .map((eventType) => nameToKey[eventType.name])
+    const derivedKeys = templates
+      .map((t) => categoryToKey[t.event_category])
       .filter((key): key is string => Boolean(key));
-    const missingFromArray = derivedKeys.filter((key) => !currentTypes.includes(key));
+    const missingFromArray = derivedKeys.filter((key: string) => !currentTypes.includes(key));
 
     if (missingFromArray.length > 0) {
       const merged = [...currentTypes, ...missingFromArray];

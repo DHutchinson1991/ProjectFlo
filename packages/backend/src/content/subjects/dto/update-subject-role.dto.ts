@@ -11,9 +11,9 @@ export class UpdateSubjectRoleDto {
 
     @IsOptional()
     @IsBoolean()
-    is_core?: boolean;
+    is_group?: boolean;
 
     @IsOptional()
     @IsBoolean()
-    is_group?: boolean;
+    never_group?: boolean;
 }

@@ -2,12 +2,15 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, ParseIntPipe, UseGua
 import { AuthGuard } from '@nestjs/passport';
 import { SchedulePackageService } from '../services/schedule-package.service';
 import { SchedulePackageActivityService } from '../services/schedule-package-activity.service';
+import { SchedulePackageContentCreationService } from '../services/schedule-package-content-creation.service';
 import {
   AddPackageEventDayDto, SetPackageEventDaysDto,
+  CreatePackageFilmContentDto,
   CreatePackageFilmDto, UpdatePackageFilmDto, UpsertPackageFilmSceneScheduleDto,
   CreatePackageActivityDto, UpdatePackageActivityDto,
   CreatePackageActivityMomentDto, UpdatePackageActivityMomentDto, BulkCreatePackageActivityMomentsDto,
 } from '../dto';
+import { BrandId } from '../../../platform/auth/decorators/brand-id.decorator';
 
 @Controller('api/schedule')
 @UseGuards(AuthGuard('jwt'))
@@ -15,6 +18,7 @@ export class SchedulePackageController {
   constructor(
     private readonly packageService: SchedulePackageService,
     private readonly activityService: SchedulePackageActivityService,
+    private readonly contentCreationService: SchedulePackageContentCreationService,
   ) {}
 
   @Get('packages/:packageId/summary')
@@ -50,6 +54,15 @@ export class SchedulePackageController {
   @Post('packages/:packageId/films')
   createPackageFilm(@Param('packageId', ParseIntPipe) packageId: number, @Body(new ValidationPipe({ transform: true })) dto: CreatePackageFilmDto) {
     return this.packageService.createPackageFilm(packageId, dto);
+  }
+
+  @Post('packages/:packageId/films/create-content')
+  createPackageFilmContent(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePackageFilmContentDto,
+  ) {
+    return this.contentCreationService.createForPackage(packageId, brandId, dto);
   }
 
   @Patch('packages/films/:packageFilmId')

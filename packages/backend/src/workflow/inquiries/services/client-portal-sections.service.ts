@@ -57,15 +57,19 @@ export class ClientPortalSectionsService {
             .flatMap((d) => d.location_slots || [])
             .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))[0];
 
+        // Resolve lead producer from crew slots
+        const leadProducer = this._resolveLeadProducer(inquiry);
+
         return {
             inquiry_id: inquiry.id,
             status: inquiry.status,
             event_date: inquiry.wedding_date,
-            event_type: inquiry.event_type?.name ?? null,
-            event_type_id: inquiry.event_type?.id ?? null,
+            event_type: inquiry.event_category ?? null,
+            event_type_id: null,
             venue: firstLocationSlot?.location?.name ?? firstLocationSlot?.name ?? null,
             venue_address: firstLocationSlot?.location?.address_line1 ?? firstLocationSlot?.address ?? null,
             is_contract_signed: contract?.status === 'Signed',
+            lead_producer: leadProducer,
             contact: {
                 first_name: inquiry.contact.first_name,
                 last_name: inquiry.contact.last_name,
@@ -351,9 +355,30 @@ export class ClientPortalSectionsService {
                           })),
                       }
                     : null,
-            welcome_pack: inquiry.welcome_sent_at
-                ? { status: 'complete' as const, data: { sent_at: inquiry.welcome_sent_at } }
-                : null,
+
         };
+    }
+
+    /** Extract lead producer from schedule_event_days crew slots. */
+    private _resolveLeadProducer(inquiry: PortalInquiry): { name: string; email: string | null; phone: string | null; description: string | null } | null {
+        for (const day of inquiry.schedule_event_days ?? []) {
+            // Prefer lead_type='producer' first, then producer role
+            const sorted = [...(day.day_crew_slots ?? [])].sort(
+                (a, b) => ((b as any).lead_type === 'producer' ? 1 : 0) - ((a as any).lead_type === 'producer' ? 1 : 0),
+            );
+            for (const slot of sorted) {
+                const roleName = slot.job_role?.name?.toLowerCase() ?? '';
+                if (((slot as any).lead_type === 'producer' || roleName.includes('producer')) && slot.crew?.contact) {
+                    const c = slot.crew.contact;
+                    return {
+                        name: [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Producer',
+                        email: (c as any).email ?? null,
+                        phone: (c as any).phone_number ?? null,
+                        description: slot.job_role?.display_name ?? slot.job_role?.name ?? 'Lead Producer',
+                    };
+                }
+            }
+        }
+        return null;
     }
 }

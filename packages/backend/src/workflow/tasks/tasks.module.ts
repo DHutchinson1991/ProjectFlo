@@ -9,6 +9,7 @@ import { InquiryTaskStatusService } from './inquiry/services/inquiry-task-status
 import { InquiryTasksService } from './inquiry/services/inquiry-tasks.service';
 import { ActiveTasksController } from './active-tasks.controller';
 import { ActiveTasksService } from './services/active-tasks.service';
+import { LeadTaskService } from './inquiry/services/lead-task.service';
 
 @Module({
     imports: [PrismaModule, forwardRef(() => ContractsModule)],
@@ -19,7 +20,8 @@ import { ActiveTasksService } from './services/active-tasks.service';
         InquiryTaskStatusService,
         InquiryTasksService,
         ActiveTasksService,
+        LeadTaskService,
     ],
-    exports: [InquiryTasksService, InquiryTaskLifecycleService, ActiveTasksService],
+    exports: [InquiryTasksService, InquiryTaskLifecycleService, ActiveTasksService, LeadTaskService],
 })
 export class TasksModule {}

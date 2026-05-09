@@ -15,7 +15,9 @@ import {
 import type { Contract, ContractSigner, ContractClause, ContractClauseCategory } from '@/features/finance/contracts/types';
 import type { WorkflowCardProps } from '@/features/workflow/inquiries/lib';
 import { WorkflowCard } from '@/shared/ui/WorkflowCard';
-import { useInquiryContracts, useContractListMutations, useContractClauseCategories, useContractDetailMutations } from '../hooks';
+import { useInquiryContracts, useContractListMutations, useContractClauseCategories, useContractDetailMutations, useContractTemplates } from '../hooks';
+import { contractsApi } from '../api';
+import { useBrand } from '@/features/platform/brand';
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
@@ -110,6 +112,11 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
     const { contracts, isLoading } = useInquiryContracts(inquiry?.id);
     const { sendContract, deleteContract } = useContractListMutations(inquiry?.id);
     const { data: clauseCategories } = useContractClauseCategories();
+    const { data: templates } = useContractTemplates();
+    const { currentBrand } = useBrand();
+    const [composing, setComposing] = useState(false);
+
+    const hasProposal = (inquiry.proposals?.length ?? 0) > 0;
 
     // Send dialog state
     const [sendOpen, setSendOpen] = useState(false);
@@ -246,12 +253,20 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
     const handleOpenSend = (contractId: number) => {
         const contract = contracts.find((c) => c.id === contractId);
         setSendContractId(contractId);
-        // Pre-fill with contact info
-        setSignerRows([{
-            name: `${inquiry.contact?.first_name || ''} ${inquiry.contact?.last_name || ''}`.trim(),
-            email: inquiry.contact?.email || '',
-            role: 'client',
-        }]);
+        // Pre-fill with producer signer + client signer
+        const producer = inquiry.lead_producer;
+        setSignerRows([
+            {
+                name: producer?.name || currentBrand?.name || 'Producer',
+                email: producer?.email || '',
+                role: 'producer',
+            },
+            {
+                name: `${inquiry.contact?.first_name || ''} ${inquiry.contact?.last_name || ''}`.trim(),
+                email: inquiry.contact?.email || '',
+                role: 'client',
+            },
+        ]);
         setSendOpen(true);
     };
 
@@ -319,6 +334,24 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
         setPreviewOpen(true);
     };
 
+    const handleCreateContract = async () => {
+        const defaultTemplate = templates?.find((t) => t.is_default) ?? templates?.[0];
+        if (!defaultTemplate) {
+            setSnack({ open: true, message: 'No contract template found. Create one in Settings first.', severity: 'error' });
+            return;
+        }
+        setComposing(true);
+        try {
+            await contractsApi.compose(inquiry.id, { template_id: defaultTemplate.id });
+            if (onRefresh) onRefresh();
+            setSnack({ open: true, message: 'Contract created!', severity: 'success' });
+        } catch {
+            setSnack({ open: true, message: 'Failed to create contract.', severity: 'error' });
+        } finally {
+            setComposing(false);
+        }
+    };
+
     /* ── Render ─────────────────────────────────────────────────────── */
 
     return (
@@ -345,9 +378,21 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                             <Gavel sx={{ fontSize: 22, color: '#6366f1' }} />
                         </Box>
                         <Typography sx={{ color: '#94a3b8', fontSize: '0.85rem', fontWeight: 500 }}>No contracts yet</Typography>
-                        <Typography sx={{ color: '#475569', fontSize: '0.72rem', mt: 0.5 }}>
-                            A Professional Services Agreement will be created automatically when the proposal is generated
-                        </Typography>
+                        {hasProposal ? (
+                            <Button
+                                size="small"
+                                startIcon={composing ? <CircularProgress size={14} /> : <Add />}
+                                onClick={handleCreateContract}
+                                disabled={composing}
+                                sx={{ mt: 1.5, borderRadius: 2, textTransform: 'none', fontWeight: 600, fontSize: '0.78rem' }}
+                            >
+                                {composing ? 'Creating...' : 'Create Contract'}
+                            </Button>
+                        ) : (
+                            <Typography sx={{ color: '#475569', fontSize: '0.72rem', mt: 0.5 }}>
+                                A Professional Services Agreement will be created automatically when the proposal is generated
+                            </Typography>
+                        )}
                     </Box>
                 ) : (
                     <Stack spacing={2}>
@@ -466,7 +511,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                                 ))}
                                             </Box>
                                             {contract.signers?.map((s) => (
-                                                <Box key={s.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.3 }}>
+                                                <Box key={s.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.4 }}>
                                                     <Box sx={{
                                                         width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                                                         bgcolor: s.status === 'signed' ? 'rgba(34,197,94,0.1)' : s.status === 'viewed' ? 'rgba(59,130,246,0.1)' : 'rgba(148,163,184,0.06)',
@@ -475,8 +520,18 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                                             : s.status === 'viewed' ? <Visibility sx={{ fontSize: 11, color: '#3b82f6' }} />
                                                                 : <HourglassEmpty sx={{ fontSize: 11, color: '#64748b' }} />}
                                                     </Box>
-                                                    <Typography sx={{ fontSize: '0.68rem', color: '#cbd5e1', flex: 1 }}>{s.name}</Typography>
-                                                    <Typography sx={{ fontSize: '0.58rem', color: '#475569' }}>{s.role}</Typography>
+                                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                        <Typography sx={{ fontSize: '0.68rem', color: '#cbd5e1' }}>{s.name}</Typography>
+                                                        <Typography sx={{ fontSize: '0.58rem', color: '#475569' }}>
+                                                            {s.status === 'signed' && s.signed_at
+                                                                ? `Signed ${timeAgo(s.signed_at)}`
+                                                                : s.status === 'viewed' && s.viewed_at
+                                                                    ? `Viewed ${timeAgo(s.viewed_at)} · not yet signed`
+                                                                    : s.status === 'pending' && contract.sent_at
+                                                                        ? `Pending ${timeAgo(contract.sent_at).replace('ago', '').trim()}`
+                                                                        : s.role}
+                                                        </Typography>
+                                                    </Box>
                                                     <Tooltip title="Copy signing link">
                                                         <IconButton size="small" onClick={() => handleCopySigningLink(s)} sx={{ p: 0.25, color: '#475569', '&:hover': { color: '#94a3b8' } }}>
                                                             <ContentCopy sx={{ fontSize: 11 }} />
@@ -691,7 +746,7 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                 <DialogContent sx={{ pt: 2 }}>
                     <Typography sx={{ color: '#94a3b8', fontSize: '0.82rem', mb: 2 }}>
                         The contract will be viewable in the client proposal. Add the signers who need to sign.
-                        Signers with role <strong style={{ color: '#a5b4fc' }}>Studio</strong> are counter-signed automatically on publish.
+                        Signers with role <strong style={{ color: '#a5b4fc' }}>Producer</strong> are counter-signed automatically on publish.
                     </Typography>
                     <Stack spacing={2}>
                         {signerRows.map((row, idx) => (
@@ -709,9 +764,9 @@ const ContractsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                                     <Select value={row.role} onChange={(e) => handleSignerChange(idx, 'role', e.target.value)}
                                         label="Role" sx={{ color: '#e2e8f0' }}>
                                         <MenuItem value="client">Client</MenuItem>
-                                        <MenuItem value="studio">
+                                        <MenuItem value="producer">
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                                Studio
+                                                Producer
                                                 <Chip label="Auto-signs" size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 700, bgcolor: 'rgba(99,102,241,0.15)', color: '#a5b4fc', ml: 0.5 }} />
                                             </Box>
                                         </MenuItem>

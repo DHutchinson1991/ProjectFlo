@@ -62,6 +62,17 @@ export const useMomentRecordingSetup = ({
             graphics_title: data.graphics_title ?? null,
           };
 
+      const normalizedAudioAssignments = setupSource.audio_assignments?.length
+        ? setupSource.audio_assignments
+        : (setupSource.audio_track_ids || []).map((id) => {
+            const source = data.camera_assignments?.find((assignment) => assignment.track_id === id);
+            return {
+              id: 0,
+              track_id: id,
+              subject_ids: source?.subject_ids || [],
+            };
+          });
+
       const normalizedSetup: MomentRecordingSetupWithAssignments = {
         ...(setupSource as MomentRecordingSetupWithAssignments),
         camera_assignments: setupSource.camera_assignments?.length
@@ -76,6 +87,7 @@ export const useMomentRecordingSetup = ({
                 shot_type: source?.shot_type ?? null,
               };
             }),
+        audio_assignments: normalizedAudioAssignments,
       };
 
       // Refetch scene to get updated subjects with role_template

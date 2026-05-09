@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button, LinearProgress } from '@mui/material';
-import { CardGiftcard, CheckCircle, Close } from '@mui/icons-material';
+import { CheckCircle, Close } from '@mui/icons-material';
 import { inquiriesApi } from '@/features/workflow/inquiries';
 import { inquiryWizardSubmissionsApi } from '@/features/workflow/inquiry-wizard';
 import { InquiryStatus } from '@/features/workflow/inquiries/types';
@@ -14,8 +15,8 @@ import type { DiscoveryCallData } from '../qualify-card/types';
 import type { HeaderActionsProps } from './types';
 
 export default function HeaderActions({ inquiry, inquiryTasks, submission, onRefresh, onSnackbar }: HeaderActionsProps) {
-    const [sendingWelcomePack, setSendingWelcomePack] = useState(false);
-    const [welcomePackSent, setWelcomePackSent] = useState(!!inquiry.welcome_sent_at);
+    const router = useRouter();
+
     const [qualifying, setQualifying] = useState(false);
     const [updatingOutcome, setUpdatingOutcome] = useState<null | 'convert' | 'cancel'>(null);
     const [welcomeDialogOpen, setWelcomeDialogOpen] = useState(false);
@@ -116,28 +117,21 @@ export default function HeaderActions({ inquiry, inquiryTasks, submission, onRef
         }
     };
 
-    const handleSendWelcomePack = async () => {
-        if (welcomePackSent || sendingWelcomePack) return;
-        try {
-            setSendingWelcomePack(true);
-            await inquiriesApi.sendWelcomePack(inquiry.id);
-            setWelcomePackSent(true);
-            onSnackbar('Welcome pack sent!');
-            await onRefresh();
-        } catch {
-            onSnackbar('Failed to send welcome pack');
-        } finally {
-            setSendingWelcomePack(false);
-        }
-    };
+
 
     const handleSetOutcome = async (status: InquiryStatus.WON | InquiryStatus.LOST) => {
         if (updatingOutcome) return;
         try {
             setUpdatingOutcome(status === InquiryStatus.WON ? 'convert' : 'cancel');
-            await inquiriesApi.update(inquiry.id, { status });
-            onSnackbar(status === InquiryStatus.WON ? 'Inquiry converted' : 'Inquiry cancelled');
-            await onRefresh();
+            if (status === InquiryStatus.WON) {
+                const { projectId } = await inquiriesApi.convert(inquiry.id);
+                onSnackbar('Inquiry converted to project');
+                router.push(`/projects/${projectId}`);
+            } else {
+                await inquiriesApi.update(inquiry.id, { status });
+                onSnackbar('Inquiry cancelled');
+                await onRefresh();
+            }
         } catch {
             onSnackbar(status === InquiryStatus.WON ? 'Failed to convert inquiry' : 'Failed to cancel inquiry');
         } finally {
@@ -246,41 +240,6 @@ export default function HeaderActions({ inquiry, inquiryTasks, submission, onRef
                 error={welcomeError}
             />
 
-            {/* Send Welcome Pack button — shown only when inquiry is Booked */}
-            {inquiry.status === 'Booked' && (
-                <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={
-                        sendingWelcomePack
-                            ? <LinearProgress sx={{ width: 14 }} />
-                            : <CardGiftcard sx={{ fontSize: 14 }} />
-                    }
-                    disabled={welcomePackSent || sendingWelcomePack}
-                    onClick={handleSendWelcomePack}
-                    sx={{
-                        borderColor: welcomePackSent ? 'rgba(16, 185, 129, 0.4)' : 'rgba(16, 185, 129, 0.3)',
-                        color: '#10b981',
-                        fontSize: '0.72rem',
-                        fontWeight: 600,
-                        borderRadius: 2,
-                        textTransform: 'none',
-                        px: 1.5,
-                        py: 0.5,
-                        '&:hover': {
-                            bgcolor: 'rgba(16, 185, 129, 0.08)',
-                            borderColor: 'rgba(16, 185, 129, 0.5)',
-                        },
-                        '&.Mui-disabled': {
-                            borderColor: 'rgba(16, 185, 129, 0.25)',
-                            color: '#10b981',
-                            opacity: 0.6,
-                        },
-                    }}
-                >
-                    {welcomePackSent ? 'Welcome Pack Sent' : 'Send Welcome Pack'}
-                </Button>
-            )}
 
         </>
     );

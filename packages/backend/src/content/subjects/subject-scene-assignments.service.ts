@@ -1,76 +1,53 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../platform/prisma/prisma.service';
-import { CreateSceneSubjectDto } from './dto/create-scene-subject.dto';
-import { UpdateSceneSubjectDto } from './dto/update-scene-subject.dto';
-import { mapToSceneSubjectResponse } from './subject.mapper';
-import { SubjectPriority } from '@prisma/client';
 
+/**
+ * Scene-level subject assignments are now computed from moment assignments.
+ * FilmSceneSubject table has been removed.
+ * This service provides read-only helpers for scene-level subject queries.
+ */
 @Injectable()
 export class SubjectSceneAssignmentsService {
     constructor(private prisma: PrismaService) { }
 
+    /** Get distinct subjects assigned to any moment in this scene. */
     async getSceneSubjects(sceneId: number) {
         const scene = await this.prisma.filmScene.findUnique({ where: { id: sceneId } });
         if (!scene) throw new NotFoundException(`Scene with ID ${sceneId} not found`);
 
-        const subjects = await this.prisma.filmSceneSubject.findMany({
-            where: { scene_id: sceneId },
+        const momentSubjects = await this.prisma.filmSceneMomentSubject.findMany({
+            where: { moment: { film_scene_id: sceneId } },
             include: { subject: { include: { role_template: true } } },
+            distinct: ['subject_id'],
             orderBy: { created_at: 'asc' },
         });
 
-        return subjects.map((s) => mapToSceneSubjectResponse(s));
-    }
-
-    async assignSubjectToScene(sceneId: number, dto: CreateSceneSubjectDto) {
-        const scene = await this.prisma.filmScene.findUnique({ where: { id: sceneId } });
-        if (!scene) throw new NotFoundException(`Scene with ID ${sceneId} not found`);
-
-        const subject = await this.prisma.filmSubject.findUnique({ where: { id: dto.subject_id } });
-        if (!subject) throw new NotFoundException(`Subject with ID ${dto.subject_id} not found`);
-
-        if (subject.film_id !== scene.film_id) {
-            throw new BadRequestException('Subject does not belong to the same film as this scene');
-        }
-
-        const sceneSubject = await this.prisma.filmSceneSubject.upsert({
-            where: { scene_id_subject_id: { scene_id: sceneId, subject_id: dto.subject_id } },
-            update: { priority: dto.priority ?? undefined, notes: dto.notes ?? undefined },
-            create: {
-                scene_id: sceneId,
-                subject_id: dto.subject_id,
-                priority: dto.priority ?? SubjectPriority.BACKGROUND,
-                notes: dto.notes,
+        return momentSubjects.map((ms) => ({
+            id: ms.id,
+            scene_id: sceneId,
+            subject_id: ms.subject_id,
+            priority: ms.priority,
+            notes: ms.notes,
+            subject: {
+                id: ms.subject.id,
+                package_id: ms.subject.package_id,
+                name: ms.subject.name,
+                role_template_id: ms.subject.role_template_id ?? null,
+                role: ms.subject.role_template ? {
+                    id: ms.subject.role_template.id,
+                    role_name: ms.subject.role_template.role_name,
+                    description: ms.subject.role_template.description ?? undefined,
+                    is_group: ms.subject.role_template.is_group,
+                } : undefined,
             },
-            include: { subject: { include: { role_template: true } } },
-        });
-
-        return mapToSceneSubjectResponse(sceneSubject);
+        }));
     }
 
-    async updateSceneSubject(sceneId: number, subjectId: number, dto: UpdateSceneSubjectDto) {
-        const sceneSubject = await this.prisma.filmSceneSubject.findUnique({
-            where: { scene_id_subject_id: { scene_id: sceneId, subject_id: subjectId } },
-        });
-        if (!sceneSubject) throw new NotFoundException('Scene subject assignment not found');
-
-        const updated = await this.prisma.filmSceneSubject.update({
-            where: { id: sceneSubject.id },
-            data: { priority: dto.priority ?? sceneSubject.priority, notes: dto.notes ?? sceneSubject.notes },
-            include: { subject: { include: { role_template: true } } },
-        });
-
-        return mapToSceneSubjectResponse(updated);
-    }
-
+    /** Remove a subject from all moments in a scene + clean camera assignments. */
     async removeSubjectFromScene(sceneId: number, subjectId: number) {
-        const sceneSubject = await this.prisma.filmSceneSubject.findUnique({
-            where: { scene_id_subject_id: { scene_id: sceneId, subject_id: subjectId } },
-            include: { scene: true },
+        await this.prisma.filmSceneMomentSubject.deleteMany({
+            where: { moment: { film_scene_id: sceneId }, subject_id: subjectId },
         });
-        if (!sceneSubject) throw new NotFoundException('Scene subject assignment not found');
-
-        await this.prisma.filmSceneSubject.delete({ where: { id: sceneSubject.id } });
 
         const [sceneAssignments, momentAssignments] = await this.prisma.$transaction([
             this.prisma.sceneCameraAssignment.findMany({
@@ -84,28 +61,23 @@ export class SubjectSceneAssignmentsService {
         ]);
 
         const updates = [
-            ...sceneAssignments.map((assignment) => {
-                const next = assignment.subject_ids.filter((id) => id !== subjectId);
-                if (next.length === assignment.subject_ids.length) return null;
+            ...sceneAssignments.map((a) => {
+                const next = a.subject_ids.filter((id) => id !== subjectId);
+                if (next.length === a.subject_ids.length) return null;
                 return this.prisma.sceneCameraAssignment.update({
-                    where: { id: assignment.id },
-                    data: { subject_ids: next },
+                    where: { id: a.id }, data: { subject_ids: next },
                 });
             }),
-            ...momentAssignments.map((assignment) => {
-                const next = assignment.subject_ids.filter((id) => id !== subjectId);
-                if (next.length === assignment.subject_ids.length) return null;
+            ...momentAssignments.map((a) => {
+                const next = a.subject_ids.filter((id) => id !== subjectId);
+                if (next.length === a.subject_ids.length) return null;
                 return this.prisma.cameraSubjectAssignment.update({
-                    where: { id: assignment.id },
-                    data: { subject_ids: next },
+                    where: { id: a.id }, data: { subject_ids: next },
                 });
             }),
-        ].filter((update): update is ReturnType<typeof this.prisma.sceneCameraAssignment.update> => !!update);
+        ].filter((u): u is ReturnType<typeof this.prisma.sceneCameraAssignment.update> => !!u);
 
-        if (updates.length) {
-            await this.prisma.$transaction(updates);
-        }
-
+        if (updates.length) await this.prisma.$transaction(updates);
         return { message: 'Subject removed from scene' };
     }
 }

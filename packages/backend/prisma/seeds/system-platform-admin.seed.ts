@@ -70,8 +70,10 @@ async function main(db: PrismaClient): Promise<SeedSummary> {
             },
         });
 
-        // Hash admin password
-        const adminPassword = await bcrypt.hash("Alined@2025", 10);
+        // Hash admin password — set ADMIN_SEED_PASSWORD in your environment before seeding
+        const seedPassword = process.env.ADMIN_SEED_PASSWORD;
+        if (!seedPassword) throw new Error('ADMIN_SEED_PASSWORD env var is required to run the admin seed');
+        const adminPassword = await bcrypt.hash(seedPassword, 10);
 
         // Create Daniel Hutchinson (Global Admin)
         logger.processing('Creating Daniel Hutchinson (Global Admin)...');
@@ -113,7 +115,6 @@ async function main(db: PrismaClient): Promise<SeedSummary> {
         logger.info('  • Email: info@dhutchinson.co.uk', 'verbose');
         logger.info('  • Role: Global Admin', 'verbose');
         logger.info('  • Access: ALL brands and global settings', 'verbose');
-        logger.info('  • Login password: Alined@2025', 'verbose');
 
         // Final Summary
         logger.success('Core System Setup Complete!');

@@ -165,3 +165,5 @@ export type CrewApi = ReturnType<typeof createCrewApi>;
 export type UserAccountsApi = ReturnType<typeof createUserAccountsApi>;
 export type JobRolesApi = ReturnType<typeof createJobRolesApi>;
 export type SkillRoleMappingsApi = ReturnType<typeof createSkillRoleMappingsApi>;
+
+export { crewPresetsApi, createCrewPresetsApi, type CrewPresetsApi } from './crew-presets.api';

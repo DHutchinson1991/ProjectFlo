@@ -1,16 +1,13 @@
 import { apiClient } from '@/shared/api/client';
 import type { ApiClient } from '@/shared/api/client';
-import type { Project, CreateProjectRequest, UpdateProjectRequest } from '../types/project.types';
+import type { Project, ProjectListItem, UpdateProjectRequest } from '../types/project.types';
 
 export const createProjectsApi = (client: ApiClient) => ({
-  getAll: (_brandId?: number): Promise<Project[]> =>
+  getAll: (): Promise<ProjectListItem[]> =>
     client.get('/api/projects'),
 
   getById: (id: number): Promise<Project> =>
     client.get(`/api/projects/${id}`),
-
-  create: (data: CreateProjectRequest): Promise<Project> =>
-    client.post('/api/projects', data),
 
   update: (id: number, data: UpdateProjectRequest): Promise<Project> =>
     client.put(`/api/projects/${id}`, data),
@@ -18,6 +15,10 @@ export const createProjectsApi = (client: ApiClient) => ({
   delete: (id: number): Promise<void> =>
     client.delete(`/api/projects/${id}`),
 
+  revertToInquiry: (id: number): Promise<{ inquiryId: number }> =>
+    client.post(`/api/projects/${id}/revert`, {}),
+
+  // Schedule
   syncScheduleFromPackage: (id: number): Promise<void> =>
     client.post(`/api/projects/${id}/schedule/sync-from-package`, {}),
 

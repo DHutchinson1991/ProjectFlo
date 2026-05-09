@@ -39,7 +39,8 @@ export class ClientPortalJourneyService {
             contractStatus: string | null;
             contractSigningToken: string | null;
             inquiryStatus: string;
-            welcomeSentAt: Date | null;
+            hasInvoices: boolean;
+            allInvoicesPaid: boolean;
         },
         summaryCtx?: {
             packageName?: string;
@@ -159,7 +160,8 @@ export class ClientPortalJourneyService {
             contractStatus: string | null;
             contractSigningToken: string | null;
             inquiryStatus: string;
-            welcomeSentAt: Date | null;
+            hasInvoices: boolean;
+            allInvoicesPaid: boolean;
         },
         portalToken: string,
     ) {
@@ -232,6 +234,36 @@ export class ClientPortalJourneyService {
         });
 
         const isBooked = sections.inquiryStatus === 'Booked' || sections.inquiryStatus === 'Converted';
+
+        // Payment steps — client pays before booking is confirmed
+        const paymentCompleted = sections.hasInvoices && sections.allInvoicesPaid;
+        const paymentWaiting = sections.hasInvoices && !sections.allInvoicesPaid;
+        steps.push({
+            key: 'first_payment',
+            label: paymentCompleted ? 'Payment Received' : paymentWaiting ? 'Payment Due' : 'Payment',
+            icon: 'credit-card',
+            side: 'client',
+            status: paymentCompleted ? 'completed' : paymentWaiting ? 'waiting' : 'upcoming',
+            waitingMessage: paymentWaiting ? 'Ready when you are' : undefined,
+            cta: paymentWaiting ? { label: 'Make Payment', href: `/portal/${portalToken}/payments` } : undefined,
+        });
+
+        steps.push({
+            key: 'confirm_payment',
+            label: 'Confirm Payment',
+            icon: 'check-circle',
+            side: 'studio',
+            status: paymentCompleted ? 'completed' : 'upcoming',
+        });
+
+        steps.push({
+            key: 'send_receipt',
+            label: 'Send Receipt',
+            icon: 'receipt',
+            side: 'studio',
+            status: paymentCompleted ? 'completed' : 'upcoming',
+        });
+
         steps.push({
             key: 'booking_confirmed',
             label: 'Booking Confirmed!',
@@ -243,18 +275,9 @@ export class ClientPortalJourneyService {
 
     private addPostBookingSteps(
         steps: JourneyStep[],
-        sections: { inquiryStatus: string; welcomeSentAt: Date | null },
+        sections: { inquiryStatus: string },
     ) {
         const isBooked = sections.inquiryStatus === 'Booked' || sections.inquiryStatus === 'Converted';
-
-        steps.push({
-            key: 'welcome_pack',
-            label: 'Welcome Pack Sent',
-            icon: 'gift-open',
-            side: 'studio',
-            status: sections.welcomeSentAt ? 'completed' : isBooked ? 'upcoming' : 'locked',
-            completedAt: sections.welcomeSentAt?.toISOString(),
-        });
 
         const postBookingPhases = [
             { key: 'creative_development', label: 'Planning Your Film', icon: 'clapperboard-pencil', side: 'studio' as const },

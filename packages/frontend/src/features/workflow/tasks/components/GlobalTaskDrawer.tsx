@@ -28,6 +28,7 @@ import {
   ViewList as FlatListIcon,
   Bolt,
   ExpandMore as ExpandMoreIcon,
+  Star as StarIcon,
 } from "@mui/icons-material";
 import { ActiveTask } from "@/features/catalog/task-library/types";
 import { inquiriesApi } from "@/features/workflow/inquiries/api";
@@ -134,7 +135,9 @@ const TASK_SECTION_MAP: Record<string, string> = {
   'Raise Deposit Invoice': 'contracts-section',
   'Block Wedding Date': 'qualify-respond-section',
   'Confirm Booking': 'qualify-respond-section',
-  'Send Welcome Pack': 'qualify-respond-section',
+  'Confirm Deposit Received': 'invoices-section',
+  'Review Client Proposal Notes': 'proposals-section',
+  'Send Booking Confirmation': 'qualify-respond-section',
 };
 
 // Maps stage (task group) names → section DOM IDs
@@ -185,10 +188,11 @@ function clearCardGlow(sectionId: string) {
 // ══════════════════════════════════════════════════════════════
 // DrawerTaskGroupRow
 // ══════════════════════════════════════════════════════════════
-function DrawerTaskGroupRow({ stage, subtasks, onNavigate, subtasksByParent }: {
+function DrawerTaskGroupRow({ stage, subtasks, onNavigate, onToggle, subtasksByParent }: {
   stage: ActiveTask;
   subtasks: ActiveTask[];
   onNavigate: (task: ActiveTask) => void;
+  onToggle: (task: ActiveTask) => void;
   subtasksByParent: Map<number, ActiveTask[]>;
 }) {
   const [open, setOpen] = useState(true);
@@ -262,7 +266,7 @@ function DrawerTaskGroupRow({ stage, subtasks, onNavigate, subtasksByParent }: {
       <Collapse in={open}>
         {subtasks.map(task => (
           <Box key={`${task.source}-${task.id}`} sx={{ borderLeft: `2px solid ${color}33` }}>
-            <DrawerTaskRow task={task} subtasks={subtasksByParent.get(task.id) ?? []} onNavigate={onNavigate} stageName={stage.name} />
+            <DrawerTaskRow task={task} subtasks={subtasksByParent.get(task.id) ?? []} onNavigate={onNavigate} onToggle={onToggle} stageName={stage.name} />
           </Box>
         ))}
       </Collapse>
@@ -273,7 +277,7 @@ function DrawerTaskGroupRow({ stage, subtasks, onNavigate, subtasksByParent }: {
 // ══════════════════════════════════════════════════════════════
 // DrawerTaskRow
 // ══════════════════════════════════════════════════════════════
-function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false, stageName }: { task: ActiveTask; onNavigate: (task: ActiveTask) => void; subtasks?: ActiveTask[]; nested?: boolean; stageName?: string }) {
+function DrawerTaskRow({ task, onNavigate, onToggle, subtasks = [], nested = false, stageName }: { task: ActiveTask; onNavigate: (task: ActiveTask) => void; onToggle?: (task: ActiveTask) => void; subtasks?: ActiveTask[]; nested?: boolean; stageName?: string }) {
   const [hovered, setHovered] = useState(false);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [events, setEvents] = useState<InquiryTaskEvent[] | null>(null);
@@ -382,8 +386,11 @@ function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false, stageN
           </Box>
         </Tooltip>
 
-        {/* Col 3: Check / bolt / warning icon */}
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {/* Col 3: Check / bolt / warning icon — clickable for manual tasks */}
+        <Box
+          onClick={!isAuto && onToggle ? (e) => { e.stopPropagation(); onToggle(task); } : undefined}
+          sx={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: !isAuto && onToggle ? 'pointer' : 'default', '&:hover': !isAuto && onToggle ? { opacity: 0.7 } : {} }}
+        >
           {isAuto
             ? <Bolt sx={{ fontSize: 14, color: isCompleted ? "#00C875" : "#FDAB3D", opacity: isCompleted ? 0.85 : 0.65 }} />
             : isCompleted
@@ -393,16 +400,32 @@ function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false, stageN
             : <UncheckedIcon sx={{ fontSize: 14, color: "rgba(255,255,255,0.2)" }} />}
         </Box>
 
-        {/* Col 4: Task name + description + subtask count */}
+        {/* Col 4: Task name + description + lead badge + subtask count */}
         <Box sx={{ minWidth: 0 }}>
-          <Typography noWrap sx={{
-            fontSize: "0.8125rem", fontWeight: 500, lineHeight: 1.2,
-            color: isAuto ? "rgba(255,255,255,0.35)" : isCompleted ? "text.secondary" : "text.primary",
-            textDecoration: isCompleted ? "line-through" : "none",
-            fontStyle: isAuto ? "italic" : "normal",
-          }}>
-            {task.name}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography noWrap sx={{
+              fontSize: "0.8125rem", fontWeight: 500, lineHeight: 1.2,
+              color: isAuto ? "rgba(255,255,255,0.35)" : isCompleted ? "text.secondary" : "text.primary",
+              textDecoration: isCompleted ? "line-through" : "none",
+              fontStyle: isAuto ? "italic" : "normal",
+              flex: '0 1 auto', minWidth: 0,
+            }}>
+              {task.name}
+            </Typography>
+            {task.is_lead_task && (
+              <Box sx={{
+                display: 'inline-flex', alignItems: 'center', gap: 0.25,
+                px: 0.5, height: 16, borderRadius: '4px', flexShrink: 0,
+                bgcolor: 'rgba(255,171,0,0.12)',
+                border: '1px solid rgba(255,171,0,0.25)',
+              }}>
+                <StarIcon sx={{ fontSize: 9, color: '#FFB020' }} />
+                <Typography sx={{ fontSize: '0.5rem', fontWeight: 700, color: '#FFB020', lineHeight: 1, textTransform: 'capitalize' }}>
+                  Lead
+                </Typography>
+              </Box>
+            )}
+          </Box>
           {task.description && !nested && (
             <Typography noWrap sx={{ fontSize: "0.6875rem", color: "rgba(255,255,255,0.28)", lineHeight: 1.25, mt: 0.15 }}>
               {task.description}
@@ -470,7 +493,7 @@ function DrawerTaskRow({ task, onNavigate, subtasks = [], nested = false, stageN
 
       <Collapse in={subtasksOpen}>
         {subtasks.map((subtask) => (
-          <DrawerTaskRow key={`${subtask.source}-${subtask.id}`} task={subtask} onNavigate={onNavigate} nested stageName={stageName} />
+          <DrawerTaskRow key={`${subtask.source}-${subtask.id}`} task={subtask} onNavigate={onNavigate} onToggle={onToggle} nested stageName={stageName} />
         ))}
       </Collapse>
 
@@ -530,6 +553,7 @@ export default function GlobalTaskDrawer() {
     showAuto,
     setShowAuto,
     handleNavigate,
+    handleToggle,
   } = useGlobalTaskDrawer();
 
   // Collapse when page changes
@@ -846,6 +870,7 @@ export default function GlobalTaskDrawer() {
                       subtasks={item.children}
                       subtasksByParent={subtasksByParent}
                       onNavigate={handleNavigate}
+                      onToggle={handleToggle}
                     />
                   ) : (
                     <DrawerTaskRow
@@ -853,6 +878,7 @@ export default function GlobalTaskDrawer() {
                       task={item.task}
                       subtasks={subtasksByParent.get(item.task.id) ?? []}
                       onNavigate={handleNavigate}
+                      onToggle={handleToggle}
                     />
                   )
                 )
@@ -865,6 +891,7 @@ export default function GlobalTaskDrawer() {
                       task={task}
                       subtasks={subtasksByParent.get(task.id) ?? []}
                       onNavigate={handleNavigate}
+                      onToggle={handleToggle}
                     />
                   ))
               )

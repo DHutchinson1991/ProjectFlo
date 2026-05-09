@@ -181,17 +181,6 @@ export function ConfettiIcon(props: SvgIconProps) {
 
 /* ── Post-Booking Phase Icons ────────────────────────────── */
 
-export function GiftOpenIcon(props: SvgIconProps) {
-    return (
-        <SvgIcon {...props} viewBox="0 0 24 24">
-            <rect x="3" y="10" width="18" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <rect x="2" y="7" width="20" height="4" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M12 7v14" stroke="currentColor" strokeWidth="1.2" />
-            <path d="M12 7C10 7 8 5 8 3.5S9.5 2 10.5 2C12 2 12 4 12 7ZM12 7c2 0 4-2 4-3.5S14.5 2 13.5 2C12 2 12 4 12 7Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
-        </SvgIcon>
-    );
-}
-
 export function ClapperboardPencilIcon(props: SvgIconProps) {
     return (
         <SvgIcon {...props} viewBox="0 0 24 24">
@@ -240,6 +229,46 @@ export function ScissorsFilmIcon(props: SvgIconProps) {
     );
 }
 
+/* ── Payment Icon — Diamond ───────────────────────────────── */
+
+export function PaymentDiamondIcon(props: SvgIconProps) {
+    return (
+        <SvgIcon {...props} viewBox="0 0 24 24">
+            {/* Top facet band */}
+            <path d="M2 9 L6 3 L18 3 L22 9 L12 22 Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+            {/* Girdle line */}
+            <path d="M2 9 L22 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            {/* Inner facet lines — top */}
+            <path d="M6 3 L8.5 9" stroke="currentColor" strokeWidth="1" opacity="0.5" strokeLinecap="round" />
+            <path d="M18 3 L15.5 9" stroke="currentColor" strokeWidth="1" opacity="0.5" strokeLinecap="round" />
+            <path d="M12 3 L12 9" stroke="currentColor" strokeWidth="1" opacity="0.4" strokeLinecap="round" />
+            {/* Inner facet lines — bottom */}
+            <path d="M8.5 9 L12 22" stroke="currentColor" strokeWidth="1" opacity="0.45" strokeLinecap="round" />
+            <path d="M15.5 9 L12 22" stroke="currentColor" strokeWidth="1" opacity="0.45" strokeLinecap="round" />
+            {/* Shine highlight */}
+            <path d="M7 6 L9 6" stroke="currentColor" strokeWidth="1.2" opacity="0.3" strokeLinecap="round" />
+        </SvgIcon>
+    );
+}
+
+export function CheckCircleIcon(props: SvgIconProps) {
+    return (
+        <SvgIcon {...props} viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M8 12.5l2.5 2.5L16 9.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </SvgIcon>
+    );
+}
+
+export function ReceiptIcon(props: SvgIconProps) {
+    return (
+        <SvgIcon {...props} viewBox="0 0 24 24">
+            <path d="M4 2v20l2-1.5L8 22l2-1.5L12 22l2-1.5L16 22l2-1.5L20 22V2l-2 1.5L16 2l-2 1.5L12 2l-2 1.5L8 2 6 3.5Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+            <path d="M8 8h8M8 12h6M8 16h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </SvgIcon>
+    );
+}
+
 /* ── Icon Registry ───────────────────────────────────────── */
 
 const ICON_MAP: Record<string, React.ComponentType<SvgIconProps>> = {
@@ -260,11 +289,13 @@ const ICON_MAP: Record<string, React.ComponentType<SvgIconProps>> = {
     'quill-scroll': QuillScrollIcon,
     'stamp-seal': StampSealIcon,
     'confetti': ConfettiIcon,
-    'gift-open': GiftOpenIcon,
     'clapperboard-pencil': ClapperboardPencilIcon,
     'storyboard': StoryboardIcon,
     'film-reel': FilmReelIcon,
     'scissors-film': ScissorsFilmIcon,
+    'credit-card': PaymentDiamondIcon,
+    'check-circle': CheckCircleIcon,
+    'receipt': ReceiptIcon,
 };
 
 export function getJourneyIcon(key: string): React.ComponentType<SvgIconProps> {

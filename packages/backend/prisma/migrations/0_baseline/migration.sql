@@ -2,6 +2,21 @@
 CREATE TYPE "LocationPrecision" AS ENUM ('EXACT', 'APPROXIMATE');
 
 -- CreateEnum
+CREATE TYPE "IndoorOutdoor" AS ENUM ('INDOOR', 'OUTDOOR', 'PARTIALLY_COVERED');
+
+-- CreateEnum
+CREATE TYPE "NaturalLight" AS ENUM ('ABUNDANT', 'MODERATE', 'LOW', 'NONE');
+
+-- CreateEnum
+CREATE TYPE "SpaceType" AS ENUM ('CEREMONY_AREA', 'RECEPTION_HALL', 'BRIDAL_SUITE', 'GROOM_SUITE', 'GETTING_READY_ROOM', 'OUTDOOR_AREA', 'COCKTAIL_AREA', 'DINING_AREA', 'DANCE_FLOOR', 'ENTRANCE_HALL', 'GARDEN', 'TERRACE', 'CHAPEL', 'LOUNGE', 'LIBRARY', 'PRIVATE_ROOM', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "FloorPlanObjectType" AS ENUM ('WALL', 'DOOR', 'WINDOW', 'TABLE_ROUND', 'TABLE_RECT', 'TABLE_HEAD', 'CHAIR_ROW', 'STAGE', 'AISLE', 'ARCH', 'ALTAR', 'DANCE_FLOOR', 'BAR', 'DJ_BOOTH', 'FURNITURE', 'DECORATIVE', 'LABEL');
+
+-- CreateEnum
+CREATE TYPE "FacingTargetType" AS ENUM ('ANGLE', 'SUBJECT', 'OBJECT');
+
+-- CreateEnum
 CREATE TYPE "SubjectPriority" AS ENUM ('PRIMARY', 'SECONDARY', 'BACKGROUND');
 
 -- CreateEnum
@@ -9,6 +24,9 @@ CREATE TYPE "CoverageType" AS ENUM ('VIDEO', 'AUDIO');
 
 -- CreateEnum
 CREATE TYPE "ShotType" AS ENUM ('ESTABLISHING_SHOT', 'WIDE_SHOT', 'MEDIUM_SHOT', 'TWO_SHOT', 'CLOSE_UP', 'EXTREME_CLOSE_UP', 'DETAIL_SHOT', 'REACTION_SHOT', 'OVER_SHOULDER', 'CUTAWAY', 'INSERT_SHOT', 'MASTER_SHOT');
+
+-- CreateEnum
+CREATE TYPE "GenerationStatus" AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED');
 
 -- CreateEnum
 CREATE TYPE "CameraMovement" AS ENUM ('STATIC', 'PAN', 'TRACKING', 'GIMBAL_STABILIZED', 'HANDHELD', 'TILT', 'ZOOM', 'DOLLY', 'CRANE', 'DRONE', 'STEADICAM');
@@ -27,6 +45,9 @@ CREATE TYPE "pricing_type_options" AS ENUM ('Hourly', 'Fixed');
 
 -- CreateEnum
 CREATE TYPE "project_phase" AS ENUM ('Lead', 'Inquiry', 'Booking', 'Creative_Development', 'Pre_Production', 'Production', 'Post_Production', 'Delivery');
+
+-- CreateEnum
+CREATE TYPE "project_status" AS ENUM ('Active', 'On_Hold', 'Completed', 'Cancelled');
 
 -- CreateEnum
 CREATE TYPE "due_date_offset_reference" AS ENUM ('inquiry_created', 'booking_date', 'event_date', 'delivery_date');
@@ -60,6 +81,9 @@ CREATE TYPE "activity_type" AS ENUM ('Call', 'Email', 'Meeting', 'To_Do');
 
 -- CreateEnum
 CREATE TYPE "activity_status" AS ENUM ('Pending', 'Completed');
+
+-- CreateEnum
+CREATE TYPE "PaymentMethodType" AS ENUM ('BANK_TRANSFER', 'CREDIT_CARD', 'CASH', 'STRIPE');
 
 -- CreateEnum
 CREATE TYPE "document_status" AS ENUM ('Active', 'Archived');
@@ -128,10 +152,46 @@ CREATE TYPE "equipment_maintenance_type" AS ENUM ('ROUTINE', 'REPAIR', 'UPGRADE'
 CREATE TYPE "equipment_availability_status" AS ENUM ('AVAILABLE', 'BOOKED', 'IN_USE', 'UNAVAILABLE', 'TENTATIVE');
 
 -- CreateEnum
+CREATE TYPE "PlanningStatus" AS ENUM ('CREATED', 'PLANNING', 'READY', 'FAILED');
+
+-- CreateEnum
+CREATE TYPE "LocationSlotMode" AS ENUM ('SANDBOX', 'VENUE');
+
+-- CreateEnum
 CREATE TYPE "inquiry_equipment_reservation_status" AS ENUM ('reserved', 'confirmed', 'cancelled');
 
 -- CreateEnum
 CREATE TYPE "inquiry_crew_availability_request_status" AS ENUM ('pending', 'confirmed', 'declined', 'cancelled');
+
+-- CreateEnum
+CREATE TYPE "DayBlueprintStatus" AS ENUM ('DRAFT', 'PUBLISHED', 'ARCHIVED');
+
+-- CreateEnum
+CREATE TYPE "DayBlueprintActivityCriticality" AS ENUM ('REQUIRED', 'RECOMMENDED', 'OPTIONAL');
+
+-- CreateEnum
+CREATE TYPE "DayBlueprintMomentCriticality" AS ENUM ('KEY', 'STANDARD', 'OPTIONAL', 'REMOVABLE');
+
+-- CreateEnum
+CREATE TYPE "DayBlueprintLockScope" AS ENUM ('VERSION', 'DAY', 'ACTIVITY', 'MOMENT');
+
+-- CreateEnum
+CREATE TYPE "DayBlueprintAiRunKind" AS ENUM ('GENERATE', 'REFINE', 'VALIDATE');
+
+-- CreateEnum
+CREATE TYPE "DayBlueprintAiRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCESS', 'FAILED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "DayBlueprintAiProposalStatus" AS ENUM ('PROPOSED', 'APPLIED', 'REJECTED', 'PARTIAL');
+
+-- CreateEnum
+CREATE TYPE "DayBlueprintActionEmphasis" AS ENUM ('PRIMARY', 'SECONDARY', 'OPTIONAL');
+
+-- CreateEnum
+CREATE TYPE "DayBlueprintPlacementPosition" AS ENUM ('CENTER', 'STAGE_LEFT', 'STAGE_RIGHT', 'ALTAR_FRONT', 'ALTAR_BACK', 'AISLE_START', 'AISLE_END', 'FIRST_ROW_LEFT', 'FIRST_ROW_RIGHT', 'BACK', 'OFF_STAGE', 'UNSPECIFIED');
+
+-- CreateEnum
+CREATE TYPE "DayBlueprintPlacementFacing" AS ENUM ('TOWARD_ALTAR', 'TOWARD_AISLE', 'TOWARD_AUDIENCE', 'TOWARD_PARTNER', 'TOWARD_CAMERA', 'UNSPECIFIED');
 
 -- CreateTable
 CREATE TABLE "brands" (
@@ -160,6 +220,8 @@ CREATE TABLE "brands" (
     "bank_account_name" TEXT,
     "bank_sort_code" TEXT,
     "bank_account_number" TEXT,
+    "stripe_account_id" TEXT,
+    "stripe_onboarding_complete" BOOLEAN NOT NULL DEFAULT false,
     "crew_payment_terms" TEXT DEFAULT '50% on booking confirmation, 50% within 7 days of delivery',
     "crew_response_deadline_days" INTEGER DEFAULT 5,
     "service_types" TEXT[] DEFAULT ARRAY[]::TEXT[],
@@ -435,7 +497,7 @@ CREATE TABLE "inquiries" (
     "source_package_id" INTEGER,
     "package_contents_snapshot" JSONB,
     "guest_count" TEXT,
-    "event_type_id" INTEGER,
+    "event_category" TEXT,
     "portal_token" TEXT,
     "preferred_payment_schedule_template_id" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -576,17 +638,26 @@ CREATE TABLE "client_users" (
 CREATE TABLE "projects" (
     "id" SERIAL NOT NULL,
     "client_id" INTEGER NOT NULL,
+    "inquiry_id" INTEGER,
+    "contact_id" INTEGER,
     "workflow_template_id" INTEGER,
     "brand_id" INTEGER,
     "source_package_id" INTEGER,
+    "event_category" TEXT,
     "project_name" TEXT,
     "wedding_date" TIMESTAMP(3) NOT NULL,
     "booking_date" TIMESTAMP(3),
     "edit_start_date" TIMESTAMP(3),
     "delivery_date" TIMESTAMP(3),
-    "phase" TEXT,
+    "phase" "project_phase" NOT NULL DEFAULT 'Booking',
+    "status" "project_status" NOT NULL DEFAULT 'Active',
     "package_contents_snapshot" JSONB,
+    "notes" TEXT,
+    "guest_count" TEXT,
+    "portal_token" TEXT,
     "archived_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "projects_pkey" PRIMARY KEY ("id")
 );
@@ -648,6 +719,29 @@ CREATE TABLE "crew_job_roles" (
     "assigned_by" INTEGER,
 
     CONSTRAINT "crew_job_roles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "crew_presets" (
+    "id" SERIAL NOT NULL,
+    "brand_id" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "is_default" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "crew_presets_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "crew_preset_slots" (
+    "id" SERIAL NOT NULL,
+    "preset_id" INTEGER NOT NULL,
+    "job_role_id" INTEGER NOT NULL,
+    "crew_id" INTEGER,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "crew_preset_slots_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -752,16 +846,27 @@ CREATE TABLE "project_assets" (
 -- CreateTable
 CREATE TABLE "invoices" (
     "id" SERIAL NOT NULL,
+    "brand_id" INTEGER,
     "project_id" INTEGER,
     "quote_id" INTEGER,
     "proposal_id" INTEGER,
+    "milestone_id" INTEGER,
     "invoice_number" TEXT NOT NULL,
+    "title" TEXT,
     "issue_date" TIMESTAMP(3) NOT NULL,
     "due_date" TIMESTAMP(3) NOT NULL,
+    "subtotal" DECIMAL(10,2),
+    "tax_rate" DECIMAL(5,2) DEFAULT 0,
+    "amount" DECIMAL(10,2) NOT NULL,
     "amount_paid" DECIMAL(10,2) DEFAULT 0.00,
     "status" TEXT NOT NULL DEFAULT 'Draft',
-    "amount" DECIMAL(10,2) NOT NULL,
+    "currency" VARCHAR(3) DEFAULT 'USD',
+    "notes" TEXT,
+    "terms" TEXT,
+    "payment_method" TEXT,
     "inquiry_id" INTEGER NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "invoices_pkey" PRIMARY KEY ("id")
 );
@@ -771,6 +876,7 @@ CREATE TABLE "invoice_items" (
     "id" SERIAL NOT NULL,
     "invoice_id" INTEGER NOT NULL,
     "description" TEXT NOT NULL,
+    "category" TEXT,
     "quantity" DECIMAL(10,2) NOT NULL DEFAULT 1,
     "unit_price" DECIMAL(10,2) NOT NULL,
 
@@ -785,6 +891,14 @@ CREATE TABLE "payments" (
     "amount" DECIMAL(10,2) NOT NULL,
     "payment_method" TEXT,
     "transaction_id" TEXT,
+    "stripe_checkout_session_id" TEXT,
+    "stripe_payment_intent_id" TEXT,
+    "receipt_url" TEXT,
+    "card_brand" TEXT,
+    "card_last4" TEXT,
+    "payer_email" TEXT,
+    "currency" VARCHAR(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "payments_pkey" PRIMARY KEY ("id")
 );
@@ -999,8 +1113,33 @@ CREATE TABLE "proposals" (
     "client_response" TEXT,
     "client_response_at" TIMESTAMP(3),
     "client_response_message" TEXT,
+    "viewed_at" TIMESTAMP(3),
+    "view_count" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "proposals_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "proposal_section_views" (
+    "id" SERIAL NOT NULL,
+    "proposal_id" INTEGER NOT NULL,
+    "section_type" TEXT NOT NULL,
+    "viewed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "duration_seconds" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "proposal_section_views_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "proposal_section_notes" (
+    "id" SERIAL NOT NULL,
+    "proposal_id" INTEGER NOT NULL,
+    "section_type" TEXT NOT NULL,
+    "note" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "proposal_section_notes_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1161,7 +1300,12 @@ CREATE TABLE "task_library" (
     "parent_task_id" INTEGER,
     "is_task_group" BOOLEAN NOT NULL DEFAULT false,
     "is_auto_only" BOOLEAN NOT NULL DEFAULT false,
+    "is_lead_task" BOOLEAN NOT NULL DEFAULT false,
     "is_on_site" BOOLEAN NOT NULL DEFAULT false,
+    "is_customer_facing" BOOLEAN NOT NULL DEFAULT false,
+    "customer_description" TEXT,
+    "requires_client_action" BOOLEAN NOT NULL DEFAULT false,
+    "client_deliverable_description" TEXT,
     "default_crew_id" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -1247,6 +1391,7 @@ CREATE TABLE "project_tasks" (
 CREATE TABLE "inquiry_tasks" (
     "id" SERIAL NOT NULL,
     "inquiry_id" INTEGER NOT NULL,
+    "project_id" INTEGER,
     "task_library_id" INTEGER,
     "parent_inquiry_task_id" INTEGER,
     "name" TEXT NOT NULL,
@@ -1429,6 +1574,283 @@ CREATE TABLE "locations_library" (
 );
 
 -- CreateTable
+CREATE TABLE "location_spaces" (
+    "id" SERIAL NOT NULL,
+    "location_id" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "space_type" TEXT,
+    "capacity" INTEGER,
+    "dimensions_length" DOUBLE PRECISION,
+    "dimensions_width" DOUBLE PRECISION,
+    "dimensions_height" DOUBLE PRECISION,
+    "description" TEXT,
+    "indoor_outdoor" "IndoorOutdoor",
+    "natural_light" "NaturalLight",
+    "flooring" TEXT,
+    "ceiling_style" TEXT,
+    "key_features" TEXT,
+    "accessibility_notes" TEXT,
+    "notes" TEXT,
+    "floor_plan_id" INTEGER,
+    "boundary_json" JSONB,
+    "fill_color" TEXT,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "location_spaces_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "location_space_type_tags" (
+    "id" SERIAL NOT NULL,
+    "location_space_id" INTEGER NOT NULL,
+    "space_type" "SpaceType" NOT NULL,
+    "description" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "location_space_type_tags_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "floor_plans" (
+    "id" SERIAL NOT NULL,
+    "location_id" INTEGER NOT NULL,
+    "name" TEXT NOT NULL DEFAULT 'Default',
+    "canvas_width" INTEGER NOT NULL DEFAULT 1000,
+    "canvas_height" INTEGER NOT NULL DEFAULT 1000,
+    "layout_json" JSONB,
+    "is_default" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "floor_plans_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "floor_plan_objects" (
+    "id" SERIAL NOT NULL,
+    "floor_plan_id" INTEGER NOT NULL,
+    "object_type" "FloorPlanObjectType" NOT NULL,
+    "label" TEXT,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "width" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "height" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "metadata" JSONB,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "floor_plan_objects_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "floor_plan_presets" (
+    "id" SERIAL NOT NULL,
+    "brand_id" INTEGER,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "space_type" "SpaceType",
+    "guest_capacity" INTEGER,
+    "canvas_width" INTEGER NOT NULL DEFAULT 1000,
+    "canvas_height" INTEGER NOT NULL DEFAULT 1000,
+    "layout_json" JSONB,
+    "thumbnail_path" TEXT,
+    "is_system_seeded" BOOLEAN NOT NULL DEFAULT false,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "floor_plan_presets_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "floor_plan_preset_objects" (
+    "id" SERIAL NOT NULL,
+    "preset_id" INTEGER NOT NULL,
+    "object_type" "FloorPlanObjectType" NOT NULL,
+    "label" TEXT,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "width" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "height" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "metadata" JSONB,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "floor_plan_preset_objects_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "floor_plan_preset_cameras" (
+    "id" SERIAL NOT NULL,
+    "preset_id" INTEGER NOT NULL,
+    "label" TEXT,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "focal_length_mm" INTEGER,
+    "is_unmanned" BOOLEAN NOT NULL DEFAULT false,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "floor_plan_preset_cameras_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "floor_plan_preset_subjects" (
+    "id" SERIAL NOT NULL,
+    "preset_id" INTEGER NOT NULL,
+    "label" TEXT,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "floor_plan_preset_subjects_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "space_slot_objects" (
+    "id" SERIAL NOT NULL,
+    "package_space_slot_id" INTEGER NOT NULL,
+    "object_type" "FloorPlanObjectType" NOT NULL,
+    "label" TEXT,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "width" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "height" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "metadata" JSONB,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "space_slot_objects_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "space_slot_camera_positions" (
+    "id" SERIAL NOT NULL,
+    "package_space_slot_id" INTEGER NOT NULL,
+    "crew_slot_id" INTEGER,
+    "label" TEXT,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "focal_length_mm" INTEGER,
+    "fov_angle" DOUBLE PRECISION,
+    "is_unmanned" BOOLEAN NOT NULL DEFAULT false,
+    "facing_target_type" "FacingTargetType" NOT NULL DEFAULT 'ANGLE',
+    "facing_target_id" INTEGER,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "space_slot_camera_positions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "space_slot_subject_positions" (
+    "id" SERIAL NOT NULL,
+    "package_space_slot_id" INTEGER NOT NULL,
+    "day_subject_id" INTEGER,
+    "label" TEXT,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "bound_object_id" INTEGER,
+    "bound_offset_x" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "bound_offset_y" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "facing_target_type" "FacingTargetType" NOT NULL DEFAULT 'ANGLE',
+    "facing_target_id" INTEGER,
+    "seated" BOOLEAN NOT NULL DEFAULT false,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "space_slot_subject_positions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "space_slot_moment_cameras" (
+    "id" SERIAL NOT NULL,
+    "camera_position_id" INTEGER NOT NULL,
+    "moment_id" INTEGER NOT NULL,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "fov_angle" DOUBLE PRECISION,
+    "facing_target_type" "FacingTargetType",
+    "facing_target_id" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "space_slot_moment_cameras_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "space_slot_moment_subjects" (
+    "id" SERIAL NOT NULL,
+    "subject_position_id" INTEGER NOT NULL,
+    "moment_id" INTEGER NOT NULL,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "present" BOOLEAN NOT NULL DEFAULT true,
+    "seated" BOOLEAN,
+    "bound_object_id" INTEGER,
+    "bound_offset_x" DOUBLE PRECISION,
+    "bound_offset_y" DOUBLE PRECISION,
+    "facing_target_type" "FacingTargetType",
+    "facing_target_id" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "space_slot_moment_subjects_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "space_slot_zones" (
+    "id" SERIAL NOT NULL,
+    "package_space_slot_id" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "label" TEXT,
+    "polygon" JSONB NOT NULL,
+    "color" TEXT,
+    "description" TEXT,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "space_slot_zones_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "package_space_slot_type_tags" (
+    "id" SERIAL NOT NULL,
+    "package_space_slot_id" INTEGER NOT NULL,
+    "space_type" "SpaceType" NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "package_space_slot_type_tags_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "project_space_slot_type_tags" (
+    "id" SERIAL NOT NULL,
+    "project_space_slot_id" INTEGER NOT NULL,
+    "space_type" "SpaceType" NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "project_space_slot_type_tags_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "films" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
@@ -1519,7 +1941,6 @@ CREATE TABLE "subject_roles" (
     "brand_id" INTEGER NOT NULL,
     "role_name" TEXT NOT NULL,
     "description" TEXT,
-    "is_core" BOOLEAN NOT NULL DEFAULT false,
     "is_group" BOOLEAN NOT NULL DEFAULT false,
     "never_group" BOOLEAN NOT NULL DEFAULT false,
     "order_index" INTEGER NOT NULL DEFAULT 0,
@@ -1527,30 +1948,6 @@ CREATE TABLE "subject_roles" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "subject_roles_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "film_subjects" (
-    "id" SERIAL NOT NULL,
-    "film_id" INTEGER NOT NULL,
-    "name" TEXT NOT NULL,
-    "role_template_id" INTEGER,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "film_subjects_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "film_locations" (
-    "id" SERIAL NOT NULL,
-    "film_id" INTEGER NOT NULL,
-    "location_id" INTEGER NOT NULL,
-    "notes" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "film_locations_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1603,8 +2000,21 @@ CREATE TABLE "film_scenes" (
     "order_index" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "source_activity_id" INTEGER,
 
     CONSTRAINT "film_scenes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "film_locations" (
+    "id" SERIAL NOT NULL,
+    "film_id" INTEGER NOT NULL,
+    "location_id" INTEGER NOT NULL,
+    "notes" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "film_locations_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1616,6 +2026,88 @@ CREATE TABLE "film_scene_locations" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "film_scene_locations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "film_scene_spaces" (
+    "id" SERIAL NOT NULL,
+    "scene_id" INTEGER NOT NULL,
+    "space_id" INTEGER NOT NULL,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "film_scene_spaces_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "scene_camera_positions" (
+    "id" SERIAL NOT NULL,
+    "scene_id" INTEGER NOT NULL,
+    "track_id" INTEGER NOT NULL,
+    "space_id" INTEGER NOT NULL,
+    "source_space_slot_camera_position_id" INTEGER,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "focal_length_mm" INTEGER,
+    "fov_angle" DOUBLE PRECISION,
+    "is_unmanned" BOOLEAN NOT NULL DEFAULT false,
+    "label" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "scene_camera_positions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "scene_subject_positions" (
+    "id" SERIAL NOT NULL,
+    "scene_id" INTEGER NOT NULL,
+    "subject_id" INTEGER NOT NULL,
+    "space_id" INTEGER NOT NULL,
+    "source_space_slot_subject_position_id" INTEGER,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "label" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "scene_subject_positions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "moment_camera_positions" (
+    "id" SERIAL NOT NULL,
+    "moment_id" INTEGER NOT NULL,
+    "track_id" INTEGER NOT NULL,
+    "space_id" INTEGER NOT NULL,
+    "source_scene_position_id" INTEGER,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "focal_length_mm" INTEGER,
+    "is_unmanned" BOOLEAN NOT NULL DEFAULT false,
+    "label" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "moment_camera_positions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "moment_subject_positions" (
+    "id" SERIAL NOT NULL,
+    "moment_id" INTEGER NOT NULL,
+    "subject_id" INTEGER NOT NULL,
+    "space_id" INTEGER NOT NULL,
+    "source_scene_position_id" INTEGER,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "label" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "moment_subject_positions_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1631,32 +2123,6 @@ CREATE TABLE "scene_recording_setups" (
 );
 
 -- CreateTable
-CREATE TABLE "film_scene_subjects" (
-    "id" SERIAL NOT NULL,
-    "scene_id" INTEGER NOT NULL,
-    "subject_id" INTEGER NOT NULL,
-    "priority" "SubjectPriority" NOT NULL DEFAULT 'BACKGROUND',
-    "notes" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "film_scene_subjects_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "film_scene_moment_subjects" (
-    "id" SERIAL NOT NULL,
-    "moment_id" INTEGER NOT NULL,
-    "subject_id" INTEGER NOT NULL,
-    "priority" "SubjectPriority" NOT NULL DEFAULT 'BACKGROUND',
-    "notes" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "film_scene_moment_subjects_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "scene_camera_assignments" (
     "id" SERIAL NOT NULL,
     "recording_setup_id" INTEGER NOT NULL,
@@ -1667,13 +2133,29 @@ CREATE TABLE "scene_camera_assignments" (
 );
 
 -- CreateTable
+CREATE TABLE "film_scene_moment_subjects" (
+    "id" SERIAL NOT NULL,
+    "moment_id" INTEGER NOT NULL,
+    "subject_id" INTEGER NOT NULL,
+    "priority" "SubjectPriority" NOT NULL DEFAULT 'BACKGROUND',
+    "notes" TEXT,
+    "action_description" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "film_scene_moment_subjects_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "film_scene_moments" (
     "id" SERIAL NOT NULL,
     "film_scene_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
+    "description" TEXT,
     "order_index" INTEGER NOT NULL,
     "duration" INTEGER NOT NULL DEFAULT 60,
     "source_activity_id" INTEGER,
+    "package_activity_moment_id" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -1728,8 +2210,14 @@ CREATE TABLE "camera_subject_assignments" (
     "id" SERIAL NOT NULL,
     "recording_setup_id" INTEGER NOT NULL,
     "track_id" INTEGER NOT NULL,
+    "scene_camera_position_id" INTEGER,
     "subject_ids" INTEGER[],
+    "visible_subject_ids" INTEGER[],
     "shot_type" "ShotType",
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "ai_prompt" TEXT,
+    "pipeline_data" JSONB,
+    "spatial_hash" TEXT,
 
     CONSTRAINT "camera_subject_assignments_pkey" PRIMARY KEY ("id")
 );
@@ -1761,6 +2249,26 @@ CREATE TABLE "moment_music" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "moment_music_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "shot_previews" (
+    "id" SERIAL NOT NULL,
+    "camera_assignment_id" INTEGER NOT NULL,
+    "source_type" TEXT NOT NULL DEFAULT 'package',
+    "film_id" INTEGER NOT NULL,
+    "brand_id" INTEGER NOT NULL,
+    "prompt" TEXT NOT NULL,
+    "negative_prompt" TEXT,
+    "image_path" TEXT NOT NULL,
+    "seed" INTEGER,
+    "model_name" TEXT,
+    "status" "GenerationStatus" NOT NULL DEFAULT 'PENDING',
+    "error_message" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "shot_previews_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1831,34 +2339,22 @@ CREATE TABLE "scene_audio_sources" (
 CREATE TABLE "service_packages" (
     "id" SERIAL NOT NULL,
     "brand_id" INTEGER NOT NULL,
-    "wedding_type_id" INTEGER,
+    "created_from_package_template_id" INTEGER,
+    "source_day_blueprint_id" INTEGER,
+    "source_day_blueprint_version_id" INTEGER,
     "name" TEXT NOT NULL,
     "description" TEXT,
-    "category" TEXT,
-    "category_id" INTEGER,
+    "event_category" TEXT,
     "currency" TEXT NOT NULL DEFAULT 'USD',
     "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "planning_status" "PlanningStatus" NOT NULL DEFAULT 'CREATED',
+    "planning_error" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "contents" JSONB,
     "workflow_template_id" INTEGER,
 
     CONSTRAINT "service_packages_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "service_package_categories" (
-    "id" SERIAL NOT NULL,
-    "brand_id" INTEGER NOT NULL,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "order_index" INTEGER NOT NULL DEFAULT 0,
-    "is_active" BOOLEAN NOT NULL DEFAULT true,
-    "event_type_id" INTEGER,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "service_package_categories_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1871,53 +2367,6 @@ CREATE TABLE "schedule_presets" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "schedule_presets_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "event_types" (
-    "id" SERIAL NOT NULL,
-    "brand_id" INTEGER NOT NULL,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "icon" TEXT,
-    "color" TEXT,
-    "default_duration_hours" INTEGER,
-    "default_start_time" TEXT,
-    "typical_guest_count" INTEGER,
-    "is_system" BOOLEAN NOT NULL DEFAULT false,
-    "is_active" BOOLEAN NOT NULL DEFAULT true,
-    "order_index" INTEGER NOT NULL DEFAULT 0,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "event_types_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "event_type_days" (
-    "id" SERIAL NOT NULL,
-    "event_type_id" INTEGER NOT NULL,
-    "event_day_template_id" INTEGER NOT NULL,
-    "event_subtype_id" INTEGER,
-    "order_index" INTEGER NOT NULL DEFAULT 0,
-    "is_default" BOOLEAN NOT NULL DEFAULT true,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "event_type_days_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "event_type_subjects" (
-    "id" SERIAL NOT NULL,
-    "event_type_id" INTEGER NOT NULL,
-    "subject_role_id" INTEGER NOT NULL,
-    "order_index" INTEGER NOT NULL DEFAULT 0,
-    "is_default" BOOLEAN NOT NULL DEFAULT true,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "event_type_subjects_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1944,6 +2393,7 @@ CREATE TABLE "event_day_activities" (
     "event_day_template_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
+    "location_label" TEXT,
     "color" TEXT,
     "icon" TEXT,
     "default_start_time" TEXT,
@@ -1985,12 +2435,14 @@ CREATE TABLE "event_day_subject_roles" (
 );
 
 -- CreateTable
-CREATE TABLE "event_subtypes" (
+CREATE TABLE "package_templates" (
     "id" SERIAL NOT NULL,
     "brand_id" INTEGER,
-    "event_type_id" INTEGER,
     "name" TEXT NOT NULL,
+    "event_category" TEXT NOT NULL,
     "description" TEXT,
+    "icon" TEXT,
+    "color" TEXT,
     "total_duration_hours" INTEGER NOT NULL,
     "event_start_time" TEXT NOT NULL,
     "typical_guest_count" INTEGER,
@@ -2000,13 +2452,26 @@ CREATE TABLE "event_subtypes" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "event_subtypes_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "package_templates_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "event_subtype_activities" (
+CREATE TABLE "package_template_days" (
     "id" SERIAL NOT NULL,
-    "wedding_type_id" INTEGER NOT NULL,
+    "package_template_id" INTEGER NOT NULL,
+    "event_day_template_id" INTEGER NOT NULL,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "is_default" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "package_template_days_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "package_template_activities" (
+    "id" SERIAL NOT NULL,
+    "package_template_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "icon" TEXT,
     "color" TEXT,
@@ -2017,28 +2482,29 @@ CREATE TABLE "event_subtype_activities" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "event_subtype_activities_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "package_template_activities_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "event_subtype_activity_moments" (
+CREATE TABLE "package_template_moments" (
     "id" SERIAL NOT NULL,
-    "wedding_type_activity_id" INTEGER NOT NULL,
+    "package_template_activity_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "duration_seconds" INTEGER NOT NULL DEFAULT 60,
     "order_index" INTEGER NOT NULL DEFAULT 0,
     "is_key_moment" BOOLEAN NOT NULL DEFAULT false,
     "description" TEXT,
+    "subject_actions" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "event_subtype_activity_moments_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "package_template_moments_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "event_subtype_locations" (
+CREATE TABLE "package_template_locations" (
     "id" SERIAL NOT NULL,
-    "wedding_type_id" INTEGER NOT NULL,
+    "package_template_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "location_type" TEXT,
     "order_index" INTEGER NOT NULL DEFAULT 0,
@@ -2046,13 +2512,13 @@ CREATE TABLE "event_subtype_locations" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "event_subtype_locations_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "package_template_locations_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "event_subtype_subjects" (
+CREATE TABLE "package_template_subjects" (
     "id" SERIAL NOT NULL,
-    "wedding_type_id" INTEGER NOT NULL,
+    "package_template_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "subject_type" TEXT,
     "subject_role_id" INTEGER,
@@ -2062,31 +2528,31 @@ CREATE TABLE "event_subtype_subjects" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "event_subtype_subjects_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "package_template_subjects_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "event_subtype_activity_locations" (
+CREATE TABLE "package_template_activity_locations" (
     "id" SERIAL NOT NULL,
-    "wedding_type_activity_id" INTEGER NOT NULL,
-    "wedding_type_location_id" INTEGER NOT NULL,
+    "package_template_activity_id" INTEGER NOT NULL,
+    "package_template_location_id" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "event_subtype_activity_locations_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "package_template_activity_locations_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "event_subtype_activity_subjects" (
+CREATE TABLE "package_template_activity_subjects" (
     "id" SERIAL NOT NULL,
-    "wedding_type_activity_id" INTEGER NOT NULL,
-    "wedding_type_subject_id" INTEGER NOT NULL,
+    "package_template_activity_id" INTEGER NOT NULL,
+    "package_template_subject_id" INTEGER NOT NULL,
     "presence_percentage" INTEGER,
     "is_primary_focus" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "event_subtype_activity_subjects_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "package_template_activity_subjects_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -2123,8 +2589,10 @@ CREATE TABLE "package_activities" (
     "id" SERIAL NOT NULL,
     "package_id" INTEGER NOT NULL,
     "package_event_day_id" INTEGER NOT NULL,
+    "source_day_blueprint_activity_id" INTEGER,
     "name" TEXT NOT NULL,
     "description" TEXT,
+    "location_label" TEXT,
     "color" TEXT,
     "icon" TEXT,
     "start_time" TEXT,
@@ -2141,7 +2609,11 @@ CREATE TABLE "package_activities" (
 CREATE TABLE "package_activity_moments" (
     "id" SERIAL NOT NULL,
     "package_activity_id" INTEGER NOT NULL,
+    "source_day_blueprint_moment_id" INTEGER,
     "name" TEXT NOT NULL,
+    "description" TEXT,
+    "subject_actions" JSONB,
+    "camera_subject_plan" JSONB,
     "order_index" INTEGER NOT NULL DEFAULT 0,
     "duration_seconds" INTEGER NOT NULL DEFAULT 60,
     "is_required" BOOLEAN NOT NULL DEFAULT true,
@@ -2269,6 +2741,7 @@ CREATE TABLE "project_activities" (
     "package_activity_id" INTEGER,
     "name" TEXT NOT NULL,
     "description" TEXT,
+    "location_label" TEXT,
     "color" TEXT,
     "icon" TEXT,
     "start_time" TEXT,
@@ -2393,6 +2866,7 @@ CREATE TABLE "project_film_scene_moments" (
     "project_scene_id" INTEGER NOT NULL,
     "source_moment_id" INTEGER,
     "name" TEXT NOT NULL,
+    "description" TEXT,
     "order_index" INTEGER NOT NULL,
     "duration" INTEGER NOT NULL DEFAULT 60,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -2423,7 +2897,6 @@ CREATE TABLE "project_film_scene_subjects" (
     "id" SERIAL NOT NULL,
     "project_scene_id" INTEGER NOT NULL,
     "project_film_subject_id" INTEGER NOT NULL,
-    "source_scene_subject_id" INTEGER,
     "priority" "SubjectPriority" NOT NULL DEFAULT 'BACKGROUND',
     "notes" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -2439,6 +2912,7 @@ CREATE TABLE "project_film_scene_moment_subjects" (
     "project_film_subject_id" INTEGER NOT NULL,
     "priority" "SubjectPriority" NOT NULL DEFAULT 'BACKGROUND',
     "notes" TEXT,
+    "action_description" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -2455,6 +2929,57 @@ CREATE TABLE "project_film_scene_locations" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "project_film_scene_locations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "project_film_scene_spaces" (
+    "id" SERIAL NOT NULL,
+    "project_scene_id" INTEGER NOT NULL,
+    "space_id" INTEGER NOT NULL,
+    "source_scene_space_id" INTEGER,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "project_film_scene_spaces_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "project_scene_camera_positions" (
+    "id" SERIAL NOT NULL,
+    "project_id" INTEGER,
+    "inquiry_id" INTEGER,
+    "project_scene_id" INTEGER NOT NULL,
+    "project_track_id" INTEGER NOT NULL,
+    "space_id" INTEGER NOT NULL,
+    "source_camera_position_id" INTEGER,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "focal_length_mm" INTEGER,
+    "is_unmanned" BOOLEAN NOT NULL DEFAULT false,
+    "label" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "project_scene_camera_positions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "project_scene_subject_positions" (
+    "id" SERIAL NOT NULL,
+    "project_id" INTEGER,
+    "inquiry_id" INTEGER,
+    "project_scene_id" INTEGER NOT NULL,
+    "project_subject_id" INTEGER NOT NULL,
+    "space_id" INTEGER NOT NULL,
+    "source_subject_position_id" INTEGER,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "label" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "project_scene_subject_positions_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -2515,6 +3040,8 @@ CREATE TABLE "project_camera_subject_assignments" (
     "track_id" INTEGER NOT NULL,
     "subject_ids" INTEGER[],
     "shot_type" "ShotType",
+    "pipeline_data" JSONB,
+    "spatial_hash" TEXT,
 
     CONSTRAINT "project_camera_subject_assignments_pkey" PRIMARY KEY ("id")
 );
@@ -2540,6 +3067,7 @@ CREATE TABLE "project_activity_moments" (
     "project_activity_id" INTEGER NOT NULL,
     "source_package_moment_id" INTEGER,
     "name" TEXT NOT NULL,
+    "description" TEXT,
     "order_index" INTEGER NOT NULL DEFAULT 0,
     "duration_seconds" INTEGER NOT NULL DEFAULT 60,
     "is_required" BOOLEAN NOT NULL DEFAULT true,
@@ -2602,6 +3130,8 @@ CREATE TABLE "project_crew_slots" (
     "hours" DECIMAL(4,1) NOT NULL DEFAULT 8,
     "label" TEXT,
     "order_index" INTEGER NOT NULL DEFAULT 0,
+    "confirmed" BOOLEAN NOT NULL DEFAULT false,
+    "lead_type" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -2650,6 +3180,87 @@ CREATE TABLE "project_location_activity_assignments" (
 );
 
 -- CreateTable
+CREATE TABLE "project_space_slots" (
+    "id" SERIAL NOT NULL,
+    "project_id" INTEGER,
+    "inquiry_id" INTEGER,
+    "project_event_day_id" INTEGER NOT NULL,
+    "source_package_space_slot_id" INTEGER,
+    "label" TEXT NOT NULL,
+    "project_location_slot_id" INTEGER,
+    "location_space_id" INTEGER,
+    "canvas_width" INTEGER NOT NULL DEFAULT 1000,
+    "canvas_height" INTEGER NOT NULL DEFAULT 1000,
+    "layout_json" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "project_space_slots_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "project_space_activity_assignments" (
+    "id" SERIAL NOT NULL,
+    "project_space_slot_id" INTEGER NOT NULL,
+    "project_activity_id" INTEGER NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "project_space_activity_assignments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "project_space_slot_objects" (
+    "id" SERIAL NOT NULL,
+    "project_space_slot_id" INTEGER NOT NULL,
+    "object_type" "FloorPlanObjectType" NOT NULL,
+    "label" TEXT,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "width" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "height" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "metadata" JSONB,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "project_space_slot_objects_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "project_space_slot_cameras" (
+    "id" SERIAL NOT NULL,
+    "project_space_slot_id" INTEGER NOT NULL,
+    "project_crew_slot_id" INTEGER,
+    "label" TEXT,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "rotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "focal_length_mm" INTEGER,
+    "is_unmanned" BOOLEAN NOT NULL DEFAULT false,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "project_space_slot_cameras_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "project_space_slot_subjects" (
+    "id" SERIAL NOT NULL,
+    "project_space_slot_id" INTEGER NOT NULL,
+    "project_day_subject_id" INTEGER,
+    "label" TEXT,
+    "x" DOUBLE PRECISION NOT NULL,
+    "y" DOUBLE PRECISION NOT NULL,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "project_space_slot_subjects_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "package_crew_slot_activities" (
     "id" SERIAL NOT NULL,
     "package_crew_slot_id" INTEGER NOT NULL,
@@ -2675,10 +3286,43 @@ CREATE TABLE "package_location_slots" (
     "package_id" INTEGER NOT NULL,
     "event_day_template_id" INTEGER NOT NULL,
     "location_number" INTEGER NOT NULL,
+    "mode" "LocationSlotMode" NOT NULL DEFAULT 'SANDBOX',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "package_location_slots_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "package_space_slots" (
+    "id" SERIAL NOT NULL,
+    "package_id" INTEGER NOT NULL,
+    "event_day_template_id" INTEGER NOT NULL,
+    "label" TEXT NOT NULL,
+    "description" TEXT,
+    "location_slot_id" INTEGER,
+    "location_space_id" INTEGER,
+    "preset_id" INTEGER,
+    "canvas_width" INTEGER NOT NULL DEFAULT 1000,
+    "canvas_height" INTEGER NOT NULL DEFAULT 1000,
+    "layout_json" JSONB,
+    "background_plate_path" TEXT,
+    "background_plate_seed" INTEGER,
+    "source_day_blueprint_space_slot_id" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "package_space_slots_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "space_activity_assignments" (
+    "id" SERIAL NOT NULL,
+    "package_space_slot_id" INTEGER NOT NULL,
+    "package_activity_id" INTEGER NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "space_activity_assignments_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -2729,8 +3373,7 @@ CREATE TABLE "package_sets" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "emoji" TEXT DEFAULT '📦',
-    "category_id" INTEGER,
-    "event_type_id" INTEGER,
+    "event_category" TEXT,
     "order_index" INTEGER NOT NULL DEFAULT 0,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -2814,6 +3457,23 @@ CREATE TABLE "crew_payment_rules" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "crew_payment_rules_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "payment_methods" (
+    "id" SERIAL NOT NULL,
+    "brand_id" INTEGER NOT NULL,
+    "type" "PaymentMethodType" NOT NULL,
+    "label" TEXT NOT NULL,
+    "is_default" BOOLEAN NOT NULL DEFAULT false,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "instructions" TEXT,
+    "config" JSONB,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "payment_methods_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -2935,6 +3595,297 @@ CREATE TABLE "inquiry_crew_availability_requests" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "inquiry_crew_availability_requests_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "moment_knowledge_bases" (
+    "id" SERIAL NOT NULL,
+    "brand_id" INTEGER,
+    "category" TEXT NOT NULL,
+    "variant" TEXT,
+    "reference_duration_minutes" INTEGER NOT NULL,
+    "description" TEXT,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "moment_knowledge_bases_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "moment_knowledge_entries" (
+    "id" SERIAL NOT NULL,
+    "knowledge_base_id" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "order_index" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "default_duration_seconds" INTEGER NOT NULL DEFAULT 60,
+    "min_duration_seconds" INTEGER,
+    "max_duration_seconds" INTEGER,
+    "subject_actions" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "moment_knowledge_entries_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprints" (
+    "id" SERIAL NOT NULL,
+    "brand_id" INTEGER NOT NULL,
+    "key" TEXT NOT NULL,
+    "display_name" TEXT NOT NULL,
+    "event_category" TEXT NOT NULL,
+    "description" TEXT,
+    "icon" TEXT,
+    "color" TEXT,
+    "variant_tags" JSONB,
+    "latest_published_version_id" INTEGER,
+    "is_system_seeded" BOOLEAN NOT NULL DEFAULT false,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprints_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_versions" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_id" INTEGER NOT NULL,
+    "version_number" INTEGER NOT NULL,
+    "status" "DayBlueprintStatus" NOT NULL DEFAULT 'DRAFT',
+    "published_at" TIMESTAMP(3),
+    "published_by_user_id" INTEGER,
+    "source_ai_run_id" INTEGER,
+    "change_summary" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_versions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_days" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_version_id" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "default_start_time" TEXT,
+    "default_duration_hours" INTEGER,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "source_event_day_id" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_days_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_activities" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_day_id" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "icon" TEXT,
+    "color" TEXT,
+    "default_start_time" TEXT,
+    "default_duration_minutes" INTEGER,
+    "duration_min_minutes" INTEGER,
+    "duration_max_minutes" INTEGER,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "criticality" "DayBlueprintActivityCriticality" NOT NULL DEFAULT 'REQUIRED',
+    "lock_flags" JSONB,
+    "source_event_day_activity_id" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_activities_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_moments" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_activity_id" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "duration_seconds" INTEGER NOT NULL DEFAULT 60,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "is_key_moment" BOOLEAN NOT NULL DEFAULT false,
+    "criticality" "DayBlueprintMomentCriticality" NOT NULL DEFAULT 'STANDARD',
+    "lock_flags" JSONB,
+    "source_event_day_activity_moment_id" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_moments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_subject_roles" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_version_id" INTEGER NOT NULL,
+    "subject_role_id" INTEGER NOT NULL,
+    "is_primary" BOOLEAN NOT NULL DEFAULT false,
+    "typical_count" INTEGER,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_subject_roles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_lock_rules" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_version_id" INTEGER NOT NULL,
+    "scope" "DayBlueprintLockScope" NOT NULL,
+    "target_id" INTEGER,
+    "rule_key" TEXT NOT NULL,
+    "rule_value" JSONB,
+    "notes" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_lock_rules_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_ai_runs" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_version_id" INTEGER NOT NULL,
+    "run_kind" "DayBlueprintAiRunKind" NOT NULL,
+    "status" "DayBlueprintAiRunStatus" NOT NULL DEFAULT 'PENDING',
+    "run_key" TEXT,
+    "prompt_summary" TEXT,
+    "error" TEXT,
+    "started_at" TIMESTAMP(3),
+    "finished_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_ai_runs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_ai_proposals" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_ai_run_id" INTEGER NOT NULL,
+    "status" "DayBlueprintAiProposalStatus" NOT NULL DEFAULT 'PROPOSED',
+    "diff_json" JSONB NOT NULL,
+    "rationale_text" TEXT,
+    "applied_at" TIMESTAMP(3),
+    "applied_by_user_id" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_ai_proposals_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_usages" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_version_id" INTEGER NOT NULL,
+    "package_id" INTEGER NOT NULL,
+    "consumed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "is_current" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_usages_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_location_roles" (
+    "id" SERIAL NOT NULL,
+    "brand_id" INTEGER NOT NULL,
+    "key" TEXT NOT NULL,
+    "display_name" TEXT NOT NULL,
+    "description" TEXT,
+    "icon" TEXT,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_location_roles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_activity_locations" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_activity_id" INTEGER NOT NULL,
+    "day_blueprint_location_role_id" INTEGER NOT NULL,
+    "is_primary" BOOLEAN NOT NULL DEFAULT false,
+    "notes" TEXT,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_activity_locations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_space_slots" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_version_id" INTEGER NOT NULL,
+    "day_blueprint_location_role_id" INTEGER NOT NULL,
+    "key" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "description" TEXT,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_space_slots_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_moment_actions" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_moment_id" INTEGER NOT NULL,
+    "subject_role_id" INTEGER NOT NULL,
+    "action_text" TEXT NOT NULL,
+    "emphasis" "DayBlueprintActionEmphasis" NOT NULL DEFAULT 'PRIMARY',
+    "notes" TEXT,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_moment_actions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "day_blueprint_moment_placements" (
+    "id" SERIAL NOT NULL,
+    "day_blueprint_moment_id" INTEGER NOT NULL,
+    "day_blueprint_space_slot_id" INTEGER NOT NULL,
+    "subject_role_id" INTEGER NOT NULL,
+    "position_hint" "DayBlueprintPlacementPosition" NOT NULL DEFAULT 'UNSPECIFIED',
+    "facing_hint" "DayBlueprintPlacementFacing" NOT NULL DEFAULT 'UNSPECIFIED',
+    "notes" TEXT,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "day_blueprint_moment_placements_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "package_activity_moment_actions" (
+    "id" SERIAL NOT NULL,
+    "package_activity_moment_id" INTEGER NOT NULL,
+    "subject_role_id" INTEGER NOT NULL,
+    "action_text" TEXT NOT NULL,
+    "emphasis" "DayBlueprintActionEmphasis" NOT NULL DEFAULT 'PRIMARY',
+    "notes" TEXT,
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "source_day_blueprint_moment_action_id" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "package_activity_moment_actions_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -3073,6 +4024,12 @@ CREATE UNIQUE INDEX "client_users_client_id_key" ON "client_users"("client_id");
 CREATE UNIQUE INDEX "client_users_email_key" ON "client_users"("email");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "projects_inquiry_id_key" ON "projects"("inquiry_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "projects_portal_token_key" ON "projects"("portal_token");
+
+-- CreateIndex
 CREATE INDEX "projects_wedding_date_idx" ON "projects"("wedding_date");
 
 -- CreateIndex
@@ -3080,6 +4037,15 @@ CREATE INDEX "projects_brand_id_idx" ON "projects"("brand_id");
 
 -- CreateIndex
 CREATE INDEX "projects_source_package_id_idx" ON "projects"("source_package_id");
+
+-- CreateIndex
+CREATE INDEX "projects_contact_id_idx" ON "projects"("contact_id");
+
+-- CreateIndex
+CREATE INDEX "projects_inquiry_id_idx" ON "projects"("inquiry_id");
+
+-- CreateIndex
+CREATE INDEX "projects_portal_token_idx" ON "projects"("portal_token");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "projects_client_id_wedding_date_key" ON "projects"("client_id", "wedding_date");
@@ -3124,6 +4090,21 @@ CREATE INDEX "crew_job_roles_is_primary_idx" ON "crew_job_roles"("is_primary");
 CREATE UNIQUE INDEX "crew_job_roles_crew_id_job_role_id_key" ON "crew_job_roles"("crew_id", "job_role_id");
 
 -- CreateIndex
+CREATE INDEX "crew_presets_brand_id_idx" ON "crew_presets"("brand_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "crew_presets_brand_id_name_key" ON "crew_presets"("brand_id", "name");
+
+-- CreateIndex
+CREATE INDEX "crew_preset_slots_preset_id_idx" ON "crew_preset_slots"("preset_id");
+
+-- CreateIndex
+CREATE INDEX "crew_preset_slots_job_role_id_idx" ON "crew_preset_slots"("job_role_id");
+
+-- CreateIndex
+CREATE INDEX "crew_preset_slots_crew_id_idx" ON "crew_preset_slots"("crew_id");
+
+-- CreateIndex
 CREATE INDEX "calendar_events_crew_id_start_time_end_time_idx" ON "calendar_events"("crew_id", "start_time", "end_time");
 
 -- CreateIndex
@@ -3148,6 +4129,21 @@ CREATE UNIQUE INDEX "calendar_settings_crew_id_key" ON "calendar_settings"("crew
 CREATE UNIQUE INDEX "invoices_invoice_number_key" ON "invoices"("invoice_number");
 
 -- CreateIndex
+CREATE INDEX "invoices_inquiry_id_idx" ON "invoices"("inquiry_id");
+
+-- CreateIndex
+CREATE INDEX "invoices_brand_id_idx" ON "invoices"("brand_id");
+
+-- CreateIndex
+CREATE INDEX "invoices_quote_id_idx" ON "invoices"("quote_id");
+
+-- CreateIndex
+CREATE INDEX "invoices_status_idx" ON "invoices"("status");
+
+-- CreateIndex
+CREATE INDEX "payments_stripe_checkout_session_id_idx" ON "payments"("stripe_checkout_session_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "estimates_estimate_number_key" ON "estimates"("estimate_number");
 
 -- CreateIndex
@@ -3167,6 +4163,18 @@ CREATE INDEX "notifications_recipient_crew_id_is_read_idx" ON "notifications"("r
 
 -- CreateIndex
 CREATE UNIQUE INDEX "proposals_share_token_key" ON "proposals"("share_token");
+
+-- CreateIndex
+CREATE INDEX "proposal_section_views_proposal_id_idx" ON "proposal_section_views"("proposal_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "proposal_section_views_proposal_id_section_type_key" ON "proposal_section_views"("proposal_id", "section_type");
+
+-- CreateIndex
+CREATE INDEX "proposal_section_notes_proposal_id_idx" ON "proposal_section_notes"("proposal_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "proposal_section_notes_proposal_id_section_type_key" ON "proposal_section_notes"("proposal_id", "section_type");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "contracts_signing_token_key" ON "contracts"("signing_token");
@@ -3274,6 +4282,9 @@ CREATE INDEX "project_tasks_status_idx" ON "project_tasks"("status");
 CREATE INDEX "inquiry_tasks_inquiry_id_idx" ON "inquiry_tasks"("inquiry_id");
 
 -- CreateIndex
+CREATE INDEX "inquiry_tasks_project_id_idx" ON "inquiry_tasks"("project_id");
+
+-- CreateIndex
 CREATE INDEX "inquiry_tasks_task_library_id_idx" ON "inquiry_tasks"("task_library_id");
 
 -- CreateIndex
@@ -3370,6 +4381,105 @@ CREATE INDEX "equipment_availability_inquiry_id_idx" ON "equipment_availability"
 CREATE INDEX "locations_library_brand_id_idx" ON "locations_library"("brand_id");
 
 -- CreateIndex
+CREATE INDEX "location_spaces_location_id_idx" ON "location_spaces"("location_id");
+
+-- CreateIndex
+CREATE INDEX "location_spaces_floor_plan_id_idx" ON "location_spaces"("floor_plan_id");
+
+-- CreateIndex
+CREATE INDEX "location_space_type_tags_location_space_id_idx" ON "location_space_type_tags"("location_space_id");
+
+-- CreateIndex
+CREATE INDEX "location_space_type_tags_space_type_idx" ON "location_space_type_tags"("space_type");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "location_space_type_tags_location_space_id_space_type_key" ON "location_space_type_tags"("location_space_id", "space_type");
+
+-- CreateIndex
+CREATE INDEX "floor_plans_location_id_idx" ON "floor_plans"("location_id");
+
+-- CreateIndex
+CREATE INDEX "floor_plan_objects_floor_plan_id_idx" ON "floor_plan_objects"("floor_plan_id");
+
+-- CreateIndex
+CREATE INDEX "floor_plan_presets_brand_id_idx" ON "floor_plan_presets"("brand_id");
+
+-- CreateIndex
+CREATE INDEX "floor_plan_presets_space_type_idx" ON "floor_plan_presets"("space_type");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "floor_plan_presets_brand_id_name_key" ON "floor_plan_presets"("brand_id", "name");
+
+-- CreateIndex
+CREATE INDEX "floor_plan_preset_objects_preset_id_idx" ON "floor_plan_preset_objects"("preset_id");
+
+-- CreateIndex
+CREATE INDEX "floor_plan_preset_cameras_preset_id_idx" ON "floor_plan_preset_cameras"("preset_id");
+
+-- CreateIndex
+CREATE INDEX "floor_plan_preset_subjects_preset_id_idx" ON "floor_plan_preset_subjects"("preset_id");
+
+-- CreateIndex
+CREATE INDEX "space_slot_objects_package_space_slot_id_idx" ON "space_slot_objects"("package_space_slot_id");
+
+-- CreateIndex
+CREATE INDEX "space_slot_camera_positions_package_space_slot_id_idx" ON "space_slot_camera_positions"("package_space_slot_id");
+
+-- CreateIndex
+CREATE INDEX "space_slot_camera_positions_crew_slot_id_idx" ON "space_slot_camera_positions"("crew_slot_id");
+
+-- CreateIndex
+CREATE INDEX "space_slot_subject_positions_package_space_slot_id_idx" ON "space_slot_subject_positions"("package_space_slot_id");
+
+-- CreateIndex
+CREATE INDEX "space_slot_subject_positions_day_subject_id_idx" ON "space_slot_subject_positions"("day_subject_id");
+
+-- CreateIndex
+CREATE INDEX "space_slot_subject_positions_bound_object_id_idx" ON "space_slot_subject_positions"("bound_object_id");
+
+-- CreateIndex
+CREATE INDEX "space_slot_moment_cameras_camera_position_id_idx" ON "space_slot_moment_cameras"("camera_position_id");
+
+-- CreateIndex
+CREATE INDEX "space_slot_moment_cameras_moment_id_idx" ON "space_slot_moment_cameras"("moment_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "space_slot_moment_cameras_camera_position_id_moment_id_key" ON "space_slot_moment_cameras"("camera_position_id", "moment_id");
+
+-- CreateIndex
+CREATE INDEX "space_slot_moment_subjects_subject_position_id_idx" ON "space_slot_moment_subjects"("subject_position_id");
+
+-- CreateIndex
+CREATE INDEX "space_slot_moment_subjects_moment_id_idx" ON "space_slot_moment_subjects"("moment_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "space_slot_moment_subjects_subject_position_id_moment_id_key" ON "space_slot_moment_subjects"("subject_position_id", "moment_id");
+
+-- CreateIndex
+CREATE INDEX "space_slot_zones_package_space_slot_id_idx" ON "space_slot_zones"("package_space_slot_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "space_slot_zones_package_space_slot_id_name_key" ON "space_slot_zones"("package_space_slot_id", "name");
+
+-- CreateIndex
+CREATE INDEX "package_space_slot_type_tags_package_space_slot_id_idx" ON "package_space_slot_type_tags"("package_space_slot_id");
+
+-- CreateIndex
+CREATE INDEX "package_space_slot_type_tags_space_type_idx" ON "package_space_slot_type_tags"("space_type");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "package_space_slot_type_tags_package_space_slot_id_space_ty_key" ON "package_space_slot_type_tags"("package_space_slot_id", "space_type");
+
+-- CreateIndex
+CREATE INDEX "project_space_slot_type_tags_project_space_slot_id_idx" ON "project_space_slot_type_tags"("project_space_slot_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_slot_type_tags_space_type_idx" ON "project_space_slot_type_tags"("space_type");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "project_space_slot_type_tags_project_space_slot_id_space_ty_key" ON "project_space_slot_type_tags"("project_space_slot_id", "space_type");
+
+-- CreateIndex
 CREATE INDEX "films_brand_id_idx" ON "films"("brand_id");
 
 -- CreateIndex
@@ -3421,24 +4531,6 @@ CREATE INDEX "subject_roles_brand_id_idx" ON "subject_roles"("brand_id");
 CREATE UNIQUE INDEX "subject_roles_brand_id_role_name_key" ON "subject_roles"("brand_id", "role_name");
 
 -- CreateIndex
-CREATE INDEX "film_subjects_film_id_idx" ON "film_subjects"("film_id");
-
--- CreateIndex
-CREATE INDEX "film_subjects_role_template_id_idx" ON "film_subjects"("role_template_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "film_subjects_film_id_name_key" ON "film_subjects"("film_id", "name");
-
--- CreateIndex
-CREATE INDEX "film_locations_film_id_idx" ON "film_locations"("film_id");
-
--- CreateIndex
-CREATE INDEX "film_locations_location_id_idx" ON "film_locations"("location_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "film_locations_film_id_location_id_key" ON "film_locations"("film_id", "location_id");
-
--- CreateIndex
 CREATE INDEX "scene_templates_brand_id_idx" ON "scene_templates"("brand_id");
 
 -- CreateIndex
@@ -3466,6 +4558,18 @@ CREATE INDEX "film_scenes_film_id_idx" ON "film_scenes"("film_id");
 CREATE INDEX "film_scenes_scene_template_id_idx" ON "film_scenes"("scene_template_id");
 
 -- CreateIndex
+CREATE INDEX "film_scenes_source_activity_id_idx" ON "film_scenes"("source_activity_id");
+
+-- CreateIndex
+CREATE INDEX "film_locations_film_id_idx" ON "film_locations"("film_id");
+
+-- CreateIndex
+CREATE INDEX "film_locations_location_id_idx" ON "film_locations"("location_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "film_locations_film_id_location_id_key" ON "film_locations"("film_id", "location_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "film_scene_locations_scene_id_key" ON "film_scene_locations"("scene_id");
 
 -- CreateIndex
@@ -3475,25 +4579,70 @@ CREATE INDEX "film_scene_locations_scene_id_idx" ON "film_scene_locations"("scen
 CREATE INDEX "film_scene_locations_location_id_idx" ON "film_scene_locations"("location_id");
 
 -- CreateIndex
+CREATE INDEX "film_scene_spaces_scene_id_idx" ON "film_scene_spaces"("scene_id");
+
+-- CreateIndex
+CREATE INDEX "film_scene_spaces_space_id_idx" ON "film_scene_spaces"("space_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "film_scene_spaces_scene_id_space_id_key" ON "film_scene_spaces"("scene_id", "space_id");
+
+-- CreateIndex
+CREATE INDEX "scene_camera_positions_scene_id_idx" ON "scene_camera_positions"("scene_id");
+
+-- CreateIndex
+CREATE INDEX "scene_camera_positions_track_id_idx" ON "scene_camera_positions"("track_id");
+
+-- CreateIndex
+CREATE INDEX "scene_camera_positions_space_id_idx" ON "scene_camera_positions"("space_id");
+
+-- CreateIndex
+CREATE INDEX "scene_camera_positions_source_space_slot_camera_position_id_idx" ON "scene_camera_positions"("source_space_slot_camera_position_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "scene_camera_positions_scene_id_track_id_key" ON "scene_camera_positions"("scene_id", "track_id");
+
+-- CreateIndex
+CREATE INDEX "scene_subject_positions_scene_id_idx" ON "scene_subject_positions"("scene_id");
+
+-- CreateIndex
+CREATE INDEX "scene_subject_positions_subject_id_idx" ON "scene_subject_positions"("subject_id");
+
+-- CreateIndex
+CREATE INDEX "scene_subject_positions_space_id_idx" ON "scene_subject_positions"("space_id");
+
+-- CreateIndex
+CREATE INDEX "scene_subject_positions_source_space_slot_subject_position__idx" ON "scene_subject_positions"("source_space_slot_subject_position_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "scene_subject_positions_scene_id_subject_id_key" ON "scene_subject_positions"("scene_id", "subject_id");
+
+-- CreateIndex
+CREATE INDEX "moment_camera_positions_moment_id_idx" ON "moment_camera_positions"("moment_id");
+
+-- CreateIndex
+CREATE INDEX "moment_camera_positions_track_id_idx" ON "moment_camera_positions"("track_id");
+
+-- CreateIndex
+CREATE INDEX "moment_camera_positions_space_id_idx" ON "moment_camera_positions"("space_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "moment_camera_positions_moment_id_track_id_key" ON "moment_camera_positions"("moment_id", "track_id");
+
+-- CreateIndex
+CREATE INDEX "moment_subject_positions_moment_id_idx" ON "moment_subject_positions"("moment_id");
+
+-- CreateIndex
+CREATE INDEX "moment_subject_positions_subject_id_idx" ON "moment_subject_positions"("subject_id");
+
+-- CreateIndex
+CREATE INDEX "moment_subject_positions_space_id_idx" ON "moment_subject_positions"("space_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "moment_subject_positions_moment_id_subject_id_key" ON "moment_subject_positions"("moment_id", "subject_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "scene_recording_setups_scene_id_key" ON "scene_recording_setups"("scene_id");
-
--- CreateIndex
-CREATE INDEX "film_scene_subjects_scene_id_idx" ON "film_scene_subjects"("scene_id");
-
--- CreateIndex
-CREATE INDEX "film_scene_subjects_subject_id_idx" ON "film_scene_subjects"("subject_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "film_scene_subjects_scene_id_subject_id_key" ON "film_scene_subjects"("scene_id", "subject_id");
-
--- CreateIndex
-CREATE INDEX "film_scene_moment_subjects_moment_id_idx" ON "film_scene_moment_subjects"("moment_id");
-
--- CreateIndex
-CREATE INDEX "film_scene_moment_subjects_subject_id_idx" ON "film_scene_moment_subjects"("subject_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "film_scene_moment_subjects_moment_id_subject_id_key" ON "film_scene_moment_subjects"("moment_id", "subject_id");
 
 -- CreateIndex
 CREATE INDEX "scene_camera_assignments_recording_setup_id_idx" ON "scene_camera_assignments"("recording_setup_id");
@@ -3505,7 +4654,19 @@ CREATE INDEX "scene_camera_assignments_track_id_idx" ON "scene_camera_assignment
 CREATE UNIQUE INDEX "scene_camera_assignments_recording_setup_id_track_id_key" ON "scene_camera_assignments"("recording_setup_id", "track_id");
 
 -- CreateIndex
+CREATE INDEX "film_scene_moment_subjects_moment_id_idx" ON "film_scene_moment_subjects"("moment_id");
+
+-- CreateIndex
+CREATE INDEX "film_scene_moment_subjects_subject_id_idx" ON "film_scene_moment_subjects"("subject_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "film_scene_moment_subjects_moment_id_subject_id_key" ON "film_scene_moment_subjects"("moment_id", "subject_id");
+
+-- CreateIndex
 CREATE INDEX "film_scene_moments_film_scene_id_idx" ON "film_scene_moments"("film_scene_id");
+
+-- CreateIndex
+CREATE INDEX "film_scene_moments_package_activity_moment_id_idx" ON "film_scene_moments"("package_activity_moment_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "film_scene_moments_film_scene_id_order_index_key" ON "film_scene_moments"("film_scene_id", "order_index");
@@ -3541,6 +4702,9 @@ CREATE INDEX "camera_subject_assignments_recording_setup_id_idx" ON "camera_subj
 CREATE INDEX "camera_subject_assignments_track_id_idx" ON "camera_subject_assignments"("track_id");
 
 -- CreateIndex
+CREATE INDEX "camera_subject_assignments_scene_camera_position_id_idx" ON "camera_subject_assignments"("scene_camera_position_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "camera_subject_assignments_recording_setup_id_track_id_key" ON "camera_subject_assignments"("recording_setup_id", "track_id");
 
 -- CreateIndex
@@ -3548,6 +4712,15 @@ CREATE UNIQUE INDEX "scene_music_film_scene_id_key" ON "scene_music"("film_scene
 
 -- CreateIndex
 CREATE UNIQUE INDEX "moment_music_moment_id_key" ON "moment_music"("moment_id");
+
+-- CreateIndex
+CREATE INDEX "shot_previews_camera_assignment_id_source_type_idx" ON "shot_previews"("camera_assignment_id", "source_type");
+
+-- CreateIndex
+CREATE INDEX "shot_previews_film_id_idx" ON "shot_previews"("film_id");
+
+-- CreateIndex
+CREATE INDEX "shot_previews_brand_id_idx" ON "shot_previews"("brand_id");
 
 -- CreateIndex
 CREATE INDEX "montage_presets_brand_id_idx" ON "montage_presets"("brand_id");
@@ -3586,61 +4759,25 @@ CREATE INDEX "scene_audio_sources_source_scene_id_idx" ON "scene_audio_sources"(
 CREATE INDEX "service_packages_brand_id_idx" ON "service_packages"("brand_id");
 
 -- CreateIndex
-CREATE INDEX "service_packages_category_id_idx" ON "service_packages"("category_id");
+CREATE INDEX "service_packages_event_category_idx" ON "service_packages"("event_category");
 
 -- CreateIndex
-CREATE INDEX "service_packages_wedding_type_id_idx" ON "service_packages"("wedding_type_id");
+CREATE INDEX "service_packages_created_from_package_template_id_idx" ON "service_packages"("created_from_package_template_id");
 
 -- CreateIndex
 CREATE INDEX "service_packages_workflow_template_id_idx" ON "service_packages"("workflow_template_id");
 
 -- CreateIndex
-CREATE INDEX "service_package_categories_brand_id_idx" ON "service_package_categories"("brand_id");
+CREATE INDEX "service_packages_source_day_blueprint_id_idx" ON "service_packages"("source_day_blueprint_id");
 
 -- CreateIndex
-CREATE INDEX "service_package_categories_event_type_id_idx" ON "service_package_categories"("event_type_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "service_package_categories_brand_id_name_key" ON "service_package_categories"("brand_id", "name");
+CREATE INDEX "service_packages_source_day_blueprint_version_id_idx" ON "service_packages"("source_day_blueprint_version_id");
 
 -- CreateIndex
 CREATE INDEX "schedule_presets_brand_id_idx" ON "schedule_presets"("brand_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "schedule_presets_brand_id_name_key" ON "schedule_presets"("brand_id", "name");
-
--- CreateIndex
-CREATE INDEX "event_types_brand_id_idx" ON "event_types"("brand_id");
-
--- CreateIndex
-CREATE INDEX "event_types_is_system_idx" ON "event_types"("is_system");
-
--- CreateIndex
-CREATE INDEX "event_types_is_active_idx" ON "event_types"("is_active");
-
--- CreateIndex
-CREATE UNIQUE INDEX "event_types_brand_id_name_key" ON "event_types"("brand_id", "name");
-
--- CreateIndex
-CREATE INDEX "event_type_days_event_type_id_idx" ON "event_type_days"("event_type_id");
-
--- CreateIndex
-CREATE INDEX "event_type_days_event_day_template_id_idx" ON "event_type_days"("event_day_template_id");
-
--- CreateIndex
-CREATE INDEX "event_type_days_event_subtype_id_idx" ON "event_type_days"("event_subtype_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "event_type_days_event_type_id_event_day_template_id_key" ON "event_type_days"("event_type_id", "event_day_template_id");
-
--- CreateIndex
-CREATE INDEX "event_type_subjects_event_type_id_idx" ON "event_type_subjects"("event_type_id");
-
--- CreateIndex
-CREATE INDEX "event_type_subjects_subject_role_id_idx" ON "event_type_subjects"("subject_role_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "event_type_subjects_event_type_id_subject_role_id_key" ON "event_type_subjects"("event_type_id", "subject_role_id");
 
 -- CreateIndex
 CREATE INDEX "event_days_brand_id_idx" ON "event_days"("brand_id");
@@ -3670,64 +4807,73 @@ CREATE INDEX "event_day_subject_roles_subject_role_id_idx" ON "event_day_subject
 CREATE UNIQUE INDEX "event_day_subject_roles_event_day_id_subject_role_id_key" ON "event_day_subject_roles"("event_day_id", "subject_role_id");
 
 -- CreateIndex
-CREATE INDEX "event_subtypes_brand_id_idx" ON "event_subtypes"("brand_id");
+CREATE INDEX "package_templates_brand_id_idx" ON "package_templates"("brand_id");
 
 -- CreateIndex
-CREATE INDEX "event_subtypes_event_type_id_idx" ON "event_subtypes"("event_type_id");
+CREATE INDEX "package_templates_event_category_idx" ON "package_templates"("event_category");
 
 -- CreateIndex
-CREATE INDEX "event_subtypes_is_system_seeded_idx" ON "event_subtypes"("is_system_seeded");
+CREATE INDEX "package_templates_is_system_seeded_idx" ON "package_templates"("is_system_seeded");
 
 -- CreateIndex
-CREATE INDEX "event_subtypes_is_active_idx" ON "event_subtypes"("is_active");
+CREATE INDEX "package_templates_is_active_idx" ON "package_templates"("is_active");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "event_subtypes_brand_id_name_key" ON "event_subtypes"("brand_id", "name");
+CREATE UNIQUE INDEX "package_templates_brand_id_name_key" ON "package_templates"("brand_id", "name");
 
 -- CreateIndex
-CREATE INDEX "event_subtype_activities_wedding_type_id_idx" ON "event_subtype_activities"("wedding_type_id");
+CREATE INDEX "package_template_days_package_template_id_idx" ON "package_template_days"("package_template_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "event_subtype_activities_wedding_type_id_order_index_key" ON "event_subtype_activities"("wedding_type_id", "order_index");
+CREATE INDEX "package_template_days_event_day_template_id_idx" ON "package_template_days"("event_day_template_id");
 
 -- CreateIndex
-CREATE INDEX "event_subtype_activity_moments_wedding_type_activity_id_idx" ON "event_subtype_activity_moments"("wedding_type_activity_id");
+CREATE UNIQUE INDEX "package_template_days_package_template_id_event_day_templat_key" ON "package_template_days"("package_template_id", "event_day_template_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "event_subtype_activity_moments_wedding_type_activity_id_ord_key" ON "event_subtype_activity_moments"("wedding_type_activity_id", "order_index");
+CREATE INDEX "package_template_activities_package_template_id_idx" ON "package_template_activities"("package_template_id");
 
 -- CreateIndex
-CREATE INDEX "event_subtype_locations_wedding_type_id_idx" ON "event_subtype_locations"("wedding_type_id");
+CREATE UNIQUE INDEX "package_template_activities_package_template_id_order_index_key" ON "package_template_activities"("package_template_id", "order_index");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "event_subtype_locations_wedding_type_id_order_index_key" ON "event_subtype_locations"("wedding_type_id", "order_index");
+CREATE INDEX "package_template_moments_package_template_activity_id_idx" ON "package_template_moments"("package_template_activity_id");
 
 -- CreateIndex
-CREATE INDEX "event_subtype_subjects_wedding_type_id_idx" ON "event_subtype_subjects"("wedding_type_id");
+CREATE UNIQUE INDEX "package_template_moments_package_template_activity_id_order_key" ON "package_template_moments"("package_template_activity_id", "order_index");
 
 -- CreateIndex
-CREATE INDEX "event_subtype_subjects_subject_role_id_idx" ON "event_subtype_subjects"("subject_role_id");
+CREATE INDEX "package_template_locations_package_template_id_idx" ON "package_template_locations"("package_template_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "event_subtype_subjects_wedding_type_id_order_index_key" ON "event_subtype_subjects"("wedding_type_id", "order_index");
+CREATE UNIQUE INDEX "package_template_locations_package_template_id_order_index_key" ON "package_template_locations"("package_template_id", "order_index");
 
 -- CreateIndex
-CREATE INDEX "event_subtype_activity_locations_wedding_type_activity_id_idx" ON "event_subtype_activity_locations"("wedding_type_activity_id");
+CREATE INDEX "package_template_subjects_package_template_id_idx" ON "package_template_subjects"("package_template_id");
 
 -- CreateIndex
-CREATE INDEX "event_subtype_activity_locations_wedding_type_location_id_idx" ON "event_subtype_activity_locations"("wedding_type_location_id");
+CREATE INDEX "package_template_subjects_subject_role_id_idx" ON "package_template_subjects"("subject_role_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "event_subtype_activity_locations_wedding_type_activity_id_w_key" ON "event_subtype_activity_locations"("wedding_type_activity_id", "wedding_type_location_id");
+CREATE UNIQUE INDEX "package_template_subjects_package_template_id_order_index_key" ON "package_template_subjects"("package_template_id", "order_index");
 
 -- CreateIndex
-CREATE INDEX "event_subtype_activity_subjects_wedding_type_activity_id_idx" ON "event_subtype_activity_subjects"("wedding_type_activity_id");
+CREATE INDEX "package_template_activity_locations_package_template_activi_idx" ON "package_template_activity_locations"("package_template_activity_id");
 
 -- CreateIndex
-CREATE INDEX "event_subtype_activity_subjects_wedding_type_subject_id_idx" ON "event_subtype_activity_subjects"("wedding_type_subject_id");
+CREATE INDEX "package_template_activity_locations_package_template_locati_idx" ON "package_template_activity_locations"("package_template_location_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "event_subtype_activity_subjects_wedding_type_activity_id_we_key" ON "event_subtype_activity_subjects"("wedding_type_activity_id", "wedding_type_subject_id");
+CREATE UNIQUE INDEX "package_template_activity_locations_package_template_activi_key" ON "package_template_activity_locations"("package_template_activity_id", "package_template_location_id");
+
+-- CreateIndex
+CREATE INDEX "package_template_activity_subjects_package_template_activit_idx" ON "package_template_activity_subjects"("package_template_activity_id");
+
+-- CreateIndex
+CREATE INDEX "package_template_activity_subjects_package_template_subject_idx" ON "package_template_activity_subjects"("package_template_subject_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "package_template_activity_subjects_package_template_activit_key" ON "package_template_activity_subjects"("package_template_activity_id", "package_template_subject_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "film_scene_schedules_scene_id_key" ON "film_scene_schedules"("scene_id");
@@ -3754,7 +4900,13 @@ CREATE INDEX "package_activities_package_id_idx" ON "package_activities"("packag
 CREATE INDEX "package_activities_package_event_day_id_idx" ON "package_activities"("package_event_day_id");
 
 -- CreateIndex
+CREATE INDEX "package_activities_source_day_blueprint_activity_id_idx" ON "package_activities"("source_day_blueprint_activity_id");
+
+-- CreateIndex
 CREATE INDEX "package_activity_moments_package_activity_id_idx" ON "package_activity_moments"("package_activity_id");
+
+-- CreateIndex
+CREATE INDEX "package_activity_moments_source_day_blueprint_moment_id_idx" ON "package_activity_moments"("source_day_blueprint_moment_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "package_activity_moments_package_activity_id_order_index_key" ON "package_activity_moments"("package_activity_id", "order_index");
@@ -3991,6 +5143,51 @@ CREATE INDEX "project_film_scene_locations_project_scene_id_idx" ON "project_fil
 CREATE INDEX "project_film_scene_locations_location_id_idx" ON "project_film_scene_locations"("location_id");
 
 -- CreateIndex
+CREATE INDEX "project_film_scene_spaces_project_scene_id_idx" ON "project_film_scene_spaces"("project_scene_id");
+
+-- CreateIndex
+CREATE INDEX "project_film_scene_spaces_space_id_idx" ON "project_film_scene_spaces"("space_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "project_film_scene_spaces_project_scene_id_space_id_key" ON "project_film_scene_spaces"("project_scene_id", "space_id");
+
+-- CreateIndex
+CREATE INDEX "project_scene_camera_positions_project_id_idx" ON "project_scene_camera_positions"("project_id");
+
+-- CreateIndex
+CREATE INDEX "project_scene_camera_positions_inquiry_id_idx" ON "project_scene_camera_positions"("inquiry_id");
+
+-- CreateIndex
+CREATE INDEX "project_scene_camera_positions_project_scene_id_idx" ON "project_scene_camera_positions"("project_scene_id");
+
+-- CreateIndex
+CREATE INDEX "project_scene_camera_positions_project_track_id_idx" ON "project_scene_camera_positions"("project_track_id");
+
+-- CreateIndex
+CREATE INDEX "project_scene_camera_positions_space_id_idx" ON "project_scene_camera_positions"("space_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "project_scene_camera_positions_project_scene_id_project_tra_key" ON "project_scene_camera_positions"("project_scene_id", "project_track_id");
+
+-- CreateIndex
+CREATE INDEX "project_scene_subject_positions_project_id_idx" ON "project_scene_subject_positions"("project_id");
+
+-- CreateIndex
+CREATE INDEX "project_scene_subject_positions_inquiry_id_idx" ON "project_scene_subject_positions"("inquiry_id");
+
+-- CreateIndex
+CREATE INDEX "project_scene_subject_positions_project_scene_id_idx" ON "project_scene_subject_positions"("project_scene_id");
+
+-- CreateIndex
+CREATE INDEX "project_scene_subject_positions_project_subject_id_idx" ON "project_scene_subject_positions"("project_subject_id");
+
+-- CreateIndex
+CREATE INDEX "project_scene_subject_positions_space_id_idx" ON "project_scene_subject_positions"("space_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "project_scene_subject_positions_project_scene_id_project_su_key" ON "project_scene_subject_positions"("project_scene_id", "project_subject_id");
+
+-- CreateIndex
 CREATE INDEX "project_film_equipment_assignments_project_id_idx" ON "project_film_equipment_assignments"("project_id");
 
 -- CreateIndex
@@ -4123,6 +5320,45 @@ CREATE INDEX "project_location_activity_assignments_project_activity_id_idx" ON 
 CREATE UNIQUE INDEX "project_location_activity_assignments_project_location_slot_key" ON "project_location_activity_assignments"("project_location_slot_id", "project_activity_id");
 
 -- CreateIndex
+CREATE INDEX "project_space_slots_project_id_idx" ON "project_space_slots"("project_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_slots_inquiry_id_idx" ON "project_space_slots"("inquiry_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_slots_project_event_day_id_idx" ON "project_space_slots"("project_event_day_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_slots_project_location_slot_id_idx" ON "project_space_slots"("project_location_slot_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_slots_location_space_id_idx" ON "project_space_slots"("location_space_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_activity_assignments_project_space_slot_id_idx" ON "project_space_activity_assignments"("project_space_slot_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_activity_assignments_project_activity_id_idx" ON "project_space_activity_assignments"("project_activity_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "project_space_activity_assignments_project_space_slot_id_pr_key" ON "project_space_activity_assignments"("project_space_slot_id", "project_activity_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_slot_objects_project_space_slot_id_idx" ON "project_space_slot_objects"("project_space_slot_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_slot_cameras_project_space_slot_id_idx" ON "project_space_slot_cameras"("project_space_slot_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_slot_cameras_project_crew_slot_id_idx" ON "project_space_slot_cameras"("project_crew_slot_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_slot_subjects_project_space_slot_id_idx" ON "project_space_slot_subjects"("project_space_slot_id");
+
+-- CreateIndex
+CREATE INDEX "project_space_slot_subjects_project_day_subject_id_idx" ON "project_space_slot_subjects"("project_day_subject_id");
+
+-- CreateIndex
 CREATE INDEX "package_crew_slot_activities_package_crew_slot_id_idx" ON "package_crew_slot_activities"("package_crew_slot_id");
 
 -- CreateIndex
@@ -4150,6 +5386,36 @@ CREATE INDEX "package_location_slots_event_day_template_id_idx" ON "package_loca
 CREATE UNIQUE INDEX "package_location_slots_package_id_event_day_template_id_loc_key" ON "package_location_slots"("package_id", "event_day_template_id", "location_number");
 
 -- CreateIndex
+CREATE INDEX "package_space_slots_package_id_idx" ON "package_space_slots"("package_id");
+
+-- CreateIndex
+CREATE INDEX "package_space_slots_event_day_template_id_idx" ON "package_space_slots"("event_day_template_id");
+
+-- CreateIndex
+CREATE INDEX "package_space_slots_location_slot_id_idx" ON "package_space_slots"("location_slot_id");
+
+-- CreateIndex
+CREATE INDEX "package_space_slots_location_space_id_idx" ON "package_space_slots"("location_space_id");
+
+-- CreateIndex
+CREATE INDEX "package_space_slots_preset_id_idx" ON "package_space_slots"("preset_id");
+
+-- CreateIndex
+CREATE INDEX "package_space_slots_source_day_blueprint_space_slot_id_idx" ON "package_space_slots"("source_day_blueprint_space_slot_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "package_space_slots_package_id_event_day_template_id_label_key" ON "package_space_slots"("package_id", "event_day_template_id", "label");
+
+-- CreateIndex
+CREATE INDEX "space_activity_assignments_package_space_slot_id_idx" ON "space_activity_assignments"("package_space_slot_id");
+
+-- CreateIndex
+CREATE INDEX "space_activity_assignments_package_activity_id_idx" ON "space_activity_assignments"("package_activity_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "space_activity_assignments_package_space_slot_id_package_ac_key" ON "space_activity_assignments"("package_space_slot_id", "package_activity_id");
+
+-- CreateIndex
 CREATE INDEX "location_activity_assignments_package_location_slot_id_idx" ON "location_activity_assignments"("package_location_slot_id");
 
 -- CreateIndex
@@ -4171,10 +5437,7 @@ CREATE INDEX "package_task_overrides_package_id_idx" ON "package_task_overrides"
 CREATE INDEX "package_sets_brand_id_idx" ON "package_sets"("brand_id");
 
 -- CreateIndex
-CREATE INDEX "package_sets_category_id_idx" ON "package_sets"("category_id");
-
--- CreateIndex
-CREATE INDEX "package_sets_event_type_id_idx" ON "package_sets"("event_type_id");
+CREATE INDEX "package_sets_event_category_idx" ON "package_sets"("event_category");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "package_sets_brand_id_name_key" ON "package_sets"("brand_id", "name");
@@ -4205,6 +5468,12 @@ CREATE INDEX "crew_payment_rules_template_id_idx" ON "crew_payment_rules"("templ
 
 -- CreateIndex
 CREATE INDEX "crew_payment_rules_task_library_id_idx" ON "crew_payment_rules"("task_library_id");
+
+-- CreateIndex
+CREATE INDEX "payment_methods_brand_id_idx" ON "payment_methods"("brand_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "payment_methods_brand_id_label_key" ON "payment_methods"("brand_id", "label");
 
 -- CreateIndex
 CREATE INDEX "estimate_payment_milestones_estimate_id_idx" ON "estimate_payment_milestones"("estimate_id");
@@ -4256,6 +5525,174 @@ CREATE INDEX "inquiry_crew_availability_requests_crew_id_idx" ON "inquiry_crew_a
 
 -- CreateIndex
 CREATE UNIQUE INDEX "inquiry_crew_availability_requests_inquiry_id_crew_id_key" ON "inquiry_crew_availability_requests"("inquiry_id", "crew_id");
+
+-- CreateIndex
+CREATE INDEX "moment_knowledge_bases_brand_id_idx" ON "moment_knowledge_bases"("brand_id");
+
+-- CreateIndex
+CREATE INDEX "moment_knowledge_bases_category_idx" ON "moment_knowledge_bases"("category");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "moment_knowledge_bases_brand_id_category_variant_key" ON "moment_knowledge_bases"("brand_id", "category", "variant");
+
+-- CreateIndex
+CREATE INDEX "moment_knowledge_entries_knowledge_base_id_idx" ON "moment_knowledge_entries"("knowledge_base_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "moment_knowledge_entries_knowledge_base_id_order_index_key" ON "moment_knowledge_entries"("knowledge_base_id", "order_index");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprints_latest_published_version_id_key" ON "day_blueprints"("latest_published_version_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprints_brand_id_idx" ON "day_blueprints"("brand_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprints_event_category_idx" ON "day_blueprints"("event_category");
+
+-- CreateIndex
+CREATE INDEX "day_blueprints_is_active_idx" ON "day_blueprints"("is_active");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprints_brand_id_key_key" ON "day_blueprints"("brand_id", "key");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_versions_day_blueprint_id_idx" ON "day_blueprint_versions"("day_blueprint_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_versions_status_idx" ON "day_blueprint_versions"("status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_versions_day_blueprint_id_version_number_key" ON "day_blueprint_versions"("day_blueprint_id", "version_number");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_days_day_blueprint_version_id_idx" ON "day_blueprint_days"("day_blueprint_version_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_days_source_event_day_id_idx" ON "day_blueprint_days"("source_event_day_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_days_day_blueprint_version_id_order_index_key" ON "day_blueprint_days"("day_blueprint_version_id", "order_index");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_activities_day_blueprint_day_id_idx" ON "day_blueprint_activities"("day_blueprint_day_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_activities_source_event_day_activity_id_idx" ON "day_blueprint_activities"("source_event_day_activity_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_activities_day_blueprint_day_id_order_index_key" ON "day_blueprint_activities"("day_blueprint_day_id", "order_index");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_moments_day_blueprint_activity_id_idx" ON "day_blueprint_moments"("day_blueprint_activity_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_moments_source_event_day_activity_moment_id_idx" ON "day_blueprint_moments"("source_event_day_activity_moment_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_moments_day_blueprint_activity_id_order_index_key" ON "day_blueprint_moments"("day_blueprint_activity_id", "order_index");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_subject_roles_day_blueprint_version_id_idx" ON "day_blueprint_subject_roles"("day_blueprint_version_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_subject_roles_subject_role_id_idx" ON "day_blueprint_subject_roles"("subject_role_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_subject_roles_day_blueprint_version_id_subjec_key" ON "day_blueprint_subject_roles"("day_blueprint_version_id", "subject_role_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_lock_rules_day_blueprint_version_id_idx" ON "day_blueprint_lock_rules"("day_blueprint_version_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_lock_rules_scope_target_id_idx" ON "day_blueprint_lock_rules"("scope", "target_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_lock_rules_day_blueprint_version_id_scope_tar_key" ON "day_blueprint_lock_rules"("day_blueprint_version_id", "scope", "target_id", "rule_key");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_ai_runs_day_blueprint_version_id_idx" ON "day_blueprint_ai_runs"("day_blueprint_version_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_ai_runs_status_idx" ON "day_blueprint_ai_runs"("status");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_ai_runs_run_key_idx" ON "day_blueprint_ai_runs"("run_key");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_ai_proposals_day_blueprint_ai_run_id_idx" ON "day_blueprint_ai_proposals"("day_blueprint_ai_run_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_ai_proposals_status_idx" ON "day_blueprint_ai_proposals"("status");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_usages_day_blueprint_version_id_idx" ON "day_blueprint_usages"("day_blueprint_version_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_usages_package_id_idx" ON "day_blueprint_usages"("package_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_usages_is_current_idx" ON "day_blueprint_usages"("is_current");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_usages_day_blueprint_version_id_package_id_key" ON "day_blueprint_usages"("day_blueprint_version_id", "package_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_location_roles_brand_id_idx" ON "day_blueprint_location_roles"("brand_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_location_roles_brand_id_key_key" ON "day_blueprint_location_roles"("brand_id", "key");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_activity_locations_day_blueprint_activity_id_idx" ON "day_blueprint_activity_locations"("day_blueprint_activity_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_activity_locations_day_blueprint_location_rol_idx" ON "day_blueprint_activity_locations"("day_blueprint_location_role_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_activity_locations_day_blueprint_activity_id__key" ON "day_blueprint_activity_locations"("day_blueprint_activity_id", "day_blueprint_location_role_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_space_slots_day_blueprint_version_id_idx" ON "day_blueprint_space_slots"("day_blueprint_version_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_space_slots_day_blueprint_location_role_id_idx" ON "day_blueprint_space_slots"("day_blueprint_location_role_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_space_slots_day_blueprint_version_id_day_blue_key" ON "day_blueprint_space_slots"("day_blueprint_version_id", "day_blueprint_location_role_id", "key");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_moment_actions_day_blueprint_moment_id_idx" ON "day_blueprint_moment_actions"("day_blueprint_moment_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_moment_actions_subject_role_id_idx" ON "day_blueprint_moment_actions"("subject_role_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_moment_actions_day_blueprint_moment_id_subjec_key" ON "day_blueprint_moment_actions"("day_blueprint_moment_id", "subject_role_id", "order_index");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_moment_placements_day_blueprint_moment_id_idx" ON "day_blueprint_moment_placements"("day_blueprint_moment_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_moment_placements_day_blueprint_space_slot_id_idx" ON "day_blueprint_moment_placements"("day_blueprint_space_slot_id");
+
+-- CreateIndex
+CREATE INDEX "day_blueprint_moment_placements_subject_role_id_idx" ON "day_blueprint_moment_placements"("subject_role_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "day_blueprint_moment_placements_day_blueprint_moment_id_day_key" ON "day_blueprint_moment_placements"("day_blueprint_moment_id", "day_blueprint_space_slot_id", "subject_role_id", "order_index");
+
+-- CreateIndex
+CREATE INDEX "package_activity_moment_actions_package_activity_moment_id_idx" ON "package_activity_moment_actions"("package_activity_moment_id");
+
+-- CreateIndex
+CREATE INDEX "package_activity_moment_actions_subject_role_id_idx" ON "package_activity_moment_actions"("subject_role_id");
+
+-- CreateIndex
+CREATE INDEX "package_activity_moment_actions_source_day_blueprint_moment_idx" ON "package_activity_moment_actions"("source_day_blueprint_moment_action_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "package_activity_moment_actions_package_activity_moment_id__key" ON "package_activity_moment_actions"("package_activity_moment_id", "subject_role_id", "order_index");
 
 -- AddForeignKey
 ALTER TABLE "brand_settings" ADD CONSTRAINT "brand_settings_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -4333,9 +5770,6 @@ ALTER TABLE "inquiries" ADD CONSTRAINT "inquiries_selected_package_id_fkey" FORE
 ALTER TABLE "inquiries" ADD CONSTRAINT "inquiries_source_package_id_fkey" FOREIGN KEY ("source_package_id") REFERENCES "service_packages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "inquiries" ADD CONSTRAINT "inquiries_event_type_id_fkey" FOREIGN KEY ("event_type_id") REFERENCES "event_types"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "inquiries" ADD CONSTRAINT "inquiries_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -4390,6 +5824,12 @@ ALTER TABLE "projects" ADD CONSTRAINT "projects_brand_id_fkey" FOREIGN KEY ("bra
 ALTER TABLE "projects" ADD CONSTRAINT "projects_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "projects" ADD CONSTRAINT "projects_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "projects" ADD CONSTRAINT "projects_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "projects" ADD CONSTRAINT "projects_source_package_id_fkey" FOREIGN KEY ("source_package_id") REFERENCES "service_packages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -4412,6 +5852,18 @@ ALTER TABLE "crew_job_roles" ADD CONSTRAINT "crew_job_roles_job_role_id_fkey" FO
 
 -- AddForeignKey
 ALTER TABLE "crew_job_roles" ADD CONSTRAINT "crew_job_roles_payment_bracket_id_fkey" FOREIGN KEY ("payment_bracket_id") REFERENCES "payment_brackets"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "crew_presets" ADD CONSTRAINT "crew_presets_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "crew_preset_slots" ADD CONSTRAINT "crew_preset_slots_preset_id_fkey" FOREIGN KEY ("preset_id") REFERENCES "crew_presets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "crew_preset_slots" ADD CONSTRAINT "crew_preset_slots_job_role_id_fkey" FOREIGN KEY ("job_role_id") REFERENCES "job_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "crew_preset_slots" ADD CONSTRAINT "crew_preset_slots_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "calendar_events" ADD CONSTRAINT "calendar_events_crew_id_fkey" FOREIGN KEY ("crew_id") REFERENCES "crew"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -4453,6 +5905,9 @@ ALTER TABLE "project_assets" ADD CONSTRAINT "project_assets_project_id_fkey" FOR
 ALTER TABLE "invoices" ADD CONSTRAINT "invoices_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "invoices" ADD CONSTRAINT "invoices_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -4460,6 +5915,9 @@ ALTER TABLE "invoices" ADD CONSTRAINT "invoices_quote_id_fkey" FOREIGN KEY ("quo
 
 -- AddForeignKey
 ALTER TABLE "invoices" ADD CONSTRAINT "invoices_proposal_id_fkey" FOREIGN KEY ("proposal_id") REFERENCES "proposals"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_milestone_id_fkey" FOREIGN KEY ("milestone_id") REFERENCES "quote_payment_milestones"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "invoice_items" ADD CONSTRAINT "invoice_items_invoice_id_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoices"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -4535,6 +5993,12 @@ ALTER TABLE "proposals" ADD CONSTRAINT "proposals_inquiry_id_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "proposals" ADD CONSTRAINT "proposals_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "proposal_section_views" ADD CONSTRAINT "proposal_section_views_proposal_id_fkey" FOREIGN KEY ("proposal_id") REFERENCES "proposals"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "proposal_section_notes" ADD CONSTRAINT "proposal_section_notes_proposal_id_fkey" FOREIGN KEY ("proposal_id") REFERENCES "proposals"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "contracts" ADD CONSTRAINT "contracts_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -4621,6 +6085,9 @@ ALTER TABLE "project_tasks" ADD CONSTRAINT "project_tasks_resolved_bracket_id_fk
 ALTER TABLE "inquiry_tasks" ADD CONSTRAINT "inquiry_tasks_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "inquiry_tasks" ADD CONSTRAINT "inquiry_tasks_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "inquiry_tasks" ADD CONSTRAINT "inquiry_tasks_task_library_id_fkey" FOREIGN KEY ("task_library_id") REFERENCES "task_library"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -4696,6 +6163,72 @@ ALTER TABLE "equipment_availability" ADD CONSTRAINT "equipment_availability_inqu
 ALTER TABLE "locations_library" ADD CONSTRAINT "locations_library_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "location_spaces" ADD CONSTRAINT "location_spaces_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "location_spaces" ADD CONSTRAINT "location_spaces_floor_plan_id_fkey" FOREIGN KEY ("floor_plan_id") REFERENCES "floor_plans"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "location_space_type_tags" ADD CONSTRAINT "location_space_type_tags_location_space_id_fkey" FOREIGN KEY ("location_space_id") REFERENCES "location_spaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "floor_plans" ADD CONSTRAINT "floor_plans_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "floor_plan_objects" ADD CONSTRAINT "floor_plan_objects_floor_plan_id_fkey" FOREIGN KEY ("floor_plan_id") REFERENCES "floor_plans"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "floor_plan_presets" ADD CONSTRAINT "floor_plan_presets_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "floor_plan_preset_objects" ADD CONSTRAINT "floor_plan_preset_objects_preset_id_fkey" FOREIGN KEY ("preset_id") REFERENCES "floor_plan_presets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "floor_plan_preset_cameras" ADD CONSTRAINT "floor_plan_preset_cameras_preset_id_fkey" FOREIGN KEY ("preset_id") REFERENCES "floor_plan_presets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "floor_plan_preset_subjects" ADD CONSTRAINT "floor_plan_preset_subjects_preset_id_fkey" FOREIGN KEY ("preset_id") REFERENCES "floor_plan_presets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_slot_objects" ADD CONSTRAINT "space_slot_objects_package_space_slot_id_fkey" FOREIGN KEY ("package_space_slot_id") REFERENCES "package_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_slot_camera_positions" ADD CONSTRAINT "space_slot_camera_positions_package_space_slot_id_fkey" FOREIGN KEY ("package_space_slot_id") REFERENCES "package_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_slot_camera_positions" ADD CONSTRAINT "space_slot_camera_positions_crew_slot_id_fkey" FOREIGN KEY ("crew_slot_id") REFERENCES "package_crew_slots"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_slot_subject_positions" ADD CONSTRAINT "space_slot_subject_positions_package_space_slot_id_fkey" FOREIGN KEY ("package_space_slot_id") REFERENCES "package_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_slot_subject_positions" ADD CONSTRAINT "space_slot_subject_positions_day_subject_id_fkey" FOREIGN KEY ("day_subject_id") REFERENCES "package_day_subjects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_slot_subject_positions" ADD CONSTRAINT "space_slot_subject_positions_bound_object_id_fkey" FOREIGN KEY ("bound_object_id") REFERENCES "space_slot_objects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_slot_moment_cameras" ADD CONSTRAINT "space_slot_moment_cameras_camera_position_id_fkey" FOREIGN KEY ("camera_position_id") REFERENCES "space_slot_camera_positions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_slot_moment_cameras" ADD CONSTRAINT "space_slot_moment_cameras_moment_id_fkey" FOREIGN KEY ("moment_id") REFERENCES "package_activity_moments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_slot_moment_subjects" ADD CONSTRAINT "space_slot_moment_subjects_subject_position_id_fkey" FOREIGN KEY ("subject_position_id") REFERENCES "space_slot_subject_positions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_slot_moment_subjects" ADD CONSTRAINT "space_slot_moment_subjects_moment_id_fkey" FOREIGN KEY ("moment_id") REFERENCES "package_activity_moments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_slot_zones" ADD CONSTRAINT "space_slot_zones_package_space_slot_id_fkey" FOREIGN KEY ("package_space_slot_id") REFERENCES "package_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_space_slot_type_tags" ADD CONSTRAINT "package_space_slot_type_tags_package_space_slot_id_fkey" FOREIGN KEY ("package_space_slot_id") REFERENCES "package_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_slot_type_tags" ADD CONSTRAINT "project_space_slot_type_tags_project_space_slot_id_fkey" FOREIGN KEY ("project_space_slot_id") REFERENCES "project_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "films" ADD CONSTRAINT "films_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -4729,18 +6262,6 @@ ALTER TABLE "subject_templates" ADD CONSTRAINT "subject_templates_brand_id_fkey"
 ALTER TABLE "subject_roles" ADD CONSTRAINT "subject_roles_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "film_subjects" ADD CONSTRAINT "film_subjects_film_id_fkey" FOREIGN KEY ("film_id") REFERENCES "films"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "film_subjects" ADD CONSTRAINT "film_subjects_role_template_id_fkey" FOREIGN KEY ("role_template_id") REFERENCES "subject_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "film_locations" ADD CONSTRAINT "film_locations_film_id_fkey" FOREIGN KEY ("film_id") REFERENCES "films"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "film_locations" ADD CONSTRAINT "film_locations_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "scene_templates" ADD CONSTRAINT "scene_templates_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -4759,25 +6280,76 @@ ALTER TABLE "film_scenes" ADD CONSTRAINT "film_scenes_film_id_fkey" FOREIGN KEY 
 ALTER TABLE "film_scenes" ADD CONSTRAINT "film_scenes_scene_template_id_fkey" FOREIGN KEY ("scene_template_id") REFERENCES "scene_templates"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "film_scenes" ADD CONSTRAINT "film_scenes_source_activity_id_fkey" FOREIGN KEY ("source_activity_id") REFERENCES "package_activities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "film_locations" ADD CONSTRAINT "film_locations_film_id_fkey" FOREIGN KEY ("film_id") REFERENCES "films"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "film_locations" ADD CONSTRAINT "film_locations_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "film_scene_locations" ADD CONSTRAINT "film_scene_locations_scene_id_fkey" FOREIGN KEY ("scene_id") REFERENCES "film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "film_scene_locations" ADD CONSTRAINT "film_scene_locations_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "film_scene_spaces" ADD CONSTRAINT "film_scene_spaces_scene_id_fkey" FOREIGN KEY ("scene_id") REFERENCES "film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "film_scene_spaces" ADD CONSTRAINT "film_scene_spaces_space_id_fkey" FOREIGN KEY ("space_id") REFERENCES "location_spaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "scene_camera_positions" ADD CONSTRAINT "scene_camera_positions_scene_id_fkey" FOREIGN KEY ("scene_id") REFERENCES "film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "scene_camera_positions" ADD CONSTRAINT "scene_camera_positions_track_id_fkey" FOREIGN KEY ("track_id") REFERENCES "film_timeline_tracks_v2"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "scene_camera_positions" ADD CONSTRAINT "scene_camera_positions_space_id_fkey" FOREIGN KEY ("space_id") REFERENCES "location_spaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "scene_camera_positions" ADD CONSTRAINT "scene_camera_positions_source_space_slot_camera_position_i_fkey" FOREIGN KEY ("source_space_slot_camera_position_id") REFERENCES "space_slot_camera_positions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "scene_subject_positions" ADD CONSTRAINT "scene_subject_positions_scene_id_fkey" FOREIGN KEY ("scene_id") REFERENCES "film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "scene_subject_positions" ADD CONSTRAINT "scene_subject_positions_subject_id_fkey" FOREIGN KEY ("subject_id") REFERENCES "package_day_subjects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "scene_subject_positions" ADD CONSTRAINT "scene_subject_positions_space_id_fkey" FOREIGN KEY ("space_id") REFERENCES "location_spaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "scene_subject_positions" ADD CONSTRAINT "scene_subject_positions_source_space_slot_subject_position_fkey" FOREIGN KEY ("source_space_slot_subject_position_id") REFERENCES "space_slot_subject_positions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "moment_camera_positions" ADD CONSTRAINT "moment_camera_positions_moment_id_fkey" FOREIGN KEY ("moment_id") REFERENCES "film_scene_moments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "moment_camera_positions" ADD CONSTRAINT "moment_camera_positions_track_id_fkey" FOREIGN KEY ("track_id") REFERENCES "film_timeline_tracks_v2"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "moment_camera_positions" ADD CONSTRAINT "moment_camera_positions_space_id_fkey" FOREIGN KEY ("space_id") REFERENCES "location_spaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "moment_camera_positions" ADD CONSTRAINT "moment_camera_positions_source_scene_position_id_fkey" FOREIGN KEY ("source_scene_position_id") REFERENCES "scene_camera_positions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "moment_subject_positions" ADD CONSTRAINT "moment_subject_positions_moment_id_fkey" FOREIGN KEY ("moment_id") REFERENCES "film_scene_moments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "moment_subject_positions" ADD CONSTRAINT "moment_subject_positions_subject_id_fkey" FOREIGN KEY ("subject_id") REFERENCES "package_day_subjects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "moment_subject_positions" ADD CONSTRAINT "moment_subject_positions_space_id_fkey" FOREIGN KEY ("space_id") REFERENCES "location_spaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "moment_subject_positions" ADD CONSTRAINT "moment_subject_positions_source_scene_position_id_fkey" FOREIGN KEY ("source_scene_position_id") REFERENCES "scene_subject_positions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "scene_recording_setups" ADD CONSTRAINT "scene_recording_setups_scene_id_fkey" FOREIGN KEY ("scene_id") REFERENCES "film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "film_scene_subjects" ADD CONSTRAINT "film_scene_subjects_scene_id_fkey" FOREIGN KEY ("scene_id") REFERENCES "film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "film_scene_subjects" ADD CONSTRAINT "film_scene_subjects_subject_id_fkey" FOREIGN KEY ("subject_id") REFERENCES "film_subjects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "film_scene_moment_subjects" ADD CONSTRAINT "film_scene_moment_subjects_moment_id_fkey" FOREIGN KEY ("moment_id") REFERENCES "film_scene_moments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "film_scene_moment_subjects" ADD CONSTRAINT "film_scene_moment_subjects_subject_id_fkey" FOREIGN KEY ("subject_id") REFERENCES "film_subjects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "scene_camera_assignments" ADD CONSTRAINT "scene_camera_assignments_recording_setup_id_fkey" FOREIGN KEY ("recording_setup_id") REFERENCES "scene_recording_setups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -4786,7 +6358,16 @@ ALTER TABLE "scene_camera_assignments" ADD CONSTRAINT "scene_camera_assignments_
 ALTER TABLE "scene_camera_assignments" ADD CONSTRAINT "scene_camera_assignments_track_id_fkey" FOREIGN KEY ("track_id") REFERENCES "film_timeline_tracks_v2"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "film_scene_moment_subjects" ADD CONSTRAINT "film_scene_moment_subjects_moment_id_fkey" FOREIGN KEY ("moment_id") REFERENCES "film_scene_moments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "film_scene_moment_subjects" ADD CONSTRAINT "film_scene_moment_subjects_subject_id_fkey" FOREIGN KEY ("subject_id") REFERENCES "package_day_subjects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "film_scene_moments" ADD CONSTRAINT "film_scene_moments_film_scene_id_fkey" FOREIGN KEY ("film_scene_id") REFERENCES "film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "film_scene_moments" ADD CONSTRAINT "film_scene_moments_package_activity_moment_id_fkey" FOREIGN KEY ("package_activity_moment_id") REFERENCES "package_activity_moments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "film_scene_beats" ADD CONSTRAINT "film_scene_beats_film_scene_id_fkey" FOREIGN KEY ("film_scene_id") REFERENCES "film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -4813,10 +6394,19 @@ ALTER TABLE "camera_subject_assignments" ADD CONSTRAINT "camera_subject_assignme
 ALTER TABLE "camera_subject_assignments" ADD CONSTRAINT "camera_subject_assignments_track_id_fkey" FOREIGN KEY ("track_id") REFERENCES "film_timeline_tracks_v2"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "camera_subject_assignments" ADD CONSTRAINT "camera_subject_assignments_scene_camera_position_id_fkey" FOREIGN KEY ("scene_camera_position_id") REFERENCES "scene_camera_positions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "scene_music" ADD CONSTRAINT "scene_music_film_scene_id_fkey" FOREIGN KEY ("film_scene_id") REFERENCES "film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "moment_music" ADD CONSTRAINT "moment_music_moment_id_fkey" FOREIGN KEY ("moment_id") REFERENCES "film_scene_moments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "shot_previews" ADD CONSTRAINT "shot_previews_film_id_fkey" FOREIGN KEY ("film_id") REFERENCES "films"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "shot_previews" ADD CONSTRAINT "shot_previews_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "montage_presets" ADD CONSTRAINT "montage_presets_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -4843,40 +6433,19 @@ ALTER TABLE "scene_audio_sources" ADD CONSTRAINT "scene_audio_sources_source_sce
 ALTER TABLE "service_packages" ADD CONSTRAINT "service_packages_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "service_packages" ADD CONSTRAINT "service_packages_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "service_package_categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "service_packages" ADD CONSTRAINT "service_packages_created_from_package_template_id_fkey" FOREIGN KEY ("created_from_package_template_id") REFERENCES "package_templates"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "service_packages" ADD CONSTRAINT "service_packages_wedding_type_id_fkey" FOREIGN KEY ("wedding_type_id") REFERENCES "event_subtypes"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "service_packages" ADD CONSTRAINT "service_packages_source_day_blueprint_id_fkey" FOREIGN KEY ("source_day_blueprint_id") REFERENCES "day_blueprints"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "service_packages" ADD CONSTRAINT "service_packages_source_day_blueprint_version_id_fkey" FOREIGN KEY ("source_day_blueprint_version_id") REFERENCES "day_blueprint_versions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "service_packages" ADD CONSTRAINT "service_packages_workflow_template_id_fkey" FOREIGN KEY ("workflow_template_id") REFERENCES "workflow_templates"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "service_package_categories" ADD CONSTRAINT "service_package_categories_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "service_package_categories" ADD CONSTRAINT "service_package_categories_event_type_id_fkey" FOREIGN KEY ("event_type_id") REFERENCES "event_types"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "schedule_presets" ADD CONSTRAINT "schedule_presets_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "event_types" ADD CONSTRAINT "event_types_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "event_type_days" ADD CONSTRAINT "event_type_days_event_type_id_fkey" FOREIGN KEY ("event_type_id") REFERENCES "event_types"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "event_type_days" ADD CONSTRAINT "event_type_days_event_day_template_id_fkey" FOREIGN KEY ("event_day_template_id") REFERENCES "event_days"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "event_type_days" ADD CONSTRAINT "event_type_days_event_subtype_id_fkey" FOREIGN KEY ("event_subtype_id") REFERENCES "event_subtypes"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "event_type_subjects" ADD CONSTRAINT "event_type_subjects_event_type_id_fkey" FOREIGN KEY ("event_type_id") REFERENCES "event_types"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "event_type_subjects" ADD CONSTRAINT "event_type_subjects_subject_role_id_fkey" FOREIGN KEY ("subject_role_id") REFERENCES "subject_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "event_days" ADD CONSTRAINT "event_days_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -4894,37 +6463,40 @@ ALTER TABLE "event_day_subject_roles" ADD CONSTRAINT "event_day_subject_roles_ev
 ALTER TABLE "event_day_subject_roles" ADD CONSTRAINT "event_day_subject_roles_subject_role_id_fkey" FOREIGN KEY ("subject_role_id") REFERENCES "subject_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_subtypes" ADD CONSTRAINT "event_subtypes_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_templates" ADD CONSTRAINT "package_templates_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_subtypes" ADD CONSTRAINT "event_subtypes_event_type_id_fkey" FOREIGN KEY ("event_type_id") REFERENCES "event_types"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "package_template_days" ADD CONSTRAINT "package_template_days_package_template_id_fkey" FOREIGN KEY ("package_template_id") REFERENCES "package_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_subtype_activities" ADD CONSTRAINT "event_subtype_activities_wedding_type_id_fkey" FOREIGN KEY ("wedding_type_id") REFERENCES "event_subtypes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_template_days" ADD CONSTRAINT "package_template_days_event_day_template_id_fkey" FOREIGN KEY ("event_day_template_id") REFERENCES "event_days"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_subtype_activity_moments" ADD CONSTRAINT "event_subtype_activity_moments_wedding_type_activity_id_fkey" FOREIGN KEY ("wedding_type_activity_id") REFERENCES "event_subtype_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_template_activities" ADD CONSTRAINT "package_template_activities_package_template_id_fkey" FOREIGN KEY ("package_template_id") REFERENCES "package_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_subtype_locations" ADD CONSTRAINT "event_subtype_locations_wedding_type_id_fkey" FOREIGN KEY ("wedding_type_id") REFERENCES "event_subtypes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_template_moments" ADD CONSTRAINT "package_template_moments_package_template_activity_id_fkey" FOREIGN KEY ("package_template_activity_id") REFERENCES "package_template_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_subtype_subjects" ADD CONSTRAINT "event_subtype_subjects_wedding_type_id_fkey" FOREIGN KEY ("wedding_type_id") REFERENCES "event_subtypes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_template_locations" ADD CONSTRAINT "package_template_locations_package_template_id_fkey" FOREIGN KEY ("package_template_id") REFERENCES "package_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_subtype_subjects" ADD CONSTRAINT "event_subtype_subjects_subject_role_id_fkey" FOREIGN KEY ("subject_role_id") REFERENCES "subject_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "package_template_subjects" ADD CONSTRAINT "package_template_subjects_package_template_id_fkey" FOREIGN KEY ("package_template_id") REFERENCES "package_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_subtype_activity_locations" ADD CONSTRAINT "event_subtype_activity_locations_wedding_type_activity_id_fkey" FOREIGN KEY ("wedding_type_activity_id") REFERENCES "event_subtype_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_template_subjects" ADD CONSTRAINT "package_template_subjects_subject_role_id_fkey" FOREIGN KEY ("subject_role_id") REFERENCES "subject_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_subtype_activity_locations" ADD CONSTRAINT "event_subtype_activity_locations_wedding_type_location_id_fkey" FOREIGN KEY ("wedding_type_location_id") REFERENCES "event_subtype_locations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_template_activity_locations" ADD CONSTRAINT "package_template_activity_locations_package_template_activ_fkey" FOREIGN KEY ("package_template_activity_id") REFERENCES "package_template_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_subtype_activity_subjects" ADD CONSTRAINT "event_subtype_activity_subjects_wedding_type_activity_id_fkey" FOREIGN KEY ("wedding_type_activity_id") REFERENCES "event_subtype_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_template_activity_locations" ADD CONSTRAINT "package_template_activity_locations_package_template_locat_fkey" FOREIGN KEY ("package_template_location_id") REFERENCES "package_template_locations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "event_subtype_activity_subjects" ADD CONSTRAINT "event_subtype_activity_subjects_wedding_type_subject_id_fkey" FOREIGN KEY ("wedding_type_subject_id") REFERENCES "event_subtype_subjects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "package_template_activity_subjects" ADD CONSTRAINT "package_template_activity_subjects_package_template_activi_fkey" FOREIGN KEY ("package_template_activity_id") REFERENCES "package_template_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_template_activity_subjects" ADD CONSTRAINT "package_template_activity_subjects_package_template_subjec_fkey" FOREIGN KEY ("package_template_subject_id") REFERENCES "package_template_subjects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "film_scene_schedules" ADD CONSTRAINT "film_scene_schedules_film_id_fkey" FOREIGN KEY ("film_id") REFERENCES "films"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -4948,7 +6520,13 @@ ALTER TABLE "package_activities" ADD CONSTRAINT "package_activities_package_id_f
 ALTER TABLE "package_activities" ADD CONSTRAINT "package_activities_package_event_day_id_fkey" FOREIGN KEY ("package_event_day_id") REFERENCES "package_event_days"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "package_activities" ADD CONSTRAINT "package_activities_source_day_blueprint_activity_id_fkey" FOREIGN KEY ("source_day_blueprint_activity_id") REFERENCES "day_blueprint_activities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "package_activity_moments" ADD CONSTRAINT "package_activity_moments_package_activity_id_fkey" FOREIGN KEY ("package_activity_id") REFERENCES "package_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_activity_moments" ADD CONSTRAINT "package_activity_moments_source_day_blueprint_moment_id_fkey" FOREIGN KEY ("source_day_blueprint_moment_id") REFERENCES "day_blueprint_moments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "package_crew_slots" ADD CONSTRAINT "package_crew_slots_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "service_packages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5077,7 +6655,7 @@ ALTER TABLE "project_film_subjects" ADD CONSTRAINT "project_film_subjects_inquir
 ALTER TABLE "project_film_subjects" ADD CONSTRAINT "project_film_subjects_project_film_id_fkey" FOREIGN KEY ("project_film_id") REFERENCES "project_films"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_film_subjects" ADD CONSTRAINT "project_film_subjects_source_subject_id_fkey" FOREIGN KEY ("source_subject_id") REFERENCES "film_subjects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "project_film_subjects" ADD CONSTRAINT "project_film_subjects_source_subject_id_fkey" FOREIGN KEY ("source_subject_id") REFERENCES "package_day_subjects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "project_film_subjects" ADD CONSTRAINT "project_film_subjects_role_template_id_fkey" FOREIGN KEY ("role_template_id") REFERENCES "subject_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -5153,6 +6731,48 @@ ALTER TABLE "project_film_scene_locations" ADD CONSTRAINT "project_film_scene_lo
 
 -- AddForeignKey
 ALTER TABLE "project_film_scene_locations" ADD CONSTRAINT "project_film_scene_locations_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations_library"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_film_scene_spaces" ADD CONSTRAINT "project_film_scene_spaces_project_scene_id_fkey" FOREIGN KEY ("project_scene_id") REFERENCES "project_film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_film_scene_spaces" ADD CONSTRAINT "project_film_scene_spaces_space_id_fkey" FOREIGN KEY ("space_id") REFERENCES "location_spaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_camera_positions" ADD CONSTRAINT "project_scene_camera_positions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_camera_positions" ADD CONSTRAINT "project_scene_camera_positions_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_camera_positions" ADD CONSTRAINT "project_scene_camera_positions_project_scene_id_fkey" FOREIGN KEY ("project_scene_id") REFERENCES "project_film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_camera_positions" ADD CONSTRAINT "project_scene_camera_positions_project_track_id_fkey" FOREIGN KEY ("project_track_id") REFERENCES "project_film_timeline_tracks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_camera_positions" ADD CONSTRAINT "project_scene_camera_positions_space_id_fkey" FOREIGN KEY ("space_id") REFERENCES "location_spaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_camera_positions" ADD CONSTRAINT "project_scene_camera_positions_source_camera_position_id_fkey" FOREIGN KEY ("source_camera_position_id") REFERENCES "scene_camera_positions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_subject_positions" ADD CONSTRAINT "project_scene_subject_positions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_subject_positions" ADD CONSTRAINT "project_scene_subject_positions_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_subject_positions" ADD CONSTRAINT "project_scene_subject_positions_project_scene_id_fkey" FOREIGN KEY ("project_scene_id") REFERENCES "project_film_scenes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_subject_positions" ADD CONSTRAINT "project_scene_subject_positions_project_subject_id_fkey" FOREIGN KEY ("project_subject_id") REFERENCES "project_film_subjects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_subject_positions" ADD CONSTRAINT "project_scene_subject_positions_space_id_fkey" FOREIGN KEY ("space_id") REFERENCES "location_spaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_scene_subject_positions" ADD CONSTRAINT "project_scene_subject_positions_source_subject_position_id_fkey" FOREIGN KEY ("source_subject_position_id") REFERENCES "scene_subject_positions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "project_film_equipment_assignments" ADD CONSTRAINT "project_film_equipment_assignments_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5269,6 +6889,42 @@ ALTER TABLE "project_location_activity_assignments" ADD CONSTRAINT "project_loca
 ALTER TABLE "project_location_activity_assignments" ADD CONSTRAINT "project_location_activity_assignments_project_activity_id_fkey" FOREIGN KEY ("project_activity_id") REFERENCES "project_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "project_space_slots" ADD CONSTRAINT "project_space_slots_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_slots" ADD CONSTRAINT "project_space_slots_inquiry_id_fkey" FOREIGN KEY ("inquiry_id") REFERENCES "inquiries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_slots" ADD CONSTRAINT "project_space_slots_project_event_day_id_fkey" FOREIGN KEY ("project_event_day_id") REFERENCES "project_event_days"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_slots" ADD CONSTRAINT "project_space_slots_project_location_slot_id_fkey" FOREIGN KEY ("project_location_slot_id") REFERENCES "project_location_slots"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_slots" ADD CONSTRAINT "project_space_slots_location_space_id_fkey" FOREIGN KEY ("location_space_id") REFERENCES "location_spaces"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_activity_assignments" ADD CONSTRAINT "project_space_activity_assignments_project_space_slot_id_fkey" FOREIGN KEY ("project_space_slot_id") REFERENCES "project_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_activity_assignments" ADD CONSTRAINT "project_space_activity_assignments_project_activity_id_fkey" FOREIGN KEY ("project_activity_id") REFERENCES "project_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_slot_objects" ADD CONSTRAINT "project_space_slot_objects_project_space_slot_id_fkey" FOREIGN KEY ("project_space_slot_id") REFERENCES "project_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_slot_cameras" ADD CONSTRAINT "project_space_slot_cameras_project_space_slot_id_fkey" FOREIGN KEY ("project_space_slot_id") REFERENCES "project_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_slot_cameras" ADD CONSTRAINT "project_space_slot_cameras_project_crew_slot_id_fkey" FOREIGN KEY ("project_crew_slot_id") REFERENCES "project_crew_slots"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_slot_subjects" ADD CONSTRAINT "project_space_slot_subjects_project_space_slot_id_fkey" FOREIGN KEY ("project_space_slot_id") REFERENCES "project_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_space_slot_subjects" ADD CONSTRAINT "project_space_slot_subjects_project_day_subject_id_fkey" FOREIGN KEY ("project_day_subject_id") REFERENCES "project_day_subjects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "package_crew_slot_activities" ADD CONSTRAINT "package_crew_slot_activities_package_crew_slot_id_fkey" FOREIGN KEY ("package_crew_slot_id") REFERENCES "package_crew_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -5287,6 +6943,30 @@ ALTER TABLE "package_location_slots" ADD CONSTRAINT "package_location_slots_pack
 ALTER TABLE "package_location_slots" ADD CONSTRAINT "package_location_slots_event_day_template_id_fkey" FOREIGN KEY ("event_day_template_id") REFERENCES "event_days"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "package_space_slots" ADD CONSTRAINT "package_space_slots_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "service_packages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_space_slots" ADD CONSTRAINT "package_space_slots_event_day_template_id_fkey" FOREIGN KEY ("event_day_template_id") REFERENCES "event_days"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_space_slots" ADD CONSTRAINT "package_space_slots_location_slot_id_fkey" FOREIGN KEY ("location_slot_id") REFERENCES "package_location_slots"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_space_slots" ADD CONSTRAINT "package_space_slots_location_space_id_fkey" FOREIGN KEY ("location_space_id") REFERENCES "location_spaces"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_space_slots" ADD CONSTRAINT "package_space_slots_preset_id_fkey" FOREIGN KEY ("preset_id") REFERENCES "floor_plan_presets"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_space_slots" ADD CONSTRAINT "package_space_slots_source_day_blueprint_space_slot_id_fkey" FOREIGN KEY ("source_day_blueprint_space_slot_id") REFERENCES "day_blueprint_space_slots"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_activity_assignments" ADD CONSTRAINT "space_activity_assignments_package_space_slot_id_fkey" FOREIGN KEY ("package_space_slot_id") REFERENCES "package_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "space_activity_assignments" ADD CONSTRAINT "space_activity_assignments_package_activity_id_fkey" FOREIGN KEY ("package_activity_id") REFERENCES "package_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "location_activity_assignments" ADD CONSTRAINT "location_activity_assignments_package_location_slot_id_fkey" FOREIGN KEY ("package_location_slot_id") REFERENCES "package_location_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -5300,12 +6980,6 @@ ALTER TABLE "package_task_overrides" ADD CONSTRAINT "package_task_overrides_pack
 
 -- AddForeignKey
 ALTER TABLE "package_sets" ADD CONSTRAINT "package_sets_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "package_sets" ADD CONSTRAINT "package_sets_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "service_package_categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "package_sets" ADD CONSTRAINT "package_sets_event_type_id_fkey" FOREIGN KEY ("event_type_id") REFERENCES "event_types"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "package_set_slots" ADD CONSTRAINT "package_set_slots_package_set_id_fkey" FOREIGN KEY ("package_set_id") REFERENCES "package_sets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5327,6 +7001,9 @@ ALTER TABLE "crew_payment_rules" ADD CONSTRAINT "crew_payment_rules_template_id_
 
 -- AddForeignKey
 ALTER TABLE "crew_payment_rules" ADD CONSTRAINT "crew_payment_rules_task_library_id_fkey" FOREIGN KEY ("task_library_id") REFERENCES "task_library"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "payment_methods" ADD CONSTRAINT "payment_methods_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "estimate_payment_milestones" ADD CONSTRAINT "estimate_payment_milestones_estimate_id_fkey" FOREIGN KEY ("estimate_id") REFERENCES "estimates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -5370,3 +7047,83 @@ ALTER TABLE "inquiry_crew_availability_requests" ADD CONSTRAINT "inquiry_crew_av
 -- AddForeignKey
 ALTER TABLE "inquiry_crew_availability_requests" ADD CONSTRAINT "inquiry_crew_availability_requests_project_crew_slot_id_fkey" FOREIGN KEY ("project_crew_slot_id") REFERENCES "project_crew_slots"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
+-- AddForeignKey
+ALTER TABLE "moment_knowledge_bases" ADD CONSTRAINT "moment_knowledge_bases_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "moment_knowledge_entries" ADD CONSTRAINT "moment_knowledge_entries_knowledge_base_id_fkey" FOREIGN KEY ("knowledge_base_id") REFERENCES "moment_knowledge_bases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprints" ADD CONSTRAINT "day_blueprints_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprints" ADD CONSTRAINT "day_blueprints_latest_published_version_id_fkey" FOREIGN KEY ("latest_published_version_id") REFERENCES "day_blueprint_versions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_versions" ADD CONSTRAINT "day_blueprint_versions_day_blueprint_id_fkey" FOREIGN KEY ("day_blueprint_id") REFERENCES "day_blueprints"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_days" ADD CONSTRAINT "day_blueprint_days_day_blueprint_version_id_fkey" FOREIGN KEY ("day_blueprint_version_id") REFERENCES "day_blueprint_versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_activities" ADD CONSTRAINT "day_blueprint_activities_day_blueprint_day_id_fkey" FOREIGN KEY ("day_blueprint_day_id") REFERENCES "day_blueprint_days"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_moments" ADD CONSTRAINT "day_blueprint_moments_day_blueprint_activity_id_fkey" FOREIGN KEY ("day_blueprint_activity_id") REFERENCES "day_blueprint_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_subject_roles" ADD CONSTRAINT "day_blueprint_subject_roles_day_blueprint_version_id_fkey" FOREIGN KEY ("day_blueprint_version_id") REFERENCES "day_blueprint_versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_subject_roles" ADD CONSTRAINT "day_blueprint_subject_roles_subject_role_id_fkey" FOREIGN KEY ("subject_role_id") REFERENCES "subject_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_lock_rules" ADD CONSTRAINT "day_blueprint_lock_rules_day_blueprint_version_id_fkey" FOREIGN KEY ("day_blueprint_version_id") REFERENCES "day_blueprint_versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_ai_runs" ADD CONSTRAINT "day_blueprint_ai_runs_day_blueprint_version_id_fkey" FOREIGN KEY ("day_blueprint_version_id") REFERENCES "day_blueprint_versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_ai_proposals" ADD CONSTRAINT "day_blueprint_ai_proposals_day_blueprint_ai_run_id_fkey" FOREIGN KEY ("day_blueprint_ai_run_id") REFERENCES "day_blueprint_ai_runs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_usages" ADD CONSTRAINT "day_blueprint_usages_day_blueprint_version_id_fkey" FOREIGN KEY ("day_blueprint_version_id") REFERENCES "day_blueprint_versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_usages" ADD CONSTRAINT "day_blueprint_usages_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "service_packages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_location_roles" ADD CONSTRAINT "day_blueprint_location_roles_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_activity_locations" ADD CONSTRAINT "day_blueprint_activity_locations_day_blueprint_activity_id_fkey" FOREIGN KEY ("day_blueprint_activity_id") REFERENCES "day_blueprint_activities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_activity_locations" ADD CONSTRAINT "day_blueprint_activity_locations_day_blueprint_location_ro_fkey" FOREIGN KEY ("day_blueprint_location_role_id") REFERENCES "day_blueprint_location_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_space_slots" ADD CONSTRAINT "day_blueprint_space_slots_day_blueprint_version_id_fkey" FOREIGN KEY ("day_blueprint_version_id") REFERENCES "day_blueprint_versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_space_slots" ADD CONSTRAINT "day_blueprint_space_slots_day_blueprint_location_role_id_fkey" FOREIGN KEY ("day_blueprint_location_role_id") REFERENCES "day_blueprint_location_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_moment_actions" ADD CONSTRAINT "day_blueprint_moment_actions_day_blueprint_moment_id_fkey" FOREIGN KEY ("day_blueprint_moment_id") REFERENCES "day_blueprint_moments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_moment_actions" ADD CONSTRAINT "day_blueprint_moment_actions_subject_role_id_fkey" FOREIGN KEY ("subject_role_id") REFERENCES "subject_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_moment_placements" ADD CONSTRAINT "day_blueprint_moment_placements_day_blueprint_moment_id_fkey" FOREIGN KEY ("day_blueprint_moment_id") REFERENCES "day_blueprint_moments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_moment_placements" ADD CONSTRAINT "day_blueprint_moment_placements_day_blueprint_space_slot_i_fkey" FOREIGN KEY ("day_blueprint_space_slot_id") REFERENCES "day_blueprint_space_slots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "day_blueprint_moment_placements" ADD CONSTRAINT "day_blueprint_moment_placements_subject_role_id_fkey" FOREIGN KEY ("subject_role_id") REFERENCES "subject_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_activity_moment_actions" ADD CONSTRAINT "package_activity_moment_actions_package_activity_moment_id_fkey" FOREIGN KEY ("package_activity_moment_id") REFERENCES "package_activity_moments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_activity_moment_actions" ADD CONSTRAINT "package_activity_moment_actions_subject_role_id_fkey" FOREIGN KEY ("subject_role_id") REFERENCES "subject_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;

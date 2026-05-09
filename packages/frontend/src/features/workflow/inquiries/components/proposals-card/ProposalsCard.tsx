@@ -276,11 +276,11 @@ const ProposalsCard: React.FC<WorkflowCardProps> = ({ inquiry, onRefresh, isActi
                             </Box>
                         )}
 
-                        {/* Consolidated section notes summary (shown when client submitted for review) */}
-                        {proposal.client_response === 'Reconsideration' && (proposal.section_notes?.length ?? 0) > 0 && (
+                        {/* Consolidated section notes summary (shown when client left any section notes) */}
+                        {(proposal.section_notes?.length ?? 0) > 0 && (
                             <Box sx={{ mb: 2, py: 1, px: 1.5, borderRadius: 2, bgcolor: 'rgba(139, 92, 246, 0.04)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
                                 <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: colors.accent, mb: 0.75 }}>
-                                    Section Notes ({proposal.section_notes!.length})
+                                    Client Notes ({proposal.section_notes!.length})
                                 </Typography>
                                 {proposal.section_notes!.map((sn) => (
                                     <Box key={sn.section_type} sx={{ py: 0.5, '&:not(:last-child)': { borderBottom: '1px solid rgba(100, 116, 139, 0.08)' } }}>

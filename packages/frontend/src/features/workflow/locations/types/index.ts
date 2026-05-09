@@ -30,6 +30,30 @@ export interface LocationsLibrary {
     };
     // Optional relation payloads
     film_locations?: Array<{ id: number }>;
+    spaces?: LocationSpace[];
+}
+
+export interface LocationSpace {
+    id: number;
+    location_id: number;
+    name: string;
+    space_type?: string | null;
+    capacity?: number | null;
+    dimensions_length?: number | null;
+    dimensions_width?: number | null;
+    dimensions_height?: number | null;
+    description?: string | null;
+    indoor_outdoor?: 'INDOOR' | 'OUTDOOR' | 'PARTIALLY_COVERED' | null;
+    natural_light?: 'ABUNDANT' | 'MODERATE' | 'LOW' | 'NONE' | null;
+    flooring?: string | null;
+    ceiling_style?: string | null;
+    key_features?: string | null;
+    accessibility_notes?: string | null;
+    notes?: string | null;
+    is_active: boolean;
+    type_tags?: Array<{ id: number; space_type: string; description?: string | null }>;
+    created_at: string;
+    updated_at: string;
 }
 
 // ==================== FILM LOCATION ASSIGNMENTS ====================

@@ -36,6 +36,7 @@ features/workflow/tasks/
 
 ### Loading
 `ActiveTasksScreen` calls `activeTasksApi.getAll()` + `userAccountsApi.getAll()` in parallel on mount. Crew data is loaded from the workflow crew API surface.
+Both the full-screen tasks view and the global task drawer now wait for auth bootstrap to finish and skip task fetching entirely while signed out, so expired or missing sessions do not trigger stray task 401s during route protection.
 
 ### Grouping
 `groupTasks(filteredTasks, groupMode)` in `utils/group-tasks.tsx` returns `TaskGroupData[]`. Supports: project (default), status, person, date, phase.

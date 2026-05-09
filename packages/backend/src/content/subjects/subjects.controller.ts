@@ -71,27 +71,10 @@ export class SubjectsController {
         return this.crudService.getSubjectTemplates(brandId);
     }
 
-    // Scene subject assignments
+    // Scene subject queries (computed from moment assignments)
     @Get('scenes/:sceneId')
     getByScene(@Param('sceneId', ParseIntPipe) sceneId: number) {
         return this.sceneAssignments.getSceneSubjects(sceneId);
-    }
-
-    @Post('scenes/:sceneId/assign')
-    assignToScene(
-        @Param('sceneId', ParseIntPipe) sceneId: number,
-        @Body(ValidationPipe) dto: CreateSceneSubjectDto,
-    ) {
-        return this.sceneAssignments.assignSubjectToScene(sceneId, dto);
-    }
-
-    @Patch('scenes/:sceneId/subjects/:subjectId')
-    updateSceneAssignment(
-        @Param('sceneId', ParseIntPipe) sceneId: number,
-        @Param('subjectId', ParseIntPipe) subjectId: number,
-        @Body(ValidationPipe) dto: UpdateSceneSubjectDto,
-    ) {
-        return this.sceneAssignments.updateSceneSubject(sceneId, subjectId, dto);
     }
 
     @Delete('scenes/:sceneId/subjects/:subjectId')

@@ -18,6 +18,8 @@ Owns inquiry lifecycle logic, public client portal data, proposal/contract porta
 - Package assignment for budget-only inquiries belongs in the inquiry package scope workflow; do not force package selection in needs-assessment submission.
 - Public portal, proposal review, and contract signing are one client-facing workflow and must share consistent token-driven inquiry data.
 - Inquiry-owned schedule snapshots are the editable copy; package templates are only the source.
+- Any code path that writes `package_contents_snapshot` (package assignment, inquiry schedule sync fallback, inquiry-to-project fallback) must preserve Day Blueprint lineage fields (`source_day_blueprint_*`) when present.
+- Inquiry read models should surface Day Blueprint drift metadata (`blueprint_drift`) when snapshot lineage is present so UI can warn when an inquiry still references an older blueprint version.
 - Portal invoice payloads should include recorded payment metadata when available (`transaction_id`, `receipt_url`, `card_brand`, `card_last4`, `payer_email`, `currency`).
 - `paid_date` in portal invoice responses must be derived from recorded payments for `Paid` invoices.
 

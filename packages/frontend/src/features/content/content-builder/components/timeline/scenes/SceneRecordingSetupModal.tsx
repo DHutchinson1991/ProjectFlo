@@ -26,8 +26,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { MusicType, MUSIC_TYPE_LABELS } from "@/features/content/music/types";
 import type { TimelineTrack } from "@/features/content/content-builder/types/timeline";
-import { useFilmSubjects } from "@/features/content/subjects";
-import { useSceneSubjects } from '@/features/content/subjects';
+import { useSubjects, useSceneSubjects } from '@/features/content/subjects';
 import { scenesApi } from "@/features/content/scenes/api";
 import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
@@ -119,7 +118,7 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
     activityCrewSlots = [],
 }) => {
     const { equipmentAssignmentsBySlot, loadAvailableScenes } = useContentBuilder();
-    useFilmSubjects(filmId ?? undefined); // retained for potential future use
+    useSubjects(filmId ?? undefined); // retained for potential future use
     const {
         subjects: sceneSubjects,
         isLoading: isSceneSubjectsLoading,
@@ -657,8 +656,8 @@ const SceneRecordingSetupModal: React.FC<SceneRecordingSetupModalProps> = ({
                                             {assignment.subject.role && (
                                                 <Box
                                                     sx={{
-                                                        bgcolor: assignment.subject.role.is_core ? "rgba(156, 39, 176, 0.3)" : "rgba(100, 100, 100, 0.3)",
-                                                        color: assignment.subject.role.is_core ? "#9c27b0" : "#b0b0b0",
+                                                        bgcolor: "rgba(100, 100, 100, 0.3)",
+                                                        color: "#b0b0b0",
                                                         px: 0.75,
                                                         py: 0.15,
                                                         borderRadius: 0.5,

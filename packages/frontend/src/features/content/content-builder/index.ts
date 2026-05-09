@@ -7,7 +7,7 @@ export { ContentBuilderProvider, useContentBuilder } from './context/ContentBuil
 export type { TrackDefault } from './context/ContentBuilderContext';
 
 // Utils
-export { getSceneColorByType, getSceneColor, getDefaultTrackColor } from './utils/colorUtils';
+export { getSceneColorByType, getSceneColor, getDefaultTrackColor, getCameraColor } from './utils/colorUtils';
 
 // Data hooks (for film editor pages that compose ContentBuilder)
 export { useTimelineStorage, useTimelineSave } from './hooks/data';

@@ -7,7 +7,7 @@ import {
     IconButton, Checkbox, FormControlLabel,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import { useEventTypes } from '@/features/catalog/event-types/hooks';
+import { useEventTypes } from '@/features/catalog/package-templates/hooks';
 import { useCreatePackageSet } from '@/features/catalog/packages/hooks';
 
 // ─── Tier Constants ──────────────────────────────────────────────────
@@ -43,7 +43,7 @@ export default function CreatePackageSetDialog({
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [emoji, setEmoji] = useState('📦');
-    const [eventTypeId, setEventTypeId] = useState<number | null>(null);
+    const [eventCategory, setEventCategory] = useState<string | null>(null);
     const [selectedTiers, setSelectedTiers] = useState<Set<string>>(new Set(['Basic', 'Standard', 'Premium']));
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -53,7 +53,7 @@ export default function CreatePackageSetDialog({
             setName('');
             setDescription('');
             setEmoji('📦');
-            setEventTypeId(null);
+            setEventCategory(null);
             setSelectedTiers(new Set(['Basic', 'Standard', 'Premium']));
             setError('');
         }
@@ -68,15 +68,15 @@ export default function CreatePackageSetDialog({
         });
     };
 
-    const handleSelectEventType = (etId: number, etName: string) => {
-        setEventTypeId(etId);
+    const handleSelectEventType = (category: string, etName: string) => {
+        setEventCategory(category);
         if (!name.trim() || eventTypes.some(et => et.name === name.trim())) {
             setName(`${etName} Packages`);
         }
     };
 
     const handleCreate = async () => {
-        if (!eventTypeId) { setError('Please select an event type'); return; }
+        if (!eventCategory) { setError('Please select an event type'); return; }
         if (!name.trim()) { setError('Name is required'); return; }
         if (selectedTiers.size === 0) { setError('Select at least one tier level'); return; }
         setSaving(true);
@@ -90,7 +90,7 @@ export default function CreatePackageSetDialog({
                 name: name.trim(),
                 description: description.trim() || undefined,
                 emoji,
-                event_type_id: eventTypeId,
+                event_category: eventCategory,
                 tier_labels: tierLabels,
             });
             onCreated();
@@ -218,12 +218,12 @@ export default function CreatePackageSetDialog({
                                     key={et.id}
                                     label={`${et.icon || '🎬'} ${et.name}`}
                                     size="small"
-                                    onClick={() => handleSelectEventType(et.id, et.name)}
+                                    onClick={() => handleSelectEventType(et.event_category || et.name, et.name)}
                                     sx={{
                                         height: 28, fontSize: '0.7rem', fontWeight: 600, borderRadius: 1.5,
-                                        bgcolor: eventTypeId === et.id ? 'rgba(100,140,255,0.12)' : 'rgba(255,255,255,0.03)',
-                                        color: eventTypeId === et.id ? '#648CFF' : '#94a3b8',
-                                        border: eventTypeId === et.id ? '1px solid rgba(100,140,255,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                                        bgcolor: eventCategory === (et.event_category || et.name) ? 'rgba(100,140,255,0.12)' : 'rgba(255,255,255,0.03)',
+                                        color: eventCategory === (et.event_category || et.name) ? '#648CFF' : '#94a3b8',
+                                        border: eventCategory === (et.event_category || et.name) ? '1px solid rgba(100,140,255,0.3)' : '1px solid rgba(255,255,255,0.06)',
                                         cursor: 'pointer',
                                     }}
                                 />
@@ -295,7 +295,7 @@ export default function CreatePackageSetDialog({
                 </Button>
                 <Button
                     onClick={handleCreate}
-                    disabled={saving || !name.trim() || !eventTypeId || selectedTiers.size === 0}
+                    disabled={saving || !name.trim() || !eventCategory || selectedTiers.size === 0}
                     sx={{
                         bgcolor: '#f59e0b', color: '#0f172a', fontWeight: 700,
                         textTransform: 'none', px: 3, fontSize: '0.8rem',

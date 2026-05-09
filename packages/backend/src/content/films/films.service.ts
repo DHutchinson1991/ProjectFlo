@@ -85,8 +85,7 @@ export class FilmsService {
           },
           orderBy: { order_index: 'asc' },
         },
-        subjects: true,
-        locations: {
+        film_locations: {
           include: { location: true },
         },
         scenes: {
@@ -165,8 +164,7 @@ export class FilmsService {
           },
           orderBy: { order_index: 'asc' },
         },
-        subjects: true,
-        locations: {
+        film_locations: {
           include: { location: true },
         },
         scenes: {
@@ -318,8 +316,8 @@ export class FilmsService {
       tracks: film.tracks.map((track) => ({
         ...track,
       })),
-      subjects: film.subjects || [],
-      locations: (film.locations || []).map((assignment) => ({
+      subjects: [],
+      locations: (film.film_locations || []).map((assignment) => ({
         id: assignment.id,
         film_id: assignment.film_id,
         location_id: assignment.location_id,
@@ -353,6 +351,7 @@ export class FilmsService {
           id: moment.id,
           film_scene_id: moment.film_scene_id,
           name: moment.name,
+          description: moment.description,
           order_index: moment.order_index,
           duration: moment.duration,
           created_at: moment.created_at,
@@ -373,7 +372,6 @@ export class FilmsService {
                         id: assignment.subject.role_template.id,
                         role_name: assignment.subject.role_template.role_name,
                         description: assignment.subject.role_template.description,
-                        is_core: assignment.subject.role_template.is_core,
                       }
                     : null,
                 }

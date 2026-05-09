@@ -10,7 +10,7 @@ export const TIMELINE_CONFIG = {
     // Zoom levels
     MIN_ZOOM_LEVEL: 0.05,
     MAX_ZOOM_LEVEL: 35,
-    DEFAULT_ZOOM_LEVEL: 5,
+    DEFAULT_ZOOM_LEVEL: 1,
     ZOOM_STEP: 0.5,
 
     // Grid and snapping
@@ -19,7 +19,7 @@ export const TIMELINE_CONFIG = {
 
     // Viewport
     DEFAULT_VIEWPORT_WIDTH: 800,
-    VIEWPORT_PADDING: 80, // padding for auto-fit calculations
+    VIEWPORT_PADDING: 32, // padding for auto-fit calculations
     AUTO_FIT_DURATION: 600, // 10 minutes in seconds
 
     // Animation and interaction

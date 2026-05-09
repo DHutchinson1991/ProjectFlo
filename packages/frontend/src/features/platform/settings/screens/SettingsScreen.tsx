@@ -4,10 +4,10 @@ import React, { useState } from "react";
 import {
     Box,
     Typography,
-    Tabs,
-    Tab,
     Paper,
+    Divider,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import {
     Person as ProfileIcon,
     Business as CompanyIcon,
@@ -34,6 +34,7 @@ interface SettingsSection {
     label: string;
     icon: React.ReactElement;
     component: React.ReactNode;
+    group: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -41,26 +42,29 @@ interface SettingsSection {
 // ---------------------------------------------------------------------------
 
 const settingsSections: SettingsSection[] = [
-    { label: "Profile", icon: <ProfileIcon />, component: <ProfileSettings /> },
-    { label: "Brand", icon: <CompanyIcon />, component: <CompanySettings /> },
-    { label: "Payment Details", icon: <PaymentsIcon />, component: <PaymentScheduleSettings /> },
-    { label: "Meetings", icon: <ScheduleIcon />, component: <MeetingsSettings /> },
-    { label: "Roles", icon: <RolesIcon />, component: <RolesSettings /> },
-    { label: "Users", icon: <UsersIcon />, component: <UsersSettings /> },
+    { label: "Profile", icon: <ProfileIcon />, component: <ProfileSettings />, group: "Account" },
+    { label: "Brand", icon: <CompanyIcon />, component: <CompanySettings />, group: "Account" },
+    { label: "Payment Details", icon: <PaymentsIcon />, component: <PaymentScheduleSettings />, group: "Workspace" },
+    { label: "Meetings", icon: <ScheduleIcon />, component: <MeetingsSettings />, group: "Workspace" },
+    { label: "Roles", icon: <RolesIcon />, component: <RolesSettings />, group: "Workspace" },
+    { label: "Users", icon: <UsersIcon />, component: <UsersSettings />, group: "Workspace" },
     {
         label: "Social Links",
         icon: <ShareIcon />,
         component: <SocialLinksSettings />,
+        group: "Configuration",
     },
     {
         label: "Client Portal",
         icon: <PortalIcon />,
         component: <ClientPortalSettings />,
+        group: "Configuration",
     },
     {
         label: "Contracts",
         icon: <ContractsIcon />,
         component: <ContractSettings />,
+        group: "Configuration",
     },
 ];
 
@@ -101,37 +105,70 @@ export function SettingsScreen() {
                         overflow: "hidden",
                     }}
                 >
-                    <Tabs
-                        orientation="vertical"
-                        variant="scrollable"
-                        value={activeTab}
-                        onChange={(_, newValue) => setActiveTab(newValue)}
-                        sx={{
-                            "& .MuiTab-root": {
-                                justifyContent: "flex-start",
-                                textTransform: "none",
-                                fontWeight: 500,
-                                fontSize: "0.875rem",
-                                minHeight: 48,
-                                px: 2,
-                            },
-                            "& .Mui-selected": {
-                                fontWeight: 600,
-                            },
-                        }}
-                    >
-                        {settingsSections.map((section, idx) => (
-                            <Tab
-                                key={section.label}
-                                icon={section.icon}
-                                iconPosition="start"
-                                label={section.label}
-                                id={`settings-tab-${idx}`}
-                                aria-controls={`settings-tabpanel-${idx}`}
-                                sx={{ gap: 1.5 }}
-                            />
-                        ))}
-                    </Tabs>
+                    <Box sx={{ py: 0.5 }}>
+                        {settingsSections.map((section, idx) => {
+                            const prevGroup = idx > 0 ? settingsSections[idx - 1].group : null;
+                            const showGroupHeader = section.group !== prevGroup;
+                            return (
+                                <React.Fragment key={section.label}>
+                                    {showGroupHeader && (
+                                        <>
+                                            {idx > 0 && <Divider sx={{ my: 0.5 }} />}
+                                            <Typography
+                                                variant="overline"
+                                                sx={{
+                                                    px: 2,
+                                                    pt: idx > 0 ? 1.5 : 1,
+                                                    pb: 0.5,
+                                                    display: "block",
+                                                    fontSize: "0.65rem",
+                                                    fontWeight: 700,
+                                                    letterSpacing: "0.08em",
+                                                    color: "text.disabled",
+                                                }}
+                                            >
+                                                {section.group}
+                                            </Typography>
+                                        </>
+                                    )}
+                                    <Box
+                                        component="button"
+                                        onClick={() => setActiveTab(idx)}
+                                        sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 1.5,
+                                            width: "100%",
+                                            px: 2,
+                                            py: 1.25,
+                                            border: "none",
+                                            background: activeTab === idx
+                                                ? (theme) => alpha(theme.palette.primary.main, 0.08)
+                                                : "transparent",
+                                            color: activeTab === idx ? "primary.main" : "text.secondary",
+                                            fontWeight: activeTab === idx ? 600 : 500,
+                                            fontSize: "0.875rem",
+                                            fontFamily: "inherit",
+                                            cursor: "pointer",
+                                            textAlign: "left",
+                                            borderLeft: activeTab === idx ? "2px solid" : "2px solid transparent",
+                                            borderColor: activeTab === idx ? "primary.main" : "transparent",
+                                            "&:hover": {
+                                                background: (theme) => alpha(theme.palette.primary.main, 0.04),
+                                            },
+                                            "& svg": {
+                                                fontSize: 20,
+                                                opacity: activeTab === idx ? 1 : 0.7,
+                                            },
+                                        }}
+                                    >
+                                        {section.icon}
+                                        {section.label}
+                                    </Box>
+                                </React.Fragment>
+                            );
+                        })}
+                    </Box>
                 </Paper>
 
                 {/* Right — active section content */}

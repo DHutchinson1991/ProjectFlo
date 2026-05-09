@@ -9,4 +9,8 @@ export class UpdateSceneSubjectDto {
     @IsString()
     @IsOptional()
     notes?: string;
+
+    @IsString()
+    @IsOptional()
+    action_description?: string;
 }

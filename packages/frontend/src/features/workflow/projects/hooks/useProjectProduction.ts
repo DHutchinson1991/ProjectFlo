@@ -1,65 +1,55 @@
-import { useCallback, useEffect, useState } from 'react';
-import { apiClient } from '@/shared/api/client';
-import type { ApiClient } from '@/shared/api/client';
-import { createProjectsApi } from '../api';
-import { useProjects } from './useProjects';
-import type { Project } from '../types/project.types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useBrand } from '@/features/platform/brand';
+import { projectsApi } from '../api';
+import { projectKeys } from './queryKeys';
 
-type ProjectEventDay = { id: number; name?: string; order_index?: number };
-type ProjectFilmRecord = { id: number; film_id: number; order_index?: number; film?: { id: number; name?: string } };
+/** Fetch project event days. */
+export function useProjectEventDays(projectId: number) {
+    const { currentBrandId } = useBrand();
 
-const projectsApi = createProjectsApi(apiClient);
+    return useQuery({
+        queryKey: projectKeys.eventDays(currentBrandId, projectId),
+        queryFn: () => projectsApi.getProjectEventDays(projectId),
+        enabled: !!currentBrandId && !!projectId,
+        staleTime: 1000 * 60 * 5,
+    });
+}
 
-export function useProjectProduction(project: Project) {
-    const { syncScheduleFromPackage } = useProjects();
-    const [eventDays, setEventDays] = useState<ProjectEventDay[]>([]);
-    const [projectFilms, setProjectFilms] = useState<ProjectFilmRecord[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [syncing, setSyncing] = useState(false);
+/** Fetch project films. */
+export function useProjectFilms(projectId: number) {
+    const { currentBrandId } = useBrand();
 
-    const refresh = useCallback(async () => {
-        setLoading(true);
-        try {
-            const [days, films] = await Promise.all([
-                projectsApi.getProjectEventDays(project.id),
-                projectsApi.getProjectFilms(project.id),
-            ]);
-            setEventDays(days ?? []);
-            setProjectFilms(films ?? []);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load production data');
-        } finally {
-            setLoading(false);
-        }
-    }, [project.id]);
+    return useQuery({
+        queryKey: projectKeys.films(currentBrandId, projectId),
+        queryFn: () => projectsApi.getProjectFilms(projectId),
+        enabled: !!currentBrandId && !!projectId,
+        staleTime: 1000 * 60 * 5,
+    });
+}
 
-    useEffect(() => {
-        void refresh();
-    }, [refresh]);
+/** Sync project schedule from source package. */
+export function useSyncScheduleFromPackage() {
+    const { currentBrandId } = useBrand();
+    const queryClient = useQueryClient();
 
-    const handleSyncFromPackage = useCallback(async () => {
-        if (!project.source_package_id) {
-            return;
-        }
+    return useMutation({
+        mutationFn: (projectId: number) => projectsApi.syncScheduleFromPackage(projectId),
+        onSuccess: (_, projectId) => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.schedule(currentBrandId, projectId) });
+            queryClient.invalidateQueries({ queryKey: projectKeys.detail(currentBrandId, projectId) });
+        },
+    });
+}
 
-        setSyncing(true);
-        try {
-            const success = await syncScheduleFromPackage(project.id);
-            if (success) {
-                await refresh();
-            }
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to sync schedule from package');
-        } finally {
-            setSyncing(false);
-        }
-    }, [project.id, project.source_package_id, refresh, syncScheduleFromPackage]);
+/** Delete a project film. */
+export function useDeleteProjectFilm(projectId: number) {
+    const { currentBrandId } = useBrand();
+    const queryClient = useQueryClient();
 
-    const deleteProjectFilm = useCallback(async (projectFilmId: number) => {
-        await projectsApi.deleteProjectFilm(projectFilmId);
-        setProjectFilms((prev) => prev.filter((film) => film.id !== projectFilmId));
-    }, []);
-
-    return { eventDays, projectFilms, loading, error, syncing, refresh, handleSyncFromPackage, deleteProjectFilm };
+    return useMutation({
+        mutationFn: (projectFilmId: number) => projectsApi.deleteProjectFilm(projectFilmId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.films(currentBrandId, projectId) });
+        },
+    });
 }

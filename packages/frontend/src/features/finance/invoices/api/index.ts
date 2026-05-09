@@ -18,6 +18,8 @@ export function createInvoicesApi(client: ApiClient) {
             client.post<{ success: boolean }>(`/api/inquiries/${inquiryId}/invoices/regenerate`, {}),
         recordPayment: (inquiryId: number, invoiceId: number, data: RecordPaymentData) =>
             client.post<Invoice>(`/api/inquiries/${inquiryId}/invoices/${invoiceId}/payments`, data),
+        voidPayment: (inquiryId: number, invoiceId: number, paymentId: number) =>
+            client.delete<Invoice>(`/api/inquiries/${inquiryId}/invoices/${invoiceId}/payments/${paymentId}`),
     };
 }
 

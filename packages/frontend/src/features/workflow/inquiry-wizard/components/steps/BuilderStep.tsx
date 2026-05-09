@@ -9,7 +9,7 @@ import { Q } from "../QuestionWrapper";
 import { BuilderActivityStep } from "../BuilderActivityStep";
 import { BuilderFilmsStep } from "../BuilderFilmsStep";
 import { BuilderCrewStep } from "../BuilderCrewStep";
-import type { EventType, EventTypeDay, EventDayActivity } from "@/features/catalog/event-types/types";
+import type { EventType, EventTypeDay, EventDayActivity } from "@/features/catalog/package-templates/types";
 
 export default function BuilderScreen({ ctx }: { ctx: NACtx }) {
     const { responses, handleChange, maxVideographers, maxCamerasPerOp, eventTypes } = ctx;

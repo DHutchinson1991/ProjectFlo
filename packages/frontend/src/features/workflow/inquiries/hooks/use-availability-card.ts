@@ -42,6 +42,7 @@ export function useAvailabilityCard({ inquiry, onTasksChanged }: UseAvailability
     const [crewDialogError, setCrewDialogError] = useState<string | null>(null);
     const [equipmentDialogState, setEquipmentDialogState] = useState<EquipmentDialogState | null>(null);
     const [equipmentDialogError, setEquipmentDialogError] = useState<string | null>(null);
+    const [leadError, setLeadError] = useState<string | null>(null);
     const { data: crewPaymentTemplates = [] } = useCrewPaymentTemplates();
     const isMounted = useRef(true);
     const [swappingSlots, setSwappingSlots] = useState<Set<number>>(new Set());
@@ -226,6 +227,24 @@ export function useAvailabilityCard({ inquiry, onTasksChanged }: UseAvailability
             console.error('Failed to toggle slot confirmation', err);
         }
     }, [inquiry.id, refreshAvailability]);
+
+    const handleToggleSlotLead = useCallback(async (slotId: number, leadType: string | null) => {
+        try {
+            await crewSlotsApi.projectDay.toggleLead(slotId, leadType);
+            setLeadError(null);
+            await refreshAvailability();
+        } catch (err: any) {
+            let msg = 'Failed to toggle lead';
+            try {
+                const parsed = JSON.parse(err?.message || '');
+                msg = parsed?.message || msg;
+            } catch {
+                msg = err?.message || msg;
+            }
+            setLeadError(msg);
+            console.error('Failed to toggle lead', err);
+        }
+    }, [refreshAvailability]);
 
     const handleSwapCrew = useCallback(async (slotId: number, newCrewId: number) => {
         setSwappingSlots((prev) => new Set(prev).add(slotId));
@@ -490,6 +509,9 @@ export function useAvailabilityCard({ inquiry, onTasksChanged }: UseAvailability
         handleUpdateStatus,
         handleDirectConfirmCrew,
         handleToggleSlotConfirmed,
+        handleToggleSlotLead,
+        leadError,
+        clearLeadError: () => setLeadError(null),
         handleSwapCrew,
         openCrewRequestDialog,
         confirmCrewRequest,

@@ -1,24 +1,28 @@
 import { apiClient } from '@/shared/api/client';
 import type { ApiClient } from '@/shared/api/client';
-import type { FilmSubject, CreateFilmSubjectDto, UpdateFilmSubjectDto, SubjectTemplate, SceneSubjectAssignment, SubjectPriority } from '../types';
+import type { Subject, CreateSubjectDto, UpdateSubjectDto, SubjectTemplate, SceneSubjectAssignment, SubjectPriority } from '../types';
 
 type UpdateSubjectAssignmentDto = {
   priority?: SubjectPriority;
   notes?: string | null;
+  action_description?: string | null;
 };
 
 export const createSubjectsApi = (client: ApiClient) => ({
-  // Film subjects
-  getFilmSubjects: (filmId: number): Promise<FilmSubject[]> =>
+  // Subject roster for a film
+  getSubjects: (filmId: number): Promise<Subject[]> =>
     client.get(`/api/subjects/films/${filmId}/subjects`),
 
-  createSubject: (filmId: number, dto: CreateFilmSubjectDto): Promise<FilmSubject> =>
+  getFilmSubjects: (filmId: number): Promise<Subject[]> =>
+    client.get(`/api/subjects/films/${filmId}/subjects`),
+
+  createSubject: (filmId: number, dto: CreateSubjectDto): Promise<Subject> =>
     client.post(`/api/subjects/films/${filmId}/subjects`, dto),
 
-  getSubject: (id: number): Promise<FilmSubject> =>
+  getSubject: (id: number): Promise<Subject> =>
     client.get(`/api/subjects/${id}`),
 
-  updateSubject: (id: number, dto: UpdateFilmSubjectDto): Promise<FilmSubject> =>
+  updateSubject: (id: number, dto: UpdateSubjectDto): Promise<Subject> =>
     client.patch(`/api/subjects/${id}`, dto),
 
   deleteSubject: (id: number): Promise<void> =>
@@ -28,19 +32,9 @@ export const createSubjectsApi = (client: ApiClient) => ({
   getTemplates: (): Promise<SubjectTemplate[]> =>
     client.get('/api/subjects/templates/library'),
 
-  // Scene assignments
+  // Scene assignments (computed from moment subjects)
   getSceneSubjects: (sceneId: number): Promise<SceneSubjectAssignment[]> =>
     client.get(`/api/subjects/scenes/${sceneId}`),
-
-  assignToScene: (sceneId: number, subjectId: number, priority: SubjectPriority): Promise<SceneSubjectAssignment> =>
-    client.post(`/api/subjects/scenes/${sceneId}/assign`, { subject_id: subjectId, priority }),
-
-  updateSceneAssignment: (
-    sceneId: number,
-    subjectId: number,
-    dto: UpdateSubjectAssignmentDto,
-  ): Promise<SceneSubjectAssignment> =>
-    client.patch(`/api/subjects/scenes/${sceneId}/subjects/${subjectId}`, dto),
 
   removeFromScene: (sceneId: number, subjectId: number): Promise<void> =>
     client.delete(`/api/subjects/scenes/${sceneId}/subjects/${subjectId}`),

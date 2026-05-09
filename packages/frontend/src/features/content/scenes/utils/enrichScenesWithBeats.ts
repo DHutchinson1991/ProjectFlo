@@ -81,7 +81,7 @@ export async function enrichScenesWithBeats(filmScenes: any[]): Promise<Timeline
             database_type: databaseType as TimelineScene['database_type'],
             original_scene_id: scene.id,
             order_index: scene.order_index,
-            moments: useMomentsView ? momentsList : [],
+            moments: useMomentsView ? momentsList.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)) : [],
             beats: !useMomentsView ? beatsList : [],
             montage_style: scene.montage_style || null,
             montage_bpm: scene.montage_bpm || null,

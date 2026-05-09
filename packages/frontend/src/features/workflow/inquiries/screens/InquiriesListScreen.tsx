@@ -4,8 +4,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     Box,
     Typography,
-    Card,
-    CardContent,
     Button,
     Dialog,
     DialogTitle,
@@ -18,8 +16,6 @@ import {
     Tooltip,
     TextField,
     InputAdornment,
-    ToggleButtonGroup,
-    ToggleButton,
     MenuItem,
     Select,
     FormControl,
@@ -29,13 +25,9 @@ import { sectionColors } from '@/shared/theme/tokens';
 import {
     Add as AddIcon,
     Email as EmailIcon,
-    Phone as PhoneIcon,
-    Business as BusinessIcon,
     Delete as DeleteIcon,
     Place as PlaceIcon,
     Search as SearchIcon,
-    ViewList as ViewListIcon,
-    ViewKanban as ViewKanbanIcon,
     CalendarToday,
     AttachMoney,
     AccessTime,
@@ -110,11 +102,10 @@ export default function InquiriesListScreen() {
     const [inquiries, setInquiries] = useState<Inquiry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    /* ---- filter / view state ---- */
+    /* ---- filter state ---- */
     const [searchQuery, setSearchQuery] = useState('');
     const [stageFilter, setStageFilter] = useState<PipelineStageKey | 'all'>('all');
     const [sortBy, setSortBy] = useState<SortOption>('newest');
-    const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
 
     /* ---- notification state ---- */
     const [notification, setNotification] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
@@ -273,15 +264,6 @@ export default function InquiriesListScreen() {
 
     const pipelineStages = useMemo(() => buildPipelineStages(inquiries), [inquiries]);
 
-    /* ---- computed: kanban columns ---- */
-
-    const kanbanColumns = useMemo(() => {
-        return pipelineStages.map(stage => ({
-            ...stage,
-            inquiries: filteredInquiries.filter(inq => (inq.pipeline_stage || pipelineStages[0]?.key || 'New Lead') === stage.key),
-        }));
-    }, [filteredInquiries, pipelineStages]);
-
     /* ---- helpers ---- */
 
     const getInquiryPrice = (inquiry: Inquiry) => {
@@ -295,14 +277,6 @@ export default function InquiriesListScreen() {
             return { amount: inquiry.primary_estimate_total, currency };
         }
         return null;
-    };
-
-    const getDaysAgo = (date: Date) => {
-        const diff = Date.now() - new Date(date).getTime();
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        if (days === 0) return 'Today';
-        if (days === 1) return '1 day ago';
-        return `${days}d ago`;
     };
 
     /* ================================================================== */
@@ -409,24 +383,6 @@ export default function InquiriesListScreen() {
                     </Select>
                 </FormControl>
 
-                {/* View toggle */}
-                <ToggleButtonGroup
-                    value={viewMode}
-                    exclusive
-                    onChange={(_, v) => v && setViewMode(v)}
-                    size="small"
-                >
-                    <ToggleButton value="table">
-                        <Tooltip title="Table view">
-                            <ViewListIcon sx={{ fontSize: 18 }} />
-                        </Tooltip>
-                    </ToggleButton>
-                    <ToggleButton value="kanban">
-                        <Tooltip title="Pipeline board">
-                            <ViewKanbanIcon sx={{ fontSize: 18 }} />
-                        </Tooltip>
-                    </ToggleButton>
-                </ToggleButtonGroup>
             </Box>
 
             {/* ===== Content ===== */}
@@ -441,7 +397,7 @@ export default function InquiriesListScreen() {
                         Create Your First Inquiry
                     </Button>
                 </Box>
-            ) : viewMode === 'table' ? (
+            ) : (
                 /* ============================================ */
                 /*  TABLE VIEW                                   */
                 /* ============================================ */
@@ -451,32 +407,30 @@ export default function InquiriesListScreen() {
                         {
                             key: 'contact',
                             label: 'Contact',
-                            flex: 2,
+                            flex: 1.5,
                             headerIcon: <PersonIcon />,
                             render: (inquiry) => (
                                 <Box>
                                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
                                         {inquiry.contact.full_name}
                                     </Typography>
-                                    {inquiry.contact.email && (
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                                            <EmailIcon sx={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }} />
-                                            <Typography variant="caption" color="text.secondary">{inquiry.contact.email}</Typography>
-                                        </Box>
-                                    )}
-                                    {inquiry.contact.phone_number && (
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                                            <PhoneIcon sx={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }} />
-                                            <Typography variant="caption" color="text.secondary">{inquiry.contact.phone_number}</Typography>
-                                        </Box>
-                                    )}
                                     {inquiry.contact.company_name && (
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                                            <BusinessIcon sx={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }} />
-                                            <Typography variant="caption" color="text.secondary">{inquiry.contact.company_name}</Typography>
-                                        </Box>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {inquiry.contact.company_name}
+                                        </Typography>
                                     )}
                                 </Box>
+                            ),
+                        },
+                        {
+                            key: 'email',
+                            label: 'Email',
+                            flex: 1.5,
+                            headerIcon: <EmailIcon />,
+                            render: (inquiry) => (
+                                <Typography variant="body2" color="text.secondary" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {inquiry.contact.email || '-'}
+                                </Typography>
                             ),
                         },
                         {
@@ -551,6 +505,27 @@ export default function InquiriesListScreen() {
                                 ),
                         },
                         {
+                            key: 'lead_producer',
+                            label: 'Lead Producer',
+                            width: 140,
+                            headerIcon: <PersonIcon />,
+                            render: (inquiry) =>
+                                inquiry.lead_producer_name ? (
+                                    <Chip
+                                        icon={<PersonIcon sx={{ fontSize: 14 }} />}
+                                        label={inquiry.lead_producer_name}
+                                        size="small"
+                                        sx={{
+                                            height: 22, fontSize: '0.7rem', fontWeight: 600,
+                                            bgcolor: 'rgba(99,102,241,0.1)', color: '#a5b4fc',
+                                            '& .MuiChip-icon': { color: '#a5b4fc' },
+                                        }}
+                                    />
+                                ) : (
+                                    <Typography variant="body2" color="text.secondary">-</Typography>
+                                ),
+                        },
+                        {
                             key: 'created_at',
                             label: 'Date of Inquiry',
                             width: 120,
@@ -580,118 +555,6 @@ export default function InquiriesListScreen() {
                     onRowClick={(inq) => handleInquiryClick(inq.id)}
                     emptyMessage="No inquiries match your filters"
                 />
-            ) : (
-                /* ============================================ */
-                /*  KANBAN BOARD VIEW                            */
-                /* ============================================ */
-                <Box sx={{
-                    display: 'flex', gap: 2, overflowX: 'auto', pb: 2,
-                    minHeight: 'calc(100vh - 260px)',
-                }}>
-                    {kanbanColumns.map(column => (
-                        <Box
-                            key={column.key}
-                            sx={{
-                                minWidth: 280, maxWidth: 320, flex: '0 0 280px',
-                                display: 'flex', flexDirection: 'column',
-                                borderRadius: 2,
-                                bgcolor: 'rgba(16, 18, 24, 0.5)',
-                                border: '1px solid rgba(52, 58, 68, 0.2)',
-                                overflow: 'hidden',
-                            }}
-                        >
-                            {/* Column header */}
-                            <Box sx={{
-                                px: 2, py: 1.5,
-                                borderBottom: `2px solid ${column.color}30`,
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: column.color }} />
-                                    <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#e2e8f0' }}>
-                                        {column.key}
-                                    </Typography>
-                                </Box>
-                                <Chip
-                                    label={column.inquiries.length}
-                                    size="small"
-                                    sx={{
-                                        height: 20, minWidth: 20,
-                                        fontSize: '0.65rem', fontWeight: 800,
-                                        bgcolor: `${column.color}15`, color: column.color,
-                                        '& .MuiChip-label': { px: 0.75 },
-                                    }}
-                                />
-                            </Box>
-
-                            {/* Cards */}
-                            <Box sx={{ flex: 1, overflow: 'auto', p: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                {column.inquiries.length === 0 ? (
-                                    <Box sx={{ py: 4, textAlign: 'center' }}>
-                                        <Typography sx={{ fontSize: '0.75rem', color: '#475569' }}>No inquiries</Typography>
-                                    </Box>
-                                ) : (
-                                    column.inquiries.map(inquiry => (
-                                        <Box
-                                            key={inquiry.id}
-                                            onClick={() => handleInquiryClick(inquiry.id)}
-                                            sx={{
-                                                p: 1.5, borderRadius: 1.5, cursor: 'pointer',
-                                                bgcolor: 'rgba(30, 34, 44, 0.7)',
-                                                border: '1px solid rgba(52, 58, 68, 0.25)',
-                                                transition: 'all 0.15s ease',
-                                                '&:hover': {
-                                                    bgcolor: 'rgba(40, 46, 58, 0.85)',
-                                                    borderColor: `${column.color}40`,
-                                                    transform: 'translateY(-1px)',
-                                                    boxShadow: `0 4px 12px rgba(0,0,0,0.2)`,
-                                                },
-                                            }}
-                                        >
-                                            {/* Name */}
-                                            <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#f1f5f9', mb: 0.5, lineHeight: 1.3 }}>
-                                                {inquiry.contact.full_name || 'Unnamed'}
-                                            </Typography>
-
-                                            {/* Package */}
-                                            {(inquiry.selected_package?.name || inquiry.package_contents_snapshot?.package_name) && (
-                                                <Typography sx={{ fontSize: '0.7rem', color: '#94a3b8', mb: 0.75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {inquiry.selected_package?.name || inquiry.package_contents_snapshot?.package_name}
-                                                </Typography>
-                                            )}
-
-                                            {/* Meta row: event date, value, age */}
-                                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 0.5 }}>
-                                                {inquiry.event_date && (
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                        <CalendarToday sx={{ fontSize: 11, color: '#64748b' }} />
-                                                        <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8' }}>
-                                                            {new Date(inquiry.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                                                        </Typography>
-                                                    </Box>
-                                                )}
-                                                {(inquiry.primary_quote_total != null || inquiry.primary_estimate_total != null) && (
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                        <AttachMoney sx={{ fontSize: 11, color: '#10b981' }} />
-                                                        <Typography sx={{ fontSize: '0.65rem', color: '#34d399', fontWeight: 700 }}>
-                                                            {formatCurrency(inquiry.primary_quote_total ?? inquiry.primary_estimate_total, currentBrand?.currency)}
-                                                        </Typography>
-                                                    </Box>
-                                                )}
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
-                                                    <AccessTime sx={{ fontSize: 11, color: '#64748b' }} />
-                                                    <Typography sx={{ fontSize: '0.65rem', color: '#64748b' }}>
-                                                        {getDaysAgo(inquiry.created_at)}
-                                                    </Typography>
-                                                </Box>
-                                            </Box>
-                                        </Box>
-                                    ))
-                                )}
-                            </Box>
-                        </Box>
-                    ))}
-                </Box>
             )}
 
 

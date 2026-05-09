@@ -6,42 +6,84 @@ const DEFAULT_SLOT_TIERS = ["Budget", "Basic", "Standard", "Premium"] as const;
 export async function provisionBirthday(prisma: PrismaService, brandId: number) {
   await prisma.$transaction(async (tx) => {
     const birthdayRolesData = [
-      { role_name: "Birthday Person", order_index: 0, is_core: true, never_group: true, is_group: false },
-      { role_name: "Partner", order_index: 1, is_core: true, never_group: true, is_group: false },
-      { role_name: "Parents", order_index: 2, is_core: false, never_group: false, is_group: true },
-      { role_name: "Close Friends", order_index: 3, is_core: false, never_group: false, is_group: true },
-      { role_name: "Guests", order_index: 4, is_core: false, never_group: false, is_group: true },
+      { role_name: "Birthday Person", order_index: 0, never_group: true, is_group: false },
+      { role_name: "Partner", order_index: 1, never_group: true, is_group: false },
+      { role_name: "Parents", order_index: 2, never_group: false, is_group: true },
+      { role_name: "Close Friends", order_index: 3, never_group: false, is_group: true },
+      { role_name: "Guests", order_index: 4, never_group: false, is_group: true },
     ];
 
-    const birthdaySubjectRoles: Array<{ id: number; is_core: boolean }> = [];
+    const birthdaySubjectRoles: Array<{ id: number; role_name: string }> = [];
     for (const roleData of birthdayRolesData) {
-      const role = await tx.subjectRole.create({ data: { brand_id: brandId, ...roleData } });
-      birthdaySubjectRoles.push({ id: role.id, is_core: roleData.is_core });
+      const role = await tx.subjectRole.upsert({
+        where: {
+          brand_id_role_name: {
+            brand_id: brandId,
+            role_name: roleData.role_name,
+          },
+        },
+        create: { brand_id: brandId, ...roleData },
+        update: {
+          is_group: roleData.is_group,
+          never_group: roleData.never_group,
+          order_index: roleData.order_index,
+        },
+      });
+      birthdaySubjectRoles.push({ id: role.id, role_name: role.role_name });
     }
 
     const days = await createBirthdayDayTemplates(tx, brandId);
 
-    const eventType = await tx.eventType.create({
-      data: {
+    const template = await tx.packageTemplate.upsert({
+      where: {
+        brand_id_name: {
+          brand_id: brandId,
+          name: "Birthday",
+        },
+      },
+      create: {
         brand_id: brandId,
         name: "Birthday",
         description: "Birthday party and celebration coverage",
-        icon: "🎂",
+        icon: "\uD83C\uDF82",
         color: "#f59e0b",
-        default_duration_hours: 5,
-        default_start_time: "16:00",
+        event_category: "Birthday",
+        total_duration_hours: 5,
+        event_start_time: "16:00",
         typical_guest_count: 50,
-        is_system: false,
+        is_system_seeded: false,
+        is_active: true,
+        order_index: 1,
+      },
+      update: {
+        description: "Birthday party and celebration coverage",
+        icon: "\uD83C\uDF82",
+        color: "#f59e0b",
+        event_category: "Birthday",
+        total_duration_hours: 5,
+        event_start_time: "16:00",
+        typical_guest_count: 50,
+        is_system_seeded: false,
         is_active: true,
         order_index: 1,
       },
     });
 
     for (let index = 0; index < days.length; index += 1) {
-      await tx.eventTypeDay.create({
-        data: {
-          event_type_id: eventType.id,
+      await tx.packageTemplateDay.upsert({
+        where: {
+          package_template_id_event_day_template_id: {
+            package_template_id: template.id,
+            event_day_template_id: days[index].id,
+          },
+        },
+        create: {
+          package_template_id: template.id,
           event_day_template_id: days[index].id,
+          order_index: index,
+          is_default: index === 0,
+        },
+        update: {
           order_index: index,
           is_default: index === 0,
         },
@@ -49,41 +91,67 @@ export async function provisionBirthday(prisma: PrismaService, brandId: number) 
     }
 
     for (let index = 0; index < birthdaySubjectRoles.length; index += 1) {
-      await tx.eventTypeSubject.create({
-        data: {
-          event_type_id: eventType.id,
+      await tx.packageTemplateSubject.upsert({
+        where: {
+          package_template_id_order_index: {
+            package_template_id: template.id,
+            order_index: index,
+          },
+        },
+        create: {
+          package_template_id: template.id,
+          name: birthdaySubjectRoles[index].role_name,
           subject_role_id: birthdaySubjectRoles[index].id,
           order_index: index,
-          is_default: birthdaySubjectRoles[index].is_core,
+        },
+        update: {
+          name: birthdaySubjectRoles[index].role_name,
+          subject_role_id: birthdaySubjectRoles[index].id,
         },
       });
     }
 
-    const category = await tx.service_package_categories.create({
-      data: {
-        brand_id: brandId,
-        name: "Birthday",
-        description: "Birthday videography packages",
-        order_index: 1,
-        is_active: true,
-        event_type_id: eventType.id,
+    const birthdaySet = await tx.package_sets.upsert({
+      where: {
+        brand_id_name: {
+          brand_id: brandId,
+          name: "Birthday Packages",
+        },
       },
-    });
-
-    const birthdaySet = await tx.package_sets.create({
-      data: {
+      create: {
         brand_id: brandId,
         name: "Birthday Packages",
         description: "Our birthday celebration packages",
-        emoji: "🎂",
-        category_id: category.id,
-        event_type_id: eventType.id,
+        emoji: "\uD83C\uDF82",
+        event_category: "Birthday",
+        is_active: true,
+        order_index: 1,
+      },
+      update: {
+        description: "Our birthday celebration packages",
+        emoji: "\uD83C\uDF82",
+        event_category: "Birthday",
         is_active: true,
         order_index: 1,
       },
     });
 
     for (let index = 0; index < DEFAULT_SLOT_TIERS.length; index += 1) {
+      const existingSlot = await tx.package_set_slots.findFirst({
+        where: {
+          package_set_id: birthdaySet.id,
+          slot_label: DEFAULT_SLOT_TIERS[index],
+        },
+      });
+
+      if (existingSlot) {
+        await tx.package_set_slots.update({
+          where: { id: existingSlot.id },
+          data: { order_index: index },
+        });
+        continue;
+      }
+
       await tx.package_set_slots.create({
         data: {
           package_set_id: birthdaySet.id,

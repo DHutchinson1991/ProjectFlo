@@ -35,8 +35,9 @@ Every seed file must:
 
 1. **Export a default async function** returning `SeedSummary { created, updated, skipped, total }`.
 2. **Be idempotent** — safe to run repeatedly without duplicating data. Use `upsert()` or `findFirst` + conditional create.
-3. **Use `console.log`** for simple progress output. Format: `[SeedName] Created: X, Skipped: Y`.
-4. **Not print global summaries** — the root orchestrator handles final metrics.
+3. **Never mutate existing data on the skip path.** If an entity already exists, increment `skipped` and leave its child rows untouched. Destructive cleanup belongs in an explicit reset/backfill flow, not in the default reseed path.
+4. **Use `console.log`** for simple progress output. Format: `[SeedName] Created: X, Skipped: Y`.
+5. **Not print global summaries** — the root orchestrator handles final metrics.
 
 ## Logging
 

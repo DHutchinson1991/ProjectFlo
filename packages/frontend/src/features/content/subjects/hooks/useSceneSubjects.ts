@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { SubjectPriority } from '../types';
 import { subjectsApi } from '../api/subjects.api';
 
 interface UseSceneSubjectsProps {
@@ -21,16 +20,6 @@ export const useSceneSubjects = ({ sceneIds }: UseSceneSubjectsProps) => {
     enabled: primarySceneId !== null,
   });
 
-  const addMutation = useMutation({
-    mutationFn: ({ subjectId, priority }: { subjectId: number; priority: SubjectPriority }) =>
-      Promise.all(sceneIds.map((sceneId) => subjectsApi.assignToScene(sceneId, subjectId, priority))),
-    onSuccess: () => {
-      sceneIds.forEach((sceneId) =>
-        queryClient.invalidateQueries({ queryKey: sceneSubjectsKeys.byScene(sceneId) }),
-      );
-    },
-  });
-
   const removeMutation = useMutation({
     mutationFn: (subjectId: number) =>
       Promise.all(sceneIds.map((sceneId) => subjectsApi.removeFromScene(sceneId, subjectId))),
@@ -48,8 +37,6 @@ export const useSceneSubjects = ({ sceneIds }: UseSceneSubjectsProps) => {
     reload: () => primarySceneId
       ? queryClient.invalidateQueries({ queryKey: sceneSubjectsKeys.byScene(primarySceneId) })
       : Promise.resolve(),
-    addSubject: (subjectId: number, priority: SubjectPriority) =>
-      addMutation.mutateAsync({ subjectId, priority }).then((results) => results[0]),
     removeSubject: (subjectId: number) => removeMutation.mutateAsync(subjectId),
   };
 };

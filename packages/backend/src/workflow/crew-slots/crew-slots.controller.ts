@@ -119,4 +119,12 @@ export class CrewSlotsController {
     const parsedBrandId = brandId ? parseInt(brandId) : undefined;
     return this.projectCrewSlotsService.assignProjectCrewToSlot(slotId, dto, parsedBrandId);
   }
+
+  @Patch('project/crew-slots/:slotId/lead')
+  toggleLead(
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Body() dto: { lead_type: string | null },
+  ) {
+    return this.projectCrewSlotsService.toggleLead(slotId, dto.lead_type);
+  }
 }

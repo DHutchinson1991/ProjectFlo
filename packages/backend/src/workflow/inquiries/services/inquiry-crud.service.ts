@@ -41,7 +41,7 @@ export class InquiryCrudService {
                 lead_source_details: inquiryData.lead_source_details,
                 selected_package_id: inquiryData.selected_package_id ?? null,
                 preferred_payment_schedule_template_id: inquiryData.preferred_payment_schedule_template_id ?? null,
-                event_type_id: inquiryData.event_type_id ?? null,
+                event_category: inquiryData.event_category ?? null,
                 portal_token: randomUUID(),
             },
             include: { contact: { select: { first_name: true, last_name: true, email: true, phone_number: true } } },
@@ -98,7 +98,7 @@ export class InquiryCrudService {
                 ...(inquiryData.lead_source_details !== undefined && { lead_source_details: inquiryData.lead_source_details }),
                 ...(inquiryData.selected_package_id !== undefined && { selected_package_id: inquiryData.selected_package_id }),
                 ...(inquiryData.preferred_payment_schedule_template_id !== undefined && { preferred_payment_schedule_template_id: inquiryData.preferred_payment_schedule_template_id }),
-                ...(inquiryData.event_type_id !== undefined && { event_type_id: inquiryData.event_type_id }),
+                ...(inquiryData.event_category !== undefined && { event_category: inquiryData.event_category }),
             },
             include: { contact: { select: { first_name: true, last_name: true, email: true, phone_number: true } } },
         });
@@ -147,11 +147,4 @@ export class InquiryCrudService {
         return { message: 'Inquiry deleted successfully' };
     }
 
-    async sendWelcomePack(id: number, brandId: number): Promise<{ welcome_sent_at: Date }> {
-        const inquiry = await this.prisma.inquiries.findFirst({ where: { id, archived_at: null, contact: { brand_id: brandId } }, select: { id: true } });
-        if (!inquiry) throw new NotFoundException(`Inquiry with ID ${id} not found`);
-        const updated = await this.prisma.inquiries.update({ where: { id }, data: { welcome_sent_at: new Date() }, select: { welcome_sent_at: true } });
-        await this.inquiryTasksService.autoCompleteByName(id, 'Send Welcome Pack');
-        return { welcome_sent_at: updated.welcome_sent_at! };
-    }
 }

@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 // Platform Domain
@@ -12,6 +13,8 @@ import { CatalogModule } from './catalog/catalog.module';
 import { WorkflowModule } from './workflow/workflow.module';
 // Finance Domain
 import { FinanceModule } from './finance/finance.module';
+// AI Domain
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -19,6 +22,7 @@ import { FinanceModule } from './finance/finance.module';
       isGlobal: true,
       envFilePath: [".env.local", ".env"],
     }),
+    EventEmitterModule.forRoot(),
     // Platform bucket (auth, users, brands, prisma, logging, activity-logs)
     PlatformModule,
     // Content bucket
@@ -29,6 +33,8 @@ import { FinanceModule } from './finance/finance.module';
     WorkflowModule,
     // Finance bucket
     FinanceModule,
+    // AI bucket (experimental)
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

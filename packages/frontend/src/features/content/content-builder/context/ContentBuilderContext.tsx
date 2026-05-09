@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, ReactNode, useRef, useState } from 'react';
 import {
   usePlaybackControls,
   useScenesLibrary,
@@ -34,6 +34,8 @@ export interface TrackDefault {
 interface PackageActivity {
   id: number;
   package_event_day_id: number;
+  name?: string;
+  description?: string | null;
 }
 
 interface PackageCrewSlotAssignment {
@@ -96,6 +98,10 @@ interface ContentBuilderContextType {
   setTracks: (tracks: TimelineTrack[] | ((prev: TimelineTrack[]) => TimelineTrack[])) => void;
   showLibrary: boolean;
   setShowLibrary: (show: boolean) => void;
+
+  // Scene Settings Panel (replaces modal)
+  selectedSceneForSettings: { sceneName: string; sceneLabel: string; sceneIds: number[] } | null;
+  setSelectedSceneForSettings: (v: { sceneName: string; sceneLabel: string; sceneIds: number[] } | null) => void;
   showCreateSceneDialog: boolean;
   setShowCreateSceneDialog: (show: boolean) => void;
   
@@ -171,6 +177,32 @@ interface ContentBuilderContextType {
 
   trackDefaults: Record<number, TrackDefault>;
   setTrackDefault: (trackId: number, defaults: TrackDefault) => void;
+
+  /** True while the AI Director is generating blocking data */
+  aiBlockingPending: boolean;
+  setAiBlockingPending: (pending: boolean) => void;
+
+  /** Selected camera track ID from playback (for floor plan highlighting of targeted subjects) */
+  selectedCameraId: number | null;
+  setSelectedCameraId: (id: number | null) => void;
+  
+  /** Subject IDs targeted by the selected camera */
+  selectedCameraSubjectIds: number[];
+  setSelectedCameraSubjectIds: (ids: number[]) => void;
+
+  /** Camera number (1-based, e.g. 1 = "Cam 1") → subject IDs targeted. Built by PlaybackScreen, consumed by SpatialTab for floor plan click → highlight. */
+  cameraSubjectsByCamNum: Record<number, number[]>;
+  setCameraSubjectsByCamNum: (map: Record<number, number[]>) => void;
+
+  /**
+   * Phase D: Camera number → geometrically visible subject IDs
+   * (visible_subject_ids, FOV-derived). Floor plan highlight shows the
+   * intersection of editorial (cameraSubjectsByCamNum) ∩ visible
+   * (cameraVisibleSubjectsByCamNum) — the cameras who are both *wanted*
+   * and *in frame*. Mismatches are reported by ConflictListPanel.
+   */
+  cameraVisibleSubjectsByCamNum: Record<number, number[]>;
+  setCameraVisibleSubjectsByCamNum: (map: Record<number, number[]>) => void;
 }
 
 const ContentBuilderContext = createContext<ContentBuilderContextType | null>(null);
@@ -245,6 +277,19 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
   const setTrackDefault = React.useCallback((trackId: number, defaults: TrackDefault) => {
     setTrackDefaultsMap(prev => ({ ...prev, [trackId]: defaults }));
   }, []);
+
+  const [aiBlockingPending, setAiBlockingPending] = React.useState(false);
+
+  // Selected camera state for floor plan highlighting
+  const [selectedCameraId, setSelectedCameraId] = useState<number | null>(null);
+  const [selectedCameraSubjectIds, setSelectedCameraSubjectIds] = useState<number[]>([]);
+  const [cameraSubjectsByCamNum, setCameraSubjectsByCamNum] = useState<Record<number, number[]>>({});
+  const [cameraVisibleSubjectsByCamNum, setCameraVisibleSubjectsByCamNum] = useState<Record<number, number[]>>({});
+
+  // Scene settings panel state (replaces the old modal)
+  const [selectedSceneForSettings, setSelectedSceneForSettings] = React.useState<
+    { sceneName: string; sceneLabel: string; sceneIds: number[] } | null
+  >(null);
 
   // ✅ INSTANTIATE ALL HOOKS ONCE HERE
   const timelineState = useTimelineState(initialScenes || [], initialTracks || []);
@@ -368,6 +413,10 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
     ...playbackControls,
     currentScene: currentSceneHook.currentScene,
     currentMoment,
+
+    // Scene Settings Panel
+    selectedSceneForSettings,
+    setSelectedSceneForSettings,
     
     // Scene Library
     ...scenesLibrary,
@@ -427,6 +476,16 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
     instanceOwnerId,
     trackDefaults,
     setTrackDefault,
+    aiBlockingPending,
+    setAiBlockingPending,
+    selectedCameraId,
+    setSelectedCameraId,
+    selectedCameraSubjectIds,
+    setSelectedCameraSubjectIds,
+    cameraSubjectsByCamNum,
+    setCameraSubjectsByCamNum,
+    cameraVisibleSubjectsByCamNum,
+    setCameraVisibleSubjectsByCamNum,
   };
 
   return (

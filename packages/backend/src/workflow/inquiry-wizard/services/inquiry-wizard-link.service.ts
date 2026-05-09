@@ -30,12 +30,14 @@ export class InquiryWizardLinkService {
         const contactId = existingInquiry?.contact_id ?? undefined;
         const inquiryUpdate: Record<string, unknown> = {};
 
-        if (!existingInquiry?.wedding_date && responses['wedding_date'])
+        // Always prefer wizard-submitted date over placeholder date set at inquiry creation
+        if (responses['wedding_date'])
             inquiryUpdate.wedding_date = new Date(responses['wedding_date'] as string);
         if (!existingInquiry?.guest_count && responses['guest_count'])
             inquiryUpdate.guest_count = responses['guest_count'] as string;
-        if (!existingInquiry?.notes && responses['notes'])
-            inquiryUpdate.notes = responses['notes'] as string;
+        const notesValue = (responses['special_requests'] || responses['notes']) as string | undefined;
+        if (!existingInquiry?.notes && notesValue)
+            inquiryUpdate.notes = notesValue;
         if (!existingInquiry?.lead_source && responses['lead_source'])
             inquiryUpdate.lead_source = responses['lead_source'] as string;
         inquiryUpdate.lead_source_details = JSON.stringify(responses);
@@ -53,9 +55,8 @@ export class InquiryWizardLinkService {
                 : null);
         if (resolvedScheduleId) inquiryUpdate.preferred_payment_schedule_template_id = resolvedScheduleId;
 
-        if (!existingInquiry?.event_type_id && responses['event_type']) {
-            const matchedET = await this.resolveEventType(String(responses['event_type']));
-            if (matchedET) inquiryUpdate.event_type_id = matchedET;
+        if (!existingInquiry?.event_category && responses['event_type']) {
+            inquiryUpdate.event_category = String(responses['event_type']).trim();
         }
 
         if (Object.keys(inquiryUpdate).length > 0) {
@@ -77,10 +78,13 @@ export class InquiryWizardLinkService {
         if (existingInquiry?.contact) {
             const contactUpdate: Record<string, string> = {};
             const c = existingInquiry.contact;
+            const isPlaceholderEmail = c.email?.startsWith('pending_') && c.email?.endsWith('@temp.com');
             if ((!c.first_name || c.first_name === 'Unknown') && responses['contact_first_name'])
                 contactUpdate.first_name = responses['contact_first_name'] as string;
             if ((!c.last_name || c.last_name === 'Lead') && responses['contact_last_name'])
                 contactUpdate.last_name = responses['contact_last_name'] as string;
+            if ((!c.email || isPlaceholderEmail) && responses['contact_email'])
+                contactUpdate.email = responses['contact_email'] as string;
             if (!c.phone_number && responses['contact_phone'])
                 contactUpdate.phone_number = responses['contact_phone'] as string;
             if (Object.keys(contactUpdate).length > 0) {
@@ -131,8 +135,7 @@ export class InquiryWizardLinkService {
         if (scheduleId) inferredInquiry.preferred_payment_schedule_template_id = scheduleId;
 
         if (responses['event_type']) {
-            const matchedET = await this.resolveEventType(String(responses['event_type']));
-            if (matchedET) inferredInquiry.event_type_id = matchedET;
+            inferredInquiry.event_category = String(responses['event_type']).trim();
         }
 
         const createdInquiry = await this.inquiryCrudService.create(inferredInquiry, brandId);
@@ -177,18 +180,8 @@ export class InquiryWizardLinkService {
         return created.id;
     }
 
-    private async resolveEventType(rawEventType: string): Promise<number | null> {
+    private async resolveEventType(rawEventType: string): Promise<string | null> {
         const trimmed = rawEventType.trim();
-        let matched = await this.prisma.eventType.findFirst({
-            where: { name: { equals: trimmed, mode: 'insensitive' } },
-            select: { id: true },
-        });
-        if (!matched && trimmed.toLowerCase().endsWith('s')) {
-            matched = await this.prisma.eventType.findFirst({
-                where: { name: { equals: trimmed.slice(0, -1), mode: 'insensitive' } },
-                select: { id: true },
-            });
-        }
-        return matched?.id ?? null;
+        return trimmed.length > 0 ? trimmed : null;
     }
 }

@@ -70,6 +70,19 @@ export interface Inquiry {
         package_name: string;
         currency?: string;
         contents?: Record<string, unknown>;
+        source_day_blueprint_id?: number | null;
+        source_day_blueprint_version_id?: number | null;
+        source_day_blueprint_display_name?: string | null;
+        source_day_blueprint_key?: string | null;
+        source_day_blueprint_version_number?: number | null;
+    } | null;
+    blueprint_drift?: {
+        blueprint_id: number;
+        consumed_version_id: number;
+        consumed_version_number: number | null;
+        latest_version_id: number | null;
+        latest_version_number: number | null;
+        is_current: boolean | null;
     } | null;
     workflow_status?: Record<string, string>;
     contact: Contact;
@@ -84,7 +97,24 @@ export interface Inquiry {
     estimates?: import('@/features/finance/estimates/types').Estimate[];
     activity_logs?: never;
     welcome_sent_at?: string | null;
+    lead_producer_name?: string | null;
     lead_producer?: {
+        id: number;
+        name: string;
+        email?: string | null;
+        label?: string | null;
+        job_role_name?: string | null;
+    } | null;
+    lead_videographer_name?: string | null;
+    lead_videographer?: {
+        id: number;
+        name: string;
+        email?: string | null;
+        label?: string | null;
+        job_role_name?: string | null;
+    } | null;
+    lead_editor_name?: string | null;
+    lead_editor?: {
         id: number;
         name: string;
         email?: string | null;
@@ -221,6 +251,7 @@ export interface InquiryCrewAvailabilityRow {
     alternatives: InquiryAvailabilityAlternativeCrew[];
     is_on_site?: boolean;
     confirmed?: boolean;
+    lead_type?: string | null;
     availability_request_id?: number | null;
     availability_request_status?: 'pending' | 'confirmed' | 'declined' | 'cancelled' | null;
 }

@@ -120,12 +120,32 @@ export function buildCrewEmailDraft(
         if (onSiteVenue) onSiteLine += ` at ${onSiteVenue}`;
         onSiteLine += '.';
         lines.push(onSiteLine);
+        if (inquiry.lead_producer) {
+            lines.push('');
+            lines.push(`Lead Producer: ${inquiry.lead_producer.name}${inquiry.lead_producer.email ? ` (${inquiry.lead_producer.email})` : ''} — please direct any questions to them.`);
+        }
+        if (inquiry.lead_videographer) {
+            lines.push(`Lead Videographer: ${inquiry.lead_videographer.name}${inquiry.lead_videographer.email ? ` (${inquiry.lead_videographer.email})` : ''}`);
+        }
+        if (inquiry.lead_editor) {
+            lines.push(`Lead Editor: ${inquiry.lead_editor.name}${inquiry.lead_editor.email ? ` (${inquiry.lead_editor.email})` : ''}`);
+        }
     } else {
         lines.push(`I'd like to check your availability to work on ${clientName}'s ${eventLabel}.`);
         lines.push('');
         if (inquiry.event_type) lines.push(`Event type: ${inquiry.event_type}`);
         if (eventDateStr) lines.push(`Event date: ${eventDateStr}`);
         lines.push('On-site: No');
+        if (inquiry.lead_producer) {
+            lines.push('');
+            lines.push(`Lead Producer: ${inquiry.lead_producer.name}${inquiry.lead_producer.email ? ` (${inquiry.lead_producer.email})` : ''} — please direct any questions to them.`);
+        }
+        if (inquiry.lead_videographer) {
+            lines.push(`Lead Videographer: ${inquiry.lead_videographer.name}${inquiry.lead_videographer.email ? ` (${inquiry.lead_videographer.email})` : ''}`);
+        }
+        if (inquiry.lead_editor) {
+            lines.push(`Lead Editor: ${inquiry.lead_editor.name}${inquiry.lead_editor.email ? ` (${inquiry.lead_editor.email})` : ''}`);
+        }
     }
 
     if (crewTasks.length > 0) {

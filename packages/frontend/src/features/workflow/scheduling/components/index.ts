@@ -1,9 +1,8 @@
 export {
 	EventDayManager,
-	PackageScheduleCard,
+	PackageTimelineCard,
 	PackageScheduleSummary,
 	ActivitiesCard,
-	AddActivityDialog,
 	ActivityFilmWizard,
 } from './package-template';
 export type { EventDay, EventDayFilmScene } from './package-template';

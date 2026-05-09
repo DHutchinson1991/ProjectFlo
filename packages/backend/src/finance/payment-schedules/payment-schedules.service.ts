@@ -6,7 +6,7 @@ import { CreatePaymentScheduleTemplateDto } from './dto/create-payment-schedule-
 import { UpdatePaymentScheduleTemplateDto } from './dto/update-payment-schedule-template.dto';
 import { ApplyScheduleToEstimateDto } from './dto/apply-schedule-to-estimate.dto';
 import { ApplyScheduleToQuoteDto } from './dto/apply-schedule-to-quote.dto';
-import { InvoicesService } from '../invoices/invoices.service';
+import type { InvoicesService } from '../invoices/invoices.service';
 
 @Injectable()
 export class PaymentSchedulesService {
@@ -14,7 +14,7 @@ export class PaymentSchedulesService {
 
   constructor(
     private prisma: PrismaService,
-    @Inject(forwardRef(() => InvoicesService))
+    @Inject(forwardRef(() => require('../invoices/invoices.service').InvoicesService))
     private invoicesService: InvoicesService,
   ) {}
 

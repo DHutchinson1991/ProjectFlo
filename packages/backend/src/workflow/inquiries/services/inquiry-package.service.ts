@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
-import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import { ProjectPackageCloneService, parseGuestCountMidpoint } from '../../projects/project-package-clone.service';
+import { buildPackageContentsSnapshot } from '../../projects/package-contents-snapshot.util';
 import { InquiryScheduleSnapshotService } from './inquiry-schedule-snapshot.service';
 
 /**
@@ -67,11 +67,18 @@ export class InquiryPackageService {
         const guestCount = parseGuestCountMidpoint(inquiry?.guest_count) ?? undefined;
         const pkg = await tx.service_packages.findUnique({
             where: { id: newPackageId },
-            select: { id: true, name: true, currency: true, contents: true },
+            select: {
+                id: true,
+                name: true,
+                currency: true,
+                contents: true,
+                source_day_blueprint_id: true,
+                source_day_blueprint_version_id: true,
+                source_day_blueprint: { select: { id: true, key: true, display_name: true } },
+                source_day_blueprint_version: { select: { id: true, version_number: true } },
+            },
         });
-        const packageContentsSnapshot = pkg
-            ? { snapshot_taken_at: new Date().toISOString(), package_id: pkg.id, package_name: pkg.name, currency: pkg.currency ?? DEFAULT_CURRENCY, contents: pkg.contents }
-            : null;
+        const packageContentsSnapshot = buildPackageContentsSnapshot(pkg);
         await tx.inquiries.update({
             where: { id: inquiryId },
             data: { source_package_id: newPackageId, package_contents_snapshot: packageContentsSnapshot ?? Prisma.JsonNull },

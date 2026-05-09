@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../platform/prisma/prisma.service';
 import { CreateSceneSubjectDto } from './dto/create-scene-subject.dto';
 import { UpdateSceneSubjectDto } from './dto/update-scene-subject.dto';
@@ -29,21 +29,18 @@ export class SubjectMomentAssignmentsService {
         });
         if (!moment) throw new NotFoundException(`Moment with ID ${momentId} not found`);
 
-        const subject = await this.prisma.filmSubject.findUnique({ where: { id: dto.subject_id } });
+        const subject = await this.prisma.packageDaySubject.findUnique({ where: { id: dto.subject_id } });
         if (!subject) throw new NotFoundException(`Subject with ID ${dto.subject_id} not found`);
-
-        if (subject.film_id !== moment.film_scene.film_id) {
-            throw new BadRequestException('Subject does not belong to the same film as this moment');
-        }
 
         const momentSubject = await this.prisma.filmSceneMomentSubject.upsert({
             where: { moment_id_subject_id: { moment_id: momentId, subject_id: dto.subject_id } },
-            update: { priority: dto.priority ?? undefined, notes: dto.notes ?? undefined },
+            update: { priority: dto.priority ?? undefined, notes: dto.notes ?? undefined, action_description: dto.action_description ?? undefined },
             create: {
                 moment_id: momentId,
                 subject_id: dto.subject_id,
                 priority: dto.priority ?? SubjectPriority.BACKGROUND,
                 notes: dto.notes,
+                action_description: dto.action_description,
             },
             include: { subject: { include: { role_template: true } } },
         });
@@ -61,7 +58,8 @@ export class SubjectMomentAssignmentsService {
             where: { id: momentSubject.id },
             data: {
                 priority: dto.priority ?? momentSubject.priority,
-                notes: dto.notes ?? momentSubject.notes,
+                notes: dto.notes !== undefined ? dto.notes : momentSubject.notes,
+                action_description: dto.action_description !== undefined ? dto.action_description : momentSubject.action_description,
             },
             include: { subject: { include: { role_template: true } } },
         });

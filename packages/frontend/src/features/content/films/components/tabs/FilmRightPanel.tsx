@@ -5,10 +5,10 @@ import React, { useState } from "react";
 import { Box, Tabs, Tab } from "@mui/material";
 import type { Film } from "@/features/content/films/types";
 import type { TimelineLayer } from "@/features/content/films/types";
-import { type FilmSubject, type SubjectTemplate } from '@/features/content/subjects';
+import { type Subject, type SubjectTemplate } from '@/features/content/subjects';
 import type { EquipmentSummary, FilmEquipmentAssignmentsBySlot } from "@/features/content/films/types/film-equipment.types";
 import { FilmEquipmentTab } from "./FilmEquipmentTab";
-import { FilmSubjectsTab } from "./FilmSubjectsTab";
+import { SubjectsTab } from "./SubjectsTab";
 import { FilmCrewSlotsTab } from "./FilmCrewSlotsTab";
 import { FilmActivitiesTab } from "./FilmActivitiesTab";
 
@@ -16,7 +16,7 @@ interface FilmRightPanelProps {
     film: Film;
     filmId: number;
     packageId?: number | null;
-    subjects: FilmSubject[];
+    subjects: Subject[];
     subjectTemplates: SubjectTemplate[];
     layers: TimelineLayer[];
     scenes?: Array<{ id: number; name: string; order_index?: number; mode?: string }>;
@@ -73,7 +73,7 @@ export const FilmRightPanel: React.FC<FilmRightPanelProps> = ({
                     />
                 )}
                 {activeTab === 2 && (
-                    <FilmSubjectsTab
+                    <SubjectsTab
                         filmId={filmId}
                         brandId={film.brand_id}
                         packageId={packageId}

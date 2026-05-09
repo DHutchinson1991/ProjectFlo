@@ -25,12 +25,12 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import PersonIcon from '@mui/icons-material/Person';
 import { colors } from '@/shared/theme/tokens';
 import { EmptyState, FormDialog } from '@/shared/ui';
-import { useFilmSubjects } from '../hooks/useFilmSubjects';
-import type { FilmSubject, SubjectRole } from '../types';
+import { useSubjects } from '../hooks/useSubjects';
+import type { Subject, SubjectRole } from '../types';
 
 interface SubjectsCardProps {
   filmId: number;
-  onSubjectsChange?: (subjects: FilmSubject[]) => void;
+  onSubjectsChange?: (subjects: Subject[]) => void;
 }
 
 export const SubjectsCard: React.FC<SubjectsCardProps> = ({
@@ -43,7 +43,7 @@ export const SubjectsCard: React.FC<SubjectsCardProps> = ({
     error,
     createSubject,
     deleteSubject,
-  } = useFilmSubjects(filmId);
+  } = useSubjects(filmId);
 
   const [openTemplateDialog, setOpenTemplateDialog] = useState(false);
   const [openAddDialog, setOpenAddDialog] = useState(false);
@@ -141,7 +141,7 @@ export const SubjectsCard: React.FC<SubjectsCardProps> = ({
                         size="small"
                         variant="status"
                         sx={{
-                          bgcolor: subject.role.is_core ? colors.accentSoft : colors.elevated,
+                          bgcolor: colors.elevated,
                           color: colors.text,
                         }}
                       />

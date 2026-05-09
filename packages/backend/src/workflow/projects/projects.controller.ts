@@ -73,6 +73,16 @@ export class ProjectsController {
         return this.projectsService.deleteProject(id, parsedBrandId);
     }
 
+    /** DEV/TESTING: Revert a project back to its source inquiry. */
+    @Post(':id/revert')
+    async revertToInquiry(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId?: string,
+    ) {
+        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
+        return this.projectsService.revertToInquiry(id, parsedBrandId);
+    }
+
     // ─── Project Package Snapshot Endpoints ───────────────────────────
 
     /** Get package snapshot summary (source package info + aggregate counts) */

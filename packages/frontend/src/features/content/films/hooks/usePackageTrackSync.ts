@@ -68,7 +68,7 @@ interface UsePackageTrackSyncOptions {
     linkedPackageId: string | null;
     setTracks: React.Dispatch<React.SetStateAction<ContentBuilderTrack[]>>;
     setEquipmentAssignmentsBySlot: React.Dispatch<React.SetStateAction<FilmEquipmentAssignmentsBySlot>>;
-    createSubject: (data: { film_id: number; name: string; role_template_id: number }) => Promise<unknown>;
+    createSubject: (data: { name: string; role_template_id: number }) => Promise<unknown>;
     loadAll: () => Promise<void>;
 }
 
@@ -233,7 +233,7 @@ export function usePackageTrackSync({
                     }>;
                     for (const pkgSubject of pkgSubjects) {
                         try {
-                            await createSubject({ film_id: filmId, name: pkgSubject.name, role_template_id: pkgSubject.role_template_id ?? 0 });
+                            await createSubject({ name: pkgSubject.name, role_template_id: pkgSubject.role_template_id ?? 0 });
                         } catch { /* duplicate */ }
                     }
                 } catch (subjectErr) { console.warn('Could not sync subjects from package:', subjectErr); }

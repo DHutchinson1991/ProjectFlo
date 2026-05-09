@@ -1,7 +1,5 @@
-'use client';
-
-import { PackagesListScreen } from '@/features/catalog/packages/screens';
+import { redirect } from 'next/navigation';
 
 export default function PackageListPage() {
-    return <PackagesListScreen />;
+    redirect('/packages');
 }

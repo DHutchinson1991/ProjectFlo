@@ -199,7 +199,7 @@ export interface ViewState {
 
 export interface ContentBuilderProps {
     filmId?: number;
-    film?: any;
+    film?: import('@/features/content/films/types').Film;
     initialScenes?: TimelineScene[];
     initialTracks?: TimelineTrack[];
     onSave?: (scenes: TimelineScene[], tracks?: TimelineTrack[]) => void;
@@ -208,7 +208,6 @@ export interface ContentBuilderProps {
     readOnly?: boolean;
     leftPanel?: ReactNode;
     rightPanel?: ReactNode;
-    subjectCount?: number;
     packageId?: number | null;
     linkedActivityId?: number | null;
     instanceOwnerType?: 'project' | 'inquiry';
@@ -236,6 +235,9 @@ export interface PlaybackScreenProps {
     readOnly?: boolean;
     className?: string;
     tracks?: TimelineTrack[];
+    showControlnetGuide?: boolean;
+    showSpatialOverlay?: boolean;
+    showSpatialGrid?: boolean;
 }
 
 export interface CurrentSceneInfo {

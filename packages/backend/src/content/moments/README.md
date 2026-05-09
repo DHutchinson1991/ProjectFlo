@@ -48,3 +48,7 @@ All routes are under `/moments`.
 - `GET    /:id/recording-setup` — get full recording setup with camera assignments
 - `PATCH  /:id/recording-setup` — upsert recording setup (camera assignments, audio tracks, graphics)
 - `DELETE /:id/recording-setup` — delete recording setup
+
+## Business rules / invariants
+- `CameraSubjectAssignment` is keyed by `(recording_setup_id, track_id)` and stores per-track subject intent for both video and active audio tracks.
+- Recording-setup writes must merge incoming `camera_assignments`, `audio_track_ids`, and optional `audio_assignments` by `track_id` before persisting, then upsert rows on the composite unique instead of blind `create()` calls.

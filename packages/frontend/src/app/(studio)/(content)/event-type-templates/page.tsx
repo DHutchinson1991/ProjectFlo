@@ -1,7 +1,5 @@
-'use client';
-
-import { EventTypeTemplatesScreen } from '@/features/catalog/event-types';
+import { redirect } from 'next/navigation';
 
 export default function TemplatesPage() {
-    return <EventTypeTemplatesScreen />;
+    redirect('/packages');
 }

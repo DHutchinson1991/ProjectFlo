@@ -56,4 +56,32 @@ export class VenuesController {
     removeVenue(@Param('id', ParseIntPipe) id: number) {
         return this.venuesService.removeVenue(id);
     }
+
+    // ==================== SPACE MANAGEMENT ====================
+
+    @Get(':locationId/spaces')
+    getSpaces(@Param('locationId', ParseIntPipe) locationId: number) {
+        return this.venuesService.getSpaces(locationId);
+    }
+
+    @Post(':locationId/spaces')
+    createSpace(
+        @Param('locationId', ParseIntPipe) locationId: number,
+        @Body() body: { name: string; space_type?: string; capacity?: number; dimensions_length?: number; dimensions_width?: number; dimensions_height?: number; notes?: string },
+    ) {
+        return this.venuesService.createSpace(locationId, body);
+    }
+
+    @Patch('spaces/:spaceId')
+    updateSpace(
+        @Param('spaceId', ParseIntPipe) spaceId: number,
+        @Body() body: { name?: string; space_type?: string; capacity?: number; notes?: string },
+    ) {
+        return this.venuesService.updateSpace(spaceId, body);
+    }
+
+    @Delete('spaces/:spaceId')
+    removeSpace(@Param('spaceId', ParseIntPipe) spaceId: number) {
+        return this.venuesService.removeSpace(spaceId);
+    }
 }

@@ -81,6 +81,7 @@ export interface SigningContractView {
         role: string;
         status: string;
         signed_at: string | null;
+        signature_text: string | null;
     }>;
 }
 

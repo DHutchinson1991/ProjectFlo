@@ -7,18 +7,18 @@ export class SceneSubjectResponseDto {
     subject_id: number;
     priority: SubjectPriority;
     notes?: string | null;
+    action_description?: string | null;
     created_at: Date;
     updated_at: Date;
     subject: {
         id: number;
-        film_id: number;
+        package_id: number;
         name: string;
         role_template_id?: number | null;
         role?: {
             id: number;
             role_name: string;
             description?: string;
-            is_core: boolean;
             is_group: boolean;
         };
         created_at: Date;

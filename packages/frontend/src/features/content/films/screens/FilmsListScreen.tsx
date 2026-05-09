@@ -120,7 +120,7 @@ export function FilmsListScreen() {
                                             </Link>
                                         </TableCell>
                                         <TableCell><Typography variant="body2">{contentItem.scenes?.length ?? 0}</Typography></TableCell>
-                                        <TableCell><Typography variant="body2">{contentItem.subjects?.length ?? 0}</Typography></TableCell>
+                                        <TableCell><Typography variant="body2">{(contentItem as { subjects?: unknown[] }).subjects?.length ?? 0}</Typography></TableCell>
                                         <TableCell><Typography variant="body2">{contentItem.tracks?.length ?? 0}</Typography></TableCell>
                                         <TableCell><Typography variant="body2" color="text.secondary">{new Date(contentItem.updated_at).toLocaleDateString()}</Typography></TableCell>
                                         <TableCell align="right">

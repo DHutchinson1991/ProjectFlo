@@ -63,8 +63,9 @@ export class MomentsController {
         @Param('id', ParseIntPipe) id: number,
         @Body(new ValidationPipe({ transform: true })) data: {
             camera_track_ids?: number[];
-            camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: ShotType | null }>;
+            camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: ShotType | null; enabled?: boolean }>;
             audio_track_ids?: number[];
+            audio_assignments?: Array<{ track_id: number; subject_ids?: number[] }>;
             graphics_enabled?: boolean;
             graphics_title?: string | null;
         }

@@ -45,6 +45,6 @@ export class CreateInquiryDto {
     preferred_payment_schedule_template_id?: number | null;
 
     @IsOptional()
-    @IsInt()
-    event_type_id?: number;
+    @IsString()
+    event_category?: string;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import {
     Box,
@@ -11,11 +11,14 @@ import {
     FormControlLabel,
     CircularProgress,
     Chip,
+    Divider,
     Stack,
 } from '@mui/material';
 import { alpha, keyframes } from '@mui/material/styles';
 import {
     CheckCircle,
+    Download,
+    Email,
     Gavel,
     HourglassEmpty,
     Visibility,
@@ -47,11 +50,46 @@ export default function ContractSigningPage() {
     const error = queryError instanceof Error ? 'This signing link is invalid or has expired.' : submitError;
     const isSigned = signed || data?.signer?.status === 'signed';
 
+    const [portalToken, setPortalToken] = useState<string | null>(null);
+    const contractRef = useRef<HTMLDivElement>(null);
+
+    const studioSigners = data?.signers.filter((s) => s.role === 'producer' && s.status === 'signed') ?? [];
+
+    const handleDownloadPdf = useCallback(() => {
+        if (!data) return;
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        const studioSigs = studioSigners.map((s) =>
+            `<div style="margin-bottom:16px;">` +
+            `<div style="font-family:'Dancing Script','Brush Script MT',cursive;font-size:28px;color:#1e293b;">${s.signature_text || s.name}</div>` +
+            `<div style="font-size:12px;color:#64748b;margin-top:4px;">${s.name} &middot; ${s.role} &middot; ${s.signed_at ? new Date(s.signed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}</div>` +
+            `</div>`
+        ).join('');
+
+        printWindow.document.write(`<!DOCTYPE html><html><head><title>${data.contract.title}</title>` +
+            `<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">` +
+            `<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:800px;margin:0 auto;padding:40px;color:#1e293b;line-height:1.7}` +
+            `.contract-section{margin-bottom:24px}.contract-section h3{font-size:16px;font-weight:700;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:8px}.contract-section p{font-size:14px;color:#334155}` +
+            `.sig-block{margin-top:32px;padding-top:24px;border-top:2px solid #e2e8f0}` +
+            `@media print{body{padding:20px}}</style></head><body>` +
+            `<h1 style="text-align:center;font-size:22px;margin-bottom:8px;">${data.contract.title}</h1>` +
+            `<p style="text-align:center;color:#64748b;font-size:13px;margin-bottom:32px;">Sent ${data.contract.sent_at ? new Date(data.contract.sent_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}</p>` +
+            `${data.contract.rendered_html || ''}` +
+            (studioSigs ? `<div class="sig-block"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;margin-bottom:12px;">Producer Signature</div>${studioSigs}</div>` : '') +
+            `</body></html>`);
+        printWindow.document.close();
+        printWindow.onload = () => { printWindow.print(); };
+    }, [data, studioSigners]);
+
     const handleSign = async () => {
         if (!signatureText.trim() || !agreed) return;
         try {
-            await submitSignature.mutateAsync(signatureText.trim());
+            const result = await submitSignature.mutateAsync(signatureText.trim());
             setSigned(true);
+            if (result.portalToken) {
+                setPortalToken(result.portalToken);
+            }
         } catch {
             setSubmitError('Failed to submit signature. Please try again.');
         }
@@ -98,12 +136,32 @@ export default function ContractSigningPage() {
                     <Typography variant="h4" sx={{ color: '#f1f5f9', fontWeight: 800, mb: 1 }}>
                         Contract Signed
                     </Typography>
-                    <Typography sx={{ color: '#94a3b8', fontSize: '1.05rem', mb: 3 }}>
+                    <Typography sx={{ color: '#94a3b8', fontSize: '1.05rem', mb: 2 }}>
                         Thank you, {data.signer.name}. Your signature has been recorded for &ldquo;{data.contract.title}&rdquo;.
                     </Typography>
-                    <Typography sx={{ color: '#64748b', fontSize: '0.82rem' }}>
-                        You may close this window. A copy of the signed contract will be available from the sender.
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 3, py: 1.5, px: 2, borderRadius: 2, bgcolor: alpha('#6366f1', 0.08), border: '1px solid', borderColor: alpha('#6366f1', 0.15) }}>
+                        <Email sx={{ fontSize: 18, color: '#a5b4fc' }} />
+                        <Typography sx={{ color: '#a5b4fc', fontSize: '0.85rem' }}>
+                            A copy of the signed contract has been sent to your email.
+                        </Typography>
+                    </Box>
+                    {portalToken ? (
+                        <Button
+                            variant="contained"
+                            href={`/portal/${portalToken}/payments`}
+                            sx={{
+                                textTransform: 'none', fontWeight: 700, fontSize: '0.95rem',
+                                bgcolor: '#6366f1', '&:hover': { bgcolor: '#4f46e5' },
+                                borderRadius: 2, px: 4, py: 1.2,
+                            }}
+                        >
+                            Continue to Payments
+                        </Button>
+                    ) : (
+                        <Typography sx={{ color: '#64748b', fontSize: '0.82rem' }}>
+                            You may close this window.
+                        </Typography>
+                    )}
                 </Box>
             </Box>
         );
@@ -134,6 +192,11 @@ export default function ContractSigningPage() {
                         <Chip label={`For: ${data.signer.name}`} size="small" sx={{ bgcolor: alpha('#6366f1', 0.15), color: '#a5b4fc', fontWeight: 600 }} />
                         <Chip label={data.signer.role} size="small" variant="outlined" sx={{ color: '#94a3b8', borderColor: 'rgba(148,163,184,0.2)' }} />
                     </Box>
+                    {studioSigners.length > 0 && (
+                        <Typography sx={{ mt: 1.5, color: '#94a3b8', fontSize: '0.82rem' }}>
+                            Your Lead Producer: <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{studioSigners[0].name}</span>
+                        </Typography>
+                    )}
                 </Box>
 
                 {/* Signer Status Overview */}
@@ -172,7 +235,7 @@ export default function ContractSigningPage() {
                 )}
 
                 {/* Contract Content */}
-                <Box sx={{
+                <Box ref={contractRef} sx={{
                     bgcolor: '#fff', borderRadius: 3, p: { xs: 3, md: 5 }, mb: 4,
                     color: '#1e293b', lineHeight: 1.7, fontSize: '0.92rem',
                     boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
@@ -192,6 +255,46 @@ export default function ContractSigningPage() {
                             No contract content available.
                         </Typography>
                     )}
+
+                    {/* Producer Signatures */}
+                    {studioSigners.length > 0 && (
+                        <>
+                            <Divider sx={{ my: 3, borderColor: '#e2e8f0' }} />
+                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', mb: 1.5 }}>
+                                Producer Signature
+                            </Typography>
+                            {studioSigners.map((s, i) => (
+                                <Box key={i} sx={{ mb: 2 }}>
+                                    <Typography sx={{
+                                        fontFamily: '"Dancing Script", "Brush Script MT", cursive',
+                                        fontSize: '1.8rem', color: '#1e293b', fontWeight: 700, lineHeight: 1.2,
+                                    }}>
+                                        {s.signature_text || s.name}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: '0.78rem', color: '#64748b', mt: 0.5 }}>
+                                        {s.name} &middot; {s.signed_at
+                                            ? new Date(s.signed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+                                            : ''}
+                                    </Typography>
+                                </Box>
+                            ))}
+                        </>
+                    )}
+                </Box>
+
+                {/* PDF Download */}
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+                    <Button
+                        size="small"
+                        startIcon={<Download sx={{ fontSize: 16 }} />}
+                        onClick={handleDownloadPdf}
+                        sx={{
+                            textTransform: 'none', fontWeight: 600, fontSize: '0.78rem',
+                            color: '#94a3b8', '&:hover': { color: '#e2e8f0', bgcolor: alpha('#6366f1', 0.08) },
+                        }}
+                    >
+                        Download PDF
+                    </Button>
                 </Box>
 
                 {/* Signing Section */}

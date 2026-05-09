@@ -1,0 +1,802 @@
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+#al4 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+#al4 {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  width: 100%;
+  background: #FAFAFA;
+  color: #3F3F46;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid #E4E4E7;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* ── HERO BLOCK ── */
+#al4 .hero {
+  background: linear-gradient(165deg, #0D0D0F 0%, #111827 45%, #0A0F1A 100%);
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+#al4 .hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#al4 .hero-accent {
+  position: absolute;
+  top: -80px; right: 5%;
+  width: 500px; height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(59, 130, 246, 0.15) 0%, transparent 55%);
+  pointer-events: none;
+}
+
+#al4 .hero-accent2 {
+  position: absolute;
+  bottom: -100px; left: -3%;
+  width: 400px; height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(100, 116, 139, 0.12) 0%, transparent 55%);
+  pointer-events: none;
+}
+
+#al4 .hero-watermark {
+  position: absolute;
+  right: -10px; top: 50%;
+  transform: translateY(-50%);
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 110px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.025);
+  line-height: 1;
+  pointer-events: none;
+  z-index: 0;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+}
+
+#al4 .hero-inner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 40px;
+  align-items: end;
+  padding: 52px 56px 44px;
+  position: relative; z-index: 1;
+}
+
+#al4 .hero-left { display: flex; flex-direction: column; }
+
+#al4 .hero-tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: #93C5FD;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 8px 16px;
+  border-radius: 100px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  width: fit-content;
+}
+
+#al4 .hero-tag-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #3B82F6;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.7);
+}
+
+#al4 .hero-brand {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 13px; font-weight: 700;
+  letter-spacing: 0.25em; text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+  margin-bottom: 8px;
+}
+
+#al4 .hero h1 {
+  font-size: 60px; font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  margin-bottom: 16px;
+}
+
+#al4 .hero h1 span {
+  background: linear-gradient(135deg, #93C5FD 0%, #3B82F6 40%, #1D4ED8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+#al4 .hero-line {
+  width: 80px; height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #3B82F6, #64748B);
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.4);
+  margin-bottom: 16px;
+}
+
+#al4 .hero-sub {
+  font-size: 15px; font-weight: 400;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.01em;
+}
+
+#al4 .hero-sub .sep {
+  display: inline-block;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  vertical-align: middle;
+  margin: 0 10px;
+}
+
+#al4 .hero-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+  min-width: 210px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+#al4 .hero-card-row {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 20px;
+}
+
+#al4 .hero-card-label {
+  font-size: 11px; font-weight: 600;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+#al4 .hero-card-value {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 14px; font-weight: 700;
+  color: #FFFFFF;
+}
+
+#al4 .hero-card-value.glow {
+  color: #93C5FD;
+  text-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+#al4 .hero-card-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#al4 .hero-card-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700;
+  color: #FCD34D;
+  background: rgba(252, 211, 77, 0.1);
+  border: 1px solid rgba(252, 211, 77, 0.25);
+  padding: 6px 14px;
+  border-radius: 100px;
+  width: fit-content;
+}
+
+#al4 .hero-card-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #FCD34D;
+}
+
+#al4 .stat-strip {
+  background: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  position: relative; z-index: 1;
+}
+
+#al4 .stat {
+  flex: 1;
+  padding: 18px 24px;
+  text-align: center;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#al4 .stat:last-child { border-right: none; }
+
+#al4 .stat-val {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 20px; font-weight: 700;
+  color: #FFFFFF;
+  line-height: 1;
+  margin-bottom: 5px;
+}
+
+#al4 .stat-lbl {
+  font-size: 9px; font-weight: 600;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ── LAYOUT ── */
+#al4 .layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  background: #FAFAFA;
+}
+
+#al4 .main { padding: 48px 56px; }
+#al4 .sidebar {
+  padding: 48px 36px;
+  background: #F4F4F5;
+  border-left: 1px solid #E4E4E7;
+}
+
+@media (max-width: 900px) {
+  #al4 .layout { grid-template-columns: 1fr; }
+  #al4 .sidebar { border-left: none; border-top: 1px solid #E4E4E7; }
+  #al4 .hero h1 { font-size: 40px; }
+  #al4 .hero-inner { grid-template-columns: 1fr; padding: 44px 32px 36px; }
+  #al4 .hero-card { display: none; }
+  #al4 .hero-watermark { font-size: 80px; right: -10px; }
+  #al4 .stat-strip { flex-wrap: wrap; }
+  #al4 .stat { min-width: 50%; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  #al4 .main { padding: 36px 32px; }
+  #al4 .sidebar { padding: 36px 32px; }
+  #al4 .footer { padding: 18px 32px; flex-direction: column; gap: 8px; text-align: center; }
+}
+
+/* ── SECTION HEADING ── */
+#al4 .sh {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 22px;
+}
+
+#al4 .sh-text {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: #A1A1AA;
+  white-space: nowrap;
+}
+
+#al4 .sh-line {
+  flex: 1; height: 1px;
+  background: repeating-linear-gradient(to right, #D4D4D8, #D4D4D8 4px, transparent 4px, transparent 10px);
+}
+
+#al4 .section { margin-bottom: 44px; }
+#al4 .section:last-child { margin-bottom: 0; }
+
+#al4 .main p {
+  font-size: 15px; color: #52525B; line-height: 1.85; font-weight: 400;
+}
+#al4 .main p + p { margin-top: 14px; }
+
+/* ── FEATURES ── */
+#al4 .feats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;
+}
+
+#al4 .feat {
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 14px;
+  padding: 20px;
+  display: flex; gap: 16px;
+}
+
+#al4 .feat-ico {
+  width: 40px; height: 40px; flex-shrink: 0;
+  background: linear-gradient(135deg, #EFF6FF, #DBEAFE);
+  border: 1px solid #BFDBFE;
+  color: #2563EB;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+#al4 .feat-ico svg { width: 18px; height: 18px; stroke: currentColor; }
+#al4 .feat-title { font-size: 14px; font-weight: 700; color: #18181B; margin-bottom: 5px; letter-spacing: -0.01em; }
+#al4 .feat-desc { font-size: 13px; color: #71717A; line-height: 1.55; }
+
+/* ── CONDITION ── */
+#al4 .cond {
+  border-radius: 14px;
+  border: 1px solid #E4E4E7;
+  background: #FFFFFF;
+  overflow: hidden;
+}
+
+#al4 .cond-header {
+  background: #F4F4F5;
+  padding: 18px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid #E4E4E7;
+}
+
+#al4 .cond-badge {
+  font-size: 14px; font-weight: 700;
+  color: #18181B;
+}
+
+#al4 .cond-rating {
+  display: flex; align-items: center; gap: 4px;
+}
+
+#al4 .cond-rating-bar {
+  width: 120px; height: 6px;
+  border-radius: 3px;
+  background: #E4E4E7;
+  overflow: hidden;
+}
+
+#al4 .cond-rating-fill {
+  width: 62%;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #3B82F6, #64748B);
+}
+
+#al4 .cond-rating-label {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 11px; font-weight: 700;
+  color: #3B82F6;
+  margin-left: 8px;
+}
+
+#al4 .cond-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+
+#al4 .cond-row {
+  display: flex; gap: 14px; align-items: flex-start;
+  font-size: 14px; color: #52525B; line-height: 1.6;
+}
+
+#al4 .cond-icon {
+  margin-top: 3px; flex-shrink: 0;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+
+#al4 .cond-icon.ok { background: #ECFDF5; color: #10B981; }
+#al4 .cond-icon.warn { background: #FFFBEB; color: #D97706; }
+#al4 .cond-icon svg { width: 12px; height: 12px; stroke: currentColor; }
+
+/* ── INCLUDED ── */
+#al4 .incl { display: flex; flex-direction: column; gap: 8px; }
+
+#al4 .incl-row {
+  display: flex; align-items: center; gap: 16px;
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 12px;
+  padding: 14px 20px;
+  font-size: 14px; color: #3F3F46;
+}
+
+#al4 .incl-num {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 11px; font-weight: 700;
+  color: #2563EB;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  width: 28px; height: 28px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+#al4 .incl-name { font-weight: 600; color: #18181B; }
+#al4 .incl-detail { color: #A1A1AA; font-size: 12px; margin-left: auto; white-space: nowrap; font-weight: 500; }
+#al4 .incl-detail.note { color: #D97706; }
+
+/* ── SHIPPING ── */
+#al4 .ship-row {
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+
+#al4 .ship-item {
+  flex: 1; min-width: 140px;
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 14px;
+}
+
+#al4 .ship-item-ico {
+  width: 36px; height: 36px;
+  background: #F4F4F5;
+  color: #A1A1AA;
+  border: 1px solid #E4E4E7;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+#al4 .ship-item-ico svg { width: 16px; height: 16px; stroke: currentColor; }
+
+#al4 .ship-item-lbl {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 10px; color: #A1A1AA; text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+#al4 .ship-item-val { font-size: 14px; font-weight: 600; color: #18181B; line-height: 1.3; }
+
+#al4 .ship-note {
+  margin-top: 14px; font-size: 13px; color: #A1A1AA;
+}
+
+/* ── SIDEBAR ── */
+#al4 .sb-head {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: #A1A1AA; margin-bottom: 16px;
+}
+
+#al4 .specs {
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 36px;
+}
+
+#al4 .spec {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 20px;
+  border-bottom: 1px solid #F4F4F5;
+  font-size: 13px;
+}
+#al4 .spec:nth-child(even) { background: #FAFAFA; }
+#al4 .spec:last-child { border-bottom: none; }
+#al4 .spec-k { color: #71717A; font-weight: 500; }
+#al4 .spec-v {
+  font-family: 'Space Mono', 'Courier New', Courier, monospace;
+  font-size: 12px; font-weight: 700; color: #18181B; text-align: right;
+}
+#al4 .spec-v.accent { color: #2563EB; }
+#al4 .spec-v.warn { color: #D97706; }
+
+#al4 .seller-note {
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 36px;
+  position: relative;
+  overflow: hidden;
+}
+
+#al4 .seller-note::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 3px; height: 100%;
+  background: linear-gradient(180deg, #3B82F6, #64748B);
+  border-radius: 3px 0 0 3px;
+}
+
+#al4 .seller-note p {
+  font-size: 14px; color: #52525B; line-height: 1.7; font-style: italic;
+  padding-left: 4px;
+}
+
+#al4 .contact-box {
+  background: linear-gradient(165deg, #111827, #18181B);
+  border: none;
+  border-radius: 14px;
+  padding: 32px 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+#al4 .contact-box::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+#al4 .contact-box .c-title {
+  font-size: 15px; font-weight: 700;
+  color: #FFFFFF; margin-bottom: 8px;
+  position: relative;
+}
+
+#al4 .contact-box p {
+  font-size: 13px; color: rgba(255, 255, 255, 0.5); line-height: 1.6;
+  position: relative;
+}
+
+#al4 .contact-box .c-cta {
+  display: inline-block;
+  margin-top: 20px;
+  background: #FFFFFF;
+  color: #18181B;
+  font-weight: 700; font-size: 13px;
+  padding: 11px 28px;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  position: relative;
+  text-decoration: none;
+}
+
+/* ── FOOTER ── */
+#al4 .footer {
+  background: #F4F4F5;
+  border-top: 1px solid #E4E4E7;
+  padding: 18px 56px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+
+#al4 .footer-left { font-size: 12px; color: #71717A; font-weight: 500; }
+#al4 .footer-right { font-size: 12px; color: #71717A; font-weight: 500; }
+</style>
+
+<div id="al4">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-accent"></div>
+    <div class="hero-accent2"></div>
+    <div class="hero-watermark">Monitor Arm</div>
+    <div class="hero-inner">
+
+      <div class="hero-left">
+        <div class="hero-tag">
+          <span class="hero-tag-dot"></span>
+          Desk Ergonomics / Monitor Mount
+        </div>
+        <div class="hero-brand">INVISION</div>
+        <h1>Ergonomic<br><span>Monitor Arm</span></h1>
+        <div class="hero-line"></div>
+        <div class="hero-sub">Mechanically Perfect<span class="sep"></span>Full Motion — Tilt, Swivel &amp; Height<span class="sep"></span>VESA 75 &amp; 100mm</div>
+      </div>
+
+      <div class="hero-card">
+        <div class="hero-card-badge">
+          <span class="hero-card-badge-dot"></span>
+          Good — See Condition Notes
+        </div>
+        <div class="hero-card-divider"></div>
+        <div class="hero-card-row">
+          <span class="hero-card-label">Mechanics</span>
+          <span class="hero-card-value glow">100%</span>
+        </div>
+        <div class="hero-card-row">
+          <span class="hero-card-label">VESA</span>
+          <span class="hero-card-value glow">75 &amp; 100mm</span>
+        </div>
+        <div class="hero-card-row">
+          <span class="hero-card-label">Cosmetics</span>
+          <span class="hero-card-value">Surface wear</span>
+        </div>
+        <div class="hero-card-row">
+          <span class="hero-card-label">Mount Type</span>
+          <span class="hero-card-value">Desk Clamp</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="stat-strip">
+      <div class="stat">
+        <div class="stat-val">Full</div>
+        <div class="stat-lbl">Motion Range</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">75+100</div>
+        <div class="stat-lbl">VESA mm</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">3</div>
+        <div class="stat-lbl">Items Included</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">Clamp</div>
+        <div class="stat-lbl">Mount Type</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">Good</div>
+        <div class="stat-lbl">Condition</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="layout">
+    <main class="main">
+
+      <!-- OVERVIEW -->
+      <div class="section">
+        <div class="sh"><div class="sh-text">Overview</div><div class="sh-line"></div></div>
+        <p>The Invision Ergonomic Monitor Arm is a sturdy, full-motion desk mount offering tilt, swivel, and height adjustment for a properly ergonomic screen position. It frees up valuable desk space and takes the weight of your monitor off the surface entirely — a worthwhile upgrade for any setup.</p>
+        <p>This unit is mechanically in excellent shape: all joints are firm, hold their position perfectly, and the full range of motion functions exactly as it should. It does show cosmetic wear from previous use — surface scratches on the arm body and a small crack in one of the plastic cable management covers. These are purely visual and have no impact on the strength or performance of the mount. Please review the photos for full detail before purchasing.</p>
+      </div>
+
+      <!-- FEATURES -->
+      <div class="section">
+        <div class="sh"><div class="sh-text">Key Features</div><div class="sh-line"></div></div>
+        <div class="feats">
+
+          <div class="feat">
+            <div class="feat-ico">
+              <svg viewBox="0 0 17 17" fill="none"><circle cx="8.5" cy="8.5" r="3" stroke-width="1.5"/><path d="M8.5 2v2M8.5 13v2M2 8.5h2M13 8.5h2" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div class="feat-title">Full Motion Articulation</div>
+              <div class="feat-desc">Tilt, swivel, and height adjustment — all joints firm and holding position perfectly.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-ico">
+              <svg viewBox="0 0 17 17" fill="none"><rect x="3" y="3" width="11" height="9" rx="1.5" stroke-width="1.5"/><path d="M6 14h5M8.5 12v2" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div class="feat-title">Universal VESA Fit</div>
+              <div class="feat-desc">Compatible with both 75 × 75mm and 100 × 100mm VESA patterns — fits the vast majority of monitors.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-ico">
+              <svg viewBox="0 0 17 17" fill="none"><path d="M4 14V9a4.5 4.5 0 0 1 9 0v5" stroke-width="1.5" stroke-linecap="round"/><path d="M2 14h13" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div class="feat-title">Heavy-Duty Desk Clamp</div>
+              <div class="feat-desc">Solid clamp-mount base attaches securely to most desk edges — no drilling required.</div>
+            </div>
+          </div>
+
+          <div class="feat">
+            <div class="feat-ico">
+              <svg viewBox="0 0 17 17" fill="none"><path d="M5 8.5h7M8.5 5v7" stroke-width="1.5" stroke-linecap="round"/><rect x="2" y="2" width="13" height="13" rx="3" stroke-width="1.5"/></svg>
+            </div>
+            <div>
+              <div class="feat-title">Cable Management</div>
+              <div class="feat-desc">Plastic cable management covers included and functional — note: one cover has a small cosmetic crack (see photos).</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- CONDITION -->
+      <div class="section">
+        <div class="sh"><div class="sh-text">Condition</div><div class="sh-line"></div></div>
+        <div class="cond">
+          <div class="cond-header">
+            <div class="cond-badge">Used — Good (Cosmetic Wear, Mechanically Perfect)</div>
+            <div class="cond-rating">
+              <div class="cond-rating-bar"><div class="cond-rating-fill"></div></div>
+              <div class="cond-rating-label">3/5</div>
+            </div>
+          </div>
+          <div class="cond-body">
+            <div class="cond-row">
+              <div class="cond-icon ok">
+                <svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <span><strong style="color:#18181B; font-weight:600;">Mechanically 100%.</strong> All joints are tight and hold their position correctly. Tilt, swivel, and height adjustment all operate as they should — no play or drift.</span>
+            </div>
+            <div class="cond-row">
+              <div class="cond-icon warn">
+                <svg viewBox="0 0 12 12" fill="none"><path d="M6 2L1 10h10L6 2z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><line x1="6" y1="5.5" x2="6" y2="7.5" stroke-width="1.5" stroke-linecap="round"/><circle cx="6" cy="9" r="0.5" fill="currentColor"/></svg>
+              </div>
+              <span><strong style="color:#18181B; font-weight:600;">Surface scratches on the arm body.</strong> Visible scratches from previous use — please refer to the photos for a clear view of the extent and location.</span>
+            </div>
+            <div class="cond-row">
+              <div class="cond-icon warn">
+                <svg viewBox="0 0 12 12" fill="none"><path d="M6 2L1 10h10L6 2z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><line x1="6" y1="5.5" x2="6" y2="7.5" stroke-width="1.5" stroke-linecap="round"/><circle cx="6" cy="9" r="0.5" fill="currentColor"/></svg>
+              </div>
+              <span><strong style="color:#18181B; font-weight:600;">Small crack in one cable management cover.</strong> One of the plastic cable clips has a small crack — cosmetic only, the cover still functions. Pictured in the listing photos.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INCLUDED -->
+      <div class="section">
+        <div class="sh"><div class="sh-text">What's Included</div><div class="sh-line"></div></div>
+        <div class="incl">
+          <div class="incl-row">
+            <div class="incl-num">01</div>
+            <div><span class="incl-name">Invision Monitor Arm</span></div>
+            <span class="incl-detail note">Surface scratches — see photos</span>
+          </div>
+          <div class="incl-row">
+            <div class="incl-num">02</div>
+            <div><span class="incl-name">Desk Clamp Assembly</span></div>
+            <span class="incl-detail">Mounting hardware</span>
+          </div>
+          <div class="incl-row">
+            <div class="incl-num">03</div>
+            <div><span class="incl-name">Cable Management Covers</span></div>
+            <span class="incl-detail note">1 cover has small crack — see photos</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SHIPPING -->
+      <div class="section">
+        <div class="sh"><div class="sh-text">Shipping</div><div class="sh-line"></div></div>
+        <div class="ship-row">
+          <div class="ship-item">
+            <div class="ship-item-ico">
+              <svg viewBox="0 0 17 17" fill="none"><rect x="1.5" y="5" width="10" height="8" rx="1" stroke-width="1.5"/><path d="M11.5 7.5H13l2 3v2h-3.5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="4.5" cy="14" r="1.3" stroke-width="1.5"/><circle cx="10.5" cy="14" r="1.3" stroke-width="1.5"/></svg>
+            </div>
+            <div>
+              <div class="ship-item-lbl">Packaging</div>
+              <div class="ship-item-val">Securely packaged for transit</div>
+            </div>
+          </div>
+          <div class="ship-item">
+            <div class="ship-item-ico">
+              <svg viewBox="0 0 17 17" fill="none"><circle cx="8.5" cy="8.5" r="6.5" stroke-width="1.5"/><line x1="8.5" y1="4.5" x2="8.5" y2="9" stroke-width="1.5" stroke-linecap="round"/><line x1="8.5" y1="9" x2="11" y2="11" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <div class="ship-item-lbl">Dispatch</div>
+              <div class="ship-item-val">1–2 business days</div>
+            </div>
+          </div>
+        </div>
+        <div class="ship-note">Please review all photos carefully — they form part of the item description. Cosmetic condition is clearly pictured.</div>
+      </div>
+
+    </main>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+      <div class="sb-head">Specifications</div>
+      <div class="specs">
+        <div class="spec"><span class="spec-k">Brand</span><span class="spec-v">Invision</span></div>
+        <div class="spec"><span class="spec-k">Type</span><span class="spec-v">Monitor Arm</span></div>
+        <div class="spec"><span class="spec-k">Mount</span><span class="spec-v">Desk Clamp</span></div>
+        <div class="spec"><span class="spec-k">VESA</span><span class="spec-v accent">75×75 / 100×100</span></div>
+        <div class="spec"><span class="spec-k">Tilt</span><span class="spec-v">✓</span></div>
+        <div class="spec"><span class="spec-k">Swivel</span><span class="spec-v">✓</span></div>
+        <div class="spec"><span class="spec-k">Height Adjust</span><span class="spec-v">✓</span></div>
+        <div class="spec"><span class="spec-k">Mechanics</span><span class="spec-v accent">100% Perfect</span></div>
+        <div class="spec"><span class="spec-k">Arm Body</span><span class="spec-v warn">Surface scratches</span></div>
+        <div class="spec"><span class="spec-k">Cable Cover</span><span class="spec-v warn">1 cracked (cosmetic)</span></div>
+        <div class="spec"><span class="spec-k">Condition</span><span class="spec-v">Good</span></div>
+        <div class="spec"><span class="spec-k">Items Included</span><span class="spec-v">3</span></div>
+      </div>
+
+      <div class="sb-head">Seller's Note</div>
+      <div class="seller-note">
+        <p>I've been upfront about the cosmetic wear — the scratches and the cracked cable cover are clearly shown in the photos. What I can say with confidence is that this arm works perfectly: the joints are solid and it does its job without any issues. Priced accordingly for what it is.</p>
+      </div>
+
+      <div class="contact-box">
+        <div class="c-title">Have a question?</div>
+        <p>Happy to provide extra photos, answer questions, or combine postage on multiple items.</p>
+        <div class="c-cta">Message Seller</div>
+      </div>
+
+    </aside>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-left">All photos show the actual item for sale &nbsp;·&nbsp; Please read fully before purchasing</div>
+    <div class="footer-right">30-day eBay Buyer Protection applies</div>
+  </div>
+
+</div>

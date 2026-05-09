@@ -12,12 +12,13 @@ Schedule management — event day templates (presets), package schedules, projec
 | `hooks/instance/useScheduleSnapshotData.ts` | Snapshot data for schedule comparisons |
 | `components/package-template/EventDayManager.tsx` | Event day creation and management UI |
 | `components/shared/VisualTimeline.tsx` | Visual timeline rendering for schedules |
-| `components/package-template/PackageScheduleCard.tsx` | Package-level schedule card |
+| `components/package-template/PackageScheduleCard.tsx` | Package-level schedule adapter; package-specific loading/add-day behavior wraps the shared `@/shared/ui/PackageTimeline` renderer |
 | `components/package-template/PackageScheduleSummary.tsx` | Summary view of package schedule |
-| `components/package-template/ActivitiesCard.tsx` | Activity list within an event day |
+| `components/package-template/ActivitiesCard.tsx` | Package event-day activity adapter; keeps package metrics and mutations while delegating row/table rendering to `@/shared/ui/PackageActivityTable` |
 | `components/package-template/AddActivityDialog.tsx` | Dialog for adding activities to event days |
 | `components/package-template/ActivityFilmWizard.tsx` | Wizard for film-linked activity creation |
 | `components/instance/InstanceScheduleEditor.tsx` | Full schedule editor for project/inquiry instances |
+| `components/film-wizard/FilmCreationWizard.tsx` | Package/project/inquiry film creation wizard; package mode now posts one backend create-content run |
 | `components/shared/ScheduleApiContext.tsx` | Context providing schedule API methods to components |
 | `components/instance/ScheduleDiffView.tsx` | Diff viewer for schedule changes |
 | `components/shared/ProposalSchedulePreview.tsx` | Read-only schedule preview for proposals |
@@ -70,6 +71,11 @@ The `ScheduleApiContext` injects the correct API endpoints based on the current 
 - Keep schedule API route strings explicitly `/api/*` in frontend clients to avoid accidental relative-path regressions.
 - Crew slot activity linkage is junction-table only (`*/crew-slots/:id/activities/:activityId`); slot create/update payloads no longer set direct `package_activity_id` / `project_activity_id` fields.
 - Package crew-slot creation uses `package_event_day_id` payloads, and backend accepts either package-day join IDs or template IDs for compatibility.
+- Package detail planning progress stays visible until the full package-creation pipeline finishes package blocking; backend `READY`/planning SSE `done` are no longer activity-planning-only signals during creation.
+- `components/package-template/ActivitiesCard.tsx` uses package planner focus metadata only for inline row state now: the active moment keeps an icon-only spinner while casting/actions are running, the richer package-level progress UI lives in the catalog package AI drawer, and the card re-reads `packageActivityMoments.getAll()` once planning completes so stale pre-plan moment lists do not survive a reload.
+- `components/package-template/ActivitiesCard.tsx` is the package-specific adapter for the shared `@/shared/ui/PackageActivityTable` renderer. Keep package-only resource counts, planner refresh behavior, and schedule API calls here so Day Designer can share the package-style activity rows without importing scheduling APIs.
+- `components/package-template/PackageScheduleCard.tsx` keeps package-specific schedule API behavior and delegates the visual day chips, Add Day button, hour ruler, and stacked activity lanes to `@/shared/ui/PackageTimeline` so package detail and Day Designer stay visually aligned.
+- The activity sparkle (`Plan with AI`) action only opens when the activity is linked to a real film scene/film pair; otherwise the icon is disabled with a tooltip instead of failing silently.
 
 ## Related modules
 
@@ -77,3 +83,4 @@ The `ScheduleApiContext` injects the correct API endpoints based on the current 
 - `workflow/inquiries` — inquiry schedules for pre-booking customization
 - `workflow/proposals` — `ProposalSchedulePreview` renders in proposals
 - `content/films` — activities can link to films via the film wizard
+- Package-mode `FilmCreationWizard` now calls `/api/schedule/packages/:packageId/films/create-content` so the backend owns one ordered content-creation run log from wizard settings through the created film/scenes result. Activity-linked scene prep then continues asynchronously, so the success state can coexist with later coverage/director progress in the Content UI.

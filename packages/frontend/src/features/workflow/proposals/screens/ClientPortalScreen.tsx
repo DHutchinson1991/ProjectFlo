@@ -16,9 +16,10 @@ import {
     RequestQuote as EstimateIcon,
     Receipt as InvoiceIcon,
     Print as PrintIcon,
-    CardGiftcard as WelcomePackIcon,
+
     PhoneInTalk as MeetingIcon,
     Payments as PaymentsIcon,
+    Person as PersonIcon,
 } from "@mui/icons-material";
 
 import { clientPortalApi } from "@/features/workflow/client-portal/api";
@@ -48,7 +49,7 @@ import {
     QuestionnaireContent,
     PackageContent,
     ContractContent,
-    WelcomePackContent,
+
 } from "@/features/workflow/proposals/components/portal";
 import type {
     InquiryReview, EstimateData, ContractData, InvoiceData, PackageData,
@@ -67,6 +68,7 @@ interface PortalData {
     venue: string | null;
     venue_address: string | null;
     is_contract_signed?: boolean;
+    lead_producer?: { name: string; email: string | null; phone: string | null; description: string | null } | null;
     contact: { first_name: string | null; last_name: string | null };
     brand: PortalBrand | null;
     payment_schedule: {
@@ -83,7 +85,6 @@ interface PortalData {
         proposal: Section<PortalProposalSectionData> | null;
         contract: Section<ContractData> | null;
         invoices: Section<InvoiceData[]> | null;
-        welcome_pack: Section<{ sent_at: string }> | null;
     };
 }
 
@@ -418,6 +419,51 @@ export function ClientPortalScreen({ token }: { token: string }) {
                             colors={colors}
                             onTabChange={handleTabChange}
                         />
+
+                        {/* Lead Producer */}
+                        {data?.lead_producer && (
+                            <Box sx={{
+                                mt: 6, mb: 4,
+                                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                textAlign: 'center',
+                            }}>
+                                <Typography sx={{
+                                    fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase',
+                                    letterSpacing: '0.1em', color: alpha(colors.text, 0.45), mb: 0.5,
+                                }}>
+                                    Your Producer
+                                </Typography>
+                                {data.lead_producer.description && (
+                                    <Typography sx={{
+                                        fontSize: '0.82rem', color: alpha(colors.text, 0.55), mb: 2, maxWidth: 320,
+                                    }}>
+                                        {data.lead_producer.description} — your main point of contact throughout the project.
+                                    </Typography>
+                                )}
+                                <Box sx={{
+                                    width: 56, height: 56, borderRadius: '50%',
+                                    bgcolor: alpha(colors.accent, 0.12),
+                                    border: `2px solid ${alpha(colors.accent, 0.25)}`,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    mb: 1.5,
+                                }}>
+                                    <PersonIcon sx={{ fontSize: 28, color: colors.accent }} />
+                                </Box>
+                                <Typography sx={{ fontSize: '1.05rem', fontWeight: 700, color: colors.text, mb: 0.25 }}>
+                                    {data.lead_producer.name}
+                                </Typography>
+                                {data.lead_producer.email && (
+                                    <Typography sx={{ fontSize: '0.82rem', color: alpha(colors.text, 0.55), mb: 0.15 }}>
+                                        {data.lead_producer.email}
+                                    </Typography>
+                                )}
+                                {data.lead_producer.phone && (
+                                    <Typography sx={{ fontSize: '0.82rem', color: alpha(colors.text, 0.55) }}>
+                                        {data.lead_producer.phone}
+                                    </Typography>
+                                )}
+                            </Box>
+                        )}
                     </>
                 )}
 

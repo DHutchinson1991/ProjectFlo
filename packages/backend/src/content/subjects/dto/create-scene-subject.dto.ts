@@ -12,4 +12,8 @@ export class CreateSceneSubjectDto {
     @IsString()
     @IsOptional()
     notes?: string;
+
+    @IsString()
+    @IsOptional()
+    action_description?: string;
 }

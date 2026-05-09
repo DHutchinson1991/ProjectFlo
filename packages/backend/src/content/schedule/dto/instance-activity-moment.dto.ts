@@ -10,6 +10,10 @@ export class CreateInstanceActivityMomentDto {
   name: string;
 
   @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
   @IsInt()
   order_index?: number;
 

@@ -28,6 +28,7 @@ export interface InquiryTaskRow {
     priority: 'overdue' | null;
     subtask_parent_id: number | null;
     job_role: { id: number; name: string; display_name: string | null } | null;
+    is_lead_task: boolean;
 }
 
 export interface ProjectTaskRow {
@@ -57,6 +58,7 @@ export interface ProjectTaskRow {
     priority: 'overdue' | null;
     subtask_parent_id: null;
     job_role: null;
+    is_lead_task: false;
 }
 
 export type ActiveTaskRow = InquiryTaskRow | ProjectTaskRow;
@@ -95,7 +97,7 @@ type InquiryTaskWithRelations = {
         id: number;
         contact?: { first_name: string | null; last_name: string | null; email: string } | null;
     } | null;
-    task_library?: { is_auto_only: boolean } | null;
+    task_library?: { is_auto_only: boolean; is_lead_task: boolean; default_job_role_id: number | null; parent_task_id: number | null } | null;
     children: { id: number; status: string }[];
     subtasks: {
         id: number;
@@ -162,6 +164,7 @@ function mapSingleInquiryTask(task: InquiryTaskWithRelations, today: Date): Inqu
         priority: isOverdue ? 'overdue' : null,
         subtask_parent_id: null,
         job_role: null,
+        is_lead_task: !!(task.task_library?.is_lead_task),
     };
 
     const subtaskRows: InquiryTaskRow[] = task.subtasks.map((subtask) => ({
@@ -197,6 +200,7 @@ function mapSingleInquiryTask(task: InquiryTaskWithRelations, today: Date): Inqu
         priority: isOverdue && subtask.status !== 'Completed' ? 'overdue' : null,
         subtask_parent_id: task.id,
         job_role: subtask.job_role ?? null,
+        is_lead_task: false,
     }));
 
     return [taskRow, ...subtaskRows];
@@ -242,6 +246,7 @@ export function buildProjectTaskRows(
             priority: isOverdue ? 'overdue' : null,
             subtask_parent_id: null,
             job_role: null,
+            is_lead_task: false,
         };
     });
 }

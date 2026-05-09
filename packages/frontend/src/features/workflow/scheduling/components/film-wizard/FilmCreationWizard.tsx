@@ -66,6 +66,8 @@ export interface CreatedFilmResult {
   scenesCreated: number;
   momentsPopulated: number;
   activityIds: number[];
+  backgroundScenePrepStarted: number;
+  backgroundScenePrepMode: 'async';
 }
 
 export interface InstanceOwner {
@@ -105,6 +107,13 @@ export interface ActivitySceneConfig {
   montageBpm?: number;
 }
 
+export interface FilmCreationProgress {
+  step: string;
+  label: string;
+  current: number;
+  total: number;
+}
+
 interface FilmCreationWizardProps {
   open: boolean;
   onClose: () => void;
@@ -112,6 +121,7 @@ interface FilmCreationWizardProps {
   activities: PackageActivityRecord[];
   packageName?: string;
   onFilmCreated: (result: CreatedFilmResult) => void;
+  onCreationProgress?: (progress: FilmCreationProgress) => void;
   instanceOwner?: InstanceOwner;
   externalCrewSlots?: Record<string, unknown>[];
 }
@@ -156,6 +166,7 @@ export function FilmCreationWizard({
   activities,
   packageName,
   onFilmCreated,
+  onCreationProgress,
   instanceOwner,
   externalCrewSlots,
 }: FilmCreationWizardProps) {
@@ -314,6 +325,75 @@ export function FilmCreationWizard({
     setIsCreating(true);
     setError(null);
 
+    if (!instanceOwner && packageId) {
+      try {
+        onCreationProgress?.({ step: 'Creating content...', label: 'Creating content...', current: 1, total: 1 });
+        const createdResult = await scheduleApi.packageFilms.createContent(packageId, {
+          film_type: filmType,
+          film_name: filmName.trim() || undefined,
+          montage_preset_id: selectedPreset?.id,
+          selected_activity_ids: Array.from(selectedActivityIds),
+          structure_template_id: selectedTemplate?.id,
+          scene_configs: Object.entries(sceneConfigs).map(([activityId, config]) => ({
+            activity_id: Number(activityId),
+            mode: config.mode,
+            montage_duration_seconds: config.montageDurationSeconds,
+            montage_style: config.montageStyle,
+            montage_bpm: config.montageBpm,
+          })),
+          scene_assignments: sceneAssignments.map((assignment) => ({
+            scene_index: assignment.sceneIndex,
+            activity_ids: assignment.activityIds,
+            moment_ids_by_activity: Object.entries(assignment.momentIdsByActivity).map(([activityId, momentIds]) => ({
+              activity_id: Number(activityId),
+              moment_ids: momentIds,
+            })),
+          })),
+          audio_configs: audioConfigs.map((config) => ({
+            scene_index: config.sceneIndex,
+            source_type: config.sourceType,
+            source_activity_id: config.sourceActivityId,
+            source_moment_id: config.sourceMomentId,
+            track_type: config.trackType,
+            notes: config.notes,
+          })),
+          duration_overrides: durationOverrides.map((override) => ({
+            scene_index: override.sceneIndex,
+            duration_seconds: override.durationSeconds,
+          })),
+          combine_montage: combineMontage,
+          combined_montage_style: combinedMontageStyle,
+          combined_montage_duration: combinedMontageDuration,
+          scene_order: sceneOrder.map((entry) => ({
+            id: entry.id,
+            label: entry.label,
+            mode: entry.mode,
+            activity_ids: entry.activityIds,
+            style: entry.style,
+            is_combined: entry.isCombined,
+          })),
+        });
+        setResult(createdResult);
+        onFilmCreated(createdResult);
+        return;
+      } catch (err) {
+        console.error('Failed to create package content:', err);
+        setError(err instanceof Error ? err.message : 'Failed to create content. Please try again.');
+        return;
+      } finally {
+        setIsCreating(false);
+      }
+    }
+
+    // Total steps: create film(1) + link(1) + scenes(N) + clone?(1)
+    const selectedActivities0 = [...activities].filter(a => selectedActivityIds.has(a.id));
+    const totalProgressSteps = 2 + selectedActivities0.length + (instanceOwner ? 1 : 0);
+    let progressStep = 0;
+    const emit = (label: string) => {
+      progressStep++;
+      onCreationProgress?.({ step: label, label, current: progressStep, total: totalProgressSteps });
+    };
+
     try {
       const name = filmName.trim() || `${packageName || 'Package'} Film`;
 
@@ -352,6 +432,7 @@ export function FilmCreationWizard({
       }
 
       // 1. Create the film
+      emit('Creating film...');
       const newFilm = await filmsApi.films.create({
         name,
         brand_id: currentBrand.id,
@@ -364,6 +445,7 @@ export function FilmCreationWizard({
       });
 
       // 2. Link film to owner (package / project / inquiry)
+      emit('Linking film...');
       let ownerFilmId: number;
       if (instanceOwner) {
         const linkApi = instanceOwner.type === 'project'
@@ -383,6 +465,7 @@ export function FilmCreationWizard({
       }
 
       // 3. Create scenes
+      emit('Creating scenes & moments...');
       const selectedActivities = [...activities]
         .filter(a => selectedActivityIds.has(a.id))
         .sort((a, b) => {
@@ -607,6 +690,7 @@ export function FilmCreationWizard({
                   name: moment.name,
                   duration: moment.duration_seconds || 60,
                   order_index: momentIndex,
+                  source_activity_id: activity.id,
                 });
               }
             }
@@ -690,6 +774,7 @@ export function FilmCreationWizard({
       }
 
       if (instanceOwner) {
+        emit('Cloning to instance...');
         await instanceFilmsApi.cloneFromLibrary(ownerFilmId);
       }
 
@@ -933,6 +1018,11 @@ export function FilmCreationWizard({
                 sx={{ bgcolor: 'rgba(167, 139, 250, 0.12)', color: '#a78bfa', fontWeight: 600, fontSize: '0.75rem' }}
               />
             </Stack>
+            {result.backgroundScenePrepStarted > 0 && (
+              <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mt: 1.5 }}>
+                AI scene prep continues in the background for {result.backgroundScenePrepStarted} scene{result.backgroundScenePrepStarted !== 1 ? 's' : ''}. Coverage and camera direction will keep updating after this wizard closes.
+              </Typography>
+            )}
           </Box>
         )}
 

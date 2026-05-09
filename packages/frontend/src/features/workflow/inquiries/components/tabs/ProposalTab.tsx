@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { Grid, Stack } from '@mui/material';
-import { ProposalsCard, ContractsCard, QuotesCard, InvoicesCard, PaymentTermsCard } from '..';
+import { ProposalsCard, ContractsCard, QuotesCard } from '..';
+import { PaymentTimelineCard } from '@/features/finance/payment-timeline/components/PaymentTimelineCard';
 import type { InquiryTabProps } from './types';
 
 interface ProposalTabProps extends InquiryTabProps {
@@ -33,14 +34,6 @@ export default function ProposalTab({
 
             <Grid item xs={16} md={5}>
                 <Stack spacing={3}>
-                    <div id="payment-terms-section">
-                        <PaymentTermsCard
-                            inquiry={inquiry}
-                            onRefresh={onRefresh}
-                            isActive={currentPhase === 'estimates'}
-                            activeColor={phaseColor('estimates')}
-                        />
-                    </div>
                     <div id="contracts-section">
                         <ContractsCard
                             inquiry={inquiry}
@@ -64,7 +57,7 @@ export default function ProposalTab({
                         />
                     </div>
                     <div id="invoices-section">
-                        <InvoicesCard
+                        <PaymentTimelineCard
                             inquiry={inquiry}
                             onRefresh={onRefresh}
                         />

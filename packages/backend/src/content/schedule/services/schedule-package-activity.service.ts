@@ -7,7 +7,6 @@ import {
   UpdatePackageActivityMomentDto,
   BulkCreatePackageActivityMomentsDto,
 } from '../dto';
-import { getDefaultMomentsForActivity } from '../constants/default-moments';
 
 @Injectable()
 export class SchedulePackageActivityService {
@@ -57,27 +56,19 @@ export class SchedulePackageActivityService {
     const activity = await this.prisma.packageActivity.create({
       data: {
         package_id: packageId, package_event_day_id: dto.package_event_day_id,
-        name: dto.name, description: dto.description, color: dto.color, icon: dto.icon,
+        name: dto.name, description: dto.description, location_label: dto.location_label,
+        color: dto.color, icon: dto.icon,
         start_time: dto.start_time, end_time: dto.end_time,
         duration_minutes: dto.duration_minutes, order_index: dto.order_index ?? nextOrder,
       },
       include: { package_event_day: { include: { event_day: true } }, moments: { orderBy: { order_index: 'asc' } } },
     });
 
-    const isWeddingDay = ped.event_day?.name?.toLowerCase().includes('wedding');
-    if (isWeddingDay) {
-      const defaultMoments = getDefaultMomentsForActivity(dto.name);
-      if (defaultMoments.length > 0) {
-        await this.prisma.packageActivityMoment.createMany({
-          data: defaultMoments.map((m) => ({ package_activity_id: activity.id, ...m })),
-        });
-      }
-    }
+    // Legacy default moment auto-seeding has been removed.
+    // Activity moments are now generated on demand by the AI planning flow.
 
     await this._autoAssignOnSiteSlots(packageId, dto.package_event_day_id, activity.id);
-    if (this._isAllSubjectsActivity(dto.name)) {
-      await this._autoAssignSubjectsToActivity(packageId, ped.event_day_template_id, activity.id);
-    }
+    // Subject-to-activity assignment is now handled by the AI planner (ActivityPlannerService)
     await this._autoAssignLocationSlotsToActivity(packageId, ped.event_day_template_id, activity.id);
 
     return this.prisma.packageActivity.findUnique({
@@ -122,12 +113,38 @@ export class SchedulePackageActivityService {
   }
 
   private async _autoAssignLocationSlotsToActivity(packageId: number, eventDayTemplateId: number, activityId: number) {
+    // If the activity has a location_label, find-or-create a matching space slot
+    const activity = await this.prisma.packageActivity.findUnique({
+      where: { id: activityId },
+      select: { location_label: true },
+    });
+
+    if (activity?.location_label) {
+      // Try to find a space slot with a matching label
+      let matchingSpace = await this.prisma.packageSpaceSlot.findFirst({
+        where: { package_id: packageId, event_day_template_id: eventDayTemplateId, label: activity.location_label },
+      });
+
+      if (!matchingSpace) {
+        // Create a new space slot with this label
+        matchingSpace = await this.prisma.packageSpaceSlot.create({
+          data: { package_id: packageId, event_day_template_id: eventDayTemplateId, label: activity.location_label },
+        });
+      }
+
+      // Assign the activity to the matching space slot
+      await this.prisma.spaceActivityAssignment.createMany({
+        data: [{ package_space_slot_id: matchingSpace.id, package_activity_id: activityId }],
+        skipDuplicates: true,
+      });
+      return;
+    }
+
+    // Fallback: only auto-assign to location slot when there is exactly one slot
     const slots = await this.prisma.packageLocationSlot.findMany({
       where: { package_id: packageId, event_day_template_id: eventDayTemplateId },
       select: { id: true },
     });
-    // Only auto-assign when there is exactly one slot — multiple slots means the
-    // package builder has intentionally split venues and must wire them manually.
     if (slots.length !== 1) return;
     await this.prisma.locationActivityAssignment.createMany({
       data: slots.map((s) => ({ package_location_slot_id: s.id, package_activity_id: activityId })),

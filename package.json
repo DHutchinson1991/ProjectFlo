@@ -5,7 +5,10 @@
   "private": true,
   "packageManager": "pnpm@8.15.9",
   "scripts": {
-    "dev": "concurrently -n backend,frontend,stripe -c blue,green,magenta \"pnpm --filter backend run start:dev\" \"pnpm --filter frontend run dev\" \"pnpm run stripe:listen\"",
+    "dev": "node tools/dev-log.js",
+    "dev:services": "concurrently -n backend,frontend,stripe,comfy -c blue,green,magenta,yellow \"pnpm --filter backend run start:dev\" \"pnpm --filter frontend run dev\" \"pnpm run stripe:listen\" \"pnpm run comfy\"",
+    "dev:no-comfy": "concurrently -n backend,frontend,stripe -c blue,green,magenta \"pnpm --filter backend run start:dev\" \"pnpm --filter frontend run dev\" \"pnpm run stripe:listen\"",
+    "comfy": "node tools/comfy-launcher.js",
     "stripe:listen": "node tools/stripe-listen.js",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
@@ -33,6 +36,7 @@
     "auth:refresh": "node tools/auth/get-token.js --extend --force",
     "auth:interactive": "node tools/auth/get-token.js --interactive",
     "auth:frontend": "node tools/auth/get-token.js --frontend",
+    "auth:inject": "node tools/auth/inject-auth.js",
     "auth:frontend:staging": "node tools/auth/get-token.js --frontend --env staging",
     "auth:frontend:force": "node tools/auth/get-token.js --frontend --force",
     "auth:help": "node tools/auth/get-token.js --help"

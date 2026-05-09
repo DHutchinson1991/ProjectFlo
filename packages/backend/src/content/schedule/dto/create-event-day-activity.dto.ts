@@ -11,6 +11,10 @@ export class CreateEventDayActivityDto {
 
   @IsOptional()
   @IsString()
+  location_label?: string;
+
+  @IsOptional()
+  @IsString()
   color?: string;
 
   @IsOptional()

@@ -9,7 +9,7 @@ import { NACtx, ScreenId } from '../../types';
 import { formatNiceDate } from '../../selectors/wizard-navigation';
 import { Q } from '../QuestionWrapper';
 import type { ServicePackage, ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
-import type { EventType, EventTypeDay, EventDayActivity } from '@/features/catalog/event-types/types';
+import type { EventType, EventTypeDay, EventDayActivity } from '@/features/catalog/package-templates/types';
 import { formatCurrency } from '@projectflo/shared';
 
 type EnrichedPackage = ServicePackage & {

@@ -284,6 +284,12 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
                 graphics_enabled: data.graphics_enabled || false,
                 graphics_title: data.graphics_title ?? null,
             };
+        const normalizedAudioAssignments = (setupSource as any)?.audio_assignments?.length
+            ? (setupSource as any).audio_assignments
+            : ((setupSource as any)?.audio_track_ids || []).map((id: number) => {
+                const source = data.camera_assignments?.find((assignment) => assignment.track_id === id);
+                return { track_id: id, subject_ids: source?.subject_ids || [] };
+            });
         const normalizedSetup = {
             ...setupSource,
             camera_assignments: (setupSource as any)?.camera_assignments?.length
@@ -292,6 +298,7 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
                     const source = data.camera_assignments?.find((assignment) => assignment.track_id === id);
                     return { track_id: id, subject_ids: source?.subject_ids || [], shot_type: source?.shot_type };
                 }),
+            audio_assignments: normalizedAudioAssignments,
         };
         console.info("[MOMENT] Recording setup response", {
             momentId,
@@ -489,20 +496,6 @@ const SceneBlock: React.FC<SceneBlockProps> = ({
             { !readOnly && (
                 <SceneActions scene={scene} onDelete={onDelete} />
             )}
-
-            {/* Moment Editor Popover */}
-            <MomentEditor
-                open={Boolean(anchorEl)}
-                anchorEl={anchorEl}
-                moment={editingMoment as import('@/features/content/moments/types').MomentFormData | null}
-                trackLabel={selectedTrackLabel || undefined}
-                trackKey={selectedCoverageKey || undefined}
-                allTracks={allTracks}
-                sceneRecordingSetup={(scene as TimelineScene & { recording_setup?: unknown }).recording_setup || null}
-                onUpsertRecordingSetup={handleMomentRecordingSetupSave}
-                onSave={handleSaveMoment}
-                onClose={handleClosePopover}
-            />
 
             <Dialog
                 open={infoOpen}

@@ -180,7 +180,7 @@ class ScriptAuthService {
      * Login with credentials
      */
     async login(credentials) {
-        const response = await fetch(`${this.baseURL}/auth/login`, {
+        const response = await fetch(`${this.baseURL}/api/auth/login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

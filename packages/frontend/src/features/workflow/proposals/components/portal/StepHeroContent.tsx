@@ -180,6 +180,32 @@ function getStepContent(
                 />
             ) : null;
 
+        /* ── Payment ──────────────────────────────────────────── */
+        case 'first_payment':
+            if (status === 'waiting') {
+                return (
+                    <HeroSignal
+                        eyebrow="Next step"
+                        text="Your deposit is ready to pay"
+                        sub="Secure your date and lock everything in"
+                        statusColor={statusColor}
+                        colors={colors}
+                        cta={cta}
+                        onCtaClick={handleCtaClick}
+                    />
+                );
+            }
+            if (status === 'completed') {
+                return (
+                    <HeroChip
+                        icon={<SparkleIcon sx={{ fontSize: 14, color: colors.green }} />}
+                        text="Payment received — thank you!"
+                        colors={colors}
+                    />
+                );
+            }
+            return null;
+
         /* ── Booking confirmed ────────────────────────────────── */
         case 'booking_confirmed':
             return status === 'completed' ? (

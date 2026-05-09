@@ -17,9 +17,8 @@ export interface PackageSet {
     name: string;
     description: string | null;
     emoji: string;
-    event_type_id: number | null;
+    event_category: string | null;
     order_index: number;
     is_active: boolean;
-    event_type?: { id: number; name: string; icon?: string; color?: string } | null;
     slots: PackageSetSlot[];
 }

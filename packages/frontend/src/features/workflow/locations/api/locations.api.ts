@@ -1,6 +1,7 @@
 import type { ApiClient } from '@/shared/api/client';
 import type {
     LocationsLibrary,
+    LocationSpace,
     CreateLocationRequest,
     UpdateLocationRequest,
     FilmLocationAssignment,
@@ -41,6 +42,19 @@ export const createLocationsApi = (client: ApiClient) => ({
 
     delete: (id: number): Promise<void> =>
         client.delete(`/api/locations/${id}`),
+
+    // ==================== SPACES ====================
+
+    spaces: {
+        getAll: (locationId: number): Promise<LocationSpace[]> =>
+            client.get(`/api/locations/${locationId}/spaces`),
+        create: (locationId: number, data: Partial<Omit<LocationSpace, 'id' | 'location_id' | 'is_active' | 'created_at' | 'updated_at' | 'type_tags'>> & { name: string }): Promise<LocationSpace> =>
+            client.post(`/api/locations/${locationId}/spaces`, data),
+        update: (spaceId: number, data: Partial<Omit<LocationSpace, 'id' | 'location_id' | 'is_active' | 'created_at' | 'updated_at' | 'type_tags'>>): Promise<LocationSpace> =>
+            client.patch(`/api/locations/spaces/${spaceId}`, data),
+        delete: (spaceId: number): Promise<void> =>
+            client.delete(`/api/locations/spaces/${spaceId}`),
+    },
 
     // ==================== FILM LOCATIONS ====================
 

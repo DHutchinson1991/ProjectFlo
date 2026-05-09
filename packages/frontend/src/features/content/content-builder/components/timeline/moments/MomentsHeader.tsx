@@ -3,7 +3,6 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { Box, Chip, Tooltip, Typography } from "@mui/material";
-import EditIcon from "@mui/icons-material/Edit";
 import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import { alpha } from "@mui/material/styles";
 import { formatTime } from "@/shared/utils/formatUtils";
@@ -59,7 +58,6 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
           alignItems: "center",
           justifyContent: "center",
           position: "relative",
-          borderRight: "2px solid #7B61FF",
           backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0, rgba(255,255,255,0.08) 1px, transparent 1px, transparent 24px)",
         }}
       >
@@ -146,10 +144,9 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
                 opacity: draggingMomentId === moment.id ? 0.6 : 1,
                 transition: "all 0.1s ease",
                 "&:hover": {
-                  bgcolor: "rgba(123, 97, 255, 0.2)",
+                  bgcolor: "rgba(255,255,255,0.06)",
                   zIndex: 2,
                   "& .resize-handle": { opacity: 1 },
-                  "& .edit-icon": { opacity: 1 },
                   "& .moment-header-text": { color: "rgba(255,255,255,0.95)" },
                 },
               }}
@@ -194,17 +191,6 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
                 );
               })()}
 
-              <EditIcon
-                className="edit-icon"
-                sx={{
-                  fontSize: 12,
-                  color: "white",
-                  ml: 0.5,
-                  opacity: 0,
-                  transition: "opacity 0.2s",
-                }}
-              />
-
               {/* Resize Handle - right edge */}
               <Box
                 className="resize-handle"
@@ -217,10 +203,10 @@ const MomentsHeader: React.FC<MomentsHeaderProps> = ({
                   width: "6px",
                   cursor: "ew-resize",
                   opacity: resizingMomentId === moment.id ? 1 : 0,
-                  bgcolor: resizingMomentId === moment.id ? "#7B61FF" : "rgba(123,97,255,0.5)",
+                  bgcolor: resizingMomentId === moment.id ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)",
                   zIndex: 20,
                   transition: "opacity 0.1s",
-                  "&:hover": { bgcolor: "#7B61FF", opacity: 1 },
+                  "&:hover": { bgcolor: "rgba(255,255,255,0.5)", opacity: 1 },
                 }}
               />
             </Box>

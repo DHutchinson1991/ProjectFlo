@@ -69,6 +69,7 @@ export interface TaskLibrary extends BaseEntity {
     parent_task_id?: number | null;
     is_task_group?: boolean;
     is_on_site?: boolean;
+    is_lead_task?: boolean;
     is_customer_facing?: boolean;
     customer_description?: string | null;
     requires_client_action?: boolean;
@@ -366,4 +367,5 @@ export interface ActiveTask {
     children_count?: number;
     children_completed?: number;
     job_role?: { id: number; name: string; display_name?: string | null } | null;
+    is_lead_task?: boolean;
 }

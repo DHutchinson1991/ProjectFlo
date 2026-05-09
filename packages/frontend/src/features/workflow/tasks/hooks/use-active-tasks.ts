@@ -10,10 +10,12 @@ import { groupTasks } from '../utils/group-tasks';
 import { getNavigationUrl } from '../utils/task-display-utils';
 import type { GroupMode } from '../constants';
 import { useBrand } from '@/features/platform/brand';
+import { useAuth } from '@/features/platform/auth';
 
 export function useActiveTasks() {
     const router = useRouter();
     const { currentBrand } = useBrand();
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
     const timezone = currentBrand?.timezone ?? 'UTC';
     const [tasks, setTasks] = useState<ActiveTask[]>([]);
     const [crew, setCrew] = useState<Crew[]>([]);
@@ -31,6 +33,14 @@ export function useActiveTasks() {
     });
 
     const loadTasks = useCallback(async () => {
+        if (authLoading || !isAuthenticated) {
+            setTasks([]);
+            setCrew([]);
+            setError(null);
+            setLoading(false);
+            return;
+        }
+
         try {
             setLoading(true);
             const [data, crewData] = await Promise.all([
@@ -45,9 +55,11 @@ export function useActiveTasks() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [authLoading, isAuthenticated]);
 
-    useEffect(() => { loadTasks(); }, [loadTasks]);
+    useEffect(() => {
+        void loadTasks();
+    }, [loadTasks]);
 
     const handleSyncCrewFromLibrary = useCallback(async () => {
         try {

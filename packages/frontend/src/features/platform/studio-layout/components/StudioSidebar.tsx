@@ -23,7 +23,6 @@ import {
     Assignment as TasksIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
-import { ProjectSelector } from "@/features/workflow/projects";
 
 const studioNavItems = [
     {
@@ -50,13 +49,12 @@ const studioNavItems = [
         ],
     },
     {
-        title: "Packages",
+        title: "Services",
         href: "/packages",
         icon: <PackagesIcon />,
         subItems: [
-            { title: "Package Library", href: "/packages" },
-            { title: "All Packages", href: "/packages/list" },
-            { title: "Event Type Templates", href: "/event-type-templates" },
+            { title: "Packages", href: "/packages" },
+            { title: "Day Designer", href: "/day-designer" },
         ],
     },
     {
@@ -94,7 +92,7 @@ export default function StudioSidebar() {
             return pathname === "/dashboard" || pathname === "/";
         }
         if (item.href === "/packages") {
-            return pathname.startsWith("/packages") || pathname.startsWith("/event-type-templates");
+            return pathname.startsWith("/packages") || pathname.startsWith("/day-designer");
         }
         if (item.subItems) {
             return item.subItems.some((sub) => pathname.startsWith(sub.href));
@@ -121,12 +119,7 @@ export default function StudioSidebar() {
                 zIndex: 1200,
             }}
         >
-            {/* Project Selector at the top */}
-            <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', mb: 1, pb: 0.5 }}>
-                <ProjectSelector />
-            </Box>
-
-            <List sx={{ px: 1, pt: 0, pb: 2 }}>
+            <List sx={{ px: 1, pt: 1, pb: 2 }}>
                 {studioNavItems.map((item) => (
                     <Box key={item.title}>
                         <ListItem

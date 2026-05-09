@@ -46,7 +46,7 @@ export class ContractTemplateVariablesService {
       include: {
         contact: true,
         client: true,
-        selected_package: { include: { wedding_type: true } },
+        selected_package: true,
         estimates: {
           orderBy: [{ is_primary: 'desc' }, { updated_at: 'desc' }],
           include: {
@@ -212,7 +212,7 @@ export class ContractTemplateVariablesService {
       'brand.cancellation_tier1_percent': brand?.cancellation_tier1_percent
         ? `${Number(brand.cancellation_tier1_percent)}%`
         : '50%',
-      'event.type': pkg?.wedding_type?.name || '',
+      'event.type': pkg?.event_category || inquiry.event_category || '',
       'today.date': formatDate(new Date()),
       'today.date_short': formatDate(new Date(), 'short'),
     };

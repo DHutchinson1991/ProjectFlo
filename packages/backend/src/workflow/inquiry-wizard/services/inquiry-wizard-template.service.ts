@@ -176,7 +176,6 @@ export class InquiryWizardTemplateService {
             this.prisma.package_sets.findMany({
                 where: { brand_id: template.brand_id },
                 include: {
-                    event_type: { select: { id: true, name: true, icon: true, color: true } },
                     slots: {
                         orderBy: { order_index: 'asc' },
                         select: { id: true, slot_label: true, service_package_id: true, order_index: true },

@@ -22,7 +22,6 @@ export interface SubjectType {
     role_name: string;
     description?: string | null;
     brand_id: number;
-    is_core: boolean;
     is_group: boolean;
     never_group: boolean;
     order_index: number;
@@ -123,10 +122,12 @@ export interface PackageActivityRecord {
     package_id?: number;
     order_index?: number;
     description?: string | null;
+    location_label?: string | null;
     duration_minutes?: number | null;
     moments?: Array<{
         id: number;
         name: string;
+        description?: string | null;
         package_activity_id: number;
         order_index: number;
         duration_seconds: number;
@@ -147,7 +148,7 @@ export interface PackageEventDaySubjectRecord {
     event_day_template_id?: number;
     package_activity_id?: number | null;
     activity_assignments?: Array<{ id: number; package_activity_id: number; package_activity?: { id: number; name: string } }>;
-    role_template?: { id: number; role_name: string; is_group: boolean; is_core: boolean; never_group: boolean } | null;
+    role_template?: { id: number; role_name: string; is_group: boolean; never_group: boolean } | null;
     real_name?: string | null;
     member_names?: string[] | null;
 }
@@ -157,9 +158,33 @@ export interface PackageLocationSlotRecord {
     id: number;
     location_number: number;
     event_day_template_id?: number;
+    mode?: 'SANDBOX' | 'VENUE';
     custom_name?: string | null;
     location?: { id: number; name: string } | null;
     activity_assignments?: Array<{ id: number; package_activity_id: number }>;
+    space_slots?: PackageSpaceSlotRecord[];
+}
+
+/** Space type enum — matches Prisma SpaceType. */
+export type SpaceType =
+    | 'CEREMONY_AREA' | 'RECEPTION_HALL' | 'BRIDAL_SUITE' | 'GROOM_SUITE'
+    | 'GETTING_READY_ROOM' | 'OUTDOOR_AREA' | 'COCKTAIL_AREA' | 'DINING_AREA'
+    | 'DANCE_FLOOR' | 'ENTRANCE_HALL' | 'GARDEN' | 'TERRACE'
+    | 'CHAPEL' | 'LOUNGE' | 'LIBRARY' | 'PRIVATE_ROOM' | 'OTHER';
+
+/** Package space-slot record — named sub-area within a location. */
+export interface PackageSpaceSlotRecord {
+    id: number;
+    label: string;
+    event_day_template_id?: number;
+    location_slot_id?: number | null;
+    location_slot?: { id: number; location_number: number } | null;
+    location_space_id?: number | null;
+    location_space?: { id: number; name: string; space_type?: string | null } | null;
+    activity_assignments?: Array<{ id: number; package_activity_id: number }>;
+    type_tags?: Array<{ id: number; space_type: SpaceType }>;
+    preset?: { id: number; name: string; description?: string | null; space_type?: SpaceType | null; guest_capacity?: number | null } | null;
+    objects?: Array<{ id: number; object_type: string; label: string; x: number; y: number; width: number; height: number; rotation?: number | null; order_index: number }>;
 }
 
 /** Unmanned-equipment record used in `unmannedEquipment` state. */

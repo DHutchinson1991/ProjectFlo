@@ -7,10 +7,12 @@ import { FilmEquipmentAssignmentsService } from './services/film-equipment-assig
 import { FilmTimelineTracksService } from './services/film-timeline-tracks.service';
 import { FilmTimelineLayersService } from './services/film-timeline-layers.service';
 import { FilmScenesManagementService } from './services/film-scenes-management.service';
+import { SceneSpatialService } from './services/scene-spatial.service';
+import { SceneSpatialController } from './controllers/scene-spatial.controller';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [FilmsController],
+  controllers: [FilmsController, SceneSpatialController],
   providers: [
     FilmsService,
     FilmEquipmentService,
@@ -18,12 +20,14 @@ import { FilmScenesManagementService } from './services/film-scenes-management.s
     FilmTimelineTracksService,
     FilmTimelineLayersService,
     FilmScenesManagementService,
+    SceneSpatialService,
   ],
   exports: [
     FilmsService,
     FilmEquipmentService,
     FilmTimelineTracksService,
     FilmScenesManagementService,
+    SceneSpatialService,
   ],
 })
 export class FilmsModule { }

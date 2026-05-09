@@ -20,3 +20,4 @@ export * from './instance-location-slot.dto';
 export * from './instance-crew-slot.dto';
 export * from './package-activity.dto';
 export * from './package-activity-moment.dto';
+export * from './create-package-film-content.dto';

@@ -54,6 +54,27 @@ const pulse = keyframes`
     50% { opacity: 0.5; }
 `;
 
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 4000;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const timeoutId = window.setTimeout(() => {
+            reject(new Error(message));
+        }, timeoutMs);
+
+        promise.then(
+            (value) => {
+                window.clearTimeout(timeoutId);
+                resolve(value);
+            },
+            (error) => {
+                window.clearTimeout(timeoutId);
+                reject(error);
+            },
+        );
+    });
+}
+
 function SessionExpiredOverlay() {
     const [dots, setDots] = useState("");
 
@@ -153,6 +174,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const [refreshToken, setRefreshToken] = useState<string | null>(null);
     const [sessionExpired, setSessionExpired] = useState(false);
     const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const hasInitializedRef = useRef(false);
+    const isInitializingRef = useRef(false);
     const router = useRouter();
 
     const isAuthenticated = !!user;
@@ -174,6 +197,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Graceful session expiry: show overlay then redirect
     const handleSessionExpired = useCallback(() => {
+        if (isInitializingRef.current) {
+            logout();
+            return;
+        }
+
         // Don't show overlay if already on login page
         if (window.location.pathname === "/login") {
             logout();
@@ -216,8 +244,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }, [refreshToken, handleSessionExpired]);
 
     useEffect(() => {
+        if (hasInitializedRef.current) {
+            return;
+        }
+
+        hasInitializedRef.current = true;
+
         const initializeAuth = async () => {
-            setUnauthorizedCallback(() => handleSessionExpired());
+            isInitializingRef.current = true;
+            setUnauthorizedCallback(() => {
+                if (isInitializingRef.current) {
+                    logout();
+                    return;
+                }
+
+                handleSessionExpired();
+            });
 
             // If session-only login and this is a new browser session,
             // the sessionStorage flag will be gone — clear tokens
@@ -227,6 +269,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 localStorage.removeItem("userProfile");
                 localStorage.removeItem("projectflo_session_only_flag");
                 setIsLoading(false);
+                isInitializingRef.current = false;
                 return;
             }
 
@@ -239,7 +282,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 setRefreshToken(storedRefreshToken);
 
                 try {
-                    const profile = await authApi.getProfile();
+                    const profile = await withTimeout(
+                        authApi.getProfile(),
+                        AUTH_BOOTSTRAP_TIMEOUT_MS,
+                        "Authentication check timed out. Please sign in again.",
+                    );
                     const freshUser = {
                         id: profile.id,
                         email: profile.email,
@@ -252,18 +299,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
                     setUser(freshUser);
                     localStorage.setItem("userProfile", JSON.stringify(freshUser));
                     startPeriodicRefresh();
-                } catch (error) {
-                    console.error("Auth initialization failed:", error);
+                } catch {
                     // Don't show expired overlay on initial load — just clear and redirect
                     logout();
                 }
             }
+
+            isInitializingRef.current = false;
             setIsLoading(false);
         };
 
         initializeAuth();
 
         return () => {
+            isInitializingRef.current = false;
             if (refreshIntervalRef.current) {
                 clearInterval(refreshIntervalRef.current);
             }

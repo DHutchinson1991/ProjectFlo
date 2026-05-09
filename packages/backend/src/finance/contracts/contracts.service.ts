@@ -8,7 +8,7 @@ import { Contract } from './entities/contract.entity';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { ContractTemplateVariablesService } from './services/contract-template-variables.service';
-import { InquiryTasksService } from '../../workflow/tasks/inquiry/services/inquiry-tasks.service';
+import type { InquiryTasksService } from '../../workflow/tasks/inquiry/services/inquiry-tasks.service';
 
 export const CONTRACT_INCLUDE = {
   signers: {
@@ -21,7 +21,7 @@ export class ContractsService {
   constructor(
     private prisma: PrismaService,
     private variablesService: ContractTemplateVariablesService,
-    @Inject(forwardRef(() => InquiryTasksService))
+    @Inject(forwardRef(() => require('../../workflow/tasks/inquiry/services/inquiry-tasks.service').InquiryTasksService))
     private inquiryTasksService: InquiryTasksService,
   ) { }
 

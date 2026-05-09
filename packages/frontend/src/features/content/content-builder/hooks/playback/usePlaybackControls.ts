@@ -10,8 +10,15 @@ export const usePlaybackControls = (scenes: TimelineScene[] = []) => {
         playbackSpeed: 1,
     });
 
-    const playbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const isPlayingRef = useRef(false);
+    const rafIdRef = useRef<number | null>(null);
+    const lastFrameTimeRef = useRef<number>(0);
     const timelineScrollRef = useRef<{ scrollLeft: number }>({ scrollLeft: 0 });
+
+    // Keep ref in sync with state
+    useEffect(() => {
+        isPlayingRef.current = playbackState.isPlaying;
+    }, [playbackState.isPlaying]);
 
     // Update timeline duration when scenes change
     useEffect(() => {
@@ -19,54 +26,79 @@ export const usePlaybackControls = (scenes: TimelineScene[] = []) => {
         setPlaybackState((prev) => ({
             ...prev,
             totalDuration: newDuration,
-            // If current time is beyond new duration, reset to start
             currentTime: prev.currentTime > newDuration ? 0 : prev.currentTime,
         }));
     }, [scenes]);
 
-    const handlePlay = useCallback(() => {
-        setPlaybackState((prev) => ({ ...prev, isPlaying: !prev.isPlaying }));
+    // rAF-based playback loop
+    const tick = useCallback((timestamp: number) => {
+        if (!isPlayingRef.current) return;
 
-        if (!playbackState.isPlaying) {
-            playbackTimerRef.current = setInterval(() => {
-                setPlaybackState((prev) => {
-                    const newTime = prev.currentTime + 0.1 * prev.playbackSpeed;
-                    if (newTime >= prev.totalDuration) {
-                        return {
-                            ...prev,
-                            isPlaying: false,
-                            currentTime: prev.totalDuration,
-                        };
-                    }
-                    return { ...prev, currentTime: newTime };
-                });
-            }, 100);
-        } else {
-            if (playbackTimerRef.current) {
-                clearInterval(playbackTimerRef.current);
-                playbackTimerRef.current = null;
+        if (lastFrameTimeRef.current === 0) {
+            lastFrameTimeRef.current = timestamp;
+        }
+
+        const deltaMs = timestamp - lastFrameTimeRef.current;
+        lastFrameTimeRef.current = timestamp;
+
+        setPlaybackState((prev) => {
+            if (!prev.isPlaying) return prev;
+            const deltaSeconds = (deltaMs / 1000) * prev.playbackSpeed;
+            const newTime = prev.currentTime + deltaSeconds;
+            if (newTime >= prev.totalDuration) {
+                isPlayingRef.current = false;
+                return { ...prev, isPlaying: false, currentTime: prev.totalDuration };
             }
-        }
-    }, [playbackState.isPlaying]);
+            return { ...prev, currentTime: newTime };
+        });
 
-    const handleStop = () => {
+        if (isPlayingRef.current) {
+            rafIdRef.current = requestAnimationFrame(tick);
+        }
+    }, []);
+
+    const stopAnimation = useCallback(() => {
+        if (rafIdRef.current !== null) {
+            cancelAnimationFrame(rafIdRef.current);
+            rafIdRef.current = null;
+        }
+        lastFrameTimeRef.current = 0;
+    }, []);
+
+    const handlePlay = useCallback(() => {
+        if (isPlayingRef.current) {
+            // Stop
+            isPlayingRef.current = false;
+            stopAnimation();
+            setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
+        } else {
+            // Start — if at the end, reset to beginning
+            setPlaybackState((prev) => {
+                const resetTime = prev.currentTime >= prev.totalDuration ? 0 : prev.currentTime;
+                return { ...prev, isPlaying: true, currentTime: resetTime };
+            });
+            isPlayingRef.current = true;
+            lastFrameTimeRef.current = 0;
+            rafIdRef.current = requestAnimationFrame(tick);
+        }
+    }, [tick, stopAnimation]);
+
+    const handleStop = useCallback(() => {
+        isPlayingRef.current = false;
+        stopAnimation();
         setPlaybackState((prev) => ({ ...prev, isPlaying: false, currentTime: 0 }));
-        if (playbackTimerRef.current) {
-            clearInterval(playbackTimerRef.current);
-            playbackTimerRef.current = null;
-        }
-    };
+    }, [stopAnimation]);
 
-    const handleSpeedChange = (newSpeed: number) => {
+    const handleSpeedChange = useCallback((newSpeed: number) => {
         setPlaybackState((prev) => ({ ...prev, playbackSpeed: newSpeed }));
-    };
+    }, []);
 
-    const handleTimelineClick = (time: number) => {
+    const handleTimelineClick = useCallback((time: number) => {
         setPlaybackState((prev) => ({
             ...prev,
             currentTime: Math.max(0, Math.min(time, prev.totalDuration)),
         }));
-    };
+    }, []);
 
     // Timeline viewport management for navigation without scroll bars
     const updateTimelineViewport = useCallback(
@@ -74,7 +106,6 @@ export const usePlaybackControls = (scenes: TimelineScene[] = []) => {
             const playheadPosition = playbackState.currentTime * zoomLevel;
             const viewportCenter = viewportWidth / 2;
 
-            // Calculate the optimal scroll position to center the playhead
             let targetScrollLeft = playheadPosition - viewportCenter;
             targetScrollLeft = Math.max(0, targetScrollLeft);
 
@@ -87,31 +118,30 @@ export const usePlaybackControls = (scenes: TimelineScene[] = []) => {
 
     const jumpToTime = useCallback(
         (time: number) => {
-            const clampedTime = Math.max(
-                0,
-                Math.min(time, playbackState.totalDuration),
-            );
-            setPlaybackState((prev) => ({ ...prev, currentTime: clampedTime }));
+            setPlaybackState((prev) => ({
+                ...prev,
+                currentTime: Math.max(0, Math.min(time, prev.totalDuration)),
+            }));
         },
-        [playbackState.totalDuration],
+        [],
     );
 
     const jumpToPercentage = useCallback(
         (percentage: number) => {
-            const time = (percentage / 100) * playbackState.totalDuration;
-            jumpToTime(time);
+            setPlaybackState((prev) => {
+                const time = (percentage / 100) * prev.totalDuration;
+                return { ...prev, currentTime: Math.max(0, Math.min(time, prev.totalDuration)) };
+            });
         },
-        [playbackState.totalDuration, jumpToTime],
+        [],
     );
 
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            if (playbackTimerRef.current) {
-                clearInterval(playbackTimerRef.current);
-            }
+            stopAnimation();
         };
-    }, []);
+    }, [stopAnimation]);
 
     return {
         playbackState,

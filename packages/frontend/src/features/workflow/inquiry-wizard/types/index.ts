@@ -1,7 +1,7 @@
 import type { Brand } from '@/features/platform/brand/types';
 import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import { WelcomeSettings } from '@/features/platform/brand/types';
-import { EventType } from '@/features/catalog/event-types/types';
+import { EventType } from '@/features/catalog/package-templates/types';
 
 export interface WizardStep {
     key: string;

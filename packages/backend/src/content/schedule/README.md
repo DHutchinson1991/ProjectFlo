@@ -22,8 +22,10 @@ schedule/
 │   ├── schedule-preset.service.ts           # Brand presets, event day templates, activity presets, moments CRUD
 │   ├── schedule-film.service.ts             # Film scene schedules, resolved schedule (inheritance chain)
 │   ├── schedule-package.service.ts          # Package summary, event days, films, film scene schedules
+│   ├── schedule-package-content-creation.service.ts # Package-page content wizard orchestration + run logging
 │   ├── schedule-package-activity.service.ts # Package activities + reorder, moments + bulk + reorder
 │   ├── schedule-package-resource.service.ts # Package subjects + assignments, locations, location slots
+│   ├── moment-knowledge.service.ts         # Activity/scene moment generation from KB + AI fallback
 │   ├── schedule-project.service.ts          # Project CRUD + initializeProjectFromPackage
 │   ├── schedule-instance.service.ts         # Instance event days, activities, moments (PrismaService only)
 │   ├── schedule-instance-resource.service.ts # Instance subjects (with contact resolution), location slots, films
@@ -38,10 +40,13 @@ schedule/
 
 - **Preset** — Brand-level schedule library (event day templates, activity presets, moments).
 - **Package** — Event-type package schedule template; activities reference presets.
+- **Package content creation run** — `POST /api/schedule/packages/:packageId/films/create-content` owns the package-page FilmCreationWizard flow through film/scene creation and writes per-run logs under `packages/backend/logs/content-creator-ai/YYYY-MM-DD/run-*/` with `manifest.json`, `request.json`, `result.json`, and `master.log`. Activity-linked `prepareScene()` work continues asynchronously after the run result is written.
+- **Package blocking inheritance** — Film creation relies on package-level `PackageActivityMoment.camera_subject_plan` so `SchedulePackageService.autoCreateRecordingSetups()` can seed film `CameraSubjectAssignment.subject_ids`; malformed AI camera rows are recovered during blocking parse before that plan is written.
 - **Project/Inquiry instance** — Concrete schedule materialized from a package via `initializeProjectFromPackage`.
 - **Resolved schedule** — Inheritance chain: film → package film → project film scene schedules.
 - **Schedule diff** — Compares package template vs instance to surface additions, removals, and changes.
 - **Crew slot assignment invariant** — Crew slots are day-scoped (`package_event_day_id` / `project_event_day_id`), and activity linkage is handled only through junction tables (`PackageCrewSlotActivity` / `ProjectCrewSlotActivity`).
+- **Subject/moment invariant** — Ceremony and reception activities should keep the full people roster, while prep moment generation must respect the subjects assigned to that specific activity.
 
 ## External consumers
 

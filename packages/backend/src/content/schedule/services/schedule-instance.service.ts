@@ -129,6 +129,7 @@ export class ScheduleInstanceService {
     return this.prisma.projectActivityMoment.create({
       data: {
         ...owner, project_activity_id: dto.project_activity_id, name: dto.name,
+        description: dto.description,
         order_index: dto.order_index ?? nextOrder, duration_seconds: dto.duration_seconds ?? 60,
         is_required: dto.is_required ?? true, notes: dto.notes,
       },

@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import { GeocodingService } from '../locations/geocoding.service';
 import { ProjectFilmCloneService } from './project-film-clone.service';
+import { buildPackageContentsSnapshot } from './package-contents-snapshot.util';
 
 /**
  * Owner target for cloning — exactly one of projectId or inquiryId must be set.
@@ -205,6 +206,7 @@ export class ProjectPackageCloneService {
           package_activity_id: pa.id, // Traceability link
           name: pa.name,
           description: pa.description,
+          location_label: pa.location_label,
           color: pa.color,
           icon: pa.icon,
           start_time: pa.start_time,
@@ -236,6 +238,7 @@ export class ProjectPackageCloneService {
           project_activity_id: projActivityId,
           source_package_moment_id: pm.id,
           name: pm.name,
+          description: pm.description,
           order_index: pm.order_index,
           duration_seconds: pm.duration_seconds,
           is_required: pm.is_required,
@@ -324,6 +327,41 @@ export class ProjectPackageCloneService {
     }
 
     this.logger.debug(`  Location slots cloned: ${locationSlotMap.size}`);
+
+    // ── 5b. Clone PackageSpaceSlot → ProjectSpaceSlot ────────
+    const packageSpaceSlots = await prisma.packageSpaceSlot.findMany({
+      where: { package_id: packageId },
+      include: { type_tags: true },
+      orderBy: [{ event_day_template_id: 'asc' }, { label: 'asc' }],
+    });
+
+    const spaceSlotMap = new Map<number, number>();
+
+    for (const pss of packageSpaceSlots) {
+      const projDayId = templateToProjectDayMap.get(pss.event_day_template_id);
+      if (!projDayId) continue;
+
+      const projLocationSlotId = pss.location_slot_id
+        ? locationSlotMap.get(pss.location_slot_id) ?? null
+        : null;
+
+      const projectSpaceSlot = await prisma.projectSpaceSlot.create({
+        data: {
+          ...ownerFields,
+          project_event_day_id: projDayId,
+          source_package_space_slot_id: pss.id,
+          label: pss.label,
+          project_location_slot_id: projLocationSlotId,
+          location_space_id: pss.location_space_id,
+          ...(pss.type_tags.length ? {
+            type_tags: { create: pss.type_tags.map((t) => ({ space_type: t.space_type })) },
+          } : {}),
+        },
+      });
+      spaceSlotMap.set(pss.id, projectSpaceSlot.id);
+    }
+
+    this.logger.debug(`  Space slots cloned: ${spaceSlotMap.size}`);
 
     // ── 6. Clone PackageCrewSlot → ProjectCrewSlot ──────────
     const packageCrewSlots = await prisma.packageCrewSlot.findMany({
@@ -554,6 +592,30 @@ export class ProjectPackageCloneService {
 
     this.logger.debug(`  Location assignments cloned: ${locAssignmentsCopied}`);
 
+    // ── 12b. Clone SpaceActivityAssignment → ProjectSpaceActivityAssignment
+    const spaceAssignments = await prisma.spaceActivityAssignment.findMany({
+      where: {
+        package_space_slot: { package_id: packageId },
+      },
+    });
+
+    let spaceAssignmentsCopied = 0;
+    for (const sa of spaceAssignments) {
+      const projSpaceSlotId = spaceSlotMap.get(sa.package_space_slot_id);
+      const projActivityId = activityMap.get(sa.package_activity_id);
+      if (!projSpaceSlotId || !projActivityId) continue;
+
+      await prisma.projectSpaceActivityAssignment.create({
+        data: {
+          project_space_slot_id: projSpaceSlotId,
+          project_activity_id: projActivityId,
+        },
+      });
+      spaceAssignmentsCopied++;
+    }
+
+    this.logger.debug(`  Space assignments cloned: ${spaceAssignmentsCopied}`);
+
     // ── Summary ───────────────────────────────────────────────────
     const summary = {
       owner_id: target.projectId ?? target.inquiryId,
@@ -564,6 +626,7 @@ export class ProjectPackageCloneService {
       moments_created: momentsCopied,
       subjects_created: subjectMap.size,
       location_slots_created: locationSlotMap.size,
+      space_slots_created: spaceSlotMap.size,
       crew_slots_created: crewSlotMap.size,
       films_created: filmMap.size,
       crew_slot_assignments_created: opAssignmentsCopied,
@@ -634,22 +697,23 @@ export class ProjectPackageCloneService {
     if (!inquiry.source_package_id && inquiry.selected_package_id) {
       const pkg = await this.prisma.service_packages.findUnique({
         where: { id: inquiry.selected_package_id },
-        select: { id: true, name: true, currency: true, contents: true },
+        select: {
+          id: true,
+          name: true,
+          currency: true,
+          contents: true,
+          source_day_blueprint_id: true,
+          source_day_blueprint_version_id: true,
+          source_day_blueprint: { select: { id: true, key: true, display_name: true } },
+          source_day_blueprint_version: { select: { id: true, version_number: true } },
+        },
       });
 
       await this.prisma.inquiries.update({
         where: { id: inquiryId },
         data: {
           source_package_id: inquiry.selected_package_id,
-          package_contents_snapshot: pkg
-            ? {
-                snapshot_taken_at: new Date().toISOString(),
-                package_id: pkg.id,
-                package_name: pkg.name,
-                currency: pkg.currency ?? DEFAULT_CURRENCY,
-                contents: pkg.contents,
-              }
-            : Prisma.JsonNull,
+          package_contents_snapshot: buildPackageContentsSnapshot(pkg) ?? Prisma.JsonNull,
         },
       });
     }

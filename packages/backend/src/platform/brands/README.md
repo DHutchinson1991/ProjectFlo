@@ -1,7 +1,7 @@
 # brands
 
 ## What this module does
-Core multi-tenancy module. Manages brands (tenants), user-brand associations, brand settings (key-value config), meeting/discovery call settings, welcome/inquiry page settings, and brand context switching. Handles service type provisioning — when a brand enables a service type (Wedding/Birthday/Engagement), auto-provisions event types, categories, and package sets.
+Core multi-tenancy module. Manages brands (tenants), user-brand associations, brand settings (key-value config), meeting/discovery call settings, welcome/inquiry page settings, and brand context switching. Handles service type provisioning — when a brand enables a service type (Wedding/Birthday/Engagement), auto-provisions subject roles, package templates, and package sets.
 
 ## Key files
 | File | Purpose |
@@ -17,7 +17,7 @@ Core multi-tenancy module. Manages brands (tenants), user-brand associations, br
 ## Business rules / invariants
 - `findOne` self-heals: derives `service_types[]` from existing event types.
 - `update` with `service_types` triggers `BrandProvisioningService.provision()`.
-- Provisioning is idempotent — existing event types just ensure category + set exist.
+- Provisioning is idempotent — re-enabling a service type safely reuses existing subject roles, package templates, package-template links, and package sets/slots.
 - Global Admin users see all brands; regular users see only their associated brands.
 - Global-admin checks resolve through `crew.contact.user_account.system_role`, not directly from `Crew`.
 - Settings stored as key-value pairs with categories (meetings, welcome).
@@ -28,10 +28,10 @@ Core multi-tenancy module. Manages brands (tenants), user-brand associations, br
 - **brands** — tenant entity with business info, timezone, currency.
 - **user_brands** — junction with role (Owner/Admin/Manager/Member).
 - **brand_settings** — key-value pairs with `data_type` and `category`.
-- Provisioning writes to tables owned by `event-types`, `service-package-categories`, `package-sets`.
+- Provisioning writes to `subject_roles`, `package_templates`, `package_template_days`, `package_template_subjects`, `package_sets`, and `package_set_slots`.
 
 ## Related modules
-- **Backend**: `../../catalog/event-types` — provisioning creates event types
-- **Backend**: `../../catalog/service-package-categories` — provisioning creates categories
-- **Backend**: `../../catalog/package-sets` — provisioning creates package sets
+- **Backend**: `../../content/subjects` — provisioning reuses brand subject roles
+- **Backend**: `../../catalog/package-templates` — provisioning creates package templates and links
+- **Backend**: `../../catalog/packages` — provisioning creates package sets and default slots
 - **Frontend**: `features/platform/brands`

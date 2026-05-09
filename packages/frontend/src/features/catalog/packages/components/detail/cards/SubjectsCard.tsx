@@ -2,28 +2,59 @@
 
 import React, { useState } from 'react';
 import {
-    Box, Typography, Button, TextField, Select, MenuItem,
-    IconButton, Chip, Menu, Tooltip,
+    Box, Typography,
+    IconButton, Chip, Tooltip, Checkbox,
+    Table, TableBody, TableCell, TableHead, TableRow, CircularProgress,
 } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material';
-import PeopleIcon from '@mui/icons-material/People';
-import GroupsIcon from '@mui/icons-material/Groups';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 import { scheduleApi } from '@/features/workflow/scheduling/package-template';
 import { useOptionalScheduleApi } from '@/features/workflow/scheduling/shared';
 import type { EventDay } from '@/features/workflow/scheduling/package-template';
+import type { UsePlanningProgressReturn } from '../../../hooks/usePlanningProgress';
 import type {
     PackageActivityRecord,
     PackageEventDaySubjectRecord,
     SubjectType,
 } from '../../../types';
-import { ScheduleCardShell } from './ScheduleCardShell';
+import { detailGlassCardSx, detailHeaderCellSx, detailBodyCellSx } from '../detail-tokens';
+
 
 /* ================================================================== */
 /*  Props                                                              */
 /* ================================================================== */
+
+interface MomentRecord {
+    id: number;
+    name: string;
+    description?: string | null;
+    order_index: number;
+    duration_seconds: number;
+    subject_actions?: Record<string, string | { action: string | null; focal: string } | null> | null;
+}
+
+interface ActivityWithMoments {
+    id: number;
+    name: string;
+    moments?: MomentRecord[];
+}
+
+const STANDARD_GUEST_OPTIONS = [50, 100, 150] as const;
+
+function normalizeSubjectRoleName(value: string | null | undefined): string {
+    return value
+        ?.trim()
+        .toLowerCase()
+        .replace(/honour/g, 'honor')
+        .replace(/\s+/g, ' ')
+        ?? '';
+}
+
+function isGuestsRoleName(value: string | null | undefined): boolean {
+    return normalizeSubjectRoleName(value) === 'guests';
+}
 
 interface SubjectsCardProps {
     packageId: number | null;
@@ -34,9 +65,14 @@ interface SubjectsCardProps {
     subjectTemplates: SubjectType[];
     scheduleActiveDayId: number | null;
     selectedActivityId: number | null;
-    cardSx: SxProps<Theme>;
+    selectedMomentId?: number | null;
+    activitiesWithMoments?: ActivityWithMoments[];
+    cardSx?: SxProps<Theme>;
     /** When true, hides all inline editing (real_name, count, member_names). */
     readOnly?: boolean;
+    selectedSubjectId?: number | null;
+    onSelectSubject?: (id: number | null) => void;
+    planning?: UsePlanningProgressReturn;
 }
 
 /* ================================================================== */
@@ -52,8 +88,13 @@ export function SubjectsCard({
     subjectTemplates,
     scheduleActiveDayId,
     selectedActivityId,
+    selectedMomentId,
+    activitiesWithMoments,
     cardSx,
     readOnly = false,
+    selectedSubjectId,
+    onSelectSubject,
+    planning,
 }: SubjectsCardProps) {
     // ─── ScheduleApi adapter (use context if available, else direct package API) ──
     const contextApi = useOptionalScheduleApi();
@@ -69,10 +110,8 @@ export function SubjectsCard({
     const isInstanceMode = !!contextApi && contextApi.mode !== 'package';
 
     // ─── Internalized UI state ───────────────────────────────────────
-    const [addSubjectMenuAnchor, setAddSubjectMenuAnchor] = useState<null | HTMLElement>(null);
-    const [addSubjectDayId, setAddSubjectDayId] = useState<number | null>(null);
+    const [isAddingSubject, setIsAddingSubject] = useState(false);
     const [newSubjectName, setNewSubjectName] = useState('');
-    const [newSubjectCategory, setNewSubjectCategory] = useState('PEOPLE');
     // Inline count editing — track which subject is being typed into
     const [editingCountId, setEditingCountId] = useState<number | null>(null);
     const [editingCountValue, setEditingCountValue] = useState('');
@@ -122,8 +161,46 @@ export function SubjectsCard({
     };
 
     // Suggest all subject roles not yet added to the active day
-    const existingNames = new Set(daySubjects.map((s: any) => s.name)); // eslint-disable-line @typescript-eslint/no-explicit-any
-    const suggestedRoles = subjectTemplates.filter(r => !existingNames.has(r.role_name));
+    const existingNames = new Set(daySubjects.map((subject: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
+        normalizeSubjectRoleName(subject.role_template?.role_name ?? subject.name),
+    ));
+    const suggestedRoles = subjectTemplates.filter((role) => !existingNames.has(normalizeSubjectRoleName(role.role_name)));
+    const guestSubjects = packageSubjects.filter((subject) => isGuestsRoleName(subject.name) || isGuestsRoleName(subject.role_template?.role_name));
+    const guestCounts = guestSubjects
+        .map((subject) => subject.count)
+        .filter((count): count is number => typeof count === 'number' && Number.isFinite(count) && count > 0);
+    const selectedGuestCount = guestCounts.length > 0 && guestCounts.every((count) => count === guestCounts[0])
+        ? guestCounts[0]
+        : null;
+
+    // ── Selected moment context ──────────────────────────────────────
+    const selectedMoment = selectedMomentId
+        ? (activitiesWithMoments ?? []).flatMap(a => a.moments ?? []).find(m => m.id === selectedMomentId) ?? null
+        : null;
+    const activePlanningStep = planning?.activeStep ?? null;
+    const activePlanningSubjectIds = new Set(activePlanningStep?.subjectIds ?? []);
+    const planningMatchesSelectedActivity = !selectedActivity || activePlanningStep?.activityName === selectedActivity.name;
+
+    const getSubjectAction = (subjectName: string): string | null => {
+        if (!selectedMoment?.subject_actions) return null;
+        const entry = selectedMoment.subject_actions[subjectName];
+        if (!entry) return null; // null = not present
+        if (typeof entry === 'string') return entry; // knowledge base format
+        return entry.action; // AI format { action, focal }
+    };
+
+    const getSubjectFocal = (subjectName: string): string | null => {
+        if (!selectedMoment?.subject_actions) return null;
+        const entry = selectedMoment.subject_actions[subjectName];
+        if (!entry) return null;
+        if (typeof entry === 'string') return null; // knowledge base has no focal
+        return entry.focal;
+    };
+
+    const isSubjectPresent = (subjectName: string): boolean => {
+        if (!selectedMoment?.subject_actions) return true;
+        return selectedMoment.subject_actions[subjectName] !== null;
+    };
 
     // ─── Helpers ─────────────────────────────────────────────────────
     const addSubjectFromTemplate = async (role: { id: number; role_name: string; is_group?: boolean; never_group?: boolean }) => {
@@ -133,7 +210,7 @@ export function SubjectsCard({
                 name: role.role_name,
                 category: 'PEOPLE',
                 role_template_id: role.id,
-                ...(role.is_group ? { count: 4 } : {}),
+                ...(role.is_group ? { count: isGuestsRoleName(role.role_name) ? (selectedGuestCount ?? STANDARD_GUEST_OPTIONS[0]) : 4 } : {}),
             });
             let nextSubject = created;
             if (created?.id && activeDayActivities.length > 0) {
@@ -146,11 +223,11 @@ export function SubjectsCard({
     };
 
     const addCustomSubject = async () => {
-        if (!newSubjectName.trim() || !addSubjectDayId || !hasOwner) return;
+        if (!newSubjectName.trim() || !activeEventDayId || !hasOwner) return;
         try {
-            const created = await subjectApi.create(addSubjectDayId, {
+            const created = await subjectApi.create(activeEventDayId, {
                 name: newSubjectName.trim(),
-                category: newSubjectCategory,
+                category: 'PEOPLE',
             });
             let nextSubject = created;
             if (created?.id && activeDayActivities.length > 0) {
@@ -160,32 +237,58 @@ export function SubjectsCard({
             }
             setPackageSubjects(prev => [...prev, { ...created, ...nextSubject }]);
             setNewSubjectName('');
-            setAddSubjectMenuAnchor(null);
-            setAddSubjectDayId(null);
+            setIsAddingSubject(false);
         } catch (err) { console.warn('Failed to add subject:', err); }
     };
 
     // ─── Render ──────────────────────────────────────────────────────
+    const hCellSx: SxProps<Theme> = detailHeaderCellSx;
+    const bCellSx: SxProps<Theme> = detailBodyCellSx;
+
     return (
         <>
-            <ScheduleCardShell
-                title="Subjects"
-                icon={<PeopleIcon />}
-                accentColor="#a78bfa"
-                subtitle={selectedActivity ? (
-                    <Typography sx={{ fontSize: '0.55rem', color: '#a855f7', fontWeight: 600, mt: -0.25 }}>{selectedActivity.name}</Typography>
-                ) : activeDay && packageEventDays.length > 1 ? (
-                    <Typography sx={{ fontSize: '0.55rem', color: '#f59e0b', fontWeight: 600, mt: -0.25 }}>{activeDay.name}</Typography>
-                ) : undefined}
-                headerRight={daySubjects.length > 0
-                    ? <Chip label={`${daySubjects.reduce((sum: number, s: any) => sum + (s.count != null ? (s.count as number) : 1), 0)}`} size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 700, bgcolor: 'rgba(167, 139, 250, 0.1)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.2)', '& .MuiChip-label': { px: 0.6 } }} />
-                    : undefined
-                }
-                cardSx={cardSx}
-            >
+        <Box sx={detailGlassCardSx}>
+            {/* ── Section header ── */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#e2e8f0', letterSpacing: '-0.01em' }}>
+                    People
+                </Typography>
+                {selectedActivity && (
+                    <Typography sx={{ fontSize: '0.55rem', color: selectedActivity.color || '#f59e0b', fontWeight: 600 }}>Filtering: {selectedActivity.name}</Typography>
+                )}
+                {(!readOnly && hasOwner && packageEventDays.length > 0) && (
+                    <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <IconButton
+                            size="small"
+                            onClick={() => { setIsAddingSubject(true); setNewSubjectName(''); }}
+                            sx={{ p: 0.25, color: '#64748b', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                        >
+                            <AddIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                    </Box>
+                )}
+            </Box>
 
-                <Box sx={{ px: 2.5, pt: 1.5, pb: 1.5 }}>
-                    {/* Existing subjects */}
+            {/* ── Subjects table ── */}
+            {(daySubjects.length > 0 || isAddingSubject) ? (
+                <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+                    <colgroup>
+                        {selectedActivityId && <col style={{ width: '4%' }} />}
+                        <col style={{ width: selectedActivityId ? '40%' : '44%' }} />
+                        <col style={{ width: selectedActivityId ? '22%' : '24%' }} />
+                        <col style={{ width: selectedActivityId ? '22%' : '20%' }} />
+                        <col style={{ width: '12%' }} />
+                    </colgroup>
+                    <TableHead>
+                        <TableRow sx={{ bgcolor: 'rgba(255, 255, 255, 0.02)' }}>
+                            {selectedActivityId && <TableCell sx={{ ...hCellSx, width: 28, p: 0 }} />}
+                            <TableCell sx={hCellSx}>Subject</TableCell>
+                            <TableCell sx={hCellSx}>Focal</TableCell>
+                            <TableCell sx={hCellSx}>Count</TableCell>
+                            <TableCell sx={hCellSx} />
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
                     {daySubjects.map((subj: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                         const subjAssigned = isSubjectAssigned(subj);
                         const isFixedGroup = !!(subj as any).role_template?.is_group;
@@ -195,6 +298,10 @@ export function SubjectsCard({
                         const isEditingThis = editingCountId === subj.id;
                         const isGuestsRole = subj.name.toLowerCase() === 'guests';
                         const isNamedGroup = isGroup && !isGuestsRole;
+                        const isSubjectPlanningActive = planningMatchesSelectedActivity
+                            && activePlanningSubjectIds.has(subj.id)
+                            && (activePlanningStep?.step === 'activity-casting' || activePlanningStep?.step === 'activity-actions');
+                        const planningSpinnerColor = activePlanningStep?.step === 'activity-actions' ? '#22c55e' : '#38bdf8';
 
                         const resizeMemberNames = (newCount: number): string[] | undefined => {
                             if (!isInstanceMode || !isNamedGroup) return undefined;
@@ -221,12 +328,14 @@ export function SubjectsCard({
                             e.stopPropagation();
                             const next = Math.max(1, currentCount + delta);
                             if (next === currentCount) return;
+                            // Dropping to 1 reverts to non-group (count = null)
+                            const newCount = next === 1 ? null : next;
                             const memberNames = resizeMemberNames(next);
                             try {
-                                const payload: any = { count: next };
+                                const payload: any = { count: newCount };
                                 if (memberNames) payload.member_names = memberNames;
                                 const updated = await subjectApi.update(subj.id, payload);
-                                setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, count: updated?.count ?? next, ...(memberNames ? { member_names: memberNames } : {}) } : s)); // eslint-disable-line @typescript-eslint/no-explicit-any
+                                setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, count: updated?.count ?? newCount, ...(memberNames ? { member_names: memberNames } : {}) } : s)); // eslint-disable-line @typescript-eslint/no-explicit-any
                             } catch (err) { console.warn('Failed to update count:', err); }
                         };
 
@@ -241,352 +350,259 @@ export function SubjectsCard({
 
                         return (
                         <React.Fragment key={subj.id}>
-                        <Box
-                            onClick={() => {
-                                if (!selectedActivityId) return;
-                                toggleSubjectActivity(subj);
-                            }}
+                        <TableRow
+                            onClick={() => onSelectSubject?.(selectedSubjectId === subj.id ? null : subj.id)}
                             sx={{
-                                display: 'flex', alignItems: 'center', gap: 0.75,
-                                py: 0.5, px: 1, mx: -1, borderRadius: 1.5,
                                 transition: 'all 0.2s ease',
+                                cursor: onSelectSubject ? 'pointer' : undefined,
                                 opacity: subjAssigned ? 1 : 0.3,
-                                cursor: selectedActivityId ? 'pointer' : 'default',
+                                ...(selectedSubjectId === subj.id && { bgcolor: 'rgba(245,158,11,0.08)' }),
+                                ...(isSubjectPlanningActive && { bgcolor: 'rgba(34,197,94,0.08)' }),
                                 '&:hover': {
-                                    bgcolor: selectedActivityId ? 'rgba(167, 139, 250, 0.12)' : 'rgba(167, 139, 250, 0.05)',
+                                    bgcolor: isSubjectPlanningActive
+                                        ? 'rgba(34,197,94,0.12)'
+                                        : selectedSubjectId === subj.id
+                                            ? 'rgba(245,158,11,0.12)'
+                                            : 'rgba(167, 139, 250, 0.03)',
                                     opacity: selectedActivityId && !subjAssigned ? 0.7 : (subjAssigned ? 1 : 0.3),
-                                    '& .subj-del': { opacity: !selectedActivityId ? 1 : (subjAssigned ? 1 : 0) },
+                                    '& .subj-del': { opacity: subjAssigned ? 1 : 0 },
                                     '& .subj-group-toggle': { opacity: 1 },
                                 },
                             }}
                         >
-                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, bgcolor: '#a78bfa' }} />
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography variant="body2" component="div" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
-                                    {subj.name}
-                                    {isInstanceMode && !readOnly && !isGroup && subj.name.toLowerCase() !== 'guests' ? (
-                                        editingRealNameId === subj.id ? (
-                                            <Box
-                                                component="input"
-                                                type="text"
-                                                autoFocus
-                                                value={editingRealNameValue}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingRealNameValue(e.target.value)}
-                                                onBlur={async () => {
-                                                    const val = editingRealNameValue.trim() || null;
-                                                    setEditingRealNameId(null);
-                                                    if (val !== ((subj as any).real_name ?? null)) {
-                                                        try {
-                                                            const updated = await subjectApi.update(subj.id, { real_name: val });
-                                                            setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, real_name: updated?.real_name ?? val } : s));
-                                                        } catch (err) { console.error('Failed to save real_name:', err); }
-                                                    }
-                                                }}
-                                                onKeyDown={(e: React.KeyboardEvent) => {
-                                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                                                    if (e.key === 'Escape') setEditingRealNameId(null);
-                                                    e.stopPropagation();
-                                                }}
-                                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                                                sx={{
-                                                    ml: 0.5,
-                                                    border: '1px solid rgba(167,139,250,0.4)',
-                                                    borderRadius: '3px',
-                                                    bgcolor: 'rgba(167,139,250,0.08)',
-                                                    color: '#94a3b8',
-                                                    fontSize: '0.72rem',
-                                                    fontWeight: 400,
-                                                    py: '1px',
-                                                    px: '4px',
-                                                    outline: 'none',
-                                                    width: 120,
-                                                    fontFamily: 'inherit',
-                                                }}
+                            {/* Assignment checkbox */}
+                            {selectedActivityId && (
+                                <TableCell sx={{ ...bCellSx, p: 0, textAlign: 'center' }}>
+                                    <Checkbox
+                                        checked={subjAssigned}
+                                        onChange={() => toggleSubjectActivity(subj)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        size="small"
+                                        sx={{ p: 0, '& .MuiSvgIcon-root': { fontSize: 15 }, color: 'rgba(255,255,255,0.15)', '&.Mui-checked': { color: selectedActivity?.color || '#f59e0b' } }}
+                                    />
+                                </TableCell>
+                            )}
+                            {/* Subject name */}
+                            <TableCell sx={bCellSx}>
+                                <Box sx={{ minWidth: 0 }}>
+                                        <Typography sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
+                                            <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {subj.name}
+                                            </Box>
+                                            {isSubjectPlanningActive && (
+                                                <Tooltip title={activePlanningStep?.momentName ? `${activePlanningStep.momentName}` : 'Planner is working on this subject'}>
+                                                    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', ml: 0.5, flexShrink: 0 }}>
+                                                        <CircularProgress size={10} thickness={6} sx={{ color: planningSpinnerColor }} />
+                                                    </Box>
+                                                </Tooltip>
+                                            )}
+                                            {isInstanceMode && !readOnly && !isGroup && subj.name.toLowerCase() !== 'guests' ? (
+                                                editingRealNameId === subj.id ? (
+                                                    <Box component="input" type="text" autoFocus value={editingRealNameValue}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingRealNameValue(e.target.value)}
+                                                        onBlur={async () => {
+                                                            const val = editingRealNameValue.trim() || null;
+                                                            setEditingRealNameId(null);
+                                                            if (val !== ((subj as any).real_name ?? null)) {
+                                                                try {
+                                                                    const updated = await subjectApi.update(subj.id, { real_name: val });
+                                                                    setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, real_name: updated?.real_name ?? val } : s));
+                                                                } catch (err) { console.error('Failed to save real_name:', err); }
+                                                            }
+                                                        }}
+                                                        onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingRealNameId(null); e.stopPropagation(); }}
+                                                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                                        sx={{ ml: 0.5, border: '1px solid rgba(167,139,250,0.4)', borderRadius: '3px', bgcolor: 'rgba(167,139,250,0.08)', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 400, py: '1px', px: '4px', outline: 'none', width: 120, fontFamily: 'inherit' }}
+                                                    />
+                                                ) : (
+                                                    <Box component="span"
+                                                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); setEditingRealNameId(subj.id); setEditingRealNameValue((subj as any).real_name ?? ''); }}
+                                                        sx={{ color: (subj as any).real_name ? '#94a3b8' : 'rgba(255,255,255,0.15)', fontWeight: 400, fontStyle: (subj as any).real_name ? 'normal' : 'italic', fontSize: (subj as any).real_name ? 'inherit' : '0.65rem', cursor: 'pointer', borderRadius: '3px', ml: 0.25, px: 0.25, '&:hover': { bgcolor: 'rgba(167,139,250,0.08)' }, transition: 'background 0.15s' }}
+                                                    >
+                                                        {(subj as any).real_name ? ` — ${(subj as any).real_name}` : '— Add name...'}
+                                                    </Box>
+                                                )
+                                            ) : (subj as any).real_name ? (
+                                                <Box component="span" sx={{ color: '#94a3b8', fontWeight: 400 }}> — {(subj as any).real_name}</Box>
+                                            ) : null}
+                                        </Typography>
+                                </Box>
+                            </TableCell>
+
+                            {/* Focal */}
+                            <TableCell sx={bCellSx}>
+                                {selectedMoment && (() => {
+                                    const focal = getSubjectFocal(subj.name);
+                                    const present = isSubjectPresent(subj.name);
+                                    if (!present) return <Typography sx={{ fontSize: '0.55rem', color: '#475569', fontStyle: 'italic' }}>—</Typography>;
+                                    if (!focal) return <Typography sx={{ fontSize: '0.55rem', color: '#334155' }}>—</Typography>;
+                                    const FOCAL_COLORS: Record<string, string> = { PRIMARY: '#a78bfa', SECONDARY: '#38bdf8', BACKGROUND: '#64748b' };
+                                    return <Typography sx={{ fontSize: '0.6rem', fontWeight: 600, color: FOCAL_COLORS[focal] ?? '#64748b', textTransform: 'capitalize', letterSpacing: '0.2px' }}>{focal.toLowerCase()}</Typography>;
+                                })()}
+                            </TableCell>
+
+                            {/* Count */}
+                            <TableCell sx={bCellSx}>
+                                {isGroup ? (readOnly ? (
+                                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#a78bfa', fontVariantNumeric: 'tabular-nums' }}>×{currentCount}</Typography>
+                                ) : (
+                                    <Box onClick={e => e.stopPropagation()} sx={{ display: 'flex', alignItems: 'center', gap: 0.15 }}>
+                                        <IconButton size="small" onClick={(e) => adjustCount(e, -1)}
+                                            sx={{ p: 0.15, color: '#64748b', '&:hover': { color: '#a78bfa', bgcolor: 'rgba(167,139,250,0.12)' } }}>
+                                            <Box component="span" sx={{ fontSize: 13, lineHeight: 1, fontWeight: 700 }}>−</Box>
+                                        </IconButton>
+                                        {isEditingThis ? (
+                                            <Box component="input" type="number" autoFocus value={editingCountValue}
+                                                onChange={e => setEditingCountValue(e.target.value)}
+                                                onBlur={e => applyCount(e.target.value)}
+                                                onKeyDown={e => { if (e.key === 'Enter') applyCount((e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditingCountId(null); e.stopPropagation(); }}
+                                                onClick={e => e.stopPropagation()}
+                                                sx={{ width: 36, textAlign: 'center', border: '1px solid rgba(167,139,250,0.5)', borderRadius: '4px', bgcolor: 'rgba(167,139,250,0.1)', color: '#a78bfa', fontSize: '0.65rem', fontWeight: 700, py: '1px', px: '2px', outline: 'none', '&::-webkit-inner-spin-button': { display: 'none' } }}
                                             />
                                         ) : (
-                                            <Box
-                                                component="span"
-                                                onClick={(e: React.MouseEvent) => {
-                                                    e.stopPropagation();
-                                                    setEditingRealNameId(subj.id);
-                                                    setEditingRealNameValue((subj as any).real_name ?? '');
-                                                }}
-                                                sx={{
-                                                    color: (subj as any).real_name ? '#94a3b8' : 'rgba(255,255,255,0.15)',
-                                                    fontWeight: 400,
-                                                    fontStyle: (subj as any).real_name ? 'normal' : 'italic',
-                                                    fontSize: (subj as any).real_name ? 'inherit' : '0.65rem',
-                                                    cursor: 'pointer',
-                                                    borderRadius: '3px',
-                                                    ml: 0.25,
-                                                    px: 0.25,
-                                                    '&:hover': { bgcolor: 'rgba(167,139,250,0.08)' },
-                                                    transition: 'background 0.15s',
-                                                }}
+                                            <Typography
+                                                onClick={(e) => { e.stopPropagation(); setEditingCountId(subj.id); setEditingCountValue(String(currentCount)); }}
+                                                sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#a78bfa', minWidth: 20, textAlign: 'center', fontVariantNumeric: 'tabular-nums', cursor: 'text', px: 0.25, borderRadius: '4px', '&:hover': { bgcolor: 'rgba(167,139,250,0.1)' } }}
                                             >
-                                                {(subj as any).real_name ? ` — ${(subj as any).real_name}` : '— Add name...'}
-                                            </Box>
-                                        )
-                                    ) : (subj as any).real_name ? (
-                                        <Box component="span" sx={{ color: '#94a3b8', fontWeight: 400 }}> — {(subj as any).real_name}</Box>
-                                    ) : null}
-                                </Typography>
-                                {subj.category && (
-                                    <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.55rem', display: 'block', mt: -0.2, textTransform: 'capitalize' }}>
-                                        {(subj.category as string).toLowerCase()}{isGroup ? ' group' : ''}
-                                    </Typography>
-                                )}
-                            </Box>
-
-                            {/* Group toggle icon — hidden for fixed-group and never-group roles */}
-                            {!readOnly && !isFixedGroup && !isNeverGroup && (
-                            <Tooltip title={isGroup ? 'Remove group' : 'Make group'} arrow placement="top">
-                                <IconButton
-                                    size="small"
-                                    className="subj-group-toggle"
-                                    onClick={toggleGroup}
-                                    sx={{
-                                        p: 0.25, flexShrink: 0,
-                                        opacity: isGroup ? 1 : 0,
-                                        transition: 'opacity 0.15s',
-                                        color: isGroup ? '#a78bfa' : '#475569',
-                                        '&:hover': { color: isGroup ? '#c4b5fd' : '#a78bfa', bgcolor: 'rgba(167,139,250,0.12)' },
-                                    }}
-                                >
-                                    <GroupsIcon sx={{ fontSize: 13 }} />
-                                </IconButton>
-                            </Tooltip>
-                            )}
-
-                            {/* Count stepper — only when group */}
-                            {isGroup && (readOnly ? (
-                                <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#a78bfa', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                                    ×{currentCount}
-                                </Typography>
-                            ) : (
-                                <Box
-                                    onClick={e => e.stopPropagation()}
-                                    sx={{ display: 'flex', alignItems: 'center', gap: 0.15, flexShrink: 0 }}
-                                >
-                                    <IconButton size="small" onClick={(e) => adjustCount(e, -1)}
-                                        sx={{ p: 0.15, color: '#64748b', '&:hover': { color: '#a78bfa', bgcolor: 'rgba(167,139,250,0.12)' } }}>
-                                        <Box component="span" sx={{ fontSize: 13, lineHeight: 1, fontWeight: 700 }}>−</Box>
-                                    </IconButton>
-                                    {isEditingThis ? (
-                                        <Box
-                                            component="input"
-                                            type="number"
-                                            autoFocus
-                                            value={editingCountValue}
-                                            onChange={e => setEditingCountValue(e.target.value)}
-                                            onBlur={e => applyCount(e.target.value)}
-                                            onKeyDown={e => {
-                                                if (e.key === 'Enter') applyCount((e.target as HTMLInputElement).value);
-                                                if (e.key === 'Escape') setEditingCountId(null);
-                                                e.stopPropagation();
-                                            }}
-                                            onClick={e => e.stopPropagation()}
-                                            sx={{
-                                                width: 36, textAlign: 'center', border: '1px solid rgba(167,139,250,0.5)',
-                                                borderRadius: '4px', bgcolor: 'rgba(167,139,250,0.1)', color: '#a78bfa',
-                                                fontSize: '0.65rem', fontWeight: 700, py: '1px', px: '2px',
-                                                outline: 'none',
-                                                '&::-webkit-inner-spin-button': { display: 'none' },
-                                            }}
-                                        />
+                                                {currentCount}
+                                            </Typography>
+                                        )}
+                                        <IconButton size="small" onClick={(e) => adjustCount(e, +1)}
+                                            sx={{ p: 0.15, color: '#64748b', '&:hover': { color: '#a78bfa', bgcolor: 'rgba(167,139,250,0.12)' } }}>
+                                            <Box component="span" sx={{ fontSize: 13, lineHeight: 1, fontWeight: 700 }}>+</Box>
+                                        </IconButton>
+                                    </Box>
+                                )) : (
+                                    !readOnly && !isFixedGroup && !isNeverGroup ? (
+                                        <Tooltip title="Click to make group" placement="top">
+                                            <Typography
+                                                onClick={(e) => { e.stopPropagation(); toggleGroup(e); }}
+                                                sx={{ fontSize: '0.65rem', color: '#64748b', fontVariantNumeric: 'tabular-nums', cursor: 'pointer', display: 'inline-block', px: 0.25, borderRadius: '4px', '&:hover': { color: '#a78bfa', bgcolor: 'rgba(167,139,250,0.08)' } }}
+                                            >1</Typography>
+                                        </Tooltip>
                                     ) : (
-                                        <Typography
-                                            onClick={(e) => { e.stopPropagation(); setEditingCountId(subj.id); setEditingCountValue(String(currentCount)); }}
-                                            sx={{
-                                                fontSize: '0.65rem', fontWeight: 700, color: '#a78bfa',
-                                                minWidth: 20, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
-                                                cursor: 'text', px: 0.25,
-                                                borderRadius: '4px',
-                                                '&:hover': { bgcolor: 'rgba(167,139,250,0.1)' },
-                                            }}
-                                        >
-                                            {currentCount}
-                                        </Typography>
-                                    )}
-                                    <IconButton size="small" onClick={(e) => adjustCount(e, +1)}
-                                        sx={{ p: 0.15, color: '#64748b', '&:hover': { color: '#a78bfa', bgcolor: 'rgba(167,139,250,0.12)' } }}>
-                                        <Box component="span" sx={{ fontSize: 13, lineHeight: 1, fontWeight: 700 }}>+</Box>
-                                    </IconButton>
-                                </Box>
-                            ))}
+                                        <Typography sx={{ fontSize: '0.65rem', color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>1</Typography>
+                                    )
+                                )}
+                            </TableCell>
 
-                            {!readOnly && (
-                            <Box className="subj-del" sx={{ opacity: 0, transition: 'opacity 0.15s' }}>
-                                <IconButton
-                                    size="small"
-                                    onClick={async (e) => {
-                                        e.stopPropagation();
-                                        try {
-                                            await subjectApi.delete(subj.id);
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            setPackageSubjects(prev => prev.filter((s: any) => s.id !== subj.id));
-                                        } catch (err) { console.warn('Failed to remove subject:', err); }
-                                    }}
-                                    sx={{ p: 0.25, color: 'rgba(255,255,255,0.2)', '&:hover': { color: '#ef4444' } }}
-                                >
-                                    <DeleteIcon sx={{ fontSize: 11 }} />
-                                </IconButton>
-                            </Box>
-                            )}
-                        </Box>
-
-                        {/* Member name slots — instance mode, named groups only (not Guests) */}
-                        {isInstanceMode && !readOnly && isNamedGroup && currentCount > 0 && (
-                            <Box sx={{ pl: 3.5, pb: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                                {Array.from({ length: currentCount }, (_, idx) => {
-                                    const names: string[] = Array.isArray((subj as any).member_names) ? (subj as any).member_names : [];
-                                    const val = names[idx] ?? '';
-                                    return (
-                                        <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <Typography sx={{ fontSize: '0.55rem', color: '#475569', minWidth: 12, textAlign: 'right' }}>{idx + 1}.</Typography>
-                                            <Box
-                                                component="input"
-                                                type="text"
-                                                placeholder={`${subj.name.replace(/s$/, '')} ${idx + 1}`}
-                                                value={val}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                                    const updated = [...names];
-                                                    // Extend array if needed
-                                                    while (updated.length < currentCount) updated.push('');
-                                                    updated[idx] = e.target.value;
-                                                    // Optimistic local update
-                                                    setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, member_names: updated } : s));
-                                                }}
-                                                onBlur={async () => {
-                                                    const updated = [...names];
-                                                    while (updated.length < currentCount) updated.push('');
-                                                    try {
-                                                        await subjectApi.update(subj.id, { member_names: updated.slice(0, currentCount) } as any);
-                                                    } catch { /* ignore */ }
-                                                }}
-                                                onKeyDown={(e: React.KeyboardEvent) => {
-                                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                            {/* Actions */}
+                            <TableCell sx={{ ...bCellSx, textAlign: 'right' }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25 }}>
+                                    {!readOnly && (
+                                        <Box className="subj-del" sx={{ opacity: 0, transition: 'opacity 0.15s' }}>
+                                            <IconButton size="small"
+                                                onClick={async (e) => {
                                                     e.stopPropagation();
+                                                    try { await subjectApi.delete(subj.id); setPackageSubjects(prev => prev.filter((s: any) => s.id !== subj.id)); } catch (err) { console.warn('Failed to remove subject:', err); } // eslint-disable-line @typescript-eslint/no-explicit-any
                                                 }}
-                                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                                                sx={{
-                                                    flex: 1, border: 'none', borderBottom: '1px solid rgba(167,139,250,0.15)',
-                                                    bgcolor: 'transparent', color: '#94a3b8', fontSize: '0.62rem', py: '2px', px: '3px',
-                                                    outline: 'none', fontFamily: 'inherit',
-                                                    '&::placeholder': { color: 'rgba(255,255,255,0.12)', fontStyle: 'italic' },
-                                                    '&:focus': { borderBottomColor: 'rgba(167,139,250,0.5)' },
-                                                }}
-                                            />
+                                                sx={{ p: 0.25, color: 'rgba(255,255,255,0.2)', '&:hover': { color: '#ef4444' } }}>
+                                                <DeleteIcon sx={{ fontSize: 11 }} />
+                                            </IconButton>
                                         </Box>
-                                    );
-                                })}
-                            </Box>
+                                    )}
+                                </Box>
+                            </TableCell>
+                        </TableRow>
+
+                        {/* Member name slots — instance mode, named groups only */}
+                        {isInstanceMode && !readOnly && isNamedGroup && currentCount > 0 && (
+                            <TableRow>
+                                <TableCell colSpan={selectedActivityId ? 5 : 4} sx={{ py: 0, borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                    <Box sx={{ pl: 2.5, py: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                                        {Array.from({ length: currentCount }, (_, idx) => {
+                                            const names: string[] = Array.isArray((subj as any).member_names) ? (subj as any).member_names : [];
+                                            const val = names[idx] ?? '';
+                                            return (
+                                                <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                    <Typography sx={{ fontSize: '0.55rem', color: '#475569', minWidth: 12, textAlign: 'right' }}>{idx + 1}.</Typography>
+                                                    <Box component="input" type="text" placeholder={`${subj.name.replace(/s$/, '')} ${idx + 1}`} value={val}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                            const updated = [...names]; while (updated.length < currentCount) updated.push(''); updated[idx] = e.target.value;
+                                                            setPackageSubjects(prev => prev.map((s: any) => s.id === subj.id ? { ...s, member_names: updated } : s));
+                                                        }}
+                                                        onBlur={async () => { const updated = [...names]; while (updated.length < currentCount) updated.push(''); try { await subjectApi.update(subj.id, { member_names: updated.slice(0, currentCount) } as any); } catch { /* ignore */ } }}
+                                                        onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); e.stopPropagation(); }}
+                                                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                                        sx={{ flex: 1, border: 'none', borderBottom: '1px solid rgba(167,139,250,0.15)', bgcolor: 'transparent', color: '#94a3b8', fontSize: '0.62rem', py: '2px', px: '3px', outline: 'none', fontFamily: 'inherit', '&::placeholder': { color: 'rgba(255,255,255,0.12)', fontStyle: 'italic' }, '&:focus': { borderBottomColor: 'rgba(167,139,250,0.5)' } }}
+                                                    />
+                                                </Box>
+                                            );
+                                        })}
+                                    </Box>
+                                </TableCell>
+                            </TableRow>
                         )}
+
                         </React.Fragment>
                         );
                     })}
-
-                    {/* Template suggestions: show if matched template has unassigned roles */}
-                    {!readOnly && suggestedRoles.length > 0 && (
-                        <Box sx={{ mt: daySubjects.length > 0 ? 1.5 : 0 }}>
-                            {daySubjects.length === 0 && (
-                                <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.58rem', display: 'block', mb: 0.75 }}>
-                                    Suggested roles:
-                                </Typography>
-                            )}
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                {suggestedRoles.map(role => (
-                                    <Chip
-                                        key={role.id}
-                                        label={`${role.role_name}${role.is_group ? ' (Group)' : ''}`}
-                                        size="small"
-                                        onClick={() => addSubjectFromTemplate(role)}
-                                        icon={<AddIcon sx={{ fontSize: '10px !important' }} />}
-                                        sx={{
-                                            height: 20, fontSize: '0.6rem', fontWeight: 600, cursor: 'pointer',
-                                            bgcolor: 'rgba(167, 139, 250, 0.07)', color: '#a78bfa',
-                                            border: '1px dashed rgba(167, 139, 250, 0.3)',
-                                            '& .MuiChip-icon': { color: '#a78bfa' },
-                                            '&:hover': { bgcolor: 'rgba(167, 139, 250, 0.15)', borderStyle: 'solid' },
-                                        }}
-                                    />
-                                ))}
-                            </Box>
-                        </Box>
+                    {/* Inline add row */}
+                    {isAddingSubject && (
+                        <TableRow>
+                            {selectedActivityId && <TableCell sx={{ ...bCellSx, p: 0 }} />}
+                            <TableCell sx={bCellSx}>
+                                <Box component="input" type="text" autoFocus
+                                    placeholder="Subject name…"
+                                    value={newSubjectName}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewSubjectName(e.target.value)}
+                                    onKeyDown={async (e: React.KeyboardEvent) => {
+                                        if (e.key === 'Enter' && newSubjectName.trim()) await addCustomSubject();
+                                        if (e.key === 'Escape') { setIsAddingSubject(false); setNewSubjectName(''); }
+                                        e.stopPropagation();
+                                    }}
+                                    onBlur={async () => {
+                                        if (newSubjectName.trim()) await addCustomSubject();
+                                        else { setIsAddingSubject(false); setNewSubjectName(''); }
+                                    }}
+                                    sx={{ width: '100%', border: 'none', borderBottom: '1px solid rgba(167,139,250,0.4)', bgcolor: 'transparent', color: '#f1f5f9', fontSize: '0.72rem', fontWeight: 600, py: '2px', px: 0, outline: 'none', fontFamily: 'inherit', '&::placeholder': { color: 'rgba(255,255,255,0.2)', fontStyle: 'italic', fontWeight: 400 } }}
+                                />
+                            </TableCell>
+                            <TableCell sx={bCellSx} />
+                            <TableCell sx={bCellSx}>
+                                <Typography sx={{ fontSize: '0.65rem', color: '#64748b' }}>1</Typography>
+                            </TableCell>
+                            <TableCell sx={bCellSx} />
+                        </TableRow>
                     )}
+                    </TableBody>
+                </Table>
+            ) : !readOnly ? (
+                <Box sx={{ py: 2, textAlign: 'center' }}>
+                    <Typography sx={{ fontSize: '0.72rem', color: '#475569', mb: 1 }}>No subjects added yet</Typography>
+                </Box>
+            ) : null}
 
-                    {/* Add custom subject button */}
-                    {!readOnly && (
-                    <Box sx={{ mt: (daySubjects.length > 0 || suggestedRoles.length > 0) ? 1.5 : 0.5, display: 'flex', justifyContent: 'center' }}>
-                        {hasOwner && packageEventDays.length > 0 && (
-                            <Button
+            {/* Template role suggestions */}
+            {!readOnly && suggestedRoles.length > 0 && (
+                <Box sx={{ mt: 1.5 }}>
+                    {daySubjects.length === 0 && (
+                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.58rem', display: 'block', mb: 0.75 }}>
+                            Suggested roles:
+                        </Typography>
+                    )}
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {suggestedRoles.map(role => (
+                            <Chip
+                                key={role.id}
+                                label={`${role.role_name}${role.is_group ? ' (Group)' : ''}`}
                                 size="small"
-                                startIcon={<AddIcon sx={{ fontSize: 13 }} />}
-                                onClick={(e) => {
-                                    setAddSubjectMenuAnchor(e.currentTarget);
-                                    setAddSubjectDayId(activeEventDayId || null);
-                                    setNewSubjectName('');
-                                    setNewSubjectCategory('PEOPLE');
+                                onClick={() => addSubjectFromTemplate(role)}
+                                icon={<AddIcon sx={{ fontSize: '10px !important' }} />}
+                                sx={{
+                                    height: 20, fontSize: '0.6rem', fontWeight: 600, cursor: 'pointer',
+                                    bgcolor: 'rgba(167, 139, 250, 0.07)', color: '#a78bfa',
+                                    border: '1px dashed rgba(167, 139, 250, 0.3)',
+                                    '& .MuiChip-icon': { color: '#a78bfa' },
+                                    '&:hover': { bgcolor: 'rgba(167, 139, 250, 0.15)', borderStyle: 'solid' },
                                 }}
-                                sx={{ fontSize: '0.6rem', color: '#a78bfa', textTransform: 'none', fontWeight: 600, py: 0.25, '&:hover': { bgcolor: 'rgba(167, 139, 250, 0.06)' } }}
-                            >
-                                Add Custom Subject
-                            </Button>
-                        )}
+                            />
+                        ))}
                     </Box>
-                    )}
                 </Box>
-            </ScheduleCardShell>
+            )}
 
-            {/* Subject Add Menu */}
-            <Menu
-                anchorEl={addSubjectMenuAnchor}
-                open={Boolean(addSubjectMenuAnchor)}
-                onClose={() => { setAddSubjectMenuAnchor(null); setAddSubjectDayId(null); setNewSubjectName(''); }}
-                PaperProps={{ sx: { bgcolor: '#1a1d24', border: '1px solid rgba(255,255,255,0.1)', minWidth: 240 } }}
-            >
-                <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.75 }}>
-                        Custom Subject
-                    </Typography>
-                    <TextField
-                        autoFocus
-                        size="small"
-                        placeholder="Name (e.g. Bride, Groom...)"
-                        value={newSubjectName}
-                        onChange={e => setNewSubjectName(e.target.value)}
-                        onKeyDown={async (e) => {
-                            if (e.key === 'Enter' && newSubjectName.trim() && addSubjectDayId && hasOwner) {
-                                await addCustomSubject();
-                            }
-                        }}
-                        InputProps={{ sx: { fontSize: '0.75rem', color: '#f1f5f9', bgcolor: 'rgba(255,255,255,0.04)', '& fieldset': { borderColor: 'rgba(167, 139, 250, 0.3)' }, '&:hover fieldset': { borderColor: 'rgba(167, 139, 250, 0.5)' }, '&.Mui-focused fieldset': { borderColor: '#a78bfa' } } }}
-                        sx={{ mb: 0.75, width: '100%' }}
-                    />
-                    <Select
-                        size="small"
-                        value={newSubjectCategory}
-                        onChange={e => setNewSubjectCategory(e.target.value)}
-                        sx={{ width: '100%', fontSize: '0.7rem', color: '#e2e8f0', bgcolor: 'rgba(255,255,255,0.04)', '& fieldset': { borderColor: 'rgba(167, 139, 250, 0.2)' }, '& .MuiSelect-icon': { color: '#64748b' } }}
-                    >
-                        <MenuItem value="PEOPLE" sx={{ fontSize: '0.7rem' }}>People</MenuItem>
-                        <MenuItem value="OBJECTS" sx={{ fontSize: '0.7rem' }}>Objects</MenuItem>
-                        <MenuItem value="LOCATIONS" sx={{ fontSize: '0.7rem' }}>Locations</MenuItem>
-                    </Select>
-                </Box>
-                {newSubjectName.trim() && (
-                    <Box sx={{ px: 1.5, py: 0.75 }}>
-                        <Button
-                            size="small"
-                            fullWidth
-                            onClick={addCustomSubject}
-                            sx={{ fontSize: '0.65rem', color: '#a78bfa', textTransform: 'none', fontWeight: 600, '&:hover': { bgcolor: 'rgba(167, 139, 250, 0.1)' } }}
-                        >
-                            Add &quot;{newSubjectName.trim()}&quot;
-                        </Button>
-                    </Box>
-                )}
-            </Menu>
+        </Box>
         </>
     );
 }

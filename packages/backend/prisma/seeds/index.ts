@@ -8,10 +8,12 @@ import { createMoonriseBrand, createMoonriseTeam } from './moonrise-platform.see
 import seedSubjectTemplates from './moonrise-content.seed';
 import seedEventTemplates from './moonrise-catalog-event-templates.seed';
 import seedServices from './moonrise-catalog-services.seed';
-import seedPackages from './moonrise-catalog-packages.seed';
-import { createMoonriseTaskLibrary, backfillPipelineSkills, seedTaskCrewAssignments } from './moonrise-workflow.seed';
+import seedFloorPlanPresets from './moonrise-floor-plan-presets.seed';
+import { seedMomentKnowledgeBase } from './moment-knowledge-base.seed';
+import { createMoonriseTaskLibrary, backfillPipelineSkills, seedTaskCrewAssignments, seedLeadTaskLibrary } from './moonrise-workflow.seed';
 import { seedMoonriseLocationsLibrary } from './moonrise-catalog-locations-library.seed';
 import { seedEquipment } from './moonrise-catalog-equipment-library.seed';
+import { seedWeddingBlueprintTemplates } from './moonrise-wedding-blueprint-templates.seed';
 
 // ── Layer5 sub-seeds ──────────────────────────────────────────────────────────
 import { createLayer5Brand } from './layer5-platform.seed';
@@ -85,11 +87,17 @@ async function seedMoonrise(): Promise<SeedSummary> {
     moonriseLogger.sectionDivider('Catalog: Services');
     aggregate = sumSummaries(aggregate, await seedServices(prisma));
 
-    moonriseLogger.sectionDivider('Catalog: Packages');
-    aggregate = sumSummaries(aggregate, await seedPackages());
+    moonriseLogger.sectionDivider('Content: Moment Knowledge Base');
+    await seedMomentKnowledgeBase(prisma, brand.id);
+
+    moonriseLogger.sectionDivider('Catalog: Floor Plan Presets');
+    aggregate = sumSummaries(aggregate, await seedFloorPlanPresets());
 
     moonriseLogger.sectionDivider('Workflow: Task Library');
     const taskCount = await createMoonriseTaskLibrary(prisma, brand.id);
+
+    moonriseLogger.sectionDivider('Workflow: Lead Task Library');
+    await seedLeadTaskLibrary(prisma, brand.id);
 
     moonriseLogger.sectionDivider('Workflow: Task Crew Assignments');
     await backfillPipelineSkills(prisma, brand.id);
@@ -102,6 +110,9 @@ async function seedMoonrise(): Promise<SeedSummary> {
     moonriseLogger.sectionDivider('Catalog: Equipment Library');
     const equipmentSummary = await seedEquipment();
     if (equipmentSummary) aggregate = sumSummaries(aggregate, equipmentSummary);
+
+    moonriseLogger.sectionDivider('Content: Wedding Blueprint Templates');
+    aggregate = sumSummaries(aggregate, await seedWeddingBlueprintTemplates(prisma));
 
     moonriseLogger.success(`Moonrise Films done — ${team.teamMembers.length} team, ${taskCount} tasks, Created: ${aggregate.created}, Skipped: ${aggregate.skipped}`);
     return aggregate;

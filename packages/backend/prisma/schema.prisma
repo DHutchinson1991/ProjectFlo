@@ -71,7 +71,7 @@ model brands {
   task_library                 task_library[]
     brand_members                BrandMember[]
   service_packages             service_packages[]
-  service_package_categories   service_package_categories[]
+  package_templates            PackageTemplate[]
   films                        Film[]
   montage_presets              MontagePreset[]
   film_structure_templates     FilmStructureTemplate[]
@@ -83,8 +83,7 @@ model brands {
   equipment_templates          EquipmentTemplate[]
   event_days          EventDay[]
   schedule_presets             SchedulePreset[]
-  event_subtypes                EventSubtype[]
-  event_types                  EventType[]
+
   workflow_templates           workflow_templates[]
   package_sets                 package_sets[]
   skill_role_mappings          skill_role_mappings[]
@@ -98,6 +97,12 @@ model brands {
   finance_settings              brand_finance_settings?
   invoices                      invoices[]
   payment_methods               payment_methods[]
+  shot_previews                 ShotPreview[]
+  floor_plan_presets             FloorPlanPreset[]
+  moment_knowledge_bases         MomentKnowledgeBase[]
+  crew_presets                   CrewPreset[]
+  day_blueprints                 DayBlueprint[]
+  day_blueprint_location_roles   DayBlueprintLocationRole[]
 
   @@map("brands")
 }
@@ -168,6 +173,7 @@ model contacts {
   event_attendees              event_attendees[]
   inquiries                    inquiries[]
   inquiry_wizard_submissions inquiry_wizard_submissions[]
+  projects                     projects[]
   project_day_subjects         ProjectDaySubject[]
 
   @@index([email])
@@ -415,11 +421,10 @@ model inquiries {
   source_package_id            Int? // Which package was cloned into this inquiry's schedule
   package_contents_snapshot    Json? // Frozen copy of package contents at clone time
   guest_count                  String?
-  event_type_id                Int?
+  event_category               String?
   portal_token                 String?                        @unique
   selected_package             service_packages?              @relation(fields: [selected_package_id], references: [id])
   source_package_for_inquiry   service_packages?              @relation("InquirySourcePackage", fields: [source_package_id], references: [id], onDelete: SetNull)
-  event_type                   EventType?                     @relation(fields: [event_type_id], references: [id])
   activities                   activities[]
   calendar_events              calendar_events[]
   client                       clients?
@@ -444,6 +449,7 @@ model inquiries {
   schedule_day_crew_slots     ProjectCrewSlot[]
   schedule_subjects            ProjectDaySubject[]
   schedule_location_slots      ProjectLocationSlot[]
+  schedule_space_slots          ProjectSpaceSlot[]
   schedule_activity_moments    ProjectActivityMoment[]
   schedule_film_tracks         ProjectFilmTimelineTrack[]
   schedule_film_subjects       ProjectFilmSubject[]
@@ -452,6 +458,9 @@ model inquiries {
   schedule_film_moments        ProjectFilmSceneMoment[]
   schedule_film_beats          ProjectFilmSceneBeat[]
   schedule_film_equipment      ProjectFilmEquipmentAssignment[]
+  schedule_camera_positions    ProjectSceneCameraPosition[]
+  schedule_subject_positions   ProjectSceneSubjectPosition[]
+  project                      projects?                        // Project created from this inquiry
   package_requests             package_requests[]
   preferred_payment_schedule_template_id Int?
   preferred_payment_schedule   payment_schedule_templates?    @relation("InquiryPreferredPaymentSchedule", fields: [preferred_payment_schedule_template_id], references: [id], onDelete: SetNull)
@@ -618,17 +627,26 @@ model client_users {
 model projects {
   id                         Int                       @id @default(autoincrement())
   client_id                  Int
+  inquiry_id                 Int?                      @unique // Source inquiry this project was converted from
+  contact_id                 Int?                      // Direct contact reference for header display
   workflow_template_id       Int?
   brand_id                   Int?
   source_package_id          Int? // Traceability: which service_package was cloned at conversion
+  event_category             String?
   project_name               String?
   wedding_date               DateTime
   booking_date               DateTime?
   edit_start_date            DateTime?
   delivery_date              DateTime?
-  phase                      String?
+  phase                      project_phase             @default(Booking)
+  status                     project_status            @default(Active)
   package_contents_snapshot   Json? // Frozen copy of service_packages.contents at clone time
+  notes                      String?                   @db.Text
+  guest_count                String?
+  portal_token               String?                   @unique
   archived_at                DateTime?
+  created_at                 DateTime                  @default(now())
+  updated_at                 DateTime                  @default(now()) @updatedAt
   activities                 activities[]
   calendar_events            calendar_events[]
   client_feedback_surveys    client_feedback_surveys[]
@@ -643,10 +661,13 @@ model projects {
   project_expenses           project_expenses[]
   brand                      brands?                   @relation(fields: [brand_id], references: [id])
   client                     clients                   @relation(fields: [client_id], references: [id])
+  contact                    contacts?                 @relation(fields: [contact_id], references: [id])
+  source_inquiry             inquiries?                @relation(fields: [inquiry_id], references: [id])
   source_package             service_packages?         @relation("ProjectSourcePackage", fields: [source_package_id], references: [id], onDelete: SetNull)
   workflow_template          workflow_templates?       @relation(fields: [workflow_template_id], references: [id])
   proposals                  proposals[]
   quotes                     quotes[]
+  inquiry_tasks              inquiry_tasks[]
   project_tasks              project_tasks[]
   project_event_days         ProjectEventDay[]
   project_films              ProjectFilm[]
@@ -654,6 +675,7 @@ model projects {
   project_crew_slots         ProjectCrewSlot[]
   project_subjects           ProjectDaySubject[]
   project_location_slots     ProjectLocationSlot[]
+  project_space_slots         ProjectSpaceSlot[]
   project_activity_moments   ProjectActivityMoment[]
   project_film_tracks        ProjectFilmTimelineTrack[]
   project_film_subjects      ProjectFilmSubject[]
@@ -662,11 +684,16 @@ model projects {
   project_film_moments       ProjectFilmSceneMoment[]
   project_film_beats         ProjectFilmSceneBeat[]
   project_film_equipment     ProjectFilmEquipmentAssignment[]
+  project_camera_positions   ProjectSceneCameraPosition[]
+  project_subject_positions  ProjectSceneSubjectPosition[]
 
   @@unique([client_id, wedding_date])
   @@index([wedding_date])
   @@index([brand_id])
   @@index([source_package_id])
+  @@index([contact_id])
+  @@index([inquiry_id])
+  @@index([portal_token])
   @@map("projects")
 }
 
@@ -709,6 +736,7 @@ model Crew {
   timeline_tracks                FilmTimelineTrack[]
   project_film_timeline_tracks   ProjectFilmTimelineTrack[]
   brand_memberships              BrandMember[]
+  crew_preset_slots              CrewPresetSlot[]
 
   @@map("crew")
 }
@@ -733,6 +761,7 @@ model job_roles {
   default_task_library  task_library[]           @relation("TaskLibraryDefaultRole")
   inquiry_tasks         inquiry_tasks[]          @relation("InquiryTaskJobRole")
   inquiry_task_subtasks inquiry_task_subtasks[]  @relation("InquiryTaskSubtaskJobRole")
+  crew_preset_slots     CrewPresetSlot[]
 
   @@index([category])
   @@index([is_active])
@@ -787,6 +816,39 @@ model CrewJobRole {
   @@index([payment_bracket_id])
   @@index([is_primary])
   @@map("crew_job_roles")
+}
+
+model CrewPreset {
+  id          Int              @id @default(autoincrement())
+  brand_id    Int
+  name        String
+  is_default  Boolean          @default(false)
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+
+  brand       brands           @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  slots       CrewPresetSlot[]
+
+  @@unique([brand_id, name])
+  @@index([brand_id])
+  @@map("crew_presets")
+}
+
+model CrewPresetSlot {
+  id             Int        @id @default(autoincrement())
+  preset_id      Int
+  job_role_id    Int
+  crew_id        Int?
+  order_index    Int        @default(0)
+
+  preset         CrewPreset @relation(fields: [preset_id], references: [id], onDelete: Cascade)
+  job_role       job_roles  @relation(fields: [job_role_id], references: [id], onDelete: Cascade)
+  crew           Crew?      @relation(fields: [crew_id], references: [id], onDelete: SetNull)
+
+  @@index([preset_id])
+  @@index([job_role_id])
+  @@index([crew_id])
+  @@map("crew_preset_slots")
 }
 
 // Legacy scene template models removed
@@ -1448,6 +1510,7 @@ model task_library {
   parent_task_id           Int?                       // Self-reference for parent/child (task group → children)
   is_task_group            Boolean                    @default(false) // True = task group container (collapsible section within a phase)
   is_auto_only             Boolean                    @default(false) // True = auto-completes only, cannot be manually toggled
+  is_lead_task             Boolean                    @default(false) // True = lead-specific task, assigned to lead crew member
   is_on_site               Boolean                    @default(false) // True = on-site work (billed at day rate); false = off-site (billed hourly)
   is_customer_facing       Boolean                    @default(false) // True = visible on client portal
   customer_description     String?                    // Customer-friendly description shown on client portal (falls back to description if null)
@@ -1589,6 +1652,7 @@ model project_tasks {
 model inquiry_tasks {
   id                      Int               @id @default(autoincrement())
   inquiry_id              Int
+  project_id              Int?              // Set when inquiry is converted to project
   task_library_id         Int?              // Source task from library (nullable for manual additions)
   parent_inquiry_task_id  Int?              // Self-reference: child task → parent stage task
   name                    String
@@ -1609,6 +1673,7 @@ model inquiry_tasks {
   updated_at              DateTime          @updatedAt
 
   inquiry             inquiries      @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project             projects?      @relation(fields: [project_id], references: [id], onDelete: SetNull)
   task_library        task_library?  @relation(fields: [task_library_id], references: [id], onDelete: SetNull)
   completed_by        Crew?  @relation("CompletedInquiryTasks", fields: [completed_by_id], references: [id], onDelete: SetNull)
   assigned_to         Crew?  @relation("AssignedInquiryTasks", fields: [assigned_to_id], references: [id], onDelete: SetNull)
@@ -1619,6 +1684,7 @@ model inquiry_tasks {
   events              inquiry_task_events[]
 
   @@index([inquiry_id])
+  @@index([project_id])
   @@index([task_library_id])
   @@index([inquiry_id, order_index])
   @@index([status])
@@ -1845,12 +1911,455 @@ model LocationsLibrary {
   project_film_locations      ProjectFilmLocation[]
   project_film_scene_locations ProjectFilmSceneLocation[]
   brand                       brands?                   @relation(fields: [brand_id], references: [id])
+  spaces                      LocationSpace[]
+  floor_plans                 FloorPlan[]
 
   @@index([brand_id])
   @@map("locations_library")
 }
 
+model LocationSpace {
+  id              Int              @id @default(autoincrement())
+  location_id     Int
+  name            String
+  space_type      String?          // Legacy free-text — kept for migration. Use type_tags relation.
+  capacity        Int?
+  dimensions_length Float?
+  dimensions_width  Float?
+  dimensions_height Float?
+  description     String?          // Design, size & layout description of the space
+  indoor_outdoor  IndoorOutdoor?   // Indoor, outdoor, or partially covered
+  natural_light   NaturalLight?    // Lighting conditions from natural sources
+  flooring        String?          // e.g. "Hardwood", "Stone flagstone", "Grass"
+  ceiling_style   String?          // e.g. "Vaulted 6m", "Beamed oak", "Open sky"
+  key_features    String?          // Notable features: "Floor-to-ceiling windows, chandelier, exposed brick"
+  accessibility_notes String?      // e.g. "Ground floor, wide doorways, ramp access"
+  notes           String?
+  floor_plan_id   Int?             // Which floor plan this space appears in
+  boundary_json   Json?            // Polygon vertices defining the space boundary on the plan: [{x, y}]
+  fill_color      String?          // Visual tint for the space region on floor plan (hex)
+  is_active       Boolean          @default(true)
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @updatedAt
+
+  location        LocationsLibrary @relation(fields: [location_id], references: [id], onDelete: Cascade)
+  floor_plan      FloorPlan?       @relation("SpaceFloorPlan", fields: [floor_plan_id], references: [id], onDelete: SetNull)
+  type_tags       LocationSpaceTypeTag[]
+  package_space_slots PackageSpaceSlot[]
+  project_space_slots ProjectSpaceSlot[]
+  scene_spaces    FilmSceneSpace[]
+  camera_positions SceneCameraPosition[]
+  subject_positions SceneSubjectPosition[]
+  moment_camera_positions  MomentCameraPosition[]
+  moment_subject_positions MomentSubjectPosition[]
+  project_scene_spaces    ProjectFilmSceneSpace[]
+  project_camera_positions ProjectSceneCameraPosition[]
+  project_subject_positions ProjectSceneSubjectPosition[]
+
+  @@index([location_id])
+  @@index([floor_plan_id])
+  @@map("location_spaces")
+}
+
 // Legacy SceneLocationSpace removed
+
+// ─── Indoor/Outdoor & Natural Light ───────────────────────────────────
+enum IndoorOutdoor {
+  INDOOR
+  OUTDOOR
+  PARTIALLY_COVERED
+}
+
+enum NaturalLight {
+  ABUNDANT
+  MODERATE
+  LOW
+  NONE
+}
+
+// ─── Space Type Vocabulary ────────────────────────────────────────────
+// Controlled vocabulary for categorizing spaces. Used as tags on venue
+// library spaces, package space slots, and project space slots.
+enum SpaceType {
+  CEREMONY_AREA
+  RECEPTION_HALL
+  BRIDAL_SUITE
+  GROOM_SUITE
+  GETTING_READY_ROOM
+  OUTDOOR_AREA
+  COCKTAIL_AREA
+  DINING_AREA
+  DANCE_FLOOR
+  ENTRANCE_HALL
+  GARDEN
+  TERRACE
+  CHAPEL
+  LOUNGE
+  LIBRARY
+  PRIVATE_ROOM
+  OTHER
+}
+
+// Junction: LocationSpace ↔ SpaceType (many-to-many tags)
+model LocationSpaceTypeTag {
+  id                Int       @id @default(autoincrement())
+  location_space_id Int
+  space_type        SpaceType
+  description       String?   // How this use works in this room, e.g. ceremony layout, reception table plan
+  created_at        DateTime  @default(now())
+
+  location_space    LocationSpace @relation(fields: [location_space_id], references: [id], onDelete: Cascade)
+
+  @@unique([location_space_id, space_type])
+  @@index([location_space_id])
+  @@index([space_type])
+  @@map("location_space_type_tags")
+}
+
+// ─── Floor Plans ──────────────────────────────────────────────────────
+// Visual layout of a location. One default per location. Stores Fabric.js
+// canvas state for the editor and individual objects for API queries.
+
+enum FloorPlanObjectType {
+  WALL
+  DOOR
+  WINDOW
+  TABLE_ROUND
+  TABLE_RECT
+  TABLE_HEAD
+  CHAIR_ROW
+  STAGE
+  AISLE
+  ARCH
+  ALTAR
+  DANCE_FLOOR
+  BAR
+  DJ_BOOTH
+  FURNITURE
+  DECORATIVE
+  LABEL
+}
+
+// How a subject or camera resolves its facing direction.
+// ANGLE = raw degrees (legacy default). Others = semantic target resolved at query time.
+enum FacingTargetType {
+  ANGLE    // Use rotation field directly (degrees, 0 = north)
+  SUBJECT  // Face toward another SpaceSlotSubjectPosition (facing_target_id → subject_position.id)
+  OBJECT   // Face toward a SpaceSlotObject (facing_target_id → object.id)
+}
+
+model FloorPlan {
+  id             Int      @id @default(autoincrement())
+  location_id    Int
+  name           String   @default("Default")
+  canvas_width   Int      @default(1000)  // Normalized coordinate space width
+  canvas_height  Int      @default(1000)  // Normalized coordinate space height
+  layout_json    Json?    // Full Fabric.js canvas state (serialized)
+  is_default     Boolean  @default(true)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  location       LocationsLibrary    @relation(fields: [location_id], references: [id], onDelete: Cascade)
+  objects        FloorPlanObject[]
+  space_zones    LocationSpace[]     @relation("SpaceFloorPlan")
+
+  @@index([location_id])
+  @@map("floor_plans")
+}
+
+model FloorPlanObject {
+  id             Int                 @id @default(autoincrement())
+  floor_plan_id  Int
+  object_type    FloorPlanObjectType
+  label          String?
+  x              Float               // Canvas X coordinate
+  y              Float               // Canvas Y coordinate
+  width          Float               @default(50)
+  height         Float               @default(50)
+  rotation       Float               @default(0)  // Degrees
+  metadata       Json?               // Shape-specific: color, radius, seat count, etc.
+  order_index    Int                 @default(0)
+  created_at     DateTime            @default(now())
+  updated_at     DateTime            @updatedAt
+
+  floor_plan     FloorPlan @relation(fields: [floor_plan_id], references: [id], onDelete: Cascade)
+
+  @@index([floor_plan_id])
+  @@map("floor_plan_objects")
+}
+
+// ─── Floor Plan Presets (Catalog) ─────────────────────────────────
+// Reusable arrangement templates: "Church Ceremony (100)", "Ballroom Reception (150)", etc.
+// Can be system-seeded or brand-scoped.
+model FloorPlanPreset {
+  id               Int      @id @default(autoincrement())
+  brand_id         Int?     // null = system-seeded global default
+  name             String   // "Church Ceremony (100 guests)", "Ballroom Reception (150)"
+  description      String?
+  space_type       SpaceType? // Primary space type this preset is designed for
+  guest_capacity   Int?     // Suggested guest count this layout supports
+  canvas_width     Int      @default(1000)
+  canvas_height    Int      @default(1000)
+  layout_json      Json?    // Full Fabric.js canvas state (serialized template)
+  thumbnail_path   String?  // Generated thumbnail for picker UI
+  is_system_seeded Boolean  @default(false)
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  brand            brands?  @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  objects          FloorPlanPresetObject[]
+  camera_presets   FloorPlanPresetCamera[]
+  subject_presets  FloorPlanPresetSubject[]
+  space_slots      PackageSpaceSlot[]       // Which space slots are using this preset
+
+  @@unique([brand_id, name])
+  @@index([brand_id])
+  @@index([space_type])
+  @@map("floor_plan_presets")
+}
+
+// Objects within a preset (furniture, walls, etc.)
+model FloorPlanPresetObject {
+  id          Int                 @id @default(autoincrement())
+  preset_id   Int
+  object_type FloorPlanObjectType
+  label       String?
+  x           Float
+  y           Float
+  width       Float               @default(50)
+  height      Float               @default(50)
+  rotation    Float               @default(0)
+  metadata    Json?
+  order_index Int                 @default(0)
+  created_at  DateTime            @default(now())
+  updated_at  DateTime            @updatedAt
+
+  preset      FloorPlanPreset @relation(fields: [preset_id], references: [id], onDelete: Cascade)
+
+  @@index([preset_id])
+  @@map("floor_plan_preset_objects")
+}
+
+// Suggested camera positions within a preset
+model FloorPlanPresetCamera {
+  id              Int      @id @default(autoincrement())
+  preset_id       Int
+  label           String?  // "Main Camera", "Wide B-Cam", "Detail Cam"
+  x               Float
+  y               Float
+  rotation        Float    @default(0)
+  focal_length_mm Int?     // Suggested focal length for FOV
+  is_unmanned     Boolean  @default(false)
+  order_index     Int      @default(0)
+  created_at      DateTime @default(now())
+
+  preset          FloorPlanPreset @relation(fields: [preset_id], references: [id], onDelete: Cascade)
+
+  @@index([preset_id])
+  @@map("floor_plan_preset_cameras")
+}
+
+// Suggested subject positions within a preset
+model FloorPlanPresetSubject {
+  id          Int      @id @default(autoincrement())
+  preset_id   Int
+  label       String?  // "Couple", "Officiant", "Bridal Party Left"
+  x           Float
+  y           Float
+  order_index Int      @default(0)
+  created_at  DateTime @default(now())
+
+  preset      FloorPlanPreset @relation(fields: [preset_id], references: [id], onDelete: Cascade)
+
+  @@index([preset_id])
+  @@map("floor_plan_preset_subjects")
+}
+
+// ─── Space Slot Floor Plan (virtual layout on PackageSpaceSlot) ───
+// Objects placed on a space slot's virtual floor plan during package planning.
+model SpaceSlotObject {
+  id                    Int                 @id @default(autoincrement())
+  package_space_slot_id Int
+  object_type           FloorPlanObjectType
+  label                 String?
+  x                     Float
+  y                     Float
+  width                 Float               @default(50)
+  height                Float               @default(50)
+  rotation              Float               @default(0)
+  metadata              Json?
+  order_index           Int                 @default(0)
+  created_at            DateTime            @default(now())
+  updated_at            DateTime            @updatedAt
+
+  space_slot            PackageSpaceSlot @relation(fields: [package_space_slot_id], references: [id], onDelete: Cascade)
+  bound_subjects        SpaceSlotSubjectPosition[] @relation("BoundToObject")
+
+  @@index([package_space_slot_id])
+  @@map("space_slot_objects")
+}
+
+// Camera positions planned on a space slot during package planning.
+model SpaceSlotCameraPosition {
+  id                    Int              @id @default(autoincrement())
+  package_space_slot_id Int
+  crew_slot_id          Int?             // FK → PackageCrewSlot (which videographer)
+  label                 String?          // "Main Camera", "B-Cam Wide"
+  x                     Float
+  y                     Float
+  rotation              Float            @default(0)
+  focal_length_mm       Int?
+  fov_angle             Float?           // Field of view in degrees (e.g. 60). Used for coverage analysis.
+  is_unmanned           Boolean          @default(false)
+  facing_target_type    FacingTargetType @default(ANGLE) // How to resolve facing direction
+  facing_target_id      Int?             // Polymorphic: subject/object ID depending on facing_target_type
+  order_index           Int              @default(0)
+  created_at            DateTime         @default(now())
+  updated_at            DateTime         @updatedAt
+
+  space_slot            PackageSpaceSlot @relation(fields: [package_space_slot_id], references: [id], onDelete: Cascade)
+  crew_slot             PackageCrewSlot? @relation(fields: [crew_slot_id], references: [id], onDelete: SetNull)
+  moment_overrides      SpaceSlotMomentCamera[]
+  scene_instances       SceneCameraPosition[] @relation("SpaceSlotCameraToSceneCamera")
+
+  @@index([package_space_slot_id])
+  @@index([crew_slot_id])
+  @@map("space_slot_camera_positions")
+}
+
+// Subject positions planned on a space slot during package planning.
+model SpaceSlotSubjectPosition {
+  id                    Int              @id @default(autoincrement())
+  package_space_slot_id Int
+  day_subject_id        Int?             // FK → PackageDaySubject (which subject role)
+  label                 String?          // "Couple", "Officiant"
+  x                     Float
+  y                     Float
+  rotation              Float            @default(0)  // Facing direction in degrees (0 = up/north)
+  bound_object_id       Int?             // FK → SpaceSlotObject — subject is anchored to this object
+  bound_offset_x        Float            @default(0)  // Offset from bound object center
+  bound_offset_y        Float            @default(0)
+  facing_target_type    FacingTargetType @default(ANGLE) // How to resolve facing direction
+  facing_target_id      Int?             // Polymorphic: subject/object ID depending on facing_target_type
+  seated                Boolean          @default(false) // Default seated state (can be overridden per-moment)
+  order_index           Int              @default(0)
+  created_at            DateTime         @default(now())
+  updated_at            DateTime         @updatedAt
+
+  space_slot            PackageSpaceSlot @relation(fields: [package_space_slot_id], references: [id], onDelete: Cascade)
+  day_subject           PackageDaySubject? @relation(fields: [day_subject_id], references: [id], onDelete: SetNull)
+  bound_object          SpaceSlotObject?   @relation("BoundToObject", fields: [bound_object_id], references: [id], onDelete: SetNull)
+  moment_overrides      SpaceSlotMomentSubject[]
+  scene_instances       SceneSubjectPosition[] @relation("SpaceSlotSubjectToSceneSubject")
+
+  @@index([package_space_slot_id])
+  @@index([day_subject_id])
+  @@index([bound_object_id])
+  @@map("space_slot_subject_positions")
+}
+
+// Per-moment camera position overrides for space slot floor plans.
+// Stores keyframe-style overrides: only positions that differ from the base are stored.
+model SpaceSlotMomentCamera {
+  id                  Int               @id @default(autoincrement())
+  camera_position_id  Int               // FK → SpaceSlotCameraPosition (the base/default position)
+  moment_id           Int               // FK → PackageActivityMoment
+  x                   Float
+  y                   Float
+  rotation            Float             @default(0)
+  fov_angle           Float?            // Override FOV for this moment
+  facing_target_type  FacingTargetType? // Override facing target type (null = inherit from base)
+  facing_target_id    Int?              // Override facing target ID
+  created_at          DateTime          @default(now())
+  updated_at          DateTime          @updatedAt
+
+  camera_position     SpaceSlotCameraPosition @relation(fields: [camera_position_id], references: [id], onDelete: Cascade)
+  moment              PackageActivityMoment   @relation(fields: [moment_id], references: [id], onDelete: Cascade)
+
+  @@unique([camera_position_id, moment_id])
+  @@index([camera_position_id])
+  @@index([moment_id])
+  @@map("space_slot_moment_cameras")
+}
+
+// Per-moment subject position overrides for space slot floor plans.
+model SpaceSlotMomentSubject {
+  id                  Int               @id @default(autoincrement())
+  subject_position_id Int               // FK → SpaceSlotSubjectPosition (the base/default position)
+  moment_id           Int               // FK → PackageActivityMoment
+  x                   Float
+  y                   Float
+  rotation            Float             @default(0)  // Facing direction override
+  present             Boolean           @default(true) // Is this subject physically present in this moment?
+  seated              Boolean?          // Per-moment seated override (null = inherit base)
+  bound_object_id     Int?              // Override: re-bind to a different object for this moment
+  bound_offset_x      Float?            // Override offset from bound object
+  bound_offset_y      Float?
+  facing_target_type  FacingTargetType? // Override facing target type (null = inherit from base)
+  facing_target_id    Int?              // Override facing target ID
+  created_at          DateTime          @default(now())
+  updated_at          DateTime          @updatedAt
+
+  subject_position    SpaceSlotSubjectPosition @relation(fields: [subject_position_id], references: [id], onDelete: Cascade)
+  moment              PackageActivityMoment    @relation(fields: [moment_id], references: [id], onDelete: Cascade)
+
+  @@unique([subject_position_id, moment_id])
+  @@index([subject_position_id])
+  @@index([moment_id])
+  @@map("space_slot_moment_subjects")
+}
+
+// Named spatial zones on a floor plan (e.g. altar area, left seating, aisle).
+// Zones define bounding regions for AI reasoning about subject placement and camera coverage.
+model SpaceSlotZone {
+  id                    Int      @id @default(autoincrement())
+  package_space_slot_id Int
+  name                  String   // machine name: 'altar_area', 'left_seating', 'aisle'
+  label                 String?  // display label: 'Altar Area', 'Left Seating'
+  polygon               Json     // Array of {x, y} points defining the bounding polygon
+  color                 String?  // Hex color for rendering (e.g. '#E3F2FD')
+  description           String?  // AI hint: 'raised platform where officiant and couple stand'
+  order_index           Int      @default(0)
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  space_slot            PackageSpaceSlot @relation(fields: [package_space_slot_id], references: [id], onDelete: Cascade)
+
+  @@unique([package_space_slot_id, name])
+  @@index([package_space_slot_id])
+  @@map("space_slot_zones")
+}
+
+// Junction: PackageSpaceSlot ↔ SpaceType (many-to-many tags)
+model PackageSpaceSlotTypeTag {
+  id                     Int       @id @default(autoincrement())
+  package_space_slot_id  Int
+  space_type             SpaceType
+  created_at             DateTime  @default(now())
+
+  package_space_slot     PackageSpaceSlot @relation(fields: [package_space_slot_id], references: [id], onDelete: Cascade)
+
+  @@unique([package_space_slot_id, space_type])
+  @@index([package_space_slot_id])
+  @@index([space_type])
+  @@map("package_space_slot_type_tags")
+}
+
+// Junction: ProjectSpaceSlot ↔ SpaceType (many-to-many tags)
+model ProjectSpaceSlotTypeTag {
+  id                      Int       @id @default(autoincrement())
+  project_space_slot_id   Int
+  space_type              SpaceType
+  created_at              DateTime  @default(now())
+
+  project_space_slot      ProjectSpaceSlot @relation(fields: [project_space_slot_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_space_slot_id, space_type])
+  @@index([project_space_slot_id])
+  @@index([space_type])
+  @@map("project_space_slot_type_tags")
+}
 
 enum SubjectPriority {
   PRIMARY
@@ -1876,6 +2385,13 @@ enum ShotType {
   CUTAWAY
   INSERT_SHOT
   MASTER_SHOT
+}
+
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 enum CameraMovement {
@@ -1930,6 +2446,13 @@ enum project_phase {
   Production
   Post_Production
   Delivery
+}
+
+enum project_status {
+  Active
+  On_Hold
+  Completed
+  Cancelled
 }
 
 enum due_date_offset_reference {
@@ -2067,13 +2590,13 @@ model Film {
   brand                 brands                    @relation(fields: [brand_id], references: [id], onDelete: Cascade)
   montage_preset        MontagePreset?            @relation(fields: [montage_preset_id], references: [id], onDelete: SetNull)
   tracks                FilmTimelineTrack[]
-  subjects              FilmSubject[]
-  locations             FilmLocation[]
   scenes                FilmScene[]
   equipment_assignments FilmEquipmentAssignment[]
+  film_locations        FilmLocation[]
   scene_schedules       FilmSceneSchedule[]
   package_films         PackageFilm[]
   project_films         ProjectFilm[]
+  shot_previews         ShotPreview[]
 
   @@index([brand_id])
   @@index([montage_preset_id])
@@ -2153,6 +2676,8 @@ model FilmTimelineTrack {
   crew              Crew?             @relation(fields: [crew_id], references: [id], onDelete: SetNull)
   camera_assignments       CameraSubjectAssignment[]
   scene_camera_assignments SceneCameraAssignment[]
+  scene_camera_positions   SceneCameraPosition[]
+  moment_camera_positions  MomentCameraPosition[]
   project_instances        ProjectFilmTimelineTrack[]
 
   @@unique([film_id, name])
@@ -2185,7 +2710,6 @@ model SubjectRole {
   brand_id    Int
   role_name   String // e.g., "Bride", "Groom", "Best Man"
   description String?
-  is_core     Boolean  @default(false) // Core roles are pre-selected by default
   is_group    Boolean  @default(false) // Group roles always show a headcount input (e.g., Guests, Bridesmaids)
   never_group Boolean  @default(false) // Never allow group toggle (e.g., Bride, Groom, Maid of Honor)
   order_index Int      @default(0)
@@ -2193,56 +2717,24 @@ model SubjectRole {
   updated_at  DateTime @updatedAt
 
   brand                  brands                 @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  film_subjects          FilmSubject[]
   package_day_subjects   PackageDaySubject[]
   project_day_subjects   ProjectDaySubject[]
   project_film_subjects  ProjectFilmSubject[]
-  event_day_subject_roles EventDaySubjectRole[]
-  event_type_subjects    EventTypeSubject[]
-  event_subtype_subjects EventSubtypeSubject[]
+  event_day_subject_roles   EventDaySubjectRole[]
+  package_template_subjects PackageTemplateSubject[]
+  day_blueprint_subject_roles DayBlueprintSubjectRole[]
+  day_blueprint_moment_actions DayBlueprintMomentAction[]
+  day_blueprint_moment_placements DayBlueprintMomentPlacement[]
+  package_activity_moment_actions PackageActivityMomentAction[]
 
   @@unique([brand_id, role_name])
   @@index([brand_id])
   @@map("subject_roles")
 }
 
-model FilmSubject {
-  id               Int      @id @default(autoincrement())
-  film_id          Int
-  name             String
-  role_template_id Int?     // Links to the role template (e.g., "Bride")
-  created_at       DateTime @default(now())
-  updated_at       DateTime        @updatedAt
-
-  film            Film                     @relation(fields: [film_id], references: [id], onDelete: Cascade)
-  role_template   SubjectRole?     @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
-  scene_subjects  FilmSceneSubject[]
-  moment_subjects FilmSceneMomentSubject[]
-  project_instances ProjectFilmSubject[]
-
-  @@unique([film_id, name])
-  @@index([film_id])
-  @@index([role_template_id])
-  @@map("film_subjects")
-}
-
-model FilmLocation {
-  id          Int      @id @default(autoincrement())
-  film_id     Int
-  location_id Int
-  notes       String?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-
-  film     Film             @relation(fields: [film_id], references: [id], onDelete: Cascade)
-  location LocationsLibrary @relation(fields: [location_id], references: [id], onDelete: Cascade)
-  project_instances ProjectFilmLocation[]
-
-  @@unique([film_id, location_id])
-  @@index([film_id])
-  @@index([location_id])
-  @@map("film_locations")
-}
+// FilmSubject has been merged into PackageDaySubject.
+// All junction tables (FilmSceneMomentSubject, SceneSubjectPosition, MomentSubjectPosition)
+// now reference PackageDaySubject.id directly.
 
 model SceneTemplate {
   id              Int        @id @default(autoincrement())
@@ -2309,25 +2801,49 @@ model FilmScene {
   created_at        DateTime  @default(now())
   updated_at        DateTime  @updatedAt
 
+  source_activity_id  Int?
+
   film                Film                       @relation(fields: [film_id], references: [id], onDelete: Cascade)
   template            SceneTemplate?             @relation(fields: [scene_template_id], references: [id])
+  source_activity     PackageActivity?           @relation("ActivityFilmScene", fields: [source_activity_id], references: [id], onDelete: SetNull)
   moments             SceneMoment[]
   beats               SceneBeat[]
   recording_setup     SceneRecordingSetup?
   scene_music         SceneMusic?
-  subjects            FilmSceneSubject[]
-  location_assignment FilmSceneLocation?
-  schedule            FilmSceneSchedule?
-  package_schedules   PackageFilmSceneSchedule[]
-  project_schedules   ProjectFilmSceneSchedule[]
-  project_instances   ProjectFilmScene[]
-  audio_sources       SceneAudioSource[]         @relation("SceneAudioSources")
-  beat_source_refs    SceneBeat[]                @relation("BeatSourceScene")
-  audio_source_refs   SceneAudioSource[]         @relation("AudioSourceScene")
+  location_assignment  FilmSceneLocation?
+  schedule             FilmSceneSchedule?
+  package_schedules    PackageFilmSceneSchedule[]
+  project_schedules    ProjectFilmSceneSchedule[]
+  project_instances    ProjectFilmScene[]
+  audio_sources        SceneAudioSource[]         @relation("SceneAudioSources")
+  beat_source_refs     SceneBeat[]                @relation("BeatSourceScene")
+  audio_source_refs    SceneAudioSource[]         @relation("AudioSourceScene")
+  scene_spaces         FilmSceneSpace[]
+  camera_positions     SceneCameraPosition[]
+  subject_positions    SceneSubjectPosition[]
 
   @@index([film_id])
   @@index([scene_template_id])
+  @@index([source_activity_id])
   @@map("film_scenes")
+}
+
+model FilmLocation {
+  id          Int      @id @default(autoincrement())
+  film_id     Int
+  location_id Int
+  notes       String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  film              Film                  @relation(fields: [film_id], references: [id], onDelete: Cascade)
+  location          LocationsLibrary      @relation(fields: [location_id], references: [id], onDelete: Cascade)
+  project_instances ProjectFilmLocation[]
+
+  @@unique([film_id, location_id])
+  @@index([film_id])
+  @@index([location_id])
+  @@map("film_locations")
 }
 
 model FilmSceneLocation {
@@ -2345,6 +2861,149 @@ model FilmSceneLocation {
   @@map("film_scene_locations")
 }
 
+// ─── Scene ↔ Space Mapping + Camera/Subject Positioning ──────────────
+// Scenes can span multiple spaces. Camera and subject positions are placed
+// within a space on its floor plan for spatial planning and shot estimation.
+
+// Junction: FilmScene ↔ LocationSpace (scene happening across 1+ spaces)
+model FilmSceneSpace {
+  id          Int      @id @default(autoincrement())
+  scene_id    Int
+  space_id    Int
+  order_index Int      @default(0)
+  created_at  DateTime @default(now())
+
+  scene FilmScene    @relation(fields: [scene_id], references: [id], onDelete: Cascade)
+  space LocationSpace @relation(fields: [space_id], references: [id], onDelete: Cascade)
+
+  @@unique([scene_id, space_id])
+  @@index([scene_id])
+  @@index([space_id])
+  @@map("film_scene_spaces")
+}
+
+// Camera position on a floor plan — per scene, per track (equipment)
+// Optionally derived from a SpaceSlotCameraPosition template (D: unified spatial systems).
+model SceneCameraPosition {
+  id                                  Int      @id @default(autoincrement())
+  scene_id                            Int
+  track_id                            Int      // Which camera track (Camera 1, Camera 2, etc.)
+  space_id                            Int      // Which space this camera is placed in
+  source_space_slot_camera_position_id Int?    // FK → SpaceSlotCameraPosition template this was derived from
+  x                                   Float   // X coordinate on the floor plan canvas
+  y                                   Float   // Y coordinate on the floor plan canvas
+  rotation                            Float   @default(0) // Degrees — direction the camera faces (0=up, 90=right)
+  focal_length_mm                     Int?    // Overrides track's default; drives FOV cone width
+  fov_angle                           Float?  // Field of view in degrees (inherited from template or set directly)
+  is_unmanned                         Boolean @default(false) // Tripod/gimbal (true) vs operator-held (false)
+  label                               String? // e.g. "Camera A - Altar", "Drone - Overhead"
+  created_at                          DateTime @default(now())
+  updated_at                          DateTime @updatedAt
+
+  scene  FilmScene                @relation(fields: [scene_id], references: [id], onDelete: Cascade)
+  track  FilmTimelineTrack        @relation(fields: [track_id], references: [id], onDelete: Cascade)
+  space  LocationSpace            @relation(fields: [space_id], references: [id], onDelete: Cascade)
+  source SpaceSlotCameraPosition? @relation("SpaceSlotCameraToSceneCamera", fields: [source_space_slot_camera_position_id], references: [id], onDelete: SetNull)
+  project_instances ProjectSceneCameraPosition[]
+  moment_overrides  MomentCameraPosition[]
+  camera_assignments CameraSubjectAssignment[]
+
+  @@unique([scene_id, track_id]) // One position per camera per scene
+  @@index([scene_id])
+  @@index([track_id])
+  @@index([space_id])
+  @@index([source_space_slot_camera_position_id])
+  @@map("scene_camera_positions")
+}
+
+// Subject position on a floor plan — per scene
+// Optionally derived from a SpaceSlotSubjectPosition template (D: unified spatial systems).
+model SceneSubjectPosition {
+  id                                   Int      @id @default(autoincrement())
+  scene_id                             Int
+  subject_id                           Int
+  space_id                             Int      // Which space this subject is in
+  source_space_slot_subject_position_id Int?    // FK → SpaceSlotSubjectPosition template this was derived from
+  x                                    Float   // X coordinate on the floor plan canvas
+  y                                    Float   // Y coordinate on the floor plan canvas
+  label                                String?
+  created_at                           DateTime @default(now())
+  updated_at                           DateTime @updatedAt
+
+  scene   FilmScene                 @relation(fields: [scene_id], references: [id], onDelete: Cascade)
+  subject PackageDaySubject         @relation(fields: [subject_id], references: [id], onDelete: Cascade)
+  space   LocationSpace             @relation(fields: [space_id], references: [id], onDelete: Cascade)
+  source  SpaceSlotSubjectPosition? @relation("SpaceSlotSubjectToSceneSubject", fields: [source_space_slot_subject_position_id], references: [id], onDelete: SetNull)
+  project_instances ProjectSceneSubjectPosition[]
+  moment_overrides  MomentSubjectPosition[]
+
+  @@unique([scene_id, subject_id]) // One position per subject per scene
+  @@index([scene_id])
+  @@index([subject_id])
+  @@index([space_id])
+  @@index([source_space_slot_subject_position_id])
+  @@map("scene_subject_positions")
+}
+
+// ─── Moment-Level Position Overrides (Keyframes) ─────────────────────
+// Scene positions are the default/starting position for cameras + subjects.
+// When a camera/subject physically moves between moments within a scene,
+// a MomentCameraPosition / MomentSubjectPosition overrides the scene default
+// for that specific moment. If no override exists → inherit scene position.
+
+// Camera position override for a specific moment within a scene
+model MomentCameraPosition {
+  id                        Int      @id @default(autoincrement())
+  moment_id                 Int
+  track_id                  Int      // Which camera track
+  space_id                  Int      // Which space (may differ from scene default if camera moves rooms)
+  source_scene_position_id  Int?     // FK to the scene-level default being overridden
+  x                         Float
+  y                         Float
+  rotation                  Float    @default(0)
+  focal_length_mm           Int?     // Override lens for this moment
+  is_unmanned               Boolean  @default(false)
+  label                     String?
+  created_at                DateTime @default(now())
+  updated_at                DateTime @updatedAt
+
+  moment SceneMoment         @relation(fields: [moment_id], references: [id], onDelete: Cascade)
+  track  FilmTimelineTrack   @relation(fields: [track_id], references: [id], onDelete: Cascade)
+  space  LocationSpace       @relation(fields: [space_id], references: [id], onDelete: Cascade)
+  source SceneCameraPosition? @relation(fields: [source_scene_position_id], references: [id], onDelete: SetNull)
+
+  @@unique([moment_id, track_id]) // One override per camera per moment
+  @@index([moment_id])
+  @@index([track_id])
+  @@index([space_id])
+  @@map("moment_camera_positions")
+}
+
+// Subject position override for a specific moment within a scene
+model MomentSubjectPosition {
+  id                        Int      @id @default(autoincrement())
+  moment_id                 Int
+  subject_id                Int
+  space_id                  Int      // Which space (may differ from scene default)
+  source_scene_position_id  Int?     // FK to the scene-level default being overridden
+  x                         Float
+  y                         Float
+  label                     String?
+  created_at                DateTime @default(now())
+  updated_at                DateTime @updatedAt
+
+  moment  SceneMoment          @relation(fields: [moment_id], references: [id], onDelete: Cascade)
+  subject PackageDaySubject    @relation(fields: [subject_id], references: [id], onDelete: Cascade)
+  space   LocationSpace        @relation(fields: [space_id], references: [id], onDelete: Cascade)
+  source  SceneSubjectPosition? @relation(fields: [source_scene_position_id], references: [id], onDelete: SetNull)
+
+  @@unique([moment_id, subject_id]) // One override per subject per moment
+  @@index([moment_id])
+  @@index([subject_id])
+  @@index([space_id])
+  @@map("moment_subject_positions")
+}
+
 model SceneRecordingSetup {
   id               Int      @id @default(autoincrement())
   scene_id         Int      @unique
@@ -2357,42 +3016,6 @@ model SceneRecordingSetup {
   camera_assignments SceneCameraAssignment[]
 
   @@map("scene_recording_setups")
-}
-
-model FilmSceneSubject {
-  id         Int             @id @default(autoincrement())
-  scene_id   Int
-  subject_id Int
-  priority   SubjectPriority @default(BACKGROUND)
-  notes      String?
-  created_at DateTime        @default(now())
-  updated_at DateTime        @updatedAt
-
-  scene   FilmScene   @relation(fields: [scene_id], references: [id], onDelete: Cascade)
-  subject FilmSubject @relation(fields: [subject_id], references: [id], onDelete: Cascade)
-
-  @@unique([scene_id, subject_id])
-  @@index([scene_id])
-  @@index([subject_id])
-  @@map("film_scene_subjects")
-}
-
-model FilmSceneMomentSubject {
-  id         Int             @id @default(autoincrement())
-  moment_id  Int
-  subject_id Int
-  priority   SubjectPriority @default(BACKGROUND)
-  notes      String?
-  created_at DateTime        @default(now())
-  updated_at DateTime        @updatedAt
-
-  moment  SceneMoment @relation(fields: [moment_id], references: [id], onDelete: Cascade)
-  subject FilmSubject @relation(fields: [subject_id], references: [id], onDelete: Cascade)
-
-  @@unique([moment_id, subject_id])
-  @@index([moment_id])
-  @@index([subject_id])
-  @@map("film_scene_moment_subjects")
 }
 
 model SceneCameraAssignment {
@@ -2410,24 +3033,57 @@ model SceneCameraAssignment {
   @@map("scene_camera_assignments")
 }
 
+// FilmSceneSubject has been removed — scene subjects are computed from activities.
+
+model FilmSceneMomentSubject {
+  id                 Int             @id @default(autoincrement())
+  moment_id          Int
+  subject_id         Int
+  priority           SubjectPriority @default(BACKGROUND)
+  notes              String?
+  action_description String?         // Visual action for AI shot preview prompts, e.g. "standing at lectern, reading from book"
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @updatedAt
+
+  moment  SceneMoment      @relation(fields: [moment_id], references: [id], onDelete: Cascade)
+  subject PackageDaySubject @relation(fields: [subject_id], references: [id], onDelete: Cascade)
+
+  @@unique([moment_id, subject_id])
+  @@index([moment_id])
+  @@index([subject_id])
+  @@map("film_scene_moment_subjects")
+}
+
+// FilmSceneSubject has been removed — scene subjects are computed from activities.
+
 model SceneMoment {
   id                 Int      @id @default(autoincrement())
   film_scene_id      Int
   name               String
+  description        String? // Template description — supports {{variable}} placeholders
   order_index        Int
   duration           Int      @default(60)
   source_activity_id Int?
+  // Canonical link to the package planning moment that owns this SceneMoment's
+  // identity, presence, and subject actions. In package mode this FK is required;
+  // film-side flows must not create or backfill it — the package planner owns it.
+  // Nullable because realtime/montage scenes may not originate from a package moment.
+  package_activity_moment_id Int?
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
   film_scene      FilmScene                @relation(fields: [film_scene_id], references: [id], onDelete: Cascade)
+  source_moment   PackageActivityMoment?   @relation("SceneMomentSource", fields: [package_activity_moment_id], references: [id], onDelete: SetNull)
   recording_setup MomentRecordingSetup?
   moment_music    MomentMusic?
   subjects        FilmSceneMomentSubject[]
+  camera_positions  MomentCameraPosition[]
+  subject_positions MomentSubjectPosition[]
   project_instances ProjectFilmSceneMoment[]
 
   @@unique([film_scene_id, order_index])
   @@index([film_scene_id])
+  @@index([package_activity_moment_id])
   @@map("film_scene_moments")
 }
 
@@ -2490,18 +3146,26 @@ model MomentRecordingSetup {
 }
 
 model CameraSubjectAssignment {
-  id                 Int       @id @default(autoincrement())
-  recording_setup_id Int
-  track_id           Int
-  subject_ids        Int[]
-  shot_type          ShotType?
+  id                        Int       @id @default(autoincrement())
+  recording_setup_id        Int
+  track_id                  Int
+  scene_camera_position_id  Int?      // FK → SceneCameraPosition (stable link to spatial data; replaces name-matching)
+  subject_ids               Int[]     // Focus subjects: who the camera intentionally films (editorial intent)
+  visible_subject_ids       Int[]     // Visible subjects: who is geometrically within the camera FOV (computed from spatial data)
+  shot_type                 ShotType?
+  enabled                   Boolean   @default(true)
+  ai_prompt                 String?
+  pipeline_data             Json?     // Director output + spatial frame from AI prep stage
+  spatial_hash              String?   // Hash of spatial inputs for staleness detection
 
-  recording_setup MomentRecordingSetup @relation(fields: [recording_setup_id], references: [id], onDelete: Cascade)
-  track           FilmTimelineTrack    @relation(fields: [track_id], references: [id], onDelete: Cascade)
+  recording_setup    MomentRecordingSetup @relation(fields: [recording_setup_id], references: [id], onDelete: Cascade)
+  track              FilmTimelineTrack    @relation(fields: [track_id], references: [id], onDelete: Cascade)
+  scene_camera_position SceneCameraPosition? @relation(fields: [scene_camera_position_id], references: [id], onDelete: SetNull)
 
   @@unique([recording_setup_id, track_id])
   @@index([recording_setup_id])
   @@index([track_id])
+  @@index([scene_camera_position_id])
   @@map("camera_subject_assignments")
 }
 
@@ -2534,6 +3198,32 @@ model MomentMusic {
   moment SceneMoment @relation(fields: [moment_id], references: [id], onDelete: Cascade)
 
   @@map("moment_music")
+}
+
+// ─── Shot Previews (AI-generated shot visualisations) ───
+model ShotPreview {
+  id                    Int              @id @default(autoincrement())
+  camera_assignment_id  Int              // ID from either camera_subject_assignments or project_camera_subject_assignments
+  source_type           String           @default("package") // "package" | "project"
+  film_id               Int
+  brand_id              Int
+  prompt                String
+  negative_prompt       String?
+  image_path            String           // Local file path relative to uploads/
+  seed                  Int?
+  model_name            String?          // SD model checkpoint used
+  status                GenerationStatus @default(PENDING)
+  error_message         String?
+  created_at            DateTime         @default(now())
+  updated_at            DateTime         @updatedAt
+
+  film              Film                    @relation(fields: [film_id], references: [id], onDelete: Cascade)
+  brand             brands                  @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+
+  @@index([camera_assignment_id, source_type])
+  @@index([film_id])
+  @@index([brand_id])
+  @@map("shot_previews")
 }
 
 // ─── Montage Presets (brand-scoped, system-seeded defaults) ───
@@ -2810,26 +3500,42 @@ enum equipment_availability_status {
   TENTATIVE
 }
 
+enum PlanningStatus {
+  CREATED
+  PLANNING
+  READY
+  FAILED
+}
+
 model service_packages {
-  id              Int      @id @default(autoincrement())
-  brand_id        Int
-  wedding_type_id Int? // Which wedding type this package was created from (optional)
-  name            String
-  description     String?
-  category        String? // Keeping for backward compat, or allows free text if no relation
-  category_id     Int? // New flexible relation
-  currency        String   @default("USD")
-  is_active       Boolean  @default(true)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+  id                                Int      @id @default(autoincrement())
+  brand_id                          Int
+  created_from_package_template_id  Int? // Which package template this was created from (optional)
+  // Lineage to the Day Blueprint (and specific version) the package
+  // was snapshotted from. Package runtime must not read these live —
+  // package-scope rows carry the consumed data. Used for drift
+  // detection and the "re-sync to latest" UX.
+  source_day_blueprint_id           Int?
+  source_day_blueprint_version_id   Int?
+  name                              String
+  description                       String?
+  event_category                    String? // Freeform category label (e.g. "Wedding", "Birthday")
+  currency                          String   @default("USD")
+  is_active                         Boolean  @default(true)
+  planning_status                   PlanningStatus @default(CREATED)
+  planning_error                    String?
+  created_at                        DateTime @default(now())
+  updated_at                        DateTime @updatedAt
 
   // JSON field to store the package contents (Films, coverage, add-ons)
   // Structure: { films: [id, id], line_items: [{description, price}] }
   contents Json?
 
   brand                brands                      @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  package_category     service_package_categories? @relation(fields: [category_id], references: [id])
-  wedding_type         EventSubtype?                @relation("CreatedFromEventSubtype", fields: [wedding_type_id], references: [id], onDelete: SetNull)
+  package_template     PackageTemplate?            @relation("CreatedFromPackageTemplate", fields: [created_from_package_template_id], references: [id], onDelete: SetNull)
+  source_day_blueprint         DayBlueprint?        @relation("ServicePackageSourceDayBlueprint", fields: [source_day_blueprint_id], references: [id], onDelete: SetNull)
+  source_day_blueprint_version DayBlueprintVersion? @relation("ServicePackageSourceDayBlueprintVersion", fields: [source_day_blueprint_version_id], references: [id], onDelete: SetNull)
+  day_blueprint_usages         DayBlueprintUsage[]
   inquiries            inquiries[]
   inquiry_source_refs   inquiries[]             @relation("InquirySourcePackage")
   projects_from_package projects[]              @relation("ProjectSourcePackage")
@@ -2842,6 +3548,7 @@ model service_packages {
   package_day_subjects        PackageDaySubject[]
   package_event_day_locations PackageEventDayLocation[]
   package_location_slots      PackageLocationSlot[]
+  package_space_slots          PackageSpaceSlot[]
   package_versions            PackageVersion[]
   package_task_overrides      PackageTaskOverride[]
   package_set_slots            package_set_slots[]
@@ -2849,32 +3556,12 @@ model service_packages {
   workflow_template           workflow_templates?       @relation(fields: [workflow_template_id], references: [id], onDelete: SetNull)
 
   @@index([brand_id])
-  @@index([category_id])
-  @@index([wedding_type_id])
+  @@index([event_category])
+  @@index([created_from_package_template_id])
   @@index([workflow_template_id])
+  @@index([source_day_blueprint_id])
+  @@index([source_day_blueprint_version_id])
   @@map("service_packages")
-}
-
-model service_package_categories {
-  id            Int      @id @default(autoincrement())
-  brand_id      Int
-  name          String
-  description   String?
-  order_index   Int      @default(0)
-  is_active     Boolean  @default(true)
-  event_type_id Int?     // FK → event_types; populated automatically when EventType is created
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-
-  brand      brands             @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  event_type EventType?         @relation(fields: [event_type_id], references: [id], onDelete: SetNull)
-  packages   service_packages[]
-  package_sets package_sets[]
-
-  @@unique([brand_id, name])
-  @@index([brand_id])
-  @@index([event_type_id])
-  @@map("service_package_categories")
 }
 
 // ============================================================
@@ -2898,84 +3585,6 @@ model SchedulePreset {
   @@map("schedule_presets")
 }
 
-// ─── Event Types ──────────────────────────────────────────────────────
-// Top-level event categories (e.g., "Wedding", "Corporate", "Birthday")
-// Groups event days and subject types into a coherent template
-// Used by the Package Creation Wizard to stamp out packages
-
-model EventType {
-  id                     Int      @id @default(autoincrement())
-  brand_id               Int
-  name                   String // "Wedding", "Corporate", "Birthday"
-  description            String?
-  icon                   String? // Icon identifier (e.g., "heart", "cake")
-  color                  String? // Hex color for UI
-  default_duration_hours Int? // Typical total event duration
-  default_start_time     String? // "HH:MM" e.g., "14:00"
-  typical_guest_count    Int? // Reference guide
-  is_system              Boolean  @default(false) // System-seeded vs user-created
-  is_active              Boolean  @default(true)
-  order_index            Int      @default(0)
-  created_at             DateTime @default(now())
-  updated_at             DateTime @updatedAt
-
-  brand              brands                      @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  event_days         EventTypeDay[]
-  subject_roles      EventTypeSubject[]
-  event_subtypes     EventSubtype[]
-  inquiries          inquiries[]
-  package_categories service_package_categories[]
-  package_sets       package_sets[]
-
-  @@unique([brand_id, name])
-  @@index([brand_id])
-  @@index([is_system])
-  @@index([is_active])
-  @@map("event_types")
-}
-
-// Junction: EventType ↔ EventDay (many-to-many)
-// Optional event_subtype_id narrows this day to a specific subtype (e.g., Indian Wedding)
-model EventTypeDay {
-  id                    Int      @id @default(autoincrement())
-  event_type_id         Int
-  event_day_template_id Int
-  event_subtype_id      Int? // Nullable: when set, this day only applies to the given subtype
-  order_index           Int      @default(0)
-  is_default            Boolean  @default(true) // Pre-selected in wizard
-  created_at            DateTime @default(now())
-  updated_at            DateTime @updatedAt
-
-  event_type         EventType        @relation(fields: [event_type_id], references: [id], onDelete: Cascade)
-  event_day_template EventDay @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
-  event_subtype      EventSubtype?    @relation(fields: [event_subtype_id], references: [id], onDelete: SetNull)
-
-  @@unique([event_type_id, event_day_template_id])
-  @@index([event_type_id])
-  @@index([event_day_template_id])
-  @@index([event_subtype_id])
-  @@map("event_type_days")
-}
-
-// Junction: EventType ↔ SubjectRole (many-to-many)
-model EventTypeSubject {
-  id              Int      @id @default(autoincrement())
-  event_type_id   Int
-  subject_role_id Int
-  order_index     Int      @default(0)
-  is_default      Boolean  @default(true) // Pre-selected in wizard
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
-
-  event_type   EventType   @relation(fields: [event_type_id], references: [id], onDelete: Cascade)
-  subject_role SubjectRole @relation(fields: [subject_role_id], references: [id], onDelete: Cascade)
-
-  @@unique([event_type_id, subject_role_id])
-  @@index([event_type_id])
-  @@index([subject_role_id])
-  @@map("event_type_subjects")
-}
-
 // Brand-level event days (e.g., "Rehearsal Dinner", "Wedding Day", "Reception")
 // EventDay is the single source of truth for activities, moments, subjects, and locations
 model EventDay {
@@ -2993,9 +3602,9 @@ model EventDay {
   updated_at             DateTime @updatedAt
 
   brand                       brands                     @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  activity_presets             EventDayActivity[]
+  activity_presets            EventDayActivity[]
   subject_roles               EventDaySubjectRole[]
-  event_type_days             EventTypeDay[]
+  package_template_days       PackageTemplateDay[]
   film_scene_schedules        FilmSceneSchedule[]
   package_scene_schedules     PackageFilmSceneSchedule[]
   project_event_days          ProjectEventDay[]
@@ -3003,6 +3612,7 @@ model EventDay {
   package_day_subjects        PackageDaySubject[]
   package_event_day_locations PackageEventDayLocation[]
   package_location_slots      PackageLocationSlot[]
+  package_space_slots          PackageSpaceSlot[]
 
   @@unique([brand_id, name])
   @@index([brand_id])
@@ -3017,7 +3627,8 @@ model EventDayActivity {
   id                       Int      @id @default(autoincrement())
   event_day_template_id    Int
   name                     String // "Bridal Prep", "Ceremony", etc.
-  description              String? // Short description of the activity
+  description              String? // Short description — supports {{variable}} placeholders
+  location_label           String? // Default area within venue, e.g. "Bridal Suite", "The Altar"
   color                    String? // Hex color, e.g., "#ec4899"
   icon                     String? // Icon identifier
   default_start_time       String? // Default "HH:MM" start time, e.g. "14:00"
@@ -3077,163 +3688,185 @@ model EventDaySubjectRole {
   @@map("event_day_subject_roles")
 }
 
-// ─── Event Subtypes ──────────────────────────────────────────────────
-// Cultural/style variations within an event type (e.g., "Indian Wedding", "Traditional British Wedding")
-// Each subtype has a standard set of activities suitable for that culture/style
-model EventSubtype {
+// ─── Package Templates ───────────────────────────────────────────────
+// Flat package templates — each row is a standalone template used by the
+// Package Creation Wizard to stamp out a service_packages record.
+// `event_category` is a freeform string (e.g. "Wedding", "Birthday").
+
+model PackageTemplate {
   id                   Int      @id @default(autoincrement())
-  brand_id             Int? // Brand-specific override, NULL = system default
-  event_type_id        Int? // Which event type this subtype belongs to (e.g., Wedding → Indian Wedding)
-  name                 String // "Traditional British Wedding", "Indian Wedding", etc.
+  brand_id             Int? // null = system-seeded; otherwise brand-specific
+  name                 String // "Traditional British Wedding", "Birthday Party"
+  event_category       String // Freeform group label (e.g. "Wedding", "Corporate", "Birthday")
   description          String?
-  total_duration_hours Int // e.g., 10 for British, 14 for Indian
-  event_start_time     String // "HH:MM" e.g., "14:00" or "12:00"
-  typical_guest_count  Int? // Reference guide for this wedding type
-  is_system_seeded     Boolean  @default(true) // System defaults vs user-created
+  icon                 String?
+  color                String?
+  total_duration_hours Int
+  event_start_time     String // "HH:MM"
+  typical_guest_count  Int?
+  is_system_seeded     Boolean  @default(true)
   is_active            Boolean  @default(true)
   order_index          Int      @default(0)
   created_at           DateTime @default(now())
   updated_at           DateTime @updatedAt
 
-  brand                    brands?               @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  event_type               EventType?            @relation(fields: [event_type_id], references: [id], onDelete: SetNull)
-  activities               EventSubtypeActivity[]
-  locations                EventSubtypeLocation[]
-  subjects                 EventSubtypeSubject[]
-  event_type_days          EventTypeDay[]
-  service_packages_created service_packages[]    @relation("CreatedFromEventSubtype")
+  brand                    brands?                   @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  days                     PackageTemplateDay[]
+  activities               PackageTemplateActivity[]
+  locations                PackageTemplateLocation[]
+  subjects                 PackageTemplateSubject[]
+  service_packages_created service_packages[]        @relation("CreatedFromPackageTemplate")
 
   @@unique([brand_id, name])
   @@index([brand_id])
-  @@index([event_type_id])
+  @@index([event_category])
   @@index([is_system_seeded])
   @@index([is_active])
-  @@map("event_subtypes")
+  @@map("package_templates")
 }
 
-// Activities within a wedding type template
-// These auto-populate into the package when created "from" this wedding type
-model EventSubtypeActivity {
+// Junction: PackageTemplate ↔ EventDay (many-to-many)
+// Declares which EventDay presets this template uses and in what order.
+model PackageTemplateDay {
+  id                    Int      @id @default(autoincrement())
+  package_template_id   Int
+  event_day_template_id Int
+  order_index           Int      @default(0)
+  is_default            Boolean  @default(true)
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  package_template   PackageTemplate @relation(fields: [package_template_id], references: [id], onDelete: Cascade)
+  event_day_template EventDay        @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
+
+  @@unique([package_template_id, event_day_template_id])
+  @@index([package_template_id])
+  @@index([event_day_template_id])
+  @@map("package_template_days")
+}
+
+// Activities within a package template
+// These auto-populate into PackageActivity when the package is created.
+model PackageTemplateActivity {
   id                        Int      @id @default(autoincrement())
-  wedding_type_id           Int
-  name                      String // "Getting Ready", "Ceremony", "Reception", etc.
-  icon                      String? // Icon identifier (e.g., "glam", "heart", "cake")
-  color                     String? // Hex color for Gantt visualization
-  duration_minutes          Int // Activity block duration (e.g., 60, 90)
-  start_time_offset_minutes Int // Minutes from event_start_time (e.g., 0, 60, 120)
+  package_template_id       Int
+  name                      String
+  icon                      String?
+  color                     String?
+  duration_minutes          Int
+  start_time_offset_minutes Int
   order_index               Int      @default(0)
   description               String?
   created_at                DateTime @default(now())
   updated_at                DateTime @updatedAt
 
-  wedding_type       EventSubtype                   @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
-  moments            EventSubtypeActivityMoment[]
-  activity_locations EventSubtypeActivityLocation[]
-  activity_subjects  EventSubtypeActivitySubject[]
+  package_template   PackageTemplate                    @relation(fields: [package_template_id], references: [id], onDelete: Cascade)
+  moments            PackageTemplateMoment[]
+  activity_locations PackageTemplateActivityLocation[]
+  activity_subjects  PackageTemplateActivitySubject[]
 
-  @@unique([wedding_type_id, order_index])
-  @@index([wedding_type_id])
-  @@map("event_subtype_activities")
+  @@unique([package_template_id, order_index])
+  @@index([package_template_id])
+  @@map("package_template_activities")
 }
 
-// Moments within a wedding type activity
-// These auto-populate into the PackageActivityMoment when package is created
-model EventSubtypeActivityMoment {
-  id                       Int      @id @default(autoincrement())
-  wedding_type_activity_id Int
-  name                     String // "Processional", "Vows", "First Dance", "Cutting Cake", etc.
-  duration_seconds         Int      @default(60) // Estimated moment duration
-  order_index              Int      @default(0)
-  is_key_moment            Boolean  @default(false) // Mark for highlight reel inclusion
-  description              String?
-  created_at               DateTime @default(now())
-  updated_at               DateTime @updatedAt
-
-  wedding_type_activity EventSubtypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
-
-  @@unique([wedding_type_activity_id, order_index])
-  @@index([wedding_type_activity_id])
-  @@map("event_subtype_activity_moments")
-}
-
-// Locations for a wedding type template
-// e.g., "Bride's Home", "Venue", "Reception Hall", "Garden"
-model EventSubtypeLocation {
-  id              Int      @id @default(autoincrement())
-  wedding_type_id Int
-  name            String // "Bride's Getting Ready", "Ceremony Venue", "Reception Hall", etc.
-  location_type   String? // "getting_ready", "ceremony", "reception", "photo", etc.
-  order_index     Int      @default(0)
-  is_primary      Boolean  @default(false) // Main/primary location for this type
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
-
-  wedding_type       EventSubtype                   @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
-  activity_locations EventSubtypeActivityLocation[]
-
-  @@unique([wedding_type_id, order_index])
-  @@index([wedding_type_id])
-  @@map("event_subtype_locations")
-}
-
-// Subjects for a wedding type template
-// e.g., "Bride", "Groom", "Bridesmaids", "Family", "Guests"
-model EventSubtypeSubject {
-  id              Int      @id @default(autoincrement())
-  wedding_type_id Int
-  name            String // "Bride", "Groom", "Bridesmaids", "Groomsmen", "Parents", "Family", "Guests"
-  subject_type    String? // "couple", "wedding_party", "family", "guests", "children", "pets"
-  subject_role_id Int? // FK → SubjectRole for canonical role matching
-  typical_count   Int? // For "Bridesmaids": 3, "Guests": 80, etc.
-  order_index     Int      @default(0)
-  is_primary      Boolean  @default(false) // Core/primary subject type
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
-
-  wedding_type      EventSubtype                  @relation(fields: [wedding_type_id], references: [id], onDelete: Cascade)
-  subject_role      SubjectRole?                  @relation(fields: [subject_role_id], references: [id], onDelete: SetNull)
-  activity_subjects EventSubtypeActivitySubject[]
-
-  @@unique([wedding_type_id, order_index])
-  @@index([wedding_type_id])
-  @@index([subject_role_id])
-  @@map("event_subtype_subjects")
-}
-
-// Junction table: Activity -> Locations (many-to-many)
-model EventSubtypeActivityLocation {
+// Moments within a package-template activity
+// These auto-populate into PackageActivityMoment when the package is created.
+model PackageTemplateMoment {
   id                           Int      @id @default(autoincrement())
-  wedding_type_activity_id     Int
-  wedding_type_location_id     Int
+  package_template_activity_id Int
+  name                         String
+  duration_seconds             Int      @default(60)
+  order_index                  Int      @default(0)
+  is_key_moment                Boolean  @default(false)
+  description                  String?
+  subject_actions              Json?
   created_at                   DateTime @default(now())
   updated_at                   DateTime @updatedAt
 
-  wedding_type_activity EventSubtypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
-  wedding_type_location EventSubtypeLocation @relation(fields: [wedding_type_location_id], references: [id], onDelete: Cascade)
+  package_template_activity PackageTemplateActivity @relation(fields: [package_template_activity_id], references: [id], onDelete: Cascade)
 
-  @@unique([wedding_type_activity_id, wedding_type_location_id])
-  @@index([wedding_type_activity_id])
-  @@index([wedding_type_location_id])
-  @@map("event_subtype_activity_locations")
+  @@unique([package_template_activity_id, order_index])
+  @@index([package_template_activity_id])
+  @@map("package_template_moments")
 }
 
-// Junction table: Activity -> Subjects (many-to-many)
-model EventSubtypeActivitySubject {
-  id                       Int      @id @default(autoincrement())
-  wedding_type_activity_id Int
-  wedding_type_subject_id  Int
-  presence_percentage      Int? // How much of activity features this subject (0-100%)
-  is_primary_focus         Boolean  @default(false)
-  created_at               DateTime @default(now())
-  updated_at               DateTime @updatedAt
+// Locations for a package template (e.g. "Bride's Home", "Venue")
+model PackageTemplateLocation {
+  id                  Int      @id @default(autoincrement())
+  package_template_id Int
+  name                String
+  location_type       String?
+  order_index         Int      @default(0)
+  is_primary          Boolean  @default(false)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
 
-  wedding_type_activity EventSubtypeActivity @relation(fields: [wedding_type_activity_id], references: [id], onDelete: Cascade)
-  wedding_type_subject  EventSubtypeSubject  @relation(fields: [wedding_type_subject_id], references: [id], onDelete: Cascade)
+  package_template   PackageTemplate                   @relation(fields: [package_template_id], references: [id], onDelete: Cascade)
+  activity_locations PackageTemplateActivityLocation[]
 
-  @@unique([wedding_type_activity_id, wedding_type_subject_id])
-  @@index([wedding_type_activity_id])
-  @@index([wedding_type_subject_id])
-  @@map("event_subtype_activity_subjects")
+  @@unique([package_template_id, order_index])
+  @@index([package_template_id])
+  @@map("package_template_locations")
+}
+
+// Subjects for a package template (e.g. "Bride", "Groom", "Guests")
+model PackageTemplateSubject {
+  id                  Int      @id @default(autoincrement())
+  package_template_id Int
+  name                String
+  subject_type        String?
+  subject_role_id     Int?
+  typical_count       Int?
+  order_index         Int      @default(0)
+  is_primary          Boolean  @default(false)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  package_template  PackageTemplate                 @relation(fields: [package_template_id], references: [id], onDelete: Cascade)
+  subject_role      SubjectRole?                    @relation(fields: [subject_role_id], references: [id], onDelete: SetNull)
+  activity_subjects PackageTemplateActivitySubject[]
+
+  @@unique([package_template_id, order_index])
+  @@index([package_template_id])
+  @@index([subject_role_id])
+  @@map("package_template_subjects")
+}
+
+// Junction: PackageTemplateActivity ↔ PackageTemplateLocation
+model PackageTemplateActivityLocation {
+  id                           Int      @id @default(autoincrement())
+  package_template_activity_id Int
+  package_template_location_id Int
+  created_at                   DateTime @default(now())
+  updated_at                   DateTime @updatedAt
+
+  package_template_activity PackageTemplateActivity @relation(fields: [package_template_activity_id], references: [id], onDelete: Cascade)
+  package_template_location PackageTemplateLocation @relation(fields: [package_template_location_id], references: [id], onDelete: Cascade)
+
+  @@unique([package_template_activity_id, package_template_location_id])
+  @@index([package_template_activity_id])
+  @@index([package_template_location_id])
+  @@map("package_template_activity_locations")
+}
+
+// Junction: PackageTemplateActivity ↔ PackageTemplateSubject
+model PackageTemplateActivitySubject {
+  id                           Int      @id @default(autoincrement())
+  package_template_activity_id Int
+  package_template_subject_id  Int
+  presence_percentage          Int?
+  is_primary_focus             Boolean  @default(false)
+  created_at                   DateTime @default(now())
+  updated_at                   DateTime @updatedAt
+
+  package_template_activity PackageTemplateActivity @relation(fields: [package_template_activity_id], references: [id], onDelete: Cascade)
+  package_template_subject  PackageTemplateSubject  @relation(fields: [package_template_subject_id], references: [id], onDelete: Cascade)
+
+  @@unique([package_template_activity_id, package_template_subject_id])
+  @@index([package_template_activity_id])
+  @@index([package_template_subject_id])
+  @@map("package_template_activity_subjects")
 }
 
 // Film-level scene schedule defaults (1:1 with FilmScene)
@@ -3286,11 +3919,16 @@ model PackageEventDay {
 
 // Package-level activities (template schedule blocks)
 model PackageActivity {
-  id                   Int      @id @default(autoincrement())
-  package_id           Int
-  package_event_day_id Int
+  id                                  Int      @id @default(autoincrement())
+  package_id                          Int
+  package_event_day_id                Int
+  // Lineage to the Day Blueprint activity this row was snapshotted
+  // from. Nullable so legacy packages created before the blueprint
+  // layer keep working.
+  source_day_blueprint_activity_id    Int?
   name                 String // "Bridal Prep", "Ceremony", "Reception", etc.
   description          String?
+  location_label       String? // Specific area within the venue, e.g. "Bridal Suite", "The Altar"
   color                String? // Hex color for Gantt visualization
   icon                 String? // Icon identifier (e.g. "church", "ring", "cake")
   start_time           String? // "HH:MM" format, e.g. "14:00"
@@ -3302,18 +3940,22 @@ model PackageActivity {
 
   package              service_packages             @relation(fields: [package_id], references: [id], onDelete: Cascade)
   package_event_day    PackageEventDay              @relation(fields: [package_event_day_id], references: [id], onDelete: Cascade)
+  source_day_blueprint_activity DayBlueprintActivity? @relation("PackageActivitySourceDayBlueprintActivity", fields: [source_day_blueprint_activity_id], references: [id], onDelete: SetNull)
   scene_schedules      PackageFilmSceneSchedule[]
   locations            PackageEventDayLocation[]
   project_activities   ProjectActivity[]
   crew_slot_assignments PackageCrewSlotActivity[]
   subject_assignments  PackageDaySubjectActivity[]
   location_assignments LocationActivityAssignment[]
+  space_assignments    SpaceActivityAssignment[]
   moments              PackageActivityMoment[]
   beat_sources         SceneBeat[]
   audio_sources        SceneAudioSource[]
+  film_scenes          FilmScene[]            @relation("ActivityFilmScene")
 
   @@index([package_id])
   @@index([package_event_day_id])
+  @@index([source_day_blueprint_activity_id])
   @@map("package_activities")
 }
 
@@ -3321,7 +3963,13 @@ model PackageActivity {
 model PackageActivityMoment {
   id                  Int      @id @default(autoincrement())
   package_activity_id Int
+  // Lineage to the Day Blueprint moment this row was snapshotted
+  // from. Nullable so legacy / AI-only packages still resolve.
+  source_day_blueprint_moment_id Int?
   name                String // "Processional", "Vows", "First Dance", etc.
+  description         String? // Template description — supports {{variable}} placeholders
+  subject_actions     Json?   // { "Bride": "standing at altar...", "Groom": "..." } — per-subject action descriptions for prompt generation
+  camera_subject_plan Json?   // { "<cameraLabel>": ["<subjectName>", ...] } — AI-blocked camera→subject targeting, copied to film CameraSubjectAssignment.subject_ids at film-creation time
   order_index         Int      @default(0)
   duration_seconds    Int      @default(60) // Default estimated duration in seconds
   is_required         Boolean  @default(true) // Whether this moment must appear in linked scenes
@@ -3330,11 +3978,17 @@ model PackageActivityMoment {
   updated_at          DateTime @updatedAt
 
   package_activity PackageActivity @relation(fields: [package_activity_id], references: [id], onDelete: Cascade)
+  source_day_blueprint_moment DayBlueprintMoment? @relation("PackageActivityMomentSourceDayBlueprintMoment", fields: [source_day_blueprint_moment_id], references: [id], onDelete: SetNull)
+  actions          PackageActivityMomentAction[]
   beat_sources     SceneBeat[]     @relation("BeatSourceMoment")
   audio_sources    SceneAudioSource[] @relation("AudioSourceMoment")
+  space_slot_camera_overrides SpaceSlotMomentCamera[]
+  space_slot_subject_overrides SpaceSlotMomentSubject[]
+  scene_moments    SceneMoment[]   @relation("SceneMomentSource")
 
   @@unique([package_activity_id, order_index])
   @@index([package_activity_id])
+  @@index([source_day_blueprint_moment_id])
   @@map("package_activity_moments")
 }
 
@@ -3357,6 +4011,7 @@ model PackageCrewSlot {
   job_role             job_roles                @relation(fields: [job_role_id], references: [id], onDelete: Restrict)
   equipment            PackageCrewSlotEquipment[]
   activity_assignments PackageCrewSlotActivity[]
+  space_camera_positions SpaceSlotCameraPosition[]
 
   @@unique([package_id, package_event_day_id, job_role_id, order_index])
   @@index([package_id])
@@ -3402,6 +4057,11 @@ model PackageDaySubject {
   event_day            EventDay                   @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
   role_template        SubjectRole?               @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
   activity_assignments PackageDaySubjectActivity[]
+  space_positions      SpaceSlotSubjectPosition[]
+  scene_positions      SceneSubjectPosition[]
+  moment_positions     MomentSubjectPosition[]
+  moment_subjects      FilmSceneMomentSubject[]
+  project_instances    ProjectFilmSubject[]
 
   @@unique([package_id, event_day_template_id, name])
   @@index([package_id])
@@ -3511,6 +4171,7 @@ model ProjectEventDay {
   day_crew_slots    ProjectCrewSlot[]
   subjects           ProjectDaySubject[]
   location_slots     ProjectLocationSlot[]
+  space_slots         ProjectSpaceSlot[]
 
   @@index([project_id])
   @@index([inquiry_id])
@@ -3528,6 +4189,7 @@ model ProjectActivity {
   package_activity_id  Int? // Link back to package activity template
   name                 String // "Bridal Prep", "Ceremony", etc.
   description          String?
+  location_label       String? // Specific area within the venue, e.g. "Bridal Suite", "The Altar"
   color                String?
   icon                 String?
   start_time           String? // Actual "HH:MM"
@@ -3548,6 +4210,7 @@ model ProjectActivity {
   crew_slot_assignments  ProjectCrewSlotActivity[]
   subject_assignments   ProjectDaySubjectActivity[]
   location_assignments  ProjectLocationActivityAssignment[]
+  space_assignments     ProjectSpaceActivityAssignment[]
 
   @@index([inquiry_id])
   @@index([project_event_day_id])
@@ -3645,6 +4308,7 @@ model ProjectFilmTimelineTrack {
   crew              Crew?                   @relation(fields: [crew_id], references: [id], onDelete: SetNull)
   camera_assignments       ProjectCameraSubjectAssignment[]
   scene_camera_assignments ProjectSceneCameraAssignment[]
+  camera_positions         ProjectSceneCameraPosition[]
 
   @@index([project_id])
   @@index([inquiry_id])
@@ -3660,7 +4324,7 @@ model ProjectFilmSubject {
   project_id        Int?
   inquiry_id        Int?
   project_film_id   Int
-  source_subject_id Int?            // Traceability FK → FilmSubject
+  source_subject_id Int?            // Traceability FK → PackageDaySubject
   name              String
   role_template_id  Int?
   created_at        DateTime @default(now())
@@ -3669,10 +4333,11 @@ model ProjectFilmSubject {
   project         projects?                  @relation(fields: [project_id], references: [id], onDelete: Cascade)
   inquiry         inquiries?                 @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
   project_film    ProjectFilm                @relation(fields: [project_film_id], references: [id], onDelete: Cascade)
-  source_subject  FilmSubject?               @relation(fields: [source_subject_id], references: [id], onDelete: SetNull)
+  source_subject  PackageDaySubject?         @relation(fields: [source_subject_id], references: [id], onDelete: SetNull)
   role_template   SubjectRole?       @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
   scene_subjects  ProjectFilmSceneSubject[]
   moment_subjects ProjectFilmSceneMomentSubject[]
+  scene_positions ProjectSceneSubjectPosition[]
 
   @@index([project_id])
   @@index([inquiry_id])
@@ -3735,6 +4400,9 @@ model ProjectFilmScene {
   location_assignment ProjectFilmSceneLocation?
   recording_setup     ProjectSceneRecordingSetup?
   scene_camera_assignments ProjectSceneCameraAssignment[]
+  scene_spaces         ProjectFilmSceneSpace[]
+  camera_positions     ProjectSceneCameraPosition[]
+  subject_positions    ProjectSceneSubjectPosition[]
 
   @@index([project_id])
   @@index([inquiry_id])
@@ -3752,6 +4420,7 @@ model ProjectFilmSceneMoment {
   project_scene_id  Int
   source_moment_id  Int?     // Traceability FK → SceneMoment
   name              String
+  description       String? // Template description — supports {{variable}} placeholders
   order_index       Int
   duration          Int      @default(60)
   created_at        DateTime @default(now())
@@ -3798,12 +4467,11 @@ model ProjectFilmSceneBeat {
   @@map("project_film_scene_beats")
 }
 
-// Instance of FilmSceneSubject — project-owned copy
+// Instance of FilmSceneSubject — project-owned copy (source table removed; priority now lives on ProjectFilmSceneMomentSubject)
 model ProjectFilmSceneSubject {
   id                       Int             @id @default(autoincrement())
   project_scene_id         Int
   project_film_subject_id  Int
-  source_scene_subject_id  Int?            // Traceability FK → FilmSceneSubject
   priority                 SubjectPriority @default(BACKGROUND)
   notes                    String?
   created_at               DateTime        @default(now())
@@ -3825,6 +4493,7 @@ model ProjectFilmSceneMomentSubject {
   project_film_subject_id  Int
   priority                 SubjectPriority @default(BACKGROUND)
   notes                    String?
+  action_description       String?         // Visual action for AI shot preview prompts (cloned from package)
   created_at               DateTime        @default(now())
   updated_at               DateTime        @updatedAt
 
@@ -3852,6 +4521,92 @@ model ProjectFilmSceneLocation {
   @@index([project_scene_id])
   @@index([location_id])
   @@map("project_film_scene_locations")
+}
+
+// ─── Project-Level Scene ↔ Space + Camera/Subject Positions ──────────
+// Deep-cloned copies of library spatial data, owned by project/inquiry.
+
+// Instance of FilmSceneSpace — project-owned copy
+model ProjectFilmSceneSpace {
+  id                    Int      @id @default(autoincrement())
+  project_scene_id      Int
+  space_id              Int
+  source_scene_space_id Int?     // Traceability FK → FilmSceneSpace
+  order_index           Int      @default(0)
+  created_at            DateTime @default(now())
+
+  project_scene ProjectFilmScene @relation(fields: [project_scene_id], references: [id], onDelete: Cascade)
+  space         LocationSpace    @relation(fields: [space_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_scene_id, space_id])
+  @@index([project_scene_id])
+  @@index([space_id])
+  @@map("project_film_scene_spaces")
+}
+
+// Instance of SceneCameraPosition — project-owned copy
+model ProjectSceneCameraPosition {
+  id                        Int      @id @default(autoincrement())
+  project_id                Int?
+  inquiry_id                Int?
+  project_scene_id          Int
+  project_track_id          Int      // FK → ProjectFilmTimelineTrack
+  space_id                  Int
+  source_camera_position_id Int?     // Traceability FK → SceneCameraPosition
+  x                         Float
+  y                         Float
+  rotation                  Float    @default(0)
+  focal_length_mm           Int?
+  is_unmanned               Boolean  @default(false)
+  label                     String?
+  created_at                DateTime @default(now())
+  updated_at                DateTime @updatedAt
+
+  project       projects?                @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry       inquiries?               @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_scene ProjectFilmScene         @relation(fields: [project_scene_id], references: [id], onDelete: Cascade)
+  project_track ProjectFilmTimelineTrack @relation(fields: [project_track_id], references: [id], onDelete: Cascade)
+  space         LocationSpace            @relation(fields: [space_id], references: [id], onDelete: Cascade)
+  source        SceneCameraPosition?     @relation(fields: [source_camera_position_id], references: [id], onDelete: SetNull)
+
+  @@unique([project_scene_id, project_track_id])
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_scene_id])
+  @@index([project_track_id])
+  @@index([space_id])
+  @@map("project_scene_camera_positions")
+}
+
+// Instance of SceneSubjectPosition — project-owned copy
+model ProjectSceneSubjectPosition {
+  id                          Int      @id @default(autoincrement())
+  project_id                  Int?
+  inquiry_id                  Int?
+  project_scene_id            Int
+  project_subject_id          Int      // FK → ProjectFilmSubject
+  space_id                    Int
+  source_subject_position_id  Int?     // Traceability FK → SceneSubjectPosition
+  x                           Float
+  y                           Float
+  label                       String?
+  created_at                  DateTime @default(now())
+  updated_at                  DateTime @updatedAt
+
+  project         projects?           @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry         inquiries?          @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_scene   ProjectFilmScene    @relation(fields: [project_scene_id], references: [id], onDelete: Cascade)
+  project_subject ProjectFilmSubject  @relation(fields: [project_subject_id], references: [id], onDelete: Cascade)
+  space           LocationSpace       @relation(fields: [space_id], references: [id], onDelete: Cascade)
+  source          SceneSubjectPosition? @relation(fields: [source_subject_position_id], references: [id], onDelete: SetNull)
+
+  @@unique([project_scene_id, project_subject_id])
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_scene_id])
+  @@index([project_subject_id])
+  @@index([space_id])
+  @@map("project_scene_subject_positions")
 }
 
 // Instance of FilmEquipmentAssignment — project-owned copy
@@ -3936,6 +4691,8 @@ model ProjectCameraSubjectAssignment {
   track_id           Int
   subject_ids        Int[]
   shot_type          ShotType?
+  pipeline_data      Json?     // Director output + spatial frame from AI prep stage
+  spatial_hash       String?   // Hash of spatial inputs for staleness detection
 
   recording_setup ProjectMomentRecordingSetup @relation(fields: [recording_setup_id], references: [id], onDelete: Cascade)
   track           ProjectFilmTimelineTrack    @relation(fields: [track_id], references: [id], onDelete: Cascade)
@@ -3975,6 +4732,7 @@ model ProjectActivityMoment {
   project_activity_id   Int
   source_package_moment_id Int? // Traceability to original PackageActivityMoment
   name                  String // "Processional", "Vows", "First Dance", etc.
+  description           String? // Template description — supports {{variable}} placeholders
   order_index           Int      @default(0)
   duration_seconds      Int      @default(60)
   is_required           Boolean  @default(true)
@@ -4018,6 +4776,7 @@ model ProjectDaySubject {
   role_template     SubjectRole?           @relation(fields: [role_template_id], references: [id], onDelete: SetNull)
   contact           contacts?              @relation(fields: [contact_id], references: [id], onDelete: SetNull)
   activity_assignments ProjectDaySubjectActivity[]
+  space_positions       ProjectSpaceSlotSubject[]
 
   @@index([project_id])
   @@index([inquiry_id])
@@ -4051,6 +4810,7 @@ model ProjectLocationSlot {
   project_event_day ProjectEventDay   @relation(fields: [project_event_day_id], references: [id], onDelete: Cascade)
   location          LocationsLibrary? @relation(fields: [location_id], references: [id], onDelete: SetNull)
   activity_assignments ProjectLocationActivityAssignment[]
+  space_slots          ProjectSpaceSlot[]
 
   @@index([project_id])
   @@index([inquiry_id])
@@ -4073,6 +4833,7 @@ model ProjectCrewSlot {
   label                String? // Optional display override
   order_index          Int      @default(0)
   confirmed            Boolean  @default(false)
+  lead_type            String?  // null = not lead, 'producer' | 'videographer' | 'editor' — at most one per type per inquiry/project
   created_at           DateTime @default(now())
   updated_at           DateTime @updatedAt
 
@@ -4084,6 +4845,7 @@ model ProjectCrewSlot {
   equipment            ProjectCrewSlotEquipment[]
   activity_assignments ProjectCrewSlotActivity[]
   availability_requests inquiry_crew_availability_requests[]
+  space_camera_positions ProjectSpaceSlotCamera[]
 
   @@index([project_id])
   @@index([inquiry_id])
@@ -4157,6 +4919,124 @@ model ProjectLocationActivityAssignment {
   @@map("project_location_activity_assignments")
 }
 
+// ─── Project Space Slots ──────────────────────────────────────────────
+// Named sub-areas within a location at project/inquiry level.
+// Cloned from PackageSpaceSlot during project creation.
+model ProjectSpaceSlot {
+  id                              Int      @id @default(autoincrement())
+  project_id                      Int? // Nullable: set when owned by project
+  inquiry_id                      Int? // Nullable: set when owned by inquiry (before booking)
+  project_event_day_id            Int
+  source_package_space_slot_id    Int? // Traceability to original PackageSpaceSlot
+  label                           String  // e.g. 'Ceremony Space', 'Bridal Suite'
+  project_location_slot_id        Int?    // FK → ProjectLocationSlot (assigned when venue is linked)
+  location_space_id               Int?    // FK → LocationSpace (linked when venue is resolved)
+  canvas_width                    Int     @default(1000)  // Virtual floor plan canvas (cloned from package or overridden)
+  canvas_height                   Int     @default(1000)
+  layout_json                     Json?   // Fabric.js canvas state (cloned from package, then editable per-project)
+  created_at                      DateTime @default(now())
+  updated_at                      DateTime @updatedAt
+
+  project              projects?          @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  inquiry              inquiries?         @relation(fields: [inquiry_id], references: [id], onDelete: Cascade)
+  project_event_day    ProjectEventDay    @relation(fields: [project_event_day_id], references: [id], onDelete: Cascade)
+  project_location_slot ProjectLocationSlot? @relation(fields: [project_location_slot_id], references: [id], onDelete: SetNull)
+  location_space       LocationSpace?      @relation(fields: [location_space_id], references: [id], onDelete: SetNull)
+  activity_assignments ProjectSpaceActivityAssignment[]
+  type_tags            ProjectSpaceSlotTypeTag[]
+  objects              ProjectSpaceSlotObject[]
+  camera_positions     ProjectSpaceSlotCamera[]
+  subject_positions    ProjectSpaceSlotSubject[]
+
+  @@index([project_id])
+  @@index([inquiry_id])
+  @@index([project_event_day_id])
+  @@index([project_location_slot_id])
+  @@index([location_space_id])
+  @@map("project_space_slots")
+}
+
+// Junction: ProjectSpaceSlot ↔ ProjectActivity
+model ProjectSpaceActivityAssignment {
+  id                       Int      @id @default(autoincrement())
+  project_space_slot_id    Int
+  project_activity_id      Int
+  created_at               DateTime @default(now())
+
+  project_space_slot ProjectSpaceSlot @relation(fields: [project_space_slot_id], references: [id], onDelete: Cascade)
+  project_activity   ProjectActivity  @relation(fields: [project_activity_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_space_slot_id, project_activity_id])
+  @@index([project_space_slot_id])
+  @@index([project_activity_id])
+  @@map("project_space_activity_assignments")
+}
+
+// Objects placed on a project space slot's floor plan (cloned from SpaceSlotObject or from real venue)
+model ProjectSpaceSlotObject {
+  id                       Int                 @id @default(autoincrement())
+  project_space_slot_id    Int
+  object_type              FloorPlanObjectType
+  label                    String?
+  x                        Float
+  y                        Float
+  width                    Float               @default(50)
+  height                   Float               @default(50)
+  rotation                 Float               @default(0)
+  metadata                 Json?
+  order_index              Int                 @default(0)
+  created_at               DateTime            @default(now())
+  updated_at               DateTime            @updatedAt
+
+  space_slot               ProjectSpaceSlot @relation(fields: [project_space_slot_id], references: [id], onDelete: Cascade)
+
+  @@index([project_space_slot_id])
+  @@map("project_space_slot_objects")
+}
+
+// Camera positions on a project space slot (cloned from SpaceSlotCameraPosition, editable per-project)
+model ProjectSpaceSlotCamera {
+  id                       Int      @id @default(autoincrement())
+  project_space_slot_id    Int
+  project_crew_slot_id     Int?     // FK → ProjectCrewSlot (which videographer)
+  label                    String?
+  x                        Float
+  y                        Float
+  rotation                 Float    @default(0)
+  focal_length_mm          Int?
+  is_unmanned              Boolean  @default(false)
+  order_index              Int      @default(0)
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  space_slot               ProjectSpaceSlot @relation(fields: [project_space_slot_id], references: [id], onDelete: Cascade)
+  crew_slot                ProjectCrewSlot? @relation(fields: [project_crew_slot_id], references: [id], onDelete: SetNull)
+
+  @@index([project_space_slot_id])
+  @@index([project_crew_slot_id])
+  @@map("project_space_slot_cameras")
+}
+
+// Subject positions on a project space slot (cloned from SpaceSlotSubjectPosition, editable per-project)
+model ProjectSpaceSlotSubject {
+  id                       Int      @id @default(autoincrement())
+  project_space_slot_id    Int
+  project_day_subject_id   Int?     // FK → ProjectDaySubject (which subject role)
+  label                    String?
+  x                        Float
+  y                        Float
+  order_index              Int      @default(0)
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  space_slot               ProjectSpaceSlot   @relation(fields: [project_space_slot_id], references: [id], onDelete: Cascade)
+  day_subject              ProjectDaySubject? @relation(fields: [project_day_subject_id], references: [id], onDelete: SetNull)
+
+  @@index([project_space_slot_id])
+  @@index([project_day_subject_id])
+  @@map("project_space_slot_subjects")
+}
+
 // ─── Multi-Activity Assignment Junction Tables ───────────────────────
 // Allow crew slots and subjects to be assigned to MULTIPLE activities per day.
 
@@ -4190,26 +5070,98 @@ model PackageDaySubjectActivity {
   @@map("package_day_subject_activities")
 }
 
+// ─── Location Slot Mode ─────────────────────────────────────────────
+// SANDBOX = virtual planning space (no real venue). VENUE = linked to real venue.
+enum LocationSlotMode {
+  SANDBOX
+  VENUE
+}
+
 // ─── Package Location Slots ─────────────────────────────────────────
 // Abstract numbered location slots (1-5) per event day in a package.
-// Real locations are assigned in projects, not packages.
+// In SANDBOX mode, spaces are virtual canvases for blocking out subjects/cameras.
+// In VENUE mode, spaces are imported from a real venue library entry.
 
 model PackageLocationSlot {
-  id                    Int      @id @default(autoincrement())
+  id                    Int               @id @default(autoincrement())
   package_id            Int
   event_day_template_id Int
-  location_number       Int // 1-5
-  created_at            DateTime @default(now())
-  updated_at            DateTime @updatedAt
+  location_number       Int               // 1-5
+  mode                  LocationSlotMode   @default(SANDBOX)
+  created_at            DateTime           @default(now())
+  updated_at            DateTime           @updatedAt
 
   package              service_packages           @relation(fields: [package_id], references: [id], onDelete: Cascade)
   event_day            EventDay                   @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
   activity_assignments LocationActivityAssignment[]
+  space_slots          PackageSpaceSlot[]
 
   @@unique([package_id, event_day_template_id, location_number])
   @@index([package_id])
   @@index([event_day_template_id])
   @@map("package_location_slots")
+}
+
+// ─── Package Space Slots ─────────────────────────────────────────────
+// Named sub-areas within a location, e.g. 'Ceremony Space', 'Bridal Suite'.
+// A location slot can have multiple space slots. Activities are assigned to spaces.
+model PackageSpaceSlot {
+  id                    Int      @id @default(autoincrement())
+  package_id            Int
+  event_day_template_id Int
+  label                 String  // e.g. 'Ceremony Space', 'Bridal Suite', 'Reception Hall'
+  description           String? // visual description for AI generation (e.g. 'stone church with stained glass windows, wooden pews')
+  location_slot_id      Int?    // FK → PackageLocationSlot (nullable — assigned later)
+  location_space_id     Int?    // FK → LocationSpace (linked when venue is assigned)
+  preset_id             Int?    // FK → FloorPlanPreset (which layout template was applied)
+  canvas_width          Int     @default(1000)  // Virtual floor plan canvas width
+  canvas_height         Int     @default(1000)  // Virtual floor plan canvas height
+  layout_json           Json?   // Full Fabric.js canvas state for this space slot's virtual floor plan
+  background_plate_path String? // path to generated background plate image (relative to uploads/)
+  background_plate_seed Int?    // seed used to generate the plate — for reproducibility
+  // Lineage to the Day Blueprint space slot this row was snapshotted
+  // from. Nullable so pre-blueprint packages still resolve.
+  source_day_blueprint_space_slot_id Int?
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  package              service_packages    @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  event_day            EventDay            @relation(fields: [event_day_template_id], references: [id], onDelete: Cascade)
+  location_slot        PackageLocationSlot? @relation(fields: [location_slot_id], references: [id], onDelete: SetNull)
+  location_space       LocationSpace?       @relation(fields: [location_space_id], references: [id], onDelete: SetNull)
+  preset               FloorPlanPreset?     @relation(fields: [preset_id], references: [id], onDelete: SetNull)
+  source_day_blueprint_space_slot DayBlueprintSpaceSlot? @relation("PackageSpaceSlotSourceDayBlueprintSpaceSlot", fields: [source_day_blueprint_space_slot_id], references: [id], onDelete: SetNull)
+  activity_assignments SpaceActivityAssignment[]
+  type_tags            PackageSpaceSlotTypeTag[]
+  objects              SpaceSlotObject[]
+  camera_positions     SpaceSlotCameraPosition[]
+  subject_positions    SpaceSlotSubjectPosition[]
+  zones                SpaceSlotZone[]
+
+  @@unique([package_id, event_day_template_id, label])
+  @@index([package_id])
+  @@index([event_day_template_id])
+  @@index([location_slot_id])
+  @@index([location_space_id])
+  @@index([preset_id])
+  @@index([source_day_blueprint_space_slot_id])
+  @@map("package_space_slots")
+}
+
+// Junction: PackageSpaceSlot ↔ PackageActivity
+model SpaceActivityAssignment {
+  id                     Int      @id @default(autoincrement())
+  package_space_slot_id  Int
+  package_activity_id    Int
+  created_at             DateTime @default(now())
+
+  package_space_slot PackageSpaceSlot @relation(fields: [package_space_slot_id], references: [id], onDelete: Cascade)
+  package_activity   PackageActivity  @relation(fields: [package_activity_id], references: [id], onDelete: Cascade)
+
+  @@unique([package_space_slot_id, package_activity_id])
+  @@index([package_space_slot_id])
+  @@index([package_activity_id])
+  @@map("space_activity_assignments")
 }
 
 model LocationActivityAssignment {
@@ -4275,27 +5227,23 @@ model PackageTaskOverride {
 // ============================================================
 
 model package_sets {
-  id            Int      @id @default(autoincrement())
-  brand_id      Int
-  name          String
-  description   String?
-  emoji         String?  @default("📦")
-  category_id   Int?
-  event_type_id Int?
-  order_index   Int      @default(0)
-  is_active     Boolean  @default(true)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  brand_id       Int
+  name           String
+  description    String?
+  emoji          String?  @default("📦")
+  event_category String?
+  order_index    Int      @default(0)
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
 
-  brand      brands                      @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  category   service_package_categories? @relation(fields: [category_id], references: [id], onDelete: SetNull)
-  event_type EventType?                  @relation(fields: [event_type_id], references: [id], onDelete: SetNull)
-  slots      package_set_slots[]
+  brand brands              @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  slots package_set_slots[]
 
   @@unique([brand_id, name])
   @@index([brand_id])
-  @@index([category_id])
-  @@index([event_type_id])
+  @@index([event_category])
   @@map("package_sets")
 }
 
@@ -4331,9 +5279,9 @@ model payment_schedule_templates {
   updated_at  DateTime @updatedAt
 
   brand     brands                       @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  rules     payment_schedule_rules[]
   estimates estimates[]
   quotes    quotes[]
+  rules     payment_schedule_rules[]
   contract_templates contract_templates[] @relation("contract_payment_schedule")
   inquiries  inquiries[]                  @relation("InquiryPreferredPaymentSchedule")
 
@@ -4343,16 +5291,14 @@ model payment_schedule_templates {
 }
 
 model payment_schedule_rules {
-  id           Int     @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   template_id  Int
-  label        String  // "Booking Deposit", "Final Balance", "Post-Delivery"
-  // PERCENT = percentage of estimate total; FIXED = fixed £ amount
-  amount_type  String  @default("PERCENT") // PERCENT | FIXED
-  amount_value Decimal @db.Decimal(10, 2)  // 50 (for 50%) or 500.00 (for £500)
-  // When this payment is due relative to a reference date
-  trigger_type String  // AFTER_BOOKING | BEFORE_EVENT | AFTER_EVENT | ON_DATE
-  trigger_days Int?    // number of days offset; null if trigger_type = ON_DATE
-  order_index  Int     @default(0)
+  label        String
+  amount_type  String   @default("PERCENT") // PERCENT | FIXED
+  amount_value Decimal  @db.Decimal(10, 2)
+  trigger_type String   // AFTER_BOOKING | BEFORE_EVENT | AFTER_EVENT | ON_DATE
+  trigger_days Int?
+  order_index  Int      @default(0)
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
@@ -4600,4 +5546,599 @@ enum inquiry_crew_availability_request_status {
   confirmed
   declined
   cancelled
+}
+
+// ─── Moment Knowledge Base ─────────────────────────────────────────
+// Reusable activity-type templates (e.g. "Ceremony / Traditional",
+// "Reception / Formal Dinner"). The AI planner pulls from these when
+// auto-creating moments for a new activity.
+
+model MomentKnowledgeBase {
+  id                         Int      @id @default(autoincrement())
+  brand_id                   Int?     // null = system-wide default
+  category                   String   // free text: "Ceremony", "Reception", "Getting Ready", etc.
+  variant                    String?  // "Traditional", "Civil", "Hindu", etc.
+  reference_duration_minutes Int      // baseline total this set was designed for
+  description                String?
+  is_active                  Boolean  @default(true)
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+
+  brand   brands?                @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  entries MomentKnowledgeEntry[]
+
+  @@unique([brand_id, category, variant])
+  @@index([brand_id])
+  @@index([category])
+  @@map("moment_knowledge_bases")
+}
+
+model MomentKnowledgeEntry {
+  id                    Int    @id @default(autoincrement())
+  knowledge_base_id     Int
+  name                  String
+  description           String?
+  order_index           Float  @default(0) // float for easy insertion between entries
+  default_duration_seconds Int @default(60)
+  min_duration_seconds  Int?   // can't compress below this
+  max_duration_seconds  Int?   // can't stretch beyond this
+  subject_actions       Json?  // { "BRIDE": "walking down aisle...", "GROOM": "..." }
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  knowledge_base MomentKnowledgeBase @relation(fields: [knowledge_base_id], references: [id], onDelete: Cascade)
+
+  @@unique([knowledge_base_id, order_index])
+  @@index([knowledge_base_id])
+  @@map("moment_knowledge_entries")
+}
+
+// ============================================================
+// DAY BLUEPRINT SYSTEM — authored, versioned, AI-designable day
+// structure (activities, moments, subject roles, actions, spatial
+// blocking) consumed by package creation as an immutable snapshot.
+//
+// Layering:
+//   1. EventDay/EventDayActivity/EventDayActivityMoment — low-level
+//      preset primitives (existing).
+//   2. DayBlueprint + DayBlueprintVersion — authored, publishable
+//      canonical day designs (NEW).
+//   3. service_packages + PackageActivity/PackageActivityMoment —
+//      package-scope snapshot consumed from a published version.
+//
+// Scope:
+//   Day Blueprint owns activities, moments, subject roles, moment
+//   actions, and spatial blocking defaults. It does NOT own cameras,
+//   films, crew, deliverables, or pricing — those stay in Package
+//   Creator AI.
+// ============================================================
+
+enum DayBlueprintStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DayBlueprintActivityCriticality {
+  REQUIRED
+  RECOMMENDED
+  OPTIONAL
+}
+
+enum DayBlueprintMomentCriticality {
+  KEY
+  STANDARD
+  OPTIONAL
+  REMOVABLE
+}
+
+enum DayBlueprintLockScope {
+  VERSION
+  DAY
+  ACTIVITY
+  MOMENT
+}
+
+enum DayBlueprintAiRunKind {
+  GENERATE
+  REFINE
+  VALIDATE
+}
+
+enum DayBlueprintAiRunStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum DayBlueprintAiProposalStatus {
+  PROPOSED
+  APPLIED
+  REJECTED
+  PARTIAL
+}
+
+// ─── DayBlueprint (header) ───────────────────────────────────────────
+// Stable identity for a canonical day design, e.g.
+// "Wedding Day - Civil UK Ceremony". Versions carry the actual
+// structure; this row owns identity, variant tags, and lifecycle.
+model DayBlueprint {
+  id                         Int                  @id @default(autoincrement())
+  brand_id                   Int
+  key                        String               // stable slug, e.g. "wedding-civil-uk"
+  display_name               String
+  event_category             String               // e.g. "Wedding", "Birthday"
+  description                String?
+  icon                       String?
+  color                      String?
+  // Structured metadata — region, ceremony_type, style, guest_band,
+  // indoor_outdoor, religious_civil, etc. Kept as Json to avoid
+  // proliferating typed columns before the vocabulary stabilises.
+  variant_tags               Json?
+  latest_published_version_id Int?                @unique
+  is_system_seeded           Boolean              @default(false)
+  is_active                  Boolean              @default(true)
+  order_index                Int                  @default(0)
+  created_at                 DateTime             @default(now())
+  updated_at                 DateTime             @updatedAt
+
+  brand                      brands               @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  latest_published_version   DayBlueprintVersion? @relation("DayBlueprintLatestPublished", fields: [latest_published_version_id], references: [id], onDelete: SetNull)
+  versions                   DayBlueprintVersion[] @relation("DayBlueprintVersions")
+  source_service_packages    service_packages[]   @relation("ServicePackageSourceDayBlueprint")
+
+  @@unique([brand_id, key])
+  @@index([brand_id])
+  @@index([event_category])
+  @@index([is_active])
+  @@map("day_blueprints")
+}
+
+// ─── DayBlueprintVersion ─────────────────────────────────────────────
+// Immutable snapshot unit. Drafts are mutable; publishing freezes the
+// version and flips the blueprint's latest_published_version_id.
+model DayBlueprintVersion {
+  id                    Int                          @id @default(autoincrement())
+  day_blueprint_id      Int
+  version_number        Int
+  status                DayBlueprintStatus           @default(DRAFT)
+  published_at          DateTime?
+  published_by_user_id  Int?
+  source_ai_run_id      Int?                         // nullable: human-authored if absent
+  change_summary        String?
+  created_at            DateTime                     @default(now())
+  updated_at            DateTime                     @updatedAt
+
+  day_blueprint         DayBlueprint                 @relation("DayBlueprintVersions", fields: [day_blueprint_id], references: [id], onDelete: Cascade)
+  latest_for_blueprint  DayBlueprint?                @relation("DayBlueprintLatestPublished")
+  days                  DayBlueprintDay[]
+  subject_roles         DayBlueprintSubjectRole[]
+  lock_rules            DayBlueprintLockRule[]
+  ai_runs               DayBlueprintAiRun[]
+  usages                DayBlueprintUsage[]
+  space_slots           DayBlueprintSpaceSlot[]
+  source_service_packages service_packages[]         @relation("ServicePackageSourceDayBlueprintVersion")
+
+  @@unique([day_blueprint_id, version_number])
+  @@index([day_blueprint_id])
+  @@index([status])
+  @@map("day_blueprint_versions")
+}
+
+// ─── DayBlueprintDay ─────────────────────────────────────────────────
+// A blueprint may span multiple event days (e.g. rehearsal + wedding).
+// Optional source_event_day_id keeps traceability to the preset
+// primitive the day was authored from.
+model DayBlueprintDay {
+  id                         Int      @id @default(autoincrement())
+  day_blueprint_version_id   Int
+  name                       String
+  description                String?
+  default_start_time         String?  // "HH:MM"
+  default_duration_hours     Int?
+  order_index                Int      @default(0)
+  source_event_day_id        Int?
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+
+  version                    DayBlueprintVersion @relation(fields: [day_blueprint_version_id], references: [id], onDelete: Cascade)
+  activities                 DayBlueprintActivity[]
+
+  @@unique([day_blueprint_version_id, order_index])
+  @@index([day_blueprint_version_id])
+  @@index([source_event_day_id])
+  @@map("day_blueprint_days")
+}
+
+// ─── DayBlueprintActivity ────────────────────────────────────────────
+// Canonical activity within a blueprint day. Duration is expressed as
+// a band (min/target/max) so Package Creator AI can pick concrete
+// times inside guardrails.
+model DayBlueprintActivity {
+  id                             Int                             @id @default(autoincrement())
+  day_blueprint_day_id           Int
+  name                           String
+  description                    String?
+  icon                           String?
+  color                          String?
+  default_start_time             String?                         // "HH:MM"
+  default_duration_minutes       Int?
+  duration_min_minutes           Int?
+  duration_max_minutes           Int?
+  order_index                    Int                             @default(0)
+  criticality                    DayBlueprintActivityCriticality @default(REQUIRED)
+  // Flags controlling what Day Designer AI may change on this row.
+  // Shape: { name: bool, order: bool, duration: bool }.
+  lock_flags                     Json?
+  source_event_day_activity_id   Int?
+  created_at                     DateTime                        @default(now())
+  updated_at                     DateTime                        @updatedAt
+
+  day                            DayBlueprintDay                 @relation(fields: [day_blueprint_day_id], references: [id], onDelete: Cascade)
+  moments                        DayBlueprintMoment[]
+  activity_locations             DayBlueprintActivityLocation[]
+  source_package_activities      PackageActivity[]               @relation("PackageActivitySourceDayBlueprintActivity")
+
+  @@unique([day_blueprint_day_id, order_index])
+  @@index([day_blueprint_day_id])
+  @@index([source_event_day_activity_id])
+  @@map("day_blueprint_activities")
+}
+
+// ─── DayBlueprintMoment ──────────────────────────────────────────────
+// Canonical moment within a blueprint activity. Criticality + lock
+// flags are how invariants like "Traditional ceremony always has 17
+// moments" are expressed.
+model DayBlueprintMoment {
+  id                                   Int                            @id @default(autoincrement())
+  day_blueprint_activity_id            Int
+  name                                 String
+  description                          String?
+  duration_seconds                     Int                            @default(60)
+  order_index                          Int                            @default(0)
+  is_key_moment                        Boolean                        @default(false)
+  criticality                          DayBlueprintMomentCriticality  @default(STANDARD)
+  // Flags controlling what Day Designer AI may change on this row.
+  // Shape: { name: bool, order: bool, duration: bool, required_subjects: bool }.
+  lock_flags                           Json?
+  source_event_day_activity_moment_id  Int?
+  created_at                           DateTime                       @default(now())
+  updated_at                           DateTime                       @updatedAt
+
+  activity                             DayBlueprintActivity           @relation(fields: [day_blueprint_activity_id], references: [id], onDelete: Cascade)
+  actions                              DayBlueprintMomentAction[]
+  placements                           DayBlueprintMomentPlacement[]
+  source_package_activity_moments      PackageActivityMoment[]        @relation("PackageActivityMomentSourceDayBlueprintMoment")
+
+  @@unique([day_blueprint_activity_id, order_index])
+  @@index([day_blueprint_activity_id])
+  @@index([source_event_day_activity_moment_id])
+  @@map("day_blueprint_moments")
+}
+
+// ─── DayBlueprintSubjectRole ─────────────────────────────────────────
+// Default subject roles expected across the blueprint version, with
+// typical counts and primary-focus hints.
+model DayBlueprintSubjectRole {
+  id                         Int      @id @default(autoincrement())
+  day_blueprint_version_id   Int
+  subject_role_id            Int
+  is_primary                 Boolean  @default(false)
+  typical_count              Int?
+  order_index                Int      @default(0)
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+
+  version                    DayBlueprintVersion @relation(fields: [day_blueprint_version_id], references: [id], onDelete: Cascade)
+  subject_role               SubjectRole         @relation(fields: [subject_role_id], references: [id], onDelete: Cascade)
+
+  @@unique([day_blueprint_version_id, subject_role_id])
+  @@index([day_blueprint_version_id])
+  @@index([subject_role_id])
+  @@map("day_blueprint_subject_roles")
+}
+
+// ─── DayBlueprintLockRule ────────────────────────────────────────────
+// Explicit, machine-enforceable invariants. Guardrail service reads
+// these before accepting AI proposals or allowing publish.
+//   scope       — which layer this applies to
+//   target_id   — id of the row at that scope (nullable for VERSION)
+//   rule_key    — e.g. "moment_count", "moment_names",
+//                 "action_subject_required", "spatial_required"
+//   rule_value  — Json payload interpreted by the guardrail service
+model DayBlueprintLockRule {
+  id                         Int                    @id @default(autoincrement())
+  day_blueprint_version_id   Int
+  scope                      DayBlueprintLockScope
+  target_id                  Int?
+  rule_key                   String
+  rule_value                 Json?
+  notes                      String?
+  created_at                 DateTime               @default(now())
+  updated_at                 DateTime               @updatedAt
+
+  version                    DayBlueprintVersion    @relation(fields: [day_blueprint_version_id], references: [id], onDelete: Cascade)
+
+  @@unique([day_blueprint_version_id, scope, target_id, rule_key])
+  @@index([day_blueprint_version_id])
+  @@index([scope, target_id])
+  @@map("day_blueprint_lock_rules")
+}
+
+// ─── DayBlueprintAiRun ───────────────────────────────────────────────
+// Mirrors the package AI run infrastructure but scoped to blueprint
+// versions. Transcripts continue to live on disk under
+// packages/backend/logs/ like existing AI runs.
+model DayBlueprintAiRun {
+  id                         Int                        @id @default(autoincrement())
+  day_blueprint_version_id   Int
+  run_kind                   DayBlueprintAiRunKind
+  status                     DayBlueprintAiRunStatus    @default(PENDING)
+  run_key                    String?                    // on-disk run id, mirrors package AI runs
+  prompt_summary             String?
+  error                      String?
+  // Pre-run snapshot of the day's moments/actions/placements taken before
+  // a destructive AI run. Used by `cancelRun()` to roll back when the
+  // user aborts mid-stream. Shape: { dayId, moments: [...], placements: [...] }.
+  snapshot_json              Json?
+  cancel_requested_at        DateTime?
+  started_at                 DateTime?
+  finished_at                DateTime?
+  created_at                 DateTime                   @default(now())
+  updated_at                 DateTime                   @updatedAt
+
+  version                    DayBlueprintVersion        @relation(fields: [day_blueprint_version_id], references: [id], onDelete: Cascade)
+  proposals                  DayBlueprintAiProposal[]
+
+  @@index([day_blueprint_version_id])
+  @@index([status])
+  @@index([run_key])
+  @@map("day_blueprint_ai_runs")
+}
+
+// ─── DayBlueprintAiProposal ──────────────────────────────────────────
+// Diff-first output from a Day Designer AI run. Proposals are not
+// auto-applied; the guardrail service validates and the user
+// accepts/rejects chunks before mutations hit blueprint tables.
+model DayBlueprintAiProposal {
+  id                         Int                            @id @default(autoincrement())
+  day_blueprint_ai_run_id    Int
+  status                     DayBlueprintAiProposalStatus   @default(PROPOSED)
+  diff_json                  Json
+  rationale_text             String?
+  applied_at                 DateTime?
+  applied_by_user_id         Int?
+  created_at                 DateTime                       @default(now())
+  updated_at                 DateTime                       @updatedAt
+
+  ai_run                     DayBlueprintAiRun              @relation(fields: [day_blueprint_ai_run_id], references: [id], onDelete: Cascade)
+
+  @@index([day_blueprint_ai_run_id])
+  @@index([status])
+  @@map("day_blueprint_ai_proposals")
+}
+
+// ─── DayBlueprintUsage ───────────────────────────────────────────────
+// Records which package consumed which blueprint version. Used for
+// drift detection, re-sync flows, and authoring-impact audits.
+// `is_current` marks whether the package is still aligned to this
+// specific version snapshot.
+model DayBlueprintUsage {
+  id                         Int                 @id @default(autoincrement())
+  day_blueprint_version_id   Int
+  package_id                 Int
+  consumed_at                DateTime            @default(now())
+  is_current                 Boolean             @default(true)
+  created_at                 DateTime            @default(now())
+  updated_at                 DateTime            @updatedAt
+
+  version                    DayBlueprintVersion @relation(fields: [day_blueprint_version_id], references: [id], onDelete: Cascade)
+  package                    service_packages    @relation(fields: [package_id], references: [id], onDelete: Cascade)
+
+  @@unique([day_blueprint_version_id, package_id])
+  @@index([day_blueprint_version_id])
+  @@index([package_id])
+  @@index([is_current])
+  @@map("day_blueprint_usages")
+}
+
+// ============================================================
+// DAY BLUEPRINT — ACTIONS + SPATIAL BLOCKING (Phase 2)
+//
+// Adds:
+//   * Structured location-role vocabulary (brand-scoped).
+//   * Default location roles per blueprint activity.
+//   * Named space slots per blueprint version (decoupled from any
+//     venue or canvas).
+//   * Moment actions per subject role.
+//   * Moment placements (subject + space slot + position hint).
+//   * Normalized package_activity_moment_actions mirror for the
+//     package-scope snapshot (replaces the free-form `subject_actions`
+//     Json on PackageActivityMoment going forward).
+//   * Lineage column on PackageSpaceSlot back to a blueprint space.
+// ============================================================
+
+enum DayBlueprintActionEmphasis {
+  PRIMARY
+  SECONDARY
+  OPTIONAL
+}
+
+enum DayBlueprintPlacementPosition {
+  CENTER
+  STAGE_LEFT
+  STAGE_RIGHT
+  ALTAR_FRONT
+  ALTAR_BACK
+  AISLE_START
+  AISLE_END
+  FIRST_ROW_LEFT
+  FIRST_ROW_RIGHT
+  BACK
+  OFF_STAGE
+  UNSPECIFIED
+}
+
+enum DayBlueprintPlacementFacing {
+  TOWARD_ALTAR
+  TOWARD_AISLE
+  TOWARD_AUDIENCE
+  TOWARD_PARTNER
+  TOWARD_CAMERA
+  UNSPECIFIED
+}
+
+// ─── DayBlueprintLocationRole ────────────────────────────────────────
+// Brand-scoped abstract location-role vocabulary. Not venues.
+// Examples: `ceremony_room`, `altar_area`, `aisle`, `reception_hall`,
+// `bridal_suite`. Reused across blueprints so Package Creator AI can
+// align cameras and coverage predictably downstream.
+model DayBlueprintLocationRole {
+  id                  Int      @id @default(autoincrement())
+  brand_id            Int
+  key                 String   // stable slug, e.g. "ceremony_room"
+  display_name        String
+  description         String?
+  icon                String?
+  order_index         Int      @default(0)
+  is_active           Boolean  @default(true)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  brand               brands                            @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  activity_defaults   DayBlueprintActivityLocation[]
+  space_slots         DayBlueprintSpaceSlot[]
+
+  @@unique([brand_id, key])
+  @@index([brand_id])
+  @@map("day_blueprint_location_roles")
+}
+
+// ─── DayBlueprintActivityLocation ────────────────────────────────────
+// Default location roles per blueprint activity. Multiple rows allowed
+// when an activity spans multiple location roles (e.g. aisle + altar).
+model DayBlueprintActivityLocation {
+  id                             Int      @id @default(autoincrement())
+  day_blueprint_activity_id      Int
+  day_blueprint_location_role_id Int
+  is_primary                     Boolean  @default(false)
+  notes                          String?
+  order_index                    Int      @default(0)
+  created_at                     DateTime @default(now())
+  updated_at                     DateTime @updatedAt
+
+  activity      DayBlueprintActivity     @relation(fields: [day_blueprint_activity_id], references: [id], onDelete: Cascade)
+  location_role DayBlueprintLocationRole @relation(fields: [day_blueprint_location_role_id], references: [id], onDelete: Cascade)
+
+  @@unique([day_blueprint_activity_id, day_blueprint_location_role_id])
+  @@index([day_blueprint_activity_id])
+  @@index([day_blueprint_location_role_id])
+  @@map("day_blueprint_activity_locations")
+}
+
+// ─── DayBlueprintSpaceSlot ───────────────────────────────────────────
+// Named sub-areas within a location role, scoped to a blueprint
+// version. Decouples authored space vocabulary from concrete venues
+// or floor-plan canvases.
+model DayBlueprintSpaceSlot {
+  id                             Int      @id @default(autoincrement())
+  day_blueprint_version_id       Int
+  day_blueprint_location_role_id Int
+  key                            String   // stable slug within role, e.g. "altar_center"
+  label                          String   // display, e.g. "Altar Center"
+  description                    String?
+  order_index                    Int      @default(0)
+  created_at                     DateTime @default(now())
+  updated_at                     DateTime @updatedAt
+
+  version        DayBlueprintVersion       @relation(fields: [day_blueprint_version_id], references: [id], onDelete: Cascade)
+  location_role  DayBlueprintLocationRole  @relation(fields: [day_blueprint_location_role_id], references: [id], onDelete: Cascade)
+  placements     DayBlueprintMomentPlacement[]
+  source_package_space_slots PackageSpaceSlot[] @relation("PackageSpaceSlotSourceDayBlueprintSpaceSlot")
+
+  @@unique([day_blueprint_version_id, day_blueprint_location_role_id, key])
+  @@index([day_blueprint_version_id])
+  @@index([day_blueprint_location_role_id])
+  @@map("day_blueprint_space_slots")
+}
+
+// ─── DayBlueprintMomentAction ────────────────────────────────────────
+// Canonical action text per subject role per moment. A subject role
+// may have multiple actions per moment (e.g. physical action +
+// emotional beat) distinguished by order_index and emphasis.
+// Consumed into `package_activity_moment_actions` at package creation.
+model DayBlueprintMomentAction {
+  id                         Int                            @id @default(autoincrement())
+  day_blueprint_moment_id    Int
+  subject_role_id            Int
+  action_text                String
+  emphasis                   DayBlueprintActionEmphasis     @default(PRIMARY)
+  notes                      String?
+  order_index                Int                            @default(0)
+  created_at                 DateTime                       @default(now())
+  updated_at                 DateTime                       @updatedAt
+
+  moment       DayBlueprintMoment @relation(fields: [day_blueprint_moment_id], references: [id], onDelete: Cascade)
+  subject_role SubjectRole        @relation(fields: [subject_role_id], references: [id], onDelete: Cascade)
+
+  @@unique([day_blueprint_moment_id, subject_role_id, order_index])
+  @@index([day_blueprint_moment_id])
+  @@index([subject_role_id])
+  @@map("day_blueprint_moment_actions")
+}
+
+// ─── DayBlueprintMomentPlacement ─────────────────────────────────────
+// Spatial blocking default for a subject role at a moment, anchored
+// to a blueprint space slot. Downstream Package Creator AI uses this
+// to plan cameras; Day Designer AI may not edit cameras.
+model DayBlueprintMomentPlacement {
+  id                            Int                             @id @default(autoincrement())
+  day_blueprint_moment_id       Int
+  day_blueprint_space_slot_id   Int
+  subject_role_id               Int
+  position_hint                 DayBlueprintPlacementPosition   @default(UNSPECIFIED)
+  facing_hint                   DayBlueprintPlacementFacing     @default(UNSPECIFIED)
+  notes                         String?
+  order_index                   Int                             @default(0)
+  created_at                    DateTime                        @default(now())
+  updated_at                    DateTime                        @updatedAt
+
+  moment       DayBlueprintMoment    @relation(fields: [day_blueprint_moment_id], references: [id], onDelete: Cascade)
+  space_slot   DayBlueprintSpaceSlot @relation(fields: [day_blueprint_space_slot_id], references: [id], onDelete: Cascade)
+  subject_role SubjectRole           @relation(fields: [subject_role_id], references: [id], onDelete: Cascade)
+
+  @@unique([day_blueprint_moment_id, day_blueprint_space_slot_id, subject_role_id, order_index])
+  @@index([day_blueprint_moment_id])
+  @@index([day_blueprint_space_slot_id])
+  @@index([subject_role_id])
+  @@map("day_blueprint_moment_placements")
+}
+
+// ─── PackageActivityMomentAction ─────────────────────────────────────
+// Normalized mirror of DayBlueprintMomentAction at package scope.
+// Created by the snapshot-on-consume routine. Replaces the free-form
+// `subject_actions` Json on PackageActivityMoment for new packages
+// while legacy rows continue to carry Json for backward compatibility.
+model PackageActivityMomentAction {
+  id                            Int                            @id @default(autoincrement())
+  package_activity_moment_id    Int
+  subject_role_id               Int
+  action_text                   String
+  emphasis                      DayBlueprintActionEmphasis     @default(PRIMARY)
+  notes                         String?
+  order_index                   Int                            @default(0)
+  source_day_blueprint_moment_action_id Int?
+  created_at                    DateTime                       @default(now())
+  updated_at                    DateTime                       @updatedAt
+
+  package_activity_moment PackageActivityMoment @relation(fields: [package_activity_moment_id], references: [id], onDelete: Cascade)
+  subject_role            SubjectRole           @relation(fields: [subject_role_id], references: [id], onDelete: Cascade)
+
+  @@unique([package_activity_moment_id, subject_role_id, order_index])
+  @@index([package_activity_moment_id])
+  @@index([subject_role_id])
+  @@index([source_day_blueprint_moment_action_id])
+  @@map("package_activity_moment_actions")
 }

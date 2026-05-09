@@ -8,5 +8,5 @@ export { ExpandableCard, ActionLink } from './ExpandableCard';
 export { EstimateContent } from './EstimateContent';
 export { InvoicesContent } from './InvoicesContent';
 export { PortalFooter } from './PortalFooter';
-export { QuestionnaireContent, PackageContent, ContractContent, WelcomePackContent } from './PortalSectionContent';
+export { QuestionnaireContent, PackageContent, ContractContent } from './PortalSectionContent';
 export { getJourneyIcon } from './journey-icons';

@@ -141,7 +141,6 @@ const PORTAL_INCLUDE = {
             },
         },
     },
-    event_type: { select: { id: true, name: true } },
     preferred_payment_schedule: {
         select: {
             id: true,
@@ -181,7 +180,7 @@ const PORTAL_INCLUDE = {
                 include: {
                     crew: {
                         include: {
-                            contact: { select: { first_name: true, last_name: true } },
+                            contact: { select: { first_name: true, last_name: true, email: true, phone_number: true } },
                         },
                     },
                     job_role: { select: { name: true, display_name: true, on_site: true, category: true } },
@@ -271,8 +270,11 @@ export class ClientPortalDataService {
     ) {}
 
     async getPortalByToken(token: string) {
+        const inquiryId = await this._resolveInquiryIdByToken(token);
+        if (!inquiryId) throw new NotFoundException('Portal not found');
+
         const inquiry = await this.prisma.inquiries.findUnique({
-            where: { portal_token: token },
+            where: { id: inquiryId },
             include: PORTAL_INCLUDE,
         });
         if (!inquiry) throw new NotFoundException('Portal not found');
@@ -329,6 +331,7 @@ export class ClientPortalDataService {
         const proposal = inquiry.proposals[0] ?? null;
         const contract = inquiry.contracts[0] ?? null;
         const estimate = inquiry.estimates[0] ?? null;
+        const activeInvoices = inquiry.invoices.filter((inv) => !['Draft', 'Cancelled', 'Voided'].includes(inv.status));
         const journeySteps = await this.journeyService.buildJourneySteps(inquiry.id, token, {
             questionnaire: inquiry.inquiry_wizard_submissions.length > 0,
             estimate: !!estimate,
@@ -338,7 +341,8 @@ export class ClientPortalDataService {
             contractStatus: contract?.status ?? null,
             contractSigningToken: contract?.signing_token ?? null,
             inquiryStatus: inquiry.status,
-            welcomeSentAt: inquiry.welcome_sent_at,
+            hasInvoices: activeInvoices.length > 0,
+            allInvoicesPaid: activeInvoices.length > 0 && activeInvoices.every((inv) => inv.status === 'Paid'),
         }, {
             packageName: inquiry.selected_package?.name ?? undefined,
             estimateTotal: estimate?.total_amount ? Number(estimate.total_amount) : undefined,
@@ -359,6 +363,24 @@ export class ClientPortalDataService {
         });
     }
 
+    /**
+     * Resolve inquiry ID by portal token — checks inquiries first, then projects
+     * (portal_token moves to projects table after conversion).
+     */
+    private async _resolveInquiryIdByToken(token: string): Promise<number | null> {
+        const inquiry = await this.prisma.inquiries.findUnique({
+            where: { portal_token: token },
+            select: { id: true },
+        });
+        if (inquiry) return inquiry.id;
+
+        const project = await this.prisma.projects.findUnique({
+            where: { portal_token: token },
+            select: { inquiry_id: true },
+        });
+        return project?.inquiry_id ?? null;
+    }
+
     private async fetchBrand(brandId: number) {
         return this.prisma.brands.findUnique({
             where: { id: brandId },
@@ -374,8 +396,11 @@ export class ClientPortalDataService {
     }
 
     async getPaymentScheduleOptions(token: string) {
+        const inquiryId = await this._resolveInquiryIdByToken(token);
+        if (!inquiryId) throw new NotFoundException('Portal not found');
+
         const inquiry = await this.prisma.inquiries.findUnique({
-            where: { portal_token: token },
+            where: { id: inquiryId },
             select: { contact: { select: { brand_id: true } } },
         });
         if (!inquiry) throw new NotFoundException('Portal not found');
@@ -407,8 +432,11 @@ export class ClientPortalDataService {
     }
 
     async saveSectionNote(token: string, sectionType: string, note: string) {
+        const inquiryId = await this._resolveInquiryIdByToken(token);
+        if (!inquiryId) throw new NotFoundException('Portal not found');
+
         const inquiry = await this.prisma.inquiries.findUnique({
-            where: { portal_token: token },
+            where: { id: inquiryId },
             select: { proposals: { where: { status: { in: ['Sent', 'Accepted', 'ChangesRequested'] } }, orderBy: { id: 'desc' as const }, take: 1, select: { id: true } } },
         });
         if (!inquiry) throw new NotFoundException('Portal not found');
@@ -444,14 +472,14 @@ export class ClientPortalDataService {
         if (allSubjectIds.size === 0) return;
 
         const ids = Array.from(allSubjectIds);
-        const [packageDaySubjects, projectDaySubjects, filmSubjects] = await Promise.all([
+        const [packageDaySubjects, projectDaySubjects, projectFilmSubjects] = await Promise.all([
             this.prisma.packageDaySubject.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }),
             this.prisma.projectDaySubject.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }),
             this.prisma.projectFilmSubject.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }),
         ]);
 
         const nameMap = new Map<number, string>();
-        for (const s of [...packageDaySubjects, ...projectDaySubjects, ...filmSubjects]) {
+        for (const s of [...packageDaySubjects, ...projectDaySubjects, ...projectFilmSubjects]) {
             if (!nameMap.has(s.id)) nameMap.set(s.id, s.name);
         }
 
@@ -473,8 +501,11 @@ export class ClientPortalDataService {
      * When preview=true, includes Draft invoices so the studio owner can preview.
      */
     async getPaymentsDataByToken(token: string, preview = false) {
+        const inquiryId = await this._resolveInquiryIdByToken(token);
+        if (!inquiryId) throw new NotFoundException('Portal not found');
+
         const inquiry = await this.prisma.inquiries.findUnique({
-            where: { portal_token: token },
+            where: { id: inquiryId },
             select: {
                 id: true,
                 status: true,

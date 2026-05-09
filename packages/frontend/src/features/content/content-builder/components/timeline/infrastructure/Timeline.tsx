@@ -137,14 +137,8 @@ const Timeline: React.FC<TimelineProps> = ({
         <Box
             sx={{
                 position: "relative",
-                padding: "1px",
-                borderRadius: "8px",
-                background: "linear-gradient(135deg, rgba(123, 97, 255, 0.2) 0%, rgba(255, 107, 157, 0.15) 50%, rgba(0, 229, 255, 0.2) 100%)",
+                height: "100%",
                 overflow: "hidden",
-                transition: "box-shadow 0.2s ease-in-out",
-                "&:hover": {
-                    boxShadow: "0 2px 8px rgba(123, 97, 255, 0.1), 0 0 12px rgba(255, 107, 157, 0.05)",
-                },
             }}
         >
             <Box
@@ -154,11 +148,8 @@ const Timeline: React.FC<TimelineProps> = ({
                     flexDirection: "column",
                     overflow: "hidden",
                     position: "relative",
-                    bgcolor: "rgba(8, 8, 12, 0.85)",
-                    borderRadius: "11px",
-
+                    background: "linear-gradient(180deg, rgba(12,12,16,0.88) 0%, rgba(5,5,8,0.98) 100%)",
                     boxSizing: "border-box",
-                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
             >
                 <Box
@@ -192,25 +183,23 @@ const Timeline: React.FC<TimelineProps> = ({
                             flex: 1,
                             minHeight: totalTracksHeight,
                             maxHeight: totalTracksHeight,
-                            bgcolor: "rgba(5, 5, 8, 0.8)",
-                            transition: "background-color 0.2s ease-in-out",
-                            borderRadius: 1,
-                            border: "1px solid rgba(255, 255, 255, 0.03)",
-                            boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.4)",
+                            bgcolor: "rgba(5, 5, 8, 0.68)",
+                            border: "1px solid rgba(255, 255, 255, 0.04)",
+                            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
                         }}
                     >
                         <Box
                             ref={timelineRef}
                             data-timeline-container
                             sx={{
-                                position: "relative",
+                                position: "absolute",
+                                left: 0,
+                                top: 0,
                                 width: Math.max(timelineWidth, viewportWidth),
-                                maxWidth: viewportWidth, // Cap at viewport width to prevent infinite resize loop
                                 height: "100%",
                                 cursor: dragState.draggedLibraryScene ? "copy" : "default",
                                 transform: `translateX(-${viewState.viewportLeft}px)`,
-                                transition: "transform 0.1s ease-out",
-                                overflow: "hidden", // Ensure content doesn't overflow
+                                willChange: "transform",
                             }}
                         >
                             {/* Track Drop Zones */}

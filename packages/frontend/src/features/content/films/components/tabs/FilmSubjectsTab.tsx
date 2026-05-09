@@ -38,7 +38,7 @@ interface FilmSubjectsTabProps {
     onDeleteSubject?: (subjectId: number) => Promise<void>;
 }
 
-export const FilmSubjectsTab: React.FC<FilmSubjectsTabProps> = ({
+export const SubjectsTab: React.FC<FilmSubjectsTabProps> = ({
     filmId,
     brandId,
     packageId,

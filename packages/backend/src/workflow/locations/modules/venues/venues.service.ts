@@ -1,6 +1,26 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { IndoorOutdoor, NaturalLight } from '@prisma/client';
 import { PrismaService } from '../../../../platform/prisma/prisma.service';
 import { CreateLocationDto, UpdateLocationDto, VenuesQueryDto } from '../../dto';
+
+interface CreateSpaceDto {
+    name: string;
+    space_type?: string;
+    capacity?: number;
+    dimensions_length?: number;
+    dimensions_width?: number;
+    dimensions_height?: number;
+    description?: string;
+    indoor_outdoor?: IndoorOutdoor;
+    natural_light?: NaturalLight;
+    flooring?: string;
+    ceiling_style?: string;
+    key_features?: string;
+    accessibility_notes?: string;
+    notes?: string;
+}
+
+interface UpdateSpaceDto extends Partial<CreateSpaceDto> {}
 
 /**
  * Service for managing venues/locations.
@@ -9,14 +29,21 @@ import { CreateLocationDto, UpdateLocationDto, VenuesQueryDto } from '../../dto'
 export class VenuesService {
     constructor(private prisma: PrismaService) { }
 
+    private readonly venueInclude = {
+        brand: true,
+        spaces: {
+            where: { is_active: true },
+            include: { type_tags: true },
+            orderBy: { name: 'asc' as const },
+        },
+    };
+
     // ==================== VENUE/LOCATION MANAGEMENT ====================
 
     async createVenue(createLocationDto: CreateLocationDto) {
         return this.prisma.locationsLibrary.create({
             data: createLocationDto,
-            include: {
-                brand: true,
-            },
+            include: this.venueInclude,
         });
     }
 
@@ -58,9 +85,7 @@ export class VenuesService {
                 is_active: true,
                 ...(filters.length > 0 ? { AND: filters } : {}),
             },
-            include: {
-                brand: true,
-            },
+            include: this.venueInclude,
             orderBy: [{ name: 'asc' }],
         });
     }
@@ -71,9 +96,7 @@ export class VenuesService {
                 id,
                 is_active: true,
             },
-            include: {
-                brand: true,
-            },
+            include: this.venueInclude,
         });
 
         if (!venue) {
@@ -98,9 +121,7 @@ export class VenuesService {
                 ...updateLocationDto,
                 updated_at: new Date(),
             },
-            include: {
-                brand: true,
-            },
+            include: this.venueInclude,
         });
     }
 
@@ -119,6 +140,46 @@ export class VenuesService {
                 is_active: false,
                 updated_at: new Date(),
             },
+        });
+    }
+
+    // ==================== SPACE MANAGEMENT ====================
+
+    async getSpaces(locationId: number) {
+        await this.findVenueById(locationId); // ensures venue exists
+        return this.prisma.locationSpace.findMany({
+            where: { location_id: locationId, is_active: true },
+            include: { type_tags: true },
+            orderBy: { name: 'asc' },
+        });
+    }
+
+    async createSpace(locationId: number, dto: CreateSpaceDto) {
+        await this.findVenueById(locationId);
+        return this.prisma.locationSpace.create({
+            data: { location_id: locationId, ...dto },
+        });
+    }
+
+    async updateSpace(spaceId: number, dto: UpdateSpaceDto) {
+        const space = await this.prisma.locationSpace.findFirst({
+            where: { id: spaceId, is_active: true },
+        });
+        if (!space) throw new NotFoundException(`Space with ID ${spaceId} not found`);
+        return this.prisma.locationSpace.update({
+            where: { id: spaceId },
+            data: { ...dto, updated_at: new Date() },
+        });
+    }
+
+    async removeSpace(spaceId: number) {
+        const space = await this.prisma.locationSpace.findFirst({
+            where: { id: spaceId, is_active: true },
+        });
+        if (!space) throw new NotFoundException(`Space with ID ${spaceId} not found`);
+        return this.prisma.locationSpace.update({
+            where: { id: spaceId },
+            data: { is_active: false, updated_at: new Date() },
         });
     }
 }

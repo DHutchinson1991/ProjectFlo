@@ -14,3 +14,4 @@ export { useScheduleStats } from './useScheduleStats';
 export { useScheduleHistory } from './useScheduleHistory';
 export { useSceneScheduleRow } from '@/features/content/scenes/hooks/useSceneScheduleRow';
 export { useFilmTrackSync } from './useFilmTrackSync';
+export { useFilmPrepProgress } from './useFilmPrepProgress';

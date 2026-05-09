@@ -82,7 +82,16 @@ export interface ScheduleApi {
   // ─── Location Slots ────────────────────────────────────────────────
   locationSlots: {
     create(dayId: number, data?: { location_number?: number }): Promise<any>;
-    update(slotId: number, data: { name?: string | null; address?: string | null }): Promise<any>;
+    update(slotId: number, data: { name?: string | null; address?: string | null; location_number?: number }): Promise<any>;
+    delete(slotId: number): Promise<void>;
+    assignActivity(slotId: number, activityId: number): Promise<any>;
+    unassignActivity(slotId: number, activityId: number): Promise<any>;
+  };
+
+  // ─── Space Slots ──────────────────────────────────────────────────
+  spaceSlots: {
+    create(dayId: number, data: { label: string; location_slot_id?: number }): Promise<any>;
+    update(slotId: number, data: { label?: string; location_slot_id?: number | null }): Promise<any>;
     delete(slotId: number): Promise<void>;
     assignActivity(slotId: number, activityId: number): Promise<any>;
     unassignActivity(slotId: number, activityId: number): Promise<any>;
@@ -202,13 +211,30 @@ export function createPackageScheduleApi(packageId: number, brandId: number): Sc
           event_day_template_id: dayId,
           ...(data || {}),
         }),
-      update: () => Promise.resolve(null),
+      update: (slotId, data) =>
+        scheduleApi.packageLocationSlots.update(slotId, data),
       delete: (slotId) =>
         scheduleApi.packageLocationSlots.delete(slotId),
       assignActivity: (slotId, activityId) =>
         scheduleApi.packageLocationSlots.assignActivity(slotId, activityId),
       unassignActivity: (slotId, activityId) =>
         scheduleApi.packageLocationSlots.unassignActivity(slotId, activityId),
+    },
+
+    spaceSlots: {
+      create: (dayId, data) =>
+        scheduleApi.packageSpaceSlots.create(packageId, {
+          event_day_template_id: dayId,
+          ...data,
+        }),
+      update: (slotId, data) =>
+        scheduleApi.packageSpaceSlots.update(slotId, data),
+      delete: (slotId) =>
+        scheduleApi.packageSpaceSlots.delete(slotId),
+      assignActivity: (slotId, activityId) =>
+        scheduleApi.packageSpaceSlots.assignActivity(slotId, activityId),
+      unassignActivity: (slotId, activityId) =>
+        scheduleApi.packageSpaceSlots.unassignActivity(slotId, activityId),
     },
 
     crewSlots: {
@@ -327,6 +353,14 @@ export function createProjectScheduleApi(projectId: number): ScheduleApi {
         scheduleApi.instanceLocationSlots.unassignActivity(slotId, activityId),
     },
 
+    spaceSlots: {
+      create: () => Promise.resolve(null),
+      update: () => Promise.resolve(null),
+      delete: () => Promise.resolve(),
+      assignActivity: () => Promise.resolve(null),
+      unassignActivity: () => Promise.resolve(null),
+    },
+
     crewSlots: {
       add: async (dayId, data) => {
         const created = await scheduleApi.instanceCrewSlots.createForProject(projectId, {
@@ -436,6 +470,14 @@ export function createInquiryScheduleApi(inquiryId: number): ScheduleApi {
         scheduleApi.instanceLocationSlots.assignActivity(slotId, activityId),
       unassignActivity: (slotId, activityId) =>
         scheduleApi.instanceLocationSlots.unassignActivity(slotId, activityId),
+    },
+
+    spaceSlots: {
+      create: () => Promise.resolve(null),
+      update: () => Promise.resolve(null),
+      delete: () => Promise.resolve(),
+      assignActivity: () => Promise.resolve(null),
+      unassignActivity: () => Promise.resolve(null),
     },
 
     crewSlots: {

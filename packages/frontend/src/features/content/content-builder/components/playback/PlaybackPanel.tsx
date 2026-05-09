@@ -1,9 +1,38 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box } from '@mui/material';
 import { useContentBuilder } from '../../context/ContentBuilderContext';
 import { PlaybackScreen, PlaybackControls } from './';
+
+const CONTROLNET_GUIDE_KEY = 'pfo_show_controlnet_guide';
+const SPATIAL_OVERLAY_KEY = 'pfo_show_spatial_overlay';
+const SPATIAL_GRID_KEY = 'pfo_show_spatial_grid';
+
+function readPersistedToggle(): boolean {
+  try {
+    return localStorage.getItem(CONTROLNET_GUIDE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function readPersistedSpatialToggle(): boolean {
+  try {
+    return localStorage.getItem(SPATIAL_OVERLAY_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** Grid is on by default; only a stored "false" disables it. */
+function readPersistedSpatialGridToggle(): boolean {
+  try {
+    return localStorage.getItem(SPATIAL_GRID_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
 
 /**
  * Playback Panel Container
@@ -26,6 +55,34 @@ export const PlaybackPanel: React.FC = () => {
     tracks,
     readOnly,
   } = useContentBuilder();
+
+  const [showControlnetGuide, setShowControlnetGuide] = useState(readPersistedToggle);
+  const [showSpatialOverlay, setShowSpatialOverlay] = useState(readPersistedSpatialToggle);
+  const [showSpatialGrid, setShowSpatialGrid] = useState(readPersistedSpatialGridToggle);
+
+  const handleToggleControlnetGuide = useCallback(() => {
+    setShowControlnetGuide((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(CONTROLNET_GUIDE_KEY, String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const handleToggleSpatialOverlay = useCallback(() => {
+    setShowSpatialOverlay((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(SPATIAL_OVERLAY_KEY, String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const handleToggleSpatialGrid = useCallback(() => {
+    setShowSpatialGrid((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(SPATIAL_GRID_KEY, String(next)); } catch {}
+      return next;
+    });
+  }, []);
 
   return (
     <Box sx={{
@@ -75,22 +132,24 @@ export const PlaybackPanel: React.FC = () => {
             currentTime={playbackState.currentTime}
             readOnly={readOnly}
             tracks={tracks}
+            showControlnetGuide={showControlnetGuide}
+            showSpatialOverlay={showSpatialOverlay}
+            showSpatialGrid={showSpatialGrid}
           />
         </Box>
       </Box>
 
       {/* Playback Controls Bar */}
       <Box sx={{
-        padding: "6px 16px",
+        px: 2,
         borderBottom: "1px solid #2a2a2a",
-        backgroundColor: "#0f0f0f",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        minHeight: "44px",
-        maxHeight: "44px",
+        height: "48px",
         flexShrink: 0,
-        overflow: "visible",
+        overflow: "hidden",
+        boxSizing: "border-box",
         width: "100%",
         background: "linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)",
         borderTop: "1px solid rgba(255, 255, 255, 0.02)",
@@ -101,13 +160,9 @@ export const PlaybackPanel: React.FC = () => {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          px: 2,
-          py: 0.5,
-          bgcolor: "rgba(0, 0, 0, 0.4)",
-          borderRadius: 1.5,
-          border: "1px solid rgba(255, 255, 255, 0.05)",
-          backdropFilter: "blur(8px)",
-          boxShadow: "0 1px 4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.02)"
+          width: "100%",
+          minHeight: 0,
+          background: "transparent",
         }}>
           <PlaybackControls
             playbackState={playbackState}
@@ -117,6 +172,12 @@ export const PlaybackPanel: React.FC = () => {
             onSeek={jumpToTime}
             onSpeedChange={handleSpeedChange}
             readOnly={readOnly}
+            showControlnetGuide={showControlnetGuide}
+            onToggleControlnetGuide={handleToggleControlnetGuide}
+            showSpatialOverlay={showSpatialOverlay}
+            onToggleSpatialOverlay={handleToggleSpatialOverlay}
+            showSpatialGrid={showSpatialGrid}
+            onToggleSpatialGrid={handleToggleSpatialGrid}
           />
         </Box>
       </Box>

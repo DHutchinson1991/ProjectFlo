@@ -68,6 +68,7 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
         primary_estimate_total: apiResponse.primary_estimate_total ?? null,
         pipeline_stage: apiResponse.pipeline_stage ?? null,
         package_contents_snapshot: apiResponse.package_contents_snapshot ?? null,
+        blueprint_drift: apiResponse.blueprint_drift ?? null,
         created_at: new Date(apiResponse.created_at),
         updated_at: new Date(apiResponse.updated_at),
         estimates: apiResponse.estimates?.map((e) => ({
@@ -85,6 +86,12 @@ export function mapInquiryResponse(apiResponse: InquiryApiResponse): Inquiry {
         quotes: apiResponse.quotes as Inquiry['quotes'],
         contracts: apiResponse.contracts as Inquiry['contracts'],
         welcome_sent_at: apiResponse.welcome_sent_at ?? null,
+        lead_producer_name: apiResponse.lead_producer_name ?? null,
+        lead_producer: apiResponse.lead_producer ?? null,
+        lead_videographer_name: apiResponse.lead_videographer_name ?? null,
+        lead_videographer: apiResponse.lead_videographer ?? null,
+        lead_editor_name: apiResponse.lead_editor_name ?? null,
+        lead_editor: apiResponse.lead_editor ?? null,
     };
 }
 

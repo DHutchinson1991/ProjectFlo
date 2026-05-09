@@ -33,7 +33,7 @@ export class ClientPortalActionsService {
 
         const packages = await this.prisma.service_packages.findMany({
             where: { brand_id: inquiry.contact.brand_id!, is_active: true },
-            select: { id: true, name: true, description: true, category: true, currency: true, contents: true },
+            select: { id: true, name: true, description: true, event_category: true, currency: true, contents: true },
             orderBy: { name: 'asc' },
         });
         return { packages };

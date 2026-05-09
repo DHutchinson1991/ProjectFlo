@@ -23,6 +23,7 @@ Canonical home for scene-moment domain types, API bindings, hooks, and helpers. 
 - `MusicType` and `MUSIC_TYPE_OPTIONS` live in `@/features/content/music/types` — not duplicated here.
 - `formatDuration(seconds)` formats as `"Xm Ys"`, `"Xm"`, or `"Ys"`.
 - `MomentFormData` is the loose form-layer type for moment editors; `SceneMoment` is the strict domain type.
+- Recording-setup save hooks must preserve both `camera_assignments` and `audio_assignments` from the PATCH response, or derive audio assignments from selected audio tracks, so audio subject edits render immediately without a reload.
 
 ## Related modules
 - **Backend**: `packages/backend/src/content/moments/` — moments controller + service

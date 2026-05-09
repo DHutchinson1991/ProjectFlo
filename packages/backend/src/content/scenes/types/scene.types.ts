@@ -16,11 +16,17 @@ export interface SceneResponseDto {
 }
 
 export interface CameraAssignmentSummary {
+    id: number;
     track_id: number;
     track_name: string;
     track_type?: string;
     subject_ids: number[];
     shot_type?: string | null;
+    director_notes?: {
+        emotionalTone: string;
+        compositionNotes: string;
+        source?: string;
+    } | null;
 }
 
 export interface RecordingSetupSummary {

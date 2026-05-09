@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import {
@@ -8,10 +8,19 @@ import {
   UpdatePackageFilmDto,
   UpsertPackageFilmSceneScheduleDto,
 } from '../dto';
+import { MomentKnowledgeService } from './moment-knowledge.service';
+import { ScenePreparationService } from '../../scene-preparation/services/scene-preparation.service';
 
 @Injectable()
 export class SchedulePackageService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(SchedulePackageService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly momentKnowledge: MomentKnowledgeService,
+    @Inject(forwardRef(() => ScenePreparationService))
+    private readonly scenePrep: ScenePreparationService,
+  ) {}
 
   // ─── Package Schedule Summary ──────────────────────────────────────
 
@@ -162,6 +171,15 @@ export class SchedulePackageService {
 
     if (dto.package_activity_id) {
       await this.autoPopulateSceneMomentsFromActivity(dto.scene_id, dto.package_activity_id);
+      await this.autoCreateRecordingSetups(dto.scene_id, packageFilm.film_id, dto.package_activity_id);
+
+      // Fire-and-forget: auto-run spatial/director pipeline if the activity already has moments
+      this.logger.log(
+        `upsertPackageFilmSceneSchedule: launched auto-prepareScene in background for scene ${dto.scene_id} (film ${packageFilm.film_id})`,
+      );
+      this.scenePrep.prepareScene(dto.scene_id, packageFilm.film_id, 'package').catch((err) =>
+        this.logger.warn(`Auto-prepareScene failed for scene ${dto.scene_id}: ${(err as Error).message}`),
+      );
     }
     return schedule;
   }
@@ -175,30 +193,214 @@ export class SchedulePackageService {
   }
 
   /**
-   * Auto-populate SceneMoment records from PackageActivityMoment records.
-   * Only creates moments if the scene doesn't already have any.
-   * Does NOT auto-populate for MONTAGE scenes.
+   * Auto-populate SceneMoment records from package activity moments.
+   * Falls back to the moment knowledge base when the activity has no custom moments yet.
    */
   private async autoPopulateSceneMomentsFromActivity(sceneId: number, activityId: number) {
-    const scene = await this.prisma.filmScene.findUnique({ where: { id: sceneId } });
-    if (!scene || scene.mode === 'MONTAGE') return;
+    await this.momentKnowledge.ensureSceneMomentsForActivity(sceneId, activityId);
+  }
 
-    const existingMoments = await this.prisma.sceneMoment.count({ where: { film_scene_id: sceneId } });
-    if (existingMoments > 0) return;
+  /**
+   * Auto-create MomentRecordingSetup + CameraSubjectAssignment records
+   * so prepareScene can find cameras to assign shots to.
+   */
+  private async autoCreateRecordingSetups(sceneId: number, filmId: number, activityId?: number) {
+    const tracks = await this.prisma.filmTimelineTrack.findMany({
+      where: { film_id: filmId, is_active: true },
+    });
+    const videoTracks = tracks.filter((t) => t.type === 'VIDEO');
+    const videoTrackIds = videoTracks.map((t) => t.id);
+    const audioTrackIds = tracks.filter((t) => t.type === 'AUDIO').map((t) => t.id);
 
-    const activityMoments = await this.prisma.packageActivityMoment.findMany({
+    if (videoTrackIds.length === 0) return;
+
+    // ── Ensure SpaceSlotCameraPosition records exist for all video tracks ──
+    if (activityId) {
+      await this.ensureSpaceSlotCameraPositions(activityId, videoTracks);
+    }
+
+    // Look up existing SceneCameraPosition records so we can link them
+    const sceneCamPositions = await this.prisma.sceneCameraPosition.findMany({
+      where: { scene_id: sceneId, track_id: { in: videoTrackIds } },
+    });
+    const positionByTrack = new Map(sceneCamPositions.map((cp) => [cp.track_id, cp.id]));
+
+    // Scene-level recording setup
+    const existingScene = await this.prisma.sceneRecordingSetup.findUnique({ where: { scene_id: sceneId } });
+    if (!existingScene) {
+      await this.prisma.sceneRecordingSetup.create({
+        data: {
+          scene_id: sceneId,
+          audio_track_ids: audioTrackIds,
+          camera_assignments: {
+            createMany: { data: videoTrackIds.map((tid) => ({ track_id: tid })) },
+          },
+        },
+      });
+    }
+
+    // Moment-level recording setups
+    const moments = await this.prisma.sceneMoment.findMany({
+      where: { film_scene_id: sceneId },
+      select: { id: true, package_activity_moment_id: true },
+    });
+
+    // Load PackageActivityMoment.camera_subject_plan for each linked moment so
+    // we can propagate the package-level blocking plan (camera label → subject
+    // names) into film-scope CameraSubjectAssignment.subject_ids. This is what
+    // makes films created from packages inherit editorial camera→subject
+    // targeting from the `PackageBlockingPlannerService` pass.
+    const linkedPkgMomentIds = moments
+      .map((m) => m.package_activity_moment_id)
+      .filter((id): id is number => typeof id === 'number');
+    const pkgMoments = linkedPkgMomentIds.length
+      ? await this.prisma.packageActivityMoment.findMany({
+          where: { id: { in: linkedPkgMomentIds } },
+          select: { id: true, camera_subject_plan: true },
+        })
+      : [];
+    const planByPkgMomentId = new Map<number, Record<string, string[]>>();
+    for (const pm of pkgMoments) {
+      const plan = pm.camera_subject_plan as unknown;
+      if (plan && typeof plan === 'object') {
+        planByPkgMomentId.set(pm.id, plan as Record<string, string[]>);
+      }
+    }
+
+    // Build subject name → PackageDaySubject id map for this package.
+    // `CameraSubjectAssignment.subject_ids` holds PackageDaySubject IDs (same
+    // convention as `BlockingDirectorService.writeResults`).
+    let subjectNameToDaySubjectId = new Map<string, number>();
+    if (activityId && planByPkgMomentId.size > 0) {
+      const activity = await this.prisma.packageActivity.findUnique({
+        where: { id: activityId },
+        select: { package_id: true },
+      });
+      if (activity?.package_id) {
+        const daySubjects = await this.prisma.packageDaySubject.findMany({
+          where: { package_id: activity.package_id },
+          select: { id: true, name: true },
+        });
+        subjectNameToDaySubjectId = new Map(
+          daySubjects
+            .filter((s) => !!s.name)
+            .map((s) => [s.name!.toLowerCase(), s.id]),
+        );
+      }
+    }
+
+    const resolveSubjectIdsFor = (
+      pkgMomentId: number | null,
+      trackName: string,
+    ): number[] => {
+      if (pkgMomentId == null) return [];
+      const plan = planByPkgMomentId.get(pkgMomentId);
+      if (!plan) return [];
+      const names = plan[trackName] ?? plan[trackName.toLowerCase()];
+      if (!Array.isArray(names) || names.length === 0) return [];
+      return names
+        .map((n) => subjectNameToDaySubjectId.get(String(n).toLowerCase()))
+        .filter((id): id is number => typeof id === 'number');
+    };
+
+    const videoTrackById = new Map(videoTracks.map((t) => [t.id, t]));
+
+    for (const moment of moments) {
+      const existing = await this.prisma.momentRecordingSetup.findUnique({
+        where: { moment_id: moment.id },
+      });
+      if (existing) continue;
+
+      await this.prisma.momentRecordingSetup.create({
+        data: {
+          moment_id: moment.id,
+          audio_track_ids: audioTrackIds,
+          camera_assignments: {
+            createMany: {
+              data: videoTrackIds.map((tid) => {
+                const track = videoTrackById.get(tid);
+                const subjectIds = resolveSubjectIdsFor(
+                  moment.package_activity_moment_id ?? null,
+                  track?.name ?? '',
+                );
+                return {
+                  track_id: tid,
+                  subject_ids: subjectIds,
+                  scene_camera_position_id: positionByTrack.get(tid) ?? null,
+                };
+              }),
+            },
+          },
+        },
+      });
+    }
+
+    this.logger.log(
+      `Auto-created recording setups for scene ${sceneId}: ${moments.length} moments × ${videoTrackIds.length} cameras` +
+        (planByPkgMomentId.size > 0
+          ? ` (propagated camera_subject_plan for ${planByPkgMomentId.size} moment(s))`
+          : ''),
+    );
+  }
+
+  /**
+   * Ensure a SpaceSlotCameraPosition exists for every video track.
+   * Creates positions for unmanned cameras that don't already have one.
+   */
+  private async ensureSpaceSlotCameraPositions(
+    activityId: number,
+    videoTracks: { id: number; name: string; is_unmanned: boolean }[],
+  ) {
+    const spaceAssignment = await this.prisma.spaceActivityAssignment.findFirst({
       where: { package_activity_id: activityId },
-      orderBy: { order_index: 'asc' },
+      select: { package_space_slot_id: true },
     });
-    if (activityMoments.length === 0) return;
+    if (!spaceAssignment) return;
 
-    await this.prisma.sceneMoment.createMany({
-      data: activityMoments.map((am) => ({
-        film_scene_id: sceneId,
-        name: am.name,
-        order_index: am.order_index,
-        duration: am.duration_seconds,
-      })),
+    const slotId = spaceAssignment.package_space_slot_id;
+    const existing = await this.prisma.spaceSlotCameraPosition.findMany({
+      where: { package_space_slot_id: slotId },
+      select: { id: true, order_index: true, label: true },
     });
+
+    // If we already have enough positions for all tracks, nothing to do
+    if (existing.length >= videoTracks.length) return;
+
+    // Find the crew slot for the manned videographer (to link unmanned cams to)
+    const crewAssignment = await this.prisma.packageCrewSlotActivity.findFirst({
+      where: { package_activity_id: activityId },
+      include: {
+        package_crew_slot: {
+          select: { id: true, job_role: { select: { name: true } } },
+        },
+      },
+    });
+    const videographerSlotId = crewAssignment?.package_crew_slot?.job_role?.name === 'videographer'
+      ? crewAssignment.package_crew_slot_id
+      : null;
+
+    let nextIdx = Math.max(-1, ...existing.map((c) => c.order_index)) + 1;
+
+    for (let i = existing.length; i < videoTracks.length; i++) {
+      const track = videoTracks[i];
+      await this.prisma.spaceSlotCameraPosition.create({
+        data: {
+          package_space_slot_id: slotId,
+          crew_slot_id: videographerSlotId,
+          is_unmanned: track.is_unmanned,
+          label: track.name,
+          x: 500,
+          y: 500,
+          rotation: 0,
+          order_index: nextIdx++,
+        },
+      });
+    }
+
+    if (videoTracks.length > existing.length) {
+      this.logger.log(
+        `ensureSpaceSlotCameraPositions: created ${videoTracks.length - existing.length} camera positions for activity ${activityId}`,
+      );
+    }
   }
 }

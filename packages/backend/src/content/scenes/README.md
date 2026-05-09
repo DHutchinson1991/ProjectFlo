@@ -33,6 +33,7 @@ scenes/
 - `mode` derives from the template type when `scene_template_id` is supplied; defaults to MOMENTS.
 - `createTemplateFromScene` generates a unique name (appends suffix if duplicate) and deduplicates suggested subjects by upsert on `brand_id_name`.
 - Scene-level recording setup stores `camera_track_ids` as assignments; deleting the setup cascades via Prisma.
+- `scene.mapper.ts` reads optional AI director notes from `camera_assignments.pipeline_data` defensively because Prisma JSON may be `object`, `string`, `array`, or `null`.
 - `reorderScenes` is scoped to a film for safety — validates film existence before bulk update.
 
 ## API routes (under `/scenes` prefix)

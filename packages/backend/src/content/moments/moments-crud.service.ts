@@ -61,19 +61,45 @@ export class MomentsCrudService {
             },
         });
 
-        const sceneSubjects = await this.prisma.filmSceneSubject.findMany({
-            where: { scene_id: sceneId },
-            select: { subject_id: true, priority: true, notes: true },
+        // Get subjects for this film via PackageDaySubject (through PackageFilm)
+        const packageFilm = await this.prisma.packageFilm.findFirst({
+            where: { film_id: scene.film_id },
+            select: { package_id: true },
         });
 
-        if (sceneSubjects.length > 0) {
+        const packageSubjects = packageFilm
+            ? await this.prisma.packageDaySubject.findMany({
+                where: { package_id: packageFilm.package_id },
+                select: { id: true, name: true, role_template: { select: { role_name: true } } },
+            })
+            : [];
+
+        if (packageSubjects.length > 0) {
+            // Look up template subject_actions for this moment (by name + source activity)
+            let actionsByName: Record<string, string> = {};
+            if (createMomentDto.source_activity_id) {
+                const templateMoment = await this.prisma.packageActivityMoment.findFirst({
+                    where: {
+                        package_activity_id: createMomentDto.source_activity_id,
+                        name: createMomentDto.name,
+                    },
+                    select: { subject_actions: true },
+                });
+                if (templateMoment?.subject_actions && typeof templateMoment.subject_actions === 'object') {
+                    actionsByName = templateMoment.subject_actions as Record<string, string>;
+                }
+            }
+
             await this.prisma.filmSceneMomentSubject.createMany({
-                data: sceneSubjects.map((assignment) => ({
-                    moment_id: moment.id,
-                    subject_id: assignment.subject_id,
-                    priority: assignment.priority,
-                    notes: assignment.notes ?? undefined,
-                })),
+                data: packageSubjects.map((sub) => {
+                    const roleName = sub.role_template?.role_name || sub.name;
+                    const actionDesc = actionsByName[roleName] ?? undefined;
+                    return {
+                        moment_id: moment.id,
+                        subject_id: sub.id,
+                        action_description: actionDesc ?? undefined,
+                    };
+                }),
                 skipDuplicates: true,
             });
         }

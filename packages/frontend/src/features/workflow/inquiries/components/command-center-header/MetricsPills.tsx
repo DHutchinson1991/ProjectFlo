@@ -8,6 +8,8 @@ import {
     TravelExplore,
     Schedule,
     CalendarToday,
+    AutoAwesome,
+    WarningAmber,
 } from '@mui/icons-material';
 import { formatCurrency } from '@/shared/utils/formatUtils';
 import type { MetricsPillsProps } from './types';
@@ -32,8 +34,74 @@ export default function MetricsPills({
     const naResponses = (needsAssessmentSubmission?.responses ?? {}) as Record<string, unknown>;
     const leadSource = inquiry.lead_source || naResponses.lead_source || null;
 
+    /* ---- blueprint lineage (from snapshot) ---- */
+    const snapshot = inquiry.package_contents_snapshot;
+    const blueprintName = snapshot?.source_day_blueprint_display_name ?? null;
+    const blueprintVersionNum = snapshot?.source_day_blueprint_version_number ?? null;
+    const blueprintId = snapshot?.source_day_blueprint_id ?? null;
+    const blueprintVersionId = snapshot?.source_day_blueprint_version_id ?? null;
+    const blueprintDrift = inquiry.blueprint_drift ?? null;
+    const blueprintOutdated = blueprintDrift?.is_current === false;
+    const latestVersionNum = blueprintDrift?.latest_version_number ?? null;
+    const blueprintHref =
+        blueprintId && blueprintVersionId
+            ? `/day-designer/${blueprintId}/${blueprintVersionId}`
+            : '/day-designer';
+
     return (
         <>
+            {/* Blueprint lineage pill — indigo, shown when package was built from a Day Blueprint */}
+            {blueprintName && (
+                <Tooltip
+                    title={blueprintOutdated
+                        ? `Outdated blueprint version: using v${blueprintVersionNum ?? '?'}, latest is v${latestVersionNum ?? '?'}`
+                        : (blueprintId
+                            ? `View Day Blueprint: ${blueprintName}`
+                            : `Built from Day Blueprint: ${blueprintName}`)}
+                    arrow
+                    placement="bottom"
+                >
+                    <Box
+                        sx={{
+                            display: 'flex', alignItems: 'center', gap: 0.75,
+                            px: 1.5, py: 0.75, borderRadius: 2, height: 44,
+                            bgcolor: blueprintOutdated ? 'rgba(245, 158, 11, 0.08)' : 'rgba(99, 102, 241, 0.06)',
+                            border: blueprintOutdated
+                                ? '1px solid rgba(245, 158, 11, 0.28)'
+                                : '1px solid rgba(99, 102, 241, 0.18)',
+                            cursor: 'pointer',
+                        }}
+                        onClick={() => { window.location.href = blueprintHref; }}
+                    >
+                        {blueprintOutdated ? (
+                            <WarningAmber sx={{ fontSize: 14, color: '#f59e0b', flexShrink: 0 }} />
+                        ) : (
+                            <AutoAwesome sx={{ fontSize: 14, color: '#818cf8', flexShrink: 0 }} />
+                        )}
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography sx={{ fontSize: '0.5rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1 }}>Blueprint</Typography>
+                            <Typography title={blueprintName} sx={{ fontSize: '0.85rem', fontWeight: 800, color: blueprintOutdated ? '#f59e0b' : '#818cf8', lineHeight: 1.2, letterSpacing: '-0.02em', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {blueprintName}{blueprintVersionNum != null ? ` v${blueprintVersionNum}` : ''}
+                            </Typography>
+                        </Box>
+                        {blueprintOutdated && latestVersionNum != null && (
+                            <Chip
+                                label={`Latest v${latestVersionNum}`}
+                                size="small"
+                                sx={{
+                                    height: 18,
+                                    fontSize: '0.55rem',
+                                    fontWeight: 800,
+                                    bgcolor: 'rgba(245, 158, 11, 0.18)',
+                                    color: '#f59e0b',
+                                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                                    '& .MuiChip-label': { px: 0.9 },
+                                }}
+                            />
+                        )}
+                    </Box>
+                </Tooltip>
+            )}
             {/* Lead Source pill — warm violet */}
             {leadSource && (
                 <Box sx={{

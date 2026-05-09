@@ -80,11 +80,44 @@ export interface ServicePackage {
         }>>;
         items: ServicePackageItem[];
     };
-    /** Sum of group-role subject counts across event days (e.g. total guest headcount) */
+    /** Derived from Guests subject rows, using the max headcount across package event days. */
     typical_guest_count?: number | null;
+    /** Films linked to this package via PackageFilm junction */
+    package_films?: Array<{
+        id: number;
+        order_index: number;
+        film: {
+            id: number;
+            name: string;
+            film_type: 'ACTIVITY' | 'FEATURE' | 'MONTAGE' | 'RAW_FOOTAGE';
+            target_duration_min: number | null;
+            target_duration_max: number | null;
+            scenes?: Array<{ duration_seconds: number | null }>;
+            _count?: { scenes: number };
+        };
+    }>;
     /** Computed pricing from PricingService (bracket-aware + task costs) */
     _totalCost?: number;
     _totalCrewCost?: number;
     _totalEquipmentCost?: number;
     _tax?: { rate: number; amount: number; totalWithTax: number } | null;
+    // ── Blueprint lineage (set when package was created from a Day Blueprint) ──
+    source_day_blueprint_id?: number | null;
+    source_day_blueprint_version_id?: number | null;
+    source_day_blueprint?: {
+        id: number;
+        key: string;
+        display_name: string;
+        event_category: string;
+        latest_published_version_id: number | null;
+    } | null;
+    source_day_blueprint_version?: {
+        id: number;
+        version_number: number;
+        status: string;
+        published_at: string | null;
+    } | null;
+    /** True when a newer published blueprint version exists and the package was last
+     *  snapshotted from an older one. Surface a "Blueprint updated" drift pill. */
+    blueprint_update_available?: boolean;
 }

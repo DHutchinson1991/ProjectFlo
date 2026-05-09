@@ -15,8 +15,7 @@ export type FilmWithDetails = Prisma.FilmGetPayload<{
       };
       orderBy: { order_index: 'asc' };
     };
-    subjects: true;
-    locations: {
+    film_locations: {
       include: { location: true };
     };
     scenes: {

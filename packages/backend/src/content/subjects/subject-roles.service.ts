@@ -23,7 +23,6 @@ export class SubjectRolesService {
             : [{
                 role_name: dto.role_name,
                 description: dto.description,
-                is_core: dto.is_core,
                 is_group: dto.is_group,
                 order_index: dto.order_index,
             }];
@@ -35,7 +34,6 @@ export class SubjectRolesService {
             brand_id: number;
             role_name: string;
             description: string | null;
-            is_core: boolean;
             is_group: boolean;
             never_group: boolean;
             order_index: number;
@@ -57,7 +55,6 @@ export class SubjectRolesService {
                     brand_id: brandId,
                     role_name: roleData.role_name,
                     description: roleData.description,
-                    is_core: roleData.is_core ?? false,
                     is_group: roleData.is_group ?? false,
                     order_index: roleData.order_index ?? (rolesCount + i),
                 },
@@ -75,7 +72,8 @@ export class SubjectRolesService {
             data: {
                 role_name: dto.role_name ?? role.role_name,
                 description: dto.description ?? role.description,
-                is_core: dto.is_core ?? role.is_core,
+                is_group: dto.is_group ?? role.is_group,
+                never_group: dto.never_group ?? role.never_group,
             },
         });
     }

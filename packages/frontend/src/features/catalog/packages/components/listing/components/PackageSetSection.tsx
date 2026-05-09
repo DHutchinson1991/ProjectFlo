@@ -90,7 +90,7 @@ export function PackageSetSection({
                         bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(52, 58, 68, 0.3)',
                         fontSize: '1.3rem',
                     }}>
-                        {set.emoji || set.event_type?.icon || '📦'}
+                        {set.emoji || '📦'}
                     </Box>
 
                     {/* Name */}
@@ -101,9 +101,9 @@ export function PackageSetSection({
                                 {set.name}
                             </Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
-                                {set.event_type?.name && (
+                                {set.event_category && (
                                     <Chip
-                                        label={set.event_type.name}
+                                        label={set.event_category}
                                         size="small"
                                         sx={{
                                             height: 18, fontSize: '0.65rem', fontWeight: 600,
@@ -134,15 +134,32 @@ export function PackageSetSection({
             {/* ── Slots Grid ── */}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                 <Box sx={{
+                    position: 'relative',
+                    '&::after': {
+                        content: '""',
+                        display: { xs: 'block', md: 'none' },
+                        position: 'absolute', right: 0, top: 0, bottom: 0,
+                        width: 40,
+                        background: 'linear-gradient(to right, transparent, rgba(10, 12, 16, 0.8))',
+                        pointerEvents: 'none',
+                        zIndex: 1,
+                    },
+                }}>
+                <Box sx={{
                     display: 'grid',
                     gridTemplateColumns: {
-                        xs: '1fr',
-                        sm: 'repeat(2, 1fr)',
+                        xs: `repeat(${sortedSlots.length + (sortedSlots.length < MAX_SLOTS ? 1 : 0)}, minmax(260px, 1fr))`,
                         md: `repeat(${MAX_SLOTS}, minmax(0, 1fr))`,
-                        lg: `repeat(${MAX_SLOTS}, minmax(0, 1fr))`,
-                        xl: `repeat(${MAX_SLOTS}, minmax(0, 1fr))`,
                     },
                     gap: 2.5,
+                    overflowX: { xs: 'auto', md: 'visible' },
+                    scrollSnapType: { xs: 'x mandatory', md: 'none' },
+                    pb: { xs: 1, md: 0 },
+                    '& > *': { scrollSnapAlign: { xs: 'start', md: 'unset' } },
+                    /* subtle scrollbar */
+                    '&::-webkit-scrollbar': { height: 4 },
+                    '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(100,140,255,0.2)', borderRadius: 2 },
+                    '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
                 }}>
                     {sortedSlots.map(slot => (
                         <DroppableSlotWrapper key={slot.id} id={slot.id} isOver={draggingSlotId !== null && draggingSlotId !== slot.id}>
@@ -196,10 +213,11 @@ export function PackageSetSection({
                                 Add Slot
                             </Typography>
                             <Typography sx={{ fontSize: '0.6rem', color: '#334155' }}>
-                                {sortedSlots.length} / {MAX_SLOTS}
+                                {sortedSlots.length} {sortedSlots.length === 1 ? 'tier' : 'tiers'} · Max {MAX_SLOTS}
                             </Typography>
                         </Box>
                     )}
+                </Box>
                 </Box>
 
                 {/* Drag overlay — shows a ghost of the package being dragged */}

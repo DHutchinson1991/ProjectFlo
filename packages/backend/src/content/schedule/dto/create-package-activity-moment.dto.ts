@@ -5,6 +5,10 @@ export class CreatePackageActivityMomentDto {
   name: string;
 
   @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
   @IsInt()
   order_index?: number;
 

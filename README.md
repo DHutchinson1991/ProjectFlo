@@ -281,7 +281,7 @@ All commands run from the **project root**.
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | Start both frontend and backend in development mode |
+| `pnpm dev` | Start both frontend and backend — auto-connects to remote LM Studio, falls back to local (`127.0.0.1:1234`) |
 | `pnpm build` | Build all packages |
 | `pnpm test` | Run tests across all packages |
 | `pnpm lint` | Lint all code |

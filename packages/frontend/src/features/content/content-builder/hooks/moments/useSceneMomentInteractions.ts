@@ -2,6 +2,7 @@
 
 import React from "react";
 import { scenesApi } from "@/features/content/scenes/api";
+import { momentsApi } from "@/features/content/moments/api";
 import type { TimelineScene } from "@/features/content/content-builder/types/timeline";
 import type { TimelineSceneMoment } from "@/features/content/moments/types";
 import type { MomentRecordingSetupWithAssignments } from "@/features/content/moments/types/recording-setup";
@@ -80,11 +81,20 @@ export const useSceneMomentInteractions = ({
     React.useEffect(() => {
         if (resizingMomentId === null || !resizeScene) return;
 
+        let lastMoveTime = 0;
+        let pendingDuration: number | null = null;
+
         const handleMouseMove = (e: MouseEvent) => {
+            const now = performance.now();
             const deltaPixels = e.clientX - resizeStartX;
             const deltaSeconds = deltaPixels / (zoomLevel || 5);
-            const newDuration = Math.max(1, resizeStartDuration + deltaSeconds);
+            pendingDuration = Math.max(1, resizeStartDuration + deltaSeconds);
 
+            // Throttle state updates to ~100ms
+            if (now - lastMoveTime < 100) return;
+            lastMoveTime = now;
+
+            const newDuration = pendingDuration;
             const moments = getSceneMoments(resizeScene);
             const updatedMoments = moments.map((moment) =>
                 moment.id === resizingMomentId ? { ...moment, duration: newDuration } : moment
@@ -94,6 +104,23 @@ export const useSceneMomentInteractions = ({
         };
 
         const handleMouseUp = () => {
+            // Apply any pending duration that was throttled away
+            if (pendingDuration !== null) {
+                const moments = getSceneMoments(resizeScene);
+                const updatedMoments = moments.map((moment) =>
+                    moment.id === resizingMomentId ? { ...moment, duration: pendingDuration! } : moment
+                );
+                updateSceneMoments(resizeScene, updatedMoments);
+            }
+
+            // Persist to database
+            const finalDuration = pendingDuration ?? resizeStartDuration;
+            if (resizingMomentId && finalDuration !== resizeStartDuration) {
+                momentsApi.update(resizingMomentId, {
+                    duration: Math.round(finalDuration * 10) / 10,
+                }).catch(err => console.error('[useSceneMomentInteractions] Failed to persist resize:', err));
+            }
+
             setResizingMomentId(null);
             setResizeScene(null);
         };
@@ -204,6 +231,16 @@ export const useSceneMomentInteractions = ({
         console.groupEnd();
 
         updateSceneMoments(activeSceneForEdit, updatedMoments);
+
+        // Persist name/duration changes to the database
+        const oldMoment = moments.find(m => m.id === updatedMoment.id);
+        if (updatedMoment.id && oldMoment && (updatedMoment.name !== oldMoment.name || updatedMoment.duration !== oldMoment.duration)) {
+            momentsApi.update(updatedMoment.id as number, {
+                name: updatedMoment.name,
+                duration: updatedMoment.duration,
+            }).catch(err => console.error('[handleMomentSave] Failed to persist moment update:', err));
+        }
+
         setEditingMoment(null);
         setActiveSceneForEdit(null);
     }, [activeSceneForEdit, editingMoment, updateSceneMoments]);
@@ -244,6 +281,17 @@ export const useSceneMomentInteractions = ({
                 graphics_title: data.graphics_title ?? null,
             };
 
+        const normalizedAudioAssignments = setupSource.audio_assignments?.length
+            ? setupSource.audio_assignments
+            : (setupSource.audio_track_ids || []).map((id) => {
+                const source = data.camera_assignments?.find((assignment) => assignment.track_id === id);
+                return {
+                    id: 0,
+                    track_id: id,
+                    subject_ids: source?.subject_ids || [],
+                };
+            });
+
         const normalizedSetup: MomentRecordingSetupWithAssignments = {
             ...(setupSource as MomentRecordingSetupWithAssignments),
             camera_assignments: setupSource.camera_assignments?.length
@@ -258,6 +306,7 @@ export const useSceneMomentInteractions = ({
                         shot_type: source?.shot_type ?? null,
                     };
                 }),
+            audio_assignments: normalizedAudioAssignments,
         };
 
         console.info("[MOMENT] Recording setup response", {

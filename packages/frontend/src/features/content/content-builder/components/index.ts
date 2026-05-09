@@ -10,6 +10,7 @@ export { PlaybackPanel } from './playback';
 export { LibraryPanel } from './library';
 export { DetailsPanel } from './details';
 export { MomentPanel } from './moment';
+export { SceneSettingsPanel } from './scene-settings/SceneSettingsPanel';
 
 // Modals
 export * from './modals';

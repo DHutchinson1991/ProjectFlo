@@ -1,68 +1,25 @@
-# Subjects Feature (`features/content/subjects/`)
+# Subjects Feature
 
-Film-subject management, scene/moment assignment, and brand-scoped role templates.
+## What this module does
+Provides the frontend bindings, hooks, and UI for managing subjects, roles, and scene/moment assignments. The UI still uses some “film subject” wording, but the data now maps directly to backend `PackageDaySubject` records plus derived scene/moment membership.
 
-## Structure
+## Key files
+| File | Purpose |
+|------|---------|
+| `api/subjects.api.ts` | Typed `/subjects` request helpers |
+| `api/roles.api.ts` | Brand-scoped role CRUD helpers |
+| `hooks/useSubjects.ts` | Main subject CRUD/query hook used by film editors |
+| `hooks/useSceneSubjects.ts` | Scene assignment helpers |
+| `components/SubjectsCard.tsx` | Subject management card and picker UI |
+| `types/index.ts` | Canonical frontend subject and assignment types |
 
-```
-features/content/subjects/
-├── index.ts              # Public barrel — import from here
-├── types/index.ts        # Canonical types (enums, interfaces, DTOs)
-├── api/
-│   ├── subjects.api.ts   # Film subjects, scene/moment assignments, templates
-│   └── roles.api.ts      # Brand-scoped subject-role CRUD
-├── hooks/
-│   ├── useFilmSubjects.ts   # Film subject CRUD + templates + role templates
-│   └── useSceneSubjects.ts  # Scene-subject assignment (multi-scene)
-└── components/
-    └── SubjectsCard.tsx      # Film subject card with template picker
-```
+## Business rules / invariants
+- Subject CRUD flows go through typed API helpers in `api/`; avoid ad-hoc `fetch` calls.
+- Scene membership is derived from moment assignments, so the UI should treat scene subjects as computed data.
+- Subject role/template metadata must preserve brand context from the shared API client.
+- `useSubjects` / `Subject` are the canonical frontend names; any `FilmSubject` aliases are migration-only compatibility shims.
 
-## Import Convention
-
-```ts
-import { useFilmSubjects, SubjectCategory, type FilmSubject, SubjectsCard } from '@/features/content/subjects';
-import { rolesApi } from '@/features/content/subjects/api/roles.api';
-```
-
-## API Modules
-
-Both `subjectsApi` and `rolesApi` use the shared `request()` utility from `@/shared/api/client` which handles auth headers, brand context, and base URL.
-
-### `subjectsApi`
-- `getFilmSubjects(filmId)` — `GET /subjects/films/:filmId/subjects`
-- `createSubject(filmId, dto)` — `POST /subjects/films/:filmId/subjects`
-- `getSubject(id)` / `updateSubject(id, dto)` / `deleteSubject(id)`
-- `getTemplates()` — `GET /subjects/templates/library` (brand via header)
-- `getSceneSubjects(sceneId)` / `assignToScene(...)` / `removeFromScene(...)`
-- `getMomentSubjects(momentId)` / `assignToMoment(...)` / `removeFromMoment(...)`
-
-### `rolesApi`
-- `getRoles(brandId)` — `GET /subjects/roles/brand/:brandId`
-- `createRole(brandId, dto)` — `POST /subjects/roles/brand/:brandId` (single or batch)
-- `updateRole(roleId, dto)` / `deleteRole(roleId)`
-
-## Consumers
-
-| Consumer | What it imports |
-|---|---|
-| `designer/films/[id]/page.tsx` | `useFilmSubjects`, `SubjectCategory` |
-| `designer/instance-films/[id]/page.tsx` | `useFilmSubjects`, `SubjectCategory` |
-| `SceneRecordingSetupModal.tsx` | `useFilmSubjects`, `useSceneSubjects` |
-| `FilmSubjectsTab.tsx` | `SubjectCategory`, `SubjectsCard` |
-| `FilmRightPanel.tsx` | `SubjectCategory` |
-| `designer/templates/page.tsx` | `rolesApi` |
-| `designer/subjects-templates/page.tsx` | `rolesApi`, `SubjectRole` |
-
-## Deleted Legacy Files
-
-- `lib/types/subjects.ts` — stale types (SubjectsLibrary shape)
-- `lib/types/domains/subjects.ts` — replaced by `types/index.ts`
-- `lib/api/subjects.api.ts` — wrong routes, zero consumers
-- `hooks/subjects/useFilmSubjects.ts` — moved here
-- `hooks/content-builder/scenes/useSceneSubjects.ts` — moved here
-- `hooks/content-builder/moments/useMomentSubjects.ts` — zero consumers
-- `designer/components/SubjectsCard.tsx` — moved here (rewrote fetch → API)
-- `designer/components/SubjectsManagerCard.tsx` — zero consumers
-- `components/subjects/SubjectsManagement.tsx` — zero consumers, stale types
-- `api.ts` subjects block + type imports — removed
+## Related modules
+- **Backend**: `packages/backend/src/content/subjects` — `/subjects` controllers and services.
+- **Frontend**: `../moments` and film editor screens — consume subject hooks for assignment and shot preview setup.
+- **Frontend**: `@/features/platform/brand` — supplies brand context for role/template queries.

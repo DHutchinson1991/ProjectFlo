@@ -2,7 +2,7 @@ import { IsString, IsOptional, IsNumber, IsNotEmpty, IsBoolean } from 'class-val
 
 export class CreateSubjectDto {
     @IsNumber()
-    @IsOptional() // Optional in DTO - set by controller from URL
+    @IsOptional() // Optional in DTO — set by controller from URL
     film_id?: number;
 
     @IsString()
@@ -11,5 +11,9 @@ export class CreateSubjectDto {
 
     @IsOptional()
     @IsNumber()
-    role_template_id?: number; // Link to a specific role template
+    role_template_id?: number;
+
+    @IsOptional()
+    @IsNumber()
+    event_day_template_id?: number;
 }

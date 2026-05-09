@@ -13,22 +13,15 @@ import {
     Close as CloseIcon,
     Edit as EditIcon,
     Add as AddIcon,
+    LinkRounded as LinkRoundedIcon,
 } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
 import type { Film } from "@/features/content/films/types";
-import { FilmMetaDataGrid } from "./FilmMetaDataGrid";
 import type { SaveState } from "@/features/content/content-builder/types/timeline";
 import { SaveStateButton } from "./SaveStateButton";
 
 interface FilmDetailHeaderProps {
     film: Film;
-    filmId: number;
-    sceneCount: number;
-    totalDuration: number;
-    trackCount: number;
-    subjectCount: number;
-    locationCount: number;
-    onSceneCreated: () => void;
     onSaveFilm: (name: string) => Promise<void>;
     /** Save state for the film (save button + unsaved indicator) */
     saveState?: SaveState;
@@ -38,26 +31,22 @@ interface FilmDetailHeaderProps {
     onAddScenes?: () => void;
     /** Whether the film is read-only */
     readOnly?: boolean;
+    /** Link to the parent package (shown as icon next to film name) */
+    packageHref?: string | null;
 }
 
 /**
  * FilmDetailHeader - Global project header for the Film Designer
- * Handles film title editing and displays real-time metadata summary
+ * Handles film title editing plus primary header actions
  */
 export const FilmDetailHeader: React.FC<FilmDetailHeaderProps> = ({
     film,
-    filmId,
-    sceneCount,
-    totalDuration,
-    trackCount,
-    subjectCount,
-    locationCount,
-    onSceneCreated,
     onSaveFilm,
     saveState,
     onSaveContent,
     onAddScenes,
     readOnly = false,
+    packageHref,
 }) => {
     const router = useRouter();
     const [isEditing, setIsEditing] = useState(false);
@@ -93,14 +82,14 @@ export const FilmDetailHeader: React.FC<FilmDetailHeaderProps> = ({
 
     return (
         <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3, py: 1.5, bgcolor: "#111" }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                 <IconButton onClick={() => router.push("/designer/films")} size="large" sx={{ color: "rgba(255, 255, 255, 0.7)" }}>
                     <ArrowBackIcon />
                 </IconButton>
                 
-                <Box sx={{ flexGrow: 1, display: "flex", alignItems: "center", gap: 4 }}>
+                <Box sx={{ flexGrow: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 2 }}>
                     {/* Title Section */}
-                    <Box sx={{ minWidth: "200px" }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
                         {isEditing ? (
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                                 <TextField
@@ -140,18 +129,18 @@ export const FilmDetailHeader: React.FC<FilmDetailHeaderProps> = ({
                                 >
                                     <EditIcon fontSize="small" />
                                 </IconButton>
+                                {packageHref && (
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => router.push(packageHref)}
+                                        sx={{ color: 'rgba(96,165,250,0.6)', '&:hover': { color: '#60a5fa' } }}
+                                    >
+                                        <LinkRoundedIcon sx={{ fontSize: 18 }} />
+                                    </IconButton>
+                                )}
                             </Box>
                         )}
                     </Box>
-
-                    {/* Metadata Section - Shared inline */}
-                    <FilmMetaDataGrid 
-                        sceneCount={sceneCount}
-                        totalDuration={totalDuration}
-                        trackCount={trackCount}
-                        subjectCount={subjectCount}
-                        locationCount={locationCount}
-                    />
                 </Box>
 
                 {/* Right Actions — Add Scenes + Save */}

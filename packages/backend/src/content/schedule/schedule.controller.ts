@@ -51,6 +51,7 @@ import {
   CreatePackageEventDayLocationDto,
   UpdatePackageEventDayLocationDto,
   CreatePackageLocationSlotDto,
+  UpdatePackageLocationSlotDto,
   CreatePackageActivityMomentDto,
   UpdatePackageActivityMomentDto,
   BulkCreatePackageActivityMomentsDto,
@@ -65,6 +66,7 @@ import {
   CreateInstanceCrewSlotDto,
   UpdateInstanceCrewSlotDto,
 } from './dto';
+import { CreatePackageSpaceSlotDto, UpdatePackageSpaceSlotDto } from './dto/package-space-slot.dto';
 import { EventDayIdQueryDto } from './dto/event-day-id-query.dto';
 import { ResolvedScheduleQueryDto } from './dto/resolved-schedule-query.dto';
 
@@ -607,6 +609,14 @@ export class ScheduleController {
     return this.packageResourceService.deletePackageLocationSlot(slotId);
   }
 
+  @Patch('packages/location-slots/:slotId')
+  updatePackageLocationSlot(
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageLocationSlotDto,
+  ) {
+    return this.packageResourceService.updatePackageLocationSlot(slotId, dto);
+  }
+
   @Post('packages/location-slots/:slotId/activities/:activityId')
   assignLocationSlotToActivity(
     @Param('slotId', ParseIntPipe) slotId: number,
@@ -621,6 +631,62 @@ export class ScheduleController {
     @Param('activityId', ParseIntPipe) activityId: number,
   ) {
     return this.packageResourceService.unassignLocationSlotFromActivity(slotId, activityId);
+  }
+
+  // ─── Package Space Slots ─────────────────────────────────────────────
+
+  @Get('packages/:packageId/space-slots')
+  getPackageSpaceSlots(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Query(new ValidationPipe({ transform: true })) query: EventDayIdQueryDto,
+  ) {
+    return this.packageResourceService.getPackageSpaceSlots(packageId, query.eventDayId);
+  }
+
+  @Post('packages/:packageId/space-slots')
+  createPackageSpaceSlot(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePackageSpaceSlotDto,
+  ) {
+    return this.packageResourceService.createPackageSpaceSlot(packageId, dto);
+  }
+
+  @Patch('packages/space-slots/:slotId')
+  updatePackageSpaceSlot(
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageSpaceSlotDto,
+  ) {
+    return this.packageResourceService.updatePackageSpaceSlot(slotId, dto);
+  }
+
+  @Delete('packages/space-slots/:slotId')
+  deletePackageSpaceSlot(@Param('slotId', ParseIntPipe) slotId: number) {
+    return this.packageResourceService.deletePackageSpaceSlot(slotId);
+  }
+
+  @Post('packages/space-slots/:slotId/activities/:activityId')
+  assignSpaceSlotToActivity(
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Param('activityId', ParseIntPipe) activityId: number,
+  ) {
+    return this.packageResourceService.assignSpaceSlotToActivity(slotId, activityId);
+  }
+
+  @Delete('packages/space-slots/:slotId/activities/:activityId')
+  unassignSpaceSlotFromActivity(
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Param('activityId', ParseIntPipe) activityId: number,
+  ) {
+    return this.packageResourceService.unassignSpaceSlotFromActivity(slotId, activityId);
+  }
+
+  @Post('packages/:packageId/location-slots/:slotId/import-spaces/:locationId')
+  importSpacesFromVenue(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Param('slotId', ParseIntPipe) slotId: number,
+    @Param('locationId', ParseIntPipe) locationId: number,
+  ) {
+    return this.packageResourceService.importSpacesFromVenue(packageId, slotId, locationId);
   }
 
   // ─── Project Event Days ──────────────────────────────────────────────

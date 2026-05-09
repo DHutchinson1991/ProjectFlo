@@ -192,7 +192,7 @@ export default function PackagePickerDialog({
                     )}
                     <Box>
                         <Typography sx={{ fontWeight: 700, color: '#fff', fontSize: '1.15rem' }}>
-                            {step === 'choose-action' && 'Fill Slot'}
+                            {step === 'choose-action' && 'Add a Package'}
                             {step === 'pick-from-library' && 'Choose a Package'}
                         </Typography>
                         {/* Context line: show which slot in which set */}

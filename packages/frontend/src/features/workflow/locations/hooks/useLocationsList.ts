@@ -56,10 +56,20 @@ export function useLocationsList(filters?: LocationsListFilters) {
         },
     });
 
+    const deleteMutation = useMutation({
+        mutationFn: (id: number) => locationsApi.delete(id),
+        onSuccess: () => {
+            if (brandId) {
+                queryClient.invalidateQueries({ queryKey: ['locations', brandId] });
+            }
+        },
+    });
+
     return {
         locations: locationsQuery.data ?? [],
         loading: locationsQuery.isPending,
         isError: locationsQuery.isError,
         saveMutation,
+        deleteMutation,
     };
 }

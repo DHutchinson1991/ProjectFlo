@@ -61,6 +61,8 @@ Owns studio inquiry API bindings and workflow-facing inquiry helpers outside the
 - Event card shows an event-days counter (`Days to Event` / `Days Since`) next to the event date instead of guest count.
 - Inquiry subjects in this screen must load from inquiry instance schedule endpoints (`/api/schedule/inquiries/{id}/subjects`), not package template subjects, so customized names are preserved.
 - The schedule tab's `SubjectsCard` is `readOnly` — names, counts, and member names are edited from the inquiry subjects card, not the schedule view.
+- Mission Control's Day Blueprint attribution pill should deep-link to the versioned Day Designer route (`/day-designer/:blueprintId/:versionId`) when lineage contains both ids; otherwise it falls back to `/day-designer`.
+- Mission Control should show a stale-state Blueprint pill when inquiry `blueprint_drift.is_current === false`, including the latest published version badge from backend drift metadata.
 
 ## Related modules
 - **Backend**: `packages/backend/src/workflow/inquiries` and related inquiry endpoints under `/api/inquiries/*`

@@ -174,8 +174,8 @@ export function SubjectTemplatesScreen() {
                           key={role.id}
                           label={role.role_name}
                           size="small"
-                          variant={role.is_core ? "filled" : "outlined"}
-                          color={role.is_core ? "primary" : "default"}
+                          variant="outlined"
+                          color="default"
                           sx={{
                             fontSize: "0.75rem",
                             "& .MuiChip-label": {
@@ -288,19 +288,6 @@ export function SubjectTemplatesScreen() {
                         </Tooltip>
                       </Box>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={role.is_core || false}
-                              onChange={(e) =>
-                                form.changeRole(idx, "is_core", e.target.checked)
-                              }
-                              size="small"
-                            />
-                          }
-                          label="Default role (auto-selected in films)"
-                          sx={{ fontSize: "0.85rem", m: 0 }}
-                        />
                         <FormControlLabel
                           control={
                             <Checkbox

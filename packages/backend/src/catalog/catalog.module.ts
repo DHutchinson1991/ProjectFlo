@@ -1,37 +1,37 @@
 import { Module } from '@nestjs/common';
+import { CrewPresetsModule } from './crew-presets/crew-presets.module';
 import { DiscoveryQuestionnaireModule } from './discovery-questionnaire/discovery-questionnaire.module';
-import { EventSubtypesModule } from './event-subtypes/event-subtypes.module';
-import { EventTypesModule } from './event-types/event-types.module';
 import { JobRolesModule } from './job-roles/job-roles.module';
-import { PackageSetsModule } from './package-sets/package-sets.module';
+import { PackageSetsModule } from './packages/sets/package-sets.module';
+import { PackageTemplatesModule } from './packages/templates/package-templates.module';
 import { PricingModule } from './pricing/pricing.module';
-import { ServicePackageCategoriesModule } from './service-package-categories/service-package-categories.module';
-import { ServicePackagesModule } from './service-packages/service-packages.module';
+import { PackagesModule } from './packages/packages.module';
 import { SkillRoleMappingsModule } from './skill-role-mappings/skill-role-mappings.module';
 import { WorkflowsModule } from './workflows/workflows.module';
+import { PackageCreationModule } from './packages/creation/package-creation.module';
 
 @Module({
   imports: [
+    CrewPresetsModule,
     DiscoveryQuestionnaireModule,
-    EventSubtypesModule,
-    EventTypesModule,
     JobRolesModule,
+    PackageCreationModule,
     PackageSetsModule,
+    PackageTemplatesModule,
     PricingModule,
-    ServicePackageCategoriesModule,
-    ServicePackagesModule,
+    PackagesModule,
     SkillRoleMappingsModule,
     WorkflowsModule,
   ],
   exports: [
+    CrewPresetsModule,
     DiscoveryQuestionnaireModule,
-    EventSubtypesModule,
-    EventTypesModule,
     JobRolesModule,
+    PackageCreationModule,
     PackageSetsModule,
+    PackageTemplatesModule,
     PricingModule,
-    ServicePackageCategoriesModule,
-    ServicePackagesModule,
+    PackagesModule,
     SkillRoleMappingsModule,
     WorkflowsModule,
   ],

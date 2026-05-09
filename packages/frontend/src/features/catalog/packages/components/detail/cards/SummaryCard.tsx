@@ -41,12 +41,8 @@ export function SummaryCard({
 
     return (
         <Box sx={{
-            ...(cardSx as object),
-            display: 'flex', alignItems: 'center', gap: 3,
-            px: 3, py: 2,
-            minWidth: 420,
-            background: 'linear-gradient(135deg, rgba(16, 18, 22, 0.9), rgba(16, 18, 22, 0.8))',
-            border: '1px solid rgba(245, 158, 11, 0.2)',
+            display: 'flex', alignItems: 'center', gap: 2.5,
+            px: 0, py: 0,
         }}>
                 {/* Crew cost */}
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
@@ -103,7 +99,7 @@ export function SummaryCard({
                     pl: 1.5, borderLeft: '1px solid rgba(245, 158, 11, 0.2)',
                 }}>
                     <Typography sx={{ fontSize: '0.6rem', color: '#f59e0b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        Total Cost
+                        {PackageCrewSlots.length === 0 ? 'Est. Total' : 'Total Cost'}
                     </Typography>
                     <Typography sx={{
                         fontSize: '1.2rem',

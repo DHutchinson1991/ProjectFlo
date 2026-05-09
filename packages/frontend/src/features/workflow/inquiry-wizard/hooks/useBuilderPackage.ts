@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { wizardStudioDataApi } from '../api';
 import type { AnyRecord, PriceEstimate } from '../types';
-import type { EventType } from '@/features/catalog/event-types/types';
+import type { EventType } from '@/features/catalog/package-templates/types';
 
 interface UseBuilderPackageReturn {
     builderPackageId: number | null;

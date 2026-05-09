@@ -237,7 +237,7 @@ export default function ProfileSettings() {
                             {getUserDisplayName(crew)}
                         </Typography>
                         <Chip
-                            label={crew.role?.name || "No Role"}
+                            label={crew.role?.name || authUser?.roles?.[0] || "No Role"}
                             size="small"
                             sx={{
                                 fontWeight: 600,

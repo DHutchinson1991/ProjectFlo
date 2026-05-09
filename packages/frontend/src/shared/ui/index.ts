@@ -31,5 +31,19 @@ export { WorkflowCard } from "./WorkflowCard";
 export { StudioTable } from "./StudioTable";
 export type { StudioTableProps, StudioColumn } from "./StudioTable";
 
+export { PackageTimeline } from "./PackageTimeline";
+export type { PackageTimelineActivity, PackageTimelineDay, PackageTimelineProps } from "./PackageTimeline";
+
+export { PackageActivityTable } from "./PackageActivityTable";
+export type {
+	PackageActivityTableActivity,
+	PackageActivityTableMetricColumn,
+	PackageActivityTableMoment,
+	PackageActivityTableProps,
+} from "./PackageActivityTable";
+
+export { PackageSurfaceHeader } from "./PackageSurfaceHeader";
+export type { PackageSurfaceHeaderChip, PackageSurfaceHeaderProps } from "./PackageSurfaceHeader";
+
 // Task display primitives (shared by catalog/task-library and workflow/tasks)
 export * from "./tasks";

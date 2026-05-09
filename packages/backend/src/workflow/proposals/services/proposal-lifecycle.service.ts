@@ -88,7 +88,7 @@ export class ProposalLifecycleService {
         }));
 
         const firstName = proposal.inquiry.contact?.first_name || '';
-        const eventType = proposal.inquiry.event_type?.name || 'Event';
+        const eventType = proposal.inquiry.event_category || 'Event';
         const personalMessage = generateIntroMessageFromTemplate(eventType, firstName);
 
         return {
@@ -213,14 +213,14 @@ export class ProposalLifecycleService {
         const ids = Array.from(allSubjectIds);
 
         // Query all candidate subject tables in parallel
-        const [packageDaySubjects, projectDaySubjects, filmSubjects] = await Promise.all([
+        const [packageDaySubjects, projectDaySubjects, projectFilmSubjects] = await Promise.all([
             this.prisma.packageDaySubject.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }),
             this.prisma.projectDaySubject.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }),
             this.prisma.projectFilmSubject.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }),
         ]);
 
         const nameMap = new Map<number, string>();
-        for (const s of [...packageDaySubjects, ...projectDaySubjects, ...filmSubjects]) {
+        for (const s of [...packageDaySubjects, ...projectDaySubjects, ...projectFilmSubjects]) {
             if (!nameMap.has(s.id)) nameMap.set(s.id, s.name);
         }
 
@@ -258,7 +258,6 @@ export class ProposalLifecycleService {
             inquiry: {
                 include: {
                     contact: { select: { first_name: true, last_name: true, email: true } },
-                    event_type: { select: { name: true } },
                     estimates: {
                         include: {
                             items: true,

@@ -19,6 +19,8 @@ import type {
     InquiryScheduleSnapshotSummary,
     InquiryScheduleSyncResult,
 } from '../types';
+import type { InquiryApiResponse } from '../types/inquiry-api';
+import { mapInquiryResponse } from '../mappers/inquiry-mappers';
 import type {
     DiscoveryQuestionnaireTemplate,
     DiscoveryQuestionnaireSubmission,
@@ -48,16 +50,21 @@ function createInquiryScheduleSnapshotApi(client: ApiClient) {
 
 export function createInquiriesApi(client: ApiClient) {
     return {
-        getAll: () => client.get<Inquiry[]>('/api/inquiries'),
-        getById: (inquiryId: number) => client.get<Inquiry>(`/api/inquiries/${inquiryId}`),
+        getAll: async (): Promise<Inquiry[]> => {
+            const raw = await client.get<InquiryApiResponse[]>('/api/inquiries');
+            return raw.map(mapInquiryResponse);
+        },
+        getById: async (inquiryId: number): Promise<Inquiry> => {
+            const raw = await client.get<InquiryApiResponse>(`/api/inquiries/${inquiryId}`);
+            return mapInquiryResponse(raw);
+        },
         create: (data: CreateInquiryData) => client.post<Inquiry>('/api/inquiries', data),
         update: (inquiryId: number, data: UpdateInquiryData) =>
             client.put<Inquiry>(`/api/inquiries/${inquiryId}`, data),
         convert: (inquiryId: number) =>
             client.post<{ projectId: number }>(`/api/inquiries/${inquiryId}/convert`),
         delete: (inquiryId: number) => client.delete<void>(`/api/inquiries/${inquiryId}`),
-        sendWelcomePack: (inquiryId: number) =>
-            client.post<{ welcome_sent_at: string }>(`/api/inquiries/${inquiryId}/send-welcome-pack`),
+
         getDiscoveryCall: (inquiryId: number) =>
             client.get<{
                 id: number;

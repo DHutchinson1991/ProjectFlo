@@ -31,10 +31,10 @@ export const useViewportState = () => {
         setViewState(prev => ({ ...prev, viewportWidth: width }));
     }, []);
 
-    // Zoom to fit a specific duration in the viewport with 30% breathing room
+    // Zoom to fit a specific duration in the viewport with a small breathing room
     const zoomToFit = useCallback((totalDuration: number) => {
-        // Show content + 30% extra so the timeline doesn't feel cramped
-        const durationWithBreathing = Math.max(totalDuration, 30) * 1.3;
+        // Show content + 5% extra so the timeline doesn't feel cramped
+        const durationWithBreathing = Math.max(totalDuration, 30) * 1.05;
         const rawZoom = (viewState.viewportWidth - TIMELINE_CONFIG.VIEWPORT_PADDING) / durationWithBreathing;
         const targetZoomLevel = Math.max(
             TIMELINE_CONFIG.MIN_ZOOM_LEVEL,

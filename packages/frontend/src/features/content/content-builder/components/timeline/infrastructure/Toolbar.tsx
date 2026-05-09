@@ -39,15 +39,45 @@ const Toolbar: React.FC<TimelineBottomControlsProps> = ({
     const maxZoom = TIMELINE_CONFIG.MAX_ZOOM_LEVEL;
     const safeZoomLevel = Number.isFinite(viewState.zoomLevel) ? viewState.zoomLevel : minZoom;
 
+    // Logarithmic scale helpers for the slider
+    const toLog = (value: number) => Math.log(value);
+    const fromLog = (value: number) => Math.exp(value);
+    const logMin = toLog(minZoom);
+    const logMax = toLog(maxZoom);
+    const logValue = toLog(safeZoomLevel);
+
     const handleZoomIn = () => {
         const newZoom = Math.min(maxZoom, safeZoomLevel * 1.2);
-        onZoomChange(newZoom);
+        if (newZoom !== safeZoomLevel) onZoomChange(newZoom);
     };
 
     const handleZoomOut = () => {
         const newZoom = Math.max(minZoom, safeZoomLevel / 1.2);
-        onZoomChange(newZoom);
+        if (newZoom !== safeZoomLevel) onZoomChange(newZoom);
     };
+
+    // Keyboard shortcuts: + / - / 0 (fit to view)
+    React.useEffect(() => {
+        if (readOnly) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore when focused in an input/textarea/select
+            const tag = (e.target as HTMLElement)?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+            if (e.key === '=' || e.key === '+') {
+                e.preventDefault();
+                onZoomChange(Math.min(maxZoom, safeZoomLevel * 1.2));
+            } else if (e.key === '-') {
+                e.preventDefault();
+                onZoomChange(Math.max(minZoom, safeZoomLevel / 1.2));
+            } else if (e.key === '0' && onFitToView) {
+                e.preventDefault();
+                onFitToView();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [readOnly, safeZoomLevel, minZoom, maxZoom, onZoomChange, onFitToView]);
 
     const zoomPercentage = Math.round((safeZoomLevel / 10) * 100);
 
@@ -91,7 +121,7 @@ const Toolbar: React.FC<TimelineBottomControlsProps> = ({
                 <Tooltip title="Zoom Out">
                     <IconButton
                         onClick={handleZoomOut}
-                        disabled={readOnly || safeZoomLevel <= minZoom}
+                        disabled={readOnly || safeZoomLevel <= minZoom * 1.01}
                         size="small"
                         sx={{
                             color: "rgba(255, 255, 255, 0.8)",
@@ -109,14 +139,15 @@ const Toolbar: React.FC<TimelineBottomControlsProps> = ({
                     </IconButton>
                 </Tooltip>
 
-                {/* Zoom Slider */}
+                {/* Zoom Slider — logarithmic scale */}
                 <Box sx={{ flex: 1, mx: 1, maxWidth: 120 }}>
                     <Slider
-                        value={safeZoomLevel}
-                        min={minZoom}
-                        max={maxZoom}
+                        value={logValue}
+                        min={logMin}
+                        max={logMax}
+                        step={(logMax - logMin) / 200}
                         onChange={(_, value) => {
-                            onZoomChange(value as number);
+                            onZoomChange(fromLog(value as number));
                         }}
                         disabled={readOnly}
                         size="small"
@@ -146,7 +177,7 @@ const Toolbar: React.FC<TimelineBottomControlsProps> = ({
                 <Tooltip title="Zoom In">
                     <IconButton
                         onClick={handleZoomIn}
-                        disabled={readOnly || safeZoomLevel >= maxZoom}
+                        disabled={readOnly || safeZoomLevel >= maxZoom * 0.99}
                         size="small"
                         sx={{
                             color: "rgba(255, 255, 255, 0.8)",

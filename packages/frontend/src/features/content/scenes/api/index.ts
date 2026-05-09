@@ -197,12 +197,13 @@ export const createScenesApi = (client: ApiClient) => ({
       id: number,
       data: {
         camera_track_ids?: number[];
-        camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null }>;
+        camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null; enabled?: boolean }>;
         audio_track_ids?: number[];
+        audio_assignments?: Array<{ track_id: number; subject_ids?: number[] }>;
         graphics_enabled?: boolean;
         graphics_title?: string | null;
       }
-    ): Promise<{ id: number; audio_track_ids: number[]; graphics_enabled: boolean; graphics_title?: string | null; camera_assignments: Array<{ track_id: number; track_name?: string; track_type?: string; subject_ids?: number[]; shot_type?: string | null }> }> =>
+    ): Promise<{ id: number; audio_track_ids: number[]; graphics_enabled: boolean; graphics_title?: string | null; camera_assignments: Array<{ id: number; track_id: number; track_name?: string; track_type?: string; subject_ids?: number[]; shot_type?: string | null; enabled?: boolean }>; audio_assignments?: Array<{ id: number; track_id: number; track_name?: string; subject_ids?: number[] }> }> =>
       client.patch(`/api/moments/${id}/recording-setup`, data),
   },
 });

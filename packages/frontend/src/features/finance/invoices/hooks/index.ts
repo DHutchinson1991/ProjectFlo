@@ -51,5 +51,11 @@ export function useInvoiceMutations(inquiryId: number) {
         onSuccess: invalidate,
     });
 
-    return { updateInvoice, deleteInvoice, regenerateInvoices, recordPayment };
+    const voidPayment = useMutation({
+        mutationFn: ({ invoiceId, paymentId }: { invoiceId: number; paymentId: number }) =>
+            invoicesApi.voidPayment(inquiryId, invoiceId, paymentId),
+        onSuccess: invalidate,
+    });
+
+    return { updateInvoice, deleteInvoice, regenerateInvoices, recordPayment, voidPayment };
 }

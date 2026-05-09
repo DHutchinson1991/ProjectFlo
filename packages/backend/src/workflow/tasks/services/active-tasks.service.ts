@@ -116,7 +116,7 @@ export class ActiveTasksService {
                     assigned_to: {
                         include: { contact: { select: { first_name: true, last_name: true, email: true } } },
                     },
-                    task_library: { select: { is_auto_only: true } },
+                    task_library: { select: { is_auto_only: true, is_lead_task: true, default_job_role_id: true, parent_task_id: true } },
                     children: { where: { is_active: true }, select: { id: true, status: true } },
                     subtasks: {
                         where: status ? { status: status as tasks_status } : { status: { not: tasks_status.Archived } },

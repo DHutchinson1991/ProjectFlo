@@ -6,6 +6,7 @@ import {
     Box,
     CardContent,
     CircularProgress,
+    Collapse,
     Divider,
     Stack,
     Tooltip,
@@ -56,6 +57,9 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
         handleUpdateStatus,
         handleDirectConfirmCrew,
         handleToggleSlotConfirmed,
+        handleToggleSlotLead,
+        leadError,
+        clearLeadError,
         handleSwapCrew,
         openCrewRequestDialog,
         confirmCrewRequest,
@@ -106,6 +110,26 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
                             equipmentReady={equipmentReadyCount}
                         />
 
+                        <Collapse in={!!leadError}>
+                            <Alert
+                                severity="error"
+                                onClose={clearLeadError}
+                                sx={{ mt: 1, mb: 0.5, fontSize: '0.75rem', '& .MuiAlert-message': { fontSize: '0.75rem' } }}
+                            >
+                                {leadError}
+                            </Alert>
+                        </Collapse>
+
+                        {/* Compute which lead roles are already taken and by whom */}
+                        {(() => {
+                            const takenLeads: Record<string, string> = {};
+                            for (const { onSiteRows, projectRows, name } of mergedCrewGroups) {
+                                for (const r of [...onSiteRows, ...projectRows]) {
+                                    if (r.lead_type) takenLeads[r.lead_type] = name;
+                                }
+                            }
+                            return (
+                                <>
                         {/* ─── Crew (merged: on-site + project roles per person) ─── */}
                         {mergedCrewGroups.length > 0 && (
                             <Stack spacing={0.8}>
@@ -156,7 +180,7 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
                                                                 </Typography>
                                                             </Box>
                                                             <Stack spacing={0.5}>
-                                                                {dayRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} confirmed={row.confirmed ?? false} onToggleConfirmed={handleToggleSlotConfirmed} />)}
+                                                                {dayRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} confirmed={row.confirmed ?? false} onToggleConfirmed={handleToggleSlotConfirmed} leadType={row.lead_type ?? null} onToggleLead={handleToggleSlotLead} takenLeads={takenLeads} />)}
                                                             </Stack>
                                                         </Box>
                                                     ))}
@@ -174,7 +198,7 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
                                                         </Typography>
                                                     </Box>
                                                     <Stack spacing={0.5}>
-                                                        {projectRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} confirmed={row.confirmed ?? false} onToggleConfirmed={handleToggleSlotConfirmed} />)}
+                                                        {projectRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} confirmed={row.confirmed ?? false} onToggleConfirmed={handleToggleSlotConfirmed} leadType={row.lead_type ?? null} onToggleLead={handleToggleSlotLead} takenLeads={takenLeads} />)}
                                                     </Stack>
                                                 </Box>
                                             )}
@@ -184,6 +208,9 @@ const AvailabilityCard: React.FC<AvailabilityCardProps> = ({ inquiry, isActive, 
                                 {unassignedRows.map((row) => <CrewRow key={row.id} row={row} onSwap={handleSwapCrew} swapping={swappingSlots.has(row.id)} />)}
                             </Stack>
                         )}
+                                </>
+                            );
+                        })()}
 
                         {(crew?.rows ?? []).length === 0 && (
                             <Alert severity="info">No crew roles are assigned yet.</Alert>

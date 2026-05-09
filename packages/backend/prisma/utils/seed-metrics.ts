@@ -57,7 +57,7 @@ export async function getGlobalCounts(prisma: PrismaClient): Promise<GlobalCount
         prisma.equipment.count(),
         prisma.film.count(),
         prisma.filmTimelineTrack.count(),
-        prisma.filmSubject.count(),
+        prisma.packageDaySubject.count(),
         prisma.filmScene.count(),
         prisma.sceneMoment.count(),
         prisma.momentRecordingSetup.count(),

@@ -10,7 +10,8 @@ import type {
 import type { PaymentScheduleTemplate } from '@/features/finance/payment-schedules/types';
 import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import type { PackageSet } from '@/features/catalog/packages/types/package-set.types';
-import type { EventType } from '@/features/catalog/event-types/types';
+import type { EventType } from '@/features/catalog/package-templates/types';
+import { packageTemplatesApi } from '@/features/catalog/package-templates/api';
 import type { Crew } from '@/shared/types/users';
 import type { BrandSetting, WelcomeSettings } from '@/features/platform/brand/types';
 import type { PriceEstimate } from '../types';
@@ -91,11 +92,10 @@ export function createWizardPaymentSchedulesApi(client: ApiClient) {
 export function createWizardStudioDataApi(client: ApiClient) {
     return {
         getServicePackages: () =>
-            client.get<ServicePackage[]>('/api/service-packages'),
+            client.get<ServicePackage[]>('/api/packages'),
         getPackageSets: () =>
             client.get<PackageSet[]>('/api/package-sets'),
-        getEventTypes: () =>
-            client.get<EventType[]>('/api/event-types'),
+        getEventTypes: (): Promise<EventType[]> => packageTemplatesApi.getAllAsEventTypes(),
         getCrew: () => {
             requireCurrentBrandId();
             return client.get<Crew[]>('/api/crew');
@@ -122,7 +122,7 @@ export function createWizardStudioDataApi(client: ApiClient) {
             filmPreferences: Array<{ type: string; activityPresetId?: number; activityName?: string }>;
             inquiryId?: number;
             clientName?: string;
-        }) => client.post<ServicePackage>('/api/service-packages/from-builder', data),
+        }) => client.post<ServicePackage>('/api/packages/from-builder', data),
         estimatePackagePrice: (packageId: number) => {
             const brandId = requireCurrentBrandId();
             return client.get<PriceEstimate>(`/api/pricing/${brandId}/package/${packageId}`);

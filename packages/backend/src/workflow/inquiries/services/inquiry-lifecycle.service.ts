@@ -1,8 +1,8 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
-import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import { ProjectPackageCloneService } from '../../projects/project-package-clone.service';
+import { buildPackageContentsSnapshot } from '../../projects/package-contents-snapshot.util';
 import { InquiryScheduleSnapshotService } from './inquiry-schedule-snapshot.service';
 
 /**
@@ -37,24 +37,41 @@ export class InquiryLifecycleService {
             if (!packageContentsSnapshot && inquiry.selected_package_id) {
                 const pkg = await prisma.service_packages.findUnique({
                     where: { id: inquiry.selected_package_id },
-                    select: { id: true, name: true, currency: true, contents: true },
+                    select: {
+                        id: true,
+                        name: true,
+                        currency: true,
+                        contents: true,
+                        source_day_blueprint_id: true,
+                        source_day_blueprint_version_id: true,
+                        source_day_blueprint: { select: { id: true, key: true, display_name: true } },
+                        source_day_blueprint_version: { select: { id: true, version_number: true } },
+                    },
                 });
                 if (pkg) {
-                    packageContentsSnapshot = { snapshot_taken_at: new Date().toISOString(), package_id: pkg.id, package_name: pkg.name, currency: pkg.currency ?? DEFAULT_CURRENCY, contents: pkg.contents };
+                    packageContentsSnapshot = buildPackageContentsSnapshot(pkg) as Prisma.InputJsonValue;
                 }
             }
 
             const project = await prisma.projects.create({
                 data: {
                     client_id: client.id, brand_id: brandId,
+                    inquiry_id: inquiry.id,
+                    contact_id: inquiry.contact_id,
+                    event_category: inquiry.event_category ?? null,
                     project_name: `${inquiry.contact.first_name} & ${inquiry.contact.last_name}'s Wedding`,
                     wedding_date: inquiry.wedding_date || new Date(),
-                    booking_date: new Date(), phase: 'PLANNING',
+                    booking_date: new Date(), phase: 'Booking',
+                    status: 'Active',
                     source_package_id: inquiry.source_package_id ?? inquiry.selected_package_id ?? null,
                     package_contents_snapshot: packageContentsSnapshot,
+                    notes: inquiry.notes,
+                    guest_count: inquiry.guest_count,
+                    portal_token: inquiry.portal_token,
                 },
             });
 
+            // Transfer schedule data
             const hasScheduleData = await prisma.projectEventDay.count({ where: { inquiry_id: inquiryId } });
             if (hasScheduleData > 0) {
                 await this.snapshotService.transferScheduleOwnership(inquiryId, project.id, prisma);
@@ -69,10 +86,21 @@ export class InquiryLifecycleService {
                 }
             }
 
+            // Transfer all financial and workflow records to the project
             await prisma.proposals.updateMany({ where: { inquiry_id: inquiryId }, data: { project_id: project.id } });
-            await prisma.inquiries.update({ where: { id: inquiryId }, data: { status: 'Booked', archived_at: new Date() } });
+            await prisma.estimates.updateMany({ where: { inquiry_id: inquiryId }, data: { project_id: project.id } });
+            await prisma.quotes.updateMany({ where: { inquiry_id: inquiryId }, data: { project_id: project.id } });
+            await prisma.invoices.updateMany({ where: { inquiry_id: inquiryId }, data: { project_id: project.id } });
+            await prisma.contracts.updateMany({ where: { inquiry_id: inquiryId }, data: { project_id: project.id } });
+
+            // Link inquiry tasks to the project so they remain accessible
+            await prisma.inquiry_tasks.updateMany({ where: { inquiry_id: inquiryId }, data: { project_id: project.id } });
+
+            // Archive the inquiry and upgrade contact type
+            await prisma.inquiries.update({ where: { id: inquiryId }, data: { status: 'Booked', archived_at: new Date(), portal_token: null } });
             await prisma.contacts.update({ where: { id: inquiry.contact_id }, data: { type: 'Client' } });
 
+            this.logger.log(`Converted inquiry ${inquiryId} → project ${project.id} (client ${client.id})`);
             return { projectId: project.id };
         });
     }

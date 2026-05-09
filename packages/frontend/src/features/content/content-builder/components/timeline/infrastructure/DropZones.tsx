@@ -106,7 +106,7 @@ const DropZones: React.FC<DropZonesProps> = ({
                         width: hoveredMomentInfo.widthTime * viewState.zoomLevel,
                         height: totalTracksHeight,
                         pointerEvents: "none",
-                        border: "2px solid #7b61ff",
+                        bgcolor: "rgba(255, 255, 255, 0.03)",
                         zIndex: 10,
                     }}
                 />
@@ -152,23 +152,6 @@ const DropZones: React.FC<DropZonesProps> = ({
 
                 return (
                     <React.Fragment key={track.id}>
-                        {/* Per-track highlight using track color */}
-                        {hoveredMomentInfo && (
-                            <Box
-                                sx={{
-                                    position: "absolute",
-                                    left: hoveredMomentInfo.startTime * viewState.zoomLevel,
-                                    top: trackPosition,
-                                    width: hoveredMomentInfo.widthTime * viewState.zoomLevel,
-                                    height: 40,
-                                    bgcolor: track.color || "#7b61ff",
-                                    opacity: 0.3,
-                                    pointerEvents: "none",
-                                    zIndex: 1,
-                                }}
-                            />
-                        )}
-
                         <TimelineTrackComponent
                             track={track}
                             trackPosition={trackPosition}

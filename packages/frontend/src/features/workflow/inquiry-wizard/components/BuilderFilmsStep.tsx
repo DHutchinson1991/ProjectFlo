@@ -5,7 +5,7 @@ import { alpha } from "@mui/material/styles";
 import { Check as CheckIcon, MovieFilter as MovieFilterIcon, AutoAwesome as AutoAwesomeIcon, Videocam as VideocamIcon } from "@mui/icons-material";
 import { C } from '../constants/wizard-config';
 import { checkPop, filmStagger } from '../constants/animations';
-import type { EventDayActivity } from "@/features/catalog/event-types/types";
+import type { EventDayActivity } from "@/features/catalog/package-templates/types";
 
 const filmCol: Record<string, string> = {
     FEATURE: "#648CFF",

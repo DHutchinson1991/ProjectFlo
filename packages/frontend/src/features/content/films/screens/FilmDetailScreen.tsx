@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Box, Alert, Link, Stack } from "@mui/material";
+import { Box } from "@mui/material";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ContentBuilder } from "@/features/content/content-builder";
 import { FilmRightPanel, FilmEditorShell } from "../components";
 import { useFilmData, useFilmEquipment } from "../hooks";
 import { useTimelineStorage, useTimelineSave } from "@/features/content/content-builder/hooks/data";
-import { useFilmSubjects } from "@/features/content/subjects/hooks/useFilmSubjects";
+import { useSubjects } from "@/features/content/subjects";
 import { useBrand } from "@/features/platform/brand";
 import type { FilmEquipmentAssignmentsBySlot } from "../types/film-equipment.types";
 import { filmsApi } from "@/features/content/films/api";
@@ -54,7 +54,7 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
         createSubject,
         deleteSubject,
         loadTemplates,
-    } = useFilmSubjects(filmId);
+    } = useSubjects(filmId);
 
     // Equipment management hook
     const { handleEquipmentChange } = useFilmEquipment(
@@ -87,7 +87,6 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
     const handleAddSubject = useCallback(async (name: string, roleTemplateId?: number) => {
         try {
             await createSubject({
-                film_id: filmId,
                 name,
                 role_template_id: roleTemplateId ?? 0,
             });
@@ -107,9 +106,7 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
     }, [deleteSubject]);
 
     const linkedPackageId = searchParams.get("packageId");
-    const linkedItemId = searchParams.get("itemId");
     const linkedActivityId = searchParams.get("activityId");
-    const linkedPackageHref = linkedPackageId ? `/packages/${linkedPackageId}` : null;
 
     // Load all data on mount - only run once when brand is ready
     useEffect(() => {
@@ -163,7 +160,7 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
         filmReady: !!film,
         setTracks,
         setEquipmentAssignmentsBySlot,
-        createSubject: async (data) => { await createSubject(data); },
+        createSubject: async (data) => { await createSubject({ name: data.name, role_template_id: data.role_template_id ?? 0 }); },
         loadAll,
     });
 
@@ -185,19 +182,6 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
         />
     ) : null;
 
-    const packageAlert = linkedPackageId && linkedItemId ? (
-        <Stack spacing={1} sx={{ px: 2, pt: 2 }}>
-            <Alert severity="info">
-                This film is linked to a package item.{' '}
-                {linkedPackageHref && (
-                    <Link href={linkedPackageHref} underline="hover">
-                        View package
-                    </Link>
-                )}
-            </Alert>
-        </Stack>
-    ) : null;
-
     return (
         <FilmEditorShell
             loading={loading}
@@ -205,7 +189,6 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
             filmReady={!!film}
             onBack={() => router.push("/designer/films")}
             backLabel="Back to Films"
-            packageAlert={packageAlert}
         >
             <ContentBuilder
                 filmId={filmId}
@@ -216,7 +199,6 @@ export function FilmDetailScreen({ filmId }: FilmDetailScreenProps) {
                 onSaveFilmName={handleSaveFilm}
                 readOnly={false}
                 rightPanel={rightPanel}
-                subjectCount={subjects.length}
                 packageId={linkedPackageId ? Number(linkedPackageId) : undefined}
                 linkedActivityId={linkedActivityId ? Number(linkedActivityId) : undefined}
                 equipmentConfig={equipmentSummary || undefined}

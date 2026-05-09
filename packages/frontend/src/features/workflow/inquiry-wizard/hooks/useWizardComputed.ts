@@ -3,7 +3,7 @@ import { formatCurrency } from '@projectflo/shared';
 import { BUDGET_RANGES, EVENT_CONFIGS, DEFAULT_CONFIG, EVENT_LABELS, EVENT_EMOJIS, EVENT_DESCS } from '../constants/wizard-config';
 import type { AnyRecord, EventTypeConfig } from '../types';
 import type { PackageSet } from '@/features/catalog/packages/types/package-set.types';
-import type { EventType } from '@/features/catalog/event-types/types';
+import type { EventType } from '@/features/catalog/package-templates/types';
 import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 
 interface WizardComputedInput {

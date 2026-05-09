@@ -42,6 +42,8 @@ export function createCrewSlotsApi(client: ApiClient) {
         projectDay: {
             assign: (slotId: number, crewId: number | null): Promise<any> =>
                 client.patch(`/api/crew-slots/project/crew-slots/${slotId}/assign`, { crew_id: crewId }),
+            toggleLead: (slotId: number, leadType: string | null): Promise<any> =>
+                client.patch(`/api/crew-slots/project/crew-slots/${slotId}/lead`, { lead_type: leadType }),
         },
     };
 }

@@ -4,7 +4,9 @@ import React, { useMemo, useRef, useEffect, useState } from 'react';
 import {
     Box, Typography, CircularProgress, Stack, Chip, Button,
     Dialog, DialogTitle, DialogContent, DialogActions, Divider, Alert,
+    Switch, Tooltip,
 } from '@mui/material';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { alpha } from '@mui/material/styles';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -21,7 +23,7 @@ import {
     useRemovePackageSetSlot,
     useUpdatePackageSetSlot,
 } from '@/features/catalog/packages/hooks';
-import { useEventTypes } from '@/features/catalog/event-types/hooks';
+import { useEventTypes } from '@/features/catalog/package-templates/hooks';
 import { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
 import { useBrand } from '@/features/platform/brand';
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
@@ -108,21 +110,31 @@ export function PackageSetsScreen() {
     const allPackages = packageLibraryQuery.data?.packages ?? [];
     const isLoading = packageLibraryQuery.isLoading || eventTypesQuery.isLoading;
 
+    const normalizeEventCategory = (value: string | null | undefined) => value?.trim().toLowerCase() ?? null;
+
     useEffect(() => {
         if (packageLibraryQuery.isLoading || eventTypesQuery.isLoading || !currentBrand?.id) return;
-        const existingEventTypeIds = new Set(sets.map(s => s.event_type_id).filter(Boolean));
+        const existingEventCategories = new Set(
+            sets
+                .map(s => normalizeEventCategory(s.event_category))
+                .filter((value): value is string => Boolean(value)),
+        );
         for (const et of eventTypes) {
-            if (!existingEventTypeIds.has(et.id) && !syncedRef.current.has(et.id)) {
-                syncedRef.current.add(et.id);
-                createSetMutation.mutateAsync({
-                    name: `${et.name} Packages`,
-                    event_type_id: et.id,
-                    emoji: et.icon ?? '📦',
-                }).catch(err => {
-                    syncedRef.current.delete(et.id);
-                    console.error('Failed to auto-create package set', err);
-                });
+            const eventCategory = et.event_category?.trim() || et.name;
+            const normalizedCategory = normalizeEventCategory(eventCategory);
+            if (!normalizedCategory || existingEventCategories.has(normalizedCategory) || syncedRef.current.has(et.id)) {
+                continue;
             }
+
+            syncedRef.current.add(et.id);
+            createSetMutation.mutateAsync({
+                name: `${et.name} Packages`,
+                event_category: eventCategory,
+                emoji: et.icon ?? '📦',
+            }).catch(err => {
+                syncedRef.current.delete(et.id);
+                console.error('Failed to auto-create package set', err);
+            });
         }
     }, [sets, eventTypes, packageLibraryQuery.isLoading, eventTypesQuery.isLoading, currentBrand?.id]);
 
@@ -210,9 +222,18 @@ export function PackageSetsScreen() {
             {/* ── Page header ──────────────────────────────────────────────────── */}
             <Box sx={{ mb: 4 }}>
                 <Typography sx={{ fontWeight: 800, color: '#f1f5f9', fontSize: '1.75rem' }}>Services</Typography>
-                <Typography sx={{ color: '#64748b', fontSize: '0.85rem', mt: 0.5 }}>
-                    Manage the services your brand offers and configure your package sets.
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.5 }}>
+                    <Typography sx={{ color: '#64748b', fontSize: '0.85rem' }}>
+                        Manage the services your brand offers and configure your package sets.
+                    </Typography>
+                    <Tooltip
+                        title="A Package Set groups your service packages by tier (Budget → Premium) so clients can compare options at different price points."
+                        arrow
+                        placement="right"
+                    >
+                        <InfoOutlinedIcon sx={{ fontSize: 16, color: '#475569', cursor: 'help', '&:hover': { color: '#648CFF' } }} />
+                    </Tooltip>
+                </Box>
             </Box>
 
             {/* ── Services Offered ─────────────────────────────────────────────── */}
@@ -268,20 +289,48 @@ export function PackageSetsScreen() {
                                         size="small"
                                         sx={{ height: 24, fontWeight: 700, fontSize: '0.7rem', bgcolor: alpha(opt.color, 0.15), color: opt.color, border: 'none' }}
                                     />
-                                    <Button
-                                        size="small"
-                                        variant="text"
-                                        disabled={isDisabling}
-                                        onClick={(e) => { e.stopPropagation(); handleDisableServiceType(opt.key); }}
-                                        sx={{ fontSize: '0.7rem', color: '#475569', minWidth: 0, px: 1, '&:hover': { color: '#ef4444' } }}
-                                    >
-                                        {isDisabling ? <CircularProgress size={10} /> : 'Disable'}
-                                    </Button>
+                                    <Tooltip title="Disable this service" arrow>
+                                        <Switch
+                                            checked
+                                            size="small"
+                                            disabled={isDisabling}
+                                            onClick={(e) => { e.stopPropagation(); handleDisableServiceType(opt.key); }}
+                                            sx={{
+                                                '& .MuiSwitch-switchBase.Mui-checked': { color: opt.color },
+                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: alpha(opt.color, 0.4) },
+                                            }}
+                                        />
+                                    </Tooltip>
                                 </Box>
                             </Box>
                         );
                     })}
                 </Box>
+                {serviceTypes.length === 0 && (
+                    <Box sx={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        py: 8, px: 3, borderRadius: 3,
+                        border: '2px dashed rgba(52, 58, 68, 0.3)',
+                        bgcolor: 'rgba(16, 18, 22, 0.3)',
+                    }}>
+                        <Typography sx={{ fontSize: '2.5rem', mb: 2 }}>📦</Typography>
+                        <Typography sx={{ fontWeight: 700, color: '#f1f5f9', fontSize: '1.1rem', mb: 1 }}>
+                            No services enabled yet
+                        </Typography>
+                        <Typography sx={{ color: '#64748b', fontSize: '0.85rem', mb: 3, textAlign: 'center', maxWidth: 400 }}>
+                            Enable a service type to start building packages. Each service gets its own set of tiered packages that clients can compare.
+                        </Typography>
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={() => setAddServicePickerOpen(true)}
+                            disableElevation
+                            sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none' }}
+                        >
+                            Add Your First Service
+                        </Button>
+                    </Box>
+                )}
                 {activeFilter && (
                     <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography sx={{ fontSize: '0.75rem', color: '#64748b' }}>Showing packages for</Typography>
@@ -297,10 +346,16 @@ export function PackageSetsScreen() {
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {sets.filter(set => {
-                    if (!activeFilter) return true;
                     const keywords: Record<string, string> = { WEDDING: 'wedding', BIRTHDAY: 'birthday', ENGAGEMENT: 'engag' };
+                    const name = (set.event_category ?? set.name).toLowerCase();
+
+                    // Hide sets whose service type is disabled
+                    const matchingKey = Object.entries(keywords).find(([, kw]) => name.includes(kw))?.[0];
+                    if (matchingKey && !serviceTypes.includes(matchingKey)) return false;
+
+                    // Apply user's active filter
+                    if (!activeFilter) return true;
                     const kw = keywords[activeFilter] ?? activeFilter.toLowerCase();
-                    const name = (set.event_type?.name ?? set.name).toLowerCase();
                     return name.includes(kw);
                 }).map(set => (
                     <PackageSetSection
@@ -310,7 +365,7 @@ export function PackageSetsScreen() {
                         allPackages={allPackages}
                         onSlotClick={(slotId) => {
                             const slot = set.slots.find(s => s.id === slotId);
-                            handleOpenPickerForSlot(slotId, set.event_type?.name ?? null, slot?.slot_label ?? null, set.name);
+                            handleOpenPickerForSlot(slotId, set.event_category ?? null, slot?.slot_label ?? null, set.name);
                         }}
                         onClearSlot={handleClearSlot}
                         onAddSlot={() => handleAddSlot(set.id)}
@@ -320,8 +375,7 @@ export function PackageSetsScreen() {
                         onCreateNew={(slotId) => {
                             const params = new URLSearchParams();
                             if (slotId) params.set('slotId', String(slotId));
-                            if (set.event_type?.name) params.set('category', set.event_type.name);
-                            if (set.event_type_id) params.set('category_id', String(set.event_type_id));
+                            if (set.event_category) params.set('category', set.event_category);
                             const qs = params.toString();
                             router.push(`/packages/new${qs ? `?${qs}` : ''}`);
                         }}

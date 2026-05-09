@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="896" height="576" viewBox="0 0 896 576">
+<rect width="896" height="576" fill="black" />
+<line x1="0" y1="449.28000000000003" x2="896" y2="449.28000000000003" stroke="#222" stroke-width="1" />
+<rect x="201.9" y="72" width="80" height="489.6" rx="12" fill="white" opacity="1" />
+<circle cx="241.9" cy="61.5" r="35" fill="white" opacity="1" />
+<rect x="751.9" y="192.5" width="55.2" height="337.8" rx="8.3" fill="white" opacity="1" />
+<circle cx="779.5" cy="185.3" r="24.2" fill="white" opacity="1" />
+<rect x="313.5" y="285.8" width="36" height="220.3" rx="5.4" fill="white" opacity="0.7" />
+<circle cx="331.5" cy="281.1" r="15.8" fill="white" opacity="0.7" />
+<rect x="550.9" y="328.6" width="27.2" height="166.5" rx="4.1" fill="white" opacity="0.5" />
+<circle cx="564.5" cy="325" r="11.9" fill="white" opacity="0.5" />
+<rect x="456" y="411.6" width="7.3" height="54.1" rx="1.1" fill="white" opacity="0.2" />
+<circle cx="459.7" cy="410.5" r="3.6" fill="white" opacity="0.2" />
+<rect x="462.3" y="410.3" width="7.3" height="54.1" rx="1.1" fill="white" opacity="0.2" />
+<circle cx="465.9" cy="409.2" r="3.6" fill="white" opacity="0.2" />
+<rect x="468.5" y="411.6" width="7.3" height="54.1" rx="1.1" fill="white" opacity="0.2" />
+<circle cx="472.2" cy="410.5" r="3.6" fill="white" opacity="0.2" />
+</svg>

@@ -40,3 +40,5 @@ export {
   sumEstimatedHours,
   sumTotalHours,
 } from './hours';
+
+export { resolveTemplate, hasTemplatePlaceholders } from './templates';

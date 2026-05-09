@@ -51,7 +51,7 @@ export const WORKFLOW_PHASES: WorkflowPhase[] = [
         icon: Handshake,
         color: '#14b8a6',
         description: 'Sign, invoice and confirm',
-        tasks: ['Contract Signed', 'Raise Deposit Invoice', 'Block Wedding Date', 'Confirm Booking', 'Send Welcome Pack'],
+        tasks: ['Contract Signed', 'Raise Deposit Invoice', 'Confirm Deposit Received', 'Review Client Proposal Notes', 'Block Wedding Date', 'Confirm Booking', 'Send Booking Confirmation'],
         sectionId: 'booking-section',
     },
 ];
@@ -118,8 +118,10 @@ const TASK_META: IconMap = {
     'Contract Signed':           { icon: Verified,       sectionId: 'booking-section' },
     'Raise Deposit Invoice':     { icon: AttachMoney,    sectionId: 'booking-section' },
     'Block Wedding Date':        { icon: EventAvailable, sectionId: 'booking-section' },
+    'Confirm Deposit Received':   { icon: AttachMoney,    sectionId: 'booking-section' },
+    'Review Client Proposal Notes': { icon: Description,  sectionId: 'booking-section' },
     'Confirm Booking':           { icon: CheckCircle,    sectionId: 'booking-section' },
-    'Send Welcome Pack':         { icon: Email,          sectionId: 'booking-section' },
+    'Send Booking Confirmation': { icon: Email,          sectionId: 'booking-section' },
 };
 
 /** Convert raw task library entries into PipelineTask[] for the PhaseOverview. */
@@ -228,6 +230,21 @@ export const TASK_AUTO_COMPLETE: Record<string, AutoCompleteRule> = {
         check: (inq) => inq.status === 'Booked',
         doneLabel: 'Wedding date blocked',
         pendingLabel: 'Mark inquiry as Booked',
+    },
+    'Confirm Deposit Received': {
+        check: (inq) => (inq.invoices?.some(i => i.status === 'Paid') ?? false),
+        doneLabel: 'Deposit payment confirmed',
+        pendingLabel: 'Awaiting deposit payment',
+    },
+    'Review Client Proposal Notes': {
+        check: (inq) => {
+            const proposal = inq.proposals?.[0];
+            if (!proposal) return false;
+            // Done when proposal is accepted (no outstanding changes/reconsideration)
+            return proposal.client_response === 'Accepted';
+        },
+        doneLabel: 'Client notes reviewed',
+        pendingLabel: 'Review client feedback on proposal',
     },
 };
 

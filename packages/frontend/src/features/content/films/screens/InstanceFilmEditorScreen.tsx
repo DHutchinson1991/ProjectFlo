@@ -8,7 +8,7 @@ import { FilmApiProvider, createProjectFilmApi, createInquiryFilmApi, type FilmC
 import { FilmRightPanel, FilmEditorShell } from "../components";
 import { useFilmEquipment } from "../hooks";
 import { useTimelineStorage, useTimelineSave } from "@/features/content/content-builder/hooks/data";
-import { useFilmSubjects } from "@/features/content/subjects/hooks/useFilmSubjects";
+import { useSubjects } from "@/features/content/subjects";
 import { FilmType } from "@/features/content/films/types";
 import type { Film } from "@/features/content/films/types";
 import { useBrand } from "@/features/platform/brand";
@@ -89,7 +89,7 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
         createSubject,
         deleteSubject,
         loadTemplates,
-    } = useFilmSubjects(filmIdForLibrary);
+    } = useSubjects(filmIdForLibrary);
 
     // ── Equipment management (operates on library film via right panel) ─
     const { handleEquipmentChange } = useFilmEquipment(
@@ -122,7 +122,6 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
     const handleAddSubject = useCallback(async (name: string, roleTemplateId?: number) => {
         try {
             await createSubject({
-                film_id: filmIdForLibrary,
                 name,
                 role_template_id: roleTemplateId ?? 0,
             });
@@ -360,7 +359,6 @@ export function InstanceFilmEditorScreen({ projectFilmId }: InstanceFilmEditorSc
                     onSaveFilmName={handleSaveFilm}
                     readOnly={false}
                     rightPanel={rightPanel}
-                    subjectCount={subjects.length}
                     packageId={linkedPackageId ? Number(linkedPackageId) : undefined}
                     linkedActivityId={linkedActivityId ? Number(linkedActivityId) : undefined}
                     instanceOwnerType={mode}

@@ -6,6 +6,8 @@ import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
 import Visibility from "@mui/icons-material/Visibility";
@@ -61,13 +63,14 @@ export function LoginForm({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
     setError("");
     try {
-      await login({ email, password });
+      await login({ email, password, rememberMe });
       onSuccess?.();
     } catch (err) {
       console.error("Login error:", err);
@@ -149,6 +152,29 @@ export function LoginForm({
           ),
         }}
         sx={inputSx}
+      />
+
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={rememberMe}
+            onChange={(event) => setRememberMe(event.target.checked)}
+            disabled={isLoading}
+            sx={{
+              color: "rgba(255,255,255,0.45)",
+              "&.Mui-checked": { color: "#90caf9" },
+              "&.Mui-disabled": { color: "rgba(255,255,255,0.18)" },
+            }}
+          />
+        }
+        label="Remember me"
+        sx={{
+          mt: 1.5,
+          color: "rgba(255,255,255,0.72)",
+          "& .MuiFormControlLabel-label": {
+            fontSize: "0.875rem",
+          },
+        }}
       />
 
       <Button

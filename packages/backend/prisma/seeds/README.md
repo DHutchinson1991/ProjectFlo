@@ -28,14 +28,15 @@ The root orchestrator in `index.ts` runs these 7 steps in order. Later steps dep
 
 | Step | File | What it creates |
 |------|------|-----------------|
-| 6 | `moonrise-platform.seed.ts` | Brand entity, settings, payment schedules, team, and crew role assignments |
+| 6 | `moonrise-platform.seed.ts` | Brand entity, settings, payment schedules, team, crew role assignments, and default crew preset |
 | 6a | `moonrise-content.seed.ts` | People-only subject templates for the editor |
 | 6b | `moonrise-catalog-event-templates.seed.ts` | Event templates, activity presets, and moments |
-| 6c | `moonrise-catalog-services.seed.ts` | Service templates and event type provisioning |
-| 6d | `moonrise-catalog-packages.seed.ts` | Packages, included films, and package crew |
+| 6c | `moonrise-catalog-services.seed.ts` | Canonical category package templates, subject-role-backed birthday template, and base package-set scaffolding |
+| 6d | `moonrise-floor-plan-presets.seed.ts` | Floor plan presets with default objects for each space type |
 | 6e | `moonrise-workflow.seed.ts` | Task library, pipeline skill backfill, crew assignments, and skill rates |
 | 6f | `moonrise-catalog-locations-library.seed.ts` | Location library |
 | 6g | `moonrise-catalog-equipment-library.seed.ts` | Equipment inventory |
+| 6h | `moonrise-wedding-blueprint-templates.seed.ts` | Wedding blueprint templates with pre-seeded moment subject actions and placements |
 
 ### Layer 3 — Layer5
 
@@ -57,10 +58,11 @@ The root orchestrator in `index.ts` runs these 7 steps in order. Later steps dep
 | `moonrise-content.seed.ts` | Content | Moonrise |
 | `moonrise-catalog-event-templates.seed.ts` | Catalog | Moonrise |
 | `moonrise-catalog-services.seed.ts` | Catalog | Moonrise |
-| `moonrise-catalog-packages.seed.ts` | Catalog | Moonrise |
+| `moonrise-floor-plan-presets.seed.ts` | Content | Moonrise |
 | `moonrise-workflow.seed.ts` | Workflow | Moonrise |
 | `moonrise-catalog-locations-library.seed.ts` | Catalog | Moonrise |
 | `moonrise-catalog-equipment-library.seed.ts` | Catalog | Moonrise |
+| `moonrise-wedding-blueprint-templates.seed.ts` | Content | Moonrise |
 | `layer5-platform.seed.ts` | Platform | Layer5 |
 
 ## Adding a new seed

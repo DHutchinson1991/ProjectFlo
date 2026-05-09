@@ -1,57 +1,90 @@
-import { Test, TestingModule } from "@nestjs/testing";
-import { ScenesService } from "./scenes.service";
-import { PrismaService } from "../../platform/prisma/prisma.service";
-import { MediaType } from "@prisma/client";
-import { BadRequestException } from "@nestjs/common";
-import { CreateSceneDto } from "./dto/create-scene.dto";
+import { NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { SceneType } from '@prisma/client';
+import { PrismaService } from '../../platform/prisma/prisma.service';
+import { CreateSceneDto } from './dto/create-scene.dto';
+import { ScenesCrudService } from './services/scenes-crud.service';
 
 const mockPrisma = {
-    scenesLibrary: {
-        create: jest.fn(),
-    },
+  film: {
+    findUnique: jest.fn(),
+  },
+  sceneTemplate: {
+    findUnique: jest.fn(),
+  },
+  filmScene: {
+    count: jest.fn(),
+    create: jest.fn(),
+  },
 };
 
-describe("ScenesService", () => {
-    let service: ScenesService;
+describe('ScenesCrudService', () => {
+  let service: ScenesCrudService;
 
-    beforeEach(async () => {
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                ScenesService,
-                { provide: PrismaService, useValue: mockPrisma },
-            ],
-        }).compile();
-        service = module.get<ScenesService>(ScenesService);
-        jest.clearAllMocks();
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ScenesCrudService,
+        { provide: PrismaService, useValue: mockPrisma },
+      ],
+    }).compile();
+
+    service = module.get<ScenesCrudService>(ScenesCrudService);
+    jest.clearAllMocks();
+  });
+
+  it('creates a scene with valid data', async () => {
+    const now = new Date('2026-04-20T00:00:00.000Z');
+    const dto: CreateSceneDto = {
+      film_id: 7,
+      name: 'UnitTest Scene',
+    };
+
+    mockPrisma.film.findUnique.mockResolvedValue({ id: 7, name: 'Demo Film' });
+    mockPrisma.filmScene.count.mockResolvedValue(0);
+    mockPrisma.filmScene.create.mockResolvedValue({
+      id: 1,
+      film_id: 7,
+      name: 'UnitTest Scene',
+      mode: SceneType.MOMENTS,
+      scene_template_id: null,
+      shot_count: null,
+      duration_seconds: null,
+      montage_style: null,
+      montage_bpm: null,
+      order_index: 0,
+      created_at: now,
+      updated_at: now,
     });
 
-    it("should create a scene with valid data", async () => {
-        const dto: CreateSceneDto = {
-            name: "UnitTest Scene",
-        };
-        const created = { id: 1, ...dto };
-        mockPrisma.scenesLibrary.create.mockResolvedValue(created);
-        const result = await service.create(dto);
-        expect(result).toEqual(created);
-        expect(mockPrisma.scenesLibrary.create).toHaveBeenCalledWith({
-            data: expect.objectContaining({ name: dto.name }),
-        });
-    });
+    const result = await service.create(dto);
 
-    it("should throw BadRequestException if name is missing", async () => {
-        const invalidDto = { type: MediaType.VIDEO } as unknown as CreateSceneDto;
-        await expect(service.create(invalidDto)).rejects.toThrow(
-            BadRequestException,
-        );
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 1,
+        film_id: 7,
+        name: 'UnitTest Scene',
+        mode: SceneType.MOMENTS,
+      }),
+    );
+    expect(mockPrisma.filmScene.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        film_id: 7,
+        name: 'UnitTest Scene',
+        mode: SceneType.MOMENTS,
+        order_index: 0,
+      }),
     });
+  });
 
-    it("should throw BadRequestException if type is invalid", async () => {
-        const invalidDto = {
-            name: "Test",
-            type: "INVALID" as MediaType,
-        } as CreateSceneDto;
-        await expect(service.create(invalidDto)).rejects.toThrow(
-            BadRequestException,
-        );
-    });
+  it('throws when the film does not exist', async () => {
+    const dto: CreateSceneDto = {
+      film_id: 999,
+      name: 'Missing Film Scene',
+    };
+
+    mockPrisma.film.findUnique.mockResolvedValue(null);
+
+    await expect(service.create(dto)).rejects.toThrow(NotFoundException);
+  });
 });

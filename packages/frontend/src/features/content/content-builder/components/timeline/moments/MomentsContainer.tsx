@@ -245,8 +245,7 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                                 height: '100%',
                                 top: 0,
                                 pointerEvents: 'none', 
-                                bgcolor: isHovered ? 'rgba(123, 97, 255, 0.14)' : 'transparent',
-                                boxShadow: isHovered ? 'inset 0 0 0 1px rgba(123, 97, 255, 0.5), inset 0 0 16px rgba(123, 97, 255, 0.2)' : 'none',
+                                bgcolor: 'transparent',
                             }}
                         />
                         );
@@ -355,9 +354,7 @@ export const MomentsContainer: React.FC<MomentsContainerProps> = ({
                                 pointerEvents: 'auto', 
                                 cursor: readOnly ? 'default' : 'pointer',
                                 userSelect: 'none',
-                                boxShadow: isHovered ? '0 0 0 1px rgba(123, 97, 255, 0.7), 0 0 14px rgba(123, 97, 255, 0.55)' : 'none',
                                 backgroundBlendMode: 'screen',
-                                outline: isHovered ? '1px solid rgba(123, 97, 255, 0.35)' : 'none',
 
                                 '&:hover': {
                                     bgcolor: momentHoverColor,

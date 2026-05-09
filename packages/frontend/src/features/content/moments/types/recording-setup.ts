@@ -5,8 +5,8 @@
 
 import type { SceneMoment } from '@/features/content/moments/types';
 import type { FilmTimelineTrack } from '@/features/content/films/types/tracks';
-import type { FilmSubject } from '@/features/content/subjects/types';
 import type { ShotType } from '@/features/content/coverage/types';
+import type { Subject } from '@/features/content/subjects';
 
 export interface CameraSubjectAssignment {
   id: number;
@@ -14,11 +14,18 @@ export interface CameraSubjectAssignment {
   track_id: number;
   subject_ids: number[];
   shot_type?: ShotType | null;
+  enabled?: boolean;
   created_at?: string;
   updated_at?: string;
   recording_setup?: MomentRecordingSetup;
   track?: FilmTimelineTrack;
-  subjects?: FilmSubject[];
+}
+
+export interface AudioTrackAssignment {
+  id?: number;
+  track_id: number;
+  track_name?: string;
+  subject_ids: number[];
 }
 
 export interface MomentRecordingSetup {
@@ -31,6 +38,7 @@ export interface MomentRecordingSetup {
   updated_at: string;
   moment?: SceneMoment;
   camera_assignments?: CameraSubjectAssignment[];
+  audio_assignments?: AudioTrackAssignment[];
 }
 
 export interface CreateMomentRecordingSetupDto {
@@ -58,14 +66,21 @@ export interface UpdateCameraSubjectAssignmentDto {
 
 export interface MomentRecordingSetupWithAssignments extends MomentRecordingSetup {
   camera_assignments: CameraSubjectAssignment[];
+  audio_assignments?: AudioTrackAssignment[];
 }
 
 export interface SceneCameraAssignment {
+  id?: number;
   track_id: number;
   track_name?: string;
   track_type?: string;
   subject_ids?: number[];
   shot_type?: ShotType | null;
+  director_notes?: {
+    emotionalTone: string;
+    compositionNotes: string;
+    source?: string;
+  } | null;
 }
 
 export interface SceneRecordingSetup {
@@ -89,7 +104,7 @@ export interface RecordingPlan {
   cameras: {
     track_id: number;
     track_name: string;
-    subjects: FilmSubject[];
+    subjects: Subject[];
   }[];
   audio_tracks: number[];
   graphics_enabled: boolean;
