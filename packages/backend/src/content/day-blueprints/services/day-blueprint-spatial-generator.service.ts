@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DayBlueprintPlacementFacing, DayBlueprintPlacementPosition } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { DayBlueprintVersionsService } from './day-blueprint-versions.service';
 import { DayBlueprintAiEventsService } from './day-blueprint-ai-events.service';
+import { deriveSpatialHints, pickActivitySlot } from './day-blueprint-spatial-heuristics';
 
 interface SpatialGenerateInput {
   activityId?: number;
@@ -94,10 +94,9 @@ export class DayBlueprintSpatialGeneratorService {
     let momentsTouched = 0;
     let placementsCreated = 0;
     let placementsUpdated = 0;
-    let placementsRemoved = 0;
 
     for (const activity of targetActivities) {
-      const activitySlot = this.pickActivitySlot(
+      const activitySlot = pickActivitySlot(
         day.version.space_slots,
         activity.activity_locations.map((entry) => entry.day_blueprint_location_role_id),
         activity.name,
@@ -113,22 +112,16 @@ export class DayBlueprintSpatialGeneratorService {
       for (const moment of targetMoments) {
         momentsScanned += 1;
 
-        if (hasNoSpatialLock(moment.lock_flags)) {
-          if (moment.placements.length > 0) {
-            const removed = await this.prisma.dayBlueprintMomentPlacement.deleteMany({
-              where: { day_blueprint_moment_id: moment.id },
-            });
-            placementsRemoved += removed.count;
-            momentsTouched += 1;
-            activityChanged = true;
-          }
-          continue;
-        }
-
         const actionRoleIds = Array.from(new Set(moment.actions.map((action) => action.subject_role_id)));
         const placementRoleIds = Array.from(new Set(moment.placements.map((placement) => placement.subject_role_id)));
         const requiredRoleIds = actionRoleIds.length > 0 ? actionRoleIds : placementRoleIds;
         if (requiredRoleIds.length === 0) continue;
+        const actionTextByRoleId = new Map<number, string>();
+        for (const action of moment.actions) {
+          const current = actionTextByRoleId.get(action.subject_role_id);
+          const next = [action.action_text, action.notes].filter(Boolean).join(' ');
+          actionTextByRoleId.set(action.subject_role_id, current ? `${current} ${next}` : next);
+        }
 
         let nextOrderIndex = moment.placements.length;
         let momentChanged = false;
@@ -147,10 +140,13 @@ export class DayBlueprintSpatialGeneratorService {
 
         for (const roleId of requiredRoleIds) {
           const existing = previousPlacementsByRole.get(roleId);
+          const roleName = roleById.get(roleId) ?? '';
+          const actionText = actionTextByRoleId.get(roleId) ?? '';
           const hints = deriveSpatialHints({
-            roleName: roleById.get(roleId) ?? '',
+            roleName,
             activityName: activity.name,
             momentName: moment.name,
+            actionText,
             roleId,
           });
 
@@ -239,84 +235,7 @@ export class DayBlueprintSpatialGeneratorService {
       momentsTouched,
       placementsCreated,
       placementsUpdated,
-      placementsRemoved,
     };
   }
 
-  private pickActivitySlot(
-    slots: Array<{ id: number; day_blueprint_location_role_id: number; key: string; label: string }>,
-    activityRoleIds: number[],
-    activityName: string,
-  ) {
-    const byLocation = slots.find((slot) => activityRoleIds.includes(slot.day_blueprint_location_role_id));
-    if (byLocation) return byLocation;
-
-    const normalizedActivityName = normalize(activityName);
-    const byName = slots.find((slot) => {
-      const key = normalize(slot.key);
-      const label = normalize(slot.label);
-      return key.includes(normalizedActivityName) || label.includes(normalizedActivityName);
-    });
-    if (byName) return byName;
-
-    return slots[0] ?? null;
-  }
-}
-
-function normalize(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function deriveSpatialHints(input: {
-  roleName: string;
-  activityName: string;
-  momentName: string;
-  roleId: number;
-}): {
-  position: DayBlueprintPlacementPosition;
-  facing: DayBlueprintPlacementFacing;
-} {
-  const role = normalize(input.roleName);
-  const activity = normalize(input.activityName);
-  const moment = normalize(input.momentName);
-  const ceremonyLike = /ceremony|vow|ring|kiss|processional|recessional/.test(`${activity} ${moment}`);
-
-  if (/officiant|celebrant/.test(role)) {
-    return {
-      position: DayBlueprintPlacementPosition.ALTAR_FRONT,
-      facing: DayBlueprintPlacementFacing.TOWARD_AUDIENCE,
-    };
-  }
-
-  if (/bride|groom|partner|couple/.test(role)) {
-    return {
-      position: ceremonyLike
-        ? DayBlueprintPlacementPosition.ALTAR_FRONT
-        : DayBlueprintPlacementPosition.CENTER,
-      facing: ceremonyLike
-        ? DayBlueprintPlacementFacing.TOWARD_PARTNER
-        : DayBlueprintPlacementFacing.TOWARD_CAMERA,
-    };
-  }
-
-  if (/guest|audience|family/.test(role)) {
-    return {
-      position: input.roleId % 2 === 0
-        ? DayBlueprintPlacementPosition.FIRST_ROW_LEFT
-        : DayBlueprintPlacementPosition.FIRST_ROW_RIGHT,
-      facing: DayBlueprintPlacementFacing.TOWARD_ALTAR,
-    };
-  }
-
-  return {
-    position: input.roleId % 2 === 0
-      ? DayBlueprintPlacementPosition.STAGE_LEFT
-      : DayBlueprintPlacementPosition.STAGE_RIGHT,
-    facing: DayBlueprintPlacementFacing.TOWARD_CAMERA,
-  };
-}
-
-function hasNoSpatialLock(lockFlags: unknown): boolean {
-  if (!lockFlags || typeof lockFlags !== 'object') return false;
-  return Boolean((lockFlags as Record<string, unknown>).no_spatial);
 }

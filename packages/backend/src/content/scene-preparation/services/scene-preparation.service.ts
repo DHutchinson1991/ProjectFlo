@@ -820,25 +820,31 @@ export class ScenePreparationService {
     // If no actions on scene moments, check if PackageActivityMoment got them after scene was created (race condition)
     if (!hasExistingActions && activityId) {
       const activityMoments = await this.prisma.packageActivityMoment.findMany({
-        where: { package_activity_id: activityId, subject_actions: { not: Prisma.JsonNull } },
-        select: { id: true, name: true, subject_actions: true, order_index: true },
+        where: { package_activity_id: activityId },
+        include: {
+          actions: {
+            include: { subject_role: { select: { role_name: true } } },
+            orderBy: { order_index: 'asc' },
+          },
+        },
       });
       const withActions = activityMoments.filter(
-        (am) => am.subject_actions && typeof am.subject_actions === 'object' && Object.keys(am.subject_actions as object).length > 0,
+        (am) => am.actions.length > 0,
       );
       if (withActions.length > 0) {
         // Backfill: copy actions from PackageActivityMoment → FilmSceneMomentSubject
         for (const moment of moments) {
           const am = withActions.find((a) => a.name === moment.name) ?? withActions.find((a) => a.order_index === moment.order_index);
-          if (!am?.subject_actions) continue;
-          const actionsObj = am.subject_actions as Record<string, string | { action: string | null; focal?: string } | null>;
+          if (!am) continue;
+          const normalizedActions = new Map(
+            am.actions
+              .filter((action) => Boolean(action.subject_role?.role_name))
+              .map((action) => [action.subject_role.role_name.toLowerCase(), action.action_text]),
+          );
           for (const ms of moment.subjects ?? []) {
             const subjectName = ms.subject?.name;
             if (!subjectName || ms.action_description) continue;
-            const raw = actionsObj[subjectName] ?? actionsObj[subjectName.toLowerCase()]
-              ?? Object.entries(actionsObj).find(([k]) => k.toLowerCase() === subjectName.toLowerCase())?.[1];
-            // Handle both old format (string) and new format ({ action, focal })
-            const action = typeof raw === 'string' ? raw : (raw && typeof raw === 'object' ? (raw as any).action : null);
+            const action = normalizedActions.get(subjectName.toLowerCase()) ?? null;
             if (action) {
               await this.prisma.filmSceneMomentSubject.update({
                 where: { id: ms.id },

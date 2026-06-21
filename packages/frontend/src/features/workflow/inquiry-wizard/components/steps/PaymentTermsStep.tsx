@@ -7,7 +7,7 @@ import { fadeInUp } from '../../constants/animations';
 import { NACtx } from '../../types';
 import { Q } from "../QuestionWrapper";
 import { useWizardPaymentSchedules } from "../../hooks/useWizardPaymentSchedules";
-import { resolveTotal } from '../../mappers/payment-terms';
+import { resolveDefaultTemplateId, resolveTotal } from '../../mappers/payment-terms';
 import { formatCurrency, DEFAULT_CURRENCY } from '@projectflo/shared';
 import { PaymentScheduleCard } from "../PaymentScheduleCard";
 
@@ -19,11 +19,12 @@ export default function PaymentTermsScreen({ ctx }: { ctx: NACtx }) {
     const selected: number | null = responses.payment_schedule_template_id ?? null;
     const totalPrice = resolveTotal(ctx);
 
-    // Auto-select default template once loaded
+    // Auto-select once loaded: package default plan first, then brand default.
+    // The client's own selection always takes precedence over both.
     React.useEffect(() => {
         if (!loading && templates.length > 0 && !responses.payment_schedule_template_id) {
-            const def = templates.find((t) => t.is_default);
-            if (def) handleChange("payment_schedule_template_id", def.id);
+            const defaultId = resolveDefaultTemplateId(ctx, templates);
+            if (defaultId != null) handleChange("payment_schedule_template_id", defaultId);
         }
     }, [loading, templates.length]);
 

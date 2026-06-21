@@ -20,6 +20,10 @@ export class CrewPresetSlotDto {
   @IsInt()
   crew_id?: number | null;
 
+  @IsOptional()
+  @IsInt()
+  equipment_id?: number | null;
+
   @IsInt()
   @Min(0)
   order_index!: number;

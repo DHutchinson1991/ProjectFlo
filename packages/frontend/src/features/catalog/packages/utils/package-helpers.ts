@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────
 
 import type { TaskAutoGenerationPreview } from '@/features/catalog/task-library/types';
+import type { ServicePackageItem } from '../types/service-package.types';
 import type { PackageCrewSlotRecord, FilmData } from '../types';
 import {
     resolveHourlyRate,
@@ -187,6 +188,11 @@ export function getFilmStats(films: FilmData[], filmId: number): FilmStats {
     const totalDuration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
     return { realtime, montage, totalDuration };
+}
+
+/** Stable key for package content rows (film/service items in contents.items). */
+export function getContentItemKey(item: ServicePackageItem, index: number): string {
+    return item.id ?? `content-item-${index}`;
 }
 
 // ─── Crew display helpers ────────────────────────────────────────────

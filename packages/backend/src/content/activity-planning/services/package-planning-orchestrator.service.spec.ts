@@ -8,6 +8,7 @@ import { PackagePlanningOrchestratorService } from './package-planning-orchestra
 import { PackagePlanningProgressService } from './package-planning-progress.service';
 import { PackagePlanningStepsService } from './package-planning-steps.service';
 import { SingleActivityPlannerService } from './single-activity-planner.service';
+import { PackagePlanningCancelRegistryService } from './package-planning-cancel-registry.service';
 
 const buildSummary = (packageId: number): PackagePlanningSummary => ({
   packageId,
@@ -33,6 +34,7 @@ const mockPackageContext = () => ({
 const mockStatus = () => ({
   markPlanning: jest.fn(),
   setStatus: jest.fn(),
+  assertPlanningNotCancelled: jest.fn().mockResolvedValue(undefined),
 });
 
 const mockProgress = () => ({
@@ -56,6 +58,11 @@ const mockSingleActivityPlanner = () => ({
   planActions: jest.fn(),
 });
 
+const mockPlanningCancelRegistry = () => ({
+  attach: jest.fn().mockReturnValue({ aborted: false } as AbortSignal),
+  detach: jest.fn(),
+});
+
 describe('PackagePlanningOrchestratorService', () => {
   let service: PackagePlanningOrchestratorService;
   let prisma: ReturnType<typeof buildPrisma>;
@@ -64,6 +71,7 @@ describe('PackagePlanningOrchestratorService', () => {
   let progress: ReturnType<typeof mockProgress>;
   let steps: ReturnType<typeof mockSteps>;
   let singleActivityPlanner: ReturnType<typeof mockSingleActivityPlanner>;
+  let planningCancelRegistry: ReturnType<typeof mockPlanningCancelRegistry>;
 
   beforeEach(async () => {
     prisma = buildPrisma();
@@ -72,6 +80,7 @@ describe('PackagePlanningOrchestratorService', () => {
     progress = mockProgress();
     steps = mockSteps();
     singleActivityPlanner = mockSingleActivityPlanner();
+    planningCancelRegistry = mockPlanningCancelRegistry();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -82,6 +91,7 @@ describe('PackagePlanningOrchestratorService', () => {
         { provide: PackagePlanningProgressService, useValue: progress },
         { provide: PackagePlanningStepsService, useValue: steps },
         { provide: SingleActivityPlannerService, useValue: singleActivityPlanner },
+        { provide: PackagePlanningCancelRegistryService, useValue: planningCancelRegistry },
       ],
     }).compile();
 

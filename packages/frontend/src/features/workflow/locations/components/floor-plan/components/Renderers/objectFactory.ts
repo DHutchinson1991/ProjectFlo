@@ -172,12 +172,17 @@ export function createFabricObject(obj: FloorPlanObject): FabricObject {
             });
 
         case 'CHAIR_ROW': {
-            // Individual seat bumps along the row
+            // Individual seat bumps — must match `computeSeatCentersForChairRow` (day-blueprints utils).
             const seatSize = Math.min(obj.height * 0.8, 14);
             const seatGap = seatSize * 1.6;
-            const count = Math.max(1, Math.floor(obj.width / seatGap));
+            const meta = (obj.metadata ?? null) as Record<string, unknown> | null;
+            const seatColsRaw = Number(meta?.seat_cols ?? meta?.capacity ?? 0);
+            const countFromWidth = Math.max(1, Math.floor(obj.width / seatGap));
+            const count =
+                Number.isFinite(seatColsRaw) && seatColsRaw > 0 ? Math.floor(seatColsRaw) : countFromWidth;
             const totalW = (count - 1) * seatGap;
             const startX = (obj.width - totalW) / 2;
+            const colStep = count > 1 ? obj.width / count : obj.width;
 
             const children: FabricObject[] = [
                 // Bench background
@@ -193,17 +198,22 @@ export function createFabricObject(obj: FloorPlanObject): FabricObject {
                     ry: 2,
                 }),
             ];
-            // Individual seats
             for (let i = 0; i < count; i++) {
-                children.push(new Rect({
-                    left: startX + i * seatGap - seatSize / 2,
-                    top: (obj.height - seatSize) / 2,
-                    width: seatSize,
-                    height: seatSize,
-                    fill: FLOOR.furnitureStroke,
-                    rx: seatSize / 2,
-                    ry: seatSize / 2,
-                }));
+                const cx =
+                    Number.isFinite(seatColsRaw) && seatColsRaw > 0
+                        ? (i + 0.5) * colStep
+                        : startX + i * seatGap;
+                children.push(
+                    new Rect({
+                        left: cx - seatSize / 2,
+                        top: (obj.height - seatSize) / 2,
+                        width: seatSize,
+                        height: seatSize,
+                        fill: FLOOR.furnitureStroke,
+                        rx: seatSize / 2,
+                        ry: seatSize / 2,
+                    }),
+                );
             }
             return new Group(children, { ...baseProps });
         }
@@ -270,6 +280,8 @@ export function createCameraMarker(opts: {
     rotation: number;
     color?: string;
     label?: string;
+    /** Compact shot-size badge (e.g. MS, CU) shown above the camera body. */
+    shotBadge?: string;
     trackId: number;
 }) {
     const fill = opts.color ?? CAMERA.fill;
@@ -314,6 +326,23 @@ export function createCameraMarker(opts: {
     });
 
     const children: FabricObject[] = [aimLine, body, lensBump];
+
+    if (opts.shotBadge) {
+        const badge = new FabricText(opts.shotBadge, {
+            fontSize: 8,
+            fill: '#fff',
+            fontFamily: 'Inter, sans-serif',
+            fontWeight: '700',
+            originX: 'center',
+            originY: 'bottom',
+            top: -14,
+            angle: -(opts.rotation || 0),
+            backgroundColor: 'rgba(15,23,42,0.82)',
+            padding: 2,
+            data: { type: 'shot-badge' },
+        });
+        children.push(badge);
+    }
 
     // Label below the marker — counter-rotated so it stays horizontal
     if (opts.label) {
@@ -405,23 +434,33 @@ export function createSubjectMarker(opts: {
     children.push(dot);
 
     if (opts.label) {
-        const labelText = new FabricText(opts.label, {
-            fontSize: 8,
-            fill: SUBJECT.label,
-            fontFamily: 'Inter, sans-serif',
-            fontWeight: '500',
-            originX: 'center',
-            originY: 'top',
-            top: 11,
-            angle: -rot,
+        const lines = opts.label.split('\n').map((line) => line.trim()).filter(Boolean);
+        const fontSize = 6.5;
+        const lineGap = 0.5;
+        const maxLineChars = 12;
+        lines.forEach((line, index) => {
+            const labelText = new FabricText(line, {
+                fontSize,
+                fill: SUBJECT.label,
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: '500',
+                originX: 'center',
+                originY: 'top',
+                top: 11 + index * (fontSize + lineGap),
+                angle: -rot,
+                maxWidth: maxLineChars * (fontSize * 0.58),
+            });
+            children.push(labelText);
         });
-        children.push(labelText);
     }
 
     const group = new Group(children, {
         left: opts.x,
         top: opts.y,
         angle: rot,
+        /** Match seat-centre math: (x,y) is the subject anchor, not bbox top-left. */
+        originX: 'center',
+        originY: 'center',
         data: { type: 'subject', subjectId: opts.subjectId },
         hasControls: false,
         hasBorders: true,
@@ -513,6 +552,53 @@ export function createFovCone(opts: {
     });
 
     return cone;
+}
+
+const FOCAL_RING_LABELS = ['ECU', 'CU', 'MS', 'WS'] as const;
+
+/**
+ * Concentric distance rings around a focal subject showing shot-size thresholds.
+ */
+export function createFocalDistanceRings(opts: {
+    x: number;
+    y: number;
+    radii: number[];
+    scale?: number;
+}): FabricObject[] {
+    const scale = opts.scale ?? 1;
+    return opts.radii.map((radius, index) => {
+        const displayRadius = radius * scale;
+        const ring = new Circle({
+            left: opts.x,
+            top: opts.y,
+            radius: displayRadius,
+            fill: 'transparent',
+            stroke: `rgba(41,121,255,${0.42 - index * 0.07})`,
+            strokeWidth: 1,
+            strokeDashArray: [5, 4],
+            originX: 'center',
+            originY: 'center',
+            selectable: false,
+            evented: false,
+            data: { type: 'focal-ring', band: FOCAL_RING_LABELS[index] ?? index },
+        });
+        const label = new FabricText(FOCAL_RING_LABELS[index] ?? '', {
+            left: opts.x + displayRadius - 10,
+            top: opts.y - 4,
+            fontSize: 5.5,
+            fill: 'rgba(41,121,255,0.55)',
+            fontFamily: 'Inter, sans-serif',
+            fontWeight: '600',
+            selectable: false,
+            evented: false,
+            data: { type: 'focal-ring-label' },
+        });
+        return new Group([ring, label], {
+            selectable: false,
+            evented: false,
+            data: { type: 'focal-ring-group' },
+        });
+    });
 }
 
 /** Helper: convert hex color to rgba string */

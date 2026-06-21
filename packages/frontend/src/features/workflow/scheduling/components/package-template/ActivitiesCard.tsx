@@ -67,6 +67,8 @@ interface ActivitiesCardProps {
     onColorPreview?: (activityId: number | null, color: string | null) => void;
     planning?: UsePlanningProgressReturn;
     onPlanningComplete?: () => void;
+    /** When true, activity/moment list mutations are disabled (blueprint-backed packages). */
+    structureReadOnly?: boolean;
 }
 
 const PACKAGE_ACTIVITY_METRIC_COLUMNS: PackageActivityTableMetricColumn[] = [
@@ -102,6 +104,7 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
     onSelectedMomentChange,
     planning,
     onPlanningComplete,
+    structureReadOnly = false,
 }) => {
     const completeFiredRef = useRef(false);
     const completionMomentRefreshRef = useRef(false);
@@ -347,12 +350,13 @@ export const ActivitiesCard: React.FC<ActivitiesCardProps> = ({
             metricColumns={PACKAGE_ACTIVITY_METRIC_COLUMNS}
             selectedActivityId={selectedActivityId}
             selectedMomentId={selectedMomentId}
+            readOnly={structureReadOnly}
             onSelectActivity={(activityId) => onSelectedActivityChange?.(selectedActivityId === activityId ? null : activityId)}
             onSelectMoment={(_, momentId) => onSelectedMomentChange?.(selectedMomentId === momentId ? null : momentId)}
-            onAddActivity={hasOwner && activeDayJoinId ? handleAddActivity : undefined}
-            onDeleteActivity={handleDeleteActivity}
-            onAddMoment={handleAddMoment}
-            onDeleteMoment={handleDeleteMoment}
+            onAddActivity={structureReadOnly || !hasOwner || !activeDayJoinId ? undefined : handleAddActivity}
+            onDeleteActivity={structureReadOnly ? undefined : handleDeleteActivity}
+            onAddMoment={structureReadOnly ? undefined : handleAddMoment}
+            onDeleteMoment={structureReadOnly ? undefined : handleDeleteMoment}
         />
     );
 };

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { inferShotTypeFromDistances, isGuestLikeSubjectName } from '@projectflo/shared';
 
 // ─── Public types ────────────────────────────────────────────────────
 
@@ -146,13 +147,6 @@ const DEPTH_THRESHOLDS = [
   { max: 500, depth: 'background' as const },
 ] as const;
 
-/** Distance → inferred shot type. */
-const SHOT_TYPE_THRESHOLDS = [
-  { max: 80, type: 'EXTREME_CLOSE_UP' },
-  { max: 130, type: 'CLOSE_UP' },
-  { max: 200, type: 'MEDIUM_SHOT' },
-  { max: 300, type: 'WIDE_SHOT' },
-] as const;
 
 /**
  * Default "seated" inference when the source data doesn't carry an explicit
@@ -312,7 +306,7 @@ export class SpatialTranslatorService {
       }
     }
 
-    const inferredShotType = this.inferShotType(projected, camera);
+    const inferredShotType = this.inferShotType(projected, camera, targetedSubjectIds);
     const summary = this.buildSummary(projected, inferredShotType);
 
     return { visibleSubjects: projected, visibleObjects: [], inferredShotType, summary };
@@ -424,15 +418,25 @@ export class SpatialTranslatorService {
     return 'far-right';
   }
 
-  private inferShotType(subjects: FrameSubject[], camera: FloorCamera): string {
-    if (subjects.length === 0) return 'ESTABLISHING_SHOT';
-    const framingScale = (camera.fovDegrees ?? 60) / 60;
-    const distances = subjects.map((s) => s.distance * framingScale);
-    const median = distances.sort((a, b) => a - b)[Math.floor(distances.length / 2)];
-    for (const t of SHOT_TYPE_THRESHOLDS) {
-      if (median <= t.max) return t.type;
-    }
-    return 'ESTABLISHING_SHOT';
+  private inferShotType(
+    subjects: FrameSubject[],
+    camera: FloorCamera,
+    targetedSubjectIds?: number[],
+  ): string {
+    const hasTargets = (targetedSubjectIds?.length ?? 0) > 0;
+    const focal = hasTargets
+      ? subjects.filter(
+          (s) =>
+            s.isTargeted &&
+            !(s.isGroup && isGuestLikeSubjectName(s.name)),
+        )
+      : subjects.filter((s) => !(s.isGroup && isGuestLikeSubjectName(s.name)));
+
+    const pool = focal.length > 0 ? focal : subjects;
+    return inferShotTypeFromDistances(
+      pool.map((s) => s.distance),
+      camera.fovDegrees,
+    );
   }
 
   private buildSummary(subjects: FrameSubject[], shotType: string): string {

@@ -13,7 +13,7 @@ export class CrewPresetsService {
       include: {
         slots: {
           orderBy: { order_index: 'asc' },
-          include: { job_role: true, crew: true },
+          include: { job_role: true, crew: true, equipment: true },
         },
       },
     });
@@ -25,7 +25,7 @@ export class CrewPresetsService {
       include: {
         slots: {
           orderBy: { order_index: 'asc' },
-          include: { job_role: true, crew: true },
+          include: { job_role: true, crew: true, equipment: true },
         },
       },
     });
@@ -51,6 +51,7 @@ export class CrewPresetsService {
               create: dto.slots.map((s) => ({
                 job_role_id: s.job_role_id,
                 crew_id: s.crew_id ?? null,
+                equipment_id: s.equipment_id ?? null,
                 order_index: s.order_index,
               })),
             },
@@ -58,7 +59,7 @@ export class CrewPresetsService {
           include: {
             slots: {
               orderBy: { order_index: 'asc' },
-              include: { job_role: true, crew: true },
+              include: { job_role: true, crew: true, equipment: true },
             },
           },
         });
@@ -88,6 +89,7 @@ export class CrewPresetsService {
               preset_id: id,
               job_role_id: s.job_role_id,
               crew_id: s.crew_id ?? null,
+              equipment_id: s.equipment_id ?? null,
               order_index: s.order_index,
             })),
           });
@@ -101,7 +103,7 @@ export class CrewPresetsService {
           include: {
             slots: {
               orderBy: { order_index: 'asc' },
-              include: { job_role: true, crew: true },
+              include: { job_role: true, crew: true, equipment: true },
             },
           },
         });

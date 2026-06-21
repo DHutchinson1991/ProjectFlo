@@ -115,13 +115,16 @@ export function createWizardStudioDataApi(client: ApiClient) {
             );
         },
         createPackageFromBuilder: (data: {
-            eventTypeId: number;
+            packageTemplateId: number;
             selectedActivityPresetIds: number[];
-            crewSlotCount: number;
+            crewCount: number;
             cameraCount?: number;
             filmPreferences: Array<{ type: string; activityPresetId?: number; activityName?: string }>;
             inquiryId?: number;
             clientName?: string;
+            sourceDayBlueprintVersionId?: number;
+            selectedDayBlueprintActivityIds?: number[];
+            blueprintDayMappings?: Array<{ blueprintDayId: number; eventTypeDayLinkId: number }>;
         }) => client.post<ServicePackage>('/api/packages/from-builder', data),
         estimatePackagePrice: (packageId: number) => {
             const brandId = requireCurrentBrandId();

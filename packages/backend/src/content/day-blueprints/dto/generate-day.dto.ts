@@ -1,4 +1,5 @@
-import { IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { DayBlueprintGenerationMode } from '@prisma/client';
+import { IsEnum, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class GenerateDayBlueprintDayDto {
   @IsOptional()
@@ -10,4 +11,8 @@ export class GenerateDayBlueprintDayDto {
   @IsInt()
   @Min(1)
   activity_id?: number;
+
+  @IsOptional()
+  @IsEnum(DayBlueprintGenerationMode)
+  mode?: DayBlueprintGenerationMode;
 }

@@ -123,7 +123,9 @@ export class SchedulePackageContentCreationService {
       });
 
       const equipmentCounts = this.resolveEquipmentCounts(pkg);
-      const filmName = dto.film_name?.trim() || `${pkg.name || 'Package'} Film`;
+      const filmName =
+        dto.film_name?.trim() ||
+        this.buildDefaultFilmName(dto.film_type, pkg.name, selectedActivities);
 
       runLogger.section('Create Film Input', {
         filmName,
@@ -285,6 +287,24 @@ export class SchedulePackageContentCreationService {
     }
 
     return { cameras: cameraIds.size, audio: audioIds.size };
+  }
+
+  private buildDefaultFilmName(
+    filmType: FilmType,
+    packageName: string | null | undefined,
+    selectedActivities: PackageActivityRecord[],
+  ): string {
+    const pkgLabel = packageName?.trim() || 'Package';
+
+    if (filmType === FilmType.ACTIVITY) {
+      const activity = selectedActivities[0];
+      const activityPart = activity ? `${activity.name} Film` : 'Activity Film';
+      return `${activityPart}, ${pkgLabel}`;
+    }
+
+    const typeLabel =
+      filmType === FilmType.FEATURE ? 'Feature Film' : 'Montage Film';
+    return `${pkgLabel} ${typeLabel}`;
   }
 
   private buildDefaultSceneOrder(

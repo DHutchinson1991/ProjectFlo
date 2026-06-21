@@ -5,12 +5,18 @@ import type { CrewAssignment, CustomActivity, Crew, CameraAudioSlot, EquipmentPr
 import {
   normalizeEventTypeForWizard, getEventTypeDays, getAllRoleIds,
   getAllMomentIdsForPresets, getPresetIdsForDays, renumberSlots,
-  DEFAULT_CAMERA_SLOT, getDefaultStandardGuestCount,
+  DEFAULT_CAMERA_SLOT, PACKAGE_PLANNING_GUEST_COUNT, WIZARD_STEP_INDEX,
+  matchesRoleKeywords, CAMERA_ROLE_KEYWORDS, AUDIO_ROLE_KEYWORDS,
 } from '../helpers/wizard-helpers';
+import { maxLocationCount, DEFAULT_LOCATION_COUNT } from '../helpers/location-helpers';
+import { crewIdsByPresetPosition, fillPresetPositionEquipment } from '../helpers/crew-preset-equipment';
 import { servicePackagesApi } from '@/features/catalog/packages/api';
 import { crewPresetsApi } from '@/features/workflow/crew/api';
+import { equipmentPresetsApi } from '@/features/workflow/equipment/api';
 import type { CrewPreset } from '@/features/workflow/crew/types/crew-presets';
-import { readStoredEquipmentPresets, writeStoredEquipmentPresets } from '../helpers/equipment-preset-storage';
+import { isManualDayPlanComplete } from '../helpers/manual-day-plan';
+import { buildDefaultBlueprintName } from '../helpers/day-design-shared';
+import { materializeManualDayPlanBlueprint } from '../../../day-design/materialize-manual-day-plan-blueprint';
 
 export function useWizardHandlers(
   state: WizardState,
@@ -26,6 +32,12 @@ export function useWizardHandlers(
     const normalized = normalizeEventTypeForWizard(eventType);
     state.setSelectedEventType(normalized);
     state.setSourceDayBlueprintVersionId(null);
+    state.setSourceDayBlueprintId(null);
+    state.setSelectedBlueprintActivityIds(new Set());
+    state.setBlueprintDayMappings({});
+    state.setBlueprintDayCount(0);
+    state.setBlueprintScaffoldDays([]);
+    state.setLocationCountByBlueprintDayId({});
 
     // Auto-select the primary day (e.g. "Wedding Day") and its activities/moments
     const days = getEventTypeDays(normalized);
@@ -46,27 +58,70 @@ export function useWizardHandlers(
     }
 
     state.setSelectedRoleIds(getAllRoleIds(normalized));
-  state.setStandardGuestCount(getDefaultStandardGuestCount(normalized));
     state.setCustomActivities([]);
     state.setPresetTimeOverrides({});
     state.setPresetDurationOverrides({});
     state.setMomentKeyOverrides({});
     state.setRoleSlots([]);
     state.setCrewAssignments([]);
+    state.setPositionEquipment({});
     state.setCameraSlots([{ ...DEFAULT_CAMERA_SLOT }]);
     state.setAudioSlots([]);
     state.setLocationCount(3);
     if (!state.packageName) state.setPackageName(`${normalized.name} Package`);
-    state.setActiveStep(1);
+    // Auto-advance to the Day design step, starting at the path picker.
+    state.setDayDesignPath(null);
+    state.setDayDesignPhase('source');
+    state.setActiveStep(WIZARD_STEP_INDEX.DAY_DESIGN);
   };
 
   // ── Navigation ─────────────────────────────────────────────────
+  /** Discard the committed day design and return to the path picker. */
+  const resetDayDesignSource = () => {
+    state.setSourceDayBlueprintVersionId(null);
+    state.setSourceDayBlueprintId(null);
+    state.setSelectedBlueprintActivityIds(new Set());
+    state.setBlueprintDayMappings({});
+    state.setBlueprintDayCount(0);
+    state.setBlueprintScaffoldDays([]);
+    state.setLocationCountByBlueprintDayId({});
+    state.setDayDesignSource(null);
+    state.setManualDayPlan(null);
+    state.setDayDesignPath(null);
+    state.setDayDesignPhase('source');
+  };
+
+  const returnToDayDesignPicker = () => {
+    state.setDayDesignSource(null);
+    state.setManualDayPlan(null);
+    state.setDayDesignPath(null);
+    state.setDayDesignPhase('source');
+    state.setBlueprintScaffoldDays([]);
+    state.setLocationCountByBlueprintDayId({});
+  };
+
   const handleNext = () => {
     if (state.activeStep < state.steps.length - 1) state.setActiveStep((prev) => prev + 1);
   };
 
   const handleBack = () => {
     state.setError(null);
+    if (state.activeStep === WIZARD_STEP_INDEX.DAY_DESIGN) {
+      if (state.dayDesignPhase === 'review') {
+        resetDayDesignSource();
+        return;
+      }
+      const pathStillInProgress =
+        state.dayDesignPath !== null
+        && (
+          state.dayDesignSource === null
+          || (state.dayDesignSource === 'manual' && !isManualDayPlanComplete(state.manualDayPlan))
+        );
+      if (pathStillInProgress) {
+        returnToDayDesignPicker();
+        return;
+      }
+    }
     if (state.activeStep > 0) state.setActiveStep((prev) => prev - 1);
   };
 
@@ -145,6 +200,23 @@ export function useWizardHandlers(
     state.setSelectedMomentIds(getAllMomentIdsForPresets(state.selectedEventType, allP));
   };
 
+  const toggleBlueprintActivity = (activityId: number) => {
+    state.setSelectedBlueprintActivityIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(activityId)) next.delete(activityId);
+      else next.add(activityId);
+      return next;
+    });
+  };
+
+  const selectAllBlueprintActivities = (activityIds: number[]) => {
+    state.setSelectedBlueprintActivityIds(new Set(activityIds));
+  };
+
+  const deselectAllBlueprintActivities = () => {
+    state.setSelectedBlueprintActivityIds(new Set());
+  };
+
   const deselectAllActivities = () => {
     state.setSelectedPresetIds(new Set());
     state.setSelectedMomentIds(new Set());
@@ -173,12 +245,27 @@ export function useWizardHandlers(
   };
 
   const removeRoleSlot = (jobRoleId: number) => {
+    const existingSlot = state.roleSlots.find((s) => s.jobRoleId === jobRoleId);
     state.setRoleSlots((prev) => {
       const existing = prev.find((s) => s.jobRoleId === jobRoleId);
       if (!existing) return prev;
       if (existing.quantity <= 1) return prev.filter((s) => s.jobRoleId !== jobRoleId);
       return prev.map((s) => s.jobRoleId === jobRoleId ? { ...s, quantity: s.quantity - 1 } : s);
     });
+    // Drop equipment attached to the position being removed.
+    if (existingSlot) {
+      state.setPositionEquipment((prev) => {
+        const next = { ...prev };
+        if (existingSlot.quantity <= 1) {
+          Object.keys(next)
+            .filter((key) => key.startsWith(`${jobRoleId}:`))
+            .forEach((key) => delete next[key]);
+        } else {
+          delete next[`${jobRoleId}:${existingSlot.quantity - 1}`];
+        }
+        return next;
+      });
+    }
     state.setCrewAssignments((prev) => {
       const slot = state.roleSlots.find((s) => s.jobRoleId === jobRoleId);
       if (!slot) return prev;
@@ -220,7 +307,81 @@ export function useWizardHandlers(
     });
   };
 
-  // ── Crew presets ───────────────────────────────────────────────
+  // ── Per-position equipment (camera/audio roles) ────────────────
+  const positionEquipmentKey = (jobRoleId: number, posIndex: number) => `${jobRoleId}:${posIndex}`;
+
+  const getPositionEquipmentSlots = (jobRoleId: number, posIndex: number): (number | null)[] => {
+    const slots = state.positionEquipment[positionEquipmentKey(jobRoleId, posIndex)];
+    return slots?.length ? slots : [null];
+  };
+
+  const setPositionEquipmentAt = (
+    jobRoleId: number,
+    posIndex: number,
+    eqIndex: number,
+    equipmentId: number | null,
+  ) => {
+    const key = positionEquipmentKey(jobRoleId, posIndex);
+    state.setPositionEquipment((prev) => {
+      const current = [...(prev[key] ?? [])];
+      while (current.length <= eqIndex) current.push(null);
+
+      if (equipmentId == null) {
+        current.splice(eqIndex, 1);
+      } else {
+        current[eqIndex] = equipmentId;
+      }
+
+      while (current.length > 0 && current[current.length - 1] == null) {
+        current.pop();
+      }
+
+      const next = { ...prev };
+      if (current.length === 0 || current.every((id) => id == null)) {
+        delete next[key];
+      } else {
+        next[key] = current;
+      }
+      return next;
+    });
+  };
+
+  const addPositionEquipmentSlot = (jobRoleId: number, posIndex: number) => {
+    const key = positionEquipmentKey(jobRoleId, posIndex);
+    state.setPositionEquipment((prev) => {
+      const current = prev[key]?.length ? [...prev[key]] : [null];
+      if (current[current.length - 1] === null) return prev;
+      return { ...prev, [key]: [...current, null] };
+    });
+  };
+
+  const removePositionEquipmentSlot = (jobRoleId: number, posIndex: number, eqIndex: number) => {
+    const key = positionEquipmentKey(jobRoleId, posIndex);
+    state.setPositionEquipment((prev) => {
+      const current = prev[key];
+      if (!current?.length) return prev;
+      const nextSlots = current.filter((_, index) => index !== eqIndex);
+      const next = { ...prev };
+      if (nextSlots.length === 0 || nextSlots.every((id) => id == null)) {
+        delete next[key];
+      } else {
+        next[key] = nextSlots;
+      }
+      return next;
+    });
+  };
+
+  const clearPositionEquipment = (jobRoleId: number, posIndex: number) => {
+    const key = positionEquipmentKey(jobRoleId, posIndex);
+    state.setPositionEquipment((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  // ── Team presets (unified: positions + crew + equipment) ───────
   const applyCrewPreset = (preset: CrewPreset) => {
     // Build roleSlots by counting slots per job role.
     const quantityByRole = new Map<number, number>();
@@ -233,10 +394,19 @@ export function useWizardHandlers(
     }));
     state.setRoleSlots(nextRoleSlots);
 
-    // Build crew assignments from preset slots (order_index already gives position order).
+    // Build crew assignments + per-position equipment from preset slots.
+    // order_index gives position order; track a per-role counter for the position index.
     const orderedSlots = [...preset.slots].sort((a, b) => a.order_index - b.order_index);
     const assignments: CrewAssignment[] = [];
+    const nextPositionEquipment: Record<string, (number | null)[]> = {};
+    const posCounter = new Map<number, number>();
     for (const slot of orderedSlots) {
+      const posIndex = posCounter.get(slot.job_role_id) ?? 0;
+      posCounter.set(slot.job_role_id, posIndex + 1);
+      if (slot.equipment_id != null) {
+        const key = `${slot.job_role_id}:${posIndex}`;
+        nextPositionEquipment[key] = [slot.equipment_id];
+      }
       if (slot.crew_id == null) continue;
       const crewMember = crew.find((c: Crew) => c.id === slot.crew_id);
       assignments.push({
@@ -246,6 +416,15 @@ export function useWizardHandlers(
       });
     }
     state.setCrewAssignments(assignments);
+    state.setPositionEquipment(
+      fillPresetPositionEquipment(
+        nextRoleSlots,
+        crewIdsByPresetPosition(orderedSlots),
+        nextPositionEquipment,
+        data.availableJobRoles,
+        data.equipmentItems,
+      ),
+    );
   };
 
   const saveAsCrewPreset = async (name: string, isDefault = false): Promise<CrewPreset | null> => {
@@ -253,15 +432,17 @@ export function useWizardHandlers(
     if (!trimmed) return null;
     if (state.roleSlots.length === 0) return null;
 
-    // Expand roleSlots × quantity into preset slots, filling crew_id from current assignments.
-    const slots: { job_role_id: number; crew_id: number | null; order_index: number }[] = [];
+    // Expand roleSlots × quantity into preset slots, filling crew_id + equipment_id from current state.
+    const slots: { job_role_id: number; crew_id: number | null; equipment_id: number | null; order_index: number }[] = [];
     let order = 0;
     for (const slot of state.roleSlots) {
       for (let posIndex = 0; posIndex < slot.quantity; posIndex++) {
         const crewId = getPositionCrewId(slot.jobRoleId, posIndex);
+        const equipmentIds = getPositionEquipmentSlots(slot.jobRoleId, posIndex).filter((id): id is number => id != null);
         slots.push({
           job_role_id: slot.jobRoleId,
           crew_id: crewId,
+          equipment_id: equipmentIds[0] ?? null,
           order_index: order++,
         });
       }
@@ -412,27 +593,11 @@ export function useWizardHandlers(
     if (!hasConfiguredSlots) return null;
 
     try {
-      const existing = readStoredEquipmentPresets(brandId);
-      const existingWithSameName = existing.find((preset) => preset.name.trim().toLowerCase() === trimmed.toLowerCase());
-      const now = new Date().toISOString();
-      const created: EquipmentPreset = {
-        id: existingWithSameName?.id ?? Date.now(),
-        brand_id: brandId,
+      const created = await equipmentPresetsApi.create({
         name: trimmed,
         is_default: isDefault,
-        created_at: existingWithSameName?.created_at ?? now,
-        updated_at: now,
         slots,
-      };
-
-      const nextPresets = [
-        created,
-        ...existing
-          .filter((preset) => preset.id !== created.id)
-          .map((preset) => (isDefault ? { ...preset, is_default: false } : preset)),
-      ];
-
-      writeStoredEquipmentPresets(brandId, nextPresets);
+      });
       await data.fetchEquipmentPresets();
       return created;
     } catch (err) {
@@ -442,9 +607,12 @@ export function useWizardHandlers(
   };
 
   const deleteEquipmentPreset = async (presetId: number): Promise<boolean> => {
+    if (presetId < 0) {
+      data.removeEquipmentPresetLocal(presetId);
+      return true;
+    }
     try {
-      const nextPresets = readStoredEquipmentPresets(brandId).filter((preset) => preset.id !== presetId);
-      writeStoredEquipmentPresets(brandId, nextPresets);
+      await equipmentPresetsApi.delete(presetId);
       await data.fetchEquipmentPresets();
       return true;
     } catch (err) {
@@ -517,7 +685,33 @@ export function useWizardHandlers(
         durationMinutes: state.presetDurationOverrides[presetId] || undefined,
       }));
 
-      const blueprintMode = state.sourceDayBlueprintVersionId !== null;
+      const manualMode = state.dayDesignSource === 'manual';
+      let sourceDayBlueprintVersionId = state.sourceDayBlueprintVersionId;
+      let selectedDayBlueprintActivityIds = sourceDayBlueprintVersionId !== null
+        ? Array.from(state.selectedBlueprintActivityIds)
+        : undefined;
+
+      if (
+        manualMode
+        && state.manualDayPlan
+        && isManualDayPlanComplete(state.manualDayPlan)
+        && sourceDayBlueprintVersionId === null
+      ) {
+        const blueprintDisplayName = state.packageName.trim()
+          || buildDefaultBlueprintName(state.selectedEventType.name);
+        const materialized = await materializeManualDayPlanBlueprint({
+          manualDayPlan: state.manualDayPlan,
+          eventCategory: state.selectedEventType.name,
+          displayName: blueprintDisplayName,
+        });
+        sourceDayBlueprintVersionId = materialized.versionId;
+        selectedDayBlueprintActivityIds = materialized.activityIds;
+        state.setSourceDayBlueprintVersionId(materialized.versionId);
+        state.setSourceDayBlueprintId(materialized.blueprintId);
+        state.setSelectedBlueprintActivityIds(new Set(materialized.activityIds));
+      }
+
+      const blueprintMode = sourceDayBlueprintVersionId !== null;
 
       const customActivitiesData = state.customActivities
         .filter((ca) => state.selectedDayIds.has(ca.dayLinkId))
@@ -537,16 +731,46 @@ export function useWizardHandlers(
         isKey,
       }));
 
-      const equipmentSlotsData = [
-        ...state.cameraSlots.filter((s) => s.equipmentId).map((s) => ({
-          equipmentId: s.equipmentId!, slotLabel: `Camera ${s.slotNumber}`, slotType: 'CAMERA',
-          crewId: s.assignedCrewId || undefined, jobRoleId: s.assignedJobRoleId || undefined,
-        })),
-        ...state.audioSlots.filter((s) => s.equipmentId).map((s) => ({
-          equipmentId: s.equipmentId!, slotLabel: `Audio ${s.slotNumber}`, slotType: 'AUDIO',
-          crewId: s.assignedCrewId || undefined, jobRoleId: s.assignedJobRoleId || undefined,
-        })),
-      ];
+      // Equipment now lives on camera/audio positions — derive slots from the team setup.
+      const equipmentSlotsData: Array<{
+        equipmentId: number; slotLabel: string; slotType: 'CAMERA' | 'AUDIO';
+        crewId?: number; jobRoleId: number;
+      }> = [];
+      let cameraCount = 0;
+      let audioCount = 0;
+      for (const slot of state.roleSlots) {
+        const role = data.availableJobRoles.find((r) => r.id === slot.jobRoleId);
+        const isCamera = matchesRoleKeywords(role, CAMERA_ROLE_KEYWORDS);
+        const isAudio = !isCamera && matchesRoleKeywords(role, AUDIO_ROLE_KEYWORDS);
+        if (!isCamera && !isAudio) continue;
+        for (let posIndex = 0; posIndex < slot.quantity; posIndex++) {
+          const equipmentIds = getPositionEquipmentSlots(slot.jobRoleId, posIndex)
+            .filter((id): id is number => id != null);
+          if (equipmentIds.length === 0) continue;
+          const crewId = getPositionCrewId(slot.jobRoleId, posIndex) || undefined;
+          for (const equipmentId of equipmentIds) {
+            if (isCamera) {
+              cameraCount += 1;
+              equipmentSlotsData.push({
+                equipmentId,
+                slotLabel: `Camera ${cameraCount}`,
+                slotType: 'CAMERA',
+                crewId,
+                jobRoleId: slot.jobRoleId,
+              });
+            } else {
+              audioCount += 1;
+              equipmentSlotsData.push({
+                equipmentId,
+                slotLabel: `Audio ${audioCount}`,
+                slotType: 'AUDIO',
+                crewId,
+                jobRoleId: slot.jobRoleId,
+              });
+            }
+          }
+        }
+      }
 
       const crewAssignmentsData = state.crewAssignments.flatMap((a) =>
         a.jobRoleIds.map((roleId) => {
@@ -558,20 +782,57 @@ export function useWizardHandlers(
         }),
       );
 
+      const perDayLocationCounts = blueprintMode
+        ? state.blueprintScaffoldDays.map(
+            (day) => state.locationCountByBlueprintDayId[day.id] ?? DEFAULT_LOCATION_COUNT,
+          )
+        : manualMode && state.manualDayPlan
+          ? state.manualDayPlan.days.map((day) => day.locationCount)
+          : [state.locationCount];
+      const effectiveLocationCount = maxLocationCount(perDayLocationCounts);
+
+      const scaffoldPackageDays = blueprintMode && state.blueprintScaffoldDays.length > 0
+        ? state.blueprintScaffoldDays.map((day) => ({
+            name: day.name,
+            order_index: day.order_index,
+            locationCount: state.locationCountByBlueprintDayId[day.id] ?? DEFAULT_LOCATION_COUNT,
+          }))
+        : manualMode && state.manualDayPlan
+          ? state.manualDayPlan.days.map((day) => ({
+              name: day.customName?.trim() || day.name,
+              order_index: day.order_index,
+              locationCount: day.locationCount,
+              ...(blueprintMode
+                ? {}
+                : {
+                    activities: day.activities
+                      .filter((activity) => activity.selected)
+                      .map((activity) => ({
+                        name: activity.name,
+                        durationMinutes: activity.durationMinutes,
+                      })),
+                  }),
+            }))
+          : undefined;
+
       const response = await servicePackagesApi.createFromTemplate(state.selectedEventType.id, {
         packageName: state.packageName,
-        selectedDayIds: blueprintMode ? [] : Array.from(state.selectedDayIds),
-        selectedActivities: blueprintMode ? [] : selectedActivities,
-        customActivities: blueprintMode ? [] : customActivitiesData,
-        selectedMomentIds: blueprintMode ? [] : Array.from(state.selectedMomentIds),
-        momentKeyOverrides: blueprintMode ? [] : momentKeyOverridesData,
+        selectedDayIds: blueprintMode || manualMode ? [] : Array.from(state.selectedDayIds),
+        selectedActivities: blueprintMode || manualMode ? [] : selectedActivities,
+        customActivities: blueprintMode || manualMode ? [] : customActivitiesData,
+        selectedMomentIds: blueprintMode || manualMode ? [] : Array.from(state.selectedMomentIds),
+        momentKeyOverrides: blueprintMode || manualMode ? [] : momentKeyOverridesData,
         selectedRoleIds: Array.from(state.selectedRoleIds),
-        standardGuestCount: state.standardGuestCount,
-        locationCount: state.locationCount,
+        standardGuestCount: PACKAGE_PLANNING_GUEST_COUNT,
+        locationCount: effectiveLocationCount,
         roleSlots: state.roleSlots.map((s) => ({ jobRoleId: s.jobRoleId, quantity: s.quantity })),
         crewAssignments: crewAssignmentsData,
         equipmentSlots: equipmentSlotsData,
-        sourceDayBlueprintVersionId: state.sourceDayBlueprintVersionId ?? undefined,
+        sourceDayBlueprintVersionId: sourceDayBlueprintVersionId ?? undefined,
+        selectedDayBlueprintActivityIds: blueprintMode
+          ? selectedDayBlueprintActivityIds
+          : undefined,
+        scaffoldPackageDays,
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -600,6 +861,10 @@ export function useWizardHandlers(
     deselectAllMomentsForPreset,
     selectAllActivities,
     deselectAllActivities,
+    toggleBlueprintActivity,
+    selectAllBlueprintActivities,
+    deselectAllBlueprintActivities,
+    resetDayDesignSource,
     toggleRole,
     toggleExpandPreset,
     toggleExpandReviewPreset,
@@ -607,6 +872,11 @@ export function useWizardHandlers(
     removeRoleSlot,
     getPositionCrewId,
     assignCrewToPosition,
+    setPositionEquipmentAt,
+    getPositionEquipmentSlots,
+    addPositionEquipmentSlot,
+    removePositionEquipmentSlot,
+    clearPositionEquipment,
     applyCrewPreset,
     saveAsCrewPreset,
     deleteCrewPreset,

@@ -1,3 +1,5 @@
+export { PackageOverviewTabPanel } from './PackageOverviewTabPanel';
+export { PackageBlueprintTab } from './PackageBlueprintTab';
 export { PeopleTabPanel } from './PeopleTabPanel';
 export { LocationsTabPanel } from './LocationsTabPanel';
 export { CrewTabPanel } from './CrewTabPanel';

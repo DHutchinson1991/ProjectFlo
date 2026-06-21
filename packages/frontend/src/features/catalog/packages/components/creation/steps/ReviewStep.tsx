@@ -1,5 +1,6 @@
-import React from 'react';
-import { Box, Typography, Chip, Stack } from '@mui/material';
+import React, { useEffect, useMemo } from 'react';
+import { Box, Typography, Chip, Stack, TextField } from '@mui/material';
+import { useDayBlueprintVersion, usePublishedDayBlueprintVersions } from '@/features/content/day-blueprints/hooks';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import PlaceIcon from '@mui/icons-material/Place';
 import VideocamIcon from '@mui/icons-material/Videocam';
@@ -11,8 +12,12 @@ import type { WizardState } from '../hooks/useWizardState';
 import type { WizardData } from '../hooks/useWizardData';
 import type { WizardDerived } from '../hooks/useWizardDerived';
 import type { WizardHandlers } from '../hooks/useWizardHandlers';
-import type { Crew, EquipmentItem } from '../types/wizard.types';
-import { getCrewName, getEventTypeGuestRole } from '../helpers/wizard-helpers';
+import type { EquipmentItem } from '../types/wizard.types';
+import {
+  PACKAGE_PLANNING_GUEST_COUNT,
+  matchesRoleKeywords, CAMERA_ROLE_KEYWORDS, AUDIO_ROLE_KEYWORDS,
+} from '../helpers/wizard-helpers';
+import { buildReviewDaySummaries } from '../helpers/review-day-summaries';
 
 interface ReviewStepProps {
   state: WizardState;
@@ -25,77 +30,251 @@ export default function ReviewStep({ state, data, derived, handlers }: ReviewSte
   const {
     selectedEventType, selectedPresetIds,
     customActivities, packageName, roleSlots,
-    selectedRoleIds, standardGuestCount,
-    cameraSlots, audioSlots, locationCount,
+    positionEquipment,
+    sourceDayBlueprintVersionId, sourceDayBlueprintId,
+    selectedBlueprintActivityIds,
+    dayDesignSource, manualDayPlan,
+    blueprintScaffoldDays, locationCountByBlueprintDayId, locationCount,
+    blueprintDayCount,
   } = state;
-  const { availableJobRoles, crew, equipmentItems } = data;
-  const { selectedDays, stats, accent, equipmentCrewOptions } = derived;
+  const { data: publishedVersions = [] } = usePublishedDayBlueprintVersions();
+  const { data: blueprintVersion } = useDayBlueprintVersion(
+    sourceDayBlueprintId,
+    sourceDayBlueprintVersionId,
+  );
+  const { availableJobRoles, equipmentItems } = data;
+  const { selectedDays, stats, accent } = derived;
+
+  useEffect(() => {
+    if (packageName || !selectedEventType) return;
+    const dayCount = stats.days;
+    const activityCount = stats.activities;
+    const dayLabel = dayCount > 1 ? `${dayCount}-Day ` : '';
+    const actLabel = activityCount > 5 ? 'Premium' : activityCount > 3 ? 'Standard' : 'Essential';
+    state.setPackageName(`${actLabel} ${dayLabel}${selectedEventType.name} Package`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-name once on review load
+  }, []);
 
   if (!selectedEventType) return null;
 
-  const guestRole = getEventTypeGuestRole(selectedEventType);
-  const includeGuests = !!guestRole && selectedRoleIds.has(guestRole.id);
+  const blueprintSelection = useMemo(() => {
+    if (!sourceDayBlueprintVersionId) return null;
+    const row = publishedVersions.find((v) => v.versionId === sourceDayBlueprintVersionId);
+    const latest = sourceDayBlueprintId
+      ? publishedVersions
+          .filter((v) => v.blueprintId === sourceDayBlueprintId)
+          .reduce(
+            (best, v) => (!best || v.versionNumber > best.versionNumber ? v : best),
+            null as (typeof publishedVersions)[number] | null,
+          )
+      : null;
+    return { row, latest };
+  }, [publishedVersions, sourceDayBlueprintVersionId, sourceDayBlueprintId]);
+
+  const blueprintDaysFromVersion = useMemo(
+    () => (blueprintVersion?.days ?? []).slice().sort((a, b) => a.order_index - b.order_index),
+    [blueprintVersion?.days],
+  );
+
+  const reviewDays = useMemo(
+    () => buildReviewDaySummaries({
+      dayDesignSource,
+      manualDayPlan,
+      sourceDayBlueprintVersionId,
+      blueprintScaffoldDays,
+      blueprintDaysFromVersion,
+      locationCountByBlueprintDayId,
+      locationCount,
+      blueprintDayCount,
+      selectedBlueprintActivityIds,
+      selectedDays,
+      selectedPresetIds,
+      customActivities,
+    }),
+    [
+      dayDesignSource, manualDayPlan, sourceDayBlueprintVersionId, blueprintScaffoldDays,
+      blueprintDaysFromVersion, locationCountByBlueprintDayId, locationCount, blueprintDayCount,
+      selectedBlueprintActivityIds, selectedDays, selectedPresetIds, customActivities,
+    ],
+  );
+
+  const totalLocationSlots = useMemo(
+    () => reviewDays.reduce((sum, day) => sum + day.locationCount, 0),
+    [reviewDays],
+  );
+
+  const equipmentLines: Array<{ key: string; label: string; name: string; kind: 'CAMERA' | 'AUDIO' }> = [];
+  let camCount = 0;
+  let audCount = 0;
+  for (const slot of roleSlots) {
+    const role = availableJobRoles.find((r) => r.id === slot.jobRoleId);
+    const isCamera = matchesRoleKeywords(role, CAMERA_ROLE_KEYWORDS);
+    const isAudio = !isCamera && matchesRoleKeywords(role, AUDIO_ROLE_KEYWORDS);
+    if (!isCamera && !isAudio) continue;
+    for (let posIndex = 0; posIndex < slot.quantity; posIndex++) {
+      const eqIds = (positionEquipment[`${slot.jobRoleId}:${posIndex}`] ?? [])
+        .filter((id): id is number => id != null);
+      for (let eqIndex = 0; eqIndex < eqIds.length; eqIndex++) {
+        const eqId = eqIds[eqIndex];
+        const eq = equipmentItems.find((e: EquipmentItem) => e.id === eqId);
+        if (isCamera) {
+          camCount += 1;
+          equipmentLines.push({
+            key: `cam-${slot.jobRoleId}-${posIndex}-${eqIndex}`,
+            label: `Cam ${camCount}`,
+            name: eq?.item_name || 'Unknown',
+            kind: 'CAMERA',
+          });
+        } else {
+          audCount += 1;
+          equipmentLines.push({
+            key: `aud-${slot.jobRoleId}-${posIndex}-${eqIndex}`,
+            label: `Audio ${audCount}`,
+            name: eq?.item_name || 'Unknown',
+            kind: 'AUDIO',
+          });
+        }
+      }
+    }
+  }
+
+  const dayDesignAccent = dayDesignSource === 'manual' ? '#818cf8' : '#f59e0b';
+  const dayDesignBg = dayDesignSource === 'manual' ? 'rgba(99,102,241,0.06)' : 'rgba(245,158,11,0.06)';
+  const dayDesignBorder = dayDesignSource === 'manual' ? 'rgba(99,102,241,0.15)' : 'rgba(245,158,11,0.15)';
+
+  const summaryCards = [
+    { label: 'Days', value: stats.days, color: '#10b981' },
+    { label: 'Activities', value: stats.activities, color: '#818cf8' },
+    ...(stats.moments > 0 ? [{ label: 'Moments', value: stats.moments, color: '#a78bfa' }] : []),
+    { label: 'Loc. slots', value: totalLocationSlots, color: '#22d3ee' },
+    { label: 'Crew', value: stats.crew, color: '#818cf8' },
+    { label: 'Equipment', value: stats.equipment, color: '#fb923c' },
+  ];
 
   return (
     <Box>
-      {/* Package Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5, p: 2, borderRadius: 1.5, bgcolor: `${accent}0A`, border: `1px solid ${accent}25` }}>
-        <Box sx={{ flex: 1 }}>
-          <Typography sx={{ color: '#64748b', fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>Package Name</Typography>
-          <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: '1.1rem' }}>{packageName}</Typography>
-        </Box>
-        <Box sx={{ textAlign: 'right' }}>
-          <Typography sx={{ color: '#64748b', fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>Event Type</Typography>
-          <Typography sx={{ color: accent, fontWeight: 600, fontSize: '0.85rem' }}>{selectedEventType.icon || ''} {selectedEventType.name}</Typography>
-        </Box>
+      {/* Package name — merged naming + review header */}
+      <Box sx={{ mb: 2.5 }}>
+        <Typography sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px', mb: 1 }}>
+          Name your package
+        </Typography>
+        <TextField
+          value={packageName}
+          onChange={(e) => state.setPackageName(e.target.value)}
+          placeholder={`e.g., Premium ${selectedEventType.name} Package`}
+          fullWidth
+          autoFocus
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              color: '#fff',
+              fontSize: '1.15rem',
+              fontWeight: 700,
+              bgcolor: 'rgba(255,255,255,0.03)',
+              '& fieldset': { borderColor: `${accent}40`, borderWidth: 2 },
+              '&:hover fieldset': { borderColor: `${accent}70` },
+              '&.Mui-focused fieldset': { borderColor: accent },
+            },
+          }}
+        />
+        <Typography sx={{ color: '#64748b', fontSize: '0.72rem', mt: 0.75 }}>
+          Visible to clients — you can change this later.
+        </Typography>
       </Box>
 
-      {/* Stats Row */}
-      <Box sx={{ display: 'flex', gap: 0.75, mb: 2, flexWrap: 'wrap' }}>
-        {[
-          { label: 'Days', value: stats.days, color: '#10b981' },
-          { label: 'Activities', value: stats.activities, color: '#818cf8' },
-          ...(includeGuests ? [{ label: 'Guests', value: standardGuestCount, color: '#22d3ee' }] : []),
-          { label: 'Roles', value: stats.roles, color: '#818cf8' },
-          { label: 'Crew', value: stats.crew, color: '#818cf8' },
-          { label: 'Equipment', value: stats.equipment, color: '#fb923c' },
-          { label: 'Locations', value: stats.locations, color: '#22d3ee' },
-        ].map((stat) => (
-          <Box key={stat.label} sx={{ flex: 1, minWidth: 60, p: 0.75, borderRadius: 1, bgcolor: 'rgba(255,255,255,0.03)', textAlign: 'center' }}>
-            <Typography sx={{ color: stat.color, fontWeight: 700, fontSize: '0.95rem' }}>{stat.value}</Typography>
-            <Typography sx={{ color: '#64748b', fontSize: '0.5rem', textTransform: 'uppercase' }}>{stat.label}</Typography>
+      {/* Summary stat cards */}
+      <Box sx={{ display: 'flex', gap: 0.75, mb: 2.5, flexWrap: 'wrap' }}>
+        {summaryCards.map((stat) => (
+          <Box
+            key={stat.label}
+            sx={{
+              flex: '1 1 72px',
+              minWidth: 72,
+              p: 1,
+              borderRadius: 1.25,
+              bgcolor: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(148,163,184,0.08)',
+              textAlign: 'center',
+            }}
+          >
+            <Typography sx={{ color: stat.color, fontWeight: 700, fontSize: '1rem', lineHeight: 1.2 }}>
+              {stat.value}
+            </Typography>
+            <Typography sx={{ color: '#64748b', fontSize: '0.52rem', textTransform: 'uppercase', letterSpacing: '0.3px', mt: 0.25 }}>
+              {stat.label}
+            </Typography>
           </Box>
         ))}
       </Box>
 
-      {/* Compact breakdown grid — 2 columns */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-
-        {/* Days & Activities */}
-        <Box sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'rgba(16,185,129,0.04)', border: '1px solid rgba(16,185,129,0.1)' }}>
-          <Typography sx={{ color: '#10b981', fontWeight: 600, fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.4px', mb: 0.75, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <CalendarMonthIcon sx={{ fontSize: '0.7rem' }} /> Days & Activities
+      {/* Unified day design */}
+      {(dayDesignSource === 'manual' || blueprintSelection?.row || reviewDays.length > 0) && (
+        <Box sx={{ mb: 2, p: 1.5, borderRadius: 1.5, bgcolor: dayDesignBg, border: `1px solid ${dayDesignBorder}` }}>
+          <Typography sx={{ color: dayDesignAccent, fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.4px', mb: 0.75, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <CalendarMonthIcon sx={{ fontSize: '0.75rem' }} />
+            Day design
           </Typography>
-          <Stack spacing={0.5}>
-            {selectedDays.map((link) => {
-              const day = link.event_day_template;
-              const presets = (day.activity_presets || []).filter((p) => selectedPresetIds.has(p.id));
-              const dayCustom = customActivities.filter((ca) => ca.dayLinkId === link.id);
-              const activityCount = presets.length + dayCustom.length;
-              if (activityCount === 0) return null;
-              return (
-                <Box key={link.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  <Typography sx={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {day.name}
+
+          {blueprintSelection?.row && (
+            <Typography sx={{ color: '#e2e8f0', fontSize: '0.78rem', mb: 0.35 }}>
+              {blueprintSelection.row.blueprintName} · v{blueprintSelection.row.versionNumber}
+            </Typography>
+          )}
+
+          {dayDesignSource === 'manual' && manualDayPlan && (
+            <Typography sx={{ color: '#94a3b8', fontSize: '0.72rem', mb: 1 }}>
+              {manualDayPlan.eventDays} day{manualDayPlan.eventDays === 1 ? '' : 's'} · saved as a day design when you create this package
+            </Typography>
+          )}
+
+          {blueprintSelection?.latest
+            && blueprintSelection.latest.versionId !== sourceDayBlueprintVersionId && (
+            <Typography sx={{ color: '#f59e0b', fontSize: '0.68rem', mb: 1 }}>
+              Note: v{blueprintSelection.latest.versionNumber} is latest; this package snapshots v{blueprintSelection.row?.versionNumber}.
+            </Typography>
+          )}
+
+          <Stack spacing={0.75}>
+            {reviewDays.map((day) => (
+              <Box
+                key={day.key}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  p: 0.85,
+                  borderRadius: 1,
+                  bgcolor: 'rgba(15,23,42,0.35)',
+                  border: '1px solid rgba(148,163,184,0.08)',
+                }}
+              >
+                <Typography sx={{ color: '#e2e8f0', fontSize: '0.78rem', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {day.name}
+                </Typography>
+                <Chip
+                  label={`${day.activityCount} activit${day.activityCount === 1 ? 'y' : 'ies'}`}
+                  size="small"
+                  sx={{
+                    height: 20,
+                    fontSize: '0.58rem',
+                    bgcolor: 'rgba(16,185,129,0.12)',
+                    color: '#10b981',
+                    border: 'none',
+                  }}
+                />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.35 }}>
+                  <PlaceIcon sx={{ fontSize: '0.65rem', color: '#22d3ee' }} />
+                  <Typography sx={{ color: '#22d3ee', fontSize: '0.65rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    {day.locationCount} slot{day.locationCount === 1 ? '' : 's'}
                   </Typography>
-                  <Chip label={`${activityCount}`} size="small" sx={{ height: 18, minWidth: 24, fontSize: '0.6rem', bgcolor: 'rgba(16,185,129,0.12)', color: '#10b981', border: 'none' }} />
                 </Box>
-              );
-            })}
+              </Box>
+            ))}
           </Stack>
         </Box>
+      )}
 
-        {/* Roles & Crew */}
+      {/* Team breakdown */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
         <Box sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'rgba(99,102,241,0.04)', border: '1px solid rgba(99,102,241,0.1)' }}>
           <Typography sx={{ color: '#818cf8', fontWeight: 600, fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.4px', mb: 0.75, display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <GroupsIcon sx={{ fontSize: '0.7rem' }} /> Roles & Crew
@@ -113,12 +292,16 @@ export default function ReviewStep({ state, data, derived, handlers }: ReviewSte
                   <Box key={slot.jobRoleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <WorkIcon sx={{ fontSize: '0.55rem', color: '#818cf8' }} />
                     <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', flex: 1 }}>
-                      {roleName} <Box component="span" sx={{ color: '#64748b' }}>×{slot.quantity}</Box>
+                      {roleName}{' '}
+                      <Box component="span" sx={{ color: '#64748b' }}>×{slot.quantity}</Box>
                     </Typography>
                     <Chip
                       label={filledCount === slot.quantity ? `${filledCount} filled` : `${filledCount}/${slot.quantity}`}
                       size="small"
-                      sx={{ height: 16, fontSize: '0.5rem', border: 'none',
+                      sx={{
+                        height: 16,
+                        fontSize: '0.5rem',
+                        border: 'none',
                         bgcolor: filledCount === slot.quantity ? 'rgba(16,185,129,0.12)' : 'rgba(148,163,184,0.1)',
                         color: filledCount === slot.quantity ? '#10b981' : '#64748b',
                       }}
@@ -132,55 +315,32 @@ export default function ReviewStep({ state, data, derived, handlers }: ReviewSte
           )}
         </Box>
 
-        {/* Equipment */}
         <Box sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.1)' }}>
           <Typography sx={{ color: '#fb923c', fontWeight: 600, fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.4px', mb: 0.75, display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <VideocamIcon sx={{ fontSize: '0.7rem' }} /> Equipment
           </Typography>
           {stats.equipment > 0 ? (
             <Stack spacing={0.25}>
-              {cameraSlots.filter((s) => s.equipmentId).map((slot) => {
-                const eq = equipmentItems.find((e: EquipmentItem) => e.id === slot.equipmentId);
-                return (
-                  <Box key={`cam-${slot.slotNumber}`} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <CameraAltIcon sx={{ fontSize: '0.55rem', color: '#fb923c' }} />
-                    <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      Cam {slot.slotNumber}: {eq?.item_name || 'Unknown'}
-                    </Typography>
-                  </Box>
-                );
-              })}
-              {audioSlots.filter((s) => s.equipmentId).map((slot) => {
-                const eq = equipmentItems.find((e: EquipmentItem) => e.id === slot.equipmentId);
-                return (
-                  <Box key={`aud-${slot.slotNumber}`} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <MicIcon sx={{ fontSize: '0.55rem', color: '#22d3ee' }} />
-                    <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      Audio {slot.slotNumber}: {eq?.item_name || 'Unknown'}
-                    </Typography>
-                  </Box>
-                );
-              })}
+              {equipmentLines.map((line) => (
+                <Box key={line.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  {line.kind === 'CAMERA'
+                    ? <CameraAltIcon sx={{ fontSize: '0.55rem', color: '#fb923c' }} />
+                    : <MicIcon sx={{ fontSize: '0.55rem', color: '#22d3ee' }} />}
+                  <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {line.label}: {line.name}
+                  </Typography>
+                </Box>
+              ))}
             </Stack>
           ) : (
             <Typography sx={{ color: '#475569', fontSize: '0.65rem', fontStyle: 'italic' }}>No equipment assigned</Typography>
           )}
         </Box>
-
       </Box>
 
-      {/* Locations — inline below grid */}
-      <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1, bgcolor: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.1)' }}>
-        <PlaceIcon sx={{ fontSize: '0.7rem', color: '#22d3ee' }} />
-        <Typography sx={{ color: '#22d3ee', fontWeight: 600, fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Locations</Typography>
-        <Stack direction="row" spacing={0.5} sx={{ ml: 'auto' }}>
-          {Array.from({ length: locationCount }, (_, i) => (
-            <Box key={i} sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)' }}>
-              <Typography sx={{ color: '#22d3ee', fontSize: '0.6rem', fontWeight: 600 }}>Loc {i + 1}</Typography>
-            </Box>
-          ))}
-        </Stack>
-      </Box>
+      <Typography sx={{ color: '#475569', fontSize: '0.68rem', mt: 1.5, textAlign: 'center' }}>
+        Guest planning default: {PACKAGE_PLANNING_GUEST_COUNT} — actual headcount is set from the inquiry or project.
+      </Typography>
     </Box>
   );
 }

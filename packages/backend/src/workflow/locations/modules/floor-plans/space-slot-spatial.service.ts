@@ -26,7 +26,7 @@ export const spaceSlotSpatialInclude = {
         orderBy: { order_index: 'asc' as const },
         include: {
             day_subject: {
-                select: { id: true, name: true, role_template_id: true },
+                select: { id: true, name: true, role_template_id: true, count: true, order_index: true },
             },
             bound_object: {
                 select: { id: true, label: true, object_type: true, x: true, y: true },

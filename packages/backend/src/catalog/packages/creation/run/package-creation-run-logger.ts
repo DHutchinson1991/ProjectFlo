@@ -18,6 +18,7 @@ interface PackageCreationManifest {
   eventSubtypeId?: number;
   packageId?: number;
   packageName?: string;
+  planningMode?: 'full' | 'blueprint';
   files: {
     master: string;
     request?: string;
@@ -97,6 +98,12 @@ export class PackageCreationRunLogger {
       packageId,
       packageName: this.manifest.packageName,
     });
+  }
+
+  setPlanningMode(planningMode: 'full' | 'blueprint'): void {
+    this.manifest.planningMode = planningMode;
+    this.flushManifest();
+    this.log('PLANNER', 'Set planning mode for this run', { planningMode });
   }
 
   writeRequest(payload: unknown): void {

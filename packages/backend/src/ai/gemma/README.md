@@ -12,8 +12,9 @@ Provides the direct LM Studio / Gemma chat client and shared skill-file loading 
 | `skill-loader.service.ts` | Caches and loads skill markdown with `_conventions.md` prepended |
 
 ## Business rules / invariants
-- `GemmaService` reads `LMSTUDIO_URL` and `GEMMA_MODEL` on module init.
+- `GemmaService` reads `LMSTUDIO_URL` and `GEMMA_MODEL` on module init. The default model is `google/gemma-4-12b-qat`; override with the `GEMMA_MODEL` env var to A/B against other Gemma sizes (e.g. `gemma-4-e4b-it`, `gemma-4-26b-a4b-it`, `gemma-4-31b-it`).
 - `GemmaService` also enforces a hard per-request timeout via `GEMMA_TIMEOUT_MS` (default `180000`) so stalled LM Studio calls fail with a real error instead of hanging pipeline progress forever.
+- LM Studio request execution is **serial** inside this process (see `requestQueue` in `gemma.service.ts`). Callers can fan out with `Promise.all` for clean code, but throughput is capped at one in-flight request at a time.
 - `SkillLoaderService` is the canonical way to load markdown skills; ad-hoc file loading is not allowed.
 - Skill payloads always include `_conventions.md` before feature-specific skill files.
 

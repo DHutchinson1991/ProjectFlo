@@ -6,6 +6,7 @@ import { CreatePackageFromBuilderDto } from '../../dto/create-package-from-build
 import { PackageCreationPipelineService } from '../package-creation-pipeline.service';
 import { PackageCreationRunLogger } from '../run/package-creation-run-logger';
 import { BrandCurrencyResolver } from '../shared/brand-currency.resolver';
+import { validateBlueprintDayMappings } from '../shared/normalize-blueprint-create-request';
 
 /**
  * Inquiry-level package creation: creates a draft, client-scoped package
@@ -59,6 +60,21 @@ export class InquiryPackageCreator {
       },
     });
     if (!template) throw new NotFoundException('Package template not found');
+
+    if (dto.blueprintDayMappings?.length && dto.sourceDayBlueprintVersionId) {
+      const version = await this.prisma.dayBlueprintVersion.findUnique({
+        where: { id: dto.sourceDayBlueprintVersionId },
+        include: { days: { select: { id: true } } },
+      });
+      if (!version) {
+        throw new BadRequestException('sourceDayBlueprintVersionId not found');
+      }
+      validateBlueprintDayMappings(
+        template.days.map((day) => day.id),
+        { dayCount: version.days.length, dayIds: version.days.map((day) => day.id) },
+        dto.blueprintDayMappings,
+      );
+    }
 
     const sortedDays = template.days;
     const mainDayLink =
@@ -299,6 +315,8 @@ export class InquiryPackageCreator {
           const snapshot = await this.dayBlueprintSnapshot.consumeIntoPackage({
             packageId: result.id,
             blueprintVersionId: dto.sourceDayBlueprintVersionId,
+            selectedActivityIds: dto.selectedDayBlueprintActivityIds,
+            blueprintDayMappings: dto.blueprintDayMappings,
           });
           this.logger.log(
             `[builder] consumed DayBlueprintVersion=${dto.sourceDayBlueprintVersionId} ` +
@@ -327,7 +345,9 @@ export class InquiryPackageCreator {
         }
       }
 
-      await this.packageCreationPipeline.run(result.id, 'inquiry', 'background', runLogger);
+      await this.packageCreationPipeline.run(result.id, 'inquiry', 'background', runLogger, {
+        blueprintModeHint: Boolean(dto.sourceDayBlueprintVersionId),
+      });
     }
 
     return result;

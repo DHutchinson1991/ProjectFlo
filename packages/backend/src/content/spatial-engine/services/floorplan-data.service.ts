@@ -388,8 +388,17 @@ export class FloorplanDataService {
         continue;
       }
 
+      // Ceremony sandbox / layout rows often reserve row_index 0–1 for the
+      // wedding party; guest proxies should start at row C (row_index >= 2).
+      const isGuestAssignableChairRow = (r: FloorObject): boolean => {
+        const meta = (r.metadata as Record<string, unknown> | null) ?? {};
+        const ri = meta.row_index;
+        if (typeof ri === 'number' && Number.isFinite(ri)) return ri >= 2;
+        return true;
+      };
+
       // Rank rows front-to-back (lower y = front in ceremony layouts).
-      const sortedRows = [...chairRows].sort((a, b) => a.y - b.y);
+      const sortedRows = [...chairRows].filter(isGuestAssignableChairRow).sort((a, b) => a.y - b.y);
       const totalCapacity = sortedRows.reduce((sum, r) => {
         const meta = (r.metadata as Record<string, unknown> | null) ?? {};
         const cap = Number(meta.capacity ?? meta.seat_cols ?? 0);

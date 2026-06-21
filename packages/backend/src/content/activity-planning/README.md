@@ -20,10 +20,13 @@ Owns package activity planning after deterministic package creation. It resolves
 ## Business rules / invariants
 - Planning treats each activity as one narrative unit overall, even when internal casting and action-generation calls are batched per moment for latency control.
 - `ActivityPlannerService` is the stable public entrypoint; the real orchestration lives behind split services.
-- The package pipeline is fixed: description enrichment → subject assignment → timing → per-activity moments → casting → actions.
+- The package pipeline now has two modes:
+  - `full`: description enrichment → subject assignment → timing → per-activity moments → casting → actions.
+  - `blueprint`: skip content-generation writes and record a compact "using Day Blueprint snapshot content" planner step before blocking.
 - Package-creation runs keep the package in `planning_status = PLANNING` until the follow-on package blocking phase finishes; only then do the shared planning SSE stream and package row flip to terminal `READY`/`done`. Direct replan runs still terminate at activity-planning completion.
 - During `activity-casting` and `activity-actions`, the shared planning SSE stream emits live focus updates for the current moment plus the subject ids/names being considered. These live updates are for UI progress only and do not create extra planner summary steps.
 - During package blocking, `PackageBlockingPlannerService` emits moment-level live updates on that same SSE stream for `pre-seed`, LM Studio request/response, parse completion, guardrail application, persistence, and a final blocking summary. These updates include optional telemetry such as completed/total moments, queue wait, AI duration, correction notices, and trace-log paths without creating extra planner summary steps.
+- Package-creation pipeline resolves mode from package lineage (`source_day_blueprint_version_id`) and can pass an explicit blueprint hint for background runs created immediately after snapshot consume.
 - `SingleActivityPlannerService` is the only place that builds and persists package-moment `subject_actions` payloads.
 - `eventType` is resolved from the package’s linked `EventSubtype → EventType` at planning start — not hardcoded.
 - All 8 LLM steps implement `PipelineStep<TInput, TOutput>` with `execute()` as the entry method.

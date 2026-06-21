@@ -33,10 +33,14 @@ export function buildRecordingSetupResponse(recording: {
     audio_track_ids: number[];
     graphics_enabled: boolean;
     graphics_title?: string | null;
-    camera_assignments: Array<{
+        camera_assignments: Array<{
         id: number;
         track_id: number;
         subject_ids: number[];
+        shot_type?: unknown;
+        shot_type_locked?: boolean;
+        shot_coupling?: unknown;
+        enabled?: boolean;
         track?: { name: string; type: string } | null;
     }>;
 }) {
@@ -60,6 +64,8 @@ export function buildRecordingSetupResponse(recording: {
             track_type: a.track?.type ? String(a.track.type) : undefined,
             subject_ids: a.subject_ids,
             shot_type: 'shot_type' in a ? (a as { shot_type?: unknown }).shot_type ?? undefined : undefined,
+            shot_type_locked: 'shot_type_locked' in a ? (a as { shot_type_locked?: boolean }).shot_type_locked ?? false : false,
+            shot_coupling: 'shot_coupling' in a ? (a as { shot_coupling?: unknown }).shot_coupling ?? undefined : undefined,
             enabled: 'enabled' in a ? (a as { enabled?: boolean }).enabled : true,
         })),
         audio_assignments: audioAssignments.map(a => ({

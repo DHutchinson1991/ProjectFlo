@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Box,
   Dialog,
@@ -24,17 +24,11 @@ import { useWizardState } from './hooks/useWizardState';
 import { useWizardData } from './hooks/useWizardData';
 import { useWizardDerived } from './hooks/useWizardDerived';
 import { useWizardHandlers } from './hooks/useWizardHandlers';
-import { normalizeEventTypeForWizard, getAllRoleIds, getDefaultStandardGuestCount } from './helpers/wizard-helpers';
-import EventTypeStep from './steps/EventTypeStep';
-import BlueprintStep from './steps/BlueprintStep';
-import ActivitiesStep from './steps/ActivitiesStep';
-import StandardGuestsStep from './steps/StandardGuestsStep';
-import LocationsStep from './steps/LocationsStep';
-import PackageNameStep from './steps/PackageNameStep';
-import RolesStep from './steps/RolesStep';
-import CrewStep from './steps/CrewStep';
-import EquipmentStep from './steps/EquipmentStep';
-import ReviewStep from './steps/ReviewStep';
+import { normalizeEventTypeForWizard, getAllRoleIds, WIZARD_STEP_INDEX } from './helpers/wizard-helpers';
+import EventScreen from './screens/EventScreen';
+import DayDesignScreen from './screens/DayDesignScreen';
+import TeamScreen from './screens/TeamScreen';
+import ReviewScreen from './screens/ReviewScreen';
 interface PackageCreationWizardProps {
   open?: boolean;
   onClose: () => void;
@@ -50,14 +44,16 @@ export default function PackageCreationWizard({
   const { eventTypes } = useEventTypes();
 
   const state = useWizardState();
-  const data = useWizardData(state.activeStep, currentBrand?.id);
+  const data = useWizardData(state.activeStep, currentBrand?.id, open);
   const derived = useWizardDerived(state, data);
   const handlers = useWizardHandlers(state, data, derived, currentBrand?.id);
+  const autoAppliedCrewPresetRef = useRef(false);
 
   const {
     activeStep, steps, canAdvance, canCreate,
     isCreating, error, createdPackageId,
     autoSelectAttempted, packageName,
+    isDayDesignRunning,
   } = state;
   const { accent } = derived;
 
@@ -75,7 +71,6 @@ export default function PackageCreationWizard({
     state.setSelectedPresetIds(new Set());
     state.setSelectedMomentIds(new Set());
     state.setSelectedRoleIds(getAllRoleIds(normalized));
-    state.setStandardGuestCount(getDefaultStandardGuestCount(normalized));
     state.setCustomActivities([]);
     state.setPresetTimeOverrides({});
     state.setPresetDurationOverrides({});
@@ -86,16 +81,16 @@ export default function PackageCreationWizard({
     state.setAudioSlots([]);
     state.setLocationCount(3);
     if (!packageName) state.setPackageName(`${normalized.name} Package`);
-    state.setActiveStep(1);
+    // Preselected event type lands straight on the Day design path picker.
+    state.setDayDesignPath(null);
+    state.setDayDesignPhase('source');
+    state.setActiveStep(WIZARD_STEP_INDEX.DAY_DESIGN);
   }, [open, initialEventTypeName, autoSelectAttempted, eventTypes, packageName]);
 
-  // ── Auto-adjust location count based on activity count ────────
   useEffect(() => {
-    if (state.sourceDayBlueprintVersionId) return;
-    const activityCount = derived.stats.activities;
-    if (activityCount <= 1) state.setLocationCount(1);
-    else if (activityCount <= 3) state.setLocationCount(Math.min(state.locationCount, activityCount));
-  }, [derived.stats.activities, state.sourceDayBlueprintVersionId]);
+    if (open) return;
+    autoAppliedCrewPresetRef.current = false;
+  }, [open]);
 
   // ── Auto-populate role slots with all roles (×1 each) ─────────
   useEffect(() => {
@@ -104,36 +99,16 @@ export default function PackageCreationWizard({
     }
   }, [data.availableJobRoles]);
 
-  // ── Equipment auto-assignment when crew options change ─────────────
+  // ── Auto-apply the default team preset (positions + crew + equipment) ──
   useEffect(() => {
-    const isValidAssignment = (slot: { assignedCrewId: number | null; assignedJobRoleId: number | null }, options: typeof derived.equipmentCrewOptions) => {
-      if (!slot.assignedCrewId || !slot.assignedJobRoleId) return true;
-      return options.some(
-        (option) => option.crewId === slot.assignedCrewId && option.jobRoleId === slot.assignedJobRoleId,
-      );
-    };
-    const autoAssignSingleOption = (
-      slot: { assignedCrewId: number | null; assignedJobRoleId: number | null; slotNumber: number; equipmentId: number | null },
-      options: typeof derived.equipmentCrewOptions,
-    ) => {
-      if (slot.assignedCrewId && slot.assignedJobRoleId) return slot;
-      if (options.length !== 1) return slot;
-      return { ...slot, assignedCrewId: options[0].crewId, assignedJobRoleId: options[0].jobRoleId };
-    };
-
-    state.setCameraSlots((prev) => prev.map((slot) =>
-      autoAssignSingleOption(
-        isValidAssignment(slot, derived.cameraCrewOptions) ? slot : { ...slot, assignedCrewId: null, assignedJobRoleId: null },
-        derived.cameraCrewOptions,
-      ),
-    ));
-    state.setAudioSlots((prev) => prev.map((slot) =>
-      autoAssignSingleOption(
-        isValidAssignment(slot, derived.audioCrewOptions) ? slot : { ...slot, assignedCrewId: null, assignedJobRoleId: null },
-        derived.audioCrewOptions,
-      ),
-    ));
-  }, [derived.audioCrewOptions, derived.cameraCrewOptions]);
+    if (!open || autoAppliedCrewPresetRef.current) return;
+    if (activeStep < WIZARD_STEP_INDEX.TEAM || data.loadingCrewPresets || data.crewPresets.length === 0) return;
+    if (data.loadingEquipment) return;
+    const defaultPreset = data.crewPresets.find((preset) => preset.is_default);
+    if (!defaultPreset) return;
+    handlers.applyCrewPreset(defaultPreset);
+    autoAppliedCrewPresetRef.current = true;
+  }, [open, activeStep, data.loadingCrewPresets, data.crewPresets, data.loadingEquipment, handlers]);
 
   // ── Outro: redirect immediately — package page shows AI pipeline progress ──
   useEffect(() => {
@@ -152,11 +127,12 @@ export default function PackageCreationWizard({
 
   return (
     <Dialog
-      open={open} onClose={handleClose} maxWidth="md" fullWidth
+      open={open} onClose={handleClose} maxWidth="xl" fullWidth
       slots={{ backdrop: Backdrop }}
       slotProps={{ backdrop: { sx: { backdropFilter: 'blur(4px)', backgroundColor: 'rgba(0,0,0,0.4)' } } }}
       PaperProps={{
         sx: {
+          maxWidth: 1160,
           backgroundColor: 'rgba(15,20,25,0.97)', backdropFilter: 'blur(12px)',
           backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 100%)',
           borderRadius: 2.5, border: '1px solid rgba(148,163,184,0.15)',
@@ -176,7 +152,21 @@ export default function PackageCreationWizard({
       <Box sx={{ px: 3, pb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 1.5 }}>
           <Typography sx={{ color: accent, fontSize: '0.8rem', fontWeight: 600 }}>{steps[activeStep]}</Typography>
-          <Typography sx={{ color: '#475569', fontSize: '0.7rem' }}>Step {activeStep + 1} of {steps.length}</Typography>
+          <Box sx={{ flex: 1 }} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography sx={{ color: '#475569', fontSize: '0.7rem' }}>
+              Step {activeStep + 1} of {steps.length}
+            </Typography>
+            {state.selectedEventType && (
+              <>
+                <Typography sx={{ color: '#334155', fontSize: '0.7rem' }}>·</Typography>
+                <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', fontWeight: 600 }}>
+                  {state.selectedEventType.icon ? `${state.selectedEventType.icon} ` : ''}
+                  {state.selectedEventType.name}
+                </Typography>
+              </>
+            )}
+          </Box>
         </Box>
         <Box sx={{ width: '100%', height: 3, bgcolor: '#1e293b', borderRadius: 2 }}>
           <Box sx={{ width: `${((activeStep + 1) / steps.length) * 100}%`, height: '100%', bgcolor: accent, borderRadius: 2, transition: 'width 0.3s ease' }} />
@@ -189,16 +179,10 @@ export default function PackageCreationWizard({
       <DialogContent sx={{ pt: 2.5, px: 3, pb: 2, overflow: 'auto' }}>
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => state.setError(null)}>{error}</Alert>}
 
-        {activeStep === 0 && <EventTypeStep state={state} handlers={handlers} />}
-        {activeStep === 1 && <BlueprintStep state={state} derived={derived} />}
-        {activeStep === 2 && <ActivitiesStep state={state} derived={derived} handlers={handlers} />}
-        {activeStep === 3 && <StandardGuestsStep state={state} derived={derived} />}
-        {activeStep === 4 && <LocationsStep state={state} />}
-        {activeStep === 5 && <RolesStep state={state} data={data} handlers={handlers} />}
-        {activeStep === 6 && <CrewStep state={state} data={data} handlers={handlers} />}
-        {activeStep === 7 && <EquipmentStep state={state} data={data} derived={derived} handlers={handlers} />}
-        {activeStep === 8 && <PackageNameStep state={state} derived={derived} />}
-        {activeStep === 9 && <ReviewStep state={state} data={data} derived={derived} handlers={handlers} />}
+        {activeStep === WIZARD_STEP_INDEX.EVENT && <EventScreen state={state} derived={derived} handlers={handlers} />}
+        {activeStep === WIZARD_STEP_INDEX.DAY_DESIGN && <DayDesignScreen state={state} derived={derived} handlers={handlers} />}
+        {activeStep === WIZARD_STEP_INDEX.TEAM && <TeamScreen state={state} data={data} derived={derived} handlers={handlers} />}
+        {activeStep === WIZARD_STEP_INDEX.REVIEW && <ReviewScreen state={state} data={data} derived={derived} handlers={handlers} />}
       </DialogContent>
 
       {/* Outro overlay */}
@@ -238,19 +222,34 @@ export default function PackageCreationWizard({
         <Typography sx={{ color: '#475569', fontSize: '0.8rem' }}>Step {activeStep + 1} of {steps.length}</Typography>
 
         <Box>
-          {activeStep >= 1 && activeStep <= 8 && (
-            <Box component="button" onClick={handlers.handleNext} disabled={!canAdvance} sx={{
+          {activeStep <= WIZARD_STEP_INDEX.TEAM && (
+            <Box
+              component="button"
+              onClick={() => void handlers.handleNext()}
+              disabled={!canAdvance || isDayDesignRunning}
+              sx={{
               display: 'flex', alignItems: 'center', gap: 0.5, px: 2.5, py: 0.75,
-              bgcolor: canAdvance ? accent : '#334155', border: 'none', borderRadius: 1,
-              color: canAdvance ? '#0f172a' : '#64748b', cursor: canAdvance ? 'pointer' : 'not-allowed',
+              bgcolor: canAdvance && !isDayDesignRunning ? accent : '#334155', border: 'none', borderRadius: 1,
+              color: canAdvance && !isDayDesignRunning ? '#0f172a' : '#64748b',
+              cursor: canAdvance && !isDayDesignRunning ? 'pointer' : 'not-allowed',
               fontSize: '0.85rem', fontWeight: 700, transition: 'all 0.15s',
-              '&:hover': canAdvance ? { filter: 'brightness(0.9)' } : {},
+              '&:hover': canAdvance && !isDayDesignRunning ? { filter: 'brightness(0.9)' } : {},
             }}>
-              Next <ArrowForwardIcon sx={{ fontSize: '1rem' }} />
+              {isDayDesignRunning ? (
+                <>
+                  <CircularProgress size={14} sx={{ color: '#64748b' }} />
+                  Generating&hellip;
+                </>
+              ) : (
+                <>
+                  Next
+                  <ArrowForwardIcon sx={{ fontSize: '1rem' }} />
+                </>
+              )}
             </Box>
           )}
 
-          {activeStep === 9 && (
+          {activeStep === WIZARD_STEP_INDEX.REVIEW && (
             <Button onClick={handlers.handleCreate} disabled={!canCreate} variant="contained"
               startIcon={isCreating ? <CircularProgress size={16} /> : <CheckCircleOutlineIcon />}
               sx={{ bgcolor: '#10b981', color: '#fff', fontWeight: 700, fontSize: '0.85rem', px: 3, textTransform: 'none',
@@ -258,8 +257,6 @@ export default function PackageCreationWizard({
               {isCreating ? 'Creating...' : 'Create Package'}
             </Button>
           )}
-
-          {activeStep === 0 && <Box sx={{ width: 80 }} />}
         </Box>
       </Box>
     </Dialog>

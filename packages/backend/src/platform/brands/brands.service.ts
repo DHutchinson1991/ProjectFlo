@@ -8,7 +8,6 @@ import { UpdateBrandSettingDto } from "./dto/update-brand-setting.dto";
 import { BrandProvisioningService, ServiceTypeKey } from "./brand-provisioning.service";
 import { BrandMembershipsService } from "./services/brand-memberships.service";
 import { BrandSettingsService } from "./services/brand-settings.service";
-
 @Injectable()
 export class BrandsService {
   constructor(

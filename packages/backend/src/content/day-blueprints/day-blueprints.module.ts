@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { GemmaModule } from '../../ai/gemma/gemma.module';
 import { PrismaModule } from '../../platform/prisma/prisma.module';
+import { FloorPlansModule } from '../../workflow/locations/modules/floor-plans/floor-plans.module';
 import { DayBlueprintsController } from './day-blueprints.controller';
 import { DayBlueprintDiffApplier } from './diff';
 import {
@@ -13,13 +14,17 @@ import {
   DayBlueprintAiRunLoggerFactory,
   DayBlueprintAiService,
   DayBlueprintAuthoringService,
+  DayBlueprintAuthoringMomentDetailsService,
   DayBlueprintDefaultsService,
   DayBlueprintGuardrailsService,
   DayBlueprintLocationRolesService,
   DayBlueprintSandboxLayoutService,
   DayBlueprintSnapshotService,
+  DayBlueprintPlacementSeedService,
   DayBlueprintVersionsService,
+  DayBlueprintVersionCopyService,
   DayBlueprintsService,
+  DayDesignerDensityService,
 } from './services';
 
 /**
@@ -30,17 +35,20 @@ import {
  * package creation.
  */
 @Module({
-  imports: [PrismaModule, GemmaModule],
+  imports: [PrismaModule, GemmaModule, FloorPlansModule],
   controllers: [DayBlueprintsController],
   providers: [
     DayBlueprintsService,
+    DayBlueprintVersionCopyService,
     DayBlueprintVersionsService,
     DayBlueprintAuthoringService,
+    DayBlueprintAuthoringMomentDetailsService,
     DayBlueprintDefaultsService,
     DayBlueprintLocationRolesService,
     DayBlueprintGuardrailsService,
     DayBlueprintSandboxLayoutService,
     DayBlueprintSnapshotService,
+    DayBlueprintPlacementSeedService,
     DayBlueprintAiService,
     DayBlueprintAiRunsService,
     DayBlueprintAiGeneratorService,
@@ -50,7 +58,14 @@ import {
     DayBlueprintAiEventsService,
     DayBlueprintAiRunLoggerFactory,
     DayBlueprintDiffApplier,
+    DayDesignerDensityService,
   ],
-  exports: [DayBlueprintSnapshotService, DayBlueprintsService, DayBlueprintVersionsService],
+  exports: [
+    DayBlueprintSnapshotService,
+    DayBlueprintPlacementSeedService,
+    DayBlueprintsService,
+    DayBlueprintVersionsService,
+    DayDesignerDensityService,
+  ],
 })
 export class DayBlueprintsModule {}

@@ -2,8 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+    Alert,
     Box,
     Button,
+    Collapse,
     CircularProgress,
     Dialog,
     DialogContent,
@@ -26,9 +28,10 @@ import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownR
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
 import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
+import StopCircleRoundedIcon from '@mui/icons-material/StopCircleRounded';
 import { buildAuthHeaders, getApiBaseUrl } from '@/shared/api/client';
 import { StatusChip } from '@/shared/ui';
-import { usePackageAiRun, usePackageAiRuns } from '../../hooks';
+import { useCancelPackageAiRun, usePackageAiRun, usePackageAiRuns } from '../../hooks';
 import type {
     BlockingPlanningSubstep,
     PlanningEventRecord,
@@ -46,6 +49,8 @@ interface PackageAiRunsPanelProps {
     packageId: number | null;
     packageName?: string | null;
     planning: UsePlanningProgressReturn;
+    /** Tear down live SSE immediately after cancel API succeeds; parent refetches package row. */
+    onPlanningLiveDismiss?: () => void;
 }
 
 type StepRow = PackageAiPlannerSummaryStep;
@@ -95,11 +100,13 @@ const BLOCKING_SUBSTEPS: BlockingPlanningSubstep[] = [
     'persisted',
 ];
 
-export function PackageAiRunsPanel({ packageId, packageName, planning }: PackageAiRunsPanelProps) {
+export function PackageAiRunsPanel({ packageId, packageName, planning, onPlanningLiveDismiss }: PackageAiRunsPanelProps) {
     const isPlanningActive = planning.status === 'connecting' || planning.status === 'planning';
     const [historyOpen, setHistoryOpen] = useState(false);
     const [blockingExpanded, setBlockingExpanded] = useState(true);
     const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+    const [cancelConfirm, setCancelConfirm] = useState(false);
+    const [cancelBanner, setCancelBanner] = useState<{ severity: 'success' | 'warning' | 'error'; message: string } | null>(null);
     const [traceLogOpen, setTraceLogOpen] = useState(false);
     const [traceLogPath, setTraceLogPath] = useState<string | null>(null);
     const [traceLogContent, setTraceLogContent] = useState('');
@@ -116,6 +123,9 @@ export function PackageAiRunsPanel({ packageId, packageName, planning }: Package
     });
     const runs = runsQuery.data ?? [];
     const latestRun = runs[0] ?? null;
+    /** Manifest `status` can lag behind live SSE (e.g. shows Completed while planner_status is still RUNNING). */
+    const cancelTargetRun = isPlanningActive && latestRun ? latestRun : null;
+    const cancelMutation = useCancelPackageAiRun(packageId);
 
     useEffect(() => {
         if (!latestRun) {
@@ -129,6 +139,12 @@ export function PackageAiRunsPanel({ packageId, packageName, planning }: Package
             setSelectedRunId(latestRun.runId);
         }
     }, [isPlanningActive, latestRun]);
+
+    useEffect(() => {
+        if (!cancelTargetRun) {
+            setCancelConfirm(false);
+        }
+    }, [cancelTargetRun]);
 
     const selectedRunQuery = usePackageAiRun(packageId, selectedRunId, {
         enabled: Boolean(packageId && selectedRunId && (historyOpen || isPlanningActive)),
@@ -239,6 +255,36 @@ export function PackageAiRunsPanel({ packageId, packageName, planning }: Package
         }
     };
 
+    const handleCancel = async () => {
+        if (!cancelTargetRun) {
+            return;
+        }
+        setCancelBanner(null);
+        try {
+            const result = await cancelMutation.mutateAsync(cancelTargetRun.runId);
+            if (result.status === 'NOT_RUNNING') {
+                setCancelBanner({
+                    severity: 'warning',
+                    message:
+                        'The server reports planning is not active for this package (for example it already finished). If the UI still shows AI running, refresh the page.',
+                });
+            } else {
+                onPlanningLiveDismiss?.();
+                setCancelBanner({
+                    severity: 'success',
+                    message: 'Cancellation requested — planner should stop after the current step.',
+                });
+            }
+        } catch (err) {
+            setCancelBanner({
+                severity: 'error',
+                message: err instanceof Error ? err.message : 'Cancel failed',
+            });
+        } finally {
+            setCancelConfirm(false);
+        }
+    };
+
     const latestRunStatus: PackageAiRunStatus = latestRun?.status ?? (planning.status === 'failed' ? 'failed' : 'completed');
     const historyCountLabel = runs.length === 1 ? '1 run' : `${runs.length} runs`;
 
@@ -247,12 +293,11 @@ export function PackageAiRunsPanel({ packageId, packageName, planning }: Package
             <Box
                 sx={{
                     position: 'fixed',
-                    left: '50%',
+                    right: { xs: 16, sm: 24 },
                     bottom: { xs: 16, sm: 18 },
-                    transform: 'translateX(-50%)',
                     zIndex: 1295,
                     display: 'flex',
-                    justifyContent: 'center',
+                    justifyContent: 'flex-end',
                     pointerEvents: 'none',
                 }}
             >
@@ -312,9 +357,34 @@ export function PackageAiRunsPanel({ packageId, packageName, planning }: Package
                                                 statusColor="#fbbf24"
                                             />
                                         </Stack>
-                                        <Typography sx={{ color: '#f8fafc', fontSize: '0.92rem', fontWeight: 700 }}>
-                                            {progressPercent}%
-                                        </Typography>
+                                        <Stack direction="row" spacing={1} alignItems="center">
+                                            {cancelTargetRun && (
+                                                <Tooltip title="Stop camera planning">
+                                                    <Button
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            openHistoryModal();
+                                                            setCancelConfirm(true);
+                                                        }}
+                                                        size="small"
+                                                        startIcon={<StopCircleRoundedIcon sx={{ fontSize: 16 }} />}
+                                                        sx={{
+                                                            textTransform: 'none',
+                                                            fontWeight: 700,
+                                                            color: '#fca5a5',
+                                                            py: 0.25,
+                                                            px: 1,
+                                                            minWidth: 0,
+                                                        }}
+                                                    >
+                                                        Stop AI
+                                                    </Button>
+                                                </Tooltip>
+                                            )}
+                                            <Typography sx={{ color: '#f8fafc', fontSize: '0.92rem', fontWeight: 700 }}>
+                                                {progressPercent}%
+                                            </Typography>
+                                        </Stack>
                                     </Stack>
                                     <Typography sx={{ color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 600, mt: 0.35 }}>
                                         {liveWidgetHeadline}
@@ -375,7 +445,10 @@ export function PackageAiRunsPanel({ packageId, packageName, planning }: Package
 
             <Dialog
                 open={historyOpen}
-                onClose={() => setHistoryOpen(false)}
+                onClose={() => {
+                    setHistoryOpen(false);
+                    setCancelBanner(null);
+                }}
                 maxWidth="xl"
                 fullWidth
                 PaperProps={{
@@ -389,19 +462,103 @@ export function PackageAiRunsPanel({ packageId, packageName, planning }: Package
                 }}
             >
                 <DialogTitle sx={{ px: 2.5, py: 2 }}>
+                    {cancelBanner && (
+                        <Alert
+                            severity={cancelBanner.severity}
+                            onClose={() => setCancelBanner(null)}
+                            sx={{ mb: 1.5 }}
+                        >
+                            {cancelBanner.message}
+                        </Alert>
+                    )}
                     <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between">
                         <Box>
                             <Typography sx={{ color: '#f8fafc', fontSize: '1rem', fontWeight: 800 }}>
-                                Package AI runs
+                                Camera planning runs
                             </Typography>
                             <Typography sx={{ color: '#94a3b8', fontSize: '0.78rem', mt: 0.35 }}>
                                 {packageName || latestRun?.packageName || 'This package'} · package creator history and logs
                             </Typography>
                         </Box>
-                        <IconButton onClick={() => setHistoryOpen(false)} sx={{ color: '#cbd5e1' }}>
-                            <CloseRoundedIcon />
-                        </IconButton>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                            {cancelTargetRun && (
+                                <Button
+                                    onClick={() => setCancelConfirm(true)}
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<StopCircleRoundedIcon />}
+                                    sx={{
+                                        textTransform: 'none',
+                                        fontWeight: 700,
+                                        color: '#fca5a5',
+                                        borderColor: alpha('#fca5a5', 0.4),
+                                        '&:hover': {
+                                            borderColor: '#fca5a5',
+                                            bgcolor: alpha('#fca5a5', 0.08),
+                                        },
+                                    }}
+                                >
+                                    Request cancel
+                                </Button>
+                            )}
+                            <IconButton
+                                onClick={() => {
+                                    setHistoryOpen(false);
+                                    setCancelBanner(null);
+                                }}
+                                sx={{ color: '#cbd5e1' }}
+                            >
+                                <CloseRoundedIcon />
+                            </IconButton>
+                        </Stack>
                     </Stack>
+                    <Collapse in={cancelConfirm && Boolean(cancelTargetRun)}>
+                        <Paper
+                            elevation={0}
+                            sx={{
+                                mt: 1.5,
+                                px: 1.5,
+                                py: 1.25,
+                                borderRadius: 2,
+                                border: `1px solid ${alpha('#fca5a5', 0.3)}`,
+                                bgcolor: alpha('#fca5a5', 0.06),
+                            }}
+                        >
+                            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+                                <Typography sx={{ color: '#fecaca', fontSize: '0.8rem', fontWeight: 600 }}>
+                                    Cancel this package AI run? Progress so far will stop and the run will be marked as cancelled.
+                                </Typography>
+                                <Stack direction="row" spacing={1}>
+                                    <Button
+                                        onClick={() => setCancelConfirm(false)}
+                                        size="small"
+                                        sx={{ textTransform: 'none', color: '#cbd5e1' }}
+                                    >
+                                        Keep running
+                                    </Button>
+                                    <Button
+                                        onClick={handleCancel}
+                                        disabled={cancelMutation.isPending}
+                                        variant="contained"
+                                        size="small"
+                                        startIcon={
+                                            cancelMutation.isPending
+                                                ? <CircularProgress size={12} thickness={6} sx={{ color: '#fff' }} />
+                                                : <StopCircleRoundedIcon sx={{ fontSize: 16 }} />
+                                        }
+                                        sx={{
+                                            textTransform: 'none',
+                                            fontWeight: 700,
+                                            bgcolor: '#dc2626',
+                                            '&:hover': { bgcolor: '#b91c1c' },
+                                        }}
+                                    >
+                                        Confirm cancel
+                                    </Button>
+                                </Stack>
+                            </Stack>
+                        </Paper>
+                    </Collapse>
                 </DialogTitle>
 
                 <DialogContent sx={{ px: 2.5, pb: 2.5 }}>
@@ -1141,7 +1298,10 @@ function BlockingTimelinePanel({
                                 {blockingView.summary.traceLogPath && (
                                     <Button
                                         size="small"
-                                        onClick={() => onOpenTraceLog(blockingView.summary.traceLogPath)}
+                                        onClick={() => {
+                                            const path = blockingView.summary?.traceLogPath;
+                                            if (path) onOpenTraceLog(path);
+                                        }}
                                         sx={{ minWidth: 0, px: 0.75, color: '#7dd3fc', textTransform: 'none', fontWeight: 700 }}
                                     >
                                         Open latest trace log

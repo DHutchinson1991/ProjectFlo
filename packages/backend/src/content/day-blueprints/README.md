@@ -67,6 +67,12 @@ Package-scope lineage columns (set by the snapshotter):
 - `package_activity_moment_actions` (new table, normalized mirror of
   blueprint actions — replaces the JSON `subject_actions` field).
 
+**Boundary with packages:** Day Designer owns structure, actions, and
+placement hints. Package runtime must not read live blueprint tables.
+Templates are a commercial shell (days, roles, crew, equipment,
+locations), not a competing activity/moment list in blueprint-first
+wizard flows. See `packages/backend/docs/day-designer-package-boundaries.md`.
+
 ## Key files
 
 - `day-blueprints.controller.ts` — REST surface
@@ -83,19 +89,32 @@ Package-scope lineage columns (set by the snapshotter):
   (days, activities, moments, subject roles, space slots, actions,
   placements, lock rules, activity↔location-role links). Every write
   passes through `versions.assertDraft()`.
+- `services/day-blueprint-authoring-moment-details.service.ts` — extracted
+  moment/action/placement/lock-rule authoring operations used by the
+  main authoring service to keep file size bounded.
 - `services/day-blueprint-defaults.service.ts` — seeds fallback sandbox
   location vocabulary and auto-creates activity location defaults from
   source `location_label`s (or sandbox fallback spaces when no label exists).
+- `services/day-blueprint-defaults.helpers.ts` — shared defaults constants
+  and normalizers used by defaults seeding logic.
 - `services/day-blueprint-location-roles.service.ts` — brand
   vocabulary CRUD.
 - `services/day-blueprint-guardrails.service.ts` — publish + proposal
   invariants. Structural checks implemented; rule_key handlers
   scaffolded.
 - `services/day-blueprint-snapshot.service.ts` — **consume-on-create**.
-  `consumeIntoPackage({ packageId, blueprintVersionId })` materializes
+  `consumeIntoPackage({ packageId, blueprintVersionId, blueprintDayMappings? })` materializes
   a published version into package tables, stamps lineage, creates
   package space slots + activity assignments from blueprint space slots,
   and records a `DayBlueprintUsage` row (idempotent per (version, package)).
+  Optional `blueprintDayMappings` pair `DayBlueprintDay` rows with
+  `PackageTemplateDay` links so multi-day packages land on the correct
+  `package_event_day` (positional 1:1 when omitted).
+- `services/day-blueprint-placement-seed.service.ts` — after consume,
+  copies blueprint moment placements into `SpaceSlotMomentSubject` using
+  `@projectflo/shared` coordinate resolution (same math as the Day Designer
+  floor plan). Runs before package blocking so Blocking AI treats subjects
+  as fixed and plans cameras only.
 - `services/day-blueprint-sandbox-layout.service.ts` — deterministic
   sandbox room portrayal builder used by snapshotting; emits package
   floor-plan objects/zones for ceremony, reception, prep,
@@ -133,19 +152,63 @@ Package-scope lineage columns (set by the snapshotter):
   writing — driving the live moments table and People gallery
   without waiting for the full plan to arrive.
 - `services/day-blueprint-ai-generator.service.ts` — one-shot Day
-  generator. Calls Gemma with a strict JSON schema (using
+  generator orchestrator. Owns run lifecycle, SSE progress updates, and
+  phase sequencing; delegates parsing/rules/persistence/reporting into
+  focused helper modules.
+- `services/day-blueprint-ai-generation.context.ts` — prepares generation
+  runtime context (day/version validation, run row creation, cancellation
+  controller wiring, and density skeleton sizing).
+- `services/day-blueprint-ai-generation.pipeline.ts` — executes the
+  successful path (outline + expansion + persist + spatial post-pass +
+  success summary/report updates).
+- `services/day-blueprint-ai-generation.failure.ts` — centralized cancel/
+  failure handling for run status transitions and terminal SSE/reporting.
+- `services/day-blueprint-ai-generation.requests.ts` — JSON-schema request
+  builders for outline and per-activity expansion prompts.
+- `services/day-blueprint-ai-generation.streaming.ts` — streaming wrapper
+  around `gemma.chatStream()` with incremental moment/activity SSE emits.
+- `services/day-blueprint-ai-progress.ts` — small helper that syncs run
+  prompt summary + SSE progress events.
+- `services/day-blueprint-outline.rules.ts` — deterministic skeleton +
+  outline validation rules (including ritual-only Ceremony/Recessional
+  constraints) and outline-duration normalization.
+- `services/day-blueprint-expansion.rules.ts` — expansion validator for
+  subject-action coverage and role-roster enforcement.
+- `services/day-blueprint-ai-parser.ts` — strict outline/expansion JSON
+  parsing and normalization helpers.
+- `services/day-blueprint-plan.mapper.ts` — outline+expansion stitcher
+  plus deterministic key-moment selection (longest moment wins).
+- `services/day-blueprint-ai-plan-writer.ts` — transactional writer that
+  replaces moments/actions in-scope and emits preview/persisted SSE
+  events while writing.
+- `services/day-blueprint-ai-report.builder.ts` — compact run report
+  builder used for running/completed/failed knowledge artifacts.
+  The orchestrated pipeline calls Gemma with a strict JSON schema (using
   `gemma.chatStream()` so the response streams) and fills moments,
   per-moment subject actions, and per-moment placement hints for the
-  day's existing activities in a single transaction (no activity CRUD).
+  day's existing activities.
   `POST /versions/:versionId/days/:dayId/ai-generate` accepts optional
   `activity_id` to scope regeneration to one activity; write scope is
   replace-not-append for that scope only. Generated moments always keep
-  subject/action coverage; spatial placement rows are written unless a
-  moment is marked `no_spatial`, in which case placements are skipped.
-  Generation is also duration-aware: prompts include activity duration
-  targets and the service applies a quality gate (minimum moments +
-  minimum duration coverage) with one automatic retry when output is too
-  shallow. Records a
+  subject/action coverage and spatial placement rows.
+  Generation is duration-aware and runs as a deterministic two-phase
+  pipeline. **Phase 1 (outline)** is a single streaming Gemma call whose
+  schema uses `prefixItems` + enum-locked activity names + exact moment
+  counts derived from each activity's `default_duration_minutes`; the
+  validator then checks per-activity duration sums fall within +/-10% of
+  target. The Phase 1 user payload includes each activity's optional
+  `description` from `DayBlueprintActivity` when non-empty (planner scope);
+  the `planning/day-outline.md` skill treats that field as authoritative
+  over name-based defaults (e.g. empty Ceremony defaults to ritual-only
+  beats). **Phase 2 (expansion)** runs once per activity in parallel with
+  `Promise.all` and emits subject_actions only — `subject_role` is
+  enum-locked to the available roster so hallucinated names are rejected
+  by the schema. After expansion, the orchestrator marks the longest
+  moment per activity as `is_key_moment` deterministically. Phase 1 runs
+  one repair retry when validation fails and injects the validator errors
+  back into the model request; outline durations are normalized server-side
+  before final validation.
+  Records a
   `DayBlueprintAiRun` (RUNNING / SUCCESS / FAILED / CANCELLED), stores
   the on-disk run id in `run_key`, emits live SSE progress plus
   per-moment streaming/preview/persisted events for frontend live
@@ -175,6 +238,12 @@ Package-scope lineage columns (set by the snapshotter):
   actions and fills `UNSPECIFIED` placement hints using deterministic
   role/moment heuristics. Does not add, remove, or reorder
   activities/moments.
+- `services/day-blueprint-spatial-heuristics.ts` — extracted slot-picking
+  and role/moment hint heuristics for spatial generation.
+- `services/day-blueprints.seeding.ts` — extracted initial draft day/activity
+  structure seeding helpers used by blueprint creation.
+- `services/day-blueprint-snapshot.space-slots.ts` — extracted package space
+  slot materialization helpers used by snapshot consumption.
 - `dto/` — class-validator DTOs for every REST endpoint.
 
 ## Business rules
@@ -204,9 +273,8 @@ Package-scope lineage columns (set by the snapshotter):
     semantically consistent.
   4. **Publish requires structural completeness** (≥1 day, ≥1 activity
    per day, ≥1 moment per activity) and passes all lock-rule handlers.
-  AI day generation requires subject-action coverage for every generated
-  moment. Spatial coverage is required unless a moment is explicitly
-  marked `no_spatial`.
+  AI day generation requires subject-action and spatial coverage for every
+  generated moment.
 5. **Package consumption must target a PUBLISHED version.** Drafts are
    never snapshotted.
 6. **Packages read their own snapshot, never the live blueprint.** The
@@ -221,14 +289,17 @@ Package-scope lineage columns (set by the snapshotter):
   AI never creates/deletes activity rows; it only replaces moments,
   actions, and placements for existing activities. Full-day generation
   clears/rebuilds all activities in the day; `activity_id` generation
-  clears/rebuilds only that activity. Moments flagged `no_spatial` keep
-  actions but skip placement writes.
-9. **AI generation is duration-aware and quality-gated.**
-  Prompts include per-activity duration context. The backend expects
-  moment count and summed `duration_seconds` to be proportionate to the
-  target activity runtime (for example, a 45m activity should not return
-  a short 10-15m highlight reel). If coverage is too low, one automatic
-  retry is issued with explicit correction guidance before persistence.
+  clears/rebuilds only that activity.
+9. **AI generation is structurally enforced and hard-failing.**
+  Phase 1's JSON Schema uses `prefixItems` to lock the activity names
+  (`enum: [activity.name]`) and the exact moment count per activity,
+  derived from `default_duration_minutes`. The model literally cannot
+  return fewer activities/moments than required. The Phase 1 validator
+  additionally checks moment-duration sums against a +/-10% tolerance
+  per activity. Phase 2's schema locks `subject_role` to the roster.
+  The server then normalizes outline duration sums and allows one
+  validation-driven outline repair retry; remaining gaps still throw
+  `BadRequestException` and mark the run FAILED.
 10. **Day Designer AI generation is file-audited.** Each one-shot run
   writes to `logs/day-designer-ai/` and the DB row's `run_key` points to
   the matching file run. `DayBlueprintAiRunsService` enforces brand-safe
@@ -238,9 +309,8 @@ Package-scope lineage columns (set by the snapshotter):
 11. **Spatial regeneration replaces then rebuilds placements.**
     `POST /api/day-blueprints/versions/:versionId/days/:dayId/spatial-generate`
   clears and recreates placement hints in scope (day/activity/moment)
-  from moment action coverage plus deterministic role heuristics. Moments
-  flagged `no_spatial` are skipped and any existing placements for those
-  moments are removed. It never regenerates day activities or moments.
+  from moment action coverage plus deterministic role heuristics. It never
+  regenerates day activities or moments.
 12. **Refine keeps authored activities intact.**
   `DayBlueprintAiRefinerService` delegates to the fill-only generator,
   so refine enriches moments/actions/placements on existing activities

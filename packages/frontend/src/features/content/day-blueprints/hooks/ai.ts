@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { buildAuthHeaders, getApiBaseUrl } from '@/shared/api/client';
 import { dayBlueprintsAiApi } from '../api';
+import type { DayBlueprintGenerationMode } from '../types';
 import type {
   ApplyDayBlueprintAiProposalInput,
   CreateDayBlueprintAiProposalInput,
@@ -168,6 +169,7 @@ export interface DayBlueprintAiProgressData {
     | 'moment-preview'
     | 'moment-persisted'
     | 'moment-streaming'
+    | 'moment-streaming-duration'
     | 'activity-streaming'
     | 'summary'
     | 'subject-spatial-start'
@@ -190,6 +192,8 @@ export interface DayBlueprintAiProgressData {
   previewActionCount?: number;
   previewPlacementCount?: number;
   previewKey?: string;
+  /** Zero-based attempt index of the LLM call that produced this event. */
+  generationAttempt?: number;
   activitiesCreated?: number;
   momentsCreated?: number;
   actionsCreated?: number;
@@ -381,14 +385,17 @@ export function useGenerateDayBlueprintDay(
       dayId,
       prompt,
       activityId,
+      mode,
     }: {
       dayId: number;
       prompt?: string;
       activityId?: number;
+      mode?: DayBlueprintGenerationMode;
     }) =>
       dayBlueprintsAiApi.generator.generateDay(versionId as number, dayId, {
         prompt,
         activity_id: activityId,
+        mode,
       }),
     onSuccess: () => {
       if (versionId) {

@@ -45,9 +45,31 @@ interface Props {
   versionLabel: string;
   activeDay: DayBlueprintDay | null;
   readOnly: boolean;
+  onGenerate?: () => void;
+  generateLabel?: string;
+  generateTooltip?: string;
+  generatePending?: boolean;
+  generateDisabled?: boolean;
 }
 
-const DRAWER_WIDTH = { xs: 'calc(100vw - 24px)', sm: 540 };
+/** Matches `StudioSidebar` width and `(studio)/layout.tsx` main `marginLeft`. */
+const STUDIO_NAV_RAIL_PX = 280;
+
+/** Matches `DayBlueprintVersionEditor` activities rail `width: { lg: '26%' }`. */
+const ACTIVITIES_RAIL_FRACTION = 0.26;
+
+/** Studio content inner width (nav + symmetric page padding from layout `p: 3`). */
+function studioContentInnerWidth(theme: { spacing: (v: number) => string }): string {
+  return `calc(100vw - ${STUDIO_NAV_RAIL_PX}px - ${theme.spacing(3)} - ${theme.spacing(3)})`;
+}
+
+function activitiesRailStripWidth(theme: { spacing: (v: number) => string }): string {
+  return `calc(${studioContentInnerWidth(theme)} * ${ACTIVITIES_RAIL_FRACTION})`;
+}
+
+function activitiesRailStripLeft(theme: { spacing: (v: number) => string }): string {
+  return `calc(${STUDIO_NAV_RAIL_PX}px + ${theme.spacing(3)})`;
+}
 
 function formatDurationMs(ms: number): string {
   if (ms < 1000) return '<1s';
@@ -61,16 +83,26 @@ function formatDurationMs(ms: number): string {
 /**
  * Day Designer AI runs drawer.
  *
- * Floating bottom-center widget that summarises the active run, plus
- * a modal showing run history and a live timeline. The drawer is
- * read-only progress + history — generation is triggered from the day
- * editor toolbar / activity rail. Cancel rolls back the destructive
- * delete via an in-flight AbortController on the backend.
+ * Floating bottom widget, horizontally centered over the activities rail
+ * (left ~26% column) so it stays out of the floor plan / People strip.
+ * Includes a modal for run history and a live timeline.
+ * Generation is triggered from this launcher; cancel rolls back via an
+ * in-flight AbortController on the backend.
  */
-export function DayBlueprintAiRunsPanel({ blueprintId: _blueprintId, versionId, versionLabel, activeDay: _activeDay, readOnly: _readOnly }: Props) {
+export function DayBlueprintAiRunsPanel({
+  blueprintId: _blueprintId,
+  versionId,
+  versionLabel,
+  activeDay: _activeDay,
+  readOnly: _readOnly,
+  onGenerate,
+  generateLabel = 'Generate',
+  generateTooltip = 'Run Day Designer AI generation',
+  generatePending = false,
+  generateDisabled = false,
+}: Props) {
   void _blueprintId;
   void _activeDay;
-  void _readOnly;
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
   const [cancelConfirm, setCancelConfirm] = useState(false);
@@ -125,7 +157,7 @@ export function DayBlueprintAiRunsPanel({ blueprintId: _blueprintId, versionId, 
   const runCountLabel = runs.length > 0
     ? `${runs.length} run${runs.length === 1 ? '' : 's'}`
     : 'No runs';
-  const idleLabel = runs.length > 0 ? runCountLabel : 'Day Designer AI';
+  const idleLabel = runs.length > 0 ? runCountLabel : 'Day structure AI';
 
   const activeStartedMs = activeRun ? new Date(activeRun.started_at).getTime() : 0;
   const activeElapsedMs = activeRun ? Math.max(0, nowMs - activeStartedMs) : 0;
@@ -149,16 +181,23 @@ export function DayBlueprintAiRunsPanel({ blueprintId: _blueprintId, versionId, 
   return (
     <Portal>
       <Box
-        sx={{
+        sx={(theme) => ({
           position: 'fixed',
-          left: '50%',
-          bottom: { xs: 20, sm: 24 },
-          transform: 'translateX(-50%)',
-          zIndex: (theme) => theme.zIndex.tooltip + 1,
+          left: activitiesRailStripLeft(theme),
+          width: {
+            xs: studioContentInnerWidth(theme),
+            lg: activitiesRailStripWidth(theme),
+          },
+          right: 'auto',
+          bottom: { xs: theme.spacing(2.5), sm: theme.spacing(3) },
+          transform: 'none',
+          zIndex: theme.zIndex.tooltip + 1,
           display: 'flex',
-          justifyContent: 'center',
+          flexDirection: 'column',
+          alignItems: 'center',
+          boxSizing: 'border-box',
           pointerEvents: 'none',
-        }}
+        })}
         data-testid="day-blueprint-ai-launcher"
       >
         {hasActiveRun ? (
@@ -166,7 +205,9 @@ export function DayBlueprintAiRunsPanel({ blueprintId: _blueprintId, versionId, 
             elevation={0}
             onClick={openHistoryModal}
             sx={{
-              width: DRAWER_WIDTH,
+              width: '100%',
+              maxWidth: { xs: '100%', sm: 540 },
+              alignSelf: 'center',
               pointerEvents: 'auto',
               borderRadius: 3,
               border: `1px solid ${alpha('#f59e0b', 0.24)}`,
@@ -273,32 +314,62 @@ export function DayBlueprintAiRunsPanel({ blueprintId: _blueprintId, versionId, 
             </Box>
           </Paper>
         ) : (
-          <Tooltip title="Open Day Designer AI run history">
-            <Button
-              aria-label="Open Day Designer AI"
-              onClick={openHistoryModal}
-              variant="contained"
-              startIcon={<AutoAwesomeRoundedIcon />}
-              sx={{
-                pointerEvents: 'auto',
-                minWidth: 0,
-                px: 1.75,
-                py: 1,
-                borderRadius: 99,
-                color: '#0f172a',
-                bgcolor: launcherColor,
-                boxShadow: `0 18px 48px ${alpha(launcherColor, 0.32)}`,
-                textTransform: 'none',
-                fontWeight: 800,
-                '&:hover': {
-                  bgcolor: launcherColor,
-                  filter: 'brightness(0.96)',
-                },
-              }}
-            >
-              {idleLabel}
-            </Button>
-          </Tooltip>
+          <Stack spacing={0.75} sx={{ pointerEvents: 'auto', alignItems: 'center', width: '100%' }}>
+            <Tooltip title="Open Day Designer AI run history">
+              <Button
+                aria-label="Open Day Designer AI run history"
+                onClick={openHistoryModal}
+                size="small"
+                variant="text"
+                sx={{
+                  textTransform: 'none',
+                  color: '#cbd5e1',
+                  minWidth: 0,
+                  px: 1.2,
+                  py: 0.15,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                }}
+              >
+                {idleLabel}
+              </Button>
+            </Tooltip>
+            <Tooltip title={generatePending ? 'Generating…' : generateTooltip}>
+              <span>
+                <Button
+                  aria-label="Run Day Designer AI generation"
+                  onClick={onGenerate}
+                  disabled={_readOnly || generateDisabled || !onGenerate}
+                  variant="contained"
+                  startIcon={generatePending
+                    ? <CircularProgress size={12} thickness={6} sx={{ color: '#0f172a' }} />
+                    : <AutoAwesomeRoundedIcon />}
+                  sx={{
+                    minWidth: 0,
+                    px: 1.75,
+                    py: 1,
+                    borderRadius: 99,
+                    color: '#0f172a',
+                    bgcolor: launcherColor,
+                    boxShadow: `0 18px 48px ${alpha(launcherColor, 0.32)}`,
+                    textTransform: 'none',
+                    fontWeight: 800,
+                    '&:hover': {
+                      bgcolor: launcherColor,
+                      filter: 'brightness(0.96)',
+                    },
+                    '&.Mui-disabled': {
+                      color: '#475569',
+                      bgcolor: 'rgba(148,163,184,0.22)',
+                      boxShadow: 'none',
+                    },
+                  }}
+                >
+                  {generatePending ? 'Generating…' : generateLabel}
+                </Button>
+              </span>
+            </Tooltip>
+          </Stack>
         )}
       </Box>
 
@@ -507,6 +578,12 @@ function RunDetailPanel({ run, isActive, progress, elapsedMs }: RunDetailProps) 
   const momentEvents = events.filter(
     (e) => e.data?.eventKind === 'moment-persisted' || e.data?.eventKind === 'moment-streaming',
   );
+  // Duration-only updates piggyback on the moment-streaming step so the
+  // activities rail can refresh the placeholder duration without emitting
+  // a noisy "moment X of Y" timeline row in the runs panel.
+  const momentTimelineEvents = momentEvents.filter(
+    (e) => e.data?.eventKind !== 'moment-streaming-duration',
+  );
   const subjectEvents = events.filter(
     (e) => e.data?.eventKind === 'subject-spatial-result' || e.data?.eventKind === 'subject-spatial-start',
   );
@@ -579,10 +656,10 @@ function RunDetailPanel({ run, isActive, progress, elapsedMs }: RunDetailProps) 
         {finalCounts?.placementsCreated != null && (
           <Stat label="Placements" value={String(finalCounts.placementsCreated)} />
         )}
-        {momentEvents.length > 0 && elapsedMs && elapsedMs > 1000 && (
+        {momentTimelineEvents.length > 0 && elapsedMs && elapsedMs > 1000 && (
           <Stat
             label="Moments / sec"
-            value={(momentEvents.length / (elapsedMs / 1000)).toFixed(2)}
+            value={(momentTimelineEvents.length / (elapsedMs / 1000)).toFixed(2)}
           />
         )}
       </Box>
@@ -598,12 +675,12 @@ function RunDetailPanel({ run, isActive, progress, elapsedMs }: RunDetailProps) 
               label="Snapshot taken — moments cleared inside transaction"
             />
             <TimelineRow
-              icon={momentEvents.length === 0
+              icon={momentTimelineEvents.length === 0
                 ? <CircularProgress size={12} thickness={6} sx={{ color: '#fbbf24' }} />
                 : <CheckCircleOutlineRoundedIcon sx={{ color: '#22c55e', fontSize: 16 }} />}
-              label={`Generating moments — ${momentEvents.length} written`}
+              label={`Generating moments — ${momentTimelineEvents.length} written`}
             />
-            {momentEvents.map((event) => (
+            {momentTimelineEvents.map((event) => (
               <MomentEventRow key={`${event.runId}-${event.data?.previewKey}`} event={event} />
             ))}
             {subjectEvents.length > 0 && (
@@ -648,9 +725,12 @@ function RunDetailPanel({ run, isActive, progress, elapsedMs }: RunDetailProps) 
 function MomentEventRow({ event }: { event: { label: string; data?: Record<string, unknown> } }) {
   const [expanded, setExpanded] = useState(false);
   const data = event.data ?? {};
-  const actions = (data.previewActionCount as number | undefined) ?? 0;
-  const placements = (data.previewPlacementCount as number | undefined) ?? 0;
-  const duration = (data.previewDurationSeconds as number | undefined) ?? 0;
+  const actions = data.previewActionCount;
+  const placements = data.previewPlacementCount;
+  const duration = data.previewDurationSeconds;
+  const fmt = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? String(v) : '—');
+  const previewHint =
+    'Preview counts from this pipeline step: act = subject actions written, place = placement slots predicted, sec = outline duration (Phase 1). “—” means not available yet for streaming rows.';
   return (
     <Box sx={{ pl: 2.5, borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
       <Box
@@ -667,9 +747,11 @@ function MomentEventRow({ event }: { event: { label: string; data?: Record<strin
         <Typography sx={{ color: '#cbd5e1', fontSize: '0.74rem', flex: 1 }}>
           {String(data.activityName ?? '')} → {String(data.momentName ?? '')}
         </Typography>
-        <Typography sx={{ color: '#64748b', fontSize: '0.66rem' }}>
-          {actions}a · {placements}p · {duration}s
-        </Typography>
+        <Tooltip title={previewHint}>
+          <Typography sx={{ color: '#64748b', fontSize: '0.66rem', whiteSpace: 'nowrap' }}>
+            {fmt(actions)} act · {fmt(placements)} pl · {fmt(duration)}s
+          </Typography>
+        </Tooltip>
       </Box>
       <Collapse in={expanded}>
         <Box sx={{ pl: 1, pb: 0.75 }}>

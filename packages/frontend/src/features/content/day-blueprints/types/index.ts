@@ -2,12 +2,14 @@
 // Intentionally narrow — only what the UI currently reads.
 
 export type DayBlueprintVersionStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type DayBlueprintGenerationMode = 'NORMAL' | 'AI';
 
 export interface DayBlueprintVersionSummary {
   id: number;
   blueprint_id: number;
   version_number: number;
   status: DayBlueprintVersionStatus;
+  generation_mode: DayBlueprintGenerationMode;
   published_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -29,6 +31,8 @@ export interface DayBlueprintSummary {
   display_name: string;
   event_category: string;
   description?: string | null;
+  /** Structured tags from API; `blank_authoring` enables manual moment inheritance UX. */
+  variant_tags?: Record<string, unknown> | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -94,6 +98,9 @@ export interface DayBlueprintActivity {
   default_duration_minutes?: number | null;
   duration_min_minutes?: number | null;
   duration_max_minutes?: number | null;
+  /** Optional per-activity override for AI moment count. Null/undefined =
+   *  defer to the brand's density library. */
+  target_moment_count?: number | null;
   order_index: number;
   criticality?: string | null;
   lock_flags?: unknown;
@@ -155,6 +162,9 @@ export interface CreateDayBlueprintInput {
   display_name: string;
   event_category: string;
   description?: string;
+  variant_tags?: Record<string, unknown>;
+  is_active?: boolean;
+  initial_guest_count?: number;
   initial_event_days?: number;
   initial_event_day_roles?: Record<string, string>;
   initial_activities?: string[];

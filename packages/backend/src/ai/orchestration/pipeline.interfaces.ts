@@ -65,6 +65,24 @@ export interface BlockingPipelineResult {
   model: string;
 }
 
+/** Per-moment outcome when running blocking for an entire scene */
+export interface SceneBlockingMomentResult {
+  sceneMomentId: number;
+  momentName: string;
+  status: 'completed' | 'failed';
+  error?: string;
+  result?: BlockingPipelineResult;
+}
+
+/** Summary from runSceneBlockingPipeline */
+export interface SceneBlockingPipelineResult {
+  filmSceneId: number;
+  total: number;
+  completed: number;
+  failed: number;
+  moments: SceneBlockingMomentResult[];
+}
+
 /** Presence map from casting step — subject name (lowercase) → present boolean */
 export type PresenceMap = Map<string, boolean>;
 

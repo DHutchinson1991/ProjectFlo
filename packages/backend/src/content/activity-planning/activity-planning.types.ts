@@ -66,6 +66,9 @@ export interface PackagePlanningSummary {
 export interface PackagePlanningRunOptions {
   deferCompletion?: boolean;
   additionalSteps?: number;
+  planningMode?: 'full' | 'blueprint';
+  /** Aborted via user cancel — planner stops between coarse steps (see package-planning-cancel.constants). */
+  abortSignal?: AbortSignal;
 }
 
 export interface PackagePlanningRunResult {

@@ -17,6 +17,7 @@ import { SingleActivityPlannerService } from './single-activity-planner.service'
  * Activity planner — runs at package creation time (fire-and-forget).
  *
  * Pipeline (no film/scene required):
+ *   - full mode:
  *   0. Set planning_status = PLANNING
  *   0.5. AI Description Enrichment — fill empty activity descriptions
  *   1. AI Subject Assignment — which subjects attend each activity
@@ -25,6 +26,9 @@ import { SingleActivityPlannerService } from './single-activity-planner.service'
  *   4. AI Casting + Focal Priority — who is present + focal rank per moment
  *   5. AI Actions — narrative action descriptions per subject
  *   6. Persist subject_actions (with focal data) to PackageActivityMoment
+ *   - blueprint mode:
+ *     records a compact "use Day Blueprint snapshot content" planning step
+ *     and skips content-generation writes.
  *   7. Set planning_status = READY
  *
  * Phase 2 (spatial/director/ControlNet) runs later when a film scene is linked.

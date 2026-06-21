@@ -5,6 +5,7 @@ import { Box, Chip, CircularProgress, IconButton, Paper, Stack, Tooltip, Typogra
 import { alpha, keyframes } from '@mui/material/styles';
 import CropFreeRoundedIcon from '@mui/icons-material/CropFreeRounded';
 import PanToolRoundedIcon from '@mui/icons-material/PanToolRounded';
+import RemoveCircleOutlineRoundedIcon from '@mui/icons-material/RemoveCircleOutlineRounded';
 import { SpaceSlotOverlay } from '@/features/workflow/locations/components/floor-plan/components/Panels/SpaceSlotOverlay';
 import type {
   FloorPlanObjectType,
@@ -21,11 +22,51 @@ import type {
   DayBlueprintSpaceSlot,
   DayBlueprintSubjectRoleLink,
 } from '../types';
+import {
+  computeCeremonyGuestSeatCapacity,
+  effectiveCeremonyTypicalCount,
+} from '@projectflo/shared';
+import {
+  assignCeremonySyntheticSeats,
+  CeremonySeatLayoutMode,
+  findNearestChairSeatMeta,
+  parsePlacementSeatToken,
+  resolveChairSeatCoordinates,
+  type CeremonyRoleInstanceInput,
+  type CeremonySeatAssignmentResult,
+} from '../utils/ceremony-seat-layout';
+import {
+  buildCeremonyMotionTextForRole,
+  ceremonyHardExemptFromSeating,
+  shouldSkipCeremonySeatSnap,
+} from '../utils/ceremony-motion-exempt';
+import {
+  buildSandboxRoomLayout,
+  coordinatesFromBlueprintPlacement,
+  deriveSandboxAnchors,
+  isPreCeremonyFloorActivity,
+  resolveSandboxSpaceKind,
+  resolveSpatialCollisions,
+  type FloorPlanSceneViewModel,
+  type SandboxSpaceKind,
+} from '@projectflo/shared';
+import { sceneToPackageSpaceSlot } from '@/features/workflow/locations/utils/floor-plan-scene';
+import {
+  useCreateMomentPlacement,
+  useDeleteMomentAction,
+  useDeleteMomentPlacement,
+  useUpdateMoment,
+  useUpdateMomentPlacement,
+} from '../hooks';
 
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 1000;
+const SEAT_SNAP_MAX_DISTANCE = 24;
 
 interface DayBlueprintFloorPlanTabProps {
+  blueprintId: number;
+  versionId: number;
+  readOnly: boolean;
   slots: DayBlueprintSpaceSlot[];
   subjectRoles: DayBlueprintSubjectRoleLink[];
   activeDay: DayBlueprintDay | null;
@@ -39,6 +80,9 @@ interface DayBlueprintFloorPlanTabProps {
    * glow flash via the `roleId -> done timestamp` map below.
    */
   subjectSpatialStatus?: Map<number, 'generating' | 'done'>;
+  blankAuthoring?: boolean;
+  selectedSubjectRoleId?: number | null;
+  onSelectSubjectRole?: (roleId: number | null) => void;
 }
 
 const spatialPulse = keyframes`
@@ -85,6 +129,9 @@ const SPACE_KIND_BORDER: Record<string, string> = {
 };
 
 export function DayBlueprintFloorPlanTab({
+  blueprintId,
+  versionId,
+  readOnly,
   slots,
   subjectRoles,
   activeDay,
@@ -93,7 +140,15 @@ export function DayBlueprintFloorPlanTab({
   hoveredMomentRoleId: _hoveredMomentRoleId,
   onHoverMomentRole,
   subjectSpatialStatus,
+  blankAuthoring = false,
+  selectedSubjectRoleId = null,
+  onSelectSubjectRole,
 }: DayBlueprintFloorPlanTabProps) {
+  const createMomentPlacement = useCreateMomentPlacement(blueprintId, versionId);
+  const deleteMomentPlacement = useDeleteMomentPlacement(blueprintId, versionId);
+  const deleteMomentAction = useDeleteMomentAction(blueprintId, versionId);
+  const updateMoment = useUpdateMoment(blueprintId, versionId);
+  const updateMomentPlacement = useUpdateMomentPlacement(blueprintId, versionId);
   // Track when each role most recently flipped to 'done' so we can fire the
   // one-shot glow flash for ~1s without re-flashing on every re-render.
   const [doneFlashAt, setDoneFlashAt] = useState<Record<number, number>>({});
@@ -126,6 +181,12 @@ export function DayBlueprintFloorPlanTab({
   }, [subjectSpatialStatus]);
   const { ref: stageRef, width: stageWidth, height: stageHeight } = useMeasuredElementSize<HTMLDivElement>();
   const activeActivity = selectedActivity ?? activeDay?.activities?.[0] ?? null;
+  /** Prefer the activity that owns `selectedMoment` so pew assignment matches the open moment when the day has many activities. */
+  const assignmentActivity = useMemo(() => {
+    if (!selectedMoment) return activeActivity;
+    const fromMoment = activeDay?.activities?.find((a) => a.id === selectedMoment.activity_id);
+    return selectedActivity ?? fromMoment ?? activeDay?.activities?.[0] ?? activeActivity;
+  }, [activeActivity, activeDay?.activities, selectedActivity, selectedMoment]);
   const planSize = Math.max(260, Math.floor(Math.min(stageWidth - 32, stageHeight - 92, 720)));
 
   const [isPanModeCanvas, setIsPanModeCanvas] = useState(false);
@@ -140,13 +201,9 @@ export function DayBlueprintFloorPlanTab({
     [],
   );
 
-  const selectedMomentNoSpatial = selectedMoment ? isNoSpatialMoment(selectedMoment.lock_flags) : false;
-
   const relevantSlots = useMemo(() => {
     const placementSlotIds = new Set(
-      selectedMomentNoSpatial
-        ? []
-        : (selectedMoment?.placements ?? []).map((placement) => placement.day_blueprint_space_slot_id),
+      (selectedMoment?.placements ?? []).map((placement) => placement.day_blueprint_space_slot_id),
     );
     if (placementSlotIds.size > 0) {
       return slots.filter((slot) => placementSlotIds.has(slot.id));
@@ -175,7 +232,7 @@ export function DayBlueprintFloorPlanTab({
     }
 
     return slots;
-  }, [activeActivity, selectedMoment, selectedMomentNoSpatial, slots]);
+  }, [activeActivity, selectedMoment, slots]);
 
   const activeSlot = relevantSlots[0] ?? slots[0] ?? null;
   const activeSlotLabel = activeSlot ? displaySlotLabel(activeSlot, activeActivity) : null;
@@ -188,11 +245,11 @@ export function DayBlueprintFloorPlanTab({
   }, [subjectRoles]);
 
   const placementsForActiveSlot = useMemo(() => {
-    if (!activeSlot || !selectedMoment || selectedMomentNoSpatial) return [];
+    if (!activeSlot || !selectedMoment) return [];
     return (selectedMoment.placements ?? []).filter(
       (placement) => placement.day_blueprint_space_slot_id === activeSlot.id,
     );
-  }, [activeSlot, selectedMoment, selectedMomentNoSpatial]);
+  }, [activeSlot, selectedMoment]);
 
   const activityPlacedRoleIdsForActiveSlot = useMemo(() => {
     if (!activeSlot || !activeActivity) return [] as number[];
@@ -211,9 +268,7 @@ export function DayBlueprintFloorPlanTab({
     if (selectedMoment) {
       const ids = new Set<number>();
       (selectedMoment.actions ?? []).forEach((action) => ids.add(action.subject_role_id));
-      if (!selectedMomentNoSpatial) {
-        (selectedMoment.placements ?? []).forEach((placement) => ids.add(placement.subject_role_id));
-      }
+      (selectedMoment.placements ?? []).forEach((placement) => ids.add(placement.subject_role_id));
       return Array.from(ids);
     }
 
@@ -222,13 +277,194 @@ export function DayBlueprintFloorPlanTab({
     }
 
     return subjectRoles.map((link) => link.subject_role_id);
-  }, [selectedMoment, selectedMomentNoSpatial, activeActivity, activityPlacedRoleIdsForActiveSlot, subjectRoles]);
+  }, [selectedMoment, activeActivity, activityPlacedRoleIdsForActiveSlot, subjectRoles]);
 
   const placedRoleIdsForActiveSlot = useMemo(() => {
     return Array.from(new Set(placementsForActiveSlot.map((placement) => placement.subject_role_id)));
   }, [placementsForActiveSlot]);
+  const excludedRoleIds = useMemo(
+    () => readExcludedSubjectRoleIds(selectedMoment?.lock_flags),
+    [selectedMoment?.lock_flags],
+  );
 
-  const syntheticSlot = useMemo(() => {
+  const ceremonyPhaseContext = useMemo(() => {
+    const moments = assignmentActivity?.moments ?? [];
+    const currentMomentIndex = selectedMoment
+      ? moments.findIndex((moment) => moment.id === selectedMoment.id)
+      : -1;
+    const guestsArrivingIndex = moments.findIndex((moment) =>
+      /\b(guest|guests)\b.*\b(arriv|arrival|seated|seating)\b/.test(normalizeValue(moment.name)),
+    );
+    const weddingPartyProcessionalIndex = moments.findIndex((moment) =>
+      /\b(wedding party|bridal party)\b.*\bprocessional\b/.test(normalizeValue(moment.name)),
+    );
+    const hasReachedGuestsArriving = guestsArrivingIndex < 0 || (currentMomentIndex >= 0 && currentMomentIndex >= guestsArrivingIndex);
+    const hasReachedWeddingPartyProcessional =
+      weddingPartyProcessionalIndex < 0 || (currentMomentIndex >= 0 && currentMomentIndex >= weddingPartyProcessionalIndex);
+    return {
+      currentMomentIndex,
+      guestsArrivingIndex,
+      weddingPartyProcessionalIndex,
+      hasReachedGuestsArriving,
+      hasReachedWeddingPartyProcessional,
+    };
+  }, [assignmentActivity, selectedMoment]);
+
+  /**
+   * Ceremony floor: keep everyone who was ever placed on this slot across the activity
+   * visible while stepping moments (guests stay in pews during prelude, etc.).
+   * Still union current-moment action roles so new actors appear.
+   */
+  const ceremonyFloorRoleIds = useMemo(() => {
+    if (!selectedMoment || !assignmentActivity || !activeSlot) return null;
+
+    const sortRoleIdsByBlueprintOrder = (ids: Set<number>) => {
+      const order = new Map(subjectRoles.map((link) => [link.subject_role_id, link.order_index ?? 0]));
+      return Array.from(ids).sort((a, b) => {
+        const oa = order.get(a) ?? 0;
+        const ob = order.get(b) ?? 0;
+        if (oa !== ob) return oa - ob;
+        return a - b;
+      });
+    };
+
+    if (isPreCeremonyFloorActivity(assignmentActivity)) {
+      const ids = new Set<number>();
+      (selectedMoment.actions ?? []).forEach((action) => ids.add(action.subject_role_id));
+      (selectedMoment.placements ?? []).forEach((placement) => {
+        if (placement.day_blueprint_space_slot_id === activeSlot.id) {
+          ids.add(placement.subject_role_id);
+        }
+      });
+      return sortRoleIdsByBlueprintOrder(ids);
+    }
+
+    const ids = new Set<number>();
+    const momentsSorted = [...(assignmentActivity.moments ?? [])].sort(
+      (left, right) => (left.order_index ?? 0) - (right.order_index ?? 0),
+    );
+    const currentOrder = selectedMoment.order_index ?? 0;
+
+    if (blankAuthoring) {
+      for (const moment of momentsSorted) {
+        if ((moment.order_index ?? 0) > currentOrder) continue;
+        (moment.placements ?? []).forEach((placement) => {
+          if (placement.day_blueprint_space_slot_id === activeSlot.id) {
+            ids.add(placement.subject_role_id);
+          }
+        });
+      }
+    } else {
+      (assignmentActivity.moments ?? []).forEach((moment) => {
+        (moment.placements ?? []).forEach((placement) => {
+          if (placement.day_blueprint_space_slot_id === activeSlot.id) {
+            ids.add(placement.subject_role_id);
+          }
+        });
+      });
+    }
+    (selectedMoment.actions ?? []).forEach((action) => ids.add(action.subject_role_id));
+    if (!blankAuthoring) {
+      subjectRoles.forEach((link) => {
+        const label = normalizeValue(subjectRoleLabel(link));
+        if (/\b(bride|groom|maid|matron|bridesmaid|bridesmaids|best man|groomsman|groomsmen|flower|ring bearer|officiant|father|mother|parent|guests?)\b/.test(label)) {
+          if (excludedRoleIds.has(link.subject_role_id)) {
+            return;
+          }
+          if (isGroomPartyCeremonyRole(label) && !ceremonyPhaseContext.hasReachedGuestsArriving) {
+            return;
+          }
+          if (isBridePartyCeremonyRole(label) && !ceremonyPhaseContext.hasReachedWeddingPartyProcessional) {
+            return;
+          }
+          ids.add(link.subject_role_id);
+        }
+      });
+    }
+    return sortRoleIdsByBlueprintOrder(ids);
+  }, [
+    selectedMoment,
+    assignmentActivity,
+    activeSlot,
+    ceremonyPhaseContext,
+    excludedRoleIds,
+    subjectRoles,
+    blankAuthoring,
+  ]);
+
+  /**
+   * Full role set for `assignCeremonySyntheticSeats` / placement note fill. Unlike
+   * `ceremonyFloorRoleIds` (blank authoring narrows *who is drawn*), this always unions
+   * ceremony-relevant subject roles so pew keys exist for roles not yet placed on a prior moment.
+   */
+  const ceremonySeatAssignmentRoleIds = useMemo(() => {
+    if (!selectedMoment || !activeSlot) return null;
+
+    const sortRoleIdsByBlueprintOrder = (roleIds: Set<number>) => {
+      const order = new Map(subjectRoles.map((link) => [link.subject_role_id, link.order_index ?? 0]));
+      return Array.from(roleIds).sort((a, b) => {
+        const oa = order.get(a) ?? 0;
+        const ob = order.get(b) ?? 0;
+        if (oa !== ob) return oa - ob;
+        return a - b;
+      });
+    };
+
+    if (assignmentActivity && isPreCeremonyFloorActivity(assignmentActivity)) {
+      const ids = new Set<number>();
+      (selectedMoment.actions ?? []).forEach((action) => ids.add(action.subject_role_id));
+      (selectedMoment.placements ?? []).forEach((placement) => {
+        if (placement.day_blueprint_space_slot_id === activeSlot.id) {
+          ids.add(placement.subject_role_id);
+        }
+      });
+      return sortRoleIdsByBlueprintOrder(ids);
+    }
+
+    const ids = new Set<number>();
+    const act = assignmentActivity;
+    if (act) {
+      (act.moments ?? []).forEach((moment) => {
+        (moment.placements ?? []).forEach((placement) => {
+          if (placement.day_blueprint_space_slot_id === activeSlot.id) {
+            ids.add(placement.subject_role_id);
+          }
+        });
+      });
+    } else {
+      (selectedMoment.placements ?? []).forEach((placement) => {
+        if (placement.day_blueprint_space_slot_id === activeSlot.id) {
+          ids.add(placement.subject_role_id);
+        }
+      });
+    }
+    (selectedMoment.actions ?? []).forEach((action) => ids.add(action.subject_role_id));
+    subjectRoles.forEach((link) => {
+      const label = normalizeValue(subjectRoleLabel(link));
+      if (/\b(bride|groom|maid|matron|bridesmaid|bridesmaids|best man|groomsman|groomsmen|flower|ring bearer|officiant|father|mother|parent|guests?)\b/.test(label)) {
+        if (excludedRoleIds.has(link.subject_role_id)) {
+          return;
+        }
+        if (isGroomPartyCeremonyRole(label) && !ceremonyPhaseContext.hasReachedGuestsArriving) {
+          return;
+        }
+        if (isBridePartyCeremonyRole(label) && !ceremonyPhaseContext.hasReachedWeddingPartyProcessional) {
+          return;
+        }
+        ids.add(link.subject_role_id);
+      }
+    });
+    return sortRoleIdsByBlueprintOrder(ids);
+  }, [
+    activeSlot,
+    assignmentActivity,
+    ceremonyPhaseContext,
+    excludedRoleIds,
+    selectedMoment,
+    subjectRoles,
+  ]);
+
+  const syntheticFloorPayload = useMemo(() => {
     if (!activeSlot) return null;
 
     const actionByRoleId = new Map<number, DayBlueprintMomentAction>();
@@ -237,33 +473,199 @@ export function DayBlueprintFloorPlanTab({
     const placementByRoleId = new Map<number, DayBlueprintMomentPlacement>();
     placementsForActiveSlot.forEach((placement) => placementByRoleId.set(placement.subject_role_id, placement));
 
-    const roleIds = selectedMoment
-      ? placedRoleIdsForActiveSlot
-      : linkedRoleIds;
+    const roleIds =
+      selectedMoment && spaceKind === 'ceremony' && ceremonyFloorRoleIds
+        ? ceremonyFloorRoleIds
+        : selectedMoment
+          ? placedRoleIdsForActiveSlot
+          : linkedRoleIds;
+
+    const assignmentRoleIds =
+      selectedMoment && spaceKind === 'ceremony' && ceremonySeatAssignmentRoleIds
+        ? ceremonySeatAssignmentRoleIds
+        : roleIds;
+
+    const { objects, zones: sandboxZones } = buildSandboxSlotGeometry(
+      activeSlot.id,
+      spaceKind,
+      activeSlotLabel ?? activeSlot.label,
+    );
+    const anchors = deriveSandboxAnchors(objects);
+    const useCeremonySeatSnap =
+      spaceKind === 'ceremony' && objects.some((object) => object.object_type === 'CHAIR_ROW');
+    const guestSeatCapacity = useCeremonySeatSnap
+      ? computeCeremonyGuestSeatCapacity(objects, CeremonySeatLayoutMode.FLUID)
+      : 0;
+    const copyCountForRole = (roleLink: DayBlueprintSubjectRoleLink, roleLabel: string) => {
+      if (guestSeatCapacity > 0) {
+        return effectiveCeremonyTypicalCount(roleLabel, roleLink.typical_count, guestSeatCapacity);
+      }
+      return Math.max(roleLink.typical_count ?? 1, 1);
+    };
 
     const roleInstances = roleIds.flatMap((roleId) => {
       const roleLink = roleById.get(roleId);
       if (!roleLink) return [] as Array<{ roleId: number; roleLink: DayBlueprintSubjectRoleLink; copyIndex: number; copyCount: number }>;
-      const copyCount = Math.max(roleLink.typical_count ?? 1, 1);
+      const roleLabel = subjectRoleLabel(roleLink);
+      const copyCount = copyCountForRole(roleLink, roleLabel);
       return Array.from({ length: copyCount }, (_, copyIndex) => ({ roleId, roleLink, copyIndex, copyCount }));
     });
 
+    const roleInstancesForAssignment = assignmentRoleIds.flatMap((roleId) => {
+      const roleLink = roleById.get(roleId);
+      if (!roleLink) return [] as Array<{ roleId: number; roleLink: DayBlueprintSubjectRoleLink; copyIndex: number; copyCount: number }>;
+      const roleLabel = subjectRoleLabel(roleLink);
+      const copyCount = copyCountForRole(roleLink, roleLabel);
+      return Array.from({ length: copyCount }, (_, copyIndex) => ({ roleId, roleLink, copyIndex, copyCount }));
+    });
+
+    const ceremonySeatInputs: CeremonyRoleInstanceInput[] = roleInstancesForAssignment.map((instance) => {
+      const roleLabel = subjectRoleLabel(instance.roleLink);
+      const normalizedRoleLabel = normalizeValue(roleLabel);
+      const action = actionByRoleId.get(instance.roleId);
+      const placement = placementByRoleId.get(instance.roleId);
+      const motionText = buildCeremonyMotionTextForRole({
+        actionText: action?.action_text,
+        actionNotes: action?.notes,
+        placementPositionHint: placement?.position_hint,
+        placementNotes: placement?.notes,
+        momentName: selectedMoment?.name,
+      });
+      const inactiveProcessionalParty =
+        spaceKind === 'ceremony' &&
+        Boolean(selectedMoment) &&
+        isCeremonyPartyRoleLabel(normalizedRoleLabel) &&
+        !action &&
+        !placement;
+      const skipSeatSnap = shouldSkipCeremonySeatSnap(roleLabel, motionText);
+      return {
+        roleId: instance.roleId,
+        copyIndex: instance.copyIndex,
+        copyCount: instance.copyCount,
+        roleLink: instance.roleLink,
+        roleLabel,
+        skipSeatSnap,
+      };
+    });
+    const seatInputSkipByInstanceKey = new Map(
+      ceremonySeatInputs.map((entry) => [`${entry.roleId}:${entry.copyIndex}`, entry.skipSeatSnap] as const),
+    );
+
+    const ceremonySeatResult = useCeremonySeatSnap
+      ? assignCeremonySyntheticSeats(objects, ceremonySeatInputs, {
+          seatLayout: CeremonySeatLayoutMode.FLUID,
+        })
+      : null;
     const positionedSubjects = roleInstances
       .map((instance, index) => {
         const placement = placementByRoleId.get(instance.roleId);
         const action = actionByRoleId.get(instance.roleId);
-        if (selectedMoment && !placement) return null;
         const roleLabel = subjectRoleLabel(instance.roleLink);
-        const baseCoordinates = placement
-          ? coordinatesFromPlacement(placement, index, roleInstances.length, spaceKind, roleLabel)
-          : defaultCoordinates(index, roleInstances.length, 'overview', spaceKind, roleLabel);
-        const coordinates = applyInstanceOffset(baseCoordinates, instance.copyIndex, instance.copyCount);
+        const normalizedRole = normalizeValue(roleLabel);
+        const seatKey = `${instance.roleId}:${instance.copyIndex}` as `${number}:${number}`;
+        const seatInputSkip = seatInputSkipByInstanceKey.get(seatKey) ?? false;
+        const motionText = buildCeremonyMotionTextForRole({
+          actionText: action?.action_text,
+          actionNotes: action?.notes,
+          placementPositionHint: placement?.position_hint,
+          placementNotes: placement?.notes,
+          momentName: selectedMoment?.name,
+        });
+        const derivedSkipSeatSnap = shouldSkipCeremonySeatSnap(roleLabel, motionText);
+        const skipSeatSnap = seatInputSkipByInstanceKey.has(seatKey)
+          ? seatInputSkip
+          : derivedSkipSeatSnap;
+        const placementResolveOptions = {
+          motionText,
+          momentName: selectedMoment?.name ?? null,
+          anchors,
+        };
+        const inactiveProcessionalParty =
+          spaceKind === 'ceremony' &&
+          Boolean(selectedMoment) &&
+          isCeremonyPartyRoleLabel(normalizedRole) &&
+          !action &&
+          !placement;
+        if (selectedMoment && !placement) {
+          const allowCeremonySeatWithoutMomentPlacement =
+            spaceKind === 'ceremony' && useCeremonySeatSnap && ceremonySeatResult && !skipSeatSnap;
+          const allowCeremonyAnchorWithoutMomentPlacement =
+            spaceKind === 'ceremony' &&
+            skipSeatSnap &&
+            (isCeremonyOfficiantRole(normalizedRole) || normalizedRole === 'groom');
+          if (!allowCeremonySeatWithoutMomentPlacement && !allowCeremonyAnchorWithoutMomentPlacement) {
+            return null;
+          }
+        }
+
+        const snapped = ceremonySeatResult?.seatByInstanceKey.get(seatKey);
+        const normalizedMomentName = normalizeValue(selectedMoment?.name ?? '');
+        const groomAisleAnchorForBrideEntrance =
+          spaceKind === 'ceremony' &&
+          !placement &&
+          normalizedRole === 'groom' &&
+          /\b(bride|bridal)\b/.test(normalizedMomentName) &&
+          /\b(entrance|entry|processional|procession)\b/.test(normalizedMomentName);
+
+        let coordinates: { x: number; y: number; rotation: number };
+        // Seat-snapped and user-authored coordinates are pinned: the
+        // collision resolver treats them as immovable obstacles.
+        let pinned = false;
+        if (ceremonySeatResult && !skipSeatSnap) {
+          const persistedCoord = placement
+            ? readPlacementCoordForCopy(placement.notes, instance.copyIndex)
+            : null;
+          const persistedSeat = placement
+            ? parsePlacementSeatForCopy(placement.notes, instance.copyIndex)
+            : null;
+          if (persistedCoord) {
+            coordinates = persistedCoord;
+            pinned = true;
+          } else if (persistedSeat) {
+            const resolved = resolveChairSeatCoordinates(objects, persistedSeat);
+            const fallback = snapped ?? null;
+            coordinates =
+              resolved ??
+              fallback ??
+              defaultCoordinates(index, roleInstances.length, 'overview', spaceKind, roleLabel);
+            pinned = Boolean(resolved ?? fallback);
+          } else {
+            coordinates = snapped ?? defaultCoordinates(index, roleInstances.length, 'overview', spaceKind, roleLabel);
+            pinned = Boolean(snapped);
+          }
+        } else if (groomAisleAnchorForBrideEntrance) {
+          coordinates = { x: 500, y: 470, rotation: 180 };
+        } else {
+          const pewSnapped =
+            spaceKind === 'ceremony' &&
+            useCeremonySeatSnap &&
+            ceremonySeatResult &&
+            ceremonySeatResult.seatByInstanceKey.get(seatKey);
+          const baseCoordinates = placement
+            ? coordinatesFromPlacement(
+                placement,
+                index,
+                roleInstances.length,
+                spaceKind,
+                roleLabel,
+                instance.copyIndex,
+                objects,
+                placementResolveOptions,
+              )
+            : defaultCoordinates(index, roleInstances.length, 'overview', spaceKind, roleLabel);
+          if (pewSnapped && !skipSeatSnap) {
+            coordinates = pewSnapped;
+            pinned = true;
+          } else {
+            coordinates = applyInstanceOffset(baseCoordinates, instance.copyIndex, instance.copyCount);
+          }
+        }
 
         return {
           id: instance.roleLink.id * 1000 + instance.copyIndex,
           package_space_slot_id: activeSlot.id,
           day_subject_id: instance.roleLink.subject_role_id,
-          label: instance.copyCount > 1 ? `${roleLabel} ${instance.copyIndex + 1}` : roleLabel,
+          label: floorMarkerLabel(roleLabel, instance.copyIndex, instance.copyCount),
           x: coordinates.x,
           y: coordinates.y,
           rotation: coordinates.rotation,
@@ -284,33 +686,125 @@ export function DayBlueprintFloorPlanTab({
           moment_overrides: [],
           _isPlaced: Boolean(placement),
           _actionText: action?.action_text ?? null,
+          _placementId: placement?.id ?? null,
+          _copyIndex: instance.copyIndex,
+          _pinned: pinned,
         };
       })
       .filter((subject): subject is NonNullable<typeof subject> => Boolean(subject));
 
-    const slot: PackageSpaceSlot = {
-      id: activeSlot.id,
-      package_id: 0,
-      event_day_template_id: 0,
+    // Match the package placement-seed behaviour: deterministically resolve
+    // furniture overlaps and subject separation so the authoring preview
+    // shows the same layout that will be seeded into the package.
+    const collisionPoints = positionedSubjects.map((subject) => ({
+      x: subject.x,
+      y: subject.y,
+      fixed: subject._pinned,
+    }));
+    resolveSpatialCollisions(collisionPoints, objects);
+    positionedSubjects.forEach((subject, idx) => {
+      subject.x = collisionPoints[idx].x;
+      subject.y = collisionPoints[idx].y;
+    });
+
+    const scene: FloorPlanSceneViewModel = {
       label: activeSlotLabel ?? activeSlot.label,
       description: activeSlot.description ?? null,
-      location_slot_id: null,
-      location_space_id: null,
-      preset_id: null,
-      canvas_width: CANVAS_WIDTH,
-      canvas_height: CANVAS_HEIGHT,
-      layout_json: null,
-      created_at: '',
-      updated_at: '',
-      objects: buildSandboxObjects(activeSlot.id, spaceKind, activeSlotLabel ?? activeSlot.label),
-      camera_positions: [],
-      subject_positions: positionedSubjects,
-      zones: buildSandboxZones(activeSlot.id, spaceKind, activeSlotLabel ?? activeSlot.label),
-      type_tags: [],
+      canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+      objects: objects.map((object) => ({
+        object_type: object.object_type,
+        label: object.label ?? '',
+        x: object.x,
+        y: object.y,
+        width: object.width,
+        height: object.height,
+        rotation: object.rotation,
+        order_index: object.order_index,
+        metadata: (object.metadata as Record<string, unknown> | null) ?? null,
+      })),
+      zones: sandboxZones.map((zone) => ({
+        name: zone.name,
+        label: zone.label ?? zone.name,
+        polygon: zone.polygon as Array<{ x: number; y: number }>,
+        color: zone.color ?? 'rgba(167,139,250,0.09)',
+        description: zone.description ?? '',
+        order_index: zone.order_index,
+      })),
+      subjects: [],
     };
+    const slot = sceneToPackageSpaceSlot(
+      scene,
+      {
+        id: activeSlot.id,
+        label: scene.label ?? activeSlot.label,
+        description: scene.description,
+      },
+      positionedSubjects,
+    );
 
-    return slot;
-  }, [activeSlot, activeSlotLabel, linkedRoleIds, placedRoleIdsForActiveSlot, placementsForActiveSlot, roleById, selectedMoment, spaceKind]);
+    const ceremonySeatStats =
+      ceremonySeatResult && useCeremonySeatSnap
+        ? {
+            seated: ceremonySeatResult.seatedSubjectCount,
+            overflow: ceremonySeatResult.overflowSubjectCount,
+            capacity: ceremonySeatResult.totalSeatCapacity,
+          }
+        : null;
+
+    if (selectedMoment && ceremonySeatResult && useCeremonySeatSnap) {
+      const nonGuestRows: number[] = [];
+      const guestRows: number[] = [];
+      for (const input of ceremonySeatInputs) {
+        if (input.skipSeatSnap) continue;
+        const key = `${input.roleId}:${input.copyIndex}`;
+        const seatMeta = ceremonySeatResult.seatMetaByInstanceKey.get(key);
+        if (!seatMeta) continue;
+        if (/\bguest|audience|crowd|congregation\b/i.test(input.roleLabel)) {
+          guestRows.push(seatMeta.rowIndex);
+        } else {
+          nonGuestRows.push(seatMeta.rowIndex);
+        }
+      }
+      void nonGuestRows;
+      void guestRows;
+    }
+
+    return { slot, ceremonySeatStats, ceremonySeatResult: ceremonySeatResult && useCeremonySeatSnap ? ceremonySeatResult : null };
+  }, [
+    activeSlot,
+    activeSlotLabel,
+    ceremonyFloorRoleIds,
+    ceremonySeatAssignmentRoleIds,
+    linkedRoleIds,
+    placedRoleIdsForActiveSlot,
+    placementsForActiveSlot,
+    roleById,
+    selectedMoment,
+    spaceKind,
+    blankAuthoring,
+  ]);
+
+  const syntheticSlot = syntheticFloorPayload?.slot ?? null;
+  const ceremonySeatStats = syntheticFloorPayload?.ceremonySeatStats ?? null;
+  const ceremonySeatResultForPersist = syntheticFloorPayload?.ceremonySeatResult ?? null;
+  const [draggingRoleId, setDraggingRoleId] = useState<number | null>(null);
+  const subjectBySyntheticId = useMemo(() => {
+    const map = new Map<number, { roleId: number; placementId: number | null; copyIndex: number }>();
+    for (const subject of syntheticSlot?.subject_positions ?? []) {
+      const roleId = subject.day_subject_id;
+      if (typeof roleId !== 'number') continue;
+      const placementId = typeof (subject as any)._placementId === 'number'
+        ? (subject as any)._placementId
+        : null;
+      const copyIndex = typeof (subject as any)._copyIndex === 'number' ? (subject as any)._copyIndex : 0;
+      map.set(subject.id, { roleId, placementId, copyIndex });
+    }
+    return map;
+  }, [syntheticSlot]);
+  const visibleRoleIds = useMemo(() => {
+    if (!syntheticSlot) return [] as number[];
+    return Array.from(new Set((syntheticSlot.subject_positions ?? []).map((subject) => subject.day_subject_id)));
+  }, [syntheticSlot]);
 
   const unplacedLinkedSubjects = useMemo(() => {
     if (!selectedMoment || !activeSlot) return [];
@@ -328,6 +822,131 @@ export function DayBlueprintFloorPlanTab({
         return sum + Math.max(roleLink?.typical_count ?? 1, 1);
       }, 0)
     : subjectRoles.reduce((sum, roleLink) => sum + Math.max(roleLink.typical_count ?? 1, 1), 0);
+  const canEditSpatial = Boolean(selectedMoment) && !readOnly;
+
+  const upsertPlacementAtCanvasCoordinates = useCallback(async (
+    roleId: number,
+    rawX: number,
+    rawY: number,
+    placementId: number | null,
+    copyIndex = 0,
+  ) => {
+    if (!selectedMoment || !activeSlot || !syntheticSlot) return;
+    const snapped = findNearestChairSeatMeta(syntheticSlot.objects ?? [], rawX, rawY, {
+      width: CANVAS_WIDTH,
+      height: CANVAS_HEIGHT,
+    });
+    const roleLink = roleById.get(roleId);
+    const existingPlacement = placementId != null
+      ? selectedMoment.placements?.find((placement) => placement.id === placementId)
+      : (selectedMoment.placements ?? []).find((placement) =>
+        placement.subject_role_id === roleId && placement.day_blueprint_space_slot_id === activeSlot.id);
+    if (excludedRoleIds.has(roleId)) {
+      const nextLockFlags = setSubjectRoleExcluded(selectedMoment.lock_flags, roleId, false);
+      await updateMoment.mutateAsync({
+        momentId: selectedMoment.id,
+        data: { lock_flags: nextLockFlags },
+      });
+    }
+    const priorCoords = readPlacementCoordForCopy(existingPlacement?.notes, copyIndex);
+    const shouldSnap = snapped.nearestDistance <= SEAT_SNAP_MAX_DISTANCE;
+    const finalCoordinates = shouldSnap
+      ? snapped
+      : {
+        x: clamp(rawX, 40, CANVAS_WIDTH - 40),
+        y: clamp(rawY, 40, CANVAS_HEIGHT - 40),
+        rotation: priorCoords?.rotation ?? 0,
+      };
+    const placementNotes = withPlacementTokensMerged(
+      existingPlacement?.notes,
+      finalCoordinates,
+      shouldSnap && snapped.meta ? snapped.meta : null,
+      copyIndex,
+    );
+    const copyCountN = Math.max(roleLink?.typical_count ?? 1, 1);
+    let nextNotes = placementNotes;
+    if (
+      spaceKind === 'ceremony' &&
+      (syntheticSlot.objects ?? []).some((o) => o.object_type === 'CHAIR_ROW') &&
+      ceremonySeatResultForPersist &&
+      copyCountN >= 1
+    ) {
+      nextNotes = fillMissingCeremonyCopySpatialTokens(
+        placementNotes,
+        roleId,
+        copyCountN,
+        ceremonySeatResultForPersist,
+      );
+    }
+    if (existingPlacement) {
+      await updateMomentPlacement.mutateAsync({
+        placementId: existingPlacement.id,
+        data: {
+          day_blueprint_space_slot_id: activeSlot.id,
+          notes: nextNotes,
+        },
+      });
+      return;
+    }
+    await createMomentPlacement.mutateAsync({
+      momentId: selectedMoment.id,
+      data: {
+        day_blueprint_space_slot_id: activeSlot.id,
+        subject_role_id: roleId,
+        notes: nextNotes,
+      },
+    });
+  }, [
+    activeSlot,
+    ceremonySeatResultForPersist,
+    createMomentPlacement,
+    excludedRoleIds,
+    roleById,
+    selectedMoment,
+    spaceKind,
+    syntheticSlot,
+    updateMoment,
+    updateMomentPlacement,
+  ]);
+
+  const removeSubjectFromMoment = useCallback(async (roleId: number) => {
+    if (!selectedMoment) return;
+    const placements = (selectedMoment.placements ?? []).filter((placement) => placement.subject_role_id === roleId);
+    const actions = (selectedMoment.actions ?? []).filter((action) => action.subject_role_id === roleId);
+    await Promise.all([
+      ...placements.map((placement) => deleteMomentPlacement.mutateAsync(placement.id)),
+      ...actions.map((action) => deleteMomentAction.mutateAsync(action.id)),
+    ]);
+    const nextLockFlags = setSubjectRoleExcluded(selectedMoment.lock_flags, roleId, true);
+    await updateMoment.mutateAsync({
+      momentId: selectedMoment.id,
+      data: { lock_flags: nextLockFlags },
+    });
+  }, [deleteMomentAction, deleteMomentPlacement, selectedMoment, updateMoment]);
+
+  const handleSubjectMove = useCallback((positionId: number, x: number, y: number) => {
+    if (!canEditSpatial) return;
+    const mapped = subjectBySyntheticId.get(positionId);
+    if (!mapped) return;
+    void upsertPlacementAtCanvasCoordinates(mapped.roleId, x, y, mapped.placementId, mapped.copyIndex);
+  }, [canEditSpatial, subjectBySyntheticId, upsertPlacementAtCanvasCoordinates]);
+
+  const handleDropRoleOnCanvas = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!canEditSpatial) return;
+    event.preventDefault();
+    const roleIdText = event.dataTransfer.getData('application/x-day-blueprint-role-id');
+    const roleId = Number(roleIdText);
+    const overlayElement = stageRef.current;
+    if (!Number.isFinite(roleId) || roleId <= 0 || !overlayElement) return;
+    const rect = overlayElement.getBoundingClientRect();
+    const relativeX = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0.5;
+    const relativeY = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+    const dropX = clamp(relativeX * CANVAS_WIDTH, 40, CANVAS_WIDTH - 40);
+    const dropY = clamp(relativeY * CANVAS_HEIGHT, 40, CANVAS_HEIGHT - 40);
+    void upsertPlacementAtCanvasCoordinates(roleId, dropX, dropY, null);
+    setDraggingRoleId(null);
+  }, [canEditSpatial, stageRef, upsertPlacementAtCanvasCoordinates]);
+
 
   if (slots.length === 0) {
     return (
@@ -388,20 +1007,29 @@ export function DayBlueprintFloorPlanTab({
 
   return (
     <Box sx={{ height: '100%', minHeight: 0, width: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Single top info bar */}
       <Box
         sx={{
-          flex: '0 0 auto',
+          flex: 1,
+          minHeight: 0,
           display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          px: 1,
-          py: 0.5,
-          minHeight: 44,
-          borderBottom: '1px solid rgba(148,163,184,0.08)',
+          flexDirection: 'column',
           overflow: 'hidden',
+          px: { xs: 2, md: 2.5 },
         }}
       >
+        {/* Single top info bar */}
+        <Box
+          sx={{
+            flex: '0 0 auto',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            py: 0.5,
+            minHeight: 44,
+            borderBottom: '1px solid rgba(148,163,184,0.08)',
+            overflow: 'hidden',
+          }}
+        >
         {/* Space name */}
         <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: '#f1f5f9', whiteSpace: 'nowrap', flexShrink: 0 }}>
           {activeSlotLabel ?? activeActivity?.name ?? 'Floor plan'}
@@ -449,29 +1077,44 @@ export function DayBlueprintFloorPlanTab({
           sx={{ height: 18, fontSize: '0.62rem', bgcolor: 'rgba(148,163,184,0.1)', color: '#94a3b8', border: 'none', flexShrink: 0 }}
         />
 
-        {/* No-spatial badge */}
-        {selectedMoment && selectedMomentNoSpatial && (
+        {ceremonySeatStats && ceremonySeatStats.overflow > 0 && (
           <Chip
-            label="No spatial"
-            size="small"
-            sx={{ height: 18, fontSize: '0.62rem', bgcolor: 'rgba(100,116,139,0.12)', color: '#64748b', border: 'none', flexShrink: 0 }}
-          />
-        )}
-
-        {/* Placement status when in moment mode */}
-        {selectedMoment && !selectedMomentNoSpatial && (
-          <Chip
-            label={placementsForActiveSlot.length > 0 ? `${placementsForActiveSlot.length} placed` : 'no positions yet'}
+            label={`${ceremonySeatStats.seated} seated · ${ceremonySeatStats.overflow} over pew capacity`}
             size="small"
             sx={{
               height: 18,
               fontSize: '0.62rem',
-              bgcolor: placementsForActiveSlot.length > 0 ? 'rgba(52,211,153,0.12)' : 'rgba(148,163,184,0.08)',
-              color: placementsForActiveSlot.length > 0 ? '#6ee7b7' : '#64748b',
-              border: 'none',
+              bgcolor: 'rgba(251,191,36,0.14)',
+              color: '#fcd34d',
+              border: '1px solid rgba(251,191,36,0.28)',
               flexShrink: 0,
             }}
           />
+        )}
+
+        {/* Placement status when in moment mode */}
+        {selectedMoment && (
+          <Tooltip
+            title="Roles with saved placements on this floor for this moment (not headcount). Figures can still preview from ceremony layout before you save."
+            placement="bottom"
+          >
+            <Chip
+              label={
+                placementsForActiveSlot.length > 0
+                  ? `${new Set(placementsForActiveSlot.map((p) => p.subject_role_id)).size} roles saved`
+                  : 'no positions yet'
+              }
+              size="small"
+              sx={{
+                height: 18,
+                fontSize: '0.62rem',
+                bgcolor: placementsForActiveSlot.length > 0 ? 'rgba(52,211,153,0.12)' : 'rgba(148,163,184,0.08)',
+                color: placementsForActiveSlot.length > 0 ? '#6ee7b7' : '#64748b',
+                border: 'none',
+                flexShrink: 0,
+              }}
+            />
+          </Tooltip>
         )}
 
         {/* Push controls to the right */}
@@ -512,17 +1155,25 @@ export function DayBlueprintFloorPlanTab({
             <CropFreeRoundedIcon sx={{ fontSize: 13 }} />
           </IconButton>
         </Tooltip>
-      </Box>
+        </Box>
 
-      {/* Canvas viewport — frameless, blends into the page */}
-      <Box
+        {/* Canvas viewport — frameless, blends into the page */}
+        <Box
         ref={stageRef}
+        onDragOver={(event) => {
+          if (!canEditSpatial) return;
+          event.preventDefault();
+        }}
+        onDrop={handleDropRoleOnCanvas}
         sx={{
           position: 'relative',
           width: '100%',
           flex: '1 1 auto',
           minHeight: 0,
           overflow: 'hidden',
+          borderRadius: 1.5,
+          outline: draggingRoleId != null ? '2px dashed rgba(96,165,250,0.65)' : 'none',
+          outlineOffset: draggingRoleId != null ? -2 : 0,
         }}
       >
         <Box
@@ -539,15 +1190,25 @@ export function DayBlueprintFloorPlanTab({
               spaceSlot={syntheticSlot}
               width={Math.max(1, stageWidth)}
               height={Math.max(1, stageHeight)}
-              isEditing={false}
-              lockSubjects
+              isEditing={canEditSpatial}
+              lockSubjects={!canEditSpatial}
               lockCameras
               showCameras={false}
               fillViewport
               contentMaxSize={planSize}
               viewportBackgroundColor="transparent"
               hideLabels
+              compactSubjectLabels
+              highlightSubjectRoleIds={selectedSubjectRoleId != null ? [selectedSubjectRoleId] : []}
+              onSubjectSelect={
+                onSelectSubjectRole && selectedMoment
+                  ? (roleId) => {
+                      onSelectSubjectRole(selectedSubjectRoleId === roleId ? null : roleId);
+                    }
+                  : undefined
+              }
               onControlsReady={handleControlsReady}
+              onSubjectMove={handleSubjectMove}
             />
           )}
         </Box>
@@ -570,7 +1231,7 @@ export function DayBlueprintFloorPlanTab({
           >
             <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
               <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                {selectedMomentNoSpatial ? 'No-spatial people' : 'Linked without slot placement'}
+                Linked without slot placement
               </Typography>
               {unplacedLinkedSubjects.map((link) => (
                 <Chip
@@ -583,30 +1244,34 @@ export function DayBlueprintFloorPlanTab({
             </Stack>
           </Paper>
         )}
+        </Box>
       </Box>
 
       <Box
         sx={{
-          flex: '0 0 15%',
+          flex: '0 0 auto',
           minHeight: 84,
           maxHeight: 180,
+          alignSelf: 'stretch',
+          width: '100%',
           mt: 0.75,
           pt: 1,
-          px: 0.5,
+          px: 0,
           borderTop: '1px solid rgba(148,163,184,0.2)',
           background: 'linear-gradient(180deg, rgba(148,163,184,0.04), rgba(148,163,184,0))',
           overflowY: 'auto',
         }}
       >
-        <Typography sx={{ color: '#94a3b8', fontSize: '0.66rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', mb: 0.8, px: 0.75 }}>
-          People
-        </Typography>
-        {subjectRoles.length === 0 ? (
-          <Typography sx={{ color: '#64748b', fontSize: '0.72rem', fontStyle: 'italic', px: 0.75 }}>
-            No subject roles linked to this blueprint yet.
+        <Box sx={{ px: { xs: 1.5, md: 2 } }}>
+          <Typography sx={{ color: '#94a3b8', fontSize: '0.66rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', mb: 0.8 }}>
+            People
           </Typography>
-        ) : (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+          {subjectRoles.length === 0 ? (
+            <Typography sx={{ color: '#64748b', fontSize: '0.72rem', fontStyle: 'italic' }}>
+              No subject roles linked to this blueprint yet.
+            </Typography>
+          ) : (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, rowGap: 1.5, alignContent: 'flex-start' }}>
             {subjectRoles.map((link) => {
               const roleLabel = subjectRoleLabel(link);
               const roleCount = Math.max(link.typical_count ?? 1, 1);
@@ -614,15 +1279,31 @@ export function DayBlueprintFloorPlanTab({
               const isLinked = shouldFilterByLinkedRoles
                 ? linkedRoleIds.includes(link.subject_role_id)
                 : true;
+              const isOnFloorPlan = visibleRoleIds.includes(link.subject_role_id);
+              const isGalleryActive = isOnFloorPlan;
+              const canRemoveFromMoment = canEditSpatial && Boolean(selectedMoment) && isOnFloorPlan;
               const initials = initialsFromLabel(roleLabel);
               const spatialStatus = subjectSpatialStatus?.get(link.subject_role_id);
               const isGeneratingSpatial = spatialStatus === 'generating';
               const isFlashingDone = Boolean(doneFlashAt[link.subject_role_id]);
+              const isSelectedRole = selectedSubjectRoleId === link.subject_role_id;
               return (
                 <Box
                   key={link.id}
+                  draggable={canEditSpatial}
+                  onClick={() => {
+                    if (!onSelectSubjectRole || !selectedMoment || !isGalleryActive) return;
+                    onSelectSubjectRole(isSelectedRole ? null : link.subject_role_id);
+                  }}
+                  onDragStart={(event) => {
+                    if (!canEditSpatial) return;
+                    event.dataTransfer.setData('application/x-day-blueprint-role-id', String(link.subject_role_id));
+                    event.dataTransfer.effectAllowed = 'move';
+                    setDraggingRoleId(link.subject_role_id);
+                  }}
+                  onDragEnd={() => setDraggingRoleId(null)}
                   onMouseEnter={() => {
-                    if (isLinked) onHoverMomentRole(link.subject_role_id);
+                    if (isGalleryActive) onHoverMomentRole(link.subject_role_id);
                   }}
                   onMouseLeave={() => {
                     onHoverMomentRole(null);
@@ -631,10 +1312,18 @@ export function DayBlueprintFloorPlanTab({
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 0.4,
-                    width: 62,
-                    opacity: isGeneratingSpatial || isFlashingDone ? 1 : isLinked ? 1 : 0.28,
-                    cursor: selectedMoment && isLinked ? 'pointer' : 'default',
+                    gap: 0.45,
+                    flex: '0 0 auto',
+                    width: 84,
+                    maxWidth: 96,
+                    minWidth: 72,
+                    opacity: isGeneratingSpatial || isFlashingDone ? 1 : isGalleryActive ? 1 : 0.28,
+                    cursor:
+                      canEditSpatial
+                        ? 'grab'
+                        : selectedMoment && isGalleryActive
+                          ? 'pointer'
+                          : 'default',
                   }}
                 >
                   <Box
@@ -644,16 +1333,19 @@ export function DayBlueprintFloorPlanTab({
                       borderRadius: '50%',
                       background: isGeneratingSpatial
                         ? 'linear-gradient(135deg, rgba(167,139,250,0.45), rgba(96,165,250,0.45))'
-                        : isLinked
+                        : isGalleryActive
                           ? 'linear-gradient(135deg, rgba(96,165,250,0.28), rgba(168,85,247,0.28))'
                           : 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${
-                        isGeneratingSpatial
-                          ? 'rgba(167,139,250,0.85)'
-                          : isLinked
-                            ? 'rgba(96,165,250,0.42)'
-                            : 'rgba(255,255,255,0.08)'
-                      }`,
+                      border: isSelectedRole
+                        ? '2px solid rgba(255,215,0,0.9)'
+                        : `1px solid ${
+                            isGeneratingSpatial
+                              ? 'rgba(167,139,250,0.85)'
+                              : isGalleryActive
+                                ? 'rgba(96,165,250,0.42)'
+                                : 'rgba(255,255,255,0.08)'
+                          }`,
+                      boxShadow: isSelectedRole ? '0 0 0 1px rgba(0,0,0,0.35)' : 'none',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -666,7 +1358,7 @@ export function DayBlueprintFloorPlanTab({
                           : 'none',
                     }}
                   >
-                    <Typography sx={{ fontSize: '0.62rem', fontWeight: 800, color: isGeneratingSpatial ? '#ddd6fe' : isLinked ? '#93c5fd' : '#475569', lineHeight: 1 }}>
+                    <Typography sx={{ fontSize: '0.62rem', fontWeight: 800, color: isGeneratingSpatial ? '#ddd6fe' : isGalleryActive ? '#93c5fd' : '#475569', lineHeight: 1 }}>
                       {initials}
                     </Typography>
                     {isGeneratingSpatial && (
@@ -703,21 +1395,58 @@ export function DayBlueprintFloorPlanTab({
                         </Typography>
                       </Box>
                     )}
+                    {canRemoveFromMoment && (
+                      <IconButton
+                        size="small"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          void removeSubjectFromMoment(link.subject_role_id);
+                        }}
+                        sx={{
+                          position: 'absolute',
+                          left: -6,
+                          top: -6,
+                          width: 16,
+                          height: 16,
+                          bgcolor: 'rgba(2,6,23,0.85)',
+                          border: '1px solid rgba(251,113,133,0.55)',
+                          '&:hover': { bgcolor: 'rgba(136,19,55,0.9)' },
+                        }}
+                      >
+                        <RemoveCircleOutlineRoundedIcon sx={{ fontSize: 12, color: '#fb7185' }} />
+                      </IconButton>
+                    )}
                   </Box>
-                  <Typography sx={{ fontSize: '0.62rem', color: isGeneratingSpatial ? '#c4b5fd' : isLinked ? '#94a3b8' : '#475569', textAlign: 'center', lineHeight: 1.2, wordBreak: 'break-word' }}>
+                  <Typography
+                    title={roleLabel}
+                    sx={{
+                      fontSize: '0.58rem',
+                      color: isGeneratingSpatial ? '#c4b5fd' : isGalleryActive ? '#94a3b8' : '#475569',
+                      textAlign: 'center',
+                      lineHeight: 1.25,
+                      width: '100%',
+                      px: 0.25,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
                     {roleLabel}
                   </Typography>
                 </Box>
               );
             })}
-          </Box>
-        )}
+            </Box>
+          )}
+        </Box>
       </Box>
     </Box>
   );
 }
-
-type SandboxSpaceKind = 'ceremony' | 'reception' | 'prep' | 'portraits' | 'cocktail' | 'generic';
 
 function useMeasuredElementSize<T extends HTMLElement>() {
   const ref = useRef<T | null>(null);
@@ -744,13 +1473,51 @@ function useMeasuredElementSize<T extends HTMLElement>() {
   return { ref, ...size };
 }
 
-function subjectRoleLabel(link: DayBlueprintSubjectRoleLink) {
-  return link.subject_role?.role_name ?? `Role #${link.subject_role_id}`;
+function floorMarkerLabel(roleLabel: string, copyIndex: number, copyCount: number): string {
+  if (/\bguests?\b|audience|crowd|congregation/i.test(roleLabel)) {
+    return '';
+  }
+  const n = normalizeValue(roleLabel);
+  const num = copyCount > 1 ? String(copyIndex + 1) : '';
+
+  if (/\b(bridesmaid|bridesmaids)\b/.test(n)) {
+    return num ? `Brides\nMaids ${num}` : `Brides\nMaids`;
+  }
+  if (/\b(groomsman|groomsmen)\b/.test(n)) {
+    return num ? `Grooms\nmen ${num}` : `Grooms\nmen`;
+  }
+  if (/\bring bearer\b/.test(n)) {
+    return num ? `Ring Bearer\n${num}` : 'Ring Bearer';
+  }
+  if (/\bflower girl\b/.test(n)) {
+    return num ? `Flower Girl\n${num}` : 'Flower Girl';
+  }
+
+  const name = roleLabel.trim();
+  if (copyCount > 1) {
+    return `${splitRoleNameAcrossTwoLines(name)}\n${copyIndex + 1}`;
+  }
+  return splitRoleNameAcrossTwoLines(name);
 }
 
-function isNoSpatialMoment(lockFlags: unknown): boolean {
-  if (!lockFlags || typeof lockFlags !== 'object') return false;
-  return Boolean((lockFlags as Record<string, unknown>).no_spatial);
+/** Pack role name into at most two lines at word boundaries (readable on tight pew markers). */
+function splitRoleNameAcrossTwoLines(name: string): string {
+  const t = name.trim();
+  if (t.length <= 11) return t;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return t;
+  let line1 = words[0]!;
+  let i = 1;
+  while (i < words.length && `${line1} ${words[i]}`.length <= 12) {
+    line1 = `${line1} ${words[i]!}`;
+    i += 1;
+  }
+  if (i >= words.length) return t;
+  return `${line1}\n${words.slice(i).join(' ')}`;
+}
+
+function subjectRoleLabel(link: DayBlueprintSubjectRoleLink) {
+  return link.subject_role?.role_name ?? `Role #${link.subject_role_id}`;
 }
 
 function initialsFromLabel(label: string) {
@@ -769,6 +1536,52 @@ function normalizeValue(value: string) {
     .replace(/honou?r/g, 'honor')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+const CEREMONY_OFFICIANT_ROLE_RE =
+  /\b(officiant|celebrant|minister|priest|vicar|rabbi|imam|registrar)\b/;
+const EXCLUDED_ROLE_FLAG_PREFIX = 'exclude_subject_role_';
+
+function isCeremonyOfficiantRole(normalizedRoleLabel: string): boolean {
+  return CEREMONY_OFFICIANT_ROLE_RE.test(normalizedRoleLabel);
+}
+
+function isCeremonyPartyRoleLabel(normalizedRoleLabel: string): boolean {
+  return /\b(maid of honor|matron of honor|maid|bridesmaid|bridesmaids|best man|groomsman|groomsmen|flower girl|flower|ring bearer|ringbearer|attendant|wedding party)\b/.test(
+    normalizedRoleLabel,
+  );
+}
+
+function isBridePartyCeremonyRole(normalizedRoleLabel: string): boolean {
+  return /\b(maid of honor|matron of honor|maid|bridesmaid|bridesmaids|flower girl|flower)\b/.test(normalizedRoleLabel);
+}
+
+function isGroomPartyCeremonyRole(normalizedRoleLabel: string): boolean {
+  return /\b(best man|groomsman|groomsmen)\b/.test(normalizedRoleLabel);
+}
+
+function readExcludedSubjectRoleIds(lockFlags: unknown): Set<number> {
+  if (!lockFlags || typeof lockFlags !== 'object') return new Set();
+  const ids = new Set<number>();
+  for (const [key, value] of Object.entries(lockFlags as Record<string, unknown>)) {
+    if (!key.startsWith(EXCLUDED_ROLE_FLAG_PREFIX) || value !== true) continue;
+    const id = Number(key.slice(EXCLUDED_ROLE_FLAG_PREFIX.length));
+    if (Number.isFinite(id) && id > 0) ids.add(id);
+  }
+  return ids;
+}
+
+function setSubjectRoleExcluded(lockFlags: unknown, roleId: number, excluded: boolean): Record<string, boolean> {
+  const next: Record<string, boolean> = {};
+  if (lockFlags && typeof lockFlags === 'object') {
+    for (const [key, value] of Object.entries(lockFlags as Record<string, unknown>)) {
+      if (typeof value === 'boolean') next[key] = value;
+    }
+  }
+  const key = `${EXCLUDED_ROLE_FLAG_PREFIX}${roleId}`;
+  if (excluded) next[key] = true;
+  else delete next[key];
+  return next;
 }
 
 function stableKey(value: string) {
@@ -810,166 +1623,60 @@ function resolveSpaceKind(
   activity: DayBlueprintActivity | null,
   label: string | null,
 ): SandboxSpaceKind {
-  const text = [slot?.key, slot?.label, label, activity?.name, activity?.description]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-
-  if (/portrait|photoshoot|first look|family group|bridal party/.test(text)) return 'portraits';
-  if (/prep|preparation|makeup|hair|dressing|getting ready/.test(text)) return 'prep';
-  if (/reception|dinner|toast|dance|first dance|head table|banquet/.test(text)) return 'reception';
-  if (/ceremony|vow|altar|aisle|church|chapel|catholic|processional|ring ceremony/.test(text)) return 'ceremony';
-  if (/cocktail|line|queue|hour|welcome/.test(text)) return 'cocktail';
-  return 'generic';
-}
-
-function buildSandboxObjects(slotId: number, kind: SandboxSpaceKind, label: string): SpaceSlotObject[] {
-  const make = createObjectFactory(slotId);
-  const base = buildRoomShell(make, label);
-
-  switch (kind) {
-    case 'ceremony':
-      return [
-        ...base,
-        make('STAGE', 'Ceremony platform', 340, 88, 320, 128),
-        make('ARCH', 'Ceremony arch', 410, 112, 180, 42),
-        make('ALTAR', 'Altar', 425, 180, 150, 48),
-        make('AISLE', 'Aisle', 470, 275, 60, 560),
-        ...chairRows(make, 155, 345, 260, 7),
-        ...chairRows(make, 585, 345, 260, 7),
-        make('DOOR', 'Entrance', 455, 925, 90, 24),
-        make('LABEL', 'Guest seating', 430, 665, 0, 0),
-      ];
-    case 'reception':
-      return [
-        ...base,
-        make('TABLE_HEAD', 'Head table', 260, 100, 480, 58),
-        make('DANCE_FLOOR', 'Dance floor', 350, 390, 300, 230),
-        make('DJ_BOOTH', 'DJ booth', 710, 420, 110, 54),
-        make('BAR', 'Bar', 120, 820, 220, 48),
-        ...roundTables(make, [
-          [205, 290], [500, 270], [795, 290],
-          [235, 660], [765, 660], [500, 780],
-        ]),
-        make('LABEL', 'Reception seating', 425, 710, 0, 0),
-      ];
-    case 'prep':
-      return [
-        ...base,
-        make('WINDOW', 'Window light', 165, 64, 210, 16),
-        make('TABLE_RECT', 'Vanity', 170, 170, 180, 56),
-        make('FURNITURE', 'Sofa', 610, 210, 210, 74),
-        make('TABLE_RECT', 'Details table', 390, 420, 170, 90),
-        make('FURNITURE', 'Wardrobe', 760, 675, 86, 200),
-        make('DECORATIVE', 'Mirror', 216, 236, 80, 16),
-      ];
-    case 'portraits':
-      return [
-        ...base,
-        make('STAGE', 'Portrait backdrop', 305, 115, 390, 56),
-        make('FURNITURE', 'Bench', 380, 500, 240, 45),
-        make('DECORATIVE', 'Key light zone', 190, 285, 90, 90),
-        make('DECORATIVE', 'Fill light zone', 720, 285, 90, 90),
-        make('AISLE', 'Standing mark', 470, 270, 60, 250),
-      ];
-    case 'cocktail':
-      return [
-        ...base,
-        make('BAR', 'Bar', 110, 140, 260, 52),
-        make('STAGE', 'Receiving line', 570, 120, 250, 60),
-        ...roundTables(make, [[210, 370], [500, 380], [780, 370], [330, 650], [670, 650]], 70),
-        make('AISLE', 'Guest flow', 460, 230, 80, 600),
-      ];
-    default:
-      return [
-        ...base,
-        make('TABLE_RECT', 'Working area', 360, 210, 280, 90),
-        make('FURNITURE', 'Seating', 180, 560, 220, 62),
-        make('FURNITURE', 'Seating', 600, 560, 220, 62),
-        make('AISLE', 'Movement lane', 470, 355, 60, 380),
-      ];
-  }
-}
-
-function buildSandboxZones(slotId: number, kind: SandboxSpaceKind, label: string): SpaceSlotZone[] {
-  const baseZone: SpaceSlotZone = {
-    id: slotId * 100 + 1,
-    package_space_slot_id: slotId,
-    name: stableKey(label),
+  return resolveSandboxSpaceKind({
+    slotKey: slot?.key,
+    slotLabel: slot?.label,
     label,
-    polygon: [
-      { x: 60, y: 60 },
-      { x: CANVAS_WIDTH - 60, y: 60 },
-      { x: CANVAS_WIDTH - 60, y: CANVAS_HEIGHT - 60 },
-      { x: 60, y: CANVAS_HEIGHT - 60 },
-    ],
-    color: kind === 'ceremony' ? '#93C5FD' : '#C4B5FD',
-    description: null,
-    order_index: 0,
+    activityName: activity?.name,
+    activityDescription: activity?.description,
+  });
+}
+
+/**
+ * Synthetic floor geometry for the Day Designer preview. Built from the
+ * shared `buildSandboxRoomLayout` — the SAME generator the package consume
+ * pipeline uses — so the authoring preview matches the consumed package.
+ */
+function buildSandboxSlotGeometry(
+  slotId: number,
+  kind: SandboxSpaceKind,
+  label: string,
+): { objects: SpaceSlotObject[]; zones: SpaceSlotZone[] } {
+  const spec = buildSandboxRoomLayout({ label, kind });
+  const objects: SpaceSlotObject[] = spec.objects.map((object, index) => ({
+    id: slotId * 1000 + index + 1,
+    package_space_slot_id: slotId,
+    object_type: object.object_type as FloorPlanObjectType,
+    label: object.label,
+    x: object.x,
+    y: object.y,
+    width: object.width,
+    height: object.height,
+    rotation: object.rotation,
+    metadata: object.metadata ?? null,
+    order_index: object.order_index,
     created_at: '',
     updated_at: '',
-  };
-  return [baseZone];
-}
-
-function createObjectFactory(slotId: number) {
-  let orderIndex = 0;
-  return (
-    objectType: FloorPlanObjectType,
-    label: string,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    rotation = 0,
-  ): SpaceSlotObject => {
-    orderIndex += 1;
-    return {
-      id: slotId * 1000 + orderIndex,
-      package_space_slot_id: slotId,
-      object_type: objectType,
-      label,
-      x,
-      y,
-      width,
-      height,
-      rotation,
-      metadata: null,
-      order_index: orderIndex,
-      created_at: '',
-      updated_at: '',
-    };
-  };
-}
-
-function buildRoomShell(make: ReturnType<typeof createObjectFactory>, label: string) {
-  return [
-    make('LABEL', label, 460, 42, 0, 0),
-    make('WALL', 'North wall', 60, 60, 880, 12),
-    make('WALL', 'South wall', 60, 928, 880, 12),
-    make('WALL', 'West wall', 60, 60, 12, 880),
-    make('WALL', 'East wall', 928, 60, 12, 880),
-    make('DOOR', 'Entry', 456, 928, 88, 16),
-    make('WINDOW', 'Window', 700, 60, 160, 14),
-  ];
-}
-
-function chairRows(make: ReturnType<typeof createObjectFactory>, x: number, startY: number, width: number, rows: number) {
-  return Array.from({ length: rows }, (_, index) => (
-    make('CHAIR_ROW', `Guest row ${index + 1}`, x, startY + index * 62, width, 26)
-  ));
-}
-
-function roundTables(make: ReturnType<typeof createObjectFactory>, centers: Array<[number, number]>, size = 84) {
-  return centers.map(([x, y], index) => (
-    make('TABLE_ROUND', `Table ${index + 1}`, x - size / 2, y - size / 2, size, size)
-  ));
+  }));
+  const zones: SpaceSlotZone[] = spec.zones.map((zone, index) => ({
+    id: slotId * 100 + index + 1,
+    package_space_slot_id: slotId,
+    name: zone.name,
+    label: zone.label,
+    polygon: zone.polygon,
+    color: zone.color,
+    description: zone.description,
+    order_index: zone.order_index,
+    created_at: '',
+    updated_at: '',
+  }));
+  return { objects, zones };
 }
 
 function semanticSubjectPosition(kind: SandboxSpaceKind, roleLabel: string, index: number) {
   const role = normalizeValue(roleLabel);
   if (kind === 'ceremony') {
-    if (role === 'officiant') return { x: 500, y: 185, rotation: 180 };
+    if (isCeremonyOfficiantRole(role)) return { x: 500, y: 185, rotation: 180 };
     if (role === 'bride') return { x: 430, y: 255, rotation: 20 };
     if (role === 'groom') return { x: 570, y: 255, rotation: 340 };
     if (/maid|bridesmaid|flower/.test(role)) return { x: 315 + (index % 3) * 38, y: 335 + (index % 3) * 34, rotation: 45 };
@@ -1004,31 +1711,20 @@ function coordinatesFromPlacement(
   total: number,
   kind: SandboxSpaceKind,
   roleLabel: string,
+  copyIndex = 0,
+  chairObjects?: SpaceSlotObject[],
+  options?: import('@projectflo/shared').BlueprintPlacementResolveOptions,
 ) {
-  const text = [placement.position_hint, placement.facing_hint, placement.notes]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-
-  let x = CANVAS_WIDTH / 2;
-  let y = CANVAS_HEIGHT / 2;
-
-  if (/left|stage left|bride side/.test(text)) x = 330;
-  if (/right|stage right|groom side/.test(text)) x = 670;
-  if (/centre|center|middle|central/.test(text)) x = CANVAS_WIDTH / 2;
-  if (/front|altar|top|north|ceremony|arch/.test(text)) y = kind === 'ceremony' ? 210 : 250;
-  if (/back|rear|south|entrance|door/.test(text)) y = 830;
-  if (/guest|audience|congregation|seating/.test(text)) y = kind === 'ceremony' ? 640 : 600;
-  if (/aisle/.test(text)) x = CANVAS_WIDTH / 2;
-
-  const clusterOffset = ((index % 5) - 2) * 34;
-  const rowOffset = Math.floor(index / 5) * 28;
-
-  return {
-    x: clamp(x + clusterOffset, 90, CANVAS_WIDTH - 90),
-    y: clamp(y + rowOffset, 80, CANVAS_HEIGHT - 80),
-    rotation: rotationFromFacingHint(text, index, total, kind, roleLabel),
-  };
+  return coordinatesFromBlueprintPlacement(
+    placement,
+    index,
+    total,
+    kind,
+    roleLabel,
+    copyIndex,
+    chairObjects,
+    options,
+  );
 }
 
 function defaultCoordinates(index: number, total: number, mode: 'linked' | 'overview', kind: SandboxSpaceKind = 'generic', roleLabel = '') {
@@ -1066,6 +1762,132 @@ function rotationFromFacingHint(text: string, index: number, total: number, kind
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+const PLACEMENT_COORD_TOKEN = /\[\[coord:([0-9.-]+),([0-9.-]+),([0-9.-]+)\]\]/;
+
+function readPlacementCoordinatesToken(notes?: string | null): { x: number; y: number; rotation: number } | null {
+  if (!notes) return null;
+  const match = notes.match(PLACEMENT_COORD_TOKEN);
+  if (!match) return null;
+  const x = Number(match[1]);
+  const y = Number(match[2]);
+  const rotation = Number(match[3]);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(rotation)) return null;
+  return {
+    x: clamp(x, 40, CANVAS_WIDTH - 40),
+    y: clamp(y, 40, CANVAS_HEIGHT - 40),
+    rotation,
+  };
+}
+
+function copyCoordTokenRegex(copyIndex: number): RegExp {
+  return new RegExp(`\\[\\[c${copyIndex}:([0-9.-]+),([0-9.-]+),([0-9.-]+)\\]\\]`);
+}
+
+/** Per-instance canvas coords for multi-copy roles (`[[cN:x,y,r]]`); copy 0 also reads legacy `[[coord:…]]`. */
+function readPlacementCoordForCopy(
+  notes?: string | null,
+  copyIndex = 0,
+): { x: number; y: number; rotation: number } | null {
+  if (!notes) return null;
+  const m = notes.match(copyCoordTokenRegex(copyIndex));
+  if (m) {
+    const x = Number(m[1]);
+    const y = Number(m[2]);
+    const rotation = Number(m[3]);
+    if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(rotation)) {
+      return {
+        x: clamp(x, 40, CANVAS_WIDTH - 40),
+        y: clamp(y, 40, CANVAS_HEIGHT - 40),
+        rotation,
+      };
+    }
+  }
+  if (copyIndex === 0) {
+    return readPlacementCoordinatesToken(notes);
+  }
+  return null;
+}
+
+/** Per-instance pew seat for copy N (`[[sN:L:r:s]]`); copy 0 uses legacy `[[seat:…]]`. */
+function parsePlacementSeatForCopy(
+  notes: string | null | undefined,
+  copyIndex: number,
+): { side: 'L' | 'R'; rowIndex: number; seatIndex: number } | null {
+  if (!notes) return null;
+  if (copyIndex > 0) {
+    const re = new RegExp(`\\[\\[s${copyIndex}:([LR]):(\\d+):(\\d+)\\]\\]`);
+    const match = notes.match(re);
+    if (!match) return null;
+    const side = match[1] as 'L' | 'R';
+    const rowIndex = Number(match[2]);
+    const seatIndex = Number(match[3]);
+    if (!Number.isFinite(rowIndex) || !Number.isFinite(seatIndex)) return null;
+    return { side, rowIndex, seatIndex };
+  }
+  return parsePlacementSeatToken(notes);
+}
+
+const PLACEMENT_SEAT_TOKEN = /\[\[seat:([LR]):(\d+):(\d+)\]\]/;
+
+function stripMachinePlacementTokens(notes: string): string {
+  return notes.replace(PLACEMENT_COORD_TOKEN, '').replace(PLACEMENT_SEAT_TOKEN, '').trim();
+}
+
+function stripCopyMachineTokens(notes: string, copyIndex: number): string {
+  return notes
+    .replace(new RegExp(`\\[\\[c${copyIndex}:[^\\]]+\\]\\]`, 'g'), '')
+    .replace(new RegExp(`\\[\\[s${copyIndex}:[^\\]]+\\]\\]`, 'g'), '')
+    .trim();
+}
+
+function withPlacementTokensMerged(
+  notes: string | null | undefined,
+  coords: { x: number; y: number; rotation: number },
+  seatMeta: { side: 'L' | 'R'; rowIndex: number; seatIndex: number } | null,
+  copyIndex = 0,
+): string {
+  let base = (notes ?? '').trim();
+  if (copyIndex === 0) {
+    base = stripMachinePlacementTokens(base);
+  } else {
+    base = stripCopyMachineTokens(base, copyIndex);
+  }
+  const parts: string[] = [];
+  if (base.length > 0) parts.push(base);
+  if (copyIndex > 0) {
+    parts.push(`[[c${copyIndex}:${Math.round(coords.x)},${Math.round(coords.y)},${Math.round(coords.rotation)}]]`);
+    if (seatMeta) {
+      parts.push(`[[s${copyIndex}:${seatMeta.side}:${seatMeta.rowIndex}:${seatMeta.seatIndex}]]`);
+    }
+  } else {
+    parts.push(`[[coord:${Math.round(coords.x)},${Math.round(coords.y)},${Math.round(coords.rotation)}]]`);
+    if (seatMeta) {
+      parts.push(`[[seat:${seatMeta.side}:${seatMeta.rowIndex}:${seatMeta.seatIndex}]]`);
+    }
+  }
+  return parts.join('\n');
+}
+
+function fillMissingCeremonyCopySpatialTokens(
+  notes: string,
+  roleId: number,
+  copyCount: number,
+  seatAssignment: CeremonySeatAssignmentResult,
+): string {
+  let merged = notes;
+  for (let i = 0; i < copyCount; i += 1) {
+    const hasCoord = readPlacementCoordForCopy(merged, i) != null;
+    const hasSeat = parsePlacementSeatForCopy(merged, i) != null;
+    if (hasCoord && hasSeat) continue;
+    const key = `${roleId}:${i}` as `${number}:${number}`;
+    const pos = seatAssignment.seatByInstanceKey.get(key);
+    const meta = seatAssignment.seatMetaByInstanceKey.get(key);
+    if (!pos || !meta) continue;
+    merged = withPlacementTokensMerged(merged, pos, meta, i);
+  }
+  return merged;
 }
 
 function applyInstanceOffset(

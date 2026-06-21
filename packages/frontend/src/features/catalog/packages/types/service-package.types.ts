@@ -79,6 +79,14 @@ export interface ServicePackage {
             equipment?: { id: number; item_name: string; model?: string | null };
         }>>;
         items: ServicePackageItem[];
+        /** Long-form narrative notes edited from the package overview. */
+        narrative_detail?: string | null;
+        /**
+         * Default payment schedule template for this package. Acts as the
+         * source of default truth for inquiries created from it — the
+         * inquiry's own selection overrides this.
+         */
+        default_payment_schedule_template_id?: number | null;
     };
     /** Derived from Guests subject rows, using the max headcount across package event days. */
     typical_guest_count?: number | null;

@@ -37,6 +37,7 @@ import {
   usePublishDayBlueprintVersion,
   useArchiveDayBlueprintVersion,
 } from '../hooks';
+import { useBranchDayBlueprintDraft } from '../hooks/useBranchDayBlueprintDraft';
 import type {
   DayBlueprintSummary,
   DayBlueprintVersionStatus,
@@ -111,6 +112,7 @@ type StatusFilter = 'all' | 'published' | 'draft-only';
 export function DayBlueprintsPanel() {
   const { currentBrand } = useBrand();
   const { data: blueprints = [], isLoading, error } = useDayBlueprints();
+  const { data: blueprintsWithSeeded = [] } = useDayBlueprints({ includeSeeded: true });
 
   // ── Filter state ──
   const [activeServiceKey, setActiveServiceKey] = useState<string | null>(null);
@@ -393,7 +395,7 @@ export function DayBlueprintsPanel() {
       <CreateDayBlueprintDialog
         open={createOpen}
         onClose={closeCreateDialog}
-        blueprints={blueprints}
+        seededBlueprints={blueprintsWithSeeded}
         serviceTypeOptions={serviceTypeOptions}
         activeServiceKey={activeServiceKey}
       />
@@ -558,6 +560,7 @@ function BlueprintDetailPanel({
   const deleteMutation = useDeleteDayBlueprint();
   const publishMutation = usePublishDayBlueprintVersion();
   const archiveMutation = useArchiveDayBlueprintVersion();
+  const { branchToDraft, isBranching } = useBranchDayBlueprintDraft(blueprint.id);
 
   const latestPublished = useMemo(
     () =>
@@ -576,6 +579,24 @@ function BlueprintDetailPanel({
   );
 
   const focusVersionId = latestDraft?.id ?? latestPublished?.id ?? versions[0]?.id ?? null;
+
+  const handleEditVersion = (version: { id: number; version_number: number; status: string }) => {
+    if (version.status === 'DRAFT') {
+      return;
+    }
+    if (latestDraft) {
+      const useDraft = window.confirm(
+        `Open working draft v${latestDraft.version_number}, or create a new draft from v${version.version_number}?`,
+      );
+      if (useDraft) {
+        return;
+      }
+    }
+    void branchToDraft({
+      source_version_id: version.id,
+      change_summary: `Draft from v${version.version_number}`,
+    });
+  };
   const { data: focusedVersion, isLoading: focusedVersionLoading } = useDayBlueprintVersion(
     blueprint.id,
     focusVersionId,
@@ -703,6 +724,32 @@ function BlueprintDetailPanel({
           <InfoTile label="Last published" value={lastPublishedLabel} />
           <InfoTile label="Blueprint status" value={blueprint.is_active ? 'Active' : 'Inactive'} />
         </Box>
+        {latestPublished && !latestDraft && (
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={isBranching}
+            onClick={() =>
+              void branchToDraft({
+                source_version_id: latestPublished.id,
+                change_summary: `Draft from published v${latestPublished.version_number}`,
+              })
+            }
+            sx={{ mt: 1.25, textTransform: 'none', color: '#60a5fa', borderColor: 'rgba(96,165,250,0.35)' }}
+          >
+            {isBranching ? 'Creating draft…' : 'Edit blueprint (create draft)'}
+          </Button>
+        )}
+        {latestDraft && (
+          <Button
+            size="small"
+            component={Link}
+            href="/packages"
+            sx={{ mt: 1.25, textTransform: 'none', color: '#fbbf24' }}
+          >
+            Continue draft v{latestDraft.version_number}
+          </Button>
+        )}
       </Box>
 
       {/* Usage impact */}
@@ -829,14 +876,35 @@ function BlueprintDetailPanel({
                   </Typography>
                 ) : null}
                 <Box sx={{ flex: 1 }} />
-                <Button
-                  size="small"
-                  component={Link}
-                  href={`/day-designer/${blueprint.id}/${v.id}`}
-                  sx={{ textTransform: 'none', fontSize: '0.72rem', color: '#60a5fa', minWidth: 'auto' }}
-                >
-                  {v.status === 'DRAFT' ? 'Edit' : 'Open'}
-                </Button>
+                {v.status === 'DRAFT' ? (
+                  <Button
+                    size="small"
+                    component={Link}
+                    href="/packages"
+                    sx={{ textTransform: 'none', fontSize: '0.72rem', color: '#60a5fa', minWidth: 'auto' }}
+                  >
+                    Edit
+                  </Button>
+                ) : (
+                  <Button
+                    size="small"
+                    disabled={isBranching}
+                    onClick={() => handleEditVersion(v)}
+                    sx={{ textTransform: 'none', fontSize: '0.72rem', color: '#60a5fa', minWidth: 'auto' }}
+                  >
+                    {isBranching ? '…' : v.status === 'PUBLISHED' ? 'Edit' : 'Open'}
+                  </Button>
+                )}
+                {v.status === 'PUBLISHED' && (
+                  <Button
+                    size="small"
+                    component={Link}
+                    href="/packages"
+                    sx={{ textTransform: 'none', fontSize: '0.72rem', color: '#94a3b8', minWidth: 'auto' }}
+                  >
+                    View
+                  </Button>
+                )}
                 <IconButton
                   size="small"
                   onClick={handleDeleteBlueprint}

@@ -449,7 +449,7 @@ export function PackageSetsScreen() {
                     setIsWizardOpen(false);
                     setWizardEventTypeName(null);
                     setWizardSlotId(null);
-                    router.push(`/packages/${packageId}`);
+                    router.push(`/packages/${packageId}?mode=edit&tab=blueprint`);
                 }}
             />
 

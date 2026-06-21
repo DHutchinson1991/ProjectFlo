@@ -61,6 +61,18 @@ export class PackagesService {
             },
           },
         },
+        source_day_blueprint: {
+          select: {
+            id: true,
+            key: true,
+            display_name: true,
+            event_category: true,
+            latest_published_version_id: true,
+          },
+        },
+        source_day_blueprint_version: {
+          select: { id: true, version_number: true, status: true, published_at: true },
+        },
       },
     });
 
@@ -98,12 +110,19 @@ export class PackagesService {
           else if (eq.equipment.category === 'AUDIO') audioCount++;
         }
       }
+      const blueprint_update_available =
+        pkg.source_day_blueprint_id !== null &&
+        pkg.source_day_blueprint_version_id !== null &&
+        pkg.source_day_blueprint !== null &&
+        pkg.source_day_blueprint.latest_published_version_id !== null &&
+        pkg.source_day_blueprint.latest_published_version_id !== pkg.source_day_blueprint_version_id;
       return {
         ...pkg,
         category: pkg.event_category ?? null,
         _equipmentCounts: { cameras: cameraCount, audio: audioCount },
         _crewCount: uniqueCrew.size,
         typical_guest_count: guestCountMap.get(pkg.id) ?? null,
+        blueprint_update_available,
       };
     });
 
@@ -189,6 +208,92 @@ export class PackagesService {
       pkg.source_day_blueprint.latest_published_version_id !== pkg.source_day_blueprint_version_id;
 
     return { ...pkg, blueprint_update_available };
+  }
+
+  /**
+   * Inquiries / projects / template / blueprint lineage for the package-links popover.
+   */
+  async findTraceability(id: number, brandId: number) {
+    const pkg = await this.prisma.service_packages.findFirst({
+      where: { id, brand_id: brandId },
+      select: {
+        id: true,
+        package_template: { select: { id: true, name: true } },
+        source_day_blueprint_id: true,
+        source_day_blueprint_version_id: true,
+        source_day_blueprint: { select: { id: true, display_name: true } },
+        source_day_blueprint_version: {
+          select: { id: true, version_number: true },
+        },
+      },
+    });
+    if (!pkg) throw new NotFoundException('Service Package not found');
+
+    const inquiriesRaw = await this.prisma.inquiries.findMany({
+      where: {
+        archived_at: null,
+        contact: { brand_id: brandId },
+        OR: [{ selected_package_id: id }, { source_package_id: id }],
+      },
+      select: {
+        id: true,
+        selected_package_id: true,
+        source_package_id: true,
+        contact: { select: { first_name: true, last_name: true } },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    const inquiries = inquiriesRaw.map((row) => {
+      const roles: ('selected_package' | 'source_package')[] = [];
+      if (row.selected_package_id === id) roles.push('selected_package');
+      if (row.source_package_id === id) roles.push('source_package');
+      const label =
+        [row.contact.first_name, row.contact.last_name].filter(Boolean).join(' ').trim() ||
+        `Inquiry #${row.id}`;
+      return { id: row.id, label, roles };
+    });
+
+    const projectsRaw = await this.prisma.projects.findMany({
+      where: {
+        brand_id: brandId,
+        archived_at: null,
+        source_package_id: id,
+      },
+      select: {
+        id: true,
+        project_name: true,
+        wedding_date: true,
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    const projects = projectsRaw.map((p) => ({
+      id: p.id,
+      name: p.project_name,
+      wedding_date: p.wedding_date.toISOString().slice(0, 10),
+    }));
+
+    const bp = pkg.source_day_blueprint;
+    const bv = pkg.source_day_blueprint_version;
+    const versionId = pkg.source_day_blueprint_version_id;
+    const source_blueprint =
+      bp && versionId != null
+        ? {
+            blueprint_id: bp.id,
+            display_name: bp.display_name,
+            version_id: versionId,
+            version_number:
+              bv && bv.id === versionId ? bv.version_number : null,
+          }
+        : null;
+
+    return {
+      package_template: pkg.package_template,
+      source_blueprint,
+      inquiries,
+      projects,
+    };
   }
 
   async update(id: number, brandId: number, updateDto: UpdatePackageDto) {

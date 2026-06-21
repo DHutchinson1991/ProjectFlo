@@ -30,3 +30,25 @@ export interface GenerateBlockingResponse {
   cameras: BlockingCameraResult[];
   model: string;
 }
+
+export interface GenerateSceneBlockingRequest {
+  filmSceneId: number;
+  spaceSlotId: number;
+  activityId?: number;
+}
+
+export interface SceneBlockingMomentResult {
+  sceneMomentId: number;
+  momentName: string;
+  status: 'completed' | 'failed';
+  error?: string;
+  result?: GenerateBlockingResponse;
+}
+
+export interface GenerateSceneBlockingResponse {
+  filmSceneId: number;
+  total: number;
+  completed: number;
+  failed: number;
+  moments: SceneBlockingMomentResult[];
+}

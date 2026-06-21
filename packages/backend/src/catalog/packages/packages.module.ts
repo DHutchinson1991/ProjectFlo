@@ -10,6 +10,8 @@ import { PricingModule } from '../pricing/pricing.module';
 import { ActivityPlanningModule } from '../../content/activity-planning/activity-planning.module';
 import { PackageCreationModule } from './creation/package-creation.module';
 import { DayBlueprintsModule } from '../../content/day-blueprints/day-blueprints.module';
+import { FloorPlansModule } from '../../workflow/locations/modules/floor-plans/floor-plans.module';
+import { PackageBlueprintSpatialService } from './services/package-blueprint-spatial.service';
 
 @Module({
   imports: [
@@ -17,10 +19,17 @@ import { DayBlueprintsModule } from '../../content/day-blueprints/day-blueprints
     PricingModule,
     ActivityPlanningModule,
     DayBlueprintsModule,
+    FloorPlansModule,
     forwardRef(() => PackageCreationModule),
   ],
   controllers: [PackagesController, PackagesPlanningController],
-  providers: [PackagesService, PackageVersionsService, PackageBlueprintResyncService, PackageAiRunsService],
+  providers: [
+    PackagesService,
+    PackageVersionsService,
+    PackageBlueprintResyncService,
+    PackageBlueprintSpatialService,
+    PackageAiRunsService,
+  ],
   exports: [PackagesService],
 })
 export class PackagesModule {}

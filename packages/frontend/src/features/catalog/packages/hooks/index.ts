@@ -2,7 +2,8 @@
 export { usePackageData } from './usePackageData';
 export { usePackageActions } from './usePackageActions';
 export type { UsePackageActionsReturn } from './usePackageActions';
-export { usePackageAiRun, usePackageAiRuns } from './usePackageAiRuns';
+export { useCancelPackageAiRun, usePackageAiRun, usePackageAiRuns } from './usePackageAiRuns';
+export { usePackageTraceability } from './usePackageTraceability';
 export {
 	useAddPackageSetSlot,
 	useAssignPackageSetSlot,

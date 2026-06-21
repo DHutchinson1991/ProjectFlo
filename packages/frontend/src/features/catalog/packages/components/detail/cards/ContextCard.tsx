@@ -12,11 +12,17 @@ import PersonIcon from '@mui/icons-material/Person';
 import PlaceIcon from '@mui/icons-material/Place';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import BadgeIcon from '@mui/icons-material/Badge';
+import LocalMoviesRoundedIcon from '@mui/icons-material/LocalMoviesRounded';
 
 import { formatCurrency } from '@/shared/utils/formatUtils';
 import type { EventDay } from '@/features/workflow/scheduling/package-template';
-import type { ServicePackage } from '@/features/catalog/packages/types/service-package.types';
-import type { EquipmentRecord, UnmannedEquipmentRecord, PackageCrewSlotRecord, PackageEventDaySubjectRecord, PackageLocationSlotRecord, PackageSpaceSlotRecord, EquipItem } from '../../../types';
+import type { ServicePackage, ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
+import type { EquipmentRecord, UnmannedEquipmentRecord, PackageCrewSlotRecord, PackageEventDaySubjectRecord, PackageLocationSlotRecord, PackageSpaceSlotRecord, EquipItem, FilmData, PackageActivityRecord } from '../../../types';
+import { getContentItemKey, getFilmStats } from '../../../utils/package-helpers';
+import {
+    resolveMomentSubjectContext,
+    type MomentActionRecord,
+} from '../../../utils/moment-subject-context';
 
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -38,11 +44,16 @@ interface MomentRecord {
     description?: string | null;
     order_index: number;
     duration_seconds: number;
+    actions?: MomentActionRecord[];
     subject_actions?: Record<string, string | { action: string | null; focal: string } | null> | null;
 }
 
 interface ContextCardProps {
     activities: ActivityRecord[];
+    contentItems?: ServicePackageItem[];
+    films?: FilmData[];
+    packageActivities?: PackageActivityRecord[];
+    selectedContentItemId?: string | null;
     selectedActivityId: number | null;
     selectedMomentId: number | null;
     selectedEquipmentId?: number | null;
@@ -109,7 +120,8 @@ const detailValueSx = { fontSize: '0.72rem', color: '#cbd5e1' } as const;
 // ─── Component ───────────────────────────────────────────────────────
 
 export function ContextCard({
-    activities, selectedActivityId, selectedMomentId,
+    activities, contentItems, films, packageActivities,
+    selectedContentItemId, selectedActivityId, selectedMomentId,
     selectedEquipmentId, selectedSubjectId, selectedLocationSlotId,
     selectedSpaceSlotId, selectedCrewSlotId,
     packageSubjects, packageLocationSlots,
@@ -176,24 +188,10 @@ export function ContextCard({
         return packageSubjects.find(s => s.id === selectedSubjectId) ?? null;
     }, [selectedSubjectId, packageSubjects]);
 
-    const subjectMomentContext = useMemo(() => {
-        if (!selectedSubject || !moment?.subject_actions) return null;
-
-        const subjectKeys = [selectedSubject.name, selectedSubject.role_template?.role_name]
-            .filter((value): value is string => Boolean(value && value.trim()));
-
-        for (const subjectKey of subjectKeys) {
-            const entry = moment.subject_actions[subjectKey];
-            if (entry === undefined || entry === null) continue;
-
-            return {
-                action: typeof entry === 'string' ? entry : entry.action,
-                focal: typeof entry === 'string' ? null : entry.focal,
-            };
-        }
-
-        return null;
-    }, [selectedSubject, moment]);
+    const subjectMomentContext = useMemo(
+        () => resolveMomentSubjectContext(moment, selectedSubject),
+        [selectedSubject, moment],
+    );
 
     // ── Location / Space lookup ──────────────────────────────────
     const selectedLocation = useMemo(() => {
@@ -216,17 +214,55 @@ export function ContextCard({
         return PackageCrewSlots.find(s => s.id === selectedCrewSlotId) ?? null;
     }, [selectedCrewSlotId, PackageCrewSlots]);
 
+    const selectedContentItem = useMemo(() => {
+        if (!selectedContentItemId || !contentItems?.length) return null;
+        const items = contentItems;
+        for (let index = 0; index < items.length; index += 1) {
+            const item = items[index];
+            if (getContentItemKey(item, index) === selectedContentItemId) {
+                return { item, index };
+            }
+        }
+        return null;
+    }, [contentItems, selectedContentItemId]);
+
+    const selectedContentFilm = useMemo(() => {
+        if (!selectedContentItem?.item.referenceId || !films?.length) return null;
+        return films.find((film) => film.id === selectedContentItem.item.referenceId) ?? null;
+    }, [films, selectedContentItem]);
+
+    const selectedContentActivity = useMemo(() => {
+        const activityId = selectedContentItem?.item.config?.activity_id;
+        if (!activityId || !packageActivities?.length) return null;
+        return packageActivities.find((activity) => activity.id === activityId) ?? null;
+    }, [packageActivities, selectedContentItem]);
+
+    const selectedContentStats = useMemo(() => {
+        if (!selectedContentItem?.item.referenceId || !films?.length) {
+            return { realtime: 0, montage: 0, totalDuration: '0:00' };
+        }
+        return getFilmStats(films, selectedContentItem.item.referenceId);
+    }, [films, selectedContentItem]);
+
+    const selectedContentEquipCount = useMemo(() => {
+        if (!selectedContentFilm?.scenes) return 0;
+        return selectedContentFilm.scenes.reduce((total, scene) => {
+            return total + (Array.isArray(scene.equipment) ? scene.equipment.length : 0);
+        }, 0);
+    }, [selectedContentFilm]);
+
     // ── Display priority ─────────────────────────────────────────
     const showSubject = !!selectedSubject;
     const showLocation = !showSubject && !!selectedLocation;
     const showSpace = !showSubject && !showLocation && !!selectedSpace;
     const showCrew = !showSubject && !showLocation && !showSpace && !!selectedCrewSlot;
     const showEquipment = !showSubject && !showLocation && !showSpace && !showCrew && !!selectedEquipmentId && !!equipItem;
-    const showMoment = !showSubject && !showLocation && !showSpace && !showCrew && !showEquipment && !!moment;
-    const showActivity = !showSubject && !showLocation && !showSpace && !showCrew && !showEquipment && !showMoment && !!activity;
-    const isEmpty = !showSubject && !showLocation && !showSpace && !showCrew && !showEquipment && !showMoment && !showActivity;
+    const showFilm = !showSubject && !showLocation && !showSpace && !showCrew && !showEquipment && !!selectedContentItem;
+    const showMoment = !showSubject && !showLocation && !showSpace && !showCrew && !showEquipment && !showFilm && !!moment;
+    const showActivity = !showSubject && !showLocation && !showSpace && !showCrew && !showEquipment && !showFilm && !showMoment && !!activity;
+    const isEmpty = !showSubject && !showLocation && !showSpace && !showCrew && !showEquipment && !showFilm && !showMoment && !showActivity;
     const showPackage = isEmpty && (packageName || packageDescription);
-    const accentColor = showSubject ? '#f59e0b' : showLocation ? '#10b981' : showSpace ? '#14b8a6' : showCrew ? '#8b5cf6' : showEquipment ? '#64748b' : showMoment ? '#0ea5e9' : '#a855f7';
+    const accentColor = showSubject ? '#f59e0b' : showLocation ? '#10b981' : showSpace ? '#14b8a6' : showCrew ? '#8b5cf6' : showEquipment ? '#64748b' : showFilm ? '#a855f7' : showMoment ? '#0ea5e9' : '#a855f7';
     const editable = !readOnly && !!onUpdateActivity;
 
     // ── Activity field state ─────────────────────────────────────
@@ -298,10 +334,11 @@ export function ContextCard({
                             : showCrew ? <BadgeIcon />
                             : showEquipment
                                 ? (equipItem?.slot_type === 'AUDIO' ? <MicIcon /> : <VideocamIcon />)
+                                : showFilm ? <LocalMoviesRoundedIcon />
                                 : showMoment ? <CameraRollIcon /> : showPackage ? <InventoryIcon /> : <AutoAwesomeIcon />}
                     </Box>
                     <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {showSubject ? 'Subject Detail' : showLocation ? 'Location Detail' : showSpace ? 'Space Detail' : showCrew ? 'Role Detail' : showEquipment ? 'Equipment Detail' : showMoment ? 'Moment Detail' : showActivity ? 'Activity Detail' : showPackage ? 'Package' : 'Context'}
+                        {showSubject ? 'Subject Detail' : showLocation ? 'Location Detail' : showSpace ? 'Space Detail' : showCrew ? 'Role Detail' : showEquipment ? 'Equipment Detail' : showFilm ? 'Film Detail' : showMoment ? 'Moment Detail' : showActivity ? 'Activity Detail' : showPackage ? 'Package' : 'Context'}
                     </Typography>
                 </Box>
             </Box>
@@ -309,8 +346,108 @@ export function ContextCard({
                 {/* ── Empty state ── */}
                 {isEmpty && !showPackage && (
                     <Typography sx={{ fontSize: '0.72rem', color: '#475569', fontStyle: 'italic' }}>
-                        Select an activity or moment to see details
+                        Select a film, activity, or moment to see details
                     </Typography>
+                )}
+
+                {/* ── Film detail ── */}
+                {showFilm && selectedContentItem && (
+                    <Stack spacing={1.5}>
+                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#f1f5f9' }}>
+                            {selectedContentItem.item.description}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.68rem', color: '#64748b' }}>
+                            Click the film name in the table to open the editor.
+                        </Typography>
+
+                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                            <Box>
+                                <Typography sx={detailLabelSx}>Duration</Typography>
+                                <Typography sx={detailValueSx}>
+                                    {selectedContentStats.totalDuration !== '0:00' ? selectedContentStats.totalDuration : '—'}
+                                </Typography>
+                            </Box>
+                            <Box>
+                                <Typography sx={detailLabelSx}>Scenes</Typography>
+                                <Typography sx={detailValueSx}>
+                                    {selectedContentFilm?.scenes?.length ?? 0}
+                                </Typography>
+                            </Box>
+                            <Box>
+                                <Typography sx={detailLabelSx}>Equipment</Typography>
+                                <Typography sx={detailValueSx}>
+                                    {selectedContentEquipCount > 0 ? selectedContentEquipCount : '—'}
+                                </Typography>
+                            </Box>
+                            <Box>
+                                <Typography sx={detailLabelSx}>Activity</Typography>
+                                <Typography sx={{ ...detailValueSx, color: selectedContentActivity ? '#a855f7' : detailValueSx.color }}>
+                                    {selectedContentActivity?.name ?? '—'}
+                                </Typography>
+                            </Box>
+                        </Box>
+
+                        {(selectedContentFilm?.scenes?.length ?? 0) > 0 ? (
+                            <Box>
+                                <Typography sx={{ ...detailLabelSx, mb: 0.5 }}>Scene breakdown</Typography>
+                                <Stack spacing={0.5}>
+                                    {selectedContentFilm!.scenes!.map((scene) => (
+                                        <Box
+                                            key={scene.id}
+                                            sx={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: 1,
+                                                px: 1,
+                                                py: 0.65,
+                                                borderRadius: 1.5,
+                                                bgcolor: 'rgba(255,255,255,0.03)',
+                                                border: '1px solid rgba(255,255,255,0.05)',
+                                            }}
+                                        >
+                                            <Typography sx={{ fontSize: '0.72rem', color: '#cbd5e1', minWidth: 0 }} noWrap>
+                                                {scene.name}
+                                            </Typography>
+                                            <Typography sx={{ fontSize: '0.65rem', color: '#64748b', fontFamily: 'monospace', flexShrink: 0 }}>
+                                                {scene.mode === 'MONTAGE' ? 'Montage' : 'Realtime'}
+                                            </Typography>
+                                        </Box>
+                                    ))}
+                                </Stack>
+                            </Box>
+                        ) : null}
+
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            {selectedContentStats.realtime > 0 ? (
+                                <Chip
+                                    label={`${selectedContentStats.realtime} realtime`}
+                                    size="small"
+                                    sx={{ height: 22, fontSize: '0.62rem', bgcolor: 'rgba(255,255,255,0.04)', color: '#94a3b8', border: 'none' }}
+                                />
+                            ) : null}
+                            {selectedContentStats.montage > 0 ? (
+                                <Chip
+                                    label={`${selectedContentStats.montage} montage`}
+                                    size="small"
+                                    sx={{ height: 22, fontSize: '0.62rem', bgcolor: 'rgba(255,255,255,0.04)', color: '#94a3b8', border: 'none' }}
+                                />
+                            ) : null}
+                            {selectedContentItem.item.config?.linked_film_id ? (
+                                <Chip
+                                    label="Configured"
+                                    size="small"
+                                    sx={{ height: 22, fontSize: '0.62rem', bgcolor: 'rgba(34,197,94,0.12)', color: '#22c55e', border: 'none' }}
+                                />
+                            ) : (
+                                <Chip
+                                    label="Template only"
+                                    size="small"
+                                    sx={{ height: 22, fontSize: '0.62rem', bgcolor: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: 'none' }}
+                                />
+                            )}
+                        </Box>
+                    </Stack>
                 )}
 
                 {/* ── Package info ── */}

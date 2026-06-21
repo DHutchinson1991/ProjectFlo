@@ -16,6 +16,7 @@ import { inquiryWizardSubmissionsApi } from "../api";
 import { useWizardStudioData } from "../hooks/useWizardStudioData";
 import { useWizardComputed } from "../hooks/useWizardComputed";
 import { useBuilderPackage } from "../hooks/useBuilderPackage";
+import { canAdvanceBuilderStep1 } from "../utils/builder-blueprint-responses";
 import {
     WizardLayout, WelcomeScreen, EventTypeScreen, DateScreen, GuestsScreen,
     YourNameScreen, YourRoleScreen, PartnerRoleScreen,
@@ -97,6 +98,13 @@ export default function InquiryWizardStudioScreen() {
             if (currentScreenId === "contact" && (!responses.contact_email || !responses.contact_phone)) valid = false;
             if (currentScreenId === "your_name" && !responses.contact_first_name) valid = false;
             if (!valid) { setValidationShake(true); setTimeout(() => setValidationShake(false), 600); return; }
+        }
+        if (currentScreenId === "builder" && (responses.builder_step || 1) === 1) {
+            if (!canAdvanceBuilderStep1(responses)) {
+                setValidationShake(true);
+                setTimeout(() => setValidationShake(false), 600);
+                return;
+            }
         }
         if (currentScreenId === "builder" && (responses.builder_step || 1) < 3) {
             handleChange("builder_step", (responses.builder_step || 1) + 1); return;

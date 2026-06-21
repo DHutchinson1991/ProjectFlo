@@ -14,6 +14,11 @@ import {
   PackagePlanningSummary,
   PlannerActivityRecord,
 } from '../activity-planning.types';
+import {
+  PLANNING_CANCELLED_BY_USER_MESSAGE,
+  assertPlanningNotAborted,
+} from '../package-planning-cancel.constants';
+import { PackagePlanningCancelRegistryService } from './package-planning-cancel-registry.service';
 
 @Injectable()
 export class PackagePlanningOrchestratorService {
@@ -26,20 +31,31 @@ export class PackagePlanningOrchestratorService {
     private readonly progress: PackagePlanningProgressService,
     private readonly steps: PackagePlanningStepsService,
     private readonly singleActivityPlanner: SingleActivityPlannerService,
+    private readonly planningCancelRegistry: PackagePlanningCancelRegistryService,
   ) {}
+
+  /** AbortSignal (in-process) or POST cancel persistence (`planning_cancel_requested_at`). */
+  private async assertPlanningContinues(packageId: number, signal?: AbortSignal): Promise<void> {
+    assertPlanningNotAborted(signal);
+    await this.status.assertPlanningNotCancelled(packageId);
+  }
 
   async planPackageActivities(
     packageId: number,
     runLogger?: PackageCreationRunLogger,
     options: PackagePlanningRunOptions = {},
   ): Promise<PackagePlanningRunResult> {
-    const { deferCompletion = false, additionalSteps = 0 } = options;
+    const { deferCompletion = false, additionalSteps = 0, planningMode = 'full', abortSignal: externalAbortSignal } = options;
+    /** Pipeline passes a signal; replan / other callers do not — register cancel targets here in that case. */
+    const ownsCancelRegistrySession = externalAbortSignal == null;
+    const abortSignal = externalAbortSignal ?? this.planningCancelRegistry.attach(packageId);
     const summary = this.progress.createSummary(packageId);
     let totalSteps = additionalSteps;
 
     try {
       runLogger?.log('PLANNER', 'Planner started', { packageId });
       await this.status.markPlanning(packageId);
+      await this.assertPlanningContinues(packageId, abortSignal);
 
       const context = await this.loadPlanningContext(
         packageId,
@@ -59,9 +75,31 @@ export class PackagePlanningOrchestratorService {
         };
       }
 
-      totalSteps = 3 + context.activities.length * 3 + additionalSteps;
-      await this.runPackageLevelSteps(context, totalSteps, summary, runLogger);
-      await this.planActivities(context, totalSteps, summary, runLogger);
+      await this.assertPlanningContinues(packageId, abortSignal);
+
+      if (planningMode === 'blueprint') {
+        totalSteps = 1 + additionalSteps;
+        this.progress.recordStep({
+          packageId: context.packageId,
+          totalSteps,
+          summary,
+          runLogger,
+          step: 'blueprint-content',
+          label: 'Using Day Blueprint snapshot content',
+          status: 'completed',
+          stepIndex: 0,
+          data: {
+            mode: 'blueprint',
+            activityCount: context.activities.length,
+          },
+        });
+      } else {
+        totalSteps = 3 + context.activities.length * 3 + additionalSteps;
+        await this.runPackageLevelSteps(context, totalSteps, summary, runLogger, abortSignal);
+        await this.planActivities(context, totalSteps, summary, runLogger, abortSignal);
+      }
+
+      await this.assertPlanningContinues(packageId, abortSignal);
 
       if (!deferCompletion) {
         await this.status.setStatus(packageId, PlanningStatus.READY);
@@ -88,7 +126,8 @@ export class PackagePlanningOrchestratorService {
         deferredCompletion: deferCompletion,
       };
     } catch (err) {
-      const message = (err as Error).message;
+      const raw = (err as Error).message;
+      const message = raw === PLANNING_CANCELLED_BY_USER_MESSAGE ? 'Cancelled by user' : raw;
       this.logger.error(`planPackageActivities: top-level failure for package ${packageId} — ${message}`);
       this.progress.markFailed(summary, message);
       this.progress.writeSummary(summary, runLogger);
@@ -100,6 +139,10 @@ export class PackagePlanningOrchestratorService {
         succeeded: false,
         deferredCompletion: deferCompletion,
       };
+    } finally {
+      if (ownsCancelRegistrySession) {
+        this.planningCancelRegistry.detach(packageId);
+      }
     }
   }
 
@@ -203,7 +246,9 @@ export class PackagePlanningOrchestratorService {
     totalSteps: number,
     summary: PackagePlanningSummary,
     runLogger?: PackageCreationRunLogger,
+    abortSignal?: AbortSignal,
   ): Promise<void> {
+    await this.assertPlanningContinues(context.packageId, abortSignal);
     const descriptionLogger = runLogger?.startSkillLog('01-activity-description', 'Activity Description Enrichment', {
       packageId: context.packageId,
       eventType: context.eventType,
@@ -225,6 +270,7 @@ export class PackagePlanningOrchestratorService {
       context.eventType,
       descriptionLogger,
     );
+    await this.assertPlanningContinues(context.packageId, abortSignal);
     this.progress.recordStep({
       packageId: context.packageId,
       totalSteps,
@@ -264,6 +310,7 @@ export class PackagePlanningOrchestratorService {
       context.eventType,
       subjectAssignmentLogger,
     );
+    await this.assertPlanningContinues(context.packageId, abortSignal);
     this.progress.recordStep({
       packageId: context.packageId,
       totalSteps,
@@ -304,6 +351,7 @@ export class PackagePlanningOrchestratorService {
       context.eventType,
       timingLogger,
     );
+    await this.assertPlanningContinues(context.packageId, abortSignal);
     this.progress.recordStep({
       packageId: context.packageId,
       totalSteps,
@@ -327,9 +375,11 @@ export class PackagePlanningOrchestratorService {
     totalSteps: number,
     summary: PackagePlanningSummary,
     runLogger?: PackageCreationRunLogger,
+    abortSignal?: AbortSignal,
   ): Promise<void> {
     for (let index = 0; index < context.activities.length; index += 1) {
-      await this.planActivity(context, context.activities[index], index, totalSteps, summary, runLogger);
+      await this.assertPlanningContinues(context.packageId, abortSignal);
+      await this.planActivity(context, context.activities[index], index, totalSteps, summary, runLogger, abortSignal);
     }
   }
 
@@ -340,10 +390,12 @@ export class PackagePlanningOrchestratorService {
     totalSteps: number,
     summary: PackagePlanningSummary,
     runLogger?: PackageCreationRunLogger,
+    abortSignal?: AbortSignal,
   ): Promise<void> {
     const baseIndex = 3 + index * 3;
 
     try {
+      await this.assertPlanningContinues(context.packageId, abortSignal);
       const activityKey = `${activity.id}-${activity.name}`;
       const momentLogger = runLogger?.startSkillLog(
         `04-${activityKey}-moment-generation`,
@@ -428,6 +480,8 @@ export class PackagePlanningOrchestratorService {
         return;
       }
 
+      await this.assertPlanningContinues(context.packageId, abortSignal);
+
       const castingLogger = runLogger?.startSkillLog(
         `05-${activityKey}-activity-casting`,
         `${activity.name} - Activity Casting`,
@@ -489,6 +543,8 @@ export class PackagePlanningOrchestratorService {
           value: castingValue,
         },
       });
+
+      await this.assertPlanningContinues(context.packageId, abortSignal);
 
       const actionsLogger = runLogger?.startSkillLog(
         `06-${activityKey}-activity-actions`,
@@ -553,6 +609,9 @@ export class PackagePlanningOrchestratorService {
         },
       });
     } catch (err) {
+      if (err instanceof Error && err.message === PLANNING_CANCELLED_BY_USER_MESSAGE) {
+        throw err;
+      }
       const message = (err as Error).message;
       this.logger.warn(`planPackageActivities: failed for activity ${activity.id} "${activity.name}" — ${message}`);
       summary.errors.push(`Activity ${activity.id} (${activity.name}): ${message}`);

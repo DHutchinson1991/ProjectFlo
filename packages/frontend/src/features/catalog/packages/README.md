@@ -21,9 +21,11 @@ components/
   detail/          — CrewCard, PackageContentsCard, SummaryCard, etc. (full package editor)
   creation/        — PackageCreationWizard (thin shell) + decomposed subfolders:
     types/         — `wizard.types.ts` — all wizard-specific type definitions
-    helpers/       — `wizard-helpers.ts` (pure functions, constants), `wizard-styles.ts` (sx factories), `equipment-preset-storage.ts` (brand-keyed equipment preset persistence)
+    helpers/       — `wizard-helpers.ts`, `wizard-styles.ts`, `manual-day-plan.ts`, `location-helpers.ts`, `equipment-preset-storage.ts`
     hooks/         — `useWizardState`, `useWizardData`, `useWizardDerived`, `useWizardHandlers`
-    steps/         — EventTypeStep, BlueprintStep, ActivitiesStep, StandardGuestsStep, SubjectsStep, LocationsStep, PackageNameStep, RolesStep, CrewStep, EquipmentStep, ReviewStep
+    components/    — `DayBuilder`, `LocationSlotPicker`, `CreateDayPlanSection`, etc.
+    steps/         — Day design (picker, library, create, generate), `ActivitiesStep`, `ReviewStep`, …
+    screens/       — `EventScreen`, `DayDesignScreen`, `TeamScreen`, `ReviewScreen`
 hooks/             — Package detail hooks + React Query hooks for library/mutations
 screens/           — UnifiedPackagesScreen (main), PackageDetailScreen, NewPackageScreen, legacy screens
 types/             — PackageSet, service package models, API DTOs

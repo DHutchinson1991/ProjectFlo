@@ -182,6 +182,14 @@ interface ContentBuilderContextType {
   aiBlockingPending: boolean;
   setAiBlockingPending: (pending: boolean) => void;
 
+  /** Right inspector tab: scene-level vs moment-level editing */
+  inspectorTab: 'scene' | 'moment';
+  setInspectorTab: (tab: 'scene' | 'moment') => void;
+
+  /** Progress while batch-blocking all moments in a scene */
+  sceneBlockingProgress: { current: number; total: number; momentName: string } | null;
+  setSceneBlockingProgress: (progress: { current: number; total: number; momentName: string } | null) => void;
+
   /** Selected camera track ID from playback (for floor plan highlighting of targeted subjects) */
   selectedCameraId: number | null;
   setSelectedCameraId: (id: number | null) => void;
@@ -279,6 +287,12 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
   }, []);
 
   const [aiBlockingPending, setAiBlockingPending] = React.useState(false);
+  const [inspectorTab, setInspectorTab] = React.useState<'scene' | 'moment'>('moment');
+  const [sceneBlockingProgress, setSceneBlockingProgress] = React.useState<{
+    current: number;
+    total: number;
+    momentName: string;
+  } | null>(null);
 
   // Selected camera state for floor plan highlighting
   const [selectedCameraId, setSelectedCameraId] = useState<number | null>(null);
@@ -478,6 +492,10 @@ export const ContentBuilderProvider: React.FC<ContentBuilderProviderProps> = ({
     setTrackDefault,
     aiBlockingPending,
     setAiBlockingPending,
+    inspectorTab,
+    setInspectorTab,
+    sceneBlockingProgress,
+    setSceneBlockingProgress,
     selectedCameraId,
     setSelectedCameraId,
     selectedCameraSubjectIds,

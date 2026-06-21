@@ -250,7 +250,7 @@ function OpRow({ op }: { op: DayBlueprintDiffOp }) {
     if (op.op === 'update') return `update id ${op.id}`;
     if (op.op === 'remove') return `remove id ${op.id}`;
     if (op.op === 'reorder') return `reorder ${op.order.length} rows`;
-    return op.op;
+    return 'unknown';
   })();
 
   const detail = (() => {

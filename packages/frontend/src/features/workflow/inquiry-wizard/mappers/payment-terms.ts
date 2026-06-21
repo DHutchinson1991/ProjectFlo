@@ -32,6 +32,26 @@ export function rulePercent(rule: PaymentScheduleTemplate["rules"][number]): num
     return rule.amount_type === "PERCENT" ? Number(rule.amount_value) : 0;
 }
 
+/**
+ * Resolve which payment schedule template should be pre-selected:
+ * the selected package's default plan wins, falling back to the brand
+ * default. The user's own choice always overrides both.
+ */
+export function resolveDefaultTemplateId(
+    ctx: NACtx,
+    templates: PaymentScheduleTemplate[],
+): number | null {
+    const selectedPkgId = ctx.responses.selected_package;
+    if (selectedPkgId) {
+        const pkg = ctx.filteredPackages.find((p) => String(p.id) === String(selectedPkgId));
+        const packageDefaultId = pkg?.contents?.default_payment_schedule_template_id;
+        if (packageDefaultId && templates.some((t) => t.id === packageDefaultId)) {
+            return packageDefaultId;
+        }
+    }
+    return templates.find((t) => t.is_default)?.id ?? null;
+}
+
 export function resolveTotal(ctx: NACtx): number | null {
     const builderTotal = ctx.priceEstimate?.summary?.subtotal;
     if (builderTotal && builderTotal > 0) return builderTotal;

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Header,
@@ -21,6 +22,8 @@ import { Observable, interval, map, merge, takeWhile } from 'rxjs';
 import { ActivityPlannerService } from '../../content/activity-planning/services/activity-planner.service';
 import { PlanningEventsService } from '../../content/activity-planning/services/planning-events.service';
 import { PackageBlueprintResyncService } from './services/package-blueprint-resync.service';
+import { PackageBlueprintSpatialService } from './services/package-blueprint-spatial.service';
+import { ResyncPackageBlueprintDto } from './dto/resync-blueprint.dto';
 import { GetPlanningLogQueryDto } from './dto/get-planning-log-query.dto';
 import { BrandId } from '../../platform/auth/decorators/brand-id.decorator';
 
@@ -43,7 +46,19 @@ export class PackagesPlanningController {
     private readonly activityPlanner: ActivityPlannerService,
     private readonly planningEvents: PlanningEventsService,
     private readonly blueprintResync: PackageBlueprintResyncService,
+    private readonly blueprintSpatial: PackageBlueprintSpatialService,
   ) {}
+
+  /**
+   * GET /api/packages/:id/blueprint-spatial
+   *
+   * Blueprint-backed packages: seed moment placements from Day Designer,
+   * sync base subject/camera positions, return package space slots.
+   */
+  @Get(':id/blueprint-spatial')
+  loadBlueprintSpatial(@Param('id', ParseIntPipe) id: number) {
+    return this.blueprintSpatial.loadForPackage(id);
+  }
 
   @Post(':id/replan')
   @HttpCode(200)
@@ -58,6 +73,17 @@ export class PackagesPlanningController {
   }
 
   /**
+   * GET /api/packages/:id/blueprint-resync-preview
+   *
+   * Structural comparison between the package's snapshotted blueprint version
+   * and the latest published version (for drift UX before confirming resync).
+   */
+  @Get(':id/blueprint-resync-preview')
+  previewBlueprintResync(@Param('id', ParseIntPipe) id: number, @BrandId() brandId: number) {
+    return this.blueprintResync.previewResync(id, brandId);
+  }
+
+  /**
    * POST /api/packages/:id/resync-blueprint
    *
    * Re-materializes the latest published Day Blueprint version into the
@@ -67,8 +93,12 @@ export class PackagesPlanningController {
    */
   @Post(':id/resync-blueprint')
   @HttpCode(200)
-  resyncBlueprint(@Param('id', ParseIntPipe) id: number, @BrandId() brandId: number) {
-    return this.blueprintResync.resyncToLatestBlueprint(id, brandId);
+  resyncBlueprint(
+    @Param('id', ParseIntPipe) id: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true, whitelist: true })) dto: ResyncPackageBlueprintDto,
+  ) {
+    return this.blueprintResync.resyncToLatestBlueprint(id, brandId, dto);
   }
 
   @Get(':id/planning-log')

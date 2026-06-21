@@ -1,5 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EquipmentCategory, TrackType } from '@prisma/client';
+import {
+    buildCeremonyBlueprintSubjectRoleInstances,
+    computeCeremonyGuestSeatCapacity,
+    CeremonySeatLayoutMode,
+    floorPlanSubjectLabel,
+} from '@projectflo/shared';
 import { PrismaService } from '../../../../platform/prisma/prisma.service';
 import { spaceSlotSpatialInclude } from './space-slot-spatial.service';
 
@@ -106,7 +112,7 @@ export class SpaceSlotSpatialSyncService {
         return slots;
     }
 
-    async getByPackage(packageId: number) {
+    async getByPackage(packageId: number, options: { sync?: boolean } = {}) {
         const slots = await this.prisma.packageSpaceSlot.findMany({
             where: { package_id: packageId },
             include: {
@@ -117,6 +123,10 @@ export class SpaceSlotSpatialSyncService {
             },
             orderBy: { created_at: 'asc' },
         });
+
+        if (options.sync === false) {
+            return slots;
+        }
 
         let anyChanged = false;
         for (const slot of slots) {
@@ -129,12 +139,17 @@ export class SpaceSlotSpatialSyncService {
         }
 
         if (!anyChanged) {
-            return slots.map(({ activity_assignments: _assignments, ...rest }) => rest);
+            return slots;
         }
 
         return this.prisma.packageSpaceSlot.findMany({
             where: { package_id: packageId },
-            include: spaceSlotSpatialInclude,
+            include: {
+                activity_assignments: {
+                    select: { package_activity_id: true },
+                },
+                ...spaceSlotSpatialInclude,
+            },
             orderBy: { created_at: 'asc' },
         });
     }
@@ -267,11 +282,16 @@ export class SpaceSlotSpatialSyncService {
 
         const existingSubjects = await this.prisma.spaceSlotSubjectPosition.findMany({
             where: { package_space_slot_id: slotId },
-            select: { id: true, day_subject_id: true },
+            select: { id: true, day_subject_id: true, order_index: true },
+            orderBy: { order_index: 'asc' },
         });
-        const existingSubjectIds = new Set(
-            existingSubjects.filter((subject) => subject.day_subject_id).map((subject) => subject.day_subject_id),
-        );
+        const existingByDaySubjectId = new Map<number, typeof existingSubjects>();
+        for (const subject of existingSubjects) {
+            if (subject.day_subject_id == null) continue;
+            const entries = existingByDaySubjectId.get(subject.day_subject_id) ?? [];
+            entries.push(subject);
+            existingByDaySubjectId.set(subject.day_subject_id, entries);
+        }
         this.logger.log(
             `[syncCamerasAndSubjects] slot=${slotId} activity=${activityId} ` +
             `subjectAssignments=${subjectAssignments.length} existingSubjects=${existingSubjects.length}`,
@@ -283,35 +303,105 @@ export class SpaceSlotSpatialSyncService {
             );
         }
 
+        const chairObjects = objects
+            .filter((object) => object.object_type === 'CHAIR_ROW')
+            .map((object) => ({
+                object_type: object.object_type,
+                x: object.x,
+                y: object.y,
+                width: object.width,
+                height: object.height,
+                metadata: (object.metadata as Record<string, unknown> | null) ?? null,
+            }));
+        const guestSeatCapacity = chairObjects.length > 0
+            ? computeCeremonyGuestSeatCapacity(chairObjects, CeremonySeatLayoutMode.FLUID)
+            : 0;
+
+        const subjectInstances = buildCeremonyBlueprintSubjectRoleInstances(
+            subjectAssignments.map((assignment) => ({
+                roleId: assignment.package_day_subject_id,
+                roleLabel: assignment.package_day_subject.name,
+                typicalCount: assignment.package_day_subject.count,
+                orderIndex: assignment.package_day_subject.order_index,
+                assignment,
+            })),
+            guestSeatCapacity > 0 ? { guestSeatCapacity } : undefined,
+        );
+
+        const desiredCopyCountByDaySubjectId = new Map<number, number>();
+        for (const instance of subjectInstances) {
+            desiredCopyCountByDaySubjectId.set(
+                instance.role.assignment.package_day_subject.id,
+                instance.copyCount,
+            );
+        }
+
         for (const assignment of subjectAssignments) {
-            if (!existingSubjectIds.has(assignment.package_day_subject_id)) {
-                const daySubject = assignment.package_day_subject;
-                // Group subjects (count > 1, e.g. "Guests") are expanded at render-time
-                // into per-seat proxies — one DB record is sufficient.
-                const isGroup = (daySubject.count ?? 1) > 1;
-                // Named roles like parents get precise front-row seat coordinates.
-                const frontRowPos = this.computeFrontRowSeatPosition(daySubject.name, objects);
-                const subjectPosition = frontRowPos
-                    ?? this.computeSubjectPosition(focalPoint, daySubject.order_index, subjectAssignments.length);
-                const isSeated = isGroup || frontRowPos !== null;
-                await this.prisma.spaceSlotSubjectPosition.create({
-                    data: {
+            const daySubject = assignment.package_day_subject;
+            const desiredCount = desiredCopyCountByDaySubjectId.get(daySubject.id)
+                ?? Math.max(Math.floor(Number(daySubject.count ?? 1)), 1);
+            const baseOrder = daySubject.order_index * 1000;
+            const existingForSubject = existingByDaySubjectId.get(daySubject.id) ?? [];
+            const staleSubjectIds = existingForSubject
+                .filter((position) => position.order_index - baseOrder >= desiredCount)
+                .map((position) => position.id);
+            if (staleSubjectIds.length > 0) {
+                await this.prisma.spaceSlotSubjectPosition.deleteMany({
+                    where: {
                         package_space_slot_id: slotId,
-                        day_subject_id: daySubject.id,
-                        label: daySubject.name,
-                        x: subjectPosition.x,
-                        y: subjectPosition.y,
-                        rotation: subjectPosition.rotation,
-                        order_index: daySubject.order_index,
-                        seated: isSeated,
+                        id: { in: staleSubjectIds },
                     },
                 });
                 this.logger.log(
-                    `[syncCamerasAndSubjects] seeded subject slot=${slotId} daySubject=${daySubject.id} ` +
-                    `label="${daySubject.name}" pos=(${Math.round(subjectPosition.x)},${Math.round(subjectPosition.y)}) rot=${Math.round(subjectPosition.rotation)}`,
+                    `[syncCamerasAndSubjects] pruned ${staleSubjectIds.length} excess subject position(s) ` +
+                    `slot=${slotId} daySubject=${daySubject.id} label="${daySubject.name}" cap=${desiredCount}`,
                 );
                 changed = true;
             }
+        }
+
+        const refreshedSubjects = await this.prisma.spaceSlotSubjectPosition.findMany({
+            where: { package_space_slot_id: slotId },
+            select: { id: true, day_subject_id: true, order_index: true },
+            orderBy: { order_index: 'asc' },
+        });
+        const refreshedByDaySubjectId = new Map<number, typeof refreshedSubjects>();
+        for (const subject of refreshedSubjects) {
+            if (subject.day_subject_id == null) continue;
+            const entries = refreshedByDaySubjectId.get(subject.day_subject_id) ?? [];
+            entries.push(subject);
+            refreshedByDaySubjectId.set(subject.day_subject_id, entries);
+        }
+
+        for (const instance of subjectInstances) {
+            const daySubject = instance.role.assignment.package_day_subject;
+            const existingForSubject = refreshedByDaySubjectId.get(daySubject.id) ?? [];
+            if (existingForSubject[instance.copyIndex]) continue;
+
+            const isGroup = instance.copyCount > 1;
+            const frontRowPos = instance.copyIndex === 0
+                ? this.computeFrontRowSeatPosition(daySubject.name, objects)
+                : null;
+            const subjectPosition = frontRowPos
+                ?? this.computeSubjectPosition(focalPoint, instance.instanceOrdinal, subjectInstances.length);
+            const isSeated = isGroup || frontRowPos !== null;
+            await this.prisma.spaceSlotSubjectPosition.create({
+                data: {
+                    package_space_slot_id: slotId,
+                    day_subject_id: daySubject.id,
+                    label: floorPlanSubjectLabel(daySubject.name, instance.copyIndex, instance.copyCount) || daySubject.name,
+                    x: subjectPosition.x,
+                    y: subjectPosition.y,
+                    rotation: subjectPosition.rotation,
+                    order_index: daySubject.order_index * 1000 + instance.copyIndex,
+                    seated: isSeated,
+                },
+            });
+            this.logger.log(
+                `[syncCamerasAndSubjects] seeded subject slot=${slotId} daySubject=${daySubject.id} copy=${instance.copyIndex + 1}/${instance.copyCount} ` +
+                `label="${daySubject.name}" pos=(${Math.round(subjectPosition.x)},${Math.round(subjectPosition.y)}) rot=${Math.round(subjectPosition.rotation)}`,
+            );
+            changed = true;
         }
 
         this.logger.log(`[syncCamerasAndSubjects] COMPLETE slot=${slotId} activity=${activityId} changed=${changed}`);

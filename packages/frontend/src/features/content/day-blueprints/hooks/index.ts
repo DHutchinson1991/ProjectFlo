@@ -4,7 +4,7 @@ import type { CreateDayBlueprintInput } from '../types';
 
 export const dayBlueprintKeys = {
   all: ['day-blueprints'] as const,
-  lists: () => [...dayBlueprintKeys.all, 'list'] as const,
+  lists: (options?: { includeSeeded?: boolean }) => [...dayBlueprintKeys.all, 'list', options?.includeSeeded ? 'with-seeded' : 'without-seeded'] as const,
   detail: (id: number) => [...dayBlueprintKeys.all, 'detail', id] as const,
   versions: (id: number) => [...dayBlueprintKeys.all, id, 'versions'] as const,
   version: (id: number, versionId: number) =>
@@ -17,10 +17,10 @@ export const dayBlueprintKeys = {
     [...dayBlueprintKeys.all, 'ai-proposals', versionId] as const,
 };
 
-export function useDayBlueprints() {
+export function useDayBlueprints(options?: { includeSeeded?: boolean }) {
   return useQuery({
-    queryKey: dayBlueprintKeys.lists(),
-    queryFn: () => dayBlueprintsApi.list(),
+    queryKey: dayBlueprintKeys.lists(options),
+    queryFn: () => dayBlueprintsApi.list(options),
   });
 }
 
@@ -102,6 +102,20 @@ export function useDeleteDayBlueprint() {
   });
 }
 
+export function useUpdateDayBlueprint() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: {
+      id: number;
+      data: Partial<Pick<CreateDayBlueprintInput, 'display_name' | 'description' | 'event_category'>>;
+    }) => dayBlueprintsApi.update(id, data),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: dayBlueprintKeys.detail(vars.id) });
+      qc.invalidateQueries({ queryKey: dayBlueprintKeys.lists() });
+    },
+  });
+}
+
 export function usePublishDayBlueprintVersion() {
   const qc = useQueryClient();
   return useMutation({
@@ -130,4 +144,5 @@ export function useArchiveDayBlueprintVersion() {
 
 export * from './ai';
 export * from './authoring';
+export * from './useBranchDayBlueprintDraft';
 export * from './simulator';

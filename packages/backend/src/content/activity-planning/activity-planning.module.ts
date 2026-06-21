@@ -4,6 +4,7 @@ import { GemmaModule } from '../../ai/gemma/gemma.module';
 import { BlockingModule } from '../../ai/blocking/blocking.module';
 import { FloorPlansModule } from '../../workflow/locations/modules/floor-plans/floor-plans.module';
 import { ScheduleModule } from '../schedule/schedule.module';
+import { DayBlueprintsModule } from '../day-blueprints/day-blueprints.module';
 import { ActivityPlannerService } from './services/activity-planner.service';
 import { ActivityPlanningMaintenanceService } from './services/activity-planning-maintenance.service';
 import { ActivityPlanningStatusService } from './services/activity-planning-status.service';
@@ -13,6 +14,7 @@ import { PackagePlanningOrchestratorService } from './services/package-planning-
 import { PackagePlanningProgressService } from './services/package-planning-progress.service';
 import { PackagePlanningStepsService } from './services/package-planning-steps.service';
 import { PlanningEventsService } from './services/planning-events.service';
+import { PackagePlanningCancelRegistryService } from './services/package-planning-cancel-registry.service';
 import { SingleActivityPlannerService } from './services/single-activity-planner.service';
 import { ActivityCastingStep } from './steps/activity-casting.step';
 import { ActivityActionsStep } from './steps/activity-actions.step';
@@ -24,7 +26,7 @@ import { CameraCoverageStep } from './steps/camera-coverage.step';
 import { MomentGenerationStep } from './steps/moment-generation.step';
 
 @Module({
-  imports: [PrismaModule, GemmaModule, BlockingModule, FloorPlansModule, forwardRef(() => ScheduleModule)],
+  imports: [PrismaModule, GemmaModule, BlockingModule, FloorPlansModule, DayBlueprintsModule, forwardRef(() => ScheduleModule)],
   providers: [
     PackageContextService,
     ActivityPlanningStatusService,
@@ -36,6 +38,7 @@ import { MomentGenerationStep } from './steps/moment-generation.step';
     ActivityPlannerService,
     PackageBlockingPlannerService,
     PlanningEventsService,
+    PackagePlanningCancelRegistryService,
     ActivityCastingStep,
     ActivityActionsStep,
     ActivityDirectorStep,
@@ -48,8 +51,10 @@ import { MomentGenerationStep } from './steps/moment-generation.step';
   exports: [
     PackageContextService,
     ActivityPlannerService,
+    ActivityPlanningMaintenanceService,
     PackageBlockingPlannerService,
     PlanningEventsService,
+    PackagePlanningCancelRegistryService,
     ActivityCastingStep,
     ActivityActionsStep,
     ActivityDirectorStep,

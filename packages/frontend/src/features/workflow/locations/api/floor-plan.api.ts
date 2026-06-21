@@ -130,26 +130,73 @@ export const createFloorPlanApi = (client: ApiClient) => ({
         getById: (id: number): Promise<PackageSpaceSlot> =>
             client.get(`/api/space-slots/${id}`),
 
-        getByPackage: (packageId: number): Promise<PackageSpaceSlot[]> =>
-            client.get(`/api/space-slots/by-package/${packageId}`),
+        getByPackage: (packageId: number, options?: { sync?: boolean }): Promise<PackageSpaceSlot[]> => {
+            const query = options?.sync === false ? '?sync=false' : '';
+            return client.get(`/api/space-slots/by-package/${packageId}${query}`);
+        },
 
         saveCanvas: (id: number, data: SaveSpaceSlotCanvasRequest): Promise<PackageSpaceSlot> =>
             client.patch(`/api/space-slots/${id}/canvas`, data),
 
-        updateCameraPosition: (id: number, x: number, y: number, rotation?: number): Promise<void> =>
-            client.patch(`/api/space-slots/cameras/${id}/position`, { x, y, rotation }),
+        updateCameraPosition: (
+            id: number,
+            x: number,
+            y: number,
+            rotation?: number,
+            sceneMomentId?: number,
+        ): Promise<void> =>
+            client.patch(`/api/space-slots/cameras/${id}/position`, { x, y, rotation, sceneMomentId }),
 
-        updateSubjectPosition: (id: number, x: number, y: number, rotation?: number): Promise<void> =>
-            client.patch(`/api/space-slots/subjects/${id}/position`, { x, y, rotation }),
+        updateSubjectPosition: (
+            id: number,
+            x: number,
+            y: number,
+            rotation?: number,
+            packageMomentId?: number,
+            sceneMomentId?: number,
+        ): Promise<void> =>
+            client.patch(`/api/space-slots/subjects/${id}/position`, {
+                x,
+                y,
+                rotation,
+                packageMomentId,
+                sceneMomentId,
+            }),
 
         getMomentOverrides: (slotId: number, momentId: number): Promise<{ cameras: any[]; subjects: any[] }> =>
             client.get(`/api/space-slots/${slotId}/moments/${momentId}`),
 
-        upsertMomentCamera: (cameraPositionId: number, momentId: number, x: number, y: number, rotation?: number): Promise<any> =>
-            client.put(`/api/space-slots/moment-cameras/${cameraPositionId}/${momentId}`, { x, y, rotation }),
+        upsertMomentCamera: (
+            cameraPositionId: number,
+            momentId: number,
+            x: number,
+            y: number,
+            rotation?: number,
+            sceneMomentId?: number,
+        ): Promise<any> =>
+            client.put(
+                `/api/space-slots/moment-cameras/${cameraPositionId}/${momentId}`,
+                { x, y, rotation, sceneMomentId },
+            ),
 
-        upsertMomentSubject: (subjectPositionId: number, momentId: number, x: number, y: number, rotation?: number): Promise<any> =>
-            client.put(`/api/space-slots/moment-subjects/${subjectPositionId}/${momentId}`, { x, y, rotation }),
+        upsertMomentSubject: (
+            subjectPositionId: number,
+            momentId: number,
+            x: number,
+            y: number,
+            rotation?: number,
+            sceneMomentId?: number,
+        ): Promise<any> =>
+            client.put(
+                `/api/space-slots/moment-subjects/${subjectPositionId}/${momentId}`,
+                { x, y, rotation, sceneMomentId },
+            ),
+
+        aimCameras: (
+            slotId: number,
+            data: { packageMomentId: number; sceneMomentId: number },
+        ): Promise<{ updatedCameraPositionIds: number[] }> =>
+            client.post(`/api/space-slots/${slotId}/aim-cameras`, data),
 
         // ── Zones ─────────────────────────────────────────
 

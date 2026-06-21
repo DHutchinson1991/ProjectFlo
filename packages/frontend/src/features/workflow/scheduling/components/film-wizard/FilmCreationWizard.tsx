@@ -157,6 +157,31 @@ const ALL_STEPS: StepConfig[] = [
   { id: 'name', label: 'Name', appliesTo: () => true },
 ];
 
+function buildDefaultFilmName(params: {
+  filmType: FilmType;
+  packageName?: string;
+  selectedPreset?: MontagePreset | null;
+  activities: PackageActivityRecord[];
+  selectedActivityIds: Set<number>;
+}): string {
+  const { filmType, packageName, selectedPreset, activities, selectedActivityIds } = params;
+
+  if (filmType === FilmType.ACTIVITY) {
+    const activity = activities.find((a) => selectedActivityIds.has(a.id));
+    const activityPart = activity ? `${activity.name} Film` : 'Activity Film';
+    return packageName ? `${activityPart}, ${packageName}` : activityPart;
+  }
+
+  const typeLabel =
+    filmType === FilmType.FEATURE ? 'Feature Film' : 'Montage Film';
+
+  if (selectedPreset?.name) {
+    return `${packageName || 'Package'} — ${selectedPreset.name}`;
+  }
+
+  return packageName ? `${packageName} ${typeLabel}` : typeLabel;
+}
+
 // ─── Component ───────────────────────────────────────────────────────
 
 export function FilmCreationWizard({
@@ -269,19 +294,13 @@ export function FilmCreationWizard({
     if (currentStep?.id !== 'name') return;
     if (filmName.trim()) return; // don't overwrite if user already typed something
 
-    const typeLabel =
-      filmType === FilmType.ACTIVITY ? 'Activity Film' :
-      filmType === FilmType.FEATURE  ? 'Feature Film'  :
-      'Montage Film';
-
-    const base =
-      selectedPreset?.name
-        ? `${packageName || 'Package'} — ${selectedPreset.name}`
-        : packageName
-          ? `${packageName} ${typeLabel}`
-          : typeLabel;
-
-    setFilmName(base);
+    setFilmName(buildDefaultFilmName({
+      filmType,
+      packageName,
+      selectedPreset,
+      activities,
+      selectedActivityIds,
+    }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep?.id]);
 
@@ -330,7 +349,13 @@ export function FilmCreationWizard({
         onCreationProgress?.({ step: 'Creating content...', label: 'Creating content...', current: 1, total: 1 });
         const createdResult = await scheduleApi.packageFilms.createContent(packageId, {
           film_type: filmType,
-          film_name: filmName.trim() || undefined,
+          film_name: filmName.trim() || buildDefaultFilmName({
+            filmType,
+            packageName,
+            selectedPreset,
+            activities,
+            selectedActivityIds,
+          }),
           montage_preset_id: selectedPreset?.id,
           selected_activity_ids: Array.from(selectedActivityIds),
           structure_template_id: selectedTemplate?.id,
@@ -395,7 +420,13 @@ export function FilmCreationWizard({
     };
 
     try {
-      const name = filmName.trim() || `${packageName || 'Package'} Film`;
+      const name = filmName.trim() || buildDefaultFilmName({
+        filmType,
+        packageName,
+        selectedPreset,
+        activities,
+        selectedActivityIds,
+      });
 
       // Count cameras + audio from equipment (reuse existing logic)
       let numCameras = 0;
@@ -785,6 +816,8 @@ export function FilmCreationWizard({
         scenesCreated,
         momentsPopulated: totalMomentsPopulated,
         activityIds: selectedActivities.map(a => a.id),
+        backgroundScenePrepStarted: 0,
+        backgroundScenePrepMode: 'async',
       };
 
       setResult(createdResult);

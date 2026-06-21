@@ -238,6 +238,8 @@ export interface SpaceSlotMomentOverride {
     x: number;
     y: number;
     rotation: number;
+    /** When false, subject is placed in tray (not on floor plan) for this moment. */
+    present?: boolean;
     fov_angle?: number | null;
     facing_target_type?: FacingTargetType | null;
     facing_target_id?: number | null;
@@ -287,6 +289,8 @@ export interface SpaceSlotSubjectPosition {
         id: number;
         name: string;
         role_template_id?: number | null;
+        count?: number | null;
+        order_index?: number | null;
     } | null;
     bound_object?: {
         id: number;
@@ -336,6 +340,7 @@ export interface PackageSpaceSlot {
     subject_positions: SpaceSlotSubjectPosition[];
     zones: SpaceSlotZone[];
     type_tags: SpaceSlotTypeTag[];
+    activity_assignments?: Array<{ package_activity_id: number }>;
 }
 
 // ==================== SPACE SLOT SAVE REQUESTS ====================

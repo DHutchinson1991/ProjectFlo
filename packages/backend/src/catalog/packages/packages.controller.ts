@@ -61,6 +61,14 @@ export class PackagesController {
     return this.servicePackagesService.findAll(brandId, req.user?.id);
   }
 
+  @Get(':id/traceability')
+  getTraceability(
+    @BrandId() brandId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.servicePackagesService.findTraceability(id, brandId);
+  }
+
   @Get(':id')
   findOne(
     @BrandId() brandId: number,
@@ -84,6 +92,16 @@ export class PackagesController {
     @Param('runId') runId: string,
   ) {
     return this.aiRunsService.findOne(id, runId, brandId);
+  }
+
+  @Post(':id/ai-runs/:runId/cancel')
+  @HttpCode(200)
+  cancelAiRun(
+    @BrandId() brandId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('runId') runId: string,
+  ) {
+    return this.aiRunsService.cancelPlanningRun(id, runId, brandId);
   }
 
   @Patch(':id')

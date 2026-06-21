@@ -13,6 +13,18 @@
 export interface DayPlanStreamCallbacks {
   onActivityStart?(activity: { index: number; name: string }): void;
   onMomentStart?(moment: { activityIndex: number; activityName: string; index: number; name: string }): void;
+  /**
+   * Fires once a numeric `duration_seconds` value finishes streaming for the
+   * current `moments[]` element. Allows the SSE layer to replace the
+   * placeholder duration on already-streamed moment rows without waiting
+   * for the full plan to arrive.
+   */
+  onMomentDuration?(moment: {
+    activityIndex: number;
+    activityName: string;
+    index: number;
+    durationSeconds: number;
+  }): void;
 }
 
 interface StackFrame {
@@ -96,10 +108,62 @@ export class DayPlanStreamParser {
           this.cursor += 1;
           continue;
         default:
+          if (this.pendingKey !== null && isNumberStart(ch)) {
+            if (!this.tryConsumeNumber()) return;
+            continue;
+          }
           this.cursor += 1;
           continue;
       }
     }
+  }
+
+  /**
+   * Try to consume a JSON numeric literal starting at the cursor. Returns
+   * false when the number isn't fully buffered yet (caller should pause and
+   * wait for more input). Returns true once the literal is fully parsed —
+   * including the case where the number was rejected as invalid.
+   */
+  private tryConsumeNumber(): boolean {
+    let end = this.cursor;
+    let sawDigit = false;
+    while (end < this.buffer.length) {
+      const next = this.buffer[end];
+      if (next >= '0' && next <= '9') {
+        sawDigit = true;
+        end += 1;
+        continue;
+      }
+      if (next === '-' || next === '+' || next === '.' || next === 'e' || next === 'E') {
+        end += 1;
+        continue;
+      }
+      break;
+    }
+    if (end >= this.buffer.length) return false;
+    const literal = this.buffer.slice(this.cursor, end);
+    const parsed = Number(literal);
+    const key = this.pendingKey;
+    this.pendingKey = null;
+    if (sawDigit && Number.isFinite(parsed) && key === 'duration_seconds') {
+      this.emitMomentDuration(parsed);
+    }
+    this.cursor = end;
+    return true;
+  }
+
+  private emitMomentDuration(durationSeconds: number): void {
+    if (this.currentActivityIndex < 0 || this.currentMomentIndex < 0) return;
+    const top = this.stack[this.stack.length - 1];
+    const parentArray = this.stack[this.stack.length - 2];
+    if (!top || top.kind !== '{' || !parentArray || parentArray.kind !== '[') return;
+    if (parentArray.parentKey !== 'moments') return;
+    this.callbacks.onMomentDuration?.({
+      activityIndex: this.currentActivityIndex,
+      activityName: this.currentActivityName,
+      index: this.currentMomentIndex,
+      durationSeconds,
+    });
   }
 
   /**
@@ -189,4 +253,8 @@ function decodeJsonString(raw: string): string {
   } catch {
     return raw;
   }
+}
+
+function isNumberStart(ch: string): boolean {
+  return (ch >= '0' && ch <= '9') || ch === '-';
 }

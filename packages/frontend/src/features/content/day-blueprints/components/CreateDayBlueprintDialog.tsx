@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Alert,
   Backdrop,
@@ -43,7 +42,7 @@ interface ServiceTypeOption {
 interface CreateDayBlueprintDialogProps {
   open: boolean;
   onClose: () => void;
-  blueprints: DayBlueprintSummary[];
+  seededBlueprints: DayBlueprintSummary[];
   serviceTypeOptions: ServiceTypeOption[];
   activeServiceKey: string | null;
 }
@@ -143,14 +142,12 @@ function buildDefaultBlueprintName(eventCategory: string | undefined): string {
 export function CreateDayBlueprintDialog({
   open,
   onClose,
-  blueprints,
+  seededBlueprints,
   serviceTypeOptions,
   activeServiceKey,
 }: CreateDayBlueprintDialogProps) {
-  const router = useRouter();
   const createMutation = useCreateDayBlueprint();
   const answersStore = useSimulatorAnswers(null);
-
   const [activeStep, setActiveStep] = useState(0);
   const [serviceTypeKey, setServiceTypeKey] = useState('');
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
@@ -171,9 +168,9 @@ export function CreateDayBlueprintDialog({
     () =>
       WEDDING_TEMPLATE_KEYS.map((template) => ({
         ...template,
-        blueprint: blueprints.find((bp) => bp.key === template.key) ?? null,
+        blueprint: seededBlueprints.find((bp) => bp.key === template.key) ?? null,
       })),
-    [blueprints],
+    [seededBlueprints],
   );
 
   const shouldAskQuestions = isWeddingType && selectedTemplateKey === null;
@@ -340,16 +337,20 @@ export function CreateDayBlueprintDialog({
         return;
       }
 
+      const stamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+      const cloneDisplayName = name.trim()
+        ? name.trim()
+        : `${template.label} ${stamp}`;
+      const cloned = await dayBlueprintsApi.clone(templateBlueprint.id, {
+        display_name: cloneDisplayName.slice(0, 160),
+      });
       const versions =
-        templateBlueprint.versions && templateBlueprint.versions.length > 0
-          ? templateBlueprint.versions
-          : await dayBlueprintsApi.versions.list(templateBlueprint.id);
+        cloned.versions && cloned.versions.length > 0
+          ? cloned.versions
+          : await dayBlueprintsApi.versions.list(cloned.id);
       const draftVersion = versions.find((version) => version.status === 'DRAFT') ?? versions[0];
 
       onClose();
-      if (draftVersion?.id) {
-        router.push(`/day-designer/${templateBlueprint.id}/${draftVersion.id}`);
-      }
       return;
     }
 
@@ -398,6 +399,7 @@ export function CreateDayBlueprintDialog({
 
       const initialSetupPayload = shouldAskQuestions
         ? {
+            initial_guest_count: answersStore.answers.basics.guestCount,
             initial_event_days: answersStore.answers.basics.eventDays,
             initial_event_day_roles:
               Object.keys(initialEventDayRoles).length > 0 ? initialEventDayRoles : undefined,
@@ -413,6 +415,7 @@ export function CreateDayBlueprintDialog({
         display_name: name.trim(),
         event_category: selectedServiceTypeOption.eventCategory,
         description: description.trim() ? description.trim() : undefined,
+        variant_tags: { blank_authoring: true },
         ...initialSetupPayload,
         ...resolvePartnerDefaults(),
       });
@@ -428,17 +431,7 @@ export function CreateDayBlueprintDialog({
           : await dayBlueprintsApi.versions.list(created.id);
       const draftVersion = versions.find((version) => version.status === 'DRAFT') ?? versions[0];
 
-      if (shouldAskQuestions && answersStore.assumptions.length > 0) {
-        sessionStorage.setItem(
-          `autogenerate-${created.id}`,
-          JSON.stringify({ brief: answersStore.assumptions }),
-        );
-      }
-
       onClose();
-      if (draftVersion?.id) {
-        router.push(`/day-designer/${created.id}/${draftVersion.id}?autogenerate=1`);
-      }
     } catch (error) {
       setCreateError((error as Error).message || 'Unable to create day blueprint');
     }
@@ -835,3 +828,4 @@ function TemplateCard({
     </Box>
   );
 }
+

@@ -1,5 +1,6 @@
 import { IsNumber, IsArray, IsOptional, IsString, ValidateNested, ArrayMinSize, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
+import { BlueprintDayMappingDto } from '../creation/dto/blueprint-day-mapping.dto';
 
 class FilmPreferenceDto {
   @IsString()
@@ -58,4 +59,17 @@ export class CreatePackageFromBuilderDto {
   @IsInt()
   @Type(() => Number)
   sourceDayBlueprintVersionId?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Type(() => Number)
+  selectedDayBlueprintActivityIds?: number[];
+
+  /** DayBlueprintDay.id ↔ PackageTemplateDay.id when multi-day blueprint consume applies. */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BlueprintDayMappingDto)
+  blueprintDayMappings?: BlueprintDayMappingDto[];
 }

@@ -1,44 +1,37 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { DayBlueprintVersionsService } from './day-blueprint-versions.service';
 import { DayBlueprintDefaultsService } from './day-blueprint-defaults.service';
+import { DayBlueprintAuthoringMomentDetailsService } from './day-blueprint-authoring-moment-details.service';
 import {
-  CreateDayBlueprintDayDto,
-  UpdateDayBlueprintDayDto,
   CreateDayBlueprintActivityDto,
-  UpdateDayBlueprintActivityDto,
-  CreateDayBlueprintMomentDto,
-  UpdateDayBlueprintMomentDto,
-  CreateDayBlueprintSubjectRoleDto,
-  UpdateDayBlueprintSubjectRoleDto,
-  CreateDayBlueprintSpaceSlotDto,
-  UpdateDayBlueprintSpaceSlotDto,
-  CreateDayBlueprintMomentActionDto,
-  UpdateDayBlueprintMomentActionDto,
-  CreateDayBlueprintMomentPlacementDto,
-  UpdateDayBlueprintMomentPlacementDto,
+  CreateDayBlueprintDayDto,
   CreateDayBlueprintLockRuleDto,
-  UpdateDayBlueprintLockRuleDto,
+  CreateDayBlueprintMomentActionDto,
+  CreateDayBlueprintMomentDto,
+  CreateDayBlueprintMomentPlacementDto,
+  CreateDayBlueprintSpaceSlotDto,
+  CreateDayBlueprintSubjectRoleDto,
   LinkActivityLocationDto,
+  UpdateDayBlueprintActivityDto,
+  UpdateDayBlueprintDayDto,
+  UpdateDayBlueprintLockRuleDto,
+  UpdateDayBlueprintMomentActionDto,
+  UpdateDayBlueprintMomentDto,
+  UpdateDayBlueprintMomentPlacementDto,
+  UpdateDayBlueprintSpaceSlotDto,
+  UpdateDayBlueprintSubjectRoleDto,
 } from '../dto';
 
-/**
- * Authoring CRUD for everything inside a DayBlueprint version:
- * days, activities, moments, subject roles, space slots, moment
- * actions, moment placements, lock rules, and activity→location-role
- * links. All mutations are guarded by `versions.assertDraft(...)` so
- * published versions remain immutable.
- */
 @Injectable()
 export class DayBlueprintAuthoringService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly versions: DayBlueprintVersionsService,
     private readonly defaults: DayBlueprintDefaultsService,
+    private readonly momentDetails: DayBlueprintAuthoringMomentDetailsService,
   ) {}
-
-  // ─── Days ──────────────────────────────────────────────────────────
 
   async createDay(versionId: number, dto: CreateDayBlueprintDayDto) {
     await this.versions.assertDraft(versionId);
@@ -69,8 +62,6 @@ export class DayBlueprintAuthoringService {
     return this.prisma.dayBlueprintDay.delete({ where: { id: dayId } });
   }
 
-  // ─── Activities ────────────────────────────────────────────────────
-
   async createActivity(dayId: number, dto: CreateDayBlueprintActivityDto) {
     const day = await this.prisma.dayBlueprintDay.findUnique({
       where: { id: dayId },
@@ -98,6 +89,7 @@ export class DayBlueprintAuthoringService {
           default_duration_minutes: dto.default_duration_minutes,
           duration_min_minutes: dto.duration_min_minutes,
           duration_max_minutes: dto.duration_max_minutes,
+          target_moment_count: dto.target_moment_count ?? undefined,
           order_index: dto.order_index ?? 0,
           criticality: dto.criticality ?? 'REQUIRED',
           lock_flags: (dto.lock_flags ?? undefined) as Prisma.InputJsonValue | undefined,
@@ -143,66 +135,17 @@ export class DayBlueprintAuthoringService {
     return this.prisma.dayBlueprintActivity.delete({ where: { id: activityId } });
   }
 
-  // ─── Moments ───────────────────────────────────────────────────────
-
   async createMoment(activityId: number, dto: CreateDayBlueprintMomentDto) {
-    const activity = await this.prisma.dayBlueprintActivity.findUnique({
-      where: { id: activityId },
-      include: { day: true },
-    });
-    if (!activity) throw new NotFoundException('Activity not found');
-    await this.versions.assertDraft(activity.day.day_blueprint_version_id);
-    return this.prisma.dayBlueprintMoment.create({
-      data: {
-        day_blueprint_activity_id: activityId,
-        name: dto.name,
-        description: dto.description,
-        duration_seconds: dto.duration_seconds ?? 60,
-        order_index: dto.order_index ?? 0,
-        is_key_moment: dto.is_key_moment ?? false,
-        criticality: dto.criticality ?? 'STANDARD',
-        lock_flags: (dto.lock_flags ?? undefined) as Prisma.InputJsonValue | undefined,
-        source_event_day_activity_moment_id: dto.source_event_day_activity_moment_id,
-      },
-    });
+    return this.momentDetails.createMoment(activityId, dto);
   }
 
   async updateMoment(momentId: number, dto: UpdateDayBlueprintMomentDto) {
-    const { moment, versionId } = await this.loadMomentWithVersion(momentId);
-    await this.versions.assertDraft(versionId);
-
-    const currentNoSpatial = hasNoSpatialLock(moment.lock_flags);
-    const lockFlagsInput = dto.lock_flags === undefined
-      ? moment.lock_flags
-      : (dto.lock_flags ?? undefined);
-    const nextNoSpatial = hasNoSpatialLock(lockFlagsInput);
-
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.dayBlueprintMoment.update({
-        where: { id: momentId },
-        data: {
-          ...dto,
-          lock_flags: (dto.lock_flags ?? undefined) as Prisma.InputJsonValue | undefined,
-        },
-      });
-
-      if (!currentNoSpatial && nextNoSpatial) {
-        await tx.dayBlueprintMomentPlacement.deleteMany({
-          where: { day_blueprint_moment_id: momentId },
-        });
-      }
-
-      return updated;
-    });
+    return this.momentDetails.updateMoment(momentId, dto);
   }
 
   async deleteMoment(momentId: number) {
-    const moment = await this.loadMomentWithVersion(momentId);
-    await this.versions.assertDraft(moment.versionId);
-    return this.prisma.dayBlueprintMoment.delete({ where: { id: momentId } });
+    return this.momentDetails.deleteMoment(momentId);
   }
-
-  // ─── Subject roles ─────────────────────────────────────────────────
 
   async addSubjectRole(versionId: number, dto: CreateDayBlueprintSubjectRoleDto) {
     await this.versions.assertDraft(versionId);
@@ -231,8 +174,6 @@ export class DayBlueprintAuthoringService {
     return this.prisma.dayBlueprintSubjectRole.delete({ where: { id: rowId } });
   }
 
-  // ─── Space slots ───────────────────────────────────────────────────
-
   async createSpaceSlot(versionId: number, dto: CreateDayBlueprintSpaceSlotDto) {
     await this.versions.assertDraft(versionId);
     return this.prisma.dayBlueprintSpaceSlot.create({
@@ -260,8 +201,6 @@ export class DayBlueprintAuthoringService {
     await this.versions.assertDraft(slot.day_blueprint_version_id);
     return this.prisma.dayBlueprintSpaceSlot.delete({ where: { id: slotId } });
   }
-
-  // ─── Activity → location role links ────────────────────────────────
 
   async linkActivityLocation(activityId: number, dto: LinkActivityLocationDto) {
     const activity = await this.prisma.dayBlueprintActivity.findUnique({
@@ -320,138 +259,39 @@ export class DayBlueprintAuthoringService {
     return this.prisma.dayBlueprintActivityLocation.delete({ where: { id: linkId } });
   }
 
-  // ─── Moment actions ────────────────────────────────────────────────
-
   async createMomentAction(momentId: number, dto: CreateDayBlueprintMomentActionDto) {
-    const moment = await this.loadMomentWithVersion(momentId);
-    await this.versions.assertDraft(moment.versionId);
-    return this.prisma.dayBlueprintMomentAction.create({
-      data: {
-        day_blueprint_moment_id: momentId,
-        subject_role_id: dto.subject_role_id,
-        action_text: dto.action_text,
-        emphasis: dto.emphasis ?? 'PRIMARY',
-        notes: dto.notes,
-        order_index: dto.order_index ?? 0,
-      },
-    });
+    return this.momentDetails.createMomentAction(momentId, dto);
   }
 
   async updateMomentAction(actionId: number, dto: UpdateDayBlueprintMomentActionDto) {
-    const action = await this.prisma.dayBlueprintMomentAction.findUnique({
-      where: { id: actionId },
-      include: { moment: { include: { activity: { include: { day: true } } } } },
-    });
-    if (!action) throw new NotFoundException('Moment action not found');
-    await this.versions.assertDraft(action.moment.activity.day.day_blueprint_version_id);
-    return this.prisma.dayBlueprintMomentAction.update({ where: { id: actionId }, data: dto });
+    return this.momentDetails.updateMomentAction(actionId, dto);
   }
 
   async deleteMomentAction(actionId: number) {
-    const action = await this.prisma.dayBlueprintMomentAction.findUnique({
-      where: { id: actionId },
-      include: { moment: { include: { activity: { include: { day: true } } } } },
-    });
-    if (!action) throw new NotFoundException('Moment action not found');
-    await this.versions.assertDraft(action.moment.activity.day.day_blueprint_version_id);
-    return this.prisma.dayBlueprintMomentAction.delete({ where: { id: actionId } });
+    return this.momentDetails.deleteMomentAction(actionId);
   }
 
-  // ─── Moment placements ─────────────────────────────────────────────
-
   async createMomentPlacement(momentId: number, dto: CreateDayBlueprintMomentPlacementDto) {
-    const moment = await this.loadMomentWithVersion(momentId);
-    await this.versions.assertDraft(moment.versionId);
-    this.assertMomentAllowsSpatial(moment.moment.lock_flags, momentId);
-    return this.prisma.dayBlueprintMomentPlacement.create({
-      data: {
-        day_blueprint_moment_id: momentId,
-        day_blueprint_space_slot_id: dto.day_blueprint_space_slot_id,
-        subject_role_id: dto.subject_role_id,
-        position_hint: dto.position_hint ?? 'UNSPECIFIED',
-        facing_hint: dto.facing_hint ?? 'UNSPECIFIED',
-        notes: dto.notes,
-        order_index: dto.order_index ?? 0,
-      },
-    });
+    return this.momentDetails.createMomentPlacement(momentId, dto);
   }
 
   async updateMomentPlacement(placementId: number, dto: UpdateDayBlueprintMomentPlacementDto) {
-    const placement = await this.prisma.dayBlueprintMomentPlacement.findUnique({
-      where: { id: placementId },
-      include: { moment: { include: { activity: { include: { day: true } } } } },
-    });
-    if (!placement) throw new NotFoundException('Placement not found');
-    await this.versions.assertDraft(placement.moment.activity.day.day_blueprint_version_id);
-    this.assertMomentAllowsSpatial(placement.moment.lock_flags, placement.moment.id);
-    return this.prisma.dayBlueprintMomentPlacement.update({ where: { id: placementId }, data: dto });
+    return this.momentDetails.updateMomentPlacement(placementId, dto);
   }
 
   async deleteMomentPlacement(placementId: number) {
-    const placement = await this.prisma.dayBlueprintMomentPlacement.findUnique({
-      where: { id: placementId },
-      include: { moment: { include: { activity: { include: { day: true } } } } },
-    });
-    if (!placement) throw new NotFoundException('Placement not found');
-    await this.versions.assertDraft(placement.moment.activity.day.day_blueprint_version_id);
-    return this.prisma.dayBlueprintMomentPlacement.delete({ where: { id: placementId } });
+    return this.momentDetails.deleteMomentPlacement(placementId);
   }
 
-  // ─── Lock rules ────────────────────────────────────────────────────
-
   async createLockRule(versionId: number, dto: CreateDayBlueprintLockRuleDto) {
-    await this.versions.assertDraft(versionId);
-    return this.prisma.dayBlueprintLockRule.create({
-      data: {
-        day_blueprint_version_id: versionId,
-        scope: dto.scope,
-        target_id: dto.target_id,
-        rule_key: dto.rule_key,
-        rule_value: (dto.rule_value ?? undefined) as Prisma.InputJsonValue | undefined,
-        notes: dto.notes,
-      },
-    });
+    return this.momentDetails.createLockRule(versionId, dto);
   }
 
   async updateLockRule(ruleId: number, dto: UpdateDayBlueprintLockRuleDto) {
-    const rule = await this.prisma.dayBlueprintLockRule.findUnique({ where: { id: ruleId } });
-    if (!rule) throw new NotFoundException('Lock rule not found');
-    await this.versions.assertDraft(rule.day_blueprint_version_id);
-    return this.prisma.dayBlueprintLockRule.update({
-      where: { id: ruleId },
-      data: {
-        ...dto,
-        rule_value: (dto.rule_value ?? undefined) as Prisma.InputJsonValue | undefined,
-      },
-    });
+    return this.momentDetails.updateLockRule(ruleId, dto);
   }
 
   async deleteLockRule(ruleId: number) {
-    const rule = await this.prisma.dayBlueprintLockRule.findUnique({ where: { id: ruleId } });
-    if (!rule) throw new NotFoundException('Lock rule not found');
-    await this.versions.assertDraft(rule.day_blueprint_version_id);
-    return this.prisma.dayBlueprintLockRule.delete({ where: { id: ruleId } });
+    return this.momentDetails.deleteLockRule(ruleId);
   }
-
-  // ─── helpers ──────────────────────────────────────────────────────
-
-  private async loadMomentWithVersion(momentId: number) {
-    const moment = await this.prisma.dayBlueprintMoment.findUnique({
-      where: { id: momentId },
-      include: { activity: { include: { day: true } } },
-    });
-    if (!moment) throw new NotFoundException('Moment not found');
-    return { moment, versionId: moment.activity.day.day_blueprint_version_id };
-  }
-
-  private assertMomentAllowsSpatial(lockFlags: unknown, momentId: number) {
-    if (hasNoSpatialLock(lockFlags)) {
-      throw new BadRequestException(`Moment #${momentId} is marked no-spatial and cannot store placements`);
-    }
-  }
-}
-
-function hasNoSpatialLock(lockFlags: unknown): boolean {
-  if (!lockFlags || typeof lockFlags !== 'object') return false;
-  return Boolean((lockFlags as Record<string, unknown>).no_spatial);
 }

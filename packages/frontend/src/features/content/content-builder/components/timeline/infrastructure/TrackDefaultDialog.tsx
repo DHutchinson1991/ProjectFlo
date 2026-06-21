@@ -39,6 +39,7 @@ import type { TimelineTrack, TimelineScene } from "@/features/content/content-bu
 import type { TrackDefault } from "../../../context/ContentBuilderContext";
 import { useContentBuilder } from "../../../context/ContentBuilderContext";
 import type { ShotType } from "@/features/content/coverage/types";
+import { capSubjectIds, editorialSubjectCapLabel, subjectCapForEditorialShotType } from "@projectflo/shared";
 
 interface TrackDefaultDialogProps {
     open: boolean;
@@ -361,6 +362,8 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
         [selectedSubjects, packageSubjects]
     );
 
+    const videoSubjectCap = subjectCapForEditorialShotType(selectedShot || null);
+
     return (
         <Dialog
             open={open}
@@ -453,7 +456,11 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
                                 <Select
                                     label="Shot size"
                                     value={selectedShot}
-                                    onChange={(e) => setSelectedShot(e.target.value as ShotType | "")}
+                                    onChange={(e) => {
+                                        const nextShot = e.target.value as ShotType | "";
+                                        setSelectedShot(nextShot);
+                                        setSelectedSubjects((prev) => capSubjectIds(prev, nextShot || null));
+                                    }}
                                     displayEmpty
                                     renderValue={(v) => (
                                         <Typography sx={{ fontSize: "0.82rem", color: v ? "#fff" : "rgba(255,255,255,0.35)" }}>
@@ -485,7 +492,9 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
                                     multiple
                                     label="Subjects"
                                     value={selectedSubjects}
-                                    onChange={(e) => setSelectedSubjects(e.target.value as number[])}
+                                    onChange={(e) =>
+                                        setSelectedSubjects(capSubjectIds(e.target.value as number[], selectedShot || null))
+                                    }
                                     renderValue={() => (
                                         <Typography sx={{ fontSize: "0.82rem", color: subjectNames.length ? "#fff" : "rgba(255,255,255,0.35)" }}>
                                             {subjectNames.length ? subjectNames.join(", ") : "No subjects"}
@@ -502,10 +511,16 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
                                     {packageSubjects.length === 0 ? (
                                         <MenuItem disabled>No subjects available</MenuItem>
                                     ) : (
-                                        packageSubjects.map((s) => (
-                                            <MenuItem key={s.id} value={s.id}>
+                                        packageSubjects.map((s) => {
+                                            const checked = selectedSubjects.includes(s.id);
+                                            const disableAdd =
+                                                !checked &&
+                                                Number.isFinite(videoSubjectCap) &&
+                                                selectedSubjects.length >= videoSubjectCap;
+                                            return (
+                                            <MenuItem key={s.id} value={s.id} disabled={disableAdd} sx={{ opacity: disableAdd ? 0.45 : 1 }}>
                                                 <Checkbox
-                                                    checked={selectedSubjects.includes(s.id)}
+                                                    checked={checked}
                                                     size="small"
                                                     sx={{ py: 0.25, "&.Mui-checked": { color: trackColor } }}
                                                 />
@@ -513,10 +528,16 @@ const TrackDefaultDialog: React.FC<TrackDefaultDialogProps> = ({
                                                     primary={<Typography sx={{ fontSize: "0.82rem" }}>{s.name as string}</Typography>}
                                                 />
                                             </MenuItem>
-                                        ))
+                                        );
+                                        })
                                     )}
                                 </Select>
                             </FormControl>
+                            {selectedShot ? (
+                                <Typography sx={{ color: "rgba(255,255,255,0.35)", fontSize: "0.69rem" }}>
+                                    {editorialSubjectCapLabel(selectedShot)}
+                                </Typography>
+                            ) : null}
                         </Stack>
                     )}
 

@@ -121,15 +121,17 @@ export interface ServicePackageCategory {
 }
 
 export interface CreatePackageFromBuilderData {
-    eventTypeId: number;
+    packageTemplateId: number;
     selectedActivityPresetIds: number[];
-    crewSlotCount: number;
+    crewCount: number;
     cameraCount?: number;
     filmPreferences: Array<{ type: string; activityPresetId?: number; activityName?: string }>;
     inquiryId?: number;
     clientName?: string;
     /** Optional published DayBlueprintVersion to consume — matches backend DTO. */
     sourceDayBlueprintVersionId?: number;
+    selectedDayBlueprintActivityIds?: number[];
+    blueprintDayMappings?: Array<{ blueprintDayId: number; eventTypeDayLinkId: number }>;
 }
 
 export interface CreatePackageFromTemplateData {
@@ -165,6 +167,17 @@ export interface CreatePackageFromTemplateData {
      * package creation wizard. Backend field name matches.
      */
     sourceDayBlueprintVersionId?: number;
+    /** Subset of DayBlueprintActivity ids to consume when blueprint mode is on. */
+    selectedDayBlueprintActivityIds?: number[];
+    /** DayBlueprintDay.id ↔ PackageTemplateDay.id when multi-day. */
+    blueprintDayMappings?: Array<{ blueprintDayId: number; eventTypeDayLinkId: number }>;
+    /** Named days with optional starter activities when the wizard skips preset activities. */
+    scaffoldPackageDays?: Array<{
+        name: string;
+        order_index: number;
+        locationCount?: number;
+        activities?: Array<{ name: string; durationMinutes?: number }>;
+    }>;
 }
 
 export interface CreateServicePackageData extends Partial<ServicePackage> {}
@@ -191,4 +204,39 @@ export interface UpdatePackageSetSlotData {
     slot_label?: string;
     service_package_id?: number | null;
     order_index?: number;
+}
+
+export type PackageTraceabilityInquiryRole = 'selected_package' | 'source_package';
+
+export interface PackageTraceabilityResponse {
+    package_template: { id: number; name: string } | null;
+    source_blueprint: {
+        blueprint_id: number;
+        display_name: string;
+        version_id: number;
+        version_number: number | null;
+    } | null;
+    inquiries: Array<{ id: number; label: string; roles: PackageTraceabilityInquiryRole[] }>;
+    projects: Array<{ id: number; name: string | null; wedding_date: string }>;
+}
+
+export interface PackageBlueprintResyncPreview {
+    already_current: boolean;
+    package_id: number;
+    blueprint: { id: number; display_name: string };
+    current_version: { id: number; version_number: number } | null;
+    latest_version: { id: number; version_number: number };
+    structural_summary: {
+        current_days: number;
+        latest_days: number;
+        current_activities: number;
+        latest_activities: number;
+        current_moments: number;
+        latest_moments: number;
+    };
+    warning: string;
+    moment_changes_sample?: {
+        added_moment_names: string[];
+        removed_moment_names: string[];
+    };
 }

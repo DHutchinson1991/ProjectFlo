@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useBrand } from '@/features/platform/brand';
 import { servicePackagesApi } from '../api';
 import { catalogPackageKeys } from '../constants/query-keys';
@@ -42,5 +42,31 @@ export function usePackageAiRun(
         enabled: Boolean(brandId && packageId && runId && (options?.enabled ?? true)),
         staleTime: 5_000,
         refetchInterval: options?.live ? (options.pollMs ?? 5_000) : false,
+    });
+}
+
+export function useCancelPackageAiRun(packageId: number | null) {
+    const { currentBrand } = useBrand();
+    const brandId = currentBrand?.id;
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: (runId: string) => {
+            if (packageId == null) {
+                return Promise.reject(new Error('Package not loaded'));
+            }
+            return servicePackagesApi.aiRuns.cancel(packageId, runId);
+        },
+        onSuccess: (_data, runId) => {
+            if (brandId && packageId) {
+                qc.invalidateQueries({ queryKey: catalogPackageKeys.packageAiRuns(brandId, packageId) });
+                qc.invalidateQueries({
+                    queryKey: catalogPackageKeys.packageAiRunDetail(brandId, packageId, runId),
+                });
+                qc.invalidateQueries({
+                    queryKey: catalogPackageKeys.servicePackageDetail(brandId, packageId),
+                });
+            }
+        },
     });
 }

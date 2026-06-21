@@ -233,6 +233,12 @@ export class MomentKnowledgeService {
     const activityMoments = await this.prisma.packageActivityMoment.findMany({
       where: { package_activity_id: activity.id },
       orderBy: { order_index: 'asc' },
+      include: {
+        actions: {
+          include: { subject_role: { select: { role_name: true } } },
+          orderBy: { order_index: 'asc' },
+        },
+      },
     });
 
     if (activityMoments.length === 0) {
@@ -267,8 +273,8 @@ export class MomentKnowledgeService {
           continue;
         }
 
-        const actionsByKey = this.toActionMap(activityMoment.subject_actions);
-        const focalByKey = this.toFocalMap(activityMoment.subject_actions);
+        const actionsByKey = this.toActionMap(activityMoment.actions);
+        const focalByKey = this.toFocalMap(activityMoment.actions);
         await tx.filmSceneMomentSubject.createMany({
           data: packageSubjects.map((subject) => ({
             moment_id: moment.id,
@@ -479,46 +485,48 @@ export class MomentKnowledgeService {
   }
 
   /**
-   * Parse subject_actions JSON into a flat action map.
-   * Handles both old format { "Name": "action" } and new format { "Name": { action, focal } }.
+   * Parse normalized moment actions into a flat action map.
    */
-  private toActionMap(subjectActions: unknown): Record<string, string> {
-    if (!subjectActions || typeof subjectActions !== 'object' || Array.isArray(subjectActions)) {
-      return {};
+  private toActionMap(
+    normalizedActions?: Array<{
+      action_text: string;
+      subject_role: { role_name: string };
+    }>,
+  ): Record<string, string> {
+    if (normalizedActions && normalizedActions.length > 0) {
+      return Object.fromEntries(
+        normalizedActions
+          .filter((action) => Boolean(action.subject_role?.role_name))
+          .map((action) => [action.subject_role.role_name, action.action_text]),
+      );
     }
-
-    return Object.fromEntries(
-      Object.entries(subjectActions)
-        .map(([key, value]) => {
-          if (typeof value === 'string') return [key, value];
-          if (value && typeof value === 'object' && 'action' in value && typeof (value as any).action === 'string') {
-            return [key, (value as any).action];
-          }
-          return null;
-        })
-        .filter((entry): entry is [string, string] => entry != null),
-    ) as Record<string, string>;
+    return {};
   }
 
   /**
-   * Parse subject_actions JSON into a focal priority map.
-   * Only works with new format { "Name": { action, focal } }.
+   * Parse normalized moment actions into a focal priority map.
    */
-  private toFocalMap(subjectActions: unknown): Record<string, string> {
-    if (!subjectActions || typeof subjectActions !== 'object' || Array.isArray(subjectActions)) {
-      return {};
+  private toFocalMap(
+    normalizedActions?: Array<{
+      emphasis: string;
+      subject_role: { role_name: string };
+    }>,
+  ): Record<string, string> {
+    if (normalizedActions && normalizedActions.length > 0) {
+      return Object.fromEntries(
+        normalizedActions
+          .filter((action) => Boolean(action.subject_role?.role_name))
+          .map((action) => [
+            action.subject_role.role_name,
+            action.emphasis === 'PRIMARY'
+              ? 'PRIMARY'
+              : action.emphasis === 'SECONDARY'
+                ? 'SECONDARY'
+                : 'BACKGROUND',
+          ]),
+      );
     }
-
-    return Object.fromEntries(
-      Object.entries(subjectActions)
-        .map(([key, value]) => {
-          if (value && typeof value === 'object' && 'focal' in value && typeof (value as any).focal === 'string') {
-            return [key, (value as any).focal];
-          }
-          return null;
-        })
-        .filter((entry): entry is [string, string] => entry != null),
-    ) as Record<string, string>;
+    return {};
   }
 
   private resolveActionDescription(

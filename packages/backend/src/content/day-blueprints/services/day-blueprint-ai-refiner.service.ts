@@ -51,6 +51,15 @@ export class DayBlueprintAiRefinerService {
     dayId: number,
     input: RefineDayInput,
   ): Promise<Awaited<ReturnType<DayBlueprintAiGeneratorService['generateDay']>>> {
+    const version = await this.prisma.dayBlueprintVersion.findUnique({
+      where: { id: versionId },
+      select: { generation_mode: true },
+    });
+    if (!version) throw new NotFoundException('Day blueprint version not found');
+    if (version.generation_mode !== 'AI') {
+      throw new BadRequestException('Refine is available only in AI mode. Switch generation mode to AI first.');
+    }
+
     const summary = await this.summarize(versionId, dayId);
     const prompt = this.composePrompt(summary, input);
     if (prompt.length > 4000) {

@@ -1,6 +1,6 @@
 // Moonrise Films Platform Setup - Brand, Settings, and Team
 // Creates: Brand entity, settings, payment schedule templates, team members, roles
-import { PrismaClient, $Enums } from "@prisma/client";
+import { PrismaClient, $Enums, EquipmentCategory } from "@prisma/client";
 import { createSeedLogger, SeedType } from '../utils/seed-logger';
 import * as bcrypt from "bcrypt";
 
@@ -397,6 +397,107 @@ export async function createMoonriseTeam(db: PrismaClient, brandId: number) {
             logger.created('Core Production Team preset', `Preset ${preset.is_default ? 'defaulted' : 'seeded'} for package wizard`, 'verbose');
         } else {
             logger.info('Core Production Team preset already exists; leaving it unchanged');
+        }
+    }
+
+    // Default package-wizard equipment presets for Moonrise.
+    if (videographerRole && soundEngineerRole) {
+        const andyOwnedEquipment = await prisma.equipment.findMany({
+            where: { owner_id: andyCrewMember.id },
+            orderBy: [{ id: 'asc' }],
+            select: { id: true, category: true },
+        });
+        let andyCameraIds = andyOwnedEquipment
+            .filter((item) => item.category === EquipmentCategory.CAMERA)
+            .slice(0, 3)
+            .map((item) => item.id);
+        let andyAudioIds = andyOwnedEquipment
+            .filter((item) => item.category === EquipmentCategory.AUDIO)
+            .slice(0, 2)
+            .map((item) => item.id);
+
+        // Inventory seed usually assigns brand_id only (no owner_id). Fill from brand pool so presets always seed.
+        const fillFromBrand = async (category: EquipmentCategory, current: number[], max: number) => {
+            if (current.length >= max) return current.slice(0, max);
+            const exclude = current.length > 0 ? current : undefined;
+            const extra = await prisma.equipment.findMany({
+                where: {
+                    brand_id: brandId,
+                    category,
+                    is_active: true,
+                    ...(exclude?.length ? { id: { notIn: exclude } } : {}),
+                },
+                orderBy: [{ id: 'asc' }],
+                take: max - current.length,
+                select: { id: true },
+            });
+            return [...current, ...extra.map((row) => row.id)].slice(0, max);
+        };
+
+        andyCameraIds = await fillFromBrand(EquipmentCategory.CAMERA, andyCameraIds, 3);
+        andyAudioIds = await fillFromBrand(EquipmentCategory.AUDIO, andyAudioIds, 2);
+
+        const equipmentPresetsToSeed = [
+            {
+                name: 'Andy Galloway with 3 cameras',
+                isDefault: true,
+                slots: andyCameraIds.map((equipmentId, index) => ({
+                    slot_type: 'CAMERA' as const,
+                    equipment_id: equipmentId,
+                    crew_id: andyCrewMember.id,
+                    job_role_id: videographerRole.id,
+                    order_index: index,
+                })),
+            },
+            {
+                name: 'Andy Galloway with 2 audio',
+                isDefault: false,
+                slots: andyAudioIds.map((equipmentId, index) => ({
+                    slot_type: 'AUDIO' as const,
+                    equipment_id: equipmentId,
+                    crew_id: andyCrewMember.id,
+                    job_role_id: soundEngineerRole.id,
+                    order_index: index,
+                })),
+            },
+        ];
+
+        for (const preset of equipmentPresetsToSeed) {
+            if (preset.slots.length === 0) {
+                logger.info(`Skipping equipment preset "${preset.name}" because no matching equipment is available`);
+                continue;
+            }
+
+            const existingPreset = await prisma.equipmentPreset.findUnique({
+                where: {
+                    brand_id_name: {
+                        brand_id: brandId,
+                        name: preset.name,
+                    },
+                },
+            });
+
+            if (existingPreset) {
+                logger.info(`${preset.name} equipment preset already exists; leaving it unchanged`);
+                continue;
+            }
+
+            if (preset.isDefault) {
+                await prisma.equipmentPreset.updateMany({
+                    where: { brand_id: brandId, is_default: true },
+                    data: { is_default: false },
+                });
+            }
+
+            await prisma.equipmentPreset.create({
+                data: {
+                    brand_id: brandId,
+                    name: preset.name,
+                    is_default: preset.isDefault,
+                    slots: { create: preset.slots },
+                },
+            });
+            logger.created(`${preset.name} equipment preset`, 'Preset seeded for package wizard', 'verbose');
         }
     }
 

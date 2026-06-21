@@ -20,6 +20,11 @@ import type {
     SubjectType,
 } from '../../../types';
 import { detailGlassCardSx, detailHeaderCellSx, detailBodyCellSx } from '../detail-tokens';
+import {
+    isSubjectPresentInMoment,
+    resolveMomentSubjectContext,
+    type MomentActionRecord,
+} from '../../../utils/moment-subject-context';
 
 
 /* ================================================================== */
@@ -32,6 +37,7 @@ interface MomentRecord {
     description?: string | null;
     order_index: number;
     duration_seconds: number;
+    actions?: MomentActionRecord[];
     subject_actions?: Record<string, string | { action: string | null; focal: string } | null> | null;
 }
 
@@ -181,26 +187,30 @@ export function SubjectsCard({
     const activePlanningSubjectIds = new Set(activePlanningStep?.subjectIds ?? []);
     const planningMatchesSelectedActivity = !selectedActivity || activePlanningStep?.activityName === selectedActivity.name;
 
-    const getSubjectAction = (subjectName: string): string | null => {
-        if (!selectedMoment?.subject_actions) return null;
-        const entry = selectedMoment.subject_actions[subjectName];
-        if (!entry) return null; // null = not present
-        if (typeof entry === 'string') return entry; // knowledge base format
-        return entry.action; // AI format { action, focal }
+    const getSubjectAction = (subjectName: string, roleName?: string | null): string | null => {
+        const subject = packageSubjects.find((row) => row.name === subjectName) ?? null;
+        const context = resolveMomentSubjectContext(
+            selectedMoment,
+            subject
+                ? { name: subject.name, role_template: { role_name: roleName ?? subject.role_template?.role_name } }
+                : { name: subjectName, role_template: { role_name: roleName } },
+        );
+        return context?.action ?? null;
     };
 
-    const getSubjectFocal = (subjectName: string): string | null => {
-        if (!selectedMoment?.subject_actions) return null;
-        const entry = selectedMoment.subject_actions[subjectName];
-        if (!entry) return null;
-        if (typeof entry === 'string') return null; // knowledge base has no focal
-        return entry.focal;
+    const getSubjectFocal = (subjectName: string, roleName?: string | null): string | null => {
+        const subject = packageSubjects.find((row) => row.name === subjectName) ?? null;
+        const context = resolveMomentSubjectContext(
+            selectedMoment,
+            subject
+                ? { name: subject.name, role_template: { role_name: roleName ?? subject.role_template?.role_name } }
+                : { name: subjectName, role_template: { role_name: roleName } },
+        );
+        return context?.focal ?? null;
     };
 
-    const isSubjectPresent = (subjectName: string): boolean => {
-        if (!selectedMoment?.subject_actions) return true;
-        return selectedMoment.subject_actions[subjectName] !== null;
-    };
+    const isSubjectPresent = (subjectName: string, roleName?: string | null): boolean =>
+        isSubjectPresentInMoment(selectedMoment, subjectName, roleName);
 
     // ─── Helpers ─────────────────────────────────────────────────────
     const addSubjectFromTemplate = async (role: { id: number; role_name: string; is_group?: boolean; never_group?: boolean }) => {
@@ -432,8 +442,9 @@ export function SubjectsCard({
                             {/* Focal */}
                             <TableCell sx={bCellSx}>
                                 {selectedMoment && (() => {
-                                    const focal = getSubjectFocal(subj.name);
-                                    const present = isSubjectPresent(subj.name);
+                                    const roleName = subj.role_template?.role_name ?? null;
+                                    const focal = getSubjectFocal(subj.name, roleName);
+                                    const present = isSubjectPresent(subj.name, roleName);
                                     if (!present) return <Typography sx={{ fontSize: '0.55rem', color: '#475569', fontStyle: 'italic' }}>—</Typography>;
                                     if (!focal) return <Typography sx={{ fontSize: '0.55rem', color: '#334155' }}>—</Typography>;
                                     const FOCAL_COLORS: Record<string, string> = { PRIMARY: '#a78bfa', SECONDARY: '#38bdf8', BACKGROUND: '#64748b' };

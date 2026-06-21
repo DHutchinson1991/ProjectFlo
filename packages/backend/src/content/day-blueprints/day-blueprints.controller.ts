@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Sse,
   UseGuards,
   ValidationPipe,
@@ -18,6 +19,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { Observable, interval, map, merge, takeWhile } from 'rxjs';
 import {
   ApplyDayBlueprintAiProposalDto,
+  CloneDayBlueprintDto,
   CreateDayBlueprintActivityDto,
   CreateDayBlueprintAiProposalDto,
   CreateDayBlueprintDayDto,
@@ -125,8 +127,13 @@ export class DayBlueprintsController {
   // ─── Blueprint headers ───────────────────────────────────────────
 
   @Get()
-  list(@Headers('x-brand-context') brandHeader: string) {
-    return this.blueprints.findAll(this.brand(brandHeader));
+  list(
+    @Headers('x-brand-context') brandHeader: string,
+    @Query('include_seeded') includeSeeded?: string,
+  ) {
+    return this.blueprints.findAll(this.brand(brandHeader), {
+      includeSeeded: includeSeeded === '1' || includeSeeded === 'true',
+    });
   }
 
   @Post()
@@ -160,6 +167,15 @@ export class DayBlueprintsController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.blueprints.remove(this.brand(brandHeader), id);
+  }
+
+  @Post(':id/clone')
+  clone(
+    @Headers('x-brand-context') brandHeader: string,
+    @Param('id', ParseIntPipe) id: number,
+    @Body(new ValidationPipe({ transform: true, whitelist: true })) dto: CloneDayBlueprintDto,
+  ) {
+    return this.blueprints.cloneFromBlueprint(this.brand(brandHeader), id, dto);
   }
 
   // ─── Versions ────────────────────────────────────────────────────
@@ -507,6 +523,7 @@ export class DayBlueprintsController {
     return this.aiGenerator.generateDay(versionId, dayId, {
       prompt: dto.prompt,
       activityId: dto.activity_id,
+      mode: dto.mode,
     });
   }
 

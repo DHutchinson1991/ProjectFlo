@@ -14,6 +14,7 @@ export interface CameraSubjectAssignment {
   track_id: number;
   subject_ids: number[];
   shot_type?: ShotType | null;
+  shot_coupling?: 'LINKED' | 'PINNED' | null;
   enabled?: boolean;
   created_at?: string;
   updated_at?: string;

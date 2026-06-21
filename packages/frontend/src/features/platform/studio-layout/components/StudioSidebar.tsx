@@ -54,7 +54,6 @@ const studioNavItems = [
         icon: <PackagesIcon />,
         subItems: [
             { title: "Packages", href: "/packages" },
-            { title: "Day Designer", href: "/day-designer" },
         ],
     },
     {
@@ -92,7 +91,7 @@ export default function StudioSidebar() {
             return pathname === "/dashboard" || pathname === "/";
         }
         if (item.href === "/packages") {
-            return pathname.startsWith("/packages") || pathname.startsWith("/day-designer");
+            return pathname.startsWith("/packages");
         }
         if (item.subItems) {
             return item.subItems.some((sub) => pathname.startsWith(sub.href));

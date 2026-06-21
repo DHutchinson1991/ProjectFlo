@@ -10,6 +10,8 @@ import { SpaceSlotSpatialEditorService } from './space-slot-spatial-editor.servi
 import { SpaceSlotSpatialReadController } from './space-slot-spatial-read.controller';
 import { SpaceSlotSpatialService } from './space-slot-spatial.service';
 import { SpaceSlotSpatialSyncService } from './space-slot-spatial-sync.service';
+import { CameraFramingService } from './camera-framing.service';
+import { CameraAimService } from './camera-aim.service';
 
 @Module({
     imports: [PrismaModule],
@@ -26,6 +28,8 @@ import { SpaceSlotSpatialSyncService } from './space-slot-spatial-sync.service';
         SpaceSlotSpatialEditorService,
         SpaceSlotLayoutService,
         SpaceSlotBlockingEnvironmentService,
+        CameraFramingService,
+        CameraAimService,
     ],
     exports: [
         FloorPlansService,
@@ -34,6 +38,8 @@ import { SpaceSlotSpatialSyncService } from './space-slot-spatial-sync.service';
         SpaceSlotSpatialEditorService,
         SpaceSlotLayoutService,
         SpaceSlotBlockingEnvironmentService,
+        CameraFramingService,
+        CameraAimService,
     ],
 })
 export class FloorPlansModule {}

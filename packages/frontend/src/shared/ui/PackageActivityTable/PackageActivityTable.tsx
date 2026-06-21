@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -22,6 +22,12 @@ import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MovieIcon from '@mui/icons-material/Movie';
+import { keyframes } from '@mui/material/styles';
+
+const packageActivityMomentNameShimmer = keyframes`
+  0% { background-position: -180% 0; }
+  100% { background-position: 180% 0; }
+`;
 
 export interface PackageActivityTableMetricColumn {
   key: string;
@@ -33,8 +39,12 @@ export interface PackageActivityTableMoment {
   id: number;
   name: string;
   durationLabel: string;
+  /** Persisted duration in seconds; enables drag-to-adjust when `onCommitMomentDuration` is set. */
+  durationSeconds?: number;
   isActive?: boolean;
   activeColor?: string;
+  /** When true, moment title uses a subtle shimmer (e.g. AI streaming preview rows). */
+  nameShimmer?: boolean;
 }
 
 export interface PackageActivityTableActivity {
@@ -58,16 +68,123 @@ export interface PackageActivityTableProps {
   emptyTitle?: string;
   emptyMomentLabel?: string;
   emptyAddLabel?: string;
+  /** Activity rows to expand while set (e.g. during AI generation); does not collapse when cleared. */
+  autoExpandActivityIds?: readonly number[];
   onSelectActivity?: (activityId: number) => void;
   onSelectMoment?: (activityId: number, momentId: number) => void;
   onAddActivity?: (name: string) => void | Promise<void>;
   onDeleteActivity?: (activityId: number) => void | Promise<void>;
   onAddMoment?: (activityId: number, name: string, durationSeconds: number) => void | Promise<void>;
   onDeleteMoment?: (activityId: number, momentId: number) => void | Promise<void>;
+  /** Horizontal drag on a persisted moment's duration cell commits new `duration_seconds`. */
+  onCommitMomentDuration?: (activityId: number, momentId: number, durationSeconds: number) => void | Promise<void>;
 }
 
 function hasMetricValue(value: React.ReactNode) {
   return value !== null && value !== undefined && value !== '' && value !== 0 && value !== '—';
+}
+
+const MIN_MOMENT_SECONDS = 5;
+const MAX_MOMENT_SECONDS = 3600;
+const PX_PER_SECOND_DRAG = 4;
+
+function formatMomentDurationSeconds(sec: number) {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  if (m <= 0) return `${s}s`;
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
+function MomentDurationScrub({
+  activityId,
+  momentId,
+  durationSeconds,
+  durationLabel,
+  readOnly,
+  onCommit,
+}: {
+  activityId: number;
+  momentId: number;
+  durationSeconds?: number;
+  durationLabel: string;
+  readOnly: boolean;
+  onCommit?: (activityId: number, momentId: number, nextSeconds: number) => void | Promise<void>;
+}) {
+  const dragging = useRef(false);
+  const originX = useRef(0);
+  const originSec = useRef(0);
+  const [preview, setPreview] = useState<number | null>(null);
+
+  if (readOnly || !onCommit || momentId < 0 || durationSeconds == null || !Number.isFinite(durationSeconds)) {
+    return (
+      <Typography sx={{ fontSize: '0.68rem', color: '#535e6e', fontFamily: 'monospace' }}>
+        {durationLabel}
+      </Typography>
+    );
+  }
+
+  const clampSec = (v: number) => Math.min(MAX_MOMENT_SECONDS, Math.max(MIN_MOMENT_SECONDS, Math.round(v)));
+  const displaySec = preview ?? durationSeconds;
+
+  return (
+    <Box
+      component="span"
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        dragging.current = true;
+        originX.current = event.clientX;
+        originSec.current = durationSeconds;
+        setPreview(durationSeconds);
+      }}
+      onPointerMove={(event) => {
+        if (!dragging.current) return;
+        const dx = event.clientX - originX.current;
+        const next = clampSec(originSec.current + dx / PX_PER_SECOND_DRAG);
+        setPreview(next);
+      }}
+      onPointerUp={(event) => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        try {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        } catch {
+          /* already released */
+        }
+        const dx = event.clientX - originX.current;
+        const next = clampSec(originSec.current + dx / PX_PER_SECOND_DRAG);
+        setPreview(null);
+        if (next !== durationSeconds) {
+          void onCommit(activityId, momentId, next);
+        }
+      }}
+      onPointerCancel={(event) => {
+        dragging.current = false;
+        setPreview(null);
+        try {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        } catch {
+          /* */
+        }
+      }}
+      sx={{
+        display: 'inline-block',
+        minWidth: 52,
+        cursor: 'ew-resize',
+        userSelect: 'none',
+        touchAction: 'none',
+        px: 0.5,
+        py: 0.15,
+        borderRadius: 0.5,
+        '&:hover': { bgcolor: 'rgba(148,163,184,0.12)' },
+      }}
+    >
+      <Typography sx={{ fontSize: '0.68rem', color: '#94a3b8', fontFamily: 'monospace', pointerEvents: 'none' }}>
+        {formatMomentDurationSeconds(displaySec)}
+      </Typography>
+    </Box>
+  );
 }
 
 export function PackageActivityTable({
@@ -82,12 +199,14 @@ export function PackageActivityTable({
   emptyTitle = 'No activities yet. Add your first activity to get started.',
   emptyMomentLabel = 'No moments yet',
   emptyAddLabel = 'Add Activity',
+  autoExpandActivityIds,
   onSelectActivity,
   onSelectMoment,
   onAddActivity,
   onDeleteActivity,
   onAddMoment,
   onDeleteMoment,
+  onCommitMomentDuration,
 }: PackageActivityTableProps) {
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [addingActivity, setAddingActivity] = useState(false);
@@ -105,6 +224,27 @@ export function PackageActivityTable({
       return next;
     });
   }, [selectedActivityId]);
+
+  const autoExpandSerialized =
+    autoExpandActivityIds && autoExpandActivityIds.length > 0
+      ? [...autoExpandActivityIds].sort((left, right) => left - right).join(',')
+      : '';
+
+  useEffect(() => {
+    if (!autoExpandSerialized) return;
+    const ids = autoExpandSerialized.split(',').map((part) => Number(part));
+    setExpandedIds((previous) => {
+      const next = new Set(previous);
+      let changed = false;
+      for (const id of ids) {
+        if (!next.has(id)) {
+          next.add(id);
+          changed = true;
+        }
+      }
+      return changed ? next : previous;
+    });
+  }, [autoExpandSerialized]);
 
   useEffect(() => {
     setNewMomentDuration(addMomentDurationDefault);
@@ -354,7 +494,40 @@ export function PackageActivityTable({
                           <Typography sx={{ fontSize: '0.6rem', color: '#e2e8f0', fontFamily: 'monospace', minWidth: 14, textAlign: 'right', flexShrink: 0 }}>
                             {index + 1}.
                           </Typography>
-                          <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <Typography
+                            component="span"
+                            sx={
+                              moment.nameShimmer
+                                ? {
+                                    flex: 1,
+                                    minWidth: 0,
+                                    display: 'block',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 500,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    backgroundImage:
+                                      'linear-gradient(90deg, #64748b 0%, #94a3b8 32%, #f1f5f9 50%, #94a3b8 68%, #64748b 100%)',
+                                    backgroundSize: '220% 100%',
+                                    backgroundClip: 'text',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                    color: 'transparent',
+                                    animation: `${packageActivityMomentNameShimmer} 2.2s ease-in-out infinite`,
+                                  }
+                                : {
+                                    fontSize: '0.72rem',
+                                    color: '#94a3b8',
+                                    fontWeight: 400,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    flex: 1,
+                                    minWidth: 0,
+                                  }
+                            }
+                          >
                             {moment.name}
                           </Typography>
                           {moment.isActive && (
@@ -363,9 +536,14 @@ export function PackageActivityTable({
                         </Box>
                       </TableCell>
                       <TableCell sx={{ py: 0.4, px: 1, border: 'none' }}>
-                        <Typography sx={{ fontSize: '0.68rem', color: '#535e6e', fontFamily: 'monospace' }}>
-                          {moment.durationLabel}
-                        </Typography>
+                        <MomentDurationScrub
+                          activityId={activity.id}
+                          momentId={moment.id}
+                          durationSeconds={moment.durationSeconds}
+                          durationLabel={moment.durationLabel}
+                          readOnly={readOnly}
+                          onCommit={onCommitMomentDuration}
+                        />
                       </TableCell>
                       <TableCell sx={{ py: 0.4, px: 0.5, border: 'none' }}>
                         {canDeleteMoment && (

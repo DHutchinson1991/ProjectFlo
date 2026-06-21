@@ -31,6 +31,7 @@ export class CreateDayBlueprintDto {
   @IsOptional() @IsBoolean() is_active?: boolean;
   @IsOptional() @IsInt() @Min(0) order_index?: number;
 
+  @IsOptional() @IsInt() @Min(1) initial_guest_count?: number;
   @IsOptional() @IsInt() @Min(1) initial_event_days?: number;
   @IsOptional() @IsObject() initial_event_day_roles?: Record<string, string>;
   @IsOptional() @IsArray() @ArrayMaxSize(12) @IsString({ each: true }) @MaxLength(80, { each: true }) initial_activities?: string[];
@@ -41,3 +42,9 @@ export class CreateDayBlueprintDto {
 }
 
 export class UpdateDayBlueprintDto extends PartialType(CreateDayBlueprintDto) {}
+
+export class CloneDayBlueprintDto {
+  @IsOptional() @IsInt() @Min(1) source_version_id?: number;
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(80) key?: string;
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(160) display_name?: string;
+}

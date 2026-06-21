@@ -1,3 +1,4 @@
+import { PlanningStatus } from '@prisma/client';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -7,7 +8,8 @@ describe('PackageAiRunsService', () => {
   const originalCwd = process.cwd;
   let tempRoot: string;
   let service: PackageAiRunsService;
-  let prisma: { service_packages: { findFirst: jest.Mock } };
+  let prisma: { service_packages: { findFirst: jest.Mock; update: jest.Mock } };
+  let cancelRegistry: { abort: jest.Mock };
 
   beforeEach(() => {
     tempRoot = mkdtempSync(join(tmpdir(), 'package-ai-runs-'));
@@ -17,11 +19,13 @@ describe('PackageAiRunsService', () => {
     prisma = {
       service_packages: {
         findFirst: jest.fn().mockResolvedValue({ id: 18 }),
+        update: jest.fn().mockResolvedValue({}),
       },
     };
+    cancelRegistry = { abort: jest.fn() };
 
     jest.spyOn(process, 'cwd').mockImplementation(() => tempRoot);
-    service = new PackageAiRunsService(prisma as any);
+    service = new PackageAiRunsService(prisma as any, cancelRegistry as any);
   });
 
   afterEach(() => {
@@ -92,5 +96,64 @@ describe('PackageAiRunsService', () => {
       expect.objectContaining({ step: 'descriptions', status: 'completed', stepIndex: 0 }),
       expect.objectContaining({ step: 'blocking', status: 'completed', stepIndex: 7 }),
     ]);
+  });
+
+  it('cancelPlanningRun sets DB cancel flag and always returns CANCEL_REQUESTED while planning_status is PLANNING', async () => {
+    const runId = 'run-test-cancel';
+    const runDirectory = join(tempRoot, 'logs', 'package-creator-ai', '2026-05-09', runId);
+    mkdirSync(runDirectory, { recursive: true });
+    writeFileSync(
+      join(runDirectory, 'manifest.json'),
+      JSON.stringify({
+        runId,
+        status: 'running',
+        startedAt: '2026-05-09T12:00:00.000Z',
+        route: 'POST /api/packages',
+        source: 'catalog',
+        brandId: 7,
+        packageId: 18,
+        packageName: 'Test',
+        files: { master: 'master.log' },
+      }),
+    );
+
+    prisma.service_packages.findFirst.mockResolvedValue({ planning_status: PlanningStatus.PLANNING });
+
+    const result = await service.cancelPlanningRun(18, runId, 7);
+
+    expect(result).toEqual({ runId, status: 'CANCEL_REQUESTED' });
+    expect(prisma.service_packages.update).toHaveBeenCalledWith({
+      where: { id: 18 },
+      data: { planning_cancel_requested_at: expect.any(Date) },
+    });
+    expect(cancelRegistry.abort).toHaveBeenCalledWith(18);
+  });
+
+  it('cancelPlanningRun returns NOT_RUNNING when planning already finished', async () => {
+    const runId = 'run-test-not-running';
+    const runDirectory = join(tempRoot, 'logs', 'package-creator-ai', '2026-05-09', runId);
+    mkdirSync(runDirectory, { recursive: true });
+    writeFileSync(
+      join(runDirectory, 'manifest.json'),
+      JSON.stringify({
+        runId,
+        status: 'completed',
+        startedAt: '2026-05-09T12:00:00.000Z',
+        route: 'POST /api/packages',
+        source: 'catalog',
+        brandId: 7,
+        packageId: 18,
+        packageName: 'Test',
+        files: { master: 'master.log' },
+      }),
+    );
+
+    prisma.service_packages.findFirst.mockResolvedValue({ planning_status: PlanningStatus.READY });
+
+    const result = await service.cancelPlanningRun(18, runId, 7);
+
+    expect(result).toEqual({ runId, status: 'NOT_RUNNING' });
+    expect(prisma.service_packages.update).not.toHaveBeenCalled();
+    expect(cancelRegistry.abort).not.toHaveBeenCalled();
   });
 });

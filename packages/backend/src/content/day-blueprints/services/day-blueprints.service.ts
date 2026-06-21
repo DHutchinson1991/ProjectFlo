@@ -1,8 +1,13 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
-import { CreateDayBlueprintDto, UpdateDayBlueprintDto } from '../dto';
+import { CloneDayBlueprintDto, CreateDayBlueprintDto, UpdateDayBlueprintDto } from '../dto';
 import { DayBlueprintDefaultsService } from './day-blueprint-defaults.service';
+import { seedInitialVersionStructure } from './day-blueprints.seeding';
+import {
+  DayBlueprintVersionCopyService,
+  dayBlueprintVersionCopyInclude,
+} from './day-blueprint-version-copy.service';
 
 type BlueprintListRowSummary = {
   primary_version_id: number | null;
@@ -13,56 +18,26 @@ type BlueprintListRowSummary = {
   moment_count: number;
 };
 
-const EVENT_DAY_ROLE_LABELS: Record<string, string> = {
-  welcome: 'Welcome Event',
-  rehearsal: 'Rehearsal',
-  wedding: 'Wedding Day',
-  cultural: 'Cultural Ceremony',
-  'after-party': 'After Party',
-  brunch: 'Brunch',
-};
-
-function normalizeActivityNames(values?: string[]): string[] {
-  if (!values?.length) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-  const out: string[] = [];
-
-  for (const value of values) {
-    const trimmed = value.trim().replace(/\s+/g, ' ');
-    if (!trimmed) continue;
-    const normalized = trimmed.toLowerCase();
-    if (seen.has(normalized)) continue;
-    seen.add(normalized);
-    out.push(trimmed);
-  }
-
-  return out;
-}
-
-function resolveDayName(params: {
-  eventCategory: string;
-  dayIndex: number;
-  roleHint?: string;
-}): string {
-  const isWedding = params.eventCategory.toLowerCase().includes('wedding');
-  const roleHint = params.roleHint?.trim().toLowerCase();
-  if (roleHint && EVENT_DAY_ROLE_LABELS[roleHint]) {
-    return EVENT_DAY_ROLE_LABELS[roleHint];
-  }
-  if (isWedding && params.dayIndex === 0) {
-    return 'Wedding Day';
-  }
-  return isWedding ? `Event Day ${params.dayIndex + 1}` : `Day ${params.dayIndex + 1}`;
-}
-
 function isPrismaUniqueConstraintError(error: unknown): boolean {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
     return true;
   }
   return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'P2002';
+}
+
+/** Cloned blueprints must not keep blank-wizard-only authoring flags. */
+function variantTagsForClone(source: Prisma.JsonValue | null | undefined): Prisma.InputJsonValue | undefined {
+  if (source == null) {
+    return undefined;
+  }
+  if (typeof source !== 'object' || Array.isArray(source)) {
+    return source as Prisma.InputJsonValue;
+  }
+  const { blank_authoring: _omit, ...rest } = source as Record<string, unknown>;
+  if (Object.keys(rest).length === 0) {
+    return undefined;
+  }
+  return rest as Prisma.InputJsonValue;
 }
 
 /**
@@ -75,11 +50,16 @@ export class DayBlueprintsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly defaults: DayBlueprintDefaultsService,
+    private readonly versionCopy: DayBlueprintVersionCopyService,
   ) {}
 
-  async findAll(brandId: number) {
+  async findAll(brandId: number, options?: { includeSeeded?: boolean }) {
+    const includeSeeded = options?.includeSeeded ?? false;
     const blueprints = await this.prisma.dayBlueprint.findMany({
-      where: { brand_id: brandId },
+      where: {
+        brand_id: brandId,
+        ...(includeSeeded ? {} : { is_system_seeded: false }),
+      },
       orderBy: [{ order_index: 'asc' }, { display_name: 'asc' }],
       include: {
         latest_published_version: true,
@@ -89,6 +69,7 @@ export class DayBlueprintsService {
             id: true,
             version_number: true,
             status: true,
+            generation_mode: true,
             published_at: true,
             change_summary: true,
             created_at: true,
@@ -194,6 +175,7 @@ export class DayBlueprintsService {
             id: true,
             version_number: true,
             status: true,
+            generation_mode: true,
             published_at: true,
             change_summary: true,
             created_at: true,
@@ -245,6 +227,7 @@ export class DayBlueprintsService {
           day_blueprint_id: blueprint.id,
           version_number: 1,
           status: 'DRAFT',
+          generation_mode: 'NORMAL',
           change_summary: 'Initial draft',
         },
       });
@@ -253,9 +236,10 @@ export class DayBlueprintsService {
         brandId,
         versionId: version.id,
         eventCategory: blueprint.event_category,
+        guestCount: dto.initial_guest_count,
       });
 
-      await this.seedInitialVersionStructure(tx, {
+      await seedInitialVersionStructure(tx, this.defaults, {
         brandId,
         versionId: version.id,
         eventCategory: blueprint.event_category,
@@ -268,74 +252,6 @@ export class DayBlueprintsService {
 
       return blueprint;
     });
-  }
-
-  private async seedInitialVersionStructure(
-    tx: Prisma.TransactionClient,
-    params: {
-      brandId: number;
-      versionId: number;
-      eventCategory: string;
-      eventDayCount?: number;
-      eventDayRoles?: Record<string, string>;
-      activities?: string[];
-      dayTimings?: Array<{ day_number: number; default_start_time?: string; default_duration_hours?: number }>;
-      activityTimings?: Array<{ name: string; default_start_time?: string; default_duration_minutes?: number; duration_min_minutes?: number; duration_max_minutes?: number }>;
-    },
-  ) {
-    const activityNames = normalizeActivityNames(params.activities);
-    const requestedDayCount = Math.max(params.eventDayCount ?? 0, 0);
-    const dayCount = Math.max(requestedDayCount, activityNames.length > 0 ? 1 : 0);
-
-    if (dayCount === 0) {
-      return;
-    }
-
-    const createdDays: Array<{ id: number }> = [];
-    for (let dayIndex = 0; dayIndex < dayCount; dayIndex += 1) {
-      const dayTiming = params.dayTimings?.find((t) => t.day_number === dayIndex + 1);
-      const day = await tx.dayBlueprintDay.create({
-        data: {
-          day_blueprint_version_id: params.versionId,
-          name: resolveDayName({
-            eventCategory: params.eventCategory,
-            dayIndex,
-            roleHint: params.eventDayRoles?.[String(dayIndex + 1)],
-          }),
-          order_index: dayIndex,
-          default_start_time: dayTiming?.default_start_time,
-          default_duration_hours: dayTiming?.default_duration_hours,
-        },
-      });
-      createdDays.push(day);
-    }
-
-    const primaryDay = createdDays[0];
-    for (let orderIndex = 0; orderIndex < activityNames.length; orderIndex += 1) {
-      const actName = activityNames[orderIndex];
-      const actTiming = params.activityTimings?.find(
-        (t) => t.name.toLowerCase() === actName.toLowerCase(),
-      );
-      const activity = await tx.dayBlueprintActivity.create({
-        data: {
-          day_blueprint_day_id: primaryDay.id,
-          name: actName,
-          order_index: orderIndex,
-          criticality: 'REQUIRED',
-          default_start_time: actTiming?.default_start_time,
-          default_duration_minutes: actTiming?.default_duration_minutes,
-          duration_min_minutes: actTiming?.duration_min_minutes,
-          duration_max_minutes: actTiming?.duration_max_minutes,
-        },
-      });
-
-      await this.defaults.ensureActivityLocationDefaults(tx, {
-        brandId: params.brandId,
-        versionId: params.versionId,
-        activityId: activity.id,
-        activityName: activity.name,
-      });
-    }
   }
 
   async update(brandId: number, id: number, dto: UpdateDayBlueprintDto) {
@@ -359,5 +275,108 @@ export class DayBlueprintsService {
   async remove(brandId: number, id: number) {
     await this.findOne(brandId, id);
     return this.prisma.dayBlueprint.delete({ where: { id } });
+  }
+
+  async cloneFromBlueprint(brandId: number, sourceBlueprintId: number, dto: CloneDayBlueprintDto) {
+    const sourceBlueprint = await this.prisma.dayBlueprint.findFirst({
+      where: { id: sourceBlueprintId, brand_id: brandId },
+      include: {
+        versions: {
+          orderBy: { version_number: 'desc' },
+          select: { id: true, version_number: true, status: true },
+        },
+      },
+    });
+    if (!sourceBlueprint) throw new NotFoundException('Source day blueprint not found');
+
+    const sourceVersionSummary = dto.source_version_id
+      ? sourceBlueprint.versions.find((version) => version.id === dto.source_version_id)
+      : sourceBlueprint.versions.find((version) => version.status === 'PUBLISHED')
+        ?? sourceBlueprint.versions.find((version) => version.status === 'DRAFT')
+        ?? sourceBlueprint.versions[0];
+    if (!sourceVersionSummary) {
+      throw new BadRequestException('Source day blueprint has no versions to clone');
+    }
+
+    const sourceVersion = await this.prisma.dayBlueprintVersion.findUnique({
+      where: { id: sourceVersionSummary.id },
+      include: dayBlueprintVersionCopyInclude,
+    });
+    if (!sourceVersion || sourceVersion.day_blueprint_id !== sourceBlueprint.id) {
+      throw new NotFoundException('Source day blueprint version not found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const key = await this.resolveCloneKey(tx, brandId, sourceBlueprint.key, dto.key);
+      const displayName = dto.display_name?.trim()
+        || `${sourceBlueprint.display_name} (Copy)`.slice(0, 160);
+      const clonedBlueprint = await tx.dayBlueprint.create({
+        data: {
+          brand_id: brandId,
+          key,
+          display_name: displayName,
+          event_category: sourceBlueprint.event_category,
+          description: sourceBlueprint.description,
+          icon: sourceBlueprint.icon,
+          color: sourceBlueprint.color,
+          variant_tags: variantTagsForClone(sourceBlueprint.variant_tags),
+          is_system_seeded: false,
+          is_active: true,
+          order_index: sourceBlueprint.order_index,
+        },
+      });
+
+      const clonedVersion = await tx.dayBlueprintVersion.create({
+        data: {
+          day_blueprint_id: clonedBlueprint.id,
+          version_number: 1,
+          status: 'DRAFT',
+          generation_mode: 'NORMAL',
+          change_summary: `Cloned from ${sourceBlueprint.display_name} v${sourceVersion.version_number}`,
+          source_ai_run_id: null,
+        },
+      });
+
+      await this.versionCopy.copyVersionStructure(tx, {
+        sourceVersion,
+        targetVersionId: clonedVersion.id,
+        isSystemSeededBlueprint: sourceBlueprint.is_system_seeded,
+      });
+
+      return clonedBlueprint;
+    });
+  }
+
+  private async resolveCloneKey(
+    tx: Prisma.TransactionClient,
+    brandId: number,
+    sourceKey: string,
+    preferred?: string,
+  ): Promise<string> {
+    const desired = preferred?.trim();
+    if (desired) {
+      const existing = await tx.dayBlueprint.findUnique({
+        where: { brand_id_key: { brand_id: brandId, key: desired } },
+        select: { id: true },
+      });
+      if (!existing) return desired;
+      throw new ConflictException('A day blueprint with this key already exists');
+    }
+
+    const stamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+    const base = `${sourceKey}-copy-${stamp}`;
+    let candidate = base.slice(0, 80);
+    let attempt = 0;
+    while (attempt < 20) {
+      const existing = await tx.dayBlueprint.findUnique({
+        where: { brand_id_key: { brand_id: brandId, key: candidate } },
+        select: { id: true },
+      });
+      if (!existing) return candidate;
+      attempt += 1;
+      const suffix = `-${attempt}`;
+      candidate = `${base.slice(0, Math.max(1, 80 - suffix.length))}${suffix}`;
+    }
+    throw new ConflictException('Could not generate a unique key for cloned blueprint');
   }
 }

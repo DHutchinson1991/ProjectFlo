@@ -11,6 +11,11 @@ import { Q } from '../QuestionWrapper';
 import type { ServicePackage, ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
 import type { EventType, EventTypeDay, EventDayActivity } from '@/features/catalog/package-templates/types';
 import { formatCurrency } from '@projectflo/shared';
+import {
+    readBlueprintName,
+    readBlueprintVersionId,
+    readSelectedBlueprintActivityIds,
+} from '../../utils/builder-blueprint-responses';
 
 type EnrichedPackage = ServicePackage & {
     _tax?: { rate: number; amount: number; totalWithTax: number } | null;
@@ -55,6 +60,14 @@ export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
 
     /* helpers for custom package summary */
     const getActivitiesLabel = (): string | undefined => {
+        if (readBlueprintVersionId(responses)) {
+            const name = readBlueprintName(responses);
+            const count = readSelectedBlueprintActivityIds(responses).length;
+            if (!count) return name ? `${name} (no activities selected)` : undefined;
+            return name
+                ? `${name} — ${count} activit${count === 1 ? "y" : "ies"}`
+                : `${count} blueprint activit${count === 1 ? "y" : "ies"}`;
+        }
         const ids: number[] = (responses.builder_activities as number[]) || [];
         const etName = String(responses.event_type || "").toLowerCase();
         const et = ctx.eventTypes.find((e: EventType) => e.name?.toLowerCase() === etName);
@@ -123,7 +136,10 @@ export default function SummaryScreen({ ctx }: { ctx: NACtx }) {
                     </Section>
                 ) : (
                     <Section icon="🎨" label="Your Custom Package" editTo="builder">
-                        <Val label="Activities" value={getActivitiesLabel()} />
+                        <Val
+                            label={readBlueprintVersionId(responses) ? "Blueprint" : "Activities"}
+                            value={getActivitiesLabel()}
+                        />
                         <Val label="Coverage" value={getCoverageLabel()} />
                         <Val label="Films" value={getFilmsLabel()} />
                         <Val label="Videographers" value={responses.operator_count ? String(responses.operator_count) : undefined} />

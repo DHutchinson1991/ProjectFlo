@@ -60,8 +60,33 @@ describe('DayBlueprintDefaultsService', () => {
         expect.objectContaining({ subject_role_id: 1, is_primary: true, typical_count: 1, order_index: 0 }),
         expect.objectContaining({ subject_role_id: 2, is_primary: true, typical_count: 1, order_index: 1 }),
         expect.objectContaining({ subject_role_id: 3, is_primary: false, typical_count: 1, order_index: 3 }),
-        expect.objectContaining({ subject_role_id: 4, is_primary: false, typical_count: 100, order_index: 12 }),
+        expect.objectContaining({ subject_role_id: 4, is_primary: false, typical_count: 50, order_index: 12 }),
       ]),
+      skipDuplicates: true,
+    });
+  });
+
+  it('uses the wizard guest count for the Guests subject role', async () => {
+    const prisma = buildPrisma();
+    prisma.dayBlueprintLocationRole.upsert.mockResolvedValue({ id: 77, key: 'sandbox' });
+    prisma.subjectRole.findMany.mockResolvedValue([
+      { id: 4, role_name: 'Guests', is_group: true },
+    ]);
+    prisma.dayBlueprintSubjectRole.createMany.mockResolvedValue({ count: 1 });
+
+    const service = new DayBlueprintDefaultsService(prisma as never);
+
+    await service.seedInitialVersionDefaults(prisma as never, {
+      brandId: 12,
+      versionId: 34,
+      eventCategory: 'Wedding',
+      guestCount: 50,
+    });
+
+    expect(prisma.dayBlueprintSubjectRole.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ subject_role_id: 4, typical_count: 50 }),
+      ],
       skipDuplicates: true,
     });
   });

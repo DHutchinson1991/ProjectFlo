@@ -10,7 +10,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 import type { ServicePackageItem } from '@/features/catalog/packages/types/service-package.types';
-import { getFilmStats } from '../../../utils/package-helpers';
+import { getContentItemKey, getFilmStats } from '../../../utils/package-helpers';
 import type { FilmData, PackageActivityRecord } from '../../../types';
 import type { UsePlanningProgressReturn } from '../../../hooks/usePlanningProgress';
 import { detailGlassCardSx, detailHeaderCellSx, detailBodyCellSx } from '../detail-tokens';
@@ -23,6 +23,8 @@ export interface DeliverablesCardProps {
     films: FilmData[];
     packageActivities: PackageActivityRecord[];
     onConfigureItem: (item: ServicePackageItem) => void;
+    onSelectContentItem?: (item: ServicePackageItem, index: number) => void;
+    selectedContentItemId?: string | null;
     onRemoveItem: (index: number) => void;
     onAddFilm: () => void;
     onAddService: () => void;
@@ -38,6 +40,8 @@ export function DeliverablesCard({
     films,
     packageActivities,
     onConfigureItem,
+    onSelectContentItem,
+    selectedContentItemId,
     onRemoveItem,
     onAddFilm,
     buildingFilmIds,
@@ -128,23 +132,45 @@ export function DeliverablesCard({
                             const equipCount = film.scenes?.reduce((total: number, s: any) => total + (Array.isArray(s.equipment) ? s.equipment.length : 0), 0) ?? 0;
                             const sceneNames = film.scenes?.slice(0, 3).map((s: { id: number; name: string }) => s.name) || [];
                             const moreScenes = (film.scenes?.length || 0) - 3;
+                            const itemKey = getContentItemKey(item, realIdx);
+                            const isSelected = selectedContentItemId === itemKey;
 
                             return (
                                 <React.Fragment key={item.id || realIdx}>
                                 <TableRow
-                                    onClick={() => { if (canOpenFilm) onConfigureItem(item); }}
+                                    onClick={() => { if (canOpenFilm) onSelectContentItem?.(item, realIdx); }}
                                     sx={{
                                         cursor: canOpenFilm ? 'pointer' : 'default',
                                         opacity: isBuilding ? 0.6 : 1,
                                         transition: 'all 0.15s ease',
+                                        bgcolor: isSelected ? 'rgba(100, 140, 255, 0.08)' : 'transparent',
+                                        boxShadow: isSelected ? 'inset 2px 0 0 #648CFF' : 'none',
                                         '&:hover': canOpenFilm ? {
-                                            bgcolor: 'rgba(100, 140, 255, 0.04)',
+                                            bgcolor: isSelected ? 'rgba(100, 140, 255, 0.1)' : 'rgba(100, 140, 255, 0.04)',
                                             '& .cnt-del': { opacity: 1 },
                                         } : {},
                                     }}
                                 >
                                     <TableCell sx={bCellSx}>
-                                        <Typography sx={{ fontSize: '0.73rem', fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        <Typography
+                                            component="span"
+                                            onClick={(e) => {
+                                                if (!canOpenFilm) return;
+                                                e.stopPropagation();
+                                                onConfigureItem(item);
+                                            }}
+                                            sx={{
+                                                fontSize: '0.73rem',
+                                                fontWeight: 600,
+                                                color: '#f1f5f9',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                                display: 'block',
+                                                cursor: canOpenFilm ? 'pointer' : 'default',
+                                                '&:hover': canOpenFilm ? { color: colors.accentLight, textDecoration: 'underline' } : {},
+                                            }}
+                                        >
                                             {item.description}
                                         </Typography>
                                     </TableCell>

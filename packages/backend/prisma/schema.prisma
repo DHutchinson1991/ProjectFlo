@@ -101,6 +101,7 @@ model brands {
   floor_plan_presets             FloorPlanPreset[]
   moment_knowledge_bases         MomentKnowledgeBase[]
   crew_presets                   CrewPreset[]
+  equipment_presets              EquipmentPreset[]
   day_blueprints                 DayBlueprint[]
   day_blueprint_location_roles   DayBlueprintLocationRole[]
 
@@ -737,6 +738,7 @@ model Crew {
   project_film_timeline_tracks   ProjectFilmTimelineTrack[]
   brand_memberships              BrandMember[]
   crew_preset_slots              CrewPresetSlot[]
+  equipment_preset_slots         EquipmentPresetSlot[]
 
   @@map("crew")
 }
@@ -762,6 +764,7 @@ model job_roles {
   inquiry_tasks         inquiry_tasks[]          @relation("InquiryTaskJobRole")
   inquiry_task_subtasks inquiry_task_subtasks[]  @relation("InquiryTaskSubtaskJobRole")
   crew_preset_slots     CrewPresetSlot[]
+  equipment_preset_slots EquipmentPresetSlot[]
 
   @@index([category])
   @@index([is_active])
@@ -839,16 +842,56 @@ model CrewPresetSlot {
   preset_id      Int
   job_role_id    Int
   crew_id        Int?
+  equipment_id   Int?
   order_index    Int        @default(0)
 
   preset         CrewPreset @relation(fields: [preset_id], references: [id], onDelete: Cascade)
   job_role       job_roles  @relation(fields: [job_role_id], references: [id], onDelete: Cascade)
   crew           Crew?      @relation(fields: [crew_id], references: [id], onDelete: SetNull)
+  equipment      equipment? @relation(fields: [equipment_id], references: [id], onDelete: SetNull)
 
   @@index([preset_id])
   @@index([job_role_id])
   @@index([crew_id])
+  @@index([equipment_id])
   @@map("crew_preset_slots")
+}
+
+model EquipmentPreset {
+  id          Int                   @id @default(autoincrement())
+  brand_id    Int
+  name        String
+  is_default  Boolean               @default(false)
+  created_at  DateTime              @default(now())
+  updated_at  DateTime              @updatedAt
+
+  brand       brands                @relation(fields: [brand_id], references: [id], onDelete: Cascade)
+  slots       EquipmentPresetSlot[]
+
+  @@unique([brand_id, name])
+  @@index([brand_id])
+  @@map("equipment_presets")
+}
+
+model EquipmentPresetSlot {
+  id             Int                       @id @default(autoincrement())
+  preset_id      Int
+  slot_type      EquipmentTemplateSlotType
+  equipment_id   Int?
+  crew_id        Int?
+  job_role_id    Int?
+  order_index    Int                       @default(0)
+
+  preset         EquipmentPreset           @relation(fields: [preset_id], references: [id], onDelete: Cascade)
+  equipment      equipment?                @relation(fields: [equipment_id], references: [id], onDelete: SetNull)
+  crew           Crew?                     @relation(fields: [crew_id], references: [id], onDelete: SetNull)
+  job_role       job_roles?                @relation(fields: [job_role_id], references: [id], onDelete: SetNull)
+
+  @@index([preset_id])
+  @@index([equipment_id])
+  @@index([crew_id])
+  @@index([job_role_id])
+  @@map("equipment_preset_slots")
 }
 
 // Legacy scene template models removed
@@ -1778,6 +1821,8 @@ model equipment {
   rental_bookings                equipment_rentals[]
   film_assignments               FilmEquipmentAssignment[]
   equipment_template_items       EquipmentTemplateItem[]
+  equipment_preset_slots         EquipmentPresetSlot[]
+  crew_preset_slots              CrewPresetSlot[]
   package_crew_slot_equipment     PackageCrewSlotEquipment[]
   project_crew_slot_equipment     ProjectCrewSlotEquipment[]
   project_film_equipment_assignments ProjectFilmEquipmentAssignment[]
@@ -2385,6 +2430,11 @@ enum ShotType {
   CUTAWAY
   INSERT_SHOT
   MASTER_SHOT
+}
+
+enum ShotCoupling {
+  LINKED
+  PINNED
 }
 
 enum GenerationStatus {
@@ -3153,6 +3203,8 @@ model CameraSubjectAssignment {
   subject_ids               Int[]     // Focus subjects: who the camera intentionally films (editorial intent)
   visible_subject_ids       Int[]     // Visible subjects: who is geometrically within the camera FOV (computed from spatial data)
   shot_type                 ShotType?
+  shot_type_locked          Boolean   @default(false)
+  shot_coupling             ShotCoupling? @default(LINKED)
   enabled                   Boolean   @default(true)
   ai_prompt                 String?
   pipeline_data             Json?     // Director output + spatial frame from AI prep stage
@@ -3524,6 +3576,8 @@ model service_packages {
   is_active                         Boolean  @default(true)
   planning_status                   PlanningStatus @default(CREATED)
   planning_error                    String?
+  /// Set when the user requests cancel; planners poll this between coarse steps (survives missing in-memory AbortController).
+  planning_cancel_requested_at      DateTime?
   created_at                        DateTime @default(now())
   updated_at                        DateTime @updatedAt
 
@@ -5660,6 +5714,11 @@ enum DayBlueprintAiProposalStatus {
   PARTIAL
 }
 
+enum DayBlueprintGenerationMode {
+  NORMAL
+  AI
+}
+
 // ─── DayBlueprint (header) ───────────────────────────────────────────
 // Stable identity for a canonical day design, e.g.
 // "Wedding Day - Civil UK Ceremony". Versions carry the actual
@@ -5704,6 +5763,7 @@ model DayBlueprintVersion {
   day_blueprint_id      Int
   version_number        Int
   status                DayBlueprintStatus           @default(DRAFT)
+  generation_mode       DayBlueprintGenerationMode   @default(NORMAL)
   published_at          DateTime?
   published_by_user_id  Int?
   source_ai_run_id      Int?                         // nullable: human-authored if absent
@@ -5767,6 +5827,9 @@ model DayBlueprintActivity {
   default_duration_minutes       Int?
   duration_min_minutes           Int?
   duration_max_minutes           Int?
+  // Optional explicit override for how many moments the Day Designer AI
+  // should carve this activity into. When null, product default density rules apply.
+  target_moment_count            Int?
   order_index                    Int                             @default(0)
   criticality                    DayBlueprintActivityCriticality @default(REQUIRED)
   // Flags controlling what Day Designer AI may change on this row.

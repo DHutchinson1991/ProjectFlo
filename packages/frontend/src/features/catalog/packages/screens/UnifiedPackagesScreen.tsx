@@ -490,7 +490,7 @@ export function UnifiedPackagesScreen() {
                 onPackageCreated={async (packageId: number) => {
                     setIsWizardOpen(false);
                     setWizardEventTypeName(null);
-                    router.push(`/packages/${packageId}`);
+                    router.push(`/packages/${packageId}?mode=edit&tab=blueprint`);
                 }}
             />
 

@@ -57,7 +57,7 @@ export function usePublicWizardData(token: string): PublicWizardData {
             id: s.id,
             event_type_id: s.category?.event_type_id ?? null,
             event_type: s.category
-                ? ({ id: s.category.id, name: s.category.name, icon: null, color: null } as unknown as PackageSet['event_type'])
+                ? { id: s.category.id, name: s.category.name, icon: null, color: null }
                 : null,
             slots: (s.slots ?? []).map((slot) => ({
                 id: slot.id,

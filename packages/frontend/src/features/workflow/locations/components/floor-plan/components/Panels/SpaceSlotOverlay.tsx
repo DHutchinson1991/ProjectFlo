@@ -5,10 +5,16 @@ import { Box, Typography } from '@mui/material';
 import ViewInArRoundedIcon from '@mui/icons-material/ViewInArRounded';
 import { Rect } from 'fabric';
 import { useFloorPlanCanvas } from '../Canvas/useFloorPlanCanvas';
-import { createFabricObject, createCameraMarker, createSubjectMarker, createZoneOverlay, createZoneLabel, createFovCone } from '../Renderers/objectFactory';
+import { createFabricObject, createCameraMarker, createSubjectMarker, createZoneOverlay, createZoneLabel, createFovCone, createFocalDistanceRings } from '../Renderers/objectFactory';
 import type { PackageSpaceSlot } from '../../../../types/floor-plan.types';
 import { getEquipmentShortLabelForTrackName } from '@/features/content/films/utils/equipmentAssignments';
 import type { FilmEquipmentAssignmentsBySlot } from '@/features/content/films/types/film-equipment.types';
+import {
+    buildFramingSubjectsFromSlot,
+    computeCameraShotBadge,
+} from '../../../../utils/camera-framing';
+import { computeFraming, focalDistanceRingRadii, type FramingSubject } from '@projectflo/shared';
+import type { Group } from 'fabric';
 
 interface SpaceSlotOverlayProps {
     spaceSlot: PackageSpaceSlot | null;
@@ -42,10 +48,24 @@ interface SpaceSlotOverlayProps {
     onControlsReady?: (controls: { fitToView: () => void; isZoomed: boolean; isPanMode: boolean; togglePanMode: () => void }) => void;
     /** Suppress all text labels (zone labels, LABEL-type objects). Day Designer read-only usage only. */
     hideLabels?: boolean;
+    /** Show subject name labels only for highlighted/selected subjects (reduces floor-plan clutter). */
+    compactSubjectLabels?: boolean;
     /** Subject IDs targeted by selected camera (for highlighting with gold glow) */
     selectedCameraSubjectIds?: number[];
     /** Called when a camera marker is clicked/selected on the canvas. Receives the camera number (1-based, e.g. 1 = "Cam 1"). */
     onCameraSelect?: (cameraNumber: number) => void;
+    /** Subject role IDs to show with the same highlight ring as camera-targeted subjects (e.g. Day Designer selection). */
+    highlightSubjectRoleIds?: readonly number[];
+    /** Called when a subject marker is clicked without dragging (Day Designer). Receives subject role id. */
+    onSubjectSelect?: (subjectRoleId: number) => void;
+    /** Camera number (1-based) → editorial subject IDs for shot-size inference. */
+    cameraSubjectIdsByCamNum?: Record<number, number[]>;
+    /** Camera number → persisted assignment shot type (for pinned vs linked coupling). */
+    shotTypeByCamNum?: Record<number, string | null | undefined>;
+    /** Camera number → explicit shot coupling override (LINKED / PINNED). */
+    shotCouplingByCamNum?: Record<number, string | null | undefined>;
+    /** Selected camera number (1-based) — shows focal distance rings when set. */
+    selectedCameraNumber?: number | null;
 }
 
 /**
@@ -72,7 +92,14 @@ export const SpaceSlotOverlay: React.FC<SpaceSlotOverlayProps> = ({
     onControlsReady,
     selectedCameraSubjectIds = [],
     onCameraSelect,
+    highlightSubjectRoleIds = [],
+    onSubjectSelect,
     hideLabels = false,
+    compactSubjectLabels = false,
+    cameraSubjectIdsByCamNum = {},
+    shotTypeByCamNum = {},
+    shotCouplingByCamNum = {},
+    selectedCameraNumber = null,
 }) => {
     const canvasW = spaceSlot?.canvas_width ?? 1000;
     const canvasH = spaceSlot?.canvas_height ?? 1000;
@@ -99,6 +126,62 @@ export const SpaceSlotOverlay: React.FC<SpaceSlotOverlayProps> = ({
     // Stable ref for scale so the callback can convert display → logical coords
     const scaleRef = useRef(scale);
     scaleRef.current = scale;
+
+    const framingSubjectsRef = useRef<FramingSubject[]>([]);
+    const cameraSubjectIdsRef = useRef(cameraSubjectIdsByCamNum);
+    const shotTypeByCamRef = useRef(shotTypeByCamNum);
+    const shotCouplingByCamRef = useRef(shotCouplingByCamNum);
+    const spaceSlotRef = useRef(spaceSlot);
+    const momentIdRef = useRef(momentId);
+    framingSubjectsRef.current = spaceSlot
+        ? buildFramingSubjectsFromSlot(spaceSlot, momentId)
+        : [];
+    cameraSubjectIdsRef.current = cameraSubjectIdsByCamNum;
+    shotTypeByCamRef.current = shotTypeByCamNum;
+    shotCouplingByCamRef.current = shotCouplingByCamNum;
+    spaceSlotRef.current = spaceSlot;
+    momentIdRef.current = momentId;
+
+    const updateCameraShotBadge = useCallback((marker: Group, cameraNumber: number) => {
+        const slot = spaceSlotRef.current;
+        if (!slot) return;
+        const cam = slot.camera_positions?.find((row) => row.order_index + 1 === cameraNumber);
+        if (!cam) return;
+
+        let cx = marker.left ?? cam.x;
+        let cy = marker.top ?? cam.y;
+        let cRot = marker.angle ?? cam.rotation;
+        let fov = cam.fov_angle;
+        const pkgMomentId = momentIdRef.current;
+        if (pkgMomentId) {
+            const override = cam.moment_overrides?.find((o) => o.moment_id === pkgMomentId);
+            if (override) {
+                cx = (marker.left ?? override.x * scaleRef.current) / scaleRef.current;
+                cy = (marker.top ?? override.y * scaleRef.current) / scaleRef.current;
+                cRot = marker.angle ?? override.rotation ?? cRot;
+                if (override.fov_angle != null) fov = override.fov_angle;
+            }
+        } else {
+            cx = (marker.left ?? 0) / (scaleRef.current || 1);
+            cy = (marker.top ?? 0) / (scaleRef.current || 1);
+        }
+
+        const badge = computeCameraShotBadge({
+            camera: { x: cx, y: cy, rotation: cRot, fov_angle: fov },
+            subjects: framingSubjectsRef.current,
+            subjectIds: cameraSubjectIdsRef.current[cameraNumber] ?? [],
+            currentShotType: shotTypeByCamRef.current[cameraNumber],
+            shotCoupling: shotCouplingByCamRef.current[cameraNumber],
+        });
+
+        const objects = marker.getObjects();
+        const badgeObj = objects.find((o) => o.data?.type === 'shot-badge');
+        if (badgeObj && 'set' in badgeObj) {
+            (badgeObj as { set: (key: string, value: unknown) => void }).set('text', badge);
+            marker.set('angle', cRot);
+            marker.canvas?.requestRenderAll();
+        }
+    }, []);
 
     const handleObjectModified = useCallback(() => {
         const canvas = getCanvasRef.current();
@@ -190,10 +273,8 @@ export const SpaceSlotOverlay: React.FC<SpaceSlotOverlayProps> = ({
 
         // 2. Subject positions (merge with moment overrides if active)
         // Contract: a subject is "in space" for a moment iff an explicit
-        // SpaceSlotMomentSubject override exists. Subjects present in the
-        // activity but without an override belong in the tray below the floor
-        // plan and are NOT rendered on the canvas. Only AI blocking writes
-        // these override rows.
+        // SpaceSlotMomentSubject override exists. Subjects without an override
+        // belong in the tray below the floor plan and are NOT rendered on the canvas.
         const subjects = spaceSlot.subject_positions ?? [];
         subjects.forEach((subj) => {
             let sx = subj.x;
@@ -202,28 +283,41 @@ export const SpaceSlotOverlay: React.FC<SpaceSlotOverlayProps> = ({
             if (momentId) {
                 const override = subj.moment_overrides?.find((o) => o.moment_id === momentId);
                 if (!override) return; // not placed in space for this moment → tray
+                if (override.present === false) return;
                 sx = override.x;
                 sy = override.y;
                 sRot = override.rotation ?? sRot;
             }
-            const subjName = subj.label ?? subj.day_subject?.name ?? '';
-            const normName = subjName.toLowerCase().trim();
+            const roleNameForTone = (subj.label?.trim() || subj.day_subject?.name || '').trim();
+            const normName = roleNameForTone.toLowerCase();
             const isCouple = normName === 'bride' || normName === 'groom';
-            const isGuest = /guest|crowd|congregation|audience/i.test(subjName);
+            const isGuest = /guest|crowd|congregation|audience/i.test(roleNameForTone);
+            const sid = subj.day_subject_id ?? subj.id;
+            const highlightSet = new Set<number>([
+                ...selectedCameraSubjectIds,
+                ...highlightSubjectRoleIds,
+            ]);
+            const isHighlighted = highlightSet.has(sid);
+            const rawLabel = (subj.label && subj.label.trim())
+                ? subj.label
+                : subj.day_subject?.name || undefined;
+            const displayLabel = isGuest || (compactSubjectLabels && !isHighlighted)
+                ? undefined
+                : rawLabel;
             const marker = createSubjectMarker({
                 x: sx * s,
                 y: sy * s,
                 rotation: sRot,
-                label: subjName || undefined,
-                subjectId: subj.day_subject_id ?? subj.id,
+                label: displayLabel,
+                subjectId: sid,
                 // Three-tone palette matches the shot-preview overlay:
                 // bride/groom = rose, wedding party = purple, guests = slate.
                 color: isCouple ? '#f472b6' : isGuest ? '#94a3b8' : '#a78bfa',
-                isSelected: selectedCameraSubjectIds.includes(subj.day_subject_id ?? subj.id),
+                isSelected: highlightSet.has(sid),
             });
             marker.data = { ...marker.data, positionId: subj.id };
             marker.selectable = isEditing && !lockSubjects;
-            marker.evented = isEditing && !lockSubjects;
+            marker.evented = Boolean(onSubjectSelect) || (isEditing && !lockSubjects);
             marker.hasControls = false;
             canvas.add(marker);
         });
@@ -257,12 +351,22 @@ export const SpaceSlotOverlay: React.FC<SpaceSlotOverlayProps> = ({
             const shortName = `Cam ${cameraNumber}`;
             label = equipmentLabel ? `${shortName} · ${equipmentLabel}` : shortName;
 
+            const framingSubjects = buildFramingSubjectsFromSlot(spaceSlot, momentId);
+            const shotBadge = computeCameraShotBadge({
+                camera: { x: cx, y: cy, rotation: cRot, fov_angle: fovAngle },
+                subjects: framingSubjects,
+                subjectIds: cameraSubjectIdsByCamNum[cameraNumber] ?? [],
+                currentShotType: shotTypeByCamNum[cameraNumber],
+                shotCoupling: shotCouplingByCamNum[cameraNumber],
+            });
+
             const marker = createCameraMarker({
                 x: cx * s,
                 y: cy * s,
                 rotation: cRot,
                 trackId: cam.crew_slot_id ?? cam.id,
                 label,
+                shotBadge,
                 color: '#2979FF',
             });
 
@@ -291,8 +395,50 @@ export const SpaceSlotOverlay: React.FC<SpaceSlotOverlayProps> = ({
             canvas.add(marker);
         });
 
+        // 4. Focal distance rings for selected camera
+        if (selectedCameraNumber && showCameras) {
+            const selectedCam = (spaceSlot.camera_positions ?? []).find(
+                (row) => row.order_index + 1 === selectedCameraNumber,
+            );
+            if (selectedCam) {
+                let cx = selectedCam.x;
+                let cy = selectedCam.y;
+                let cRot = selectedCam.rotation;
+                let fovAngle = selectedCam.fov_angle;
+                if (momentId) {
+                    const override = selectedCam.moment_overrides?.find((o) => o.moment_id === momentId);
+                    if (override) {
+                        cx = override.x;
+                        cy = override.y;
+                        cRot = override.rotation ?? cRot;
+                        if (override.fov_angle != null) fovAngle = override.fov_angle;
+                    }
+                }
+
+                const framingSubjects = buildFramingSubjectsFromSlot(spaceSlot, momentId);
+                const framing = computeFraming({
+                    camera: { x: cx, y: cy, rotation: cRot, fovDegrees: fovAngle ?? 60 },
+                    subjects: framingSubjects,
+                    subjectIds: cameraSubjectIdsByCamNum[selectedCameraNumber] ?? [],
+                    currentShotType: shotTypeByCamNum[selectedCameraNumber],
+                    shotCoupling: shotCouplingByCamNum[selectedCameraNumber],
+                });
+                const focalId = framing.focalSubjectIds[0];
+                const focalSubject = framingSubjects.find((subj) => subj.id === focalId);
+                if (focalSubject) {
+                    const rings = createFocalDistanceRings({
+                        x: focalSubject.x * s,
+                        y: focalSubject.y * s,
+                        radii: focalDistanceRingRadii(fovAngle ?? 60),
+                        scale: s,
+                    });
+                    rings.forEach((ring) => canvas.add(ring));
+                }
+            }
+        }
+
         canvas.requestRenderAll();
-    }, [getCanvas, spaceSlot, isEditing, scale, momentId, lockCameras, lockSubjects, equipmentAssignmentsBySlot, selectedCameraSubjectIds, cameraTrackCount, showCameras, fillViewport, viewportBackgroundColor, canvasW, canvasH, hideLabels]);
+    }, [getCanvas, spaceSlot, isEditing, scale, momentId, lockCameras, lockSubjects, equipmentAssignmentsBySlot, selectedCameraSubjectIds, highlightSubjectRoleIds, cameraTrackCount, showCameras, fillViewport, viewportBackgroundColor, canvasW, canvasH, hideLabels, compactSubjectLabels, cameraSubjectIdsByCamNum, shotTypeByCamNum, shotCouplingByCamNum, selectedCameraNumber]);
 
     useEffect(() => {
         if (isReady) renderAll();
@@ -339,6 +485,62 @@ export const SpaceSlotOverlay: React.FC<SpaceSlotOverlayProps> = ({
             canvas.off('mouse:up', onUp);
         };
     }, [isReady, getCanvas]);
+
+    // Live shot-size badge while dragging a camera (no full canvas rebuild).
+    useEffect(() => {
+        const canvas = getCanvas();
+        if (!canvas || !isEditing || lockCameras) return;
+        const onMoving = (e: { target?: Group }) => {
+            const target = e.target;
+            if (target?.data?.type !== 'camera' || target.data.cameraNumber == null) return;
+            updateCameraShotBadge(target, target.data.cameraNumber);
+        };
+        canvas.on('object:moving', onMoving as (options: unknown) => void);
+        return () => {
+            canvas.off('object:moving', onMoving);
+        };
+    }, [isReady, getCanvas, isEditing, lockCameras, updateCameraShotBadge]);
+
+    const onSubjectSelectRef = useRef(onSubjectSelect);
+    onSubjectSelectRef.current = onSubjectSelect;
+    useEffect(() => {
+        const canvas = getCanvas();
+        if (!canvas || !onSubjectSelect) return;
+        let pendingSubjectId: number | null = null;
+        let downX = 0;
+        let downY = 0;
+        const DRAG_THRESHOLD = 4;
+        const onDown = (e: any) => {
+            let o: any = e.target;
+            while (o) {
+                if (o.data?.type === 'subject' && typeof o.data.subjectId === 'number') {
+                    pendingSubjectId = o.data.subjectId;
+                    downX = e.pointer?.x ?? 0;
+                    downY = e.pointer?.y ?? 0;
+                    return;
+                }
+                o = o.parent ?? o.group;
+            }
+            pendingSubjectId = null;
+        };
+        const onUp = (e: any) => {
+            if (pendingSubjectId == null) return;
+            const upX = e.pointer?.x ?? 0;
+            const upY = e.pointer?.y ?? 0;
+            const moved = Math.hypot(upX - downX, upY - downY) > DRAG_THRESHOLD;
+            const sid = pendingSubjectId;
+            pendingSubjectId = null;
+            if (!moved) {
+                onSubjectSelectRef.current?.(sid);
+            }
+        };
+        canvas.on('mouse:down', onDown);
+        canvas.on('mouse:up', onUp);
+        return () => {
+            canvas.off('mouse:down', onDown);
+            canvas.off('mouse:up', onUp);
+        };
+    }, [isReady, getCanvas, onSubjectSelect]);
 
     if (!spaceSlot) {
         return (

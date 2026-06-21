@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { PlanningStatus } from '@prisma/client';
+import { PackagePlanningCancelRegistryService } from '../../../content/activity-planning/services/package-planning-cancel-registry.service';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
@@ -22,6 +24,7 @@ interface PackageCreationRunManifest {
   eventSubtypeId?: number;
   packageId?: number;
   packageName?: string;
+  planningMode?: 'full' | 'blueprint';
   files: {
     master: string;
     request?: string;
@@ -61,9 +64,11 @@ export interface PackageAiRunSummary {
   completedAt: string | null;
   packageId: number;
   packageName: string | null;
+  planningMode: 'full' | 'blueprint' | null;
   plannerStatus: string | null;
   completedSteps: number;
   totalSteps: number;
+  skippedSteps: number;
   error: string | null;
 }
 
@@ -75,13 +80,52 @@ export interface PackageAiRunDetail extends PackageAiRunSummary {
   plannerSummary: PackagePlannerSummary | null;
 }
 
+export type PackageAiRunCancelResponse = { runId: string; status: 'CANCEL_REQUESTED' | 'NOT_RUNNING' };
+
 @Injectable()
 export class PackageAiRunsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly planningCancelRegistry: PackagePlanningCancelRegistryService,
+  ) {}
 
   async findAll(packageId: number, brandId: number): Promise<PackageAiRunSummary[]> {
     await this.assertPackageAccess(packageId, brandId);
     return this.readPackageRuns(packageId, brandId).map((run) => this.toSummary(run));
+  }
+
+  /**
+   * Signal an in-flight package creation planning pipeline to stop between coarse steps.
+   * Requires `planning_status === PLANNING` and a matching on-disk run manifest.
+   */
+  async cancelPlanningRun(packageId: number, runId: string, brandId: number): Promise<PackageAiRunCancelResponse> {
+    const pkg = await this.prisma.service_packages.findFirst({
+      where: { id: packageId, brand_id: brandId },
+      select: { planning_status: true },
+    });
+
+    if (!pkg) {
+      throw new NotFoundException(`Package #${packageId} not found`);
+    }
+
+    const runs = this.readPackageRuns(packageId, brandId);
+    const hit = runs.find((candidate) => candidate.manifest.runId === runId);
+    if (!hit) {
+      throw new NotFoundException(`AI run ${runId} not found for package #${packageId}`);
+    }
+
+    if (pkg.planning_status !== PlanningStatus.PLANNING) {
+      return { runId, status: 'NOT_RUNNING' };
+    }
+
+    await this.prisma.service_packages.update({
+      where: { id: packageId },
+      data: { planning_cancel_requested_at: new Date() },
+    });
+
+    this.planningCancelRegistry.abort(packageId);
+
+    return { runId, status: 'CANCEL_REQUESTED' };
   }
 
   async findOne(packageId: number, runId: string, brandId: number): Promise<PackageAiRunDetail> {
@@ -161,6 +205,7 @@ export class PackageAiRunsService {
       (step) => step.status === 'completed' || step.status === 'skipped',
     ).length;
     const totalSteps = steps.length;
+    const skippedSteps = steps.filter((step) => step.status === 'skipped').length;
     const error = run.plannerSummary?.errors?.at(-1) ?? null;
 
     return {
@@ -172,9 +217,11 @@ export class PackageAiRunsService {
       completedAt: run.manifest.completedAt ?? null,
       packageId: run.manifest.packageId ?? 0,
       packageName: run.manifest.packageName ?? null,
+      planningMode: run.manifest.planningMode ?? null,
       plannerStatus: run.plannerSummary?.finalStatus ?? null,
       completedSteps,
       totalSteps,
+      skippedSteps,
       error,
     };
   }

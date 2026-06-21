@@ -117,10 +117,15 @@ function parseSSEChunk(chunk: string): PlanningStepEvent[] {
  * Subscribe to real-time SSE planning events for a package.
  * Uses fetch (not EventSource) so we can send JWT + brand headers.
  * Only connects while the backend reports an active planning run.
+ *
+ * When `livePlanningDismissNonce` increments (after user cancel), we stop reconnecting to SSE
+ * while `planning_status` may still be PLANNING until the server settles — parent should reset
+ * nonce when a fresh PLANNING session starts (see PackageDetailScreen).
  */
 export function usePlanningProgress(
   packageId: number | null,
   planningStatus: string | undefined,
+  livePlanningDismissNonce = 0,
 ): UsePlanningProgressReturn {
   const [steps, setSteps] = useState<PlanningStep[]>([]);
   const [eventHistory, setEventHistory] = useState<PlanningEventRecord[]>([]);
@@ -130,13 +135,26 @@ export function usePlanningProgress(
   const abortRef = useRef<AbortController | null>(null);
   const seenEventsRef = useRef<Set<string>>(new Set());
 
-  const shouldConnect = packageId != null && planningStatus === 'PLANNING';
+  const shouldConnect =
+    packageId != null && planningStatus === 'PLANNING' && livePlanningDismissNonce === 0;
 
   useEffect(() => {
+    abortRef.current?.abort();
+
     if (!shouldConnect || !packageId) {
-      if (planningStatus === 'READY') setStatus('complete');
-      else if (planningStatus === 'FAILED') setStatus('failed');
-      else setStatus('idle');
+      if (planningStatus === 'READY') {
+        setStatus('complete');
+        setError(null);
+      } else if (planningStatus === 'FAILED') {
+        setStatus('failed');
+        setError(null);
+      } else if (livePlanningDismissNonce > 0 && planningStatus === 'PLANNING') {
+        setStatus('failed');
+        setError('Cancellation requested — planner will stop after the current server step.');
+      } else {
+        setStatus('idle');
+        setError(null);
+      }
       return;
     }
 
@@ -288,7 +306,7 @@ export function usePlanningProgress(
     })();
 
     return () => controller.abort();
-  }, [shouldConnect, packageId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shouldConnect, packageId, planningStatus, livePlanningDismissNonce]);
 
   const completedSteps = steps.filter((s) => s.status === 'completed').length;
   const progress = totalSteps > 0 ? completedSteps / totalSteps : 0;

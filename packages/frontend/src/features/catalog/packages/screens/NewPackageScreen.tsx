@@ -25,7 +25,7 @@ function NewPackageContent() {
                         console.warn('Failed to assign package to slot:', err);
                     }
                 }
-                router.push(`/packages/${packageId}`);
+                router.push(`/packages/${packageId}?mode=edit&tab=blueprint`);
             }}
         />
     );

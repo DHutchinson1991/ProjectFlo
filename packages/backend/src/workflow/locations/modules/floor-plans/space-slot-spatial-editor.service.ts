@@ -5,12 +5,16 @@ import type {
 } from './dto/space-slot-spatial.dto';
 import { PrismaService } from '../../../../platform/prisma/prisma.service';
 import { SpaceSlotSpatialService } from './space-slot-spatial.service';
+import { CameraFramingService } from './camera-framing.service';
+import { CameraAimService } from './camera-aim.service';
 
 @Injectable()
 export class SpaceSlotSpatialEditorService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly spaceSlots: SpaceSlotSpatialService,
+        private readonly cameraFraming: CameraFramingService,
+        private readonly cameraAim: CameraAimService,
     ) {}
 
     async saveCanvas(id: number, dto: SaveSpaceSlotCanvasDto) {
@@ -121,22 +125,62 @@ export class SpaceSlotSpatialEditorService {
         return this.spaceSlots.getById(id);
     }
 
-    async updateCameraPosition(cameraPositionId: number, x: number, y: number, rotation?: number) {
-        return this.prisma.spaceSlotCameraPosition.update({
+    async updateCameraPosition(
+        cameraPositionId: number,
+        x: number,
+        y: number,
+        rotation?: number,
+        sceneMomentId?: number,
+    ) {
+        const updated = await this.prisma.spaceSlotCameraPosition.update({
             where: { id: cameraPositionId },
             data: { x, y, ...(rotation !== undefined ? { rotation } : {}) },
         });
+
+        if (sceneMomentId != null) {
+            await this.cameraFraming.syncFramingAfterCameraMove({
+                sceneMomentId,
+                cameraPositionId,
+                x,
+                y,
+                rotation: rotation ?? updated.rotation ?? 0,
+            });
+        }
+
+        return updated;
     }
 
-    async updateSubjectPosition(subjectPositionId: number, x: number, y: number, rotation?: number) {
-        return this.prisma.spaceSlotSubjectPosition.update({
+    async updateSubjectPosition(
+        subjectPositionId: number,
+        x: number,
+        y: number,
+        rotation?: number,
+        packageMomentId?: number,
+        sceneMomentId?: number,
+    ) {
+        const updated = await this.prisma.spaceSlotSubjectPosition.update({
             where: { id: subjectPositionId },
             data: { x, y, ...(rotation !== undefined ? { rotation } : {}) },
         });
+
+        if (packageMomentId != null && sceneMomentId != null && updated.day_subject_id != null) {
+            await this.cameraAim.aimCamerasForSceneMoment(sceneMomentId, {
+                onlyDaySubjectIds: [updated.day_subject_id],
+            });
+        }
+
+        return updated;
     }
 
-    async upsertMomentCamera(cameraPositionId: number, momentId: number, x: number, y: number, rotation?: number) {
-        return this.prisma.spaceSlotMomentCamera.upsert({
+    async upsertMomentCamera(
+        cameraPositionId: number,
+        momentId: number,
+        x: number,
+        y: number,
+        rotation?: number,
+        sceneMomentId?: number,
+    ) {
+        const saved = await this.prisma.spaceSlotMomentCamera.upsert({
             where: {
                 camera_position_id_moment_id: {
                     camera_position_id: cameraPositionId,
@@ -152,10 +196,34 @@ export class SpaceSlotSpatialEditorService {
             },
             update: { x, y, ...(rotation !== undefined ? { rotation } : {}) },
         });
+
+        if (sceneMomentId != null) {
+            await this.cameraFraming.syncFramingAfterCameraMove({
+                sceneMomentId,
+                cameraPositionId,
+                x,
+                y,
+                rotation: rotation ?? saved.rotation ?? 0,
+            });
+        }
+
+        return saved;
     }
 
-    async upsertMomentSubject(subjectPositionId: number, momentId: number, x: number, y: number, rotation?: number) {
-        return this.prisma.spaceSlotMomentSubject.upsert({
+    async upsertMomentSubject(
+        subjectPositionId: number,
+        momentId: number,
+        x: number,
+        y: number,
+        rotation?: number,
+        sceneMomentId?: number,
+    ) {
+        const subjectRow = await this.prisma.spaceSlotSubjectPosition.findUnique({
+            where: { id: subjectPositionId },
+            select: { day_subject_id: true },
+        });
+
+        const saved = await this.prisma.spaceSlotMomentSubject.upsert({
             where: {
                 subject_position_id_moment_id: {
                     subject_position_id: subjectPositionId,
@@ -171,6 +239,23 @@ export class SpaceSlotSpatialEditorService {
             },
             update: { x, y, ...(rotation !== undefined ? { rotation } : {}) },
         });
+
+        if (sceneMomentId != null && subjectRow?.day_subject_id != null) {
+            await this.cameraAim.aimCamerasForSceneMoment(sceneMomentId, {
+                onlyDaySubjectIds: [subjectRow.day_subject_id],
+            });
+        }
+
+        return saved;
+    }
+
+    async aimCamerasForMoment(
+        slotId: number,
+        packageMomentId: number,
+        sceneMomentId: number,
+    ) {
+        await this.spaceSlots.getById(slotId);
+        return this.cameraAim.aimCamerasForPackageMoment(slotId, packageMomentId, sceneMomentId);
     }
 
     async upsertZones(slotId: number, zones: UpsertSpaceSlotZoneDto[]) {

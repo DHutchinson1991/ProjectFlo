@@ -85,6 +85,7 @@ Table brands {
   floor_plan_presets floor_plan_presets [not null]
   moment_knowledge_bases moment_knowledge_bases [not null]
   crew_presets crew_presets [not null]
+  equipment_presets equipment_presets [not null]
   day_blueprints day_blueprints [not null]
   day_blueprint_location_roles day_blueprint_location_roles [not null]
 }
@@ -634,6 +635,7 @@ Table crew {
   project_film_timeline_tracks project_film_timeline_tracks [not null]
   brand_memberships brand_members [not null]
   crew_preset_slots crew_preset_slots [not null]
+  equipment_preset_slots equipment_preset_slots [not null]
 }
 
 Table job_roles {
@@ -657,6 +659,7 @@ Table job_roles {
   inquiry_tasks inquiry_tasks [not null]
   inquiry_task_subtasks inquiry_task_subtasks [not null]
   crew_preset_slots crew_preset_slots [not null]
+  equipment_preset_slots equipment_preset_slots [not null]
 }
 
 Table payment_brackets {
@@ -724,10 +727,41 @@ Table crew_preset_slots {
   preset_id Int [not null]
   job_role_id Int [not null]
   crew_id Int
+  equipment_id Int
   order_index Int [not null, default: 0]
   preset crew_presets [not null]
   job_role job_roles [not null]
   crew crew
+  equipment equipment
+}
+
+Table equipment_presets {
+  id Int [pk, increment]
+  brand_id Int [not null]
+  name String [not null]
+  is_default Boolean [not null, default: false]
+  created_at DateTime [default: `now()`, not null]
+  updated_at DateTime [not null]
+  brand brands [not null]
+  slots equipment_preset_slots [not null]
+
+  indexes {
+    (brand_id, name) [unique]
+  }
+}
+
+Table equipment_preset_slots {
+  id Int [pk, increment]
+  preset_id Int [not null]
+  slot_type EquipmentTemplateSlotType [not null]
+  equipment_id Int
+  crew_id Int
+  job_role_id Int
+  order_index Int [not null, default: 0]
+  preset equipment_presets [not null]
+  equipment equipment
+  crew crew
+  job_role job_roles
 }
 
 Table calendar_events {
@@ -1514,6 +1548,8 @@ Table equipment {
   rental_bookings equipment_rentals [not null]
   film_assignments film_equipment_assignments [not null]
   equipment_template_items equipment_template_items [not null]
+  equipment_preset_slots equipment_preset_slots [not null]
+  crew_preset_slots crew_preset_slots [not null]
   package_crew_slot_equipment package_crew_slot_equipment [not null]
   project_crew_slot_equipment project_crew_slot_equipment [not null]
   project_film_equipment_assignments project_film_equipment_assignments [not null]
@@ -2392,6 +2428,8 @@ Table camera_subject_assignments {
   subject_ids Int[] [not null]
   visible_subject_ids Int[] [not null]
   shot_type ShotType
+  shot_type_locked Boolean [not null, default: false]
+  shot_coupling ShotCoupling [default: 'LINKED']
   enabled Boolean [not null, default: true]
   ai_prompt String
   pipeline_data Json
@@ -2535,6 +2573,7 @@ Table service_packages {
   is_active Boolean [not null, default: true]
   planning_status PlanningStatus [not null, default: 'CREATED']
   planning_error String
+  planning_cancel_requested_at DateTime [note: 'Set when the user requests cancel; planners poll this between coarse steps (survives missing in-memory AbortController).']
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   contents Json
@@ -4150,6 +4189,7 @@ Table day_blueprint_versions {
   day_blueprint_id Int [not null]
   version_number Int [not null]
   status DayBlueprintStatus [not null, default: 'DRAFT']
+  generation_mode DayBlueprintGenerationMode [not null, default: 'NORMAL']
   published_at DateTime
   published_by_user_id Int
   source_ai_run_id Int
@@ -4201,6 +4241,7 @@ Table day_blueprint_activities {
   default_duration_minutes Int
   duration_min_minutes Int
   duration_max_minutes Int
+  target_moment_count Int
   order_index Int [not null, default: 0]
   criticality DayBlueprintActivityCriticality [not null, default: 'REQUIRED']
   lock_flags Json
@@ -4523,6 +4564,11 @@ Enum ShotType {
   CUTAWAY
   INSERT_SHOT
   MASTER_SHOT
+}
+
+Enum ShotCoupling {
+  LINKED
+  PINNED
 }
 
 Enum GenerationStatus {
@@ -4969,6 +5015,11 @@ Enum DayBlueprintAiProposalStatus {
   PARTIAL
 }
 
+Enum DayBlueprintGenerationMode {
+  NORMAL
+  AI
+}
+
 Enum DayBlueprintActionEmphasis {
   PRIMARY
   SECONDARY
@@ -5112,6 +5163,18 @@ Ref: crew_preset_slots.preset_id > crew_presets.id [delete: Cascade]
 Ref: crew_preset_slots.job_role_id > job_roles.id [delete: Cascade]
 
 Ref: crew_preset_slots.crew_id > crew.id [delete: Set Null]
+
+Ref: crew_preset_slots.equipment_id > equipment.id [delete: Set Null]
+
+Ref: equipment_presets.brand_id > brands.id [delete: Cascade]
+
+Ref: equipment_preset_slots.preset_id > equipment_presets.id [delete: Cascade]
+
+Ref: equipment_preset_slots.equipment_id > equipment.id [delete: Set Null]
+
+Ref: equipment_preset_slots.crew_id > crew.id [delete: Set Null]
+
+Ref: equipment_preset_slots.job_role_id > job_roles.id [delete: Set Null]
 
 Ref: calendar_events.crew_id > crew.id [delete: Cascade]
 

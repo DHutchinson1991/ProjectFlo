@@ -3,6 +3,7 @@ import {
     Get,
     Param,
     ParseIntPipe,
+    Query,
     UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -23,8 +24,11 @@ export class SpaceSlotSpatialReadController {
     }
 
     @Get('by-package/:packageId')
-    findByPackage(@Param('packageId', ParseIntPipe) packageId: number) {
-        return this.sync.getByPackage(packageId);
+    findByPackage(
+        @Param('packageId', ParseIntPipe) packageId: number,
+        @Query('sync') sync?: string,
+    ) {
+        return this.sync.getByPackage(packageId, { sync: sync !== 'false' });
     }
 
     @Get(':id')

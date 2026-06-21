@@ -1,14 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { CeremonySeatLayoutMode } from '@projectflo/shared';
 import { BlockingDirectorService } from '../../../ai/blocking/blocking-director.service';
+import { DayBlueprintPlacementSeedService } from '../../day-blueprints/services';
+import type { BlueprintPlacementSeedOptions } from '../../day-blueprints/services/day-blueprint-placement-seed.service';
 import { PackageCreationRunLogger } from '../../../catalog/packages/creation/run/package-creation-run-logger';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { SpaceSlotSpatialSyncService } from '../../../workflow/locations/modules/floor-plans/space-slot-spatial-sync.service';
 import { PackagePlanningProgressService } from './package-planning-progress.service';
+import { ActivityPlanningStatusService } from './activity-planning-status.service';
+import { assertPlanningNotAborted, isPlanningCancelledError } from '../package-planning-cancel.constants';
 
 interface BlockingProgressContext {
   stepIndex: number;
   totalSteps: number;
 }
+
+type BlockingPlannerOptions = BlueprintPlacementSeedOptions & {
+  skipPlacementSeed?: boolean;
+};
 
 /**
  * Runs the AI Blocking Director once per (activity × space slot × moment)
@@ -28,12 +37,21 @@ export class PackageBlockingPlannerService {
     private readonly blockingDirector: BlockingDirectorService,
     private readonly spatialSync: SpaceSlotSpatialSyncService,
     private readonly progress: PackagePlanningProgressService,
+    private readonly planningStatus: ActivityPlanningStatusService,
+    private readonly placementSeed: DayBlueprintPlacementSeedService,
   ) {}
+
+  private async assertBlockingPlanningContinues(packageId: number, signal?: AbortSignal): Promise<void> {
+    assertPlanningNotAborted(signal);
+    await this.planningStatus.assertPlanningNotCancelled(packageId);
+  }
 
   async planPackageBlocking(
     packageId: number,
     runLogger: PackageCreationRunLogger,
     progressContext: BlockingProgressContext = { stepIndex: 0, totalSteps: 1 },
+    abortSignal?: AbortSignal,
+    options?: BlockingPlannerOptions,
   ): Promise<void> {
     const startedAt = Date.now();
     this.logger.log(`[blocking] start package=${packageId}`);
@@ -71,11 +89,32 @@ export class PackageBlockingPlannerService {
     }
 
     const totalMoments = assignments.reduce((n, a) => n + a.package_activity.moments.length, 0);
+    const isBlueprintPackage = await this.isBlueprintBackedPackage(packageId);
     runLogger.log('BLOCKING', 'Resolved blocking targets', {
       packageId,
       assignments: assignments.length,
       totalMoments,
+      isBlueprintPackage,
     });
+
+    if (isBlueprintPackage && !options?.skipPlacementSeed) {
+      try {
+        const seedResult = await this.placementSeed.seedPackagePlacementsFromBlueprint(packageId, {
+          seatLayout: options?.seatLayout ?? CeremonySeatLayoutMode.FLUID,
+        });
+        runLogger.log('BLOCKING', 'Ensured blueprint placement seed before blocking', {
+          packageId,
+          ...seedResult,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`[blocking] placement seed failed package=${packageId}: ${message}`);
+        runLogger.warn('BLOCKING', 'Blueprint placement seed failed before blocking', {
+          packageId,
+          error: message,
+        });
+      }
+    }
 
     let completed = 0;
     let failed = 0;
@@ -91,52 +130,37 @@ export class PackageBlockingPlannerService {
       const spaceSlotId = a.package_space_slot.id;
       const spaceSlotLabel = a.package_space_slot.label;
 
-      for (const moment of a.package_activity.moments) {
-        this.progress.emitLiveUpdate({
-          packageId,
-          totalSteps: progressContext.totalSteps,
-          step: 'blocking',
-          label: `Preparing floor plan for ${moment.name}`,
-          stepIndex: progressContext.stepIndex,
-          activityName,
-          momentId: moment.id,
-          momentName: moment.name,
-          data: {
-            substep: 'pre-seed',
-            spaceName: spaceSlotLabel,
-            completedMoments: completed,
-            totalMoments,
-            failedMoments: failed,
-          },
-        });
-
-        // Seed subject + camera positions on the floor plan from
-        // PackageDaySubjectActivity / crew slots immediately before each
-        // moment run so the telemetry matches a real pre-seed step.
+      if (!isBlueprintPackage) {
         try {
           const changed = await this.spatialSync.syncCamerasAndSubjects(spaceSlotId, activityId);
-          runLogger.log('BLOCKING', 'Seeded floor-plan subjects/cameras before AI Director', {
+          runLogger.log('BLOCKING', 'Seeded floor-plan subjects/cameras for activity (once per assignment)', {
             packageId,
             activityId,
             spaceSlotId,
-            packageMomentId: moment.id,
-            momentName: moment.name,
             changed,
           });
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           this.logger.warn(
-            `[blocking] pre-seed failed activity=${activityId} slot=${spaceSlotId} moment=${moment.id}: ${message}`,
+            `[blocking] pre-seed failed activity=${activityId} slot=${spaceSlotId}: ${message}`,
           );
           runLogger.warn('BLOCKING', 'Pre-seed of floor-plan subjects/cameras failed', {
             packageId,
             activityId,
             spaceSlotId,
-            packageMomentId: moment.id,
-            momentName: moment.name,
             error: message,
           });
         }
+      } else {
+        runLogger.log('BLOCKING', 'Skipped per-assignment spatial sync (blueprint placement seed already ran)', {
+          packageId,
+          activityId,
+          spaceSlotId,
+        });
+      }
+
+      for (const moment of a.package_activity.moments) {
+        await this.assertBlockingPlanningContinues(packageId, abortSignal);
 
         try {
           this.logger.log(
@@ -224,6 +248,9 @@ export class PackageBlockingPlannerService {
             },
           });
         } catch (err) {
+          if (isPlanningCancelledError(err)) {
+            throw err;
+          }
           failed++;
           const message = err instanceof Error ? err.message : String(err);
           const stack = err instanceof Error ? err.stack : undefined;
@@ -317,6 +344,14 @@ export class PackageBlockingPlannerService {
         traceLogPath: args.traceLogPath,
       },
     });
+  }
+
+  private async isBlueprintBackedPackage(packageId: number): Promise<boolean> {
+    const pkg = await this.prisma.service_packages.findUnique({
+      where: { id: packageId },
+      select: { source_day_blueprint_version_id: true },
+    });
+    return Boolean(pkg?.source_day_blueprint_version_id);
   }
 
   private labelForSubstep(momentName: string, substep: string): string {

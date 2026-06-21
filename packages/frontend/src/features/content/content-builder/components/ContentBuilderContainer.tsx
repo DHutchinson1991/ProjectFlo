@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { Box } from '@mui/material';
-import { TimelinePanel, PlaybackPanel, DetailsPanel, MomentPanel, ModalsContainer } from './';
+import { TimelinePanel, PlaybackPanel, DetailsPanel, ModalsContainer } from './';
+import { InspectorPanel } from './inspector/InspectorPanel';
 import { useContentBuilder } from '../context/ContentBuilderContext';
 import { FilmDetailHeader } from '@/features/content/films/components';
 import type { Film } from '@/features/content/films/types';
@@ -106,7 +107,7 @@ export const ContentBuilderContainer: React.FC<ContentBuilderContainerProps> = (
             <PlaybackPanel />
 
             {/* Right Panel — Scene Settings or Moment */}
-            {selectedSceneForSettings ? <SceneSettingsPanel /> : <MomentPanel />}
+            {selectedSceneForSettings ? <SceneSettingsPanel /> : <InspectorPanel />}
           </Box>
 
           {/* Bottom timeline band */}

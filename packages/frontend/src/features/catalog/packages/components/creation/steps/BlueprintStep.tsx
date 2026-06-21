@@ -63,7 +63,13 @@ export default function BlueprintStep({ state, derived }: BlueprintStepProps) {
             return (
               <Box
                 key={blueprint.versionId}
-                onClick={() => state.setSourceDayBlueprintVersionId(blueprint.versionId)}
+                onClick={() => {
+                  if (isSelected) return;
+                  state.setSourceDayBlueprintVersionId(blueprint.versionId);
+                  state.setSourceDayBlueprintId(blueprint.blueprintId);
+                  state.setSelectedBlueprintActivityIds(new Set());
+                  state.setBlueprintDayMappings({});
+                }}
                 sx={{
                   flex: '0 0 calc((100% - 6 * 12px) / 5)', minWidth: 140, scrollSnapAlign: 'start',
                   display: 'flex', flexDirection: 'column', justifyContent: 'center',

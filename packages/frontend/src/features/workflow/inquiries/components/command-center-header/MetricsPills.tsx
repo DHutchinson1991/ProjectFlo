@@ -44,9 +44,9 @@ export default function MetricsPills({
     const blueprintOutdated = blueprintDrift?.is_current === false;
     const latestVersionNum = blueprintDrift?.latest_version_number ?? null;
     const blueprintHref =
-        blueprintId && blueprintVersionId
-            ? `/day-designer/${blueprintId}/${blueprintVersionId}`
-            : '/day-designer';
+        inquiry.selected_package_id
+            ? `/packages/${inquiry.selected_package_id}?mode=edit&tab=blueprint`
+            : null;
 
     return (
         <>
@@ -69,9 +69,9 @@ export default function MetricsPills({
                             border: blueprintOutdated
                                 ? '1px solid rgba(245, 158, 11, 0.28)'
                                 : '1px solid rgba(99, 102, 241, 0.18)',
-                            cursor: 'pointer',
+                            cursor: blueprintHref ? 'pointer' : 'default',
                         }}
-                        onClick={() => { window.location.href = blueprintHref; }}
+                        onClick={() => { if (blueprintHref) window.location.href = blueprintHref; }}
                     >
                         {blueprintOutdated ? (
                             <WarningAmber sx={{ fontSize: 14, color: '#f59e0b', flexShrink: 0 }} />

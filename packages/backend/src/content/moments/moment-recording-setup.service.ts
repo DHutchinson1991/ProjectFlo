@@ -1,11 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../platform/prisma/prisma.service';
-import { ShotType } from '@prisma/client';
+import { ShotCoupling, ShotType } from '@prisma/client';
+import { capSubjectIds } from '@projectflo/shared';
 import { buildRecordingSetupResponse } from './moment.mapper';
+import { CameraAimService } from '../../workflow/locations/modules/floor-plans/camera-aim.service';
 
 type RecordingSetupPayload = {
     camera_track_ids?: number[];
-    camera_assignments?: Array<{ track_id: number; subject_ids?: number[]; shot_type?: ShotType | null; enabled?: boolean }>;
+    camera_assignments?: Array<{
+        track_id: number;
+        subject_ids?: number[];
+        shot_type?: ShotType | null;
+        shot_type_locked?: boolean;
+        shot_coupling?: ShotCoupling | null;
+        enabled?: boolean;
+    }>;
     audio_track_ids?: number[];
     audio_assignments?: Array<{ track_id: number; subject_ids?: number[] }>;
     graphics_enabled?: boolean;
@@ -16,6 +25,8 @@ type NormalizedTrackAssignment = {
     track_id: number;
     subject_ids: number[];
     shot_type?: ShotType | null;
+    shot_type_locked?: boolean;
+    shot_coupling?: ShotCoupling | null;
     enabled: boolean;
 };
 
@@ -63,8 +74,15 @@ const normalizeTrackAssignments = (data: RecordingSetupPayload) => {
 
     for (const assignment of cameraAssignmentsSource) {
         const normalized = ensureAssignment(assignment.track_id);
-        normalized.subject_ids = uniqueIntegerList(assignment.subject_ids);
+        const uniqueIds = uniqueIntegerList(assignment.subject_ids);
+        normalized.subject_ids = capSubjectIds(uniqueIds, assignment.shot_type ?? null);
         normalized.shot_type = (assignment.shot_type as ShotType | null | undefined) ?? undefined;
+        if (assignment.shot_type_locked !== undefined) {
+            normalized.shot_type_locked = assignment.shot_type_locked;
+        }
+        if (assignment.shot_coupling !== undefined) {
+            normalized.shot_coupling = assignment.shot_coupling;
+        }
         normalized.enabled = assignment.enabled !== undefined ? assignment.enabled : normalized.enabled;
     }
 
@@ -81,7 +99,10 @@ const normalizeTrackAssignments = (data: RecordingSetupPayload) => {
 
 @Injectable()
 export class MomentRecordingSetupService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private readonly cameraAim: CameraAimService,
+    ) { }
 
     async getRecordingSetup(momentId: number) {
         const moment = await this.prisma.sceneMoment.findUnique({
@@ -111,6 +132,11 @@ export class MomentRecordingSetupService {
         const graphicsTitle = typeof data.graphics_title === 'string' ? data.graphics_title.trim() : undefined;
         const normalizedGraphicsTitle = data.graphics_enabled ? (graphicsTitle || null) : null;
 
+        const existingAssignments = await this.prisma.cameraSubjectAssignment.findMany({
+            where: { recording_setup: { moment_id: momentId } },
+            select: { track_id: true, subject_ids: true },
+        });
+
         const updated = await this.prisma.$transaction(async (tx) => {
             const recordingSetup = await tx.momentRecordingSetup.upsert({
                 where: { moment_id: momentId },
@@ -130,8 +156,9 @@ export class MomentRecordingSetupService {
 
             const currentAssignments = await tx.cameraSubjectAssignment.findMany({
                 where: { recording_setup_id: recordingSetup.id },
-                select: { id: true, track_id: true },
+                select: { id: true, track_id: true, subject_ids: true, shot_type: true, shot_type_locked: true },
             });
+            const currentByTrack = new Map(currentAssignments.map((a) => [a.track_id, a]));
             const incomingTrackIds = new Set(assignments.map((assignment) => assignment.track_id));
             const assignmentIdsToDelete = currentAssignments
                 .filter((assignment) => !incomingTrackIds.has(assignment.track_id))
@@ -144,11 +171,29 @@ export class MomentRecordingSetupService {
             }
 
             for (const assignment of assignments) {
-                const assignmentData = {
+                const existing = currentByTrack.get(assignment.track_id);
+                const isShotTypeLocked = existing?.shot_type_locked === true;
+
+                const assignmentData: {
+                    subject_ids: number[];
+                    shot_type?: ShotType | null;
+                    shot_type_locked?: boolean;
+                    shot_coupling?: ShotCoupling | null;
+                    enabled: boolean;
+                } = {
                     subject_ids: assignment.subject_ids,
-                    ...(assignment.shot_type !== undefined ? { shot_type: assignment.shot_type } : {}),
                     enabled: assignment.enabled,
                 };
+
+                if (assignment.shot_type !== undefined && !isShotTypeLocked) {
+                    assignmentData.shot_type = assignment.shot_type;
+                }
+                if (assignment.shot_type_locked !== undefined) {
+                    assignmentData.shot_type_locked = assignment.shot_type_locked;
+                }
+                if (assignment.shot_coupling !== undefined) {
+                    assignmentData.shot_coupling = assignment.shot_coupling;
+                }
 
                 await tx.cameraSubjectAssignment.upsert({
                     where: {
@@ -161,7 +206,11 @@ export class MomentRecordingSetupService {
                     create: {
                         recording_setup_id: recordingSetup.id,
                         track_id: assignment.track_id,
-                        ...assignmentData,
+                        subject_ids: assignment.subject_ids,
+                        enabled: assignment.enabled,
+                        shot_type_locked: assignment.shot_type_locked ?? false,
+                        ...(assignment.shot_type !== undefined ? { shot_type: assignment.shot_type } : {}),
+                        ...(assignment.shot_coupling !== undefined ? { shot_coupling: assignment.shot_coupling } : {}),
                     },
                 });
             }
@@ -174,6 +223,22 @@ export class MomentRecordingSetupService {
 
         if (!updated) {
             throw new NotFoundException(`Moment recording setup for moment ${momentId} not found`);
+        }
+
+        const previousByTrack = new Map(
+            existingAssignments.map((row) => [row.track_id, row.subject_ids ?? []]),
+        );
+        const subjectIdsChanged = assignments.some((assignment) => {
+            const prev = previousByTrack.get(assignment.track_id) ?? [];
+            const next = assignment.subject_ids;
+            if (prev.length !== next.length) return true;
+            const prevSorted = [...prev].sort((a, b) => a - b);
+            const nextSorted = [...next].sort((a, b) => a - b);
+            return prevSorted.some((id, i) => id !== nextSorted[i]);
+        });
+
+        if (subjectIdsChanged) {
+            await this.cameraAim.aimCamerasForSceneMoment(momentId);
         }
 
         return buildRecordingSetupResponse(updated);

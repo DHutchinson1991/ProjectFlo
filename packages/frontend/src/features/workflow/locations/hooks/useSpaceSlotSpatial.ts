@@ -9,8 +9,8 @@ export const spaceSlotKeys = {
     all: (brandId: string) => ['space-slots', brandId] as const,
     byActivity: (brandId: string, activityId: number) =>
         [...spaceSlotKeys.all(brandId), 'activity', activityId] as const,
-    byPackage: (brandId: string, packageId: number) =>
-        [...spaceSlotKeys.all(brandId), 'package', packageId] as const,
+    byPackage: (brandId: string, packageId: number, sync = true) =>
+        [...spaceSlotKeys.all(brandId), 'package', packageId, sync ? 'sync' : 'read'] as const,
     detail: (brandId: string, id: number) =>
         [...spaceSlotKeys.all(brandId), 'detail', id] as const,
     momentOverrides: (brandId: string, slotId: number, momentId: number) =>
@@ -41,14 +41,18 @@ export function useSpaceSlotsByActivity(activityId: number | null | undefined) {
 /**
  * Fetch all space slots for a package.
  */
-export function useSpaceSlotsByPackage(packageId: number | null | undefined) {
+export function useSpaceSlotsByPackage(
+    packageId: number | null | undefined,
+    options?: { enabled?: boolean; sync?: boolean },
+) {
     const { currentBrand } = useBrand();
     const brandId = String(currentBrand?.id ?? '');
+    const sync = options?.sync ?? true;
 
     return useQuery({
-        queryKey: spaceSlotKeys.byPackage(brandId, packageId ?? 0),
-        queryFn: () => floorPlanApi.spaceSlots.getByPackage(packageId!),
-        enabled: !!currentBrand?.id && !!packageId,
+        queryKey: spaceSlotKeys.byPackage(brandId, packageId ?? 0, sync),
+        queryFn: () => floorPlanApi.spaceSlots.getByPackage(packageId!, { sync }),
+        enabled: !!currentBrand?.id && !!packageId && (options?.enabled ?? true),
         staleTime: 1000 * 60 * 5,
     });
 }
@@ -105,8 +109,19 @@ export function useUpdateSlotCameraPosition() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, x, y, rotation }: { id: number; x: number; y: number; rotation?: number }) =>
-            floorPlanApi.spaceSlots.updateCameraPosition(id, x, y, rotation),
+        mutationFn: ({
+            id,
+            x,
+            y,
+            rotation,
+            sceneMomentId,
+        }: {
+            id: number;
+            x: number;
+            y: number;
+            rotation?: number;
+            sceneMomentId?: number;
+        }) => floorPlanApi.spaceSlots.updateCameraPosition(id, x, y, rotation, sceneMomentId),
         onSuccess: () => {
             queryClient.invalidateQueries({
                 queryKey: spaceSlotKeys.all(brandId),
@@ -127,8 +142,28 @@ export function useUpdateSlotSubjectPosition() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, x, y, rotation }: { id: number; x: number; y: number; rotation?: number }) =>
-            floorPlanApi.spaceSlots.updateSubjectPosition(id, x, y, rotation),
+        mutationFn: ({
+            id,
+            x,
+            y,
+            rotation,
+            packageMomentId,
+            sceneMomentId,
+        }: {
+            id: number;
+            x: number;
+            y: number;
+            rotation?: number;
+            packageMomentId?: number;
+            sceneMomentId?: number;
+        }) => floorPlanApi.spaceSlots.updateSubjectPosition(
+            id,
+            x,
+            y,
+            rotation,
+            packageMomentId,
+            sceneMomentId,
+        ),
         onSuccess: () => {
             queryClient.invalidateQueries({
                 queryKey: spaceSlotKeys.all(brandId),
@@ -149,9 +184,28 @@ export function useUpsertSlotMomentCamera() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ cameraPositionId, momentId, x, y, rotation }: {
-            cameraPositionId: number; momentId: number; x: number; y: number; rotation?: number;
-        }) => floorPlanApi.spaceSlots.upsertMomentCamera(cameraPositionId, momentId, x, y, rotation),
+        mutationFn: ({
+            cameraPositionId,
+            momentId,
+            x,
+            y,
+            rotation,
+            sceneMomentId,
+        }: {
+            cameraPositionId: number;
+            momentId: number;
+            x: number;
+            y: number;
+            rotation?: number;
+            sceneMomentId?: number;
+        }) => floorPlanApi.spaceSlots.upsertMomentCamera(
+            cameraPositionId,
+            momentId,
+            x,
+            y,
+            rotation,
+            sceneMomentId,
+        ),
         onSuccess: () => {
             queryClient.invalidateQueries({
                 queryKey: spaceSlotKeys.all(brandId),
@@ -172,9 +226,57 @@ export function useUpsertSlotMomentSubject() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ subjectPositionId, momentId, x, y, rotation }: {
-            subjectPositionId: number; momentId: number; x: number; y: number; rotation?: number;
-        }) => floorPlanApi.spaceSlots.upsertMomentSubject(subjectPositionId, momentId, x, y, rotation),
+        mutationFn: ({
+            subjectPositionId,
+            momentId,
+            x,
+            y,
+            rotation,
+            sceneMomentId,
+        }: {
+            subjectPositionId: number;
+            momentId: number;
+            x: number;
+            y: number;
+            rotation?: number;
+            sceneMomentId?: number;
+        }) => floorPlanApi.spaceSlots.upsertMomentSubject(
+            subjectPositionId,
+            momentId,
+            x,
+            y,
+            rotation,
+            sceneMomentId,
+        ),
+        onSuccess: () => {
+            queryClient.invalidateQueries({
+                queryKey: spaceSlotKeys.all(brandId),
+            });
+            queryClient.invalidateQueries({ queryKey: ['shot-previews', 'spatial-overlay'] });
+            queryClient.invalidateQueries({ queryKey: ['shot-previews', 'composition-guide'] });
+            queryClient.invalidateQueries({ queryKey: ['shot-previews', 'moment-conflicts'] });
+        },
+    });
+}
+
+/**
+ * Repair camera rotations so FOV cones face editorial targets.
+ */
+export function useAimSlotCameras() {
+    const { currentBrand } = useBrand();
+    const brandId = String(currentBrand?.id ?? '');
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({
+            slotId,
+            packageMomentId,
+            sceneMomentId,
+        }: {
+            slotId: number;
+            packageMomentId: number;
+            sceneMomentId: number;
+        }) => floorPlanApi.spaceSlots.aimCameras(slotId, { packageMomentId, sceneMomentId }),
         onSuccess: () => {
             queryClient.invalidateQueries({
                 queryKey: spaceSlotKeys.all(brandId),

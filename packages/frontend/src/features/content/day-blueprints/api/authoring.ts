@@ -15,6 +15,8 @@ import type {
 export interface CreateDayBlueprintVersionInput {
   change_summary?: string;
   source_ai_run_id?: number;
+  source_version_id?: number;
+  replace_existing_draft?: boolean;
 }
 
 export interface CreateDayInput {
@@ -43,6 +45,9 @@ export interface CreateActivityInput {
   default_duration_minutes?: number;
   duration_min_minutes?: number;
   duration_max_minutes?: number;
+  /** Optional explicit override for AI moment count. Use null to clear an
+   *  existing override; omit to leave it untouched on update. */
+  target_moment_count?: number | null;
   order_index?: number;
   criticality?: string;
   lock_flags?: Record<string, boolean>;
@@ -58,9 +63,11 @@ export interface CreateMomentInput {
   is_key_moment?: boolean;
   criticality?: string;
   lock_flags?: Record<string, boolean>;
+  /** Server copies actions/placements from this moment when blueprint has blank_authoring. */
+  inherit_from_moment_id?: number;
 }
 
-export type UpdateMomentInput = Partial<CreateMomentInput>;
+export type UpdateMomentInput = Partial<Omit<CreateMomentInput, 'inherit_from_moment_id'>>;
 
 export interface CreateMomentActionInput {
   subject_role_id: number;
@@ -82,7 +89,7 @@ export interface CreateMomentPlacementInput {
 }
 
 export type UpdateMomentPlacementInput = Partial<
-  Omit<CreateMomentPlacementInput, 'day_blueprint_space_slot_id' | 'subject_role_id'>
+  Omit<CreateMomentPlacementInput, 'subject_role_id'>
 >;
 
 // ─── Version-scoped auxiliaries ──────────────────────────────────

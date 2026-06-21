@@ -64,15 +64,15 @@ fs.writeFileSync(LOG_FILE, `=== pnpm dev started at ${new Date().toISOString()} 
 
 const logStream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
 
-// Resolve LM Studio connection, then start services with the winning URL
-resolveLmStudio().then((resolvedUrl) => startServices(resolvedUrl));
+// Resolve LM Studio connection, then start services (backend reads LMSTUDIO_URL from packages/backend/.env)
+resolveLmStudio().then(() => startServices());
 
-function startServices(lmStudioUrl) {
+function startServices() {
 const child = spawn('pnpm', ['run', 'dev:services'], {
   stdio: ['inherit', 'pipe', 'pipe'],
   shell: true,
   cwd: path.join(__dirname, '..'),
-  env: { ...process.env, FORCE_COLOR: '1', LMSTUDIO_URL: lmStudioUrl },
+  env: { ...process.env, FORCE_COLOR: '1' },
 });
 
 child.stdout.on('data', (data) => {

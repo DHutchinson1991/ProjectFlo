@@ -3,6 +3,7 @@ export interface CrewPresetSlot {
   preset_id: number;
   job_role_id: number;
   crew_id: number | null;
+  equipment_id: number | null;
   order_index: number;
   job_role?: {
     id: number;
@@ -14,6 +15,10 @@ export interface CrewPresetSlot {
     first_name: string;
     last_name: string;
     crew_color?: string | null;
+  } | null;
+  equipment?: {
+    id: number;
+    item_name: string;
   } | null;
 }
 
@@ -30,6 +35,7 @@ export interface CrewPreset {
 export interface CrewPresetSlotInput {
   job_role_id: number;
   crew_id?: number | null;
+  equipment_id?: number | null;
   order_index: number;
 }
 

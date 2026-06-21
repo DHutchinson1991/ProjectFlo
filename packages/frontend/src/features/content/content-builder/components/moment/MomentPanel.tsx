@@ -5,7 +5,7 @@ import React from 'react';
 import {
   Box, Typography, Chip, Divider, Select, MenuItem,
   FormControl, Checkbox, ListItemText, TextField, IconButton,
-  Tooltip, CircularProgress, keyframes,
+  Tooltip, CircularProgress,
 } from '@mui/material';
 import CenterFocusStrongRoundedIcon from '@mui/icons-material/CenterFocusStrongRounded';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
@@ -15,6 +15,8 @@ import MusicNoteRoundedIcon from '@mui/icons-material/MusicNoteRounded';
 import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
+import LockRoundedIcon from '@mui/icons-material/LockRounded';
+import LockOpenRoundedIcon from '@mui/icons-material/LockOpenRounded';
 import { useQueryClient } from '@tanstack/react-query';
 import { useContentBuilder } from '../../context/ContentBuilderContext';
 import { useFilmSchedule } from '../../hooks/data';
@@ -26,37 +28,26 @@ import { useGenerateBlocking } from '@/features/ai/blocking/hooks/useGenerateBlo
 import { useGenerateShotPreview, useCritiquePreview } from '@/features/content/shot-previews/hooks/useShotPreviews';
 import type { PrepResult } from '@/features/content/shot-previews/api/shot-previews.api';
 import type { SceneSubjectAssignment } from '@/features/content/subjects/types';
-import { ShimmerOverlay, TextShimmer } from '../shared/ShimmerOverlay';
-
-/* ─── Constants ─── */
-
-const SHOT_TYPES = [
-  "ESTABLISHING_SHOT", "WIDE_SHOT", "MEDIUM_SHOT", "TWO_SHOT",
-  "CLOSE_UP", "EXTREME_CLOSE_UP", "DETAIL_SHOT", "REACTION_SHOT",
-  "OVER_SHOULDER", "CUTAWAY", "INSERT_SHOT", "MASTER_SHOT",
-] as const;
-
-const formatDuration = (seconds: number): string => {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
-};
-
-const formatShotLabel = (value?: string | null): string => {
-  if (!value) return 'None';
-  return value
-    .toLowerCase()
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
-};
+import { capSubjectIds, editorialSubjectCapLabel, subjectCapForEditorialShotType } from '@projectflo/shared';
+import { TextShimmer } from '../shared/ShimmerOverlay';
+import {
+  SHOT_TYPES,
+  formatDuration,
+  formatShotLabel,
+  selectSx,
+  menuProps,
+  TrackIconButton,
+  DetailHeader,
+  SubjectMultiSelect,
+  INSPECTOR_PANEL_SX,
+  buildRecordingSetupPayload,
+} from '../inspector/recordingSetupInspectorShared';
 
 /**
  * Moment Panel — Right side panel (editable)
  * Shows details for the moment at the current playback cursor.
- * Camera shot types and subjects can be edited inline with auto-save.
  */
-export const MomentPanel: React.FC = () => {
+export const MomentPanel: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const {
     currentMoment, currentScene, tracks, packageSubjects,
     packageActivities, filmId, packageId, scenes, setScenes,
@@ -109,6 +100,7 @@ export const MomentPanel: React.FC = () => {
     track_name?: string;
     subject_ids?: number[];
     shot_type?: string | null;
+    shot_type_locked?: boolean;
     enabled?: boolean;
     director_notes?: { emotionalTone: string; compositionNotes: string; source?: string } | null;
   }> = recordingSetup?.camera_assignments || [];
@@ -307,11 +299,11 @@ export const MomentPanel: React.FC = () => {
   const updateScenesLocally = React.useCallback((
     momentId: number,
     data: {
-      camera_assignments: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null; enabled?: boolean }>;
+      camera_assignments: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null; shot_type_locked?: boolean; enabled?: boolean }>;
       audio_track_ids: number[];
       audio_assignments?: Array<{ track_id: number; subject_ids?: number[] }>;
       graphics_enabled?: boolean;
-      graphics_title?: string;
+      graphics_title?: string | null;
     }
   ) => {
     setScenes((prev: any[]) => prev.map((scene: any) => {
@@ -327,7 +319,14 @@ export const MomentPanel: React.FC = () => {
         const existing = existingCameras.find((e: any) => e.track_id === newCam.track_id);
         if (existing) {
           // Merge: keep backend fields (id, track_type, track_name), update editable fields
-          return { ...existing, subject_ids: newCam.subject_ids, shot_type: newCam.shot_type, enabled: newCam.enabled };
+          return {
+            ...existing,
+            subject_ids: newCam.subject_ids,
+            shot_type: newCam.shot_type,
+            shot_type_locked: (newCam as { shot_type_locked?: boolean }).shot_type_locked,
+            shot_coupling: (newCam as { shot_coupling?: string | null }).shot_coupling,
+            enabled: newCam.enabled,
+          };
         }
         // New assignment — look up track_type from tracks list so PlaybackScreen filters correctly
         const track = tracks.find(t => t.id === newCam.track_id);
@@ -484,25 +483,34 @@ export const MomentPanel: React.FC = () => {
   const persistRecordingSetup = React.useCallback(async (
     momentId: number,
     data: {
-      camera_assignments: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null; enabled?: boolean }>;
+      camera_assignments: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null; shot_type_locked?: boolean; enabled?: boolean }>;
       audio_track_ids: number[];
       audio_assignments?: Array<{ track_id: number; subject_ids?: number[] }>;
       graphics_enabled?: boolean;
-      graphics_title?: string;
+      graphics_title?: string | null;
     }
   ) => {
     try {
       await scenesApi.moments.upsertRecordingSetup(momentId, data);
+      if (primarySpaceSlotId && currentBrand?.id) {
+        const brandId = String(currentBrand.id);
+        queryClient.invalidateQueries({
+          queryKey: spaceSlotKeys.detail(brandId, primarySpaceSlotId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: spaceSlotKeys.all(brandId),
+        });
+      }
     } catch (err) {
       console.error('[MomentPanel] Failed to save recording setup', err);
     }
-  }, []);
+  }, [currentBrand?.id, primarySpaceSlotId, queryClient]);
 
   // Update local state immediately, debounce the API call
   const debouncedSave = React.useCallback((
     momentId: number,
     data: Parameters<typeof persistRecordingSetup>[1] & {
-      camera_assignments: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null; enabled?: boolean }>;
+      camera_assignments: Array<{ track_id: number; subject_ids?: number[]; shot_type?: string | null; shot_type_locked?: boolean; enabled?: boolean }>;
     }
   ) => {
     // Optimistic update — keeps ALL cameras so toggling back restores data
@@ -518,32 +526,31 @@ export const MomentPanel: React.FC = () => {
 
   const buildPayloadAndSave = React.useCallback((
     overrideCamIdx: number,
-    patch: { shot_type?: string | null; subject_ids?: number[] }
+    patch: { shot_type?: string | null; subject_ids?: number[]; shot_type_locked?: boolean }
   ) => {
     if (!moment?.id || readOnly) return;
     const currentCameras = [...cameraAssignments];
     currentCameras[overrideCamIdx] = { ...currentCameras[overrideCamIdx], ...patch };
-    debouncedSave(moment.id, {
-      camera_assignments: currentCameras.map(c => ({
-        track_id: c.track_id,
-        subject_ids: c.subject_ids || [],
-        shot_type: c.shot_type || null,
-        enabled: c.enabled !== false,
-      })),
-      audio_track_ids: audioTrackIds,
-      audio_assignments: audioAssignments.map(a => ({
-        track_id: a.track_id,
-        subject_ids: a.subject_ids || [],
-      })),
-    });
+    debouncedSave(moment.id, buildRecordingSetupPayload(currentCameras, audioTrackIds, audioAssignments));
   }, [moment?.id, readOnly, cameraAssignments, audioTrackIds, audioAssignments, debouncedSave]);
 
   const handleShotChange = (camIdx: number, value: string) => {
-    buildPayloadAndSave(camIdx, { shot_type: value || null });
+    const shotType = value || null;
+    const currentIds = cameraAssignments[camIdx]?.subject_ids ?? [];
+    buildPayloadAndSave(camIdx, {
+      shot_type: shotType,
+      subject_ids: capSubjectIds(currentIds, shotType),
+    });
+  };
+
+  const handleShotLockToggle = (camIdx: number) => {
+    const locked = cameraAssignments[camIdx]?.shot_type_locked === true;
+    buildPayloadAndSave(camIdx, { shot_type_locked: !locked });
   };
 
   const handleSubjectChange = (camIdx: number, value: number[]) => {
-    buildPayloadAndSave(camIdx, { subject_ids: value });
+    const shotType = cameraAssignments[camIdx]?.shot_type ?? null;
+    buildPayloadAndSave(camIdx, { subject_ids: capSubjectIds(value, shotType) });
   };
 
   const handleVideoToggle = (trackId: number) => {
@@ -557,21 +564,9 @@ export const MomentPanel: React.FC = () => {
       );
     } else {
       // Brand new assignment
-      newCameras = [...cameraAssignments, { track_id: trackId, subject_ids: [] as number[], shot_type: null as string | null, enabled: true }];
+      newCameras = [...cameraAssignments, { track_id: trackId, subject_ids: [] as number[], shot_type: null as string | null, shot_type_locked: false, enabled: true }];
     }
-    debouncedSave(moment.id, {
-      camera_assignments: newCameras.map(c => ({
-        track_id: c.track_id,
-        subject_ids: c.subject_ids || [],
-        shot_type: c.shot_type || null,
-        enabled: c.enabled !== false,
-      })),
-      audio_track_ids: audioTrackIds,
-      audio_assignments: audioAssignments.map(a => ({
-        track_id: a.track_id,
-        subject_ids: a.subject_ids || [],
-      })),
-    });
+    debouncedSave(moment.id, buildRecordingSetupPayload(newCameras, audioTrackIds, audioAssignments));
   };
 
   const handleAudioToggle = (trackId: number) => {
@@ -583,19 +578,7 @@ export const MomentPanel: React.FC = () => {
     const newAudioAssignments = isEnabled
       ? audioAssignments.filter(a => a.track_id !== trackId)
       : [...audioAssignments, { track_id: trackId, subject_ids: [] as number[] }];
-    debouncedSave(moment.id, {
-      camera_assignments: cameraAssignments.map(c => ({
-        track_id: c.track_id,
-        subject_ids: c.subject_ids || [],
-        shot_type: c.shot_type || null,
-        enabled: c.enabled !== false,
-      })),
-      audio_track_ids: newAudioIds,
-      audio_assignments: newAudioAssignments.map(a => ({
-        track_id: a.track_id,
-        subject_ids: a.subject_ids || [],
-      })),
-    });
+    debouncedSave(moment.id, buildRecordingSetupPayload(cameraAssignments, newAudioIds, newAudioAssignments));
   };
 
   const handleAudioSubjectChange = (trackId: number, subjectIds: number[]) => {
@@ -606,38 +589,13 @@ export const MomentPanel: React.FC = () => {
     if (!newAudioAssignments.find(a => a.track_id === trackId)) {
       newAudioAssignments.push({ track_id: trackId, subject_ids: subjectIds });
     }
-    debouncedSave(moment.id, {
-      camera_assignments: cameraAssignments.map(c => ({
-        track_id: c.track_id,
-        subject_ids: c.subject_ids || [],
-        shot_type: c.shot_type || null,
-        enabled: c.enabled !== false,
-      })),
-      audio_track_ids: audioTrackIds,
-      audio_assignments: newAudioAssignments.map(a => ({
-        track_id: a.track_id,
-        subject_ids: a.subject_ids || [],
-      })),
-    });
+    debouncedSave(moment.id, buildRecordingSetupPayload(cameraAssignments, audioTrackIds, newAudioAssignments));
   };
 
   const handleGraphicsToggle = () => {
     if (!moment?.id || readOnly) return;
     const newEnabled = !graphicsEnabled;
-    debouncedSave(moment.id, {
-      camera_assignments: cameraAssignments.map(c => ({
-        track_id: c.track_id,
-        subject_ids: c.subject_ids || [],
-        shot_type: c.shot_type || null,
-        enabled: c.enabled !== false,
-      })),
-      audio_track_ids: audioTrackIds,
-      audio_assignments: audioAssignments.map(a => ({
-        track_id: a.track_id,
-        subject_ids: a.subject_ids || [],
-      })),
-      graphics_enabled: newEnabled,
-    });
+    debouncedSave(moment.id, buildRecordingSetupPayload(cameraAssignments, audioTrackIds, audioAssignments, newEnabled));
   };
 
   // Check if a video track has an active (enabled) assignment in this moment
@@ -683,45 +641,15 @@ export const MomentPanel: React.FC = () => {
     setSelectedId(prev => prev === id ? null : id);
   };
 
-  return (
+  const panelContent = (
     <Box sx={{
-      width: "35%",
-      minWidth: "320px",
-      maxWidth: "480px",
-      flexShrink: 0,
-      borderLeft: "1px solid rgba(255,255,255,0.08)",
-      background: "#0d0d0d",
+      flex: 1,
+      overflow: "auto",
+      padding: "20px",
       display: "flex",
       flexDirection: "column",
-      height: "100%",
-      overflow: "hidden",
+      gap: 2,
     }}>
-      {/* Panel Header */}
-      <Box sx={{
-        px: 2,
-        py: 1.5,
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        bgcolor: "#111",
-        flexShrink: 0,
-        gap: 1.5,
-      }}>
-        <Box sx={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.1em", flexShrink: 0, pt: 0.25 }}>
-          Moment
-        </Box>
-      </Box>
-
-      {/* Panel Content */}
-      <Box sx={{
-        flex: 1,
-        overflow: "auto",
-        padding: "20px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 2,
-      }}>
         {!moment ? (
           /* Empty state */
           <Box sx={{
@@ -971,21 +899,42 @@ export const MomentPanel: React.FC = () => {
                               <>
                                 <TextShimmer active={generateBlocking.isPending}>
                                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <FormControl fullWidth size="small">
-                                      <Select
-                                        value={assignment.shot_type || ''}
-                                        onChange={(e) => handleShotChange(camIdx, e.target.value as string)}
-                                        disabled={readOnly}
-                                        displayEmpty
-                                        sx={selectSx}
-                                        MenuProps={menuProps}
-                                      >
-                                        <MenuItem value="" sx={{ fontSize: '0.78rem' }}><em>No shot type</em></MenuItem>
-                                        {SHOT_TYPES.map((st) => (
-                                          <MenuItem key={st} value={st} sx={{ fontSize: '0.78rem' }}>{formatShotLabel(st)}</MenuItem>
-                                        ))}
-                                      </Select>
-                                    </FormControl>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                      <FormControl fullWidth size="small">
+                                        <Select
+                                          value={assignment.shot_type || ''}
+                                          onChange={(e) => handleShotChange(camIdx, e.target.value as string)}
+                                          disabled={readOnly}
+                                          displayEmpty
+                                          sx={selectSx}
+                                          MenuProps={menuProps}
+                                        >
+                                          <MenuItem value="" sx={{ fontSize: '0.78rem' }}><em>No shot type</em></MenuItem>
+                                          {SHOT_TYPES.map((st) => (
+                                            <MenuItem key={st} value={st} sx={{ fontSize: '0.78rem' }}>{formatShotLabel(st)}</MenuItem>
+                                          ))}
+                                        </Select>
+                                      </FormControl>
+                                      <Tooltip title={assignment.shot_type_locked ? 'Shot type locked — AI will not overwrite' : 'Lock shot type against AI overwrite'}>
+                                        <span>
+                                          <IconButton
+                                            size="small"
+                                            onClick={() => handleShotLockToggle(camIdx)}
+                                            disabled={readOnly}
+                                            sx={{
+                                              flexShrink: 0,
+                                              color: assignment.shot_type_locked ? trackColor : 'rgba(255,255,255,0.35)',
+                                            }}
+                                          >
+                                            {assignment.shot_type_locked ? (
+                                              <LockRoundedIcon sx={{ fontSize: 18 }} />
+                                            ) : (
+                                              <LockOpenRoundedIcon sx={{ fontSize: 18 }} />
+                                            )}
+                                          </IconButton>
+                                        </span>
+                                      </Tooltip>
+                                    </Box>
                                     {/* Targeted Subjects Section */}
                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                       <Typography sx={{ color: trackColor, fontSize: '0.68rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -1000,7 +949,13 @@ export const MomentPanel: React.FC = () => {
                                         getSubjectName={getSubjectName}
                                         disabled={readOnly}
                                         accentColor={trackColor}
+                                        shotType={assignment.shot_type}
                                       />
+                                      {assignment.shot_type ? (
+                                        <Typography sx={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.62rem' }}>
+                                          {editorialSubjectCapLabel(assignment.shot_type)}
+                                        </Typography>
+                                      ) : null}
 
                                       {/* Subject chips row */}
                                       {(assignment.subject_ids || []).length > 0 && (
@@ -1194,170 +1149,21 @@ export const MomentPanel: React.FC = () => {
           </>
         )}
       </Box>
-    </Box>
   );
-};
 
-/* ─── Helper Components ─── */
-
-const selectSx = {
-  height: 34, fontSize: '0.8rem',
-  color: 'rgba(255,255,255,0.8)',
-  bgcolor: 'rgba(255,255,255,0.04)',
-  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.08)' },
-  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.15)' },
-  '& .MuiSelect-icon': { color: 'rgba(255,255,255,0.3)' },
-};
-
-const menuProps = { PaperProps: { sx: { bgcolor: '#1a1a1a', maxHeight: 280 } } };
-
-const iconPulse = keyframes`
-  0%, 100% { opacity: 0.45; transform: scale(1); filter: drop-shadow(0 0 0px transparent); }
-  50% { opacity: 1; transform: scale(1.18); filter: drop-shadow(0 0 8px currentColor); }
-`;
-
-const TrackIconButton: React.FC<{
-  icon: React.ReactNode;
-  label: string;
-  color: string;
-  isActive: boolean;
-  isSelected: boolean;
-  onClick: () => void;
-  shimmer?: boolean;
-}> = ({ icon, label, color, isActive, isSelected, onClick, shimmer }) => (
-  <Box
-    onClick={onClick}
-    sx={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 0.5,
-      px: 1,
-      py: 0.75,
-      borderRadius: 1,
-      cursor: 'pointer',
-      flex: 1,
-      minWidth: 0,
-      bgcolor: isSelected ? `${color}18` : 'transparent',
-      transition: 'all 0.12s ease',
-      position: 'relative',
-      '&:hover': { bgcolor: `${color}12` },
-      // Bottom indicator for selected state
-      '&::after': isSelected ? {
-        content: '""',
-        position: 'absolute',
-        bottom: 0,
-        left: '20%',
-        right: '20%',
-        height: 2,
-        borderRadius: 1,
-        bgcolor: color,
-      } : {},
-    }}
-  >
-    <Box sx={{
-      color: isActive || shimmer ? color : 'rgba(255,255,255,0.2)',
-      display: 'flex',
-      transition: 'color 0.12s',
-      opacity: isActive ? 1 : 0.5,
-      ...(shimmer && {
-        opacity: 1,
-        animation: `${iconPulse} 1.5s ease-in-out infinite`,
-      }),
-    }}>
-      {icon}
-    </Box>
-    <Typography sx={{
-      fontSize: '0.6rem',
-      color: isSelected ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.3)',
-      fontWeight: isSelected ? 600 : 400,
-      textAlign: 'center',
-      lineHeight: 1.1,
-      maxWidth: '100%',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-      ...(shimmer && {
-        animation: `${iconPulse} 1.8s ease-in-out infinite`,
-        color: `${color}99`,
-      }),
-    }}>
-      {label}
-    </Typography>
-  </Box>
-);
-
-const DetailHeader: React.FC<{
-  label: string;
-  color: string;
-  icon: React.ReactNode;
-  noMargin?: boolean;
-}> = ({ label, color, icon, noMargin }) => (
-  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: noMargin ? 0 : 1 }}>
-    <Box sx={{ color, display: 'flex', opacity: 0.7 }}>{icon}</Box>
-    <Typography sx={{
-      color: 'rgba(255,255,255,0.55)',
-      fontSize: '0.72rem',
-      fontWeight: 600,
-      textTransform: 'uppercase',
-      letterSpacing: '0.04em',
-    }}>
-      {label}
-    </Typography>
-  </Box>
-);
-
-const SubjectMultiSelect: React.FC<{
-  value: number[];
-  onChange: (ids: number[]) => void;
-  subjects: Array<{ id: number; name: string; [k: string]: unknown }>;
-  getSubjectName: (id: number) => string;
-  disabled?: boolean;
-  accentColor: string;
-}> = ({ value, onChange, subjects, getSubjectName, disabled, accentColor }) => {
-  const handleRemove = (id: number) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onChange(value.filter(v => v !== id));
-  };
+  if (embedded) return panelContent;
 
   return (
-    <FormControl fullWidth size="small">
-      <Select
-        multiple
-        value={value}
-        onChange={(e) => onChange(e.target.value as number[])}
-        disabled={disabled}
-        displayEmpty
-        renderValue={(selected) => {
-          const sel = selected as number[];
-          if (!sel || sel.length === 0)
-            return <em style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.75rem' }}>Select subjects…</em>;
-          return <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.75rem' }}>{sel.length} selected</span>;
-        }}
-        sx={{
-          minHeight: 34, fontSize: '0.8rem',
-          color: 'rgba(255,255,255,0.8)',
-          bgcolor: 'rgba(255,255,255,0.04)',
-          '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.08)' },
-          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.15)' },
-          '& .MuiSelect-icon': { color: 'rgba(255,255,255,0.3)' },
-        }}
-        MenuProps={{
-          PaperProps: { sx: { bgcolor: '#1a1a1a', maxHeight: 300 } },
-          autoFocus: false,
-          disableAutoFocusItem: true,
-          variant: 'menu',
-        }}
-      >
-        {subjects.map((s: any) => (
-          <MenuItem key={s.id} value={s.id} sx={{ fontSize: '0.78rem', py: 0.4 }}>
-            <Checkbox checked={value.includes(s.id)} size="small"
-              sx={{ p: 0.25, mr: 0.75, color: 'rgba(255,255,255,0.4)', '&.Mui-checked': { color: accentColor } }}
-            />
-            <ListItemText primary={s.name} primaryTypographyProps={{ fontSize: '0.78rem' }} />
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
+    <Box sx={INSPECTOR_PANEL_SX}>
+      <Box sx={{
+        px: 2, py: 1.5, borderBottom: "1px solid rgba(255,255,255,0.06)",
+        bgcolor: "#111", flexShrink: 0,
+      }}>
+        <Box sx={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          Moment
+        </Box>
+      </Box>
+      {panelContent}
+    </Box>
   );
 };

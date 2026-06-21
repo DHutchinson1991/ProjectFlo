@@ -14,6 +14,7 @@ import { DayBlueprintDiff, validateDiffShape } from '../diff';
  *     - spatial_required        : {}
  *   ACTIVITY scope (target_id = activity.id):
  *     - moment_required         : {}
+ *     - moment_count            : { exact?: number, min?: number, max?: number }
  *     - duration_band           : { min_minutes?, max_minutes? }
  *   MOMENT scope (target_id = moment.id):
  *     - name_locked | order_locked | duration_locked
@@ -134,6 +135,28 @@ export class DayBlueprintGuardrailsService {
         case 'duration_band':
           // Enforced on mutation, not publish. No-op here.
           break;
+        case 'moment_count': {
+          const count = activity.moments.length;
+          const exact = Number(val.exact);
+          const min = Number(val.min);
+          const max = Number(val.max);
+          if (Number.isFinite(exact) && count !== exact) {
+            v.push(
+              `Activity "${activity.name}" must have exactly ${exact} moments (has ${count})`,
+            );
+          }
+          if (Number.isFinite(min) && count < min) {
+            v.push(
+              `Activity "${activity.name}" must have ≥${min} moments (has ${count})`,
+            );
+          }
+          if (Number.isFinite(max) && count > max) {
+            v.push(
+              `Activity "${activity.name}" must have ≤${max} moments (has ${count})`,
+            );
+          }
+          break;
+        }
         default:
           v.push(`Unknown ACTIVITY-scope rule_key "${rule.rule_key}"`);
       }

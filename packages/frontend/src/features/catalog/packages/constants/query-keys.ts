@@ -8,6 +8,8 @@ export const catalogPackageKeys = {
         [...catalogPackageKeys.servicePackageDetail(brandId, packageId), 'ai-runs'] as const,
     packageAiRunDetail: (brandId: number, packageId: number, runId: string) =>
         [...catalogPackageKeys.packageAiRuns(brandId, packageId), runId] as const,
+    packageTraceability: (brandId: number, packageId: number) =>
+        [...catalogPackageKeys.servicePackageDetail(brandId, packageId), 'traceability'] as const,
     packageSets: (brandId: number) => [...catalogPackageKeys.all(brandId), 'package-sets'] as const,
     packageSetDetail: (brandId: number, setId: number) =>
         [...catalogPackageKeys.packageSets(brandId), 'detail', setId] as const,

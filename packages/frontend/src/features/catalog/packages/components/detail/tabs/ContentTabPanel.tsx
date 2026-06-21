@@ -13,6 +13,8 @@ export interface ContentTabPanelProps {
     films: FilmData[];
     packageActivities: PackageActivityRecord[];
     onConfigureItem: (item: ServicePackageItem) => void;
+    onSelectContentItem?: (item: ServicePackageItem, index: number) => void;
+    selectedContentItemId?: string | null;
     onRemoveItem: (index: number) => void;
     onAddFilm: () => void;
     onAddService: () => void;
@@ -24,7 +26,8 @@ export interface ContentTabPanelProps {
 
 export function ContentTabPanel({
     items, films, packageActivities,
-    onConfigureItem, onRemoveItem, onAddFilm, onAddService, cardSx,
+    onConfigureItem, onSelectContentItem, selectedContentItemId,
+    onRemoveItem, onAddFilm, onAddService, cardSx,
     buildingFilmIds,
     planning,
     filmCreationProgress,
@@ -34,7 +37,10 @@ export function ContentTabPanel({
             <DeliverablesCard
                 items={items} films={films}
                 packageActivities={packageActivities}
-                onConfigureItem={onConfigureItem} onRemoveItem={onRemoveItem}
+                onConfigureItem={onConfigureItem}
+                onSelectContentItem={onSelectContentItem}
+                selectedContentItemId={selectedContentItemId}
+                onRemoveItem={onRemoveItem}
                 onAddFilm={onAddFilm} onAddService={onAddService}
                 cardSx={cardSx}
                 buildingFilmIds={buildingFilmIds}

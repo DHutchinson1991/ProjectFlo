@@ -2,39 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { WEDDING_ROLES_DATA } from '../../../platform/brands/provisioning/wedding-data';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
-
-const SANDBOX_LOCATION_ROLE_KEY = 'sandbox';
-const SANDBOX_LOCATION_ROLE_LABEL = 'Sandbox';
-const SANDBOX_LOCATION_ROLE_DESCRIPTION =
-  'Generic sandbox location for drafting placements before real venue mappings are added.';
+import {
+  normalizeLabel,
+  normalizeName,
+  SANDBOX_LOCATION_ROLE_DESCRIPTION,
+  SANDBOX_LOCATION_ROLE_KEY,
+  SANDBOX_LOCATION_ROLE_LABEL,
+  toStableKey,
+  WEDDING_PRIMARY_ROLES,
+  WEDDING_TYPICAL_COUNTS,
+} from './day-blueprint-defaults.helpers';
 
 type DbClient = Prisma.TransactionClient | PrismaService;
 
-function normalizeName(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/honou?r/g, 'honor')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-function normalizeLabel(value: string | null | undefined): string | null {
-  const trimmed = (value ?? '').trim().replace(/\s+/g, ' ');
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function toStableKey(value: string): string {
-  return normalizeName(value).replace(/ /g, '_');
-}
-
 const WEDDING_ROLE_ORDER = WEDDING_ROLES_DATA.map((role) => normalizeName(role.role_name));
-const WEDDING_PRIMARY_ROLES = new Set(['bride', 'groom']);
-const WEDDING_TYPICAL_COUNTS = new Map<string, number>([
-  ['bridesmaids', 4],
-  ['groomsmen', 4],
-  ['guests', 100],
-]);
 
 @Injectable()
 export class DayBlueprintDefaultsService {
@@ -46,12 +27,12 @@ export class DayBlueprintDefaultsService {
 
   async seedInitialVersionDefaults(
     tx: DbClient,
-    params: { brandId: number; versionId: number; eventCategory: string },
+    params: { brandId: number; versionId: number; eventCategory: string; guestCount?: number },
   ) {
     await this.ensureSandboxLocationRole(tx, params.brandId);
 
     if (this.isWeddingCategory(params.eventCategory)) {
-      await this.ensureWeddingSubjectRoles(tx, params.brandId, params.versionId);
+      await this.ensureWeddingSubjectRoles(tx, params.brandId, params.versionId, params.guestCount);
     }
   }
 
@@ -249,7 +230,12 @@ export class DayBlueprintDefaultsService {
     });
   }
 
-  private async ensureWeddingSubjectRoles(tx: DbClient, brandId: number, versionId: number) {
+  private async ensureWeddingSubjectRoles(
+    tx: DbClient,
+    brandId: number,
+    versionId: number,
+    guestCount?: number,
+  ) {
     const brandRoles = await tx.subjectRole.findMany({
       where: { brand_id: brandId },
       select: { id: true, role_name: true, is_group: true },
@@ -275,7 +261,7 @@ export class DayBlueprintDefaultsService {
           day_blueprint_version_id: versionId,
           subject_role_id: role.id,
           is_primary: WEDDING_PRIMARY_ROLES.has(normalizedName),
-          typical_count: this.getWeddingTypicalCount(normalizedName, role.is_group),
+          typical_count: this.getWeddingTypicalCount(normalizedName, role.is_group, guestCount),
           order_index: orderIndex,
         },
       ];
@@ -291,7 +277,11 @@ export class DayBlueprintDefaultsService {
     });
   }
 
-  private getWeddingTypicalCount(normalizedName: string, isGroup: boolean): number {
+  private getWeddingTypicalCount(normalizedName: string, isGroup: boolean, guestCount?: number): number {
+    if (normalizedName === 'guests' && guestCount != null) {
+      return Math.max(1, Math.floor(guestCount));
+    }
+
     const explicit = WEDDING_TYPICAL_COUNTS.get(normalizedName);
     if (explicit != null) {
       return explicit;

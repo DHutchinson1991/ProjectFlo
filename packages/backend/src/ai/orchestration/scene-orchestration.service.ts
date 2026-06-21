@@ -8,6 +8,7 @@ import {
   BlockingPipelineResult,
   NarrativeContext,
   RenderPipelineResult,
+  SceneBlockingPipelineResult,
 } from './pipeline.interfaces';
 
 /**
@@ -99,6 +100,63 @@ export class SceneOrchestrationService {
       log.flush();
       throw error;
     }
+  }
+
+  /**
+   * Runs blocking sequentially for every moment in a film scene.
+   * Order matters — each moment reads prior moments' DB writes for continuity.
+   */
+  async runSceneBlockingPipeline(
+    filmSceneId: number,
+    spaceSlotId: number,
+    activityId?: number,
+  ): Promise<SceneBlockingPipelineResult> {
+    const moments = await this.prisma.sceneMoment.findMany({
+      where: { film_scene_id: filmSceneId },
+      select: { id: true, name: true, order_index: true },
+      orderBy: { order_index: 'asc' },
+    });
+
+    this.logger.log(
+      `Scene blocking pipeline: filmSceneId=${filmSceneId}, ${moments.length} moment(s)`,
+    );
+
+    const sceneResults: SceneBlockingPipelineResult['moments'] = [];
+    let completed = 0;
+    let failed = 0;
+
+    for (const moment of moments) {
+      try {
+        const result = await this.runBlockingPipeline(moment.id, spaceSlotId, activityId);
+        completed++;
+        sceneResults.push({
+          sceneMomentId: moment.id,
+          momentName: moment.name,
+          status: 'completed',
+          result,
+        });
+      } catch (error) {
+        failed++;
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Scene blocking failed for moment ${moment.id} (${moment.name}): ${message}`,
+        );
+        sceneResults.push({
+          sceneMomentId: moment.id,
+          momentName: moment.name,
+          status: 'failed',
+          error: message,
+        });
+      }
+    }
+
+    return {
+      filmSceneId,
+      total: moments.length,
+      completed,
+      failed,
+      moments: sceneResults,
+    };
   }
 
   // ── Render Pipeline (Steps 4–7) ────────────────────────────────────

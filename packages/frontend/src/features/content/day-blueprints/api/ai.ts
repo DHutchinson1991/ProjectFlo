@@ -3,6 +3,7 @@ import type { ApiClient } from '@/shared/api/client';
 import type {
   ApplyDayBlueprintAiProposalInput,
   CreateDayBlueprintAiProposalInput,
+  DayBlueprintGenerationMode,
   DayBlueprintAiPreview,
   DayBlueprintAiProposal,
   DayBlueprintAiRun,
@@ -59,6 +60,7 @@ export const createDayBlueprintsAiApi = (client: ApiClient) => ({
       data: {
         prompt?: string;
         activity_id?: number;
+        mode?: DayBlueprintGenerationMode;
       },
     ): Promise<{
       runId: number;

@@ -21,7 +21,15 @@ export class SchedulePackageActivityService {
         package_event_day: { include: { event_day: true } },
         scene_schedules: { include: { scene: true, package_film: { include: { film: true } } } },
         crew_slot_assignments: { include: { package_crew_slot: { include: { crew: { include: { contact: true } }, job_role: true, equipment: { include: { equipment: true } } } } } },
-        moments: { orderBy: { order_index: 'asc' } },
+        moments: {
+          orderBy: { order_index: 'asc' },
+          include: {
+            actions: {
+              include: { subject_role: { select: { id: true, role_name: true } } },
+              orderBy: { order_index: 'asc' },
+            },
+          },
+        },
       },
       orderBy: [{ package_event_day_id: 'asc' }, { order_index: 'asc' }],
     });
@@ -33,7 +41,15 @@ export class SchedulePackageActivityService {
       include: {
         scene_schedules: { include: { scene: true, package_film: { include: { film: true } } } },
         crew_slot_assignments: { include: { package_crew_slot: { include: { crew: { include: { contact: true } }, job_role: true, equipment: { include: { equipment: true } } } } } },
-        moments: { orderBy: { order_index: 'asc' } },
+        moments: {
+          orderBy: { order_index: 'asc' },
+          include: {
+            actions: {
+              include: { subject_role: { select: { id: true, role_name: true } } },
+              orderBy: { order_index: 'asc' },
+            },
+          },
+        },
       },
       orderBy: { order_index: 'asc' },
     });

@@ -23,7 +23,6 @@ import { AddUserToBrandDto } from './dto/add-user-to-brand.dto';
 import { UpsertMeetingSettingsDto } from './dto/upsert-meeting-settings.dto';
 import { UpsertWelcomeSettingsDto } from './dto/upsert-welcome-settings.dto';
 import { BrandSettingsQueryDto } from './dto/brand-settings-query.dto';
-
 @Controller('api/brands')
 @UseGuards(AuthGuard('jwt'))
 export class BrandsController {

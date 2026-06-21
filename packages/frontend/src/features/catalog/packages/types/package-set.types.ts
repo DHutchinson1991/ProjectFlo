@@ -21,4 +21,12 @@ export interface PackageSet {
     order_index: number;
     is_active: boolean;
     slots: PackageSetSlot[];
+    /** Set when the row is scoped to an event type (wizard/public adapters). */
+    event_type_id?: number | null;
+    event_type?: {
+        id?: number;
+        name?: string;
+        icon?: string | null;
+        color?: string | null;
+    } | null;
 }

@@ -1,4 +1,21 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  buildCeremonyMotionTextForRole,
+  ceremonyMotionExemptFromMomentText,
+  deriveSandboxAnchors,
+  distanceToPolygonBBox,
+  inferShotTypeFromDistances,
+  inferShotTypeWithHysteresis,
+  nearestPointInPolygon,
+  pointInPolygon,
+  polygonCentroid,
+  resolveSpatialCollisions,
+  subjectCapForDistances,
+  subjectCapForEditorialShotType,
+  angleToPointDeg,
+  rotationTowardPointsDeg,
+  type SandboxRoomAnchorSpec,
+} from '@projectflo/shared';
 import { PrismaService } from '../../platform/prisma/prisma.service';
 import { SpaceSlotBlockingEnvironmentService } from '../../workflow/locations/modules/floor-plans/space-slot-blocking-environment.service';
 import { GemmaService } from '../gemma/gemma.service';
@@ -48,6 +65,10 @@ interface CameraInput {
   baseX: number;
   baseY: number;
   baseRotation: number;
+  /** Editorial shot type for subject-cap guardrails (assignment intent). */
+  shotType?: string | null;
+  /** When true, AI blocking must not overwrite shot_type. */
+  shotTypeLocked?: boolean;
 }
 
 interface ZoneInput {
@@ -56,6 +77,11 @@ interface ZoneInput {
   description: string | null;
   polygon: { x: number; y: number }[];
 }
+
+type CameraAssignmentShotLock = {
+  shot_type?: string | null;
+  shot_type_locked?: boolean;
+};
 
 // ─── AI output types ─────────────────────────────────────────────────
 
@@ -101,6 +127,10 @@ interface SubjectBlockingResult extends AiSubjectResult {
 }
 interface CameraBlockingResult extends AiCameraResult {
   cameraPositionId: number;
+  /** FOV widened deterministically when needed to keep assigned subjects in frame. */
+  fovAngle?: number | null;
+  /** Geometric shot type inferred after guardrails (persisted when unlocked). */
+  inferredShotType?: string | null;
 }
 
 interface BlockingGuardrailTelemetry {
@@ -153,6 +183,23 @@ interface GeneratePackageBlockingOptions {
 export class BlockingDirectorService implements OnModuleInit {
   private readonly logger = new Logger(BlockingDirectorService.name);
   private systemPrompt = '';
+  private static readonly COMPACT_SYSTEM_PROMPT = [
+    'You are a wedding cinematography blocking director.',
+    'Return only valid JSON.',
+    'Preserve each input subject and camera label exactly.',
+    'Output schema:',
+    '{',
+    '  "momentDescription": string,',
+    '  "durationSeconds": number,',
+    '  "subjects": [{ "name": string, "x": number, "y": number, "rotation": number, "seated": boolean|null, "actionDescription": string }],',
+    '  "cameras": [{ "label": string, "x": number, "y": number, "rotation": number, "subjectNames": string[] }]',
+    '}',
+    'Rules:',
+    '- Keep coordinates inside 0..1000.',
+    '- Keep large crowd groups in their existing area.',
+    '- Keep camera labels unchanged and reference existing subjects only.',
+    '- Keep blocking realistic for the described timeline moment.',
+  ].join('\n');
 
   constructor(
     private readonly prisma: PrismaService,
@@ -216,6 +263,7 @@ export class BlockingDirectorService implements OnModuleInit {
       runLog,
       sceneMoments: allSceneMoments,
       currentMomentIndex: sceneMoment.order_index,
+      sceneMomentId,
     });
 
     if (!core) {
@@ -248,11 +296,7 @@ export class BlockingDirectorService implements OnModuleInit {
   /**
    * Package-level blocking entrypoint. Runs during package creation (no
    * film, no SceneMoment yet) to populate:
-   *   - `SpaceSlotMomentSubject` (per-moment subject position overrides)
    *   - `SpaceSlotMomentCamera` (per-moment camera position overrides)
-   *   - `PackageActivityMoment.description`
-   *   - `PackageActivityMoment.duration_seconds`
-   *   - `PackageActivityMoment.subject_actions` ({ subjectName: actionDescription })
    *   - `PackageActivityMoment.camera_subject_plan` ({ cameraLabel: [subjectName, ...] })
    *
    * Films created from this package inherit these via `packageFilmLinker`
@@ -311,7 +355,26 @@ export class BlockingDirectorService implements OnModuleInit {
     // Package-level writes only — no SceneMoment, no FilmSceneMomentSubject, no CameraSubjectAssignment.
     runLog.section('DB WRITES (package-level)');
     runLog.log('WRITE', `Writing package-scoped results: packageMomentId=${packageMomentId}, spaceSlotId=${spaceSlotId}`);
-    await this.writePackageMomentResults(packageMomentId, spaceSlotId, pkgMoment.name, core.parsed, core.cameras, runLog);
+    const packageActivity = await this.prisma.packageActivity.findUnique({
+      where: { id: pkgMoment.package_activity_id },
+      select: { package_id: true },
+    });
+    const servicePackage = packageActivity
+      ? await this.prisma.service_packages.findUnique({
+        where: { id: packageActivity.package_id },
+        select: { source_day_blueprint_version_id: true },
+      })
+      : null;
+    const isBlueprintMode = Boolean(servicePackage?.source_day_blueprint_version_id);
+    await this.writePackageMomentResults(
+      packageMomentId,
+      spaceSlotId,
+      pkgMoment.name,
+      core.parsed,
+      core.cameras,
+      runLog,
+      { isBlueprintMode },
+    );
 
     runLog.section('RESULT SUMMARY');
     runLog.log('DONE', `Model: ${core.gemma.model}, Provider: ${core.gemma.provider}`);
@@ -351,14 +414,35 @@ export class BlockingDirectorService implements OnModuleInit {
     runLog: AiDirectorLogger;
     sceneMoments?: { id: number; name: string; description: string | null; duration: number | null; order_index: number }[];
     currentMomentIndex?: number;
+    sceneMomentId?: number;
     onProgress?: (update: BlockingProgressUpdate) => void;
   }): Promise<{
     parsed: Omit<GenerateBlockingResult, 'model' | 'provider'>;
     cameras: CameraInput[];
     gemma: { model: string; provider: string };
     telemetry: BlockingPlanningTelemetry;
+    isBlueprintMode: boolean;
   } | null> {
-    const { packageMomentId, spaceSlotId, activityId, momentName, runLog, sceneMoments, currentMomentIndex, onProgress } = params;
+    const { packageMomentId, spaceSlotId, activityId, momentName, runLog, sceneMoments, currentMomentIndex, sceneMomentId, onProgress } = params;
+
+    let isBlueprintMode = false;
+    if (packageMomentId != null) {
+      const pkgMomentRow = await this.prisma.packageActivityMoment.findUnique({
+        where: { id: packageMomentId },
+        select: { package_activity: { select: { package_id: true } } },
+      });
+      const packageId = pkgMomentRow?.package_activity?.package_id;
+      if (packageId) {
+        const servicePackage = await this.prisma.service_packages.findUnique({
+          where: { id: packageId },
+          select: { source_day_blueprint_version_id: true },
+        });
+        isBlueprintMode = Boolean(servicePackage?.source_day_blueprint_version_id);
+      }
+    }
+    if (isBlueprintMode) {
+      runLog.log('MODE', 'Blueprint package — subject floor positions are fixed; plan cameras only');
+    }
 
     // 1. Load space slot with objects, subjects, and cameras
     runLog.section('SPACE SLOT DATA');
@@ -441,7 +525,7 @@ export class BlockingDirectorService implements OnModuleInit {
         boundTo: (sp as any).bound_object?.label ?? null,
       });
     }
-    const subjects: SubjectInput[] = [...subjectsByName.values()];
+    let subjects: SubjectInput[] = [...subjectsByName.values()];
     if (deduplicatedByNameCount > 0) {
       runLog.warn('DEDUP', `Collapsed ${deduplicatedByNameCount} duplicate subject position row(s) by name`);
     }
@@ -487,8 +571,41 @@ export class BlockingDirectorService implements OnModuleInit {
         baseX: cp.x,
         baseY: cp.y,
         baseRotation: cp.rotation,
+        shotType: this.defaultEditorialShotTypeForCamera(cp.order_index, isUnmanned),
       });
     }
+
+    if (sceneMomentId) {
+      const recordingSetup = await this.prisma.momentRecordingSetup.findUnique({
+        where: { moment_id: sceneMomentId },
+        include: {
+          camera_assignments: {
+            include: { track: { select: { name: true } } },
+          },
+        },
+      });
+      if (recordingSetup) {
+        const trackNameToAssignment = new Map(
+          recordingSetup.camera_assignments
+            .filter((a) => a.track?.name && !a.track.name.toLowerCase().includes('audio'))
+            .map((a) => [a.track!.name.toLowerCase(), a]),
+        );
+        for (const cam of cameras) {
+          const assignment = trackNameToAssignment.get(cam.label.toLowerCase());
+          if (assignment) {
+            if (assignment.shot_type) {
+              cam.shotType = assignment.shot_type;
+            }
+            cam.shotTypeLocked = (assignment as CameraAssignmentShotLock).shot_type_locked;
+          }
+        }
+        runLog.log(
+          'LOAD',
+          `Merged ${trackNameToAssignment.size} moment assignment(s) into camera inputs (shot type + lock)`,
+        );
+      }
+    }
+
     runLog.table('Cameras', cameras.map(c => ({
       label: c.label, positionId: c.cameraPositionId,
       pos: `(${Math.round(c.prevX)},${Math.round(c.prevY)})@${Math.round(c.prevRotation)}°`,
@@ -509,6 +626,32 @@ export class BlockingDirectorService implements OnModuleInit {
           select: { description: true, notes: true, duration_seconds: true, package_activity_id: true },
         })
       : null;
+
+    const blueprintMomentActions = isBlueprintMode && packageMomentId
+      ? (
+          await this.prisma.packageActivityMomentAction.findMany({
+            where: { package_activity_moment_id: packageMomentId },
+            include: { subject_role: { select: { role_name: true } } },
+            orderBy: { order_index: 'asc' },
+          })
+        ).map((row) => ({
+          roleName: row.subject_role.role_name,
+          actionText: row.action_text,
+        }))
+      : [];
+    if (blueprintMomentActions.length > 0) {
+      runLog.log('LOAD', `Blueprint moment actions: ${blueprintMomentActions.length} role narrative(s)`);
+      if (isBlueprintMode) {
+        const before = subjects.length;
+        subjects = this.filterSubjectsToBlueprintCast(subjects, blueprintMomentActions);
+        if (subjects.length !== before) {
+          runLog.log(
+            'LOAD',
+            `Blueprint cast filter: ${subjects.length}/${before} subject(s) in this moment's authored roster`,
+          );
+        }
+      }
+    }
     const activity = pkgMoment
       ? await this.prisma.packageActivity.findUnique({
           where: { id: pkgMoment.package_activity_id },
@@ -532,8 +675,8 @@ export class BlockingDirectorService implements OnModuleInit {
     }));
     runLog.log('LOAD', `Zones: ${zones.length}`);
 
-    // 3c. Auto-generate zones if none exist but objects are present
-    if (zones.length === 0 && floorplanObjects.length > 0) {
+    // 3c. Auto-generate zones if none exist but objects are present (skip for blueprint packages with snapshot zones)
+    if (!isBlueprintMode && zones.length === 0 && floorplanObjects.length > 0) {
       runLog.log('ZONE_GEN', 'No zones found — generating from objects via Gemma');
       const generatedZones = await this.generateZonesFromObjects(spaceSlotId);
       zones.push(...generatedZones);
@@ -542,6 +685,23 @@ export class BlockingDirectorService implements OnModuleInit {
 
     if (zones.length > 0) {
       runLog.table('Zones', zones.map(z => ({ name: z.name, label: z.label, points: z.polygon.length })));
+    }
+
+    // 3d. Derive named anchors from the slot geometry (shared landmark
+    // vocabulary with the placement seed and the Day Designer preview).
+    const anchors = deriveSandboxAnchors(
+      floorplanObjects.map((o) => ({
+        object_type: o.type,
+        label: o.label,
+        x: o.x,
+        y: o.y,
+        width: o.width,
+        height: o.height,
+        metadata: o.metadata ?? null,
+      })),
+    );
+    if (anchors.length > 0) {
+      runLog.table('Anchors', anchors.map(a => ({ name: a.name, pos: `(${a.x},${a.y})@${a.rotation}°` })));
     }
 
     // 4. Build prompt + call Gemma
@@ -557,19 +717,23 @@ export class BlockingDirectorService implements OnModuleInit {
       currentDurationSeconds: pkgMoment?.duration_seconds ?? undefined,
       floorplanObjects, subjects, cameras,
       zones,
+      anchors,
       sceneMoments,
       currentMomentIndex,
+      isBlueprintMode,
+      blueprintMomentActions,
     });
     runLog.log('PROMPT', `User message built: ${userMessage.length} chars, ${userMessage.split('\n').length} lines`);
     runLog.data('User message (full)', userMessage);
 
     runLog.section('GEMMA AI CALL');
-    runLog.log('AI_CALL', `Sending to Gemma: system=${this.systemPrompt.length} chars, user=${userMessage.length} chars, maxTokens=3000, temp=0.4`);
+    const systemPromptForCall = this.selectSystemPrompt(userMessage.length);
+    runLog.log('AI_CALL', `Sending to Gemma: system=${systemPromptForCall.length} chars, user=${userMessage.length} chars, maxTokens=3000, temp=0.4`);
     onProgress?.({ substep: 'llm-request-started' });
 
     const result = await this.gemma.chat({
       messages: [
-        { role: 'system', content: this.systemPrompt },
+        { role: 'system', content: systemPromptForCall },
         { role: 'user', content: userMessage },
       ],
       maxTokens: 3000,
@@ -589,6 +753,19 @@ export class BlockingDirectorService implements OnModuleInit {
     // 5. Parse + validate
     runLog.section('PARSE & VALIDATE');
     const parsed = this.parseResponse(result.reply, subjects, cameras);
+    if (isBlueprintMode) {
+      const subjectByName = new Map(subjects.map((s) => [s.name.toLowerCase(), s]));
+      for (const row of parsed.subjects) {
+        const input = subjectByName.get(row.name.toLowerCase());
+        if (input) {
+          row.x = input.prevX;
+          row.y = input.prevY;
+          row.rotation = input.prevRotation;
+          row.seated = input.prevSeated;
+        }
+      }
+      runLog.log('PARSE', 'Blueprint mode: clamped parsed subject positions to seeded blueprint layout');
+    }
     runLog.log('PARSE', `Parsed: momentDescription="${parsed.momentDescription.slice(0, 80)}...", duration=${parsed.durationSeconds}s`);
     runLog.log('PARSE', `Subjects: ${parsed.subjects.length} parsed from ${subjects.length} input`);
     runLog.table('Parsed subjects', parsed.subjects.map(s => ({
@@ -602,7 +779,22 @@ export class BlockingDirectorService implements OnModuleInit {
     })));
     onProgress?.({ substep: 'parse-complete' });
 
-    const guardrailTelemetry = this.applyBlockingGuardrails(parsed, subjects, cameras, zones);
+    const guardrailTelemetry = this.applyBlockingGuardrails(
+      parsed,
+      subjects,
+      cameras,
+      zones,
+      floorplanObjects,
+      { isBlueprintMode },
+    );
+    this.refineMomentAwareTargeting(
+      parsed,
+      momentName,
+      blueprintMomentActions,
+      subjects,
+      cameras,
+      guardrailTelemetry,
+    );
     onProgress?.({
       substep: 'guardrails-applied',
       cappedCameraCount: guardrailTelemetry.cappedCameraCount,
@@ -622,6 +814,7 @@ export class BlockingDirectorService implements OnModuleInit {
         correctedCameraAssignments: guardrailTelemetry.cappedCameraCount,
         notices: [...guardrailTelemetry.notices],
       },
+      isBlueprintMode,
     };
   }
 
@@ -640,8 +833,149 @@ export class BlockingDirectorService implements OnModuleInit {
     /congregation\s*(stand|rise)/i,
   ];
 
+  private static readonly PROCESSIONAL_MOMENT_PATTERNS = [
+    /processional/i,
+    /walk(?:ing|s)?\s+down\s+the\s+aisle/i,
+    /enter(?:s|ing)?\s+the\s+(?:ceremony|space)/i,
+  ];
+
+  private static readonly PROCESSIONAL_PARTY_ROLE_RE =
+    /\b(bride|groom|bridesmaid|groomsman|flower girl|ring bearer|best man|maid of honor|father of (?:bride|groom))\b/i;
+
   private static isStandingMoment(momentName: string): boolean {
     return BlockingDirectorService.STANDING_MOMENT_PATTERNS.some((p) => p.test(momentName));
+  }
+
+  private static isProcessionalMoment(
+    momentName: string,
+    actions: Array<{ roleName: string; actionText: string }>,
+  ): boolean {
+    if (BlockingDirectorService.PROCESSIONAL_MOMENT_PATTERNS.some((p) => p.test(momentName))) {
+      return true;
+    }
+    return actions.some((a) =>
+      /walk|processional|aisle|enter(?:s|ing)?/i.test(a.actionText),
+    );
+  }
+
+  /** Default editorial shot type when no assignment exists yet (package blocking). */
+  private defaultEditorialShotTypeForCamera(orderIndex: number, isUnmanned: boolean): string {
+    if (isUnmanned) return 'MEDIUM_SHOT';
+    if (orderIndex === 0) return 'ESTABLISHING_SHOT';
+    if (orderIndex === 1) return 'WIDE_SHOT';
+    return 'MEDIUM_SHOT';
+  }
+
+  private isMovingCeremonySubject(
+    subject: SubjectInput,
+    momentName: string,
+    actions: Array<{ roleName: string; actionText: string }>,
+  ): boolean {
+    if (subject.isFixedContextGroup) return false;
+    if (subject.prevSeated) return false;
+
+    const roleKey = (subject.role ?? subject.name).toLowerCase();
+    const action = actions.find((a) => a.roleName.toLowerCase() === roleKey);
+    const motionText = buildCeremonyMotionTextForRole({
+      actionText: action?.actionText,
+      momentName,
+    });
+    if (ceremonyMotionExemptFromMomentText(motionText)) return true;
+
+    if (BlockingDirectorService.isProcessionalMoment(momentName, actions)) {
+      return (
+        BlockingDirectorService.PROCESSIONAL_PARTY_ROLE_RE.test(subject.name) ||
+        BlockingDirectorService.PROCESSIONAL_PARTY_ROLE_RE.test(subject.role ?? '')
+      );
+    }
+    return false;
+  }
+
+  private subjectNamesInCameraFov(
+    cam: CameraBlockingResult,
+    subjects: SubjectBlockingResult[],
+    fovAngle?: number | null,
+  ): string[] {
+    const fov = this.clamp(fovAngle ?? cam.fovAngle ?? 60, 10, 120);
+    const halfFov = fov / 2;
+    const visible: Array<{ name: string; distance: number }> = [];
+
+    for (const subject of subjects) {
+      const angle = angleToPointDeg(cam.x, cam.y, subject.x, subject.y);
+      const dev = Math.abs(((angle - cam.rotation + 540) % 360) - 180);
+      if (dev > halfFov) continue;
+      visible.push({
+        name: subject.name,
+        distance: Math.hypot(subject.x - cam.x, subject.y - cam.y),
+      });
+    }
+
+    return visible
+      .toSorted((a, b) => a.distance - b.distance)
+      .map((row) => row.name);
+  }
+
+  /**
+   * Deterministic fallback: processional moments target moving subjects only;
+   * empty or bloated AI rosters are replaced with FOV-visible, capped picks.
+   */
+  private refineMomentAwareTargeting(
+    parsed: Omit<GenerateBlockingResult, 'model' | 'provider'>,
+    momentName: string,
+    blueprintMomentActions: Array<{ roleName: string; actionText: string }>,
+    inputSubjects: SubjectInput[],
+    inputCameras: CameraInput[],
+    telemetry?: BlockingGuardrailTelemetry,
+  ): void {
+    const isProcessional = BlockingDirectorService.isProcessionalMoment(
+      momentName,
+      blueprintMomentActions,
+    );
+    const movingNames = new Set(
+      inputSubjects
+        .filter((s) => this.isMovingCeremonySubject(s, momentName, blueprintMomentActions))
+        .map((s) => s.name),
+    );
+    const cameraById = new Map(inputCameras.map((c) => [c.cameraPositionId, c]));
+
+    parsed.cameras = parsed.cameras.map((cam) => {
+      const input = cameraById.get(cam.cameraPositionId);
+      const editorialCap = subjectCapForEditorialShotType(input?.shotType);
+      const visibleInFov = this.subjectNamesInCameraFov(cam, parsed.subjects, input?.fovAngle);
+
+      let names = cam.subjectNames.filter((name) => visibleInFov.includes(name));
+      if (isProcessional && movingNames.size > 0) {
+        names = names.filter((name) => movingNames.has(name));
+      }
+
+      const inputSubjectByName = new Map(inputSubjects.map((s) => [s.name.toLowerCase(), s]));
+      const visiblePool = (isProcessional && movingNames.size > 0
+        ? visibleInFov.filter((name) => movingNames.has(name))
+        : visibleInFov
+      ).filter((name) => {
+        const subject = inputSubjectByName.get(name.toLowerCase());
+        return !subject?.isFixedContextGroup;
+      });
+
+      if (names.length === 0) {
+        names = visiblePool.slice(0, Number.isFinite(editorialCap) ? editorialCap : visiblePool.length);
+        if (names.length > 0) {
+          telemetry?.notices.push(
+            `Camera "${cam.label}" filled empty targets with visible subjects: ${names.join(', ')}.`,
+          );
+        }
+      }
+
+      const capped = this.capSubjectsByShot(
+        names,
+        { x: cam.x, y: cam.y, fovAngle: input?.fovAngle },
+        inputSubjects,
+        input?.shotType,
+        telemetry,
+      );
+
+      return { ...cam, subjectNames: capped };
+    });
   }
 
   /**
@@ -657,6 +991,7 @@ export class BlockingDirectorService implements OnModuleInit {
     results: Omit<GenerateBlockingResult, 'model' | 'provider'>,
     cameraInputs: CameraInput[],
     runLog: AiDirectorLogger,
+    options: { isBlueprintMode: boolean },
   ): Promise<void> {
     const cameraFovMap = new Map(
       cameraInputs.map((c) => [c.label.toLowerCase(), c.fovAngle]),
@@ -665,51 +1000,96 @@ export class BlockingDirectorService implements OnModuleInit {
       cameraInputs.map((c) => [c.label.toLowerCase(), c.isUnmanned]),
     );
 
-    // Build subject_actions JSON ({ subjectName: actionDescription }) and
-    // camera_subject_plan JSON ({ cameraLabel: [subjectName, ...] }).
-    const subjectActions: Record<string, string> = {};
-    for (const s of results.subjects) {
-      if (s.actionDescription) subjectActions[s.name] = s.actionDescription;
-    }
+    // Camera targeting plan consumed by packageFilmLinker.
     const cameraSubjectPlan: Record<string, string[]> = {};
     for (const c of results.cameras) {
       cameraSubjectPlan[c.label] = c.subjectNames;
     }
 
     await this.prisma.$transaction(async (tx) => {
-      // A. Update moment metadata
-      await tx.packageActivityMoment.update({
-        where: { id: packageMomentId },
-        data: {
-          description: results.momentDescription || undefined,
-          duration_seconds: results.durationSeconds,
-          subject_actions: subjectActions,
-          camera_subject_plan: cameraSubjectPlan,
-        },
-      });
-      runLog.log('WRITE', `A. PackageActivityMoment updated: description="${(results.momentDescription || '').slice(0, 60)}...", duration=${results.durationSeconds}s, cameras=${Object.keys(cameraSubjectPlan).length}, subjects=${Object.keys(subjectActions).length}`);
-
-      // B. Subject position overrides
-      for (const r of results.subjects) {
-        await tx.spaceSlotMomentSubject.upsert({
-          where: {
-            subject_position_id_moment_id: {
-              subject_position_id: r.positionId,
-              moment_id: packageMomentId,
-            },
-          },
-          create: {
-            subject_position_id: r.positionId,
-            moment_id: packageMomentId,
-            x: r.x, y: r.y, rotation: r.rotation,
-            seated: r.seated ?? undefined,
-          },
-          update: {
-            x: r.x, y: r.y, rotation: r.rotation,
-            ...(r.seated !== undefined ? { seated: r.seated } : {}),
+      // A. Package metadata ownership:
+      // - blueprint mode: preserve Day Designer narrative fields; persist seeded
+      //   subject poses and camera targeting.
+      // - full mode: keep legacy behavior.
+      if (options.isBlueprintMode) {
+        await tx.packageActivityMoment.update({
+          where: { id: packageMomentId },
+          data: {
+            camera_subject_plan: cameraSubjectPlan,
           },
         });
-        runLog.log('WRITE', `B. Subject override upserted: "${r.name}" → (${r.x},${r.y})@${r.rotation}°`);
+        runLog.log(
+          'WRITE',
+          `A. Blueprint mode: preserved description/duration/actions; updated camera_subject_plan for ${Object.keys(cameraSubjectPlan).length} camera(s)`,
+        );
+
+        // B. Subject position overrides — blueprint placements are fixed; persist
+        // the seeded layout so the spatial tab renders the full cast per moment.
+        for (const r of results.subjects) {
+          await tx.spaceSlotMomentSubject.upsert({
+            where: {
+              subject_position_id_moment_id: {
+                subject_position_id: r.positionId,
+                moment_id: packageMomentId,
+              },
+            },
+            create: {
+              subject_position_id: r.positionId,
+              moment_id: packageMomentId,
+              x: r.x,
+              y: r.y,
+              rotation: r.rotation,
+              seated: r.seated ?? undefined,
+              present: true,
+            },
+            update: {
+              x: r.x,
+              y: r.y,
+              rotation: r.rotation,
+              ...(r.seated !== undefined ? { seated: r.seated } : {}),
+              present: true,
+            },
+          });
+          runLog.log('WRITE', `B. Blueprint subject override upserted: "${r.name}" → (${r.x},${r.y})@${r.rotation}°`);
+        }
+      } else {
+        const subjectActions: Record<string, string> = {};
+        for (const s of results.subjects) {
+          if (s.actionDescription) subjectActions[s.name] = s.actionDescription;
+        }
+        await tx.packageActivityMoment.update({
+          where: { id: packageMomentId },
+          data: {
+            description: results.momentDescription || undefined,
+            duration_seconds: results.durationSeconds,
+            subject_actions: subjectActions,
+            camera_subject_plan: cameraSubjectPlan,
+          },
+        });
+        runLog.log('WRITE', `A. PackageActivityMoment updated: description="${(results.momentDescription || '').slice(0, 60)}...", duration=${results.durationSeconds}s, cameras=${Object.keys(cameraSubjectPlan).length}, subjects=${Object.keys(subjectActions).length}`);
+
+        // B. Subject position overrides (full mode only)
+        for (const r of results.subjects) {
+          await tx.spaceSlotMomentSubject.upsert({
+            where: {
+              subject_position_id_moment_id: {
+                subject_position_id: r.positionId,
+                moment_id: packageMomentId,
+              },
+            },
+            create: {
+              subject_position_id: r.positionId,
+              moment_id: packageMomentId,
+              x: r.x, y: r.y, rotation: r.rotation,
+              seated: r.seated ?? undefined,
+            },
+            update: {
+              x: r.x, y: r.y, rotation: r.rotation,
+              ...(r.seated !== undefined ? { seated: r.seated } : {}),
+            },
+          });
+          runLog.log('WRITE', `B. Subject override upserted: "${r.name}" → (${r.x},${r.y})@${r.rotation}°`);
+        }
       }
 
       // C. Camera position overrides (unmanned cameras stay on base pose)
@@ -722,7 +1102,9 @@ export class BlockingDirectorService implements OnModuleInit {
           runLog.log('WRITE', `C. Camera LOCKED-OFF: "${c.label}" — using base pose`);
           continue;
         }
-        const baseFov = cameraFovMap.get(c.label.toLowerCase()) ?? null;
+        // Prefer the FOV validated by postProcessCameras (it may have been
+        // widened so every assigned subject fits in frame).
+        const effectiveFov = c.fovAngle ?? cameraFovMap.get(c.label.toLowerCase()) ?? null;
         await tx.spaceSlotMomentCamera.upsert({
           where: {
             camera_position_id_moment_id: {
@@ -734,51 +1116,49 @@ export class BlockingDirectorService implements OnModuleInit {
             camera_position_id: c.cameraPositionId,
             moment_id: packageMomentId,
             x: c.x, y: c.y, rotation: c.rotation,
-            fov_angle: baseFov,
+            fov_angle: effectiveFov,
           },
           update: {
             x: c.x, y: c.y, rotation: c.rotation,
-            fov_angle: baseFov,
+            fov_angle: effectiveFov,
           },
         });
         runLog.log('WRITE', `C. Camera override upserted: "${c.label}" → (${c.x},${c.y})@${c.rotation}°`);
       }
-      // D. Seated override for group subjects on standing moments.
-      // When the moment name matches a known standing pattern (processional,
-      // recessional, "all rise", etc.) every group subject position in this
-      // space slot gets a seated=false override so 100 guest icons render as
-      // standing figures in their chair positions instead of seated.
-      const isStanding = BlockingDirectorService.isStandingMoment(momentName);
-      if (isStanding) {
-        const groupPositions = await tx.spaceSlotSubjectPosition.findMany({
-          where: {
-            package_space_slot_id: spaceSlotId,
-            day_subject: { count: { gt: 1 } },
-          },
-          select: { id: true, label: true, x: true, y: true },
-        });
-        for (const pos of groupPositions) {
-          await tx.spaceSlotMomentSubject.upsert({
+      // D. Standing group seated=false override only in full mode.
+      if (!options.isBlueprintMode) {
+        const isStanding = BlockingDirectorService.isStandingMoment(momentName);
+        if (isStanding) {
+          const groupPositions = await tx.spaceSlotSubjectPosition.findMany({
             where: {
-              subject_position_id_moment_id: {
+              package_space_slot_id: spaceSlotId,
+              day_subject: { count: { gt: 1 } },
+            },
+            select: { id: true, label: true, x: true, y: true },
+          });
+          for (const pos of groupPositions) {
+            await tx.spaceSlotMomentSubject.upsert({
+              where: {
+                subject_position_id_moment_id: {
+                  subject_position_id: pos.id,
+                  moment_id: packageMomentId,
+                },
+              },
+              create: {
                 subject_position_id: pos.id,
                 moment_id: packageMomentId,
+                x: pos.x,
+                y: pos.y,
+                rotation: 0,
+                seated: false,
               },
-            },
-            create: {
-              subject_position_id: pos.id,
-              moment_id: packageMomentId,
-              x: pos.x,
-              y: pos.y,
-              rotation: 0,
-              seated: false,
-            },
-            update: { seated: false },
-          });
-          runLog.log('WRITE', `D. Standing override: "${pos.label ?? pos.id}" seated=false (moment="${momentName}")`);
-        }
-        if (groupPositions.length > 0) {
-          runLog.log('WRITE', `D. Applied seated=false to ${groupPositions.length} group subject position(s) for standing moment "${momentName}"`);
+              update: { seated: false },
+            });
+            runLog.log('WRITE', `D. Standing override: "${pos.label ?? pos.id}" seated=false (moment="${momentName}")`);
+          }
+          if (groupPositions.length > 0) {
+            runLog.log('WRITE', `D. Applied seated=false to ${groupPositions.length} group subject position(s) for standing moment "${momentName}"`);
+          }
         }
       }
     });
@@ -798,10 +1178,17 @@ export class BlockingDirectorService implements OnModuleInit {
     subjects: SubjectInput[];
     cameras: CameraInput[];
     zones: ZoneInput[];
+    anchors?: SandboxRoomAnchorSpec[];
     sceneMoments?: { id: number; name: string; description: string | null; duration: number | null; order_index: number }[];
     currentMomentIndex?: number;
+    isBlueprintMode?: boolean;
+    blueprintMomentActions?: Array<{ roleName: string; actionText: string }>;
   }): string {
     const lines: string[] = [];
+    const floorplanObjects = ctx.floorplanObjects.slice(0, 18);
+    const clippedObjects = ctx.floorplanObjects.length - floorplanObjects.length;
+    const subjectsForHints = ctx.subjects.length > 10 ? ctx.subjects.slice(0, 8) : ctx.subjects;
+    const clippedSubjectsForHints = ctx.subjects.length - subjectsForHints.length;
 
     lines.push(`Moment: ${ctx.momentName}`);
     lines.push(`Activity: ${ctx.activityName}`);
@@ -838,12 +1225,21 @@ export class BlockingDirectorService implements OnModuleInit {
       }
     }
 
+    // Anchors — precise landmark coordinates the skill instructs the AI to snap to
+    if (ctx.anchors && ctx.anchors.length > 0) {
+      lines.push('');
+      lines.push('Named anchors (snap subjects to these exact landmark coordinates where appropriate):');
+      for (const a of ctx.anchors) {
+        lines.push(`  - ${a.name} "${a.label}" at (${a.x}, ${a.y}), suggested facing ${a.rotation}°`);
+      }
+    }
+
     lines.push('');
     lines.push('Floorplan objects:');
     if (ctx.floorplanObjects.length === 0) {
       lines.push('  (empty room — use reasonable defaults for a wedding venue)');
     }
-    for (const obj of ctx.floorplanObjects) {
+    for (const obj of floorplanObjects) {
       const label = obj.label ? ` "${obj.label}"` : '';
       const meta = obj.metadata && typeof obj.metadata === 'object'
         ? Object.entries(obj.metadata)
@@ -853,6 +1249,9 @@ export class BlockingDirectorService implements OnModuleInit {
         : '';
       const metaStr = meta ? ` { ${meta} }` : '';
       lines.push(`  - ${obj.type}${label} at (${Math.round(obj.x)}, ${Math.round(obj.y)}), size ${Math.round(obj.width)}x${Math.round(obj.height)}${metaStr}`);
+    }
+    if (clippedObjects > 0) {
+      lines.push(`  - ... ${clippedObjects} additional objects omitted for prompt budget.`);
     }
 
     lines.push('');
@@ -874,6 +1273,20 @@ export class BlockingDirectorService implements OnModuleInit {
       lines.push('');
       lines.push('Fixed context group rule: keep large crowd groups in their existing seating/crowd area.');
       lines.push('Do not relocate them into the aisle or altar. You may still mention them in actionDescription and camera subjectNames when editorially useful.');
+    }
+
+    if (ctx.isBlueprintMode) {
+      lines.push('');
+      lines.push('BLUEPRINT PACKAGE MODE: Subject positions were authored in Day Designer and are FIXED.');
+      lines.push('Return the exact same x, y, and rotation for every subject as the "prev" values above — do not move subjects.');
+      lines.push('Your task is camera placement and camera subjectNames only.');
+      if (ctx.blueprintMomentActions && ctx.blueprintMomentActions.length > 0) {
+        lines.push('');
+        lines.push('Authoritative subject actions (from Day Designer — use for camera framing and subjectNames):');
+        for (const action of ctx.blueprintMomentActions) {
+          lines.push(`  - ${action.roleName}: ${action.actionText}`);
+        }
+      }
     }
 
     lines.push('');
@@ -901,11 +1314,14 @@ export class BlockingDirectorService implements OnModuleInit {
       lines.push(`    Distance to subject centroid: ${distToSubjects} units → ${distHint}`);
 
       // Compute spatial hints: where each subject appears relative to this camera
-      const spatialHints = this.computeSpatialHints(c, ctx.subjects);
+      const spatialHints = this.computeSpatialHints(c, subjectsForHints);
       if (spatialHints.length > 0) {
         lines.push(`    Spatial hints (subjects relative to this camera's view):`);
         for (const hint of spatialHints) {
           lines.push(`      - ${hint.name}: ${hint.position} (${hint.distance})`);
+        }
+        if (clippedSubjectsForHints > 0) {
+          lines.push(`      - ... ${clippedSubjectsForHints} additional subjects omitted for prompt budget.`);
         }
       }
     }
@@ -913,6 +1329,18 @@ export class BlockingDirectorService implements OnModuleInit {
     lines.push(this.buildSchemaReminder(ctx.cameras));
 
     return lines.join('\n');
+  }
+
+  private selectSystemPrompt(userMessageChars: number): string {
+    const estimatedPromptTokens = Math.round((this.systemPrompt.length + userMessageChars) / 4);
+    // Keep headroom below 4096 token local context limits.
+    if (estimatedPromptTokens > 3400) {
+      this.logger.warn(
+        `Blocking prompt estimated ${estimatedPromptTokens} tokens; switching to compact system prompt`,
+      );
+      return BlockingDirectorService.COMPACT_SYSTEM_PROMPT;
+    }
+    return this.systemPrompt;
   }
 
   /**
@@ -963,34 +1391,33 @@ export class BlockingDirectorService implements OnModuleInit {
     subjectNames: string[],
     cameraPos: { x: number; y: number; fovAngle?: number | null },
     inputSubjects: SubjectInput[],
+    editorialShotType: string | null | undefined,
     telemetry?: BlockingGuardrailTelemetry,
   ): string[] {
-    // Compute average distance from camera to subjects it claimed
     const namedSubjects = inputSubjects.filter((s) => subjectNames.includes(s.name));
-    const avgDist = namedSubjects.length > 0
-      ? namedSubjects.reduce((sum, s) => sum + Math.hypot(s.prevX - cameraPos.x, s.prevY - cameraPos.y), 0) / namedSubjects.length
-      : 500;
-    const fovAngle = this.clamp(cameraPos.fovAngle ?? 60, 10, 120);
-    const effectiveDist = avgDist * (fovAngle / 60);
-
-    // Map distance + FOV to inferred shot type and max subjects.
-    // A narrower lens frames subjects tighter at the same physical position,
-    // so it should cap subject count more aggressively than a wide lens.
-    let inferredShot: string;
-    let cap: number;
-    if (effectiveDist < 80) { inferredShot = 'EXTREME_CLOSE_UP'; cap = 1; }
-    else if (effectiveDist < 130) { inferredShot = 'CLOSE_UP'; cap = 2; }
-    else if (effectiveDist < 200) { inferredShot = 'MEDIUM_SHOT'; cap = 4; }
-    else { inferredShot = 'WIDE_SHOT'; cap = Infinity; }
+    const focalNamed = namedSubjects.filter((s) => !s.isFixedContextGroup);
+    const distancePool = focalNamed.length > 0 ? focalNamed : namedSubjects;
+    const distances = distancePool.map((s) =>
+      Math.hypot(s.prevX - cameraPos.x, s.prevY - cameraPos.y),
+    );
+    const { shotType: inferredShotType, cap: distanceCap } = subjectCapForDistances(
+      distances.length > 0 ? distances : [500],
+      cameraPos.fovAngle,
+    );
+    const editorialCap = subjectCapForEditorialShotType(editorialShotType);
+    const cap = Number.isFinite(editorialCap)
+      ? Math.min(editorialCap, distanceCap)
+      : distanceCap;
 
     if (subjectNames.length > cap) {
+      const editorialLabel = editorialShotType?.replace(/_/g, ' ').toLowerCase() ?? 'editorial';
       const message =
-        `Camera framing implies ${inferredShot.replaceAll('_', ' ').toLowerCase()} so ` +
-        `${subjectNames.length} assigned subjects were trimmed to ${cap}: ${subjectNames.join(', ')}.`;
+        `Camera framing implies ${inferredShotType.replace(/_/g, ' ').toLowerCase()} and ` +
+        `${editorialLabel} allows max ${cap} subject(s), so ` +
+        `${subjectNames.length} assigned subjects were trimmed: ${subjectNames.join(', ')}.`;
       this.logger.warn(
-        `Camera at (${Math.round(cameraPos.x)},${Math.round(cameraPos.y)}) avg dist ${Math.round(avgDist)} ` +
-          `with FOV ${Math.round(fovAngle)}° (effective ${Math.round(effectiveDist)}) ` +
-          `→ inferred ${inferredShot} (max ${cap} subjects) but AI returned ${subjectNames.length} ` +
+        `Camera at (${Math.round(cameraPos.x)},${Math.round(cameraPos.y)}) ` +
+          `→ cap ${cap} (${editorialLabel} + ${inferredShotType}) but AI returned ${subjectNames.length} ` +
           `([${subjectNames.join(', ')}]). Capping to first ${cap}.`,
       );
       telemetry?.notices.push(message);
@@ -1018,6 +1445,7 @@ export class BlockingDirectorService implements OnModuleInit {
       '4. Subject entries go ONLY in the "subjects" array — they have name/x/y/rotation/seated/actionDescription.',
       '5. Camera entries have label/x/y/rotation/subjectNames — subject entries do NOT have a "label" or "subjectNames" field.',
       '6. Subjects marked FIXED CONTEXT GROUP must keep their existing crowd-area position; do not move them into the aisle or altar.',
+      '7. Subject caps per shot type: close-up/detail/insert = 1; two-shot/reaction/over-shoulder = 2; medium = 3; wide/establishing/master = up to 8. Never exceed the cap for the intended shot.',
       'Start your response with { and end it with }.',
     ].join('\n');
   }
@@ -1203,11 +1631,25 @@ export class BlockingDirectorService implements OnModuleInit {
           `${missingFixedContext.map((s) => s.name).join(', ')}. Reusing base crowd positions.`,
       );
     }
+    // Synthesize any movable subject the AI omitted at its previous position
+    // so moments never render with absent subjects.
     const missingMovable = missing.filter((s) => !s.isFixedContextGroup);
     if (missingMovable.length > 0) {
+      for (const subject of missingMovable) {
+        subjects.push({
+          name: subject.name,
+          x: subject.prevX,
+          y: subject.prevY,
+          rotation: ((subject.prevRotation % 360) + 360) % 360,
+          seated: subject.prevSeated,
+          actionDescription: '',
+          positionId: subject.positionId,
+          daySubjectId: subject.daySubjectId,
+        });
+      }
       this.logger.warn(
         `AI blocking omitted ${missingMovable.length} input subject(s): ${missingMovable.map((s) => s.name).join(', ')}. ` +
-          `They will fall back to their base positions.`,
+          `Synthesized them at their previous positions.`,
       );
     }
 
@@ -1296,6 +1738,8 @@ export class BlockingDirectorService implements OnModuleInit {
     inputSubjects: SubjectInput[],
     inputCameras: CameraInput[],
     zones: ZoneInput[],
+    floorplanObjects: FloorplanObject[] = [],
+    options: { isBlueprintMode?: boolean } = {},
   ): BlockingGuardrailTelemetry {
     const telemetry: BlockingGuardrailTelemetry = {
       cappedCameraCount: 0,
@@ -1313,15 +1757,140 @@ export class BlockingDirectorService implements OnModuleInit {
           camera.subjectNames,
           { x: camera.x, y: camera.y, fovAngle: input.fovAngle },
           inputSubjects,
+          input.shotType,
           telemetry,
         ),
       };
     });
 
-    this.enforceZoneContainment(parsed.subjects, zones, telemetry);
-    parsed.cameras = this.postProcessCameras(parsed.cameras, parsed.subjects, inputCameras);
+    // Blueprint packages: subject positions were authored in Day Designer and
+    // already collision-resolved by the placement seed — leave them fixed.
+    if (!options.isBlueprintMode) {
+      this.enforceZoneContainment(parsed.subjects, zones, telemetry);
+      this.enforceFurnitureCollision(parsed.subjects, inputSubjects, floorplanObjects, telemetry);
+    }
+    // Cameras last so aiming/FOV validation sees final subject positions.
+    parsed.cameras = this.postProcessCameras(parsed.cameras, parsed.subjects, inputCameras, telemetry);
+    parsed.cameras = this.validateAndTrimCameraVisibility(
+      parsed.cameras,
+      parsed.subjects,
+      inputCameras,
+      inputSubjects,
+      telemetry,
+    );
 
     return telemetry;
+  }
+
+  /**
+   * Push subjects out of solid furniture and enforce the minimum subject
+   * separation using the shared deterministic resolver (same module the
+   * placement seed and the Day Designer preview use).
+   */
+  private enforceFurnitureCollision(
+    subjects: SubjectBlockingResult[],
+    inputSubjects: SubjectInput[],
+    floorplanObjects: FloorplanObject[],
+    telemetry?: BlockingGuardrailTelemetry,
+  ): void {
+    if (subjects.length === 0) return;
+    const inputByName = new Map(inputSubjects.map((s) => [s.name.toLowerCase(), s]));
+    const points = subjects.map((s) => ({
+      x: s.x,
+      y: s.y,
+      seated: s.seated ?? false,
+      fixed: inputByName.get(s.name.toLowerCase())?.isFixedContextGroup ?? false,
+    }));
+    const rects = floorplanObjects.map((o) => ({
+      object_type: o.type,
+      x: o.x,
+      y: o.y,
+      width: o.width,
+      height: o.height,
+    }));
+    const { movedCount } = resolveSpatialCollisions(points, rects);
+    if (movedCount > 0) {
+      const movedNames: string[] = [];
+      subjects.forEach((s, i) => {
+        if (s.x !== points[i].x || s.y !== points[i].y) movedNames.push(s.name);
+        s.x = points[i].x;
+        s.y = points[i].y;
+      });
+      const message = `Collision resolver nudged ${movedNames.length} subject(s) off furniture/overlaps: ${movedNames.join(', ')}.`;
+      this.logger.warn(message);
+      telemetry?.notices.push(message);
+    }
+  }
+
+  /**
+   * Final generation-time validation: assert every camera's assigned
+   * subjects sit inside its FOV cone using the same projection math the
+   * read-time conflict panel uses. `postProcessCameras` should make this
+   * impossible to fail; if it does, log + record the notice so it surfaces
+   * in the run telemetry instead of as a later conflict.
+   */
+  /**
+   * Drop subjects outside the camera FOV cone, then re-apply editorial caps.
+   * Mutates the returned camera rows so bad targets never reach persistence.
+   */
+  private validateAndTrimCameraVisibility(
+    cameras: CameraBlockingResult[],
+    subjects: SubjectBlockingResult[],
+    inputCameras: CameraInput[],
+    inputSubjects: SubjectInput[],
+    telemetry?: BlockingGuardrailTelemetry,
+  ): CameraBlockingResult[] {
+    const subjectByName = new Map(subjects.map((s) => [s.name.toLowerCase(), s]));
+    const cameraByLabel = new Map(inputCameras.map((c) => [c.label.toLowerCase(), c]));
+
+    return cameras.map((cam) => {
+      const input = cameraByLabel.get(cam.label.toLowerCase());
+      const fov = this.clamp(cam.fovAngle ?? input?.fovAngle ?? 60, 10, 120);
+      const halfFov = fov / 2;
+      const distances: number[] = [];
+      const inFrame: string[] = [];
+      const outOfFrame: string[] = [];
+
+      for (const name of cam.subjectNames) {
+        const subject = subjectByName.get(name.toLowerCase());
+        if (!subject) continue;
+        const angle = angleToPointDeg(cam.x, cam.y, subject.x, subject.y);
+        const dev = Math.abs(((angle - cam.rotation + 540) % 360) - 180);
+        distances.push(Math.hypot(subject.x - cam.x, subject.y - cam.y));
+        if (dev > halfFov) {
+          outOfFrame.push(name);
+        } else {
+          inFrame.push(name);
+        }
+      }
+
+      if (outOfFrame.length > 0) {
+        const message =
+          `Camera "${cam.label}" dropped ${outOfFrame.join(', ')} — outside ${Math.round(fov)}° FOV after aiming.`;
+        this.logger.warn(message);
+        telemetry?.notices.push(message);
+      }
+
+      const inferredShotType = input?.shotTypeLocked
+        ? input?.shotType ?? null
+        : inferShotTypeWithHysteresis(distances, fov, input?.shotType);
+      const effectiveShotForCaps = input?.shotTypeLocked ? input?.shotType : inferredShotType;
+
+      const capped = this.capSubjectsByShot(
+        inFrame,
+        { x: cam.x, y: cam.y, fovAngle: fov },
+        inputSubjects,
+        effectiveShotForCaps,
+        telemetry,
+      );
+
+      this.logger.debug(
+        `Camera "${cam.label}" validated: shot=${inferredShotType}, locked=${input?.shotTypeLocked ?? false}, fov=${Math.round(fov)}°, ` +
+          `subjects in frame=${capped.length}/${cam.subjectNames.length}`,
+      );
+
+      return { ...cam, subjectNames: capped, inferredShotType };
+    });
   }
 
   private recoverMisplacedCameraRow(
@@ -1389,12 +1958,23 @@ export class BlockingDirectorService implements OnModuleInit {
 
   // ─── Camera post-processing ────────────────────────────────────────
   // The local AI model often places cameras poorly. We deterministically
-  // fix rotation to point at assigned subjects.
+  // fix rotation to point at assigned subjects, then validate the FOV cone
+  // actually contains every assigned subject (widening the FOV or pulling
+  // the camera back when it does not). This is the same projection math as
+  // SpatialTranslatorService, so read-time TARGET_NOT_VISIBLE conflicts
+  // cannot occur for freshly generated plans.
+
+  /** Margin (degrees) kept between a subject and the FOV cone edge. */
+  private static readonly FOV_EDGE_MARGIN_DEG = 6;
+  private static readonly MAX_FOV_DEG = 120;
+  private static readonly PULL_BACK_STEP = 60;
+  private static readonly MAX_PULL_BACK_STEPS = 6;
 
   private postProcessCameras(
     cameras: CameraBlockingResult[],
     subjects: SubjectBlockingResult[],
     inputCameras: CameraInput[],
+    telemetry?: BlockingGuardrailTelemetry,
   ): CameraBlockingResult[] {
     if (subjects.length === 0) return cameras;
 
@@ -1402,7 +1982,7 @@ export class BlockingDirectorService implements OnModuleInit {
     const cameraByLabel = new Map(inputCameras.map((c) => [c.label.toLowerCase(), c]));
 
     return cameras.map((cam) => {
-      // Locked-off / unmanned cameras must not be re-rotated per moment.
+      // Locked-off / unmanned cameras must not be re-rotated or re-framed per moment.
       const inputCam = cameraByLabel.get(cam.label.toLowerCase());
       if (inputCam?.isUnmanned) return cam;
 
@@ -1413,31 +1993,86 @@ export class BlockingDirectorService implements OnModuleInit {
 
       if (assignedSubjects.length === 0) {
         // No assigned subjects — point at midpoint of all subjects
-        const cx = subjects.reduce((s, sub) => s + sub.x, 0) / subjects.length;
-        const cy = subjects.reduce((s, sub) => s + sub.y, 0) / subjects.length;
-        return { ...cam, rotation: Math.round(this.angleTo(cam.x, cam.y, cx, cy)) };
+        const rotation = rotationTowardPointsDeg(cam.x, cam.y, subjects);
+        return { ...cam, rotation: rotation ?? cam.rotation };
       }
 
-      const centroidX = assignedSubjects.reduce((s, sub) => s + sub.x, 0) / assignedSubjects.length;
-      const centroidY = assignedSubjects.reduce((s, sub) => s + sub.y, 0) / assignedSubjects.length;
+      const baseFov = this.clamp(inputCam?.fovAngle ?? 60, 10, BlockingDirectorService.MAX_FOV_DEG);
+      const fitted = this.fitCameraToSubjects(cam.x, cam.y, assignedSubjects, baseFov);
 
-      // Fix rotation: point camera directly at subject centroid
-      const rotation = Math.round(this.angleTo(cam.x, cam.y, centroidX, centroidY));
+      if (fitted.fovAngle !== baseFov || fitted.x !== cam.x || fitted.y !== cam.y) {
+        const message =
+          `Camera "${cam.label}" adjusted so all assigned subjects fit its field of view ` +
+          `(FOV ${Math.round(baseFov)}°→${Math.round(fitted.fovAngle)}°` +
+          `${fitted.x !== cam.x || fitted.y !== cam.y ? `, pulled back to (${fitted.x},${fitted.y})` : ''}).`;
+        this.logger.warn(message);
+        telemetry?.notices.push(message);
+      }
 
-      return { ...cam, rotation };
+      return {
+        ...cam,
+        x: fitted.x,
+        y: fitted.y,
+        rotation: fitted.rotation,
+        fovAngle: fitted.fovAngle,
+      };
     });
   }
 
   /**
-   * Compute angle (in our coordinate system degrees) from (x1,y1) looking at (x2,y2).
-   * 0° = north/up, 90° = east/right, 180° = south/down, 270° = west/left.
+   * Aim a camera at its subjects and guarantee every subject sits inside the
+   * FOV cone (with a safety margin). Deterministic fix order:
+   *   1. rotate to the subject centroid;
+   *   2. widen the FOV up to MAX_FOV_DEG;
+   *   3. pull the camera straight back (away from the centroid) and retry.
    */
-  private angleTo(x1: number, y1: number, x2: number, y2: number): number {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    // atan2 with Y-down: atan2(dx, -dy) gives 0°=north clockwise
-    const radians = Math.atan2(dx, -dy);
-    return ((radians * 180) / Math.PI + 360) % 360;
+  private fitCameraToSubjects(
+    x: number,
+    y: number,
+    subjects: Array<{ x: number; y: number }>,
+    baseFov: number,
+  ): { x: number; y: number; rotation: number; fovAngle: number } {
+    const margin = BlockingDirectorService.FOV_EDGE_MARGIN_DEG;
+
+    let camX = x;
+    let camY = y;
+    for (let step = 0; step <= BlockingDirectorService.MAX_PULL_BACK_STEPS; step++) {
+      const centroidX = subjects.reduce((s, sub) => s + sub.x, 0) / subjects.length;
+      const centroidY = subjects.reduce((s, sub) => s + sub.y, 0) / subjects.length;
+      const rotation = angleToPointDeg(camX, camY, centroidX, centroidY);
+
+      // Max angular deviation of any subject from the camera facing direction.
+      let maxDev = 0;
+      for (const sub of subjects) {
+        const angle = angleToPointDeg(camX, camY, sub.x, sub.y);
+        const dev = Math.abs(((angle - rotation + 540) % 360) - 180);
+        maxDev = Math.max(maxDev, dev);
+      }
+
+      const requiredFov = 2 * maxDev + 2 * margin;
+      if (requiredFov <= baseFov) {
+        return { x: Math.round(camX), y: Math.round(camY), rotation: Math.round(rotation) % 360, fovAngle: baseFov };
+      }
+      if (requiredFov <= BlockingDirectorService.MAX_FOV_DEG) {
+        return {
+          x: Math.round(camX),
+          y: Math.round(camY),
+          rotation: Math.round(rotation) % 360,
+          fovAngle: Math.ceil(requiredFov),
+        };
+      }
+
+      // Still too wide — pull the camera straight back from the centroid.
+      const dx = camX - centroidX;
+      const dy = camY - centroidY;
+      const dist = Math.hypot(dx, dy) || 1;
+      camX = this.clamp(camX + (dx / dist) * BlockingDirectorService.PULL_BACK_STEP, 20, 980);
+      camY = this.clamp(camY + (dy / dist) * BlockingDirectorService.PULL_BACK_STEP, 20, 980);
+    }
+
+    // Bounds prevented further pull-back; cap the FOV and accept.
+    const rotation = rotationTowardPointsDeg(camX, camY, subjects) ?? 0;
+    return { x: Math.round(camX), y: Math.round(camY), rotation: rotation % 360, fovAngle: BlockingDirectorService.MAX_FOV_DEG };
   }
 
   // ─── DB writes ─────────────────────────────────────────────────────
@@ -1513,7 +2148,9 @@ export class BlockingDirectorService implements OnModuleInit {
 
       // C. Camera positions
       for (const c of results.cameras) {
-        const baseFov = cameraFovMap.get(c.label.toLowerCase()) ?? null;
+        // Prefer the FOV validated by postProcessCameras (may be widened so
+        // every assigned subject fits in frame).
+        const baseFov = c.fovAngle ?? cameraFovMap.get(c.label.toLowerCase()) ?? null;
         const isUnmanned = cameraUnmannedMap.get(c.label.toLowerCase()) ?? false;
         if (isUnmanned) {
           // Locked-off camera: the base SpaceSlotCameraPosition governs.
@@ -1621,13 +2258,25 @@ export class BlockingDirectorService implements OnModuleInit {
               .map((n) => subjectNameToDaySubjectId.get(n.toLowerCase()))
               .filter((id): id is number => id != null);
 
+            const assignmentLock = (matchAssignment as CameraAssignmentShotLock).shot_type_locked === true;
+
             await tx.cameraSubjectAssignment.update({
               where: { id: matchAssignment.id },
-              data: { subject_ids: resolvedSubjectIds },
+              data: {
+                subject_ids: resolvedSubjectIds,
+                ...(!assignmentLock && cam.inferredShotType
+                  ? { shot_type: cam.inferredShotType as import('@prisma/client').ShotType }
+                  : {}),
+              },
             });
             runLog?.log(
               'WRITE',
-              `   persisted subject_ids=[${resolvedSubjectIds.join(',')}] (${resolvedSubjectIds.length}/${cam.subjectNames.length} resolved)`,
+              `   persisted subject_ids=[${resolvedSubjectIds.join(',')}] (${resolvedSubjectIds.length}/${cam.subjectNames.length} resolved)` +
+                (assignmentLock
+                  ? `; shot_type locked — kept "${matchAssignment.shot_type ?? 'none'}"`
+                  : cam.inferredShotType
+                    ? `; shot_type="${cam.inferredShotType}"`
+                    : ''),
             );
 
             this.logger.log(
@@ -1645,21 +2294,6 @@ export class BlockingDirectorService implements OnModuleInit {
   // resolvePackageMoment() was removed in Phase A. The canonical link is
   // SceneMoment.package_activity_moment_id, loaded via the `source_moment`
   // relation at the top of generateBlocking().
-
-  private async findPreviousMomentId(currentMomentId: number, activityId?: number): Promise<number | null> {
-    if (!activityId) return null;
-    const cur = await this.prisma.packageActivityMoment.findUnique({
-      where: { id: currentMomentId },
-      select: { order_index: true },
-    });
-    if (!cur) return null;
-    const prev = await this.prisma.packageActivityMoment.findFirst({
-      where: { package_activity_id: activityId, order_index: { lt: cur.order_index } },
-      orderBy: { order_index: 'desc' },
-      select: { id: true },
-    });
-    return prev?.id ?? null;
-  }
 
   /**
    * Walk backwards through all prior moments to find the last known position
@@ -1747,23 +2381,32 @@ export class BlockingDirectorService implements OnModuleInit {
     return result;
   }
 
-  private async loadMomentSubjectPositions(momentId: number, slotId: number) {
-    const rows = await this.prisma.spaceSlotMomentSubject.findMany({
-      where: { moment_id: momentId, subject_position: { package_space_slot_id: slotId } },
-    });
-    return new Map(rows.map((o) => [o.subject_position_id, { x: o.x, y: o.y, rotation: o.rotation }]));
-  }
-
-  private async loadMomentCameraPositions(momentId: number, slotId: number) {
-    const rows = await this.prisma.spaceSlotMomentCamera.findMany({
-      where: { moment_id: momentId, camera_position: { package_space_slot_id: slotId } },
-    });
-    return new Map(rows.map((o) => [o.camera_position_id, { x: o.x, y: o.y, rotation: o.rotation }]));
-  }
-
   private clamp(val: number, min: number, max: number): number {
     if (typeof val !== 'number' || isNaN(val)) return (min + max) / 2;
     return Math.max(min, Math.min(max, val));
+  }
+
+  private normalizeRoleKey(value: string): string {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/honou?r/g, 'honor')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  /** Keep only subjects authored in the blueprint moment action roster. */
+  private filterSubjectsToBlueprintCast(
+    subjects: SubjectInput[],
+    blueprintMomentActions: Array<{ roleName: string; actionText: string }>,
+  ): SubjectInput[] {
+    const castKeys = new Set(
+      blueprintMomentActions.map((action) => this.normalizeRoleKey(action.roleName)),
+    );
+    return subjects.filter((subject) => {
+      const key = this.normalizeRoleKey(subject.role ?? subject.name);
+      return castKeys.has(key);
+    });
   }
 
   // ─── AI zone inference ─────────────────────────────────────────────
@@ -1931,8 +2574,8 @@ export class BlockingDirectorService implements OnModuleInit {
 
   /**
    * Check that each subject is inside (or within ZONE_SNAP_TOLERANCE px of) at least one
-   * of its allowed zones. If not, snap it to the nearest point on the closest zone boundary
-   * rather than flying it all the way to the centroid.
+   * of its allowed zones. If not, snap it to the nearest point INSIDE the closest zone
+   * polygon (true polygon containment via the shared geometry module).
    */
   private enforceZoneContainment(
     subjects: SubjectBlockingResult[],
@@ -1954,85 +2597,36 @@ export class BlockingDirectorService implements OnModuleInit {
       if (allowedZones.length === 0) continue;
 
       // Consider the subject inside if it is within ZONE_SNAP_TOLERANCE px of any
-      // allowed zone's bounding box (covers inter-zone gaps and near-boundary rounding).
+      // allowed zone (covers inter-zone gaps and near-boundary rounding).
       const isInside = allowedZones.some((z) =>
-        this.pointInPolygon(subj.x, subj.y, z.polygon) ||
-        this.pointNearPolygonBBox(subj.x, subj.y, z.polygon, BlockingDirectorService.ZONE_SNAP_TOLERANCE),
+        pointInPolygon(subj.x, subj.y, z.polygon) ||
+        distanceToPolygonBBox(subj.x, subj.y, z.polygon) <= BlockingDirectorService.ZONE_SNAP_TOLERANCE,
       );
 
       if (!isInside) {
-        // Snap to the nearest point on the closest zone's boundary rather than
+        // Snap to the nearest point inside the closest zone polygon rather than
         // teleporting to the centroid — keeps the subject close to where the AI intended.
         let targetZone = allowedZones[0];
         let minDist = Infinity;
         for (const z of allowedZones) {
-          const c = this.polygonCentroid(z.polygon);
+          const c = polygonCentroid(z.polygon);
           const d = Math.hypot(subj.x - c.x, subj.y - c.y);
           if (d < minDist) {
             minDist = d;
             targetZone = z;
           }
         }
-        const snapped = this.snapToBBox(subj.x, subj.y, targetZone.polygon);
+        const snapped = nearestPointInPolygon(subj.x, subj.y, targetZone.polygon);
         const message =
           `${subj.name} was snapped back into ${targetZone.name} because the AI placed them outside the allowed zone.`;
         this.logger.warn(
-          `Zone correction: "${subj.name}" at (${subj.x},${subj.y}) was outside allowed zones [${allowedZoneNames.join(',')}]. Snapped to ${targetZone.name} boundary (${snapped.x},${snapped.y}).`,
+          `Zone correction: "${subj.name}" at (${subj.x},${subj.y}) was outside allowed zones [${allowedZoneNames.join(',')}]. Snapped into ${targetZone.name} (${snapped.x},${snapped.y}).`,
         );
         telemetry?.notices.push(message);
         subj.x = snapped.x;
         subj.y = snapped.y;
       }
     }
-  }
-
-  /** Returns true if (x,y) is within `tolerance` pixels of the polygon's axis-aligned bounding box. */
-  private pointNearPolygonBBox(
-    x: number, y: number,
-    polygon: { x: number; y: number }[],
-    tolerance: number,
-  ): boolean {
-    const minX = Math.min(...polygon.map((p) => p.x)) - tolerance;
-    const maxX = Math.max(...polygon.map((p) => p.x)) + tolerance;
-    const minY = Math.min(...polygon.map((p) => p.y)) - tolerance;
-    const maxY = Math.max(...polygon.map((p) => p.y)) + tolerance;
-    return x >= minX && x <= maxX && y >= minY && y <= maxY;
-  }
-
-  /** Clamp (x,y) to the bounding box of the polygon — nearest point on the bbox. */
-  private snapToBBox(
-    x: number, y: number,
-    polygon: { x: number; y: number }[],
-  ): { x: number; y: number } {
-    const minX = Math.min(...polygon.map((p) => p.x));
-    const maxX = Math.max(...polygon.map((p) => p.x));
-    const minY = Math.min(...polygon.map((p) => p.y));
-    const maxY = Math.max(...polygon.map((p) => p.y));
-    return {
-      x: Math.round(Math.max(minX, Math.min(maxX, x))),
-      y: Math.round(Math.max(minY, Math.min(maxY, y))),
-    };
-  }
-
-  /** Ray-casting point-in-polygon test. */
-  private pointInPolygon(x: number, y: number, polygon: { x: number; y: number }[]): boolean {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-      const xi = polygon[i].x, yi = polygon[i].y;
-      const xj = polygon[j].x, yj = polygon[j].y;
-      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
-        inside = !inside;
-      }
-    }
-    return inside;
-  }
-
-  /** Compute centroid of a polygon. */
-  private polygonCentroid(polygon: { x: number; y: number }[]): { x: number; y: number } {
-    const n = polygon.length;
-    const cx = Math.round(polygon.reduce((s, p) => s + p.x, 0) / n);
-    const cy = Math.round(polygon.reduce((s, p) => s + p.y, 0) / n);
-    return { x: cx, y: cy };
   }
 
   /**

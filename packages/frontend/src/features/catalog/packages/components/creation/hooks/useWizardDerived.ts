@@ -6,12 +6,17 @@ import {
   getEventTypeDays, getEventTypeSubjects, getCrewName, getCrewPrimaryRole,
   matchesRoleKeywords, CAMERA_ROLE_KEYWORDS, AUDIO_ROLE_KEYWORDS,
 } from '../helpers/wizard-helpers';
+import { maxLocationCount } from '../helpers/location-helpers';
+import { resolveLocationCountsByDay } from '../helpers/review-day-summaries';
 
 export function useWizardDerived(state: WizardState, data: WizardData) {
   const {
     selectedEventType, selectedDayIds, selectedPresetIds, selectedMomentIds,
     selectedRoleIds, locationCount, customActivities, roleSlots,
-    crewAssignments, cameraSlots, audioSlots,
+    crewAssignments, positionEquipment, cameraSlots, audioSlots,
+    sourceDayBlueprintVersionId, selectedBlueprintActivityIds,
+    blueprintDayCount, dayDesignSource, manualDayPlan,
+    locationCountByBlueprintDayId, blueprintScaffoldDays,
   } = state;
   const { crew, equipmentItems } = data;
 
@@ -24,13 +29,19 @@ export function useWizardDerived(state: WizardState, data: WizardData) {
 
   const stats = useMemo(() => {
     if (!selectedEventType)
-      return { days: 0, activities: 0, moments: 0, subjects: 0, locations: 0, roles: 0, crew: 0, equipment: 0 };
-    const activities =
-      selectedDays.reduce(
-        (sum, ed) =>
-          sum + ed.event_day_template.activity_presets.filter((p) => selectedPresetIds.has(p.id)).length,
-        0,
-      ) + customActivities.filter((ca) => selectedDayIds.has(ca.dayLinkId)).length;
+      return { days: 0, activities: 0, moments: 0, subjects: 0, locations: 0, locationCountsByDay: [] as number[], roles: 0, crew: 0, equipment: 0 };
+    const activities = dayDesignSource === 'manual'
+      ? (manualDayPlan?.days.reduce(
+          (sum, day) => sum + day.activities.filter((a) => a.selected).length,
+          0,
+        ) ?? 0)
+      : sourceDayBlueprintVersionId !== null
+      ? selectedBlueprintActivityIds.size
+      : selectedDays.reduce(
+          (sum, ed) =>
+            sum + ed.event_day_template.activity_presets.filter((p) => selectedPresetIds.has(p.id)).length,
+          0,
+        ) + customActivities.filter((ca) => selectedDayIds.has(ca.dayLinkId)).length;
     const moments =
       selectedDays.reduce(
         (sum, ed) =>
@@ -43,17 +54,42 @@ export function useWizardDerived(state: WizardState, data: WizardData) {
     const subjects = getEventTypeSubjects(selectedEventType).reduce((sum, link) => {
       return sum + (link.subject_role?.id && selectedRoleIds.has(link.subject_role.id) ? 1 : 0);
     }, 0);
+    const perDayLocationCounts = resolveLocationCountsByDay({
+      dayDesignSource,
+      manualDayPlan,
+      sourceDayBlueprintVersionId,
+      blueprintScaffoldDays,
+      blueprintDaysFromVersion: [],
+      locationCountByBlueprintDayId,
+      locationCount,
+      blueprintDayCount,
+      legacyDayCount: selectedDays.length,
+    });
+    const locationsStat = maxLocationCount(perDayLocationCounts);
+
     return {
-      days: selectedDays.length,
+      days: dayDesignSource === 'manual'
+        ? (manualDayPlan?.eventDays ?? 0)
+        : sourceDayBlueprintVersionId !== null
+          ? blueprintDayCount
+          : selectedDays.length,
       activities,
       moments,
       subjects,
-      locations: locationCount,
+      locations: locationsStat,
+      locationCountsByDay: perDayLocationCounts,
       roles: roleSlots.reduce((s, r) => s + r.quantity, 0),
       crew: crewAssignments.length,
-      equipment: cameraSlots.filter((s) => s.equipmentId !== null).length + audioSlots.filter((s) => s.equipmentId !== null).length,
+      equipment: Object.values(positionEquipment)
+        .flat()
+        .filter((id): id is number => id != null).length,
     };
-  }, [selectedEventType, selectedDays, selectedPresetIds, selectedMomentIds, selectedRoleIds, locationCount, customActivities, roleSlots, crewAssignments, cameraSlots, audioSlots, selectedDayIds]);
+  }, [
+    selectedEventType, selectedDays, selectedPresetIds, selectedMomentIds, selectedRoleIds,
+    locationCount, customActivities, roleSlots, crewAssignments, positionEquipment,
+    selectedDayIds, sourceDayBlueprintVersionId, selectedBlueprintActivityIds, blueprintDayCount,
+    dayDesignSource, manualDayPlan, locationCountByBlueprintDayId, blueprintScaffoldDays,
+  ]);
 
   const totalPresetsInSelectedDays = useMemo(
     () => selectedDays.reduce((s, ed) => s + ed.event_day_template.activity_presets.length, 0),

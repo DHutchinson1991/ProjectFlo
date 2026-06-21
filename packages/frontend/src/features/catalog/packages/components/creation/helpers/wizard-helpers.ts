@@ -3,15 +3,33 @@ import type { EventType } from '@/features/catalog/package-templates/types';
 
 export const CAMERA_ROLE_KEYWORDS = ['videographer', 'camera', 'operator', 'cinematographer', 'photographer', 'drone'];
 export const AUDIO_ROLE_KEYWORDS = ['sound', 'audio', 'mixer'];
-export const STANDARD_GUEST_OPTIONS = [50, 100, 150] as const;
+
+/** Planning placeholder for catalog packages; real headcount comes from inquiry/project. */
+export const PACKAGE_PLANNING_GUEST_COUNT = 100;
 
 export const DEFAULT_CAMERA_SLOT: CameraAudioSlot = {
   slotNumber: 1, equipmentId: null, assignedCrewId: null, assignedJobRoleId: null,
 };
 
+/**
+ * Redesigned wizard: four focused screens.
+ * EVENT picks the event type only; DAY_DESIGN morphs from a visual source
+ * picker (Library / Create / Generate) into day cards with per-day location
+ * slots embedded; TEAM folds positions + crew + equipment into one role-first
+ * step backed by a single unified team preset; REVIEW folds naming + summary +
+ * create.
+ */
 export const WIZARD_STEPS = [
-  'Event', 'Blueprint', 'Activities', 'Guests', 'Locations', 'Roles', 'Crew', 'Equipment', 'Name', 'Review',
+  'Event', 'Day design', 'Crew & equipment', 'Review',
 ] as const;
+
+/** Zero-based indices matching `WIZARD_STEPS` */
+export const WIZARD_STEP_INDEX = {
+  EVENT: 0,
+  DAY_DESIGN: 1,
+  TEAM: 2,
+  REVIEW: 3,
+} as const;
 
 export const renumberSlots = (slots: CameraAudioSlot[]) =>
   slots.map((slot, index) => ({ ...slot, slotNumber: index + 1 }));
@@ -62,12 +80,6 @@ export const getEventTypeSubjects = (et?: EventTypeForWizard | null) =>
 
 export const getEventTypeGuestRole = (et?: EventTypeForWizard | null) =>
   getEventTypeSubjects(et).find((link) => link.subject_role?.role_name?.trim().toLowerCase() === 'guests')?.subject_role ?? null;
-
-export const getDefaultStandardGuestCount = (eventType?: { typical_guest_count?: number | null }) => {
-  const guestCount = Number(eventType?.typical_guest_count);
-  if (!Number.isFinite(guestCount) || guestCount <= 0) return STANDARD_GUEST_OPTIONS[1];
-  return STANDARD_GUEST_OPTIONS.find((option) => guestCount <= option) ?? STANDARD_GUEST_OPTIONS[STANDARD_GUEST_OPTIONS.length - 1];
-};
 
 export const getPresetIdsForDays = (et: EventTypeForWizard, dayIds: Set<number>) => {
   const ids = new Set<number>();

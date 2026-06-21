@@ -68,6 +68,17 @@ export interface DayBlueprintAiKnowledgeReport {
     momentsWithCoverage: number;
     coveragePct: number;
   };
+  /**
+   * Per-phase timing telemetry for the two-phase pipeline. Outline = single
+   * streaming Phase 1 call. Expansion = N parallel Phase 2 calls (one per
+   * activity); `expansionParallelism` records the parallel fan-out for
+   * triaging Promise.all behaviour vs. sequential regressions.
+   */
+  phases?: {
+    outlineMs: number;
+    expansionMs: number;
+    expansionParallelism: number;
+  };
   error?: string;
 }
 

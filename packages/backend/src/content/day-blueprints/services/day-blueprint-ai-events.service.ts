@@ -9,6 +9,7 @@ export interface DayBlueprintAiEventData {
     | 'moment-preview'
     | 'moment-persisted'
     | 'moment-streaming'
+    | 'moment-streaming-duration'
     | 'activity-streaming'
     | 'summary'
     | 'subject-spatial-start'
@@ -31,6 +32,13 @@ export interface DayBlueprintAiEventData {
   previewActionCount?: number;
   previewPlacementCount?: number;
   previewKey?: string;
+  /**
+   * Reserved for future generation-attempt sequencing. The two-phase
+   * generator never retries, so this value is always `0`. Kept on the
+   * SSE contract so the frontend dedupe in `day-blueprint-pending-moments`
+   * keeps working without churn.
+   */
+  generationAttempt?: number;
   activitiesCreated?: number;
   momentsCreated?: number;
   actionsCreated?: number;

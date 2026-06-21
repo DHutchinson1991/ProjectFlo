@@ -21,6 +21,8 @@ import MovieIcon from "@mui/icons-material/Movie";
 import BuildIcon from "@mui/icons-material/Build";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ReceiptIcon from "@mui/icons-material/Receipt";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useRouter } from "next/navigation";
 import { ServicePackage } from "../../types/service-package.types";
 import { CATEGORY_COLORS, getCategoryEmoji } from "../listing/listing-helpers";
@@ -116,6 +118,13 @@ export function PackageDetailPanel({
 
     // Guest count
     const guestCount: number = typeof pkg.typical_guest_count === 'number' ? pkg.typical_guest_count : 0;
+
+    const blueprint = pkg.source_day_blueprint;
+    const blueprintVersion = pkg.source_day_blueprint_version;
+    const blueprintUpdateAvailable = pkg.blueprint_update_available;
+    const blueprintHref = blueprint?.id
+        ? `/packages/${pkg.id}?mode=edit&tab=blueprint`
+        : null;
 
     // Deliverables from contents.items
     const items = contents?.items ?? [];
@@ -245,6 +254,100 @@ export function PackageDetailPanel({
                         }}
                     >
                         {pkg.description || "Click to add a description…"}
+                    </Typography>
+                )}
+            </Box>
+
+            <Divider sx={{ borderColor: "rgba(255,255,255,0.05)" }} />
+
+            {/* Blueprint lineage */}
+            <Box sx={{ px: 3, py: 2 }}>
+                <Typography sx={{ fontSize: "0.7rem", fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", mb: 1 }}>
+                    Blueprint
+                </Typography>
+                {blueprint ? (
+                    <Box
+                        component={blueprintHref ? "button" : "div"}
+                        type={blueprintHref ? "button" : undefined}
+                        onClick={blueprintHref ? () => router.push(blueprintHref) : undefined}
+                        sx={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 1.25,
+                            width: "100%",
+                            p: 1.5,
+                            borderRadius: 2,
+                            textAlign: "left",
+                            border: "1px solid",
+                            borderColor: blueprintUpdateAvailable
+                                ? alpha("#f59e0b", 0.28)
+                                : alpha("#818cf8", 0.2),
+                            bgcolor: blueprintUpdateAvailable
+                                ? alpha("#f59e0b", 0.06)
+                                : alpha("#818cf8", 0.06),
+                            cursor: blueprintHref ? "pointer" : "default",
+                            transition: "background-color 0.15s ease",
+                            ...(blueprintHref ? {
+                                "&:hover": {
+                                    bgcolor: blueprintUpdateAvailable
+                                        ? alpha("#f59e0b", 0.1)
+                                        : alpha("#818cf8", 0.1),
+                                },
+                            } : {}),
+                        }}
+                    >
+                        {blueprintUpdateAvailable ? (
+                            <WarningAmberIcon sx={{ fontSize: 18, color: "#f59e0b", mt: 0.15, flexShrink: 0 }} />
+                        ) : (
+                            <AutoAwesomeIcon sx={{ fontSize: 18, color: "#818cf8", mt: 0.15, flexShrink: 0 }} />
+                        )}
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography sx={{ fontSize: "0.9rem", fontWeight: 700, color: "#e2e8f0", lineHeight: 1.3 }} noWrap>
+                                {blueprint.display_name}
+                            </Typography>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5, flexWrap: "wrap" }}>
+                                {blueprintVersion != null ? (
+                                    <Chip
+                                        label={`v${blueprintVersion.version_number}`}
+                                        size="small"
+                                        sx={{
+                                            height: 20,
+                                            fontSize: "0.65rem",
+                                            fontWeight: 700,
+                                            bgcolor: alpha("#93c5fd", 0.12),
+                                            color: "#93c5fd",
+                                        }}
+                                    />
+                                ) : null}
+                                {blueprint.event_category ? (
+                                    <Typography sx={{ fontSize: "0.72rem", color: "#64748b" }}>
+                                        {blueprint.event_category}
+                                    </Typography>
+                                ) : null}
+                                {blueprintUpdateAvailable ? (
+                                    <Chip
+                                        label="Update available"
+                                        size="small"
+                                        sx={{
+                                            height: 20,
+                                            fontSize: "0.65rem",
+                                            fontWeight: 700,
+                                            bgcolor: alpha("#f59e0b", 0.15),
+                                            color: "#f59e0b",
+                                        }}
+                                    />
+                                ) : null}
+                            </Box>
+                            {blueprintHref ? (
+                                <Typography sx={{ fontSize: "0.72rem", color: "#64748b", mt: 0.75 }}>
+                                    View day design
+                                </Typography>
+                            ) : null}
+                        </Box>
+                    </Box>
+                ) : (
+                    <Typography sx={{ fontSize: "0.85rem", color: "#475569", fontStyle: "italic" }}>
+                        No Day Blueprint linked
                     </Typography>
                 )}
             </Box>

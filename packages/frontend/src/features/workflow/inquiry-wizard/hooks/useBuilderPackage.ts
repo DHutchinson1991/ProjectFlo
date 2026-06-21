@@ -25,19 +25,56 @@ export function useBuilderPackage(currentScreenId: string, eventTypes: EventType
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentScreenId]);
 
+    const readBlueprintDayMappings = (responses: AnyRecord) => {
+        const raw =
+            responses.blueprint_day_mappings ??
+            responses.blueprintDayMappings;
+        if (!Array.isArray(raw)) return undefined;
+        return raw
+            .filter(
+                (row): row is { blueprintDayId: number; eventTypeDayLinkId: number } =>
+                    row &&
+                    typeof row === 'object' &&
+                    typeof (row as { blueprintDayId?: unknown }).blueprintDayId === 'number' &&
+                    typeof (row as { eventTypeDayLinkId?: unknown }).eventTypeDayLinkId === 'number',
+            )
+            .map((row) => ({
+                blueprintDayId: row.blueprintDayId,
+                eventTypeDayLinkId: row.eventTypeDayLinkId,
+            }));
+    };
+
     const createBuilderPackage = async (responses: AnyRecord): Promise<number | null> => {
         const builderActivities: number[] = responses.builder_activities || [];
         const builderFilms: Array<{ type: string; activityPresetId?: number; activityName?: string }> = responses.builder_films || [];
         const etName = (responses.event_type || '').toLowerCase();
         const matchedET = eventTypes.find((e: EventType) => e.name?.toLowerCase() === etName);
         if (!matchedET || builderActivities.length === 0) return null;
+
+        const sourceDayBlueprintVersionId =
+            (responses.source_day_blueprint_version_id as number | undefined) ??
+            (responses.sourceDayBlueprintVersionId as number | undefined);
+        const selectedDayBlueprintActivityIds =
+            (responses.selected_day_blueprint_activity_ids as number[] | undefined) ??
+            (responses.selectedDayBlueprintActivityIds as number[] | undefined);
+        const blueprintDayMappings = readBlueprintDayMappings(responses);
+
         const customPkg = await wizardStudioDataApi.createPackageFromBuilder({
-            eventTypeId: matchedET.id,
+            packageTemplateId: matchedET.id,
             selectedActivityPresetIds: builderActivities,
-            crewSlotCount: responses.operator_count ?? 1,
+            crewCount: responses.operator_count ?? 1,
             cameraCount: responses.camera_count ?? responses.operator_count ?? 1,
             filmPreferences: builderFilms,
             clientName: responses.contact_first_name,
+            ...(sourceDayBlueprintVersionId
+                ? {
+                    sourceDayBlueprintVersionId,
+                    ...(selectedDayBlueprintActivityIds?.length
+                        ? { selectedDayBlueprintActivityIds }
+                        : {}),
+                    ...(blueprintDayMappings?.length ? { blueprintDayMappings } : {}),
+                }
+                : {}),
         });
         return customPkg?.id ?? null;
     };

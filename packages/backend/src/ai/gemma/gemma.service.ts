@@ -60,7 +60,7 @@ export class GemmaService implements OnModuleInit {
 
   onModuleInit() {
     this.baseUrl = this.config.get<string>('LMSTUDIO_URL', LMSTUDIO_DEFAULT);
-    this.model = this.config.get<string>('GEMMA_MODEL', 'gemma-4-26b-a4b-it');
+    this.model = this.config.get<string>('GEMMA_MODEL', 'google/gemma-4-12b-qat');
     this.timeoutMs = Number(this.config.get('GEMMA_TIMEOUT_MS', GEMMA_TIMEOUT_MS_DEFAULT));
     this.maxRetries = Number(this.config.get('GEMMA_MAX_RETRIES', GEMMA_MAX_RETRIES_DEFAULT));
     this.retryDelayMs = Number(this.config.get('GEMMA_RETRY_DELAY_MS', GEMMA_RETRY_DELAY_MS_DEFAULT));

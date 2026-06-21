@@ -74,6 +74,7 @@ describe('PricingService', () => {
     prisma.job_roles.findFirst.mockResolvedValue(null);
     prisma.brands.findUnique.mockResolvedValue({ currency: 'GBP' });
     taskLib.previewAutoGeneration.mockResolvedValue({
+      tasks: [],
       summary: { total_generated_tasks: 0, total_estimated_hours: 0, total_estimated_cost: 0 },
       byPhase: {},
     });

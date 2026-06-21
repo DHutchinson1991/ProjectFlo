@@ -8,6 +8,7 @@ import { DayContentBuilder } from '../builders/day-content.builder';
 import { CreatePackageFromEventTypeDto } from '../dto/create-package-from-event-type.dto';
 import { PackageCreationPipelineService } from '../package-creation-pipeline.service';
 import { PackageCreationRunLogger } from '../run/package-creation-run-logger';
+import { validateBlueprintDayMappings } from '../shared/normalize-blueprint-create-request';
 import { BrandCurrencyResolver } from '../shared/brand-currency.resolver';
 
 /**
@@ -67,6 +68,14 @@ export class CatalogPackageCreator {
       brandId,
       dto.sourceDayBlueprintVersionId,
     );
+    if (dto.blueprintDayMappings?.length) {
+      validateBlueprintDayMappings(
+        template.days.map((day) => day.id),
+        blueprintSeed,
+        dto.blueprintDayMappings,
+      );
+    }
+
     const normalizedDto = this.normalizeRequestForBlueprintMode(
       template,
       dto,
@@ -95,9 +104,27 @@ export class CatalogPackageCreator {
     });
 
     const lookups = this.dayContentBuilder.buildLookups(normalizedDto);
-    const dayEquipmentContents = await this.createDayContent(
-      template, servicePackage.id, normalizedDto, lookups,
-    );
+    const dayEquipmentContents = normalizedDto.scaffoldPackageDays?.length
+      ? await this.createNamedDayScaffold(
+          brandId,
+          template,
+          servicePackage.id,
+          normalizedDto,
+          lookups,
+          normalizedDto.scaffoldPackageDays,
+        )
+      : normalizedDto.sourceDayBlueprintVersionId
+      ? await this.createBlueprintDayScaffold(
+          brandId,
+          template,
+          servicePackage.id,
+          normalizedDto,
+          lookups,
+          normalizedDto.sourceDayBlueprintVersionId,
+        )
+      : await this.createDayContent(
+          template, servicePackage.id, normalizedDto, lookups,
+        );
     runLogger.log('BUILDER', 'Created day content', {
       packageId: servicePackage.id,
       selectedDayIds: normalizedDto.selectedDayIds,
@@ -179,6 +206,8 @@ export class CatalogPackageCreator {
         const result = await this.dayBlueprintSnapshot.consumeIntoPackage({
           packageId: servicePackage.id,
           blueprintVersionId: normalizedDto.sourceDayBlueprintVersionId,
+          selectedActivityIds: normalizedDto.selectedDayBlueprintActivityIds,
+          blueprintDayMappings: normalizedDto.blueprintDayMappings,
         });
         this.logger.log(
           `[package-template] consumed DayBlueprintVersion=${normalizedDto.sourceDayBlueprintVersionId} ` +
@@ -211,9 +240,186 @@ export class CatalogPackageCreator {
     // to /packages/:id, which streams planning progress via SSE
     // (`usePlanningProgress`) and flips `planning_status` → READY/FAILED when
     // done. Film creation from this package is gated on planning_status.
-    await this.packageCreationPipeline.run(servicePackage.id, 'catalog', 'background', runLogger);
+    await this.packageCreationPipeline.run(servicePackage.id, 'catalog', 'background', runLogger, {
+      blueprintModeHint: Boolean(normalizedDto.sourceDayBlueprintVersionId),
+    });
 
     return this.fetchFullPackage(servicePackage.id);
+  }
+
+  /**
+   * Blueprint-first scaffold: one package event day per blueprint day, using
+   * each blueprint day's name as the EventDay template (find-or-create per brand).
+   * Skips preset activities — the snapshot consume step materializes structure.
+   */
+  private async createBlueprintDayScaffold(
+    brandId: number,
+    template: Awaited<ReturnType<PackageTemplatesService['findOne']>>,
+    packageId: number,
+    dto: CreatePackageFromEventTypeDto,
+    lookups: ReturnType<DayContentBuilder['buildLookups']>,
+    blueprintVersionId: number,
+  ): Promise<Record<string, Prisma.InputJsonArray>> {
+    const version = await this.prisma.dayBlueprintVersion.findUnique({
+      where: { id: blueprintVersionId },
+      select: {
+        days: {
+          orderBy: { order_index: 'asc' },
+          select: { id: true, name: true, description: true, order_index: true },
+        },
+      },
+    });
+    if (!version || version.days.length === 0) {
+      throw new BadRequestException('Selected blueprint version has no days to scaffold');
+    }
+    return this.createNamedDayScaffold(
+      brandId,
+      template,
+      packageId,
+      dto,
+      lookups,
+      version.days.map((day) => ({
+        name: day.name,
+        description: day.description,
+        order_index: day.order_index,
+      })),
+    );
+  }
+
+  /**
+   * Scaffold empty package event days by name (manual wizard path or blueprint days).
+   * Skips preset activities — blueprint consume or the edit page fills structure.
+   */
+  private async createNamedDayScaffold(
+    brandId: number,
+    template: Awaited<ReturnType<PackageTemplatesService['findOne']>>,
+    packageId: number,
+    dto: CreatePackageFromEventTypeDto,
+    lookups: ReturnType<DayContentBuilder['buildLookups']>,
+    days: Array<{
+      name: string;
+      description?: string | null;
+      order_index: number;
+      locationCount?: number;
+      activities?: Array<{ name: string; durationMinutes?: number }>;
+    }>,
+  ): Promise<Record<string, Prisma.InputJsonArray>> {
+    if (days.length === 0) {
+      throw new BadRequestException('At least one package day is required to scaffold');
+    }
+
+    const equipmentLookup = await this.dayContentBuilder.loadEquipmentLookup(dto.equipmentSlots || []);
+    const dayEquipmentContents: Record<string, Prisma.InputJsonArray> = {};
+
+    const subjectRoleLinks = template.subjects
+      .filter((s) => s.subject_role)
+      .map((s) => ({
+        subject_role: {
+          id: s.subject_role!.id,
+          role_name: s.subject_role!.role_name,
+          is_group: s.subject_role!.is_group,
+        },
+      }));
+
+    for (const day of days) {
+      const eventDayTemplateId = await this.findOrCreateBrandEventDay(
+        brandId,
+        day.name,
+        day.description,
+        day.order_index,
+      );
+
+      const packageEventDay = await this.prisma.packageEventDay.create({
+        data: {
+          package_id: packageId,
+          event_day_template_id: eventDayTemplateId,
+          order_index: day.order_index,
+        },
+      });
+
+      if (dto.equipmentSlots && dto.equipmentSlots.length > 0) {
+        dayEquipmentContents[String(packageEventDay.id)] = dto.equipmentSlots.map((slot, index) => {
+          const equipment = equipmentLookup.get(slot.equipmentId);
+          const parsedTrack = Number.parseInt(slot.slotLabel.match(/\d+/)?.[0] || '', 10);
+          return {
+            equipment_id: slot.equipmentId,
+            slot_type: slot.slotType,
+            track_number: Number.isNaN(parsedTrack) ? index + 1 : parsedTrack,
+            equipment: equipment
+              ? { id: equipment.id, item_name: equipment.item_name, model: equipment.model }
+              : null,
+          } as Prisma.InputJsonObject;
+        }) as Prisma.InputJsonArray;
+      }
+
+      await this.dayContentBuilder.createSubjects(
+        packageId,
+        eventDayTemplateId,
+        subjectRoleLinks,
+        lookups.selectedRoleIdSet,
+        dto.standardGuestCount,
+      );
+      await this.dayContentBuilder.createLocationSlots(
+        packageId,
+        eventDayTemplateId,
+        day.locationCount ?? dto.locationCount,
+      );
+
+      if (day.activities && day.activities.length > 0) {
+        let activityOrderIdx = 0;
+        for (const activity of day.activities) {
+          await this.prisma.packageActivity.create({
+            data: {
+              package_id: packageId,
+              package_event_day_id: packageEventDay.id,
+              name: activity.name,
+              duration_minutes: activity.durationMinutes ?? 60,
+              order_index: activityOrderIdx++,
+            },
+          });
+        }
+      }
+
+      await this.autoAssignLocationSlot(packageId, eventDayTemplateId);
+
+      const crewMap = await this.crewBuilder.createCrewAssignments(
+        dto.crewAssignments, dto.roleSlots || [], packageId, eventDayTemplateId,
+      );
+      if (dto.equipmentSlots && dto.equipmentSlots.length > 0) {
+        await this.crewBuilder.attachEquipment(dto.equipmentSlots, crewMap);
+      }
+    }
+
+    return dayEquipmentContents;
+  }
+
+  /** Find an existing brand EventDay by name or create one for blueprint-driven packages. */
+  private async findOrCreateBrandEventDay(
+    brandId: number,
+    name: string,
+    description: string | null | undefined,
+    orderIndex: number,
+  ): Promise<number> {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Blueprint day name is required to scaffold package days');
+    }
+    const existing = await this.prisma.eventDay.findFirst({
+      where: { brand_id: brandId, name: trimmed },
+      select: { id: true },
+    });
+    if (existing) return existing.id;
+
+    const created = await this.prisma.eventDay.create({
+      data: {
+        brand_id: brandId,
+        name: trimmed,
+        description: description?.trim() || undefined,
+        order_index: orderIndex,
+      },
+      select: { id: true },
+    });
+    return created.id;
   }
 
   private async createDayContent(
@@ -362,9 +568,11 @@ export class CatalogPackageCreator {
     }
 
     const selectedDayIds =
-      dto.selectedDayIds.length > 0
-        ? dto.selectedDayIds
-        : this.autoSelectTemplateDays(template.days, blueprintDayCount);
+      dto.blueprintDayMappings && dto.blueprintDayMappings.length > 0
+        ? [...new Set(dto.blueprintDayMappings.map((m) => m.eventTypeDayLinkId))]
+        : dto.selectedDayIds.length > 0
+          ? dto.selectedDayIds
+          : this.autoSelectTemplateDays(template.days, blueprintDayCount);
 
     return {
       ...dto,
@@ -392,7 +600,7 @@ export class CatalogPackageCreator {
   private async resolveBlueprintSeed(
     brandId: number,
     sourceDayBlueprintVersionId?: number,
-  ): Promise<{ dayCount: number } | null> {
+  ): Promise<{ dayCount: number; dayIds: number[] } | null> {
     if (!sourceDayBlueprintVersionId) {
       return null;
     }
@@ -413,6 +621,9 @@ export class CatalogPackageCreator {
       throw new BadRequestException('Selected blueprint version does not belong to this brand');
     }
 
-    return { dayCount: blueprint.days.length };
+    return {
+      dayCount: blueprint.days.length,
+      dayIds: blueprint.days.map((d) => d.id),
+    };
   }
 }

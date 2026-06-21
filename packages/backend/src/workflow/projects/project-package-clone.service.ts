@@ -92,8 +92,9 @@ export class ProjectPackageCloneService {
     projectId: number,
     packageId: number,
     tx?: Prisma.TransactionClient,
+    options?: CloneOptions,
   ) {
-    return this.clonePackageToOwner({ projectId, packageId }, tx);
+    return this.clonePackageToOwner({ projectId, packageId }, tx, options);
   }
 
   /**

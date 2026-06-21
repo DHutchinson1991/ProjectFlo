@@ -2,10 +2,10 @@ import {
   IsString,
   IsOptional,
   IsArray,
-  IsIn,
   IsInt,
   ValidateNested,
   Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SelectedActivityDto } from './selected-activity.dto';
@@ -14,6 +14,8 @@ import { MomentKeyOverrideDto } from './moment-key-override.dto';
 import { CrewAssignmentDto } from './crew-assignment.dto';
 import { EquipmentSlotDto } from './equipment-slot.dto';
 import { RoleSlotDto } from './role-slot.dto';
+import { BlueprintDayMappingDto } from './blueprint-day-mapping.dto';
+import { ScaffoldPackageDayDto } from './scaffold-package-day.dto';
 
 export class CreatePackageFromEventTypeDto {
   @IsString()
@@ -58,12 +60,13 @@ export class CreatePackageFromEventTypeDto {
 
   @IsOptional()
   @IsInt()
-  @IsIn([50, 100, 150])
+  @Min(1)
   standardGuestCount?: number;
 
   // Location count (1-5)
   @IsInt()
   @Min(1)
+  @Max(5)
   locationCount!: number;
 
   // Role slots (positions needed, with optional crew assignment)
@@ -94,4 +97,35 @@ export class CreatePackageFromEventTypeDto {
   @IsOptional()
   @IsInt()
   sourceDayBlueprintVersionId?: number;
+
+  /**
+   * When consuming a Day Blueprint, only materialize these
+   * DayBlueprintActivity ids. Omit to include every activity on the
+   * version (legacy behavior).
+   */
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  selectedDayBlueprintActivityIds?: number[];
+
+  /**
+   * When consuming a Day Blueprint with multiple days, maps each
+   * DayBlueprintDay to a PackageTemplateDay row on the selected template.
+   * Omitted for single-day auto 1:1 pairing by order_index.
+   */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BlueprintDayMappingDto)
+  blueprintDayMappings?: BlueprintDayMappingDto[];
+
+  /**
+   * When the wizard skips preset activities, scaffold empty package event days
+   * by name. Activities and moments are added on the package edit page.
+   */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ScaffoldPackageDayDto)
+  scaffoldPackageDays?: ScaffoldPackageDayDto[];
 }

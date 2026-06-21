@@ -75,7 +75,7 @@ export class MomentsCrudService {
             : [];
 
         if (packageSubjects.length > 0) {
-            // Look up template subject_actions for this moment (by name + source activity)
+            // Look up normalized template actions for this moment (by name + source activity)
             let actionsByName: Record<string, string> = {};
             if (createMomentDto.source_activity_id) {
                 const templateMoment = await this.prisma.packageActivityMoment.findFirst({
@@ -83,10 +83,19 @@ export class MomentsCrudService {
                         package_activity_id: createMomentDto.source_activity_id,
                         name: createMomentDto.name,
                     },
-                    select: { subject_actions: true },
+                    include: {
+                        actions: {
+                            include: { subject_role: { select: { role_name: true } } },
+                            orderBy: { order_index: 'asc' },
+                        },
+                    },
                 });
-                if (templateMoment?.subject_actions && typeof templateMoment.subject_actions === 'object') {
-                    actionsByName = templateMoment.subject_actions as Record<string, string>;
+                if (templateMoment?.actions && templateMoment.actions.length > 0) {
+                    actionsByName = Object.fromEntries(
+                        templateMoment.actions
+                            .filter((action) => Boolean(action.subject_role?.role_name))
+                            .map((action) => [action.subject_role.role_name, action.action_text]),
+                    );
                 }
             }
 

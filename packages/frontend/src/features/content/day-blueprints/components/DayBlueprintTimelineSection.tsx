@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { useCreateDay } from '../hooks';
-import type { DayBlueprintDay } from '../types';
+import type { DayBlueprintActivity, DayBlueprintDay, DayBlueprintMoment } from '../types';
 import { PackageTimeline, type PackageTimelineActivity, type PackageTimelineDay } from '@/shared/ui/PackageTimeline';
 import { ACTIVITY_COLORS, parseTimeToMinutes } from '@/shared/ui/PackageTimeline/activity-schedule-helpers';
 
@@ -17,15 +17,15 @@ interface DayBlueprintTimelineSectionProps {
   versionId: number;
 }
 
-function momentMinutes(moment: DayBlueprintDay['activities'][number]['moments'][number]): number {
+function momentMinutes(moment: DayBlueprintMoment): number {
   if (moment.duration_seconds != null) return Math.round(moment.duration_seconds / 60);
   if (moment.expected_duration_minutes != null) return moment.expected_duration_minutes;
   return 0;
 }
 
-function activityTotals(activity: DayBlueprintDay['activities'][number]) {
+function activityTotals(activity: DayBlueprintActivity) {
   const moments = activity.moments ?? [];
-  const momentMin = moments.reduce((sum, moment) => sum + momentMinutes(moment), 0);
+  const momentMin = moments.reduce((sum: number, moment: DayBlueprintMoment) => sum + momentMinutes(moment), 0);
   const planned = activity.default_duration_minutes ?? momentMin;
   return { planned };
 }

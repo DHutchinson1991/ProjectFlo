@@ -7,8 +7,13 @@ import { C, glassSx } from '../../constants/wizard-config';
 import { NACtx } from '../../types';
 import { Q } from "../QuestionWrapper";
 import { BuilderActivityStep } from "../BuilderActivityStep";
+import { BuilderBlueprintSection } from "../BuilderBlueprintSection";
 import { BuilderFilmsStep } from "../BuilderFilmsStep";
 import { BuilderCrewStep } from "../BuilderCrewStep";
+import {
+    readBlueprintVersionId,
+    readSelectedBlueprintActivityIds,
+} from "../../utils/builder-blueprint-responses";
 import type { EventType, EventTypeDay, EventDayActivity } from "@/features/catalog/package-templates/types";
 
 export default function BuilderScreen({ ctx }: { ctx: NACtx }) {
@@ -39,6 +44,9 @@ export default function BuilderScreen({ ctx }: { ctx: NACtx }) {
     })();
 
     const builderStep: number = (responses.builder_step as number) || 1;
+    const blueprintVersionId = readBlueprintVersionId(responses);
+    const blueprintActivityIds = readSelectedBlueprintActivityIds(responses);
+    const usingBlueprint = blueprintVersionId !== null;
     const selectedIds: number[] = (responses.builder_activities as number[]) || [];
     const selectedFilms: Array<{ type: string; activityPresetId?: number; activityName?: string }> = (responses.builder_films as Array<{ type: string; activityPresetId?: number; activityName?: string }>) || [];
     const opCount: number = (responses.operator_count as number) || 0;
@@ -94,12 +102,14 @@ export default function BuilderScreen({ ctx }: { ctx: NACtx }) {
     const fullFilmCount = selectedFilms.filter((f) => f.type === "ACTIVITY").length;
 
     const stepTitles = [
-        "What would you like us to film?",
+        usingBlueprint ? "Build from your blueprint" : "What would you like us to film?",
         "What films would you like?",
         "How many videographers?",
     ];
     const stepSubs = [
-        "Select every moment you want captured on camera",
+        usingBlueprint
+            ? "Choose which blueprint activities to include in your package"
+            : "Select every moment you want captured on camera — or start from a published blueprint",
         selectedPresets.length
             ? `You've chosen ${selectedPresets.length} moment${selectedPresets.length === 1 ? "" : "s"} to film — now pick the final edits you'd like delivered`
             : "Choose the deliverables that tell your story",
@@ -110,7 +120,24 @@ export default function BuilderScreen({ ctx }: { ctx: NACtx }) {
         <Q title={stepTitles[builderStep - 1]} subtitle={stepSubs[builderStep - 1]}>
             <Box sx={{ width: "100%" }}>
                 {builderStep === 1 && (
-                    <BuilderActivityStep presets={presets} selectedIds={selectedIds} toggleActivity={toggleActivity} />
+                    <>
+                        <BuilderBlueprintSection
+                            matchedET={matchedET}
+                            responses={responses}
+                            handleChange={handleChange}
+                        />
+                        {!usingBlueprint ? (
+                            <BuilderActivityStep
+                                presets={presets}
+                                selectedIds={selectedIds}
+                                toggleActivity={toggleActivity}
+                            />
+                        ) : (
+                            <Typography sx={{ color: alpha(C.muted, 0.75), fontSize: "0.72rem", fontStyle: "italic", mt: 1 }}>
+                                Preset activities are skipped — your day structure comes from the blueprint above.
+                            </Typography>
+                        )}
+                    </>
                 )}
                 {builderStep === 2 && (
                     <BuilderFilmsStep selectedPresets={selectedPresets} isFSel={isFSel} toggleFilm={toggleFilm} />
@@ -142,7 +169,10 @@ export default function BuilderScreen({ ctx }: { ctx: NACtx }) {
                     }}>
                         <Box sx={{ display: "flex", gap: 3 }}>
                             {[
-                                { v: selectedIds.length, l: "activities" },
+                                {
+                                    v: usingBlueprint ? blueprintActivityIds.length : selectedIds.length,
+                                    l: usingBlueprint ? "blueprint activities" : "activities",
+                                },
                                 { v: `~${hrs}h`, l: "coverage" },
                                 { v: selectedFilms.length, l: (() => {
                                     const parts: string[] = [];

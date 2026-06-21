@@ -16,11 +16,10 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
     const pathname = usePathname();
     const isCalendarPage = pathname.startsWith("/calendar");
     const isInquiryPackageReviewPage = /^\/inquiries\/[^/]+\/package(?:\/|$)/.test(pathname);
-    const isDayBlueprintVersionPage = /^\/day-designer\/\d+\/\d+(?:\/|$)/.test(pathname);
     const isFilmDetailPage = /^\/films\/\d+/.test(pathname);
     const isInstanceFilmDetailPage = /^\/instance-films\/\d+/.test(pathname);
     const isFullBleedStudioPage = isCalendarPage || isFilmDetailPage || isInstanceFilmDetailPage;
-    const hideGlobalTaskDrawer = isInquiryPackageReviewPage || isDayBlueprintVersionPage || isFilmDetailPage || isInstanceFilmDetailPage || ["/settings", "/packages", "/ai-playground"].some((prefix) => pathname.startsWith(prefix));
+    const hideGlobalTaskDrawer = isInquiryPackageReviewPage || isFilmDetailPage || isInstanceFilmDetailPage || ["/settings", "/packages", "/ai-playground"].some((prefix) => pathname.startsWith(prefix));
 
     return (
         <ProtectedRoute>

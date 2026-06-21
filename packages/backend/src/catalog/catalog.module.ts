@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CrewPresetsModule } from './crew-presets/crew-presets.module';
+import { EquipmentPresetsModule } from './equipment-presets/equipment-presets.module';
 import { DiscoveryQuestionnaireModule } from './discovery-questionnaire/discovery-questionnaire.module';
 import { JobRolesModule } from './job-roles/job-roles.module';
 import { PackageSetsModule } from './packages/sets/package-sets.module';
@@ -13,6 +14,7 @@ import { PackageCreationModule } from './packages/creation/package-creation.modu
 @Module({
   imports: [
     CrewPresetsModule,
+    EquipmentPresetsModule,
     DiscoveryQuestionnaireModule,
     JobRolesModule,
     PackageCreationModule,
@@ -25,6 +27,7 @@ import { PackageCreationModule } from './packages/creation/package-creation.modu
   ],
   exports: [
     CrewPresetsModule,
+    EquipmentPresetsModule,
     DiscoveryQuestionnaireModule,
     JobRolesModule,
     PackageCreationModule,

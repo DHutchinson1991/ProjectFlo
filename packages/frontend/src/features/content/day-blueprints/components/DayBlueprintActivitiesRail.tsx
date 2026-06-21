@@ -8,8 +8,15 @@ import {
   useDeleteActivity,
   useDeleteMoment,
 } from '../hooks';
-import type { DayBlueprintActivity, DayBlueprintDay, DayBlueprintVersionDetail } from '../types';
-import { PackageActivityTable, type PackageActivityTableActivity, type PackageActivityTableMetricColumn } from '@/shared/ui/PackageActivityTable';
+import type { DayBlueprintAiProgressEvent } from '../hooks';
+import type { DayBlueprintActivity, DayBlueprintDay, DayBlueprintMoment, DayBlueprintVersionDetail } from '../types';
+import { sanitizeStreamingMomentDisplayName } from './day-blueprint-streaming-moment-name';
+import {
+  PackageActivityTable,
+  type PackageActivityTableActivity,
+  type PackageActivityTableMetricColumn,
+  type PackageActivityTableMoment,
+} from '@/shared/ui/PackageActivityTable';
 import { ACTIVITY_COLORS, parseTimeToMinutes, formatMinutes, formatSeconds } from '@/shared/ui/PackageTimeline/activity-schedule-helpers';
 
 interface DayBlueprintActivitiesRailProps {
@@ -22,8 +29,13 @@ interface DayBlueprintActivitiesRailProps {
   blueprintId: number;
   versionId: number;
   version: DayBlueprintVersionDetail;
+  /** When true, new moments inherit the prior moment's actions/placements (blank-wizard blueprints). */
+  blankAuthoring?: boolean;
+  onCommitMomentDuration?: (activityId: number, momentId: number, durationSeconds: number) => void | Promise<void>;
   isGeneratingMoments?: boolean;
   pendingMomentsByActivity?: Record<number, PendingDayBlueprintMomentPreview[]>;
+  aiProgressEvents?: ReadonlyArray<DayBlueprintAiProgressEvent>;
+  aiProgressCurrentLabel?: string;
 }
 
 export interface PendingDayBlueprintMomentPreview {
@@ -41,7 +53,7 @@ const BLUEPRINT_ACTIVITY_METRIC_COLUMNS: PackageActivityTableMetricColumn[] = [
   { key: 'locations', label: 'Locations', width: '11%' },
 ];
 
-function momentMinutes(moment: DayBlueprintActivity['moments'][number]): number {
+function momentMinutes(moment: DayBlueprintMoment): number {
   if (moment.duration_seconds != null) return Math.round(moment.duration_seconds / 60);
   if (moment.expected_duration_minutes != null) return moment.expected_duration_minutes;
   return 0;
@@ -64,8 +76,12 @@ export function DayBlueprintActivitiesRail({
   blueprintId,
   versionId,
   version,
+  blankAuthoring = false,
+  onCommitMomentDuration,
   isGeneratingMoments = false,
   pendingMomentsByActivity = {},
+  aiProgressEvents = [],
+  aiProgressCurrentLabel = '',
 }: DayBlueprintActivitiesRailProps) {
   const createActivity = useCreateActivity(blueprintId, versionId);
   const deleteActivity = useDeleteActivity(blueprintId, versionId);
@@ -87,6 +103,43 @@ export function DayBlueprintActivitiesRail({
     if (rightStart != null) return 1;
     return left.order_index - right.order_index;
   }), [day]);
+
+  const autoExpandActivityIds = useMemo(() => {
+    if (!isGeneratingMoments || !day) return [];
+    const ids = new Set<number>();
+    for (const key of Object.keys(pendingMomentsByActivity)) {
+      ids.add(Number(key));
+    }
+    for (let i = aiProgressEvents.length - 1; i >= 0; i -= 1) {
+      const activityId = aiProgressEvents[i]?.data?.activityId;
+      if (typeof activityId === 'number') {
+        ids.add(activityId);
+        break;
+      }
+    }
+    const trimmed = aiProgressCurrentLabel.trim();
+    const expanding = /^Expanding\s+(.+)$/i.exec(trimmed);
+    if (expanding) {
+      const target = expanding[1].trim().toLowerCase();
+      for (const act of dayActivities) {
+        if (act.name?.trim().toLowerCase() === target) {
+          ids.add(act.id);
+          break;
+        }
+      }
+    }
+    if (ids.size === 0 && dayActivities[0]) {
+      ids.add(dayActivities[0].id);
+    }
+    return Array.from(ids);
+  }, [
+    aiProgressCurrentLabel,
+    aiProgressEvents,
+    day,
+    dayActivities,
+    isGeneratingMoments,
+    pendingMomentsByActivity,
+  ]);
 
   const subjectCountForActivity = (activity: DayBlueprintActivity) => {
     const roleIds = new Set<number>();
@@ -127,12 +180,19 @@ export function DayBlueprintActivitiesRail({
   const handleAddMoment = async (activityId: number, name: string, durationSeconds: number) => {
     if (!name.trim()) return;
     const activity = dayActivities.find((entry) => entry.id === activityId);
+    const sortedMoments = [...(activity?.moments ?? [])].sort(
+      (left, right) => (left.order_index ?? 0) - (right.order_index ?? 0),
+    );
+    const previousMoment = sortedMoments.length > 0 ? sortedMoments[sortedMoments.length - 1] : null;
+    const inheritFromMomentId =
+      blankAuthoring && previousMoment != null ? previousMoment.id : undefined;
     await createMoment.mutateAsync({
       activityId,
       data: {
         name: name.trim(),
         duration_seconds: durationSeconds || 60,
         order_index: activity?.moments?.length ?? 0,
+        ...(inheritFromMomentId != null ? { inherit_from_moment_id: inheritFromMomentId } : {}),
       },
     });
   };
@@ -142,14 +202,19 @@ export function DayBlueprintActivitiesRail({
     const duration = activity.default_duration_minutes ?? activityTotals(activity).planned;
     const persistedMoments = (activity.moments ?? []).map((moment, index) => ({
       id: moment.id,
-      name: moment.name,
+      name: sanitizeStreamingMomentDisplayName(moment.name ?? ''),
       durationLabel: formatSeconds(moment.duration_seconds),
+      durationSeconds: moment.duration_seconds ?? 60,
       orderIndex: moment.order_index ?? index,
     }));
     const pendingMoments = (pendingMomentsByActivity[activity.id] ?? []).map((moment) => ({
       id: previewMomentId(moment.key),
-      name: `${moment.name} (Generating...)`,
-      durationLabel: formatSeconds(moment.durationSeconds),
+      name: sanitizeStreamingMomentDisplayName(moment.name || 'Generating beat') || 'Generating beat',
+      nameShimmer: true,
+      // While streaming, the duration arrives in a separate event. Show an
+      // ellipsis until the model emits a real duration so the row doesn't
+      // misleadingly read "1m" for every moment.
+      durationLabel: moment.durationSeconds > 0 ? formatSeconds(moment.durationSeconds) : '…',
       orderIndex: moment.orderIndex,
     }));
     // While the AI is generating, optimistically hide the previously-persisted
@@ -159,12 +224,25 @@ export function DayBlueprintActivitiesRail({
     const visibleMoments = isGeneratingMoments
       ? pendingMoments
       : [...persistedMoments, ...pendingMoments];
-    const mergedMoments = visibleMoments
+    const mergedMoments: PackageActivityTableMoment[] = visibleMoments
       .sort((left, right) => {
         if (left.orderIndex !== right.orderIndex) return left.orderIndex - right.orderIndex;
         return left.id - right.id;
       })
-      .map(({ id, name, durationLabel }) => ({ id, name, durationLabel }));
+      .map((row) => {
+        const moment: PackageActivityTableMoment = {
+          id: row.id,
+          name: row.name,
+          durationLabel: row.durationLabel,
+        };
+        if ('durationSeconds' in row && row.durationSeconds != null) {
+          moment.durationSeconds = row.durationSeconds;
+        }
+        if ('nameShimmer' in row && row.nameShimmer) {
+          moment.nameShimmer = true;
+        }
+        return moment;
+      });
 
     return {
       id: activity.id,
@@ -194,6 +272,7 @@ export function DayBlueprintActivitiesRail({
       <PackageActivityTable
         activities={tableActivities}
         metricColumns={BLUEPRINT_ACTIVITY_METRIC_COLUMNS}
+        autoExpandActivityIds={autoExpandActivityIds}
         emptyMomentLabel={isGeneratingMoments ? 'Generating moments...' : 'No moments yet'}
         selectedActivityId={selectedActivityId}
         selectedMomentId={selectedMomentId}
@@ -213,6 +292,7 @@ export function DayBlueprintActivitiesRail({
           if (!moment || !window.confirm(`Delete moment "${moment.name}"?`)) return;
           deleteMoment.mutate(momentId);
         } : undefined}
+        onCommitMomentDuration={isDraft ? onCommitMomentDuration : undefined}
       />
     </Box>
   );
