@@ -16,7 +16,7 @@ import type { MetricsPillsProps } from './types';
 
 export default function MetricsPills({
     inquiry,
-    needsAssessmentSubmission,
+    inquiryWizardSubmission,
     conversionData,
     dealValue,
     currencyCode,
@@ -31,8 +31,8 @@ export default function MetricsPills({
     const periodUrgent = daysLeft >= 0 && daysLeft <= 3;
 
     /* ---- derived lead source ---- */
-    const naResponses = (needsAssessmentSubmission?.responses ?? {}) as Record<string, unknown>;
-    const leadSource = inquiry.lead_source || naResponses.lead_source || null;
+    const wizardResponses = (inquiryWizardSubmission?.responses ?? {}) as Record<string, unknown>;
+    const leadSource = inquiry.lead_source || wizardResponses.lead_source || null;
 
     /* ---- blueprint lineage (from snapshot) ---- */
     const snapshot = inquiry.package_contents_snapshot;

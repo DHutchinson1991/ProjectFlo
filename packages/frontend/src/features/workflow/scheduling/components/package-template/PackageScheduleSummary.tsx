@@ -6,8 +6,8 @@
  * Shows aggregate counts (event days, activities, crew, subjects, locations, films)
  * and event day names as chips. Fetches data from the package summary endpoint.
  *
- * Used in NeedsAssessmentCard when a package is selected, to give a quick preview
- * of the schedule structure before the inquiry's instance schedule is cloned.
+ * Intended for use in the Inquiry Wizard's package-selection UI, to give a quick
+ * preview of the schedule structure before the inquiry's instance schedule is cloned.
  */
 
 import React, { useEffect, useState } from 'react';

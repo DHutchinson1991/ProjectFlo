@@ -15,7 +15,7 @@ Owns inquiry lifecycle logic, public client portal data, proposal/contract porta
 
 ## Business rules / invariants
 - Selecting or swapping a package must preserve inquiry-owned commercial records such as estimates, quotes, proposals, and contracts.
-- Package assignment for budget-only inquiries belongs in the inquiry package scope workflow; do not force package selection in needs-assessment submission.
+- Package assignment for budget-only inquiries belongs in the inquiry package scope workflow; do not force package selection in Inquiry Wizard submission.
 - Public portal, proposal review, and contract signing are one client-facing workflow and must share consistent token-driven inquiry data.
 - Inquiry-owned schedule snapshots are the editable copy; package templates are only the source.
 - Any code path that writes `package_contents_snapshot` (package assignment, inquiry schedule sync fallback, inquiry-to-project fallback) must preserve Day Blueprint lineage fields (`source_day_blueprint_*`) when present.

@@ -7,7 +7,8 @@ import { useEventTypes } from '@/features/catalog/package-templates/hooks';
 import { type Brand } from '@/features/platform/brand/types';
 import { scheduleApi } from '@/features/workflow/scheduling/instance';
 import { geocodeAddress } from '@/features/workflow/locations/api/geocoding.api';
-import type { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
+import type { Inquiry } from '@/features/workflow/inquiries/types';
+import type { InquiryWizardSubmission } from '@/features/workflow/inquiry-wizard';
 
 type CeremonySlotAddressFields = {
     address_line1?: string;
@@ -47,7 +48,7 @@ function buildBrandAddress(currentBrand: Brand | null | undefined) {
 
 export function useEventDetailsData(
     inquiry: Inquiry,
-    submission: NeedsAssessmentSubmission | null | undefined,
+    submission: InquiryWizardSubmission | null | undefined,
     currentBrand: Brand | null | undefined,
 ) {
     const eventTypesQuery = useEventTypes();

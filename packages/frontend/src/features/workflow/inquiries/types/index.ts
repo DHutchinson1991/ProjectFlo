@@ -16,21 +16,6 @@ export type {
 } from './inquiry';
 export { InquiryStatus, InquirySource } from './inquiry';
 
-// Needs-assessment domain
-export type {
-    NeedsAssessmentSubmission,
-    NaDateConflictResult,
-    NaCrewConflictResult,
-} from './needs-assessment';
-
-// Discovery questionnaire domain
-export type {
-    DiscoveryQuestion,
-    DiscoveryQuestionnaireTemplate,
-    DiscoveryQuestionnaireSubmission,
-    CreateDiscoverySubmissionPayload,
-} from './discovery-questionnaire';
-
 // Schedule snapshot types (used by discovery questionnaire components)
 export type { SnapshotActivity, SnapshotMoment } from './schedule-snapshot';
 

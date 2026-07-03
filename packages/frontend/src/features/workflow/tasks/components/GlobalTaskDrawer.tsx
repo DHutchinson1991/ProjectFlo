@@ -103,9 +103,9 @@ function buildDrawerTree(tasks: ActiveTask[]): DrawerTreeItem[] {
 // Maps task names → section DOM IDs in the inquiry overview
 const TASK_SECTION_MAP: Record<string, string> = {
   // ── Inquiry stage ──
-  'Review Inquiry': 'needs-assessment-section',
+  'Review Inquiry': 'inquiry-wizard-section',
   'Verify Contact Details': 'contact-info-section',
-  'Verify Event Date': 'needs-assessment-section',
+  'Verify Event Date': 'inquiry-wizard-section',
   'Confirm Package Selection': 'package-scope-section',
   'Check Crew Availability': 'availability-section',
   'Check Equipment Availability': 'availability-section',
@@ -142,8 +142,8 @@ const TASK_SECTION_MAP: Record<string, string> = {
 
 // Maps stage (task group) names → section DOM IDs
 const STAGE_SECTION_MAP: Record<string, string> = {
-  'Inquiry': 'needs-assessment-section',
-  'Review Inquiry': 'needs-assessment-section',
+  'Inquiry': 'inquiry-wizard-section',
+  'Review Inquiry': 'inquiry-wizard-section',
   'Qualify & Respond': 'qualify-respond-section',
   'Discovery': 'calls-section',
   'Discovery Call': 'calls-section',

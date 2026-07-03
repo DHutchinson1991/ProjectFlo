@@ -39,4 +39,4 @@ When the wizard supplies `blueprintDayMappings`, they are stored on `service_pac
 
 ## UI
 
-Blueprint-backed packages (`source_day_blueprint_version_id` set) show a package-detail banner and disable add/delete of activities and moments in the schedule column. Traceability to Day Designer remains via the header link.
+Blueprint-backed packages (`source_day_blueprint_version_id` set) show a package-detail banner and disable add/delete of activities and moments in the schedule column. Traceability is a header link (`PackageTraceabilityLinkButton`) that navigates to this same package's Blueprint tab (`/packages/:id?mode=edit&tab=blueprint`) — there is no standalone Day Designer route to link to.

@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBrand } from '@/features/platform/brand';
-import { discoveryQuestionnaireSubmissionsApi } from '../api';
+import { inquiryWizardSubmissionsApi } from '../api';
 import { discoveryQuestionnaireKeys } from '../constants/query-keys';
-import type { CreateDiscoverySubmissionPayload, DiscoveryQuestionnaireSubmission } from '../types';
+import type { InquiryWizardSubmissionPayload, UpdateInquiryWizardSubmissionPayload, InquiryWizardSubmission } from '../types';
 
 interface SubmitParams {
     existingSubmissionId?: number;
@@ -20,8 +20,8 @@ export function useSubmitDiscoveryQuestionnaire() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (params: SubmitParams): Promise<DiscoveryQuestionnaireSubmission> => {
-            const payload: Partial<CreateDiscoverySubmissionPayload> & { template_id?: number; inquiry_id?: number } = {
+        mutationFn: async (params: SubmitParams): Promise<InquiryWizardSubmission> => {
+            const payload: UpdateInquiryWizardSubmissionPayload = {
                 responses: params.responses,
                 transcript: params.transcript || undefined,
                 sentiment: Object.keys(params.sentiment ?? {}).length > 0 ? params.sentiment : undefined,
@@ -29,14 +29,14 @@ export function useSubmitDiscoveryQuestionnaire() {
             };
 
             if (params.existingSubmissionId) {
-                return discoveryQuestionnaireSubmissionsApi.update(params.existingSubmissionId, payload);
+                return inquiryWizardSubmissionsApi.update(params.existingSubmissionId, payload);
             }
 
-            return discoveryQuestionnaireSubmissionsApi.create({
+            return inquiryWizardSubmissionsApi.create({
                 template_id: params.templateId,
                 inquiry_id: params.inquiryId,
                 ...payload,
-            } as CreateDiscoverySubmissionPayload);
+            } as InquiryWizardSubmissionPayload);
         },
         onSuccess: (_data, params) => {
             queryClient.invalidateQueries({

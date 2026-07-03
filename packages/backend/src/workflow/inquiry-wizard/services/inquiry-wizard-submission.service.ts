@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, InquiryWizardStage } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { CreateInquiryWizardSubmissionDto } from '../dto/create-inquiry-wizard-submission.dto';
+import { UpdateInquiryWizardSubmissionDto } from '../dto/update-inquiry-wizard-submission.dto';
 import { InquiryTasksService } from '../../tasks/inquiry/services/inquiry-tasks.service';
 import { InquiryWizardTemplateService } from './inquiry-wizard-template.service';
 import { InquiryWizardEstimateService } from './inquiry-wizard-estimate.service';
@@ -17,11 +18,12 @@ export class InquiryWizardSubmissionService {
         private readonly linkService: InquiryWizardLinkService,
     ) {}
 
-    async listSubmissions(brandId?: number, inquiryId?: number) {
+    async listSubmissions(brandId?: number, inquiryId?: number, stage?: InquiryWizardStage) {
         return this.prisma.inquiry_wizard_submissions.findMany({
             where: {
                 ...(brandId ? { brand_id: brandId } : {}),
                 ...(inquiryId ? { inquiry_id: inquiryId } : {}),
+                ...(stage ? { template: { stage } } : {}),
             },
             include: { template: true, inquiry: true, contact: true },
             orderBy: { submitted_at: 'desc' },
@@ -39,8 +41,25 @@ export class InquiryWizardSubmissionService {
         return submission;
     }
 
+    async getSubmissionByInquiryId(inquiryId: number, brandId: number, stage?: InquiryWizardStage) {
+        return this.prisma.inquiry_wizard_submissions.findFirst({
+            where: {
+                inquiry_id: inquiryId,
+                brand_id: brandId,
+                ...(stage ? { template: { stage } } : {}),
+            },
+            include: { template: { include: { questions: { orderBy: { order_index: 'asc' } } } } },
+            orderBy: { submitted_at: 'desc' },
+        });
+    }
+
     async createSubmission(payload: CreateInquiryWizardSubmissionDto, brandId: number) {
         const template = await this.templateService.getTemplateById(payload.template_id, brandId);
+
+        if (template.stage === InquiryWizardStage.DISCOVERY_CALL) {
+            return this.createDiscoveryCallSubmission(payload, brandId, template.id);
+        }
+
         let inquiryId: number | undefined;
         let contactId: number | undefined;
 
@@ -75,6 +94,72 @@ export class InquiryWizardSubmissionService {
         }
 
         return submission;
+    }
+
+    /**
+     * DISCOVERY_CALL-stage submissions skip inquiry creation/linking and
+     * estimate generation entirely — they're always attached to an inquiry
+     * that already exists by the time the discovery call happens.
+     */
+    private async createDiscoveryCallSubmission(
+        payload: CreateInquiryWizardSubmissionDto,
+        brandId: number,
+        templateId: number,
+    ) {
+        const submission = await this.prisma.inquiry_wizard_submissions.create({
+            data: {
+                brand_id: brandId,
+                template_id: templateId,
+                inquiry_id: payload.inquiry_id,
+                status: payload.status || 'submitted',
+                responses: payload.responses as Prisma.InputJsonValue,
+                call_notes: payload.call_notes,
+                transcript: payload.transcript,
+                sentiment: (payload.sentiment ?? undefined) as Prisma.InputJsonValue | undefined,
+                call_duration_seconds: payload.call_duration_seconds,
+            },
+            include: {
+                template: { include: { questions: { orderBy: { order_index: 'asc' } } } },
+                inquiry: true,
+                contact: true,
+            },
+        });
+
+        if (payload.inquiry_id) {
+            try {
+                await this.inquiryTasksService.autoCompleteByName(payload.inquiry_id, 'Discovery Call');
+            } catch {
+                // Best-effort — don't fail the submission if task auto-complete errors
+            }
+        }
+
+        return submission;
+    }
+
+    /** DISCOVERY_CALL-stage only: patch responses/call notes/transcript/sentiment on an existing submission. */
+    async updateSubmission(submissionId: number, payload: UpdateInquiryWizardSubmissionDto, brandId: number) {
+        const existing = await this.prisma.inquiry_wizard_submissions.findFirst({
+            where: { id: submissionId, brand_id: brandId },
+        });
+        if (!existing) {
+            throw new NotFoundException('Inquiry wizard submission not found');
+        }
+
+        return this.prisma.inquiry_wizard_submissions.update({
+            where: { id: submissionId },
+            data: {
+                ...(payload.responses !== undefined && { responses: payload.responses as Prisma.InputJsonValue }),
+                ...(payload.call_notes !== undefined && { call_notes: payload.call_notes }),
+                ...(payload.transcript !== undefined && { transcript: payload.transcript }),
+                ...(payload.sentiment !== undefined && { sentiment: payload.sentiment as Prisma.InputJsonValue }),
+                ...(payload.call_duration_seconds !== undefined && { call_duration_seconds: payload.call_duration_seconds }),
+            },
+            include: {
+                template: { include: { questions: { orderBy: { order_index: 'asc' } } } },
+                inquiry: true,
+                contact: true,
+            },
+        });
     }
 
     async convertSubmission(submissionId: number, brandId: number) {

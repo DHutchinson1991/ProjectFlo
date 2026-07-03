@@ -15,7 +15,7 @@ Owns the public client-facing portal, proposal review, contract signing, and por
 ## Business rules / invariants
 - Portal, proposal review, and contract signing are one client-facing experience and should not drift into inconsistent data shapes or theme systems.
 - Token-based client access must stay scoped to inquiry-owned public data only.
-- Needs assessment pages under `(portal)` are separate from the portal/proposal merge work and keep their own protected flow rules.
+- Inquiry Wizard pages (`inquiry-wizard/[token]`, `inquiry-wizard/preview`) under `(portal)` are separate from the portal/proposal merge work and keep their own protected flow rules.
 
 ## Active design notes
 - The long-term direction is a unified portal experience where proposal review and contract signing are embedded or clearly aligned with the portal flow instead of behaving like isolated products.

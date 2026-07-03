@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Stack } from '@mui/material';
-import { DiscoveryQuestionnaireCard } from '..';
-import DiscoveryStoryCard from '../discovery-questionnaire-card/DiscoveryStoryCard';
-import DiscoverySalesCard from '../discovery-questionnaire-card/DiscoverySalesCard';
-import DiscoveryTranscriptCard from '../discovery-questionnaire-card/DiscoveryTranscriptCard';
-import { discoveryQuestionnaireSubmissionsApi } from '@/features/workflow/inquiries/api';
-import type { DiscoveryQuestionnaireSubmission } from '@/features/workflow/inquiries/types';
+import {
+    DiscoveryQuestionnaireCard,
+    DiscoveryStoryCard,
+    DiscoverySalesCard,
+    DiscoveryTranscriptCard,
+    inquiryWizardSubmissionsApi,
+} from '@/features/workflow/inquiry-wizard';
+import type { InquiryWizardSubmission } from '@/features/workflow/inquiry-wizard';
 import type { InquiryTabProps } from './types';
 
 interface DiscoveryTabProps extends InquiryTabProps {
@@ -19,12 +21,12 @@ export default function DiscoveryTab({
     onRefresh,
     currentPhase,
 }: DiscoveryTabProps) {
-    const [submission, setSubmission] = useState<DiscoveryQuestionnaireSubmission | null>(null);
+    const [submission, setSubmission] = useState<InquiryWizardSubmission | null>(null);
 
     const fetchSubmission = useCallback(async () => {
         if (!inquiry?.id) return;
         try {
-            const s = await discoveryQuestionnaireSubmissionsApi.getByInquiryId(inquiry.id);
+            const s = await inquiryWizardSubmissionsApi.getSingleByInquiryId(inquiry.id, 'DISCOVERY_CALL');
             setSubmission(s && typeof s === 'object' && 'id' in s ? s : null);
         } catch {
             setSubmission(null);

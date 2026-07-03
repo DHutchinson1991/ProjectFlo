@@ -1,7 +1,7 @@
 # packages
 
 ## What this module does
-Core CRUD for service packages — the sellable product that includes activities, moments, crew, equipment, and pricing. Supports version history (snapshot, list, restore). Integrates with `PricingModule` for cost calculations. Package creation from the Needs Assessment wizard is delegated to `../package-creation` (`InquiryPackageCreator`).
+Core CRUD for service packages — the sellable product that includes activities, moments, crew, equipment, and pricing. Supports version history (snapshot, list, restore). Integrates with `PricingModule` for cost calculations. Package creation from the Inquiry Wizard is delegated to `../package-creation` (`InquiryPackageCreator`).
 
 ## Key files
 | File | Purpose |
@@ -20,7 +20,7 @@ Core CRUD for service packages — the sellable product that includes activities
 - Delete is soft-delete (`is_active: false`).
 - Version restore creates a safety snapshot first ("Restored from version N"), then applies the saved state.
 - `GET /api/packages/:id/ai-runs` and `GET /api/packages/:id/ai-runs/:runId` expose package-scoped package-creator manifests, raw `master.log`, and a parsed per-step transcript so the package detail AI history modal can show prompt/response flow without reparsing logs in the browser; access is restricted to the current brand's package.
-- Needs-assessment wizard creation now lives in `../package-creation/sources/inquiry-package-creator.service.ts` via `InquiryPackageCreator`; this module no longer hosts a builder service. The creator auto-assigns cameras + audio round-robin from the brand's equipment library.
+- Inquiry Wizard package creation now lives in `../package-creation/sources/inquiry-package-creator.service.ts` via `InquiryPackageCreator`; this module no longer hosts a builder service. The creator auto-assigns cameras + audio round-robin from the brand's equipment library.
 - When package creation is started with `sourceDayBlueprintVersionId`, Day Blueprint consume-on-create is mandatory; consume failures now fail the request instead of silently continuing with a partially-seeded package.
 - Legacy activity-moment cloning has been removed from builder flows; packages start with activities only, and moments are generated later by the AI planner / knowledge base.
 

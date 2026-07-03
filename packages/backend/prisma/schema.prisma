@@ -77,8 +77,6 @@ model brands {
   film_structure_templates     FilmStructureTemplate[]
   inquiry_wizard_templates          inquiry_wizard_templates[]
   inquiry_wizard_submissions         inquiry_wizard_submissions[]
-  discovery_questionnaire_templates    discovery_questionnaire_templates[]
-  discovery_questionnaire_submissions  discovery_questionnaire_submissions[]
   subject_roles                SubjectRole[]
   equipment_templates          EquipmentTemplate[]
   event_days          EventDay[]
@@ -437,7 +435,6 @@ model inquiries {
   proposals                    proposals[]
   quotes                       quotes[]
   inquiry_wizard_submissions         inquiry_wizard_submissions[]
-  discovery_questionnaire_submissions  discovery_questionnaire_submissions[]
   inquiry_tasks                        inquiry_tasks[]
   equipment_reservations               inquiry_equipment_reservations[]
   equipment_availability_blocks        equipment_availability[]
@@ -474,6 +471,21 @@ model inquiries {
   @@map("inquiries")
 }
 
+// ─── Inquiry Wizard ───────────────────────────────────────────────────────────
+//
+// A single unified template/question/submission system for both stages of
+// the inquiry funnel, distinguished by `stage`:
+//   - INTAKE:         public/studio client intake wizard (creates the inquiry)
+//   - DISCOVERY_CALL: studio-only call-script + notes tool, filled in later
+//                      during the discovery call (formerly "Discovery
+//                      Questionnaire", merged in here — see migration
+//                      20260703140000_unify_inquiry_wizard).
+
+enum InquiryWizardStage {
+  INTAKE
+  DISCOVERY_CALL
+}
+
 model inquiry_wizard_templates {
   id           Int                            @id @default(autoincrement())
   brand_id     Int
@@ -482,6 +494,7 @@ model inquiry_wizard_templates {
   is_active    Boolean                        @default(true)
   status       String                         @default("draft")
   version      String                         @default("1.0")
+  stage        InquiryWizardStage             @default(INTAKE)
   published_at DateTime?
   steps_config Json?
   share_token  String?                        @unique
@@ -492,14 +505,15 @@ model inquiry_wizard_templates {
   submissions  inquiry_wizard_submissions[]
 
   @@index([brand_id])
-  @@map("needs_assessment_templates")
 }
 
 model inquiry_wizard_questions {
   id             Int                       @id @default(autoincrement())
   template_id    Int
   order_index    Int
+  section        String?
   prompt         String
+  script_hint    String?
   field_type     String
   field_key      String?
   required       Boolean                   @default(false)
@@ -507,12 +521,12 @@ model inquiry_wizard_questions {
   condition_json Json?
   help_text      String?
   category       String?
+  visibility     String                    @default("both")
   created_at     DateTime                  @default(now())
   updated_at     DateTime                  @updatedAt
   template       inquiry_wizard_templates  @relation(fields: [template_id], references: [id], onDelete: Cascade)
 
   @@index([template_id])
-  @@map("needs_assessment_questions")
 }
 
 model inquiry_wizard_submissions {
@@ -523,6 +537,10 @@ model inquiry_wizard_submissions {
   contact_id              Int?
   status                  String                    @default("submitted")
   responses               Json
+  call_notes              String?
+  transcript              String?
+  sentiment               Json?
+  call_duration_seconds   Int?
   submitted_at            DateTime                  @default(now())
   created_at              DateTime                  @default(now())
   updated_at              DateTime                  @updatedAt
@@ -536,67 +554,6 @@ model inquiry_wizard_submissions {
 
   @@index([brand_id])
   @@index([inquiry_id])
-  @@map("needs_assessment_submissions")
-}
-
-// ─── Discovery Questionnaire ─────────────────────────────────────────────────
-
-model discovery_questionnaire_templates {
-  id          Int                                      @id @default(autoincrement())
-  brand_id    Int
-  name        String
-  description String?
-  is_active   Boolean                                  @default(true)
-  created_at  DateTime                                 @default(now())
-  updated_at  DateTime                                 @updatedAt
-  brand       brands                                   @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  questions   discovery_questionnaire_questions[]
-  submissions discovery_questionnaire_submissions[]
-
-  @@index([brand_id])
-  @@map("discovery_questionnaire_templates")
-}
-
-model discovery_questionnaire_questions {
-  id          Int                                    @id @default(autoincrement())
-  template_id Int
-  order_index Int
-  section     String?
-  prompt      String
-  script_hint String?
-  field_type  String
-  field_key   String?
-  required    Boolean                                @default(false)
-  options     Json?
-  visibility  String                                 @default("both")
-  created_at  DateTime                               @default(now())
-  updated_at  DateTime                               @updatedAt
-  template    discovery_questionnaire_templates      @relation(fields: [template_id], references: [id], onDelete: Cascade)
-
-  @@index([template_id])
-  @@map("discovery_questionnaire_questions")
-}
-
-model discovery_questionnaire_submissions {
-  id           Int                                @id @default(autoincrement())
-  template_id  Int
-  brand_id     Int
-  inquiry_id   Int?
-  responses    Json
-  call_notes   String?
-  transcript   String?
-  sentiment              Json?
-  call_duration_seconds  Int?
-  submitted_at           DateTime                           @default(now())
-  created_at   DateTime                           @default(now())
-  updated_at   DateTime                           @updatedAt
-  template     discovery_questionnaire_templates  @relation(fields: [template_id], references: [id], onDelete: Cascade)
-  brand        brands                             @relation(fields: [brand_id], references: [id], onDelete: Cascade)
-  inquiry      inquiries?                         @relation(fields: [inquiry_id], references: [id])
-
-  @@index([brand_id])
-  @@index([inquiry_id])
-  @@map("discovery_questionnaire_submissions")
 }
 
 model clients {

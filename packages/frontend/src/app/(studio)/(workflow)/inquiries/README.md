@@ -1,7 +1,7 @@
 # Studio Inquiries Feature
 
 ## What this module does
-Owns the studio-side inquiry screens: inquiry detail, package scope, estimates, quotes, proposals, contracts, availability, and needs-assessment review.
+Owns the studio-side inquiry screens: inquiry detail, package scope, estimates, quotes, proposals, contracts, availability, and Inquiry Wizard review.
 
 ## Key files
 | File | Purpose |

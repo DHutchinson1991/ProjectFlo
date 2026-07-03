@@ -19,13 +19,13 @@ import {
     SaveOutlined,
 } from '@mui/icons-material';
 import { WorkflowCard } from '@/shared/ui/WorkflowCard';
-import { discoveryQuestionnaireSubmissionsApi } from '@/features/workflow/inquiries/api';
-import type { DiscoveryQuestionnaireSubmission } from '@/features/workflow/inquiries/types';
+import { inquiryWizardSubmissionsApi } from '../../api';
+import type { InquiryWizardSubmission } from '../../types';
 
 const ACCENT = '#818cf8';
 
 interface DiscoveryTranscriptCardProps {
-    submission: DiscoveryQuestionnaireSubmission;
+    submission: InquiryWizardSubmission;
     onRefreshSubmission: () => Promise<void>;
 }
 
@@ -113,7 +113,7 @@ export default function DiscoveryTranscriptCard({
     const handleSave = async () => {
         setSaving(true);
         try {
-            await discoveryQuestionnaireSubmissionsApi.update(submission.id, {
+            await inquiryWizardSubmissionsApi.update(submission.id, {
                 transcript: draft,
             });
             await onRefreshSubmission();

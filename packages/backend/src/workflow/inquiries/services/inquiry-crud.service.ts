@@ -53,15 +53,19 @@ export class InquiryCrudService {
             this.logger.warn(`Failed to auto-generate inquiry tasks for inquiry ${inquiry.id}: ${err}`);
         }
 
+        const warnings: string[] = [];
+
         if (inquiryData.selected_package_id) {
             try {
                 await this.packageService.handlePackageSelection(inquiry.id, inquiryData.selected_package_id, brandId);
             } catch (err) {
-                this.logger.error(`Failed to create package snapshot for inquiry ${inquiry.id}`, err instanceof Error ? err.stack : String(err));
+                const message = `Failed to create package snapshot for inquiry ${inquiry.id}`;
+                this.logger.error(message, err instanceof Error ? err.stack : String(err));
+                warnings.push(`${message}. The inquiry was created, but its package snapshot may be missing.`);
             }
         }
 
-        return { id: inquiry.id, status: inquiry.status, wedding_date: inquiry.wedding_date, notes: inquiry.notes, lead_source: inquiry.lead_source, lead_source_details: inquiry.lead_source_details, first_name: inquiry.contact.first_name, last_name: inquiry.contact.last_name, email: inquiry.contact.email, phone_number: inquiry.contact.phone_number };
+        return { id: inquiry.id, status: inquiry.status, wedding_date: inquiry.wedding_date, notes: inquiry.notes, lead_source: inquiry.lead_source, lead_source_details: inquiry.lead_source_details, first_name: inquiry.contact.first_name, last_name: inquiry.contact.last_name, email: inquiry.contact.email, phone_number: inquiry.contact.phone_number, ...(warnings.length > 0 && { warnings }) };
     }
 
     async update(id: number, updateInquiryDto: UpdateInquiryDto, brandId: number) {
@@ -103,11 +107,15 @@ export class InquiryCrudService {
             include: { contact: { select: { first_name: true, last_name: true, email: true, phone_number: true } } },
         });
 
+        const warnings: string[] = [];
+
         if (packageChanging) {
             try {
                 await this.packageService.handlePackageSelection(id, inquiryData.selected_package_id ?? null, brandId);
             } catch (error) {
-                this.logger.error(`Failed to handle package selection change for inquiry ${id}`, error instanceof Error ? error.stack : error);
+                const message = `Failed to handle package selection change for inquiry ${id}`;
+                this.logger.error(message, error instanceof Error ? error.stack : error);
+                warnings.push(`${message}. The inquiry was updated, but its package snapshot may be out of date.`);
             }
         }
 
@@ -133,7 +141,7 @@ export class InquiryCrudService {
             await this.inquiryTasksService.autoCompleteByName(id, 'Confirm Booking');
         }
 
-        return { id: updatedInquiry.id, status: updatedInquiry.status, wedding_date: updatedInquiry.wedding_date, notes: updatedInquiry.notes, lead_source: updatedInquiry.lead_source, lead_source_details: updatedInquiry.lead_source_details, selected_package_id: updatedInquiry.selected_package_id, preferred_payment_schedule_template_id: updatedInquiry.preferred_payment_schedule_template_id, first_name: updatedInquiry.contact.first_name, last_name: updatedInquiry.contact.last_name, email: updatedInquiry.contact.email, phone_number: updatedInquiry.contact.phone_number };
+        return { id: updatedInquiry.id, status: updatedInquiry.status, wedding_date: updatedInquiry.wedding_date, notes: updatedInquiry.notes, lead_source: updatedInquiry.lead_source, lead_source_details: updatedInquiry.lead_source_details, selected_package_id: updatedInquiry.selected_package_id, preferred_payment_schedule_template_id: updatedInquiry.preferred_payment_schedule_template_id, first_name: updatedInquiry.contact.first_name, last_name: updatedInquiry.contact.last_name, email: updatedInquiry.contact.email, phone_number: updatedInquiry.contact.phone_number, ...(warnings.length > 0 && { warnings }) };
     }
 
     async remove(id: number, brandId: number) {

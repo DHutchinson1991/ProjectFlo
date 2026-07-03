@@ -14,7 +14,7 @@ export type { CommandCenterHeaderProps } from './types';
 export default function CommandCenterHeader({
     inquiry,
     inquiryTasks,
-    needsAssessmentSubmission,
+    inquiryWizardSubmission,
     conversionData,
     dealValue,
     onRefresh,
@@ -61,7 +61,7 @@ export default function CommandCenterHeader({
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0, ml: 'auto' }}>
                     <MetricsPills
                         inquiry={inquiry}
-                        needsAssessmentSubmission={needsAssessmentSubmission}
+                        inquiryWizardSubmission={inquiryWizardSubmission}
                         conversionData={conversionData}
                         dealValue={dealValue}
                         currencyCode={currencyCode}
@@ -70,7 +70,7 @@ export default function CommandCenterHeader({
                     <HeaderActions
                         inquiry={inquiry}
                         inquiryTasks={inquiryTasks}
-                        submission={needsAssessmentSubmission}
+                        submission={inquiryWizardSubmission}
                         onRefresh={onRefresh}
                         onSnackbar={onSnackbar}
                     />

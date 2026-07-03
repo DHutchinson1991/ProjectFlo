@@ -1,17 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { useBrand } from '@/features/platform/brand';
-import { discoveryQuestionnaireTemplatesApi, inquiriesApi } from '../api';
+import { inquiryWizardTemplatesApi, inquiryWizardSubmissionsApi } from '../api';
+import { inquiriesApi } from '@/features/workflow/inquiries/api';
 import { paymentSchedulesApi } from '@/features/finance/payment-schedules';
-import { inquiryWizardSubmissionsApi } from '@/features/workflow/inquiry-wizard';
 import { discoveryQuestionnaireKeys } from '../constants/query-keys';
-import type { SnapshotActivity } from '../types/schedule-snapshot';
+import type { SnapshotActivity } from '@/features/workflow/inquiries/types/schedule-snapshot';
 
 export function useDiscoveryQuestionnaireTemplate() {
     const { currentBrand } = useBrand();
     const brandId = currentBrand?.id ? String(currentBrand.id) : '';
     return useQuery({
         queryKey: discoveryQuestionnaireKeys.template(brandId),
-        queryFn: () => discoveryQuestionnaireTemplatesApi.getActive(),
+        queryFn: () => inquiryWizardTemplatesApi.getActive('DISCOVERY_CALL'),
         enabled: !!brandId,
         staleTime: 1000 * 60 * 10,
     });
@@ -56,7 +56,7 @@ export function useWizardResponses(inquiryId: number) {
         queryKey: discoveryQuestionnaireKeys.wizardResponses(brandId, inquiryId),
         queryFn: () =>
             inquiryWizardSubmissionsApi
-                .getByInquiryId(inquiryId)
+                .getByInquiryId(inquiryId, 'INTAKE')
                 .then((subs) => (subs[0]?.responses ?? {}) as Record<string, unknown>)
                 .catch(() => ({} as Record<string, unknown>)),
         enabled: !!brandId && !!inquiryId,

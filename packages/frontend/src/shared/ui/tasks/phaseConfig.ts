@@ -54,7 +54,7 @@ export function hexToRgba(hex: string, alpha: number): string {
 /** Studio-facing phase descriptions — comprehensive, operational detail */
 export const PHASE_STUDIO_DESCRIPTIONS: Record<string, string> = {
     Lead:                 'Initial interest and lead capture. Qualify prospects, gather contact details, and assess fit before moving to inquiry.',
-    Inquiry:              'Active discovery and needs assessment. Run questionnaires, consultations, and scope conversations to understand the project requirements.',
+    Inquiry:              'Active discovery via the Inquiry Wizard. Run questionnaires, consultations, and scope conversations to understand the project requirements.',
     Booking:              'Contract signing, payment collection, and onboarding. Finalise the package, send the proposal, and secure the booking.',
     Creative_Development: 'Concept planning, mood boards, style guides, creative briefs, and shot lists. Align creative vision with the client before production begins.',
     Pre_Production:       'Scheduling, crew assignment, equipment booking, location scouting, and logistics preparation. Everything required before cameras roll.',

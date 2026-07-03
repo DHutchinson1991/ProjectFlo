@@ -55,7 +55,7 @@ interface Props {
 /** Matches `StudioSidebar` width and `(studio)/layout.tsx` main `marginLeft`. */
 const STUDIO_NAV_RAIL_PX = 280;
 
-/** Matches `DayBlueprintVersionEditor` activities rail `width: { lg: '26%' }`. */
+/** Matches the package Blueprint tab's activity rail `width: { lg: '26%' }`. */
 const ACTIVITIES_RAIL_FRACTION = 0.26;
 
 /** Studio content inner width (nav + symmetric page padding from layout `p: 3`). */

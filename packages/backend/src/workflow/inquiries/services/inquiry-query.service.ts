@@ -52,6 +52,72 @@ export class InquiryQueryService {
         };
     }
 
+    /**
+     * Batched equivalent of `_computeBlueprintDrift` for list endpoints: collects all
+     * blueprint ids referenced by the given snapshots up front, then issues a single
+     * `findMany` for blueprints and one for their latest published versions, instead of
+     * querying per-row (avoids an N+1 across the page of inquiries).
+     */
+    private async _computeBlueprintDriftBatch(snapshots: unknown[]) {
+        type ParsedSnapshot = {
+            blueprintId: number;
+            consumedVersionId: number;
+            consumedVersionNumber: number | null;
+        };
+
+        const parsed: (ParsedSnapshot | null)[] = snapshots.map((snapshot) => {
+            if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+                return null;
+            }
+            const raw = snapshot as Record<string, unknown>;
+            const blueprintId = typeof raw.source_day_blueprint_id === 'number' ? raw.source_day_blueprint_id : null;
+            const consumedVersionId = typeof raw.source_day_blueprint_version_id === 'number'
+                ? raw.source_day_blueprint_version_id
+                : null;
+            const consumedVersionNumber = typeof raw.source_day_blueprint_version_number === 'number'
+                ? raw.source_day_blueprint_version_number
+                : null;
+            if (!blueprintId || !consumedVersionId) return null;
+            return { blueprintId, consumedVersionId, consumedVersionNumber };
+        });
+
+        const blueprintIds = Array.from(new Set(parsed.filter((p): p is ParsedSnapshot => p !== null).map((p) => p.blueprintId)));
+
+        if (blueprintIds.length === 0) {
+            return parsed.map(() => null);
+        }
+
+        const blueprints = await this.prisma.dayBlueprint.findMany({
+            where: { id: { in: blueprintIds } },
+            select: { id: true, latest_published_version_id: true },
+        });
+        const blueprintById = new Map(blueprints.map((b) => [b.id, b.latest_published_version_id]));
+
+        const latestVersionIds = Array.from(
+            new Set(Array.from(blueprintById.values()).filter((id): id is number => id !== null)),
+        );
+        const latestVersions = latestVersionIds.length > 0
+            ? await this.prisma.dayBlueprintVersion.findMany({
+                where: { id: { in: latestVersionIds } },
+                select: { id: true, version_number: true },
+            })
+            : [];
+        const versionNumberById = new Map(latestVersions.map((v) => [v.id, v.version_number]));
+
+        return parsed.map((p) => {
+            if (!p) return null;
+            const latestVersionId = blueprintById.get(p.blueprintId) ?? null;
+            return {
+                blueprint_id: p.blueprintId,
+                consumed_version_id: p.consumedVersionId,
+                consumed_version_number: p.consumedVersionNumber,
+                latest_version_id: latestVersionId,
+                latest_version_number: latestVersionId ? versionNumberById.get(latestVersionId) ?? null : null,
+                is_current: latestVersionId ? latestVersionId === p.consumedVersionId : null,
+            };
+        });
+    }
+
     async findAll(brandId: number) {
         const inquiries = await this.prisma.inquiries.findMany({
             where: { archived_at: null, contact: { brand_id: brandId } },
@@ -104,15 +170,12 @@ export class InquiryQueryService {
             orderBy: { id: 'desc' },
         });
 
-        const mapped = await Promise.all(
-            inquiries.map(async (inquiry) => {
-                const item = this._mapListItem(inquiry);
-                const blueprint_drift = await this._computeBlueprintDrift(inquiry.package_contents_snapshot);
-                return { ...item, blueprint_drift };
-            }),
-        );
+        const drifts = await this._computeBlueprintDriftBatch(inquiries.map((i) => i.package_contents_snapshot));
 
-        return mapped;
+        return inquiries.map((inquiry, index) => ({
+            ...this._mapListItem(inquiry),
+            blueprint_drift: drifts[index],
+        }));
     }
 
     async findOne(id: number, brandId: number) {

@@ -60,10 +60,8 @@ Table brands {
   films films [not null]
   montage_presets montage_presets [not null]
   film_structure_templates film_structure_templates [not null]
-  inquiry_wizard_templates needs_assessment_templates [not null]
-  inquiry_wizard_submissions needs_assessment_submissions [not null]
-  discovery_questionnaire_templates discovery_questionnaire_templates [not null]
-  discovery_questionnaire_submissions discovery_questionnaire_submissions [not null]
+  inquiry_wizard_templates inquiry_wizard_templates [not null]
+  inquiry_wizard_submissions inquiry_wizard_submissions [not null]
   subject_roles subject_roles [not null]
   equipment_templates equipment_templates [not null]
   event_days event_days [not null]
@@ -150,7 +148,7 @@ Table contacts {
   user_account user_accounts
   event_attendees event_attendees [not null]
   inquiries inquiries [not null]
-  inquiry_wizard_submissions needs_assessment_submissions [not null]
+  inquiry_wizard_submissions inquiry_wizard_submissions [not null]
   projects projects [not null]
   project_day_subjects project_day_subjects [not null]
 }
@@ -372,8 +370,7 @@ Table inquiries {
   invoices invoices [not null]
   proposals proposals [not null]
   quotes quotes [not null]
-  inquiry_wizard_submissions needs_assessment_submissions [not null]
-  discovery_questionnaire_submissions discovery_questionnaire_submissions [not null]
+  inquiry_wizard_submissions inquiry_wizard_submissions [not null]
   inquiry_tasks inquiry_tasks [not null]
   equipment_reservations inquiry_equipment_reservations [not null]
   equipment_availability_blocks equipment_availability [not null]
@@ -404,7 +401,7 @@ Table inquiries {
   welcome_sent_at DateTime
 }
 
-Table needs_assessment_templates {
+Table inquiry_wizard_templates {
   id Int [pk, increment]
   brand_id Int [not null]
   name String [not null]
@@ -412,67 +409,18 @@ Table needs_assessment_templates {
   is_active Boolean [not null, default: true]
   status String [not null, default: 'draft']
   version String [not null, default: '1.0']
+  stage InquiryWizardStage [not null, default: 'INTAKE']
   published_at DateTime
   steps_config Json
   share_token String [unique]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
   brand brands [not null]
-  questions needs_assessment_questions [not null]
-  submissions needs_assessment_submissions [not null]
+  questions inquiry_wizard_questions [not null]
+  submissions inquiry_wizard_submissions [not null]
 }
 
-Table needs_assessment_questions {
-  id Int [pk, increment]
-  template_id Int [not null]
-  order_index Int [not null]
-  prompt String [not null]
-  field_type String [not null]
-  field_key String
-  required Boolean [not null, default: false]
-  options Json
-  condition_json Json
-  help_text String
-  category String
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  template needs_assessment_templates [not null]
-}
-
-Table needs_assessment_submissions {
-  id Int [pk, increment]
-  template_id Int [not null]
-  brand_id Int [not null]
-  inquiry_id Int
-  contact_id Int
-  status String [not null, default: 'submitted']
-  responses Json [not null]
-  submitted_at DateTime [default: `now()`, not null]
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  review_notes String
-  reviewed_at DateTime
-  review_checklist_state Json
-  template needs_assessment_templates [not null]
-  brand brands [not null]
-  inquiry inquiries
-  contact contacts
-}
-
-Table discovery_questionnaire_templates {
-  id Int [pk, increment]
-  brand_id Int [not null]
-  name String [not null]
-  description String
-  is_active Boolean [not null, default: true]
-  created_at DateTime [default: `now()`, not null]
-  updated_at DateTime [not null]
-  brand brands [not null]
-  questions discovery_questionnaire_questions [not null]
-  submissions discovery_questionnaire_submissions [not null]
-}
-
-Table discovery_questionnaire_questions {
+Table inquiry_wizard_questions {
   id Int [pk, increment]
   template_id Int [not null]
   order_index Int [not null]
@@ -483,17 +431,22 @@ Table discovery_questionnaire_questions {
   field_key String
   required Boolean [not null, default: false]
   options Json
+  condition_json Json
+  help_text String
+  category String
   visibility String [not null, default: 'both']
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  template discovery_questionnaire_templates [not null]
+  template inquiry_wizard_templates [not null]
 }
 
-Table discovery_questionnaire_submissions {
+Table inquiry_wizard_submissions {
   id Int [pk, increment]
   template_id Int [not null]
   brand_id Int [not null]
   inquiry_id Int
+  contact_id Int
+  status String [not null, default: 'submitted']
   responses Json [not null]
   call_notes String
   transcript String
@@ -502,9 +455,13 @@ Table discovery_questionnaire_submissions {
   submitted_at DateTime [default: `now()`, not null]
   created_at DateTime [default: `now()`, not null]
   updated_at DateTime [not null]
-  template discovery_questionnaire_templates [not null]
+  review_notes String
+  reviewed_at DateTime
+  review_checklist_state Json
+  template inquiry_wizard_templates [not null]
   brand brands [not null]
   inquiry inquiries
+  contact contacts
 }
 
 Table clients {
@@ -4476,6 +4433,11 @@ Table package_activity_moment_actions {
   }
 }
 
+Enum InquiryWizardStage {
+  INTAKE
+  DISCOVERY_CALL
+}
+
 Enum LocationPrecision {
   EXACT
   APPROXIMATE
@@ -5104,27 +5066,17 @@ Ref: inquiries.contact_id > contacts.id
 
 Ref: inquiries.preferred_payment_schedule_template_id > payment_schedule_templates.id [delete: Set Null]
 
-Ref: needs_assessment_templates.brand_id > brands.id [delete: Cascade]
+Ref: inquiry_wizard_templates.brand_id > brands.id [delete: Cascade]
 
-Ref: needs_assessment_questions.template_id > needs_assessment_templates.id [delete: Cascade]
+Ref: inquiry_wizard_questions.template_id > inquiry_wizard_templates.id [delete: Cascade]
 
-Ref: needs_assessment_submissions.template_id > needs_assessment_templates.id [delete: Cascade]
+Ref: inquiry_wizard_submissions.template_id > inquiry_wizard_templates.id [delete: Cascade]
 
-Ref: needs_assessment_submissions.brand_id > brands.id [delete: Cascade]
+Ref: inquiry_wizard_submissions.brand_id > brands.id [delete: Cascade]
 
-Ref: needs_assessment_submissions.inquiry_id > inquiries.id
+Ref: inquiry_wizard_submissions.inquiry_id > inquiries.id
 
-Ref: needs_assessment_submissions.contact_id > contacts.id
-
-Ref: discovery_questionnaire_templates.brand_id > brands.id [delete: Cascade]
-
-Ref: discovery_questionnaire_questions.template_id > discovery_questionnaire_templates.id [delete: Cascade]
-
-Ref: discovery_questionnaire_submissions.template_id > discovery_questionnaire_templates.id [delete: Cascade]
-
-Ref: discovery_questionnaire_submissions.brand_id > brands.id [delete: Cascade]
-
-Ref: discovery_questionnaire_submissions.inquiry_id > inquiries.id
+Ref: inquiry_wizard_submissions.contact_id > contacts.id
 
 Ref: clients.contact_id - contacts.id [delete: Cascade]
 

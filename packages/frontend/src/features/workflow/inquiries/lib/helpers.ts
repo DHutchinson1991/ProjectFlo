@@ -1,6 +1,7 @@
-import type { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
+import type { Inquiry } from '@/features/workflow/inquiries/types';
+import type { InquiryWizardSubmission } from '@/features/workflow/inquiry-wizard';
 import type { ConversionData, NextActionData, PipelineTask } from './types';
-import { NA_CATEGORIES, NA_HIDDEN_KEYS, TASK_AUTO_COMPLETE, WORKFLOW_PHASES } from './constants';
+import { INQUIRY_WIZARD_CATEGORIES, INQUIRY_WIZARD_HIDDEN_KEYS, TASK_AUTO_COMPLETE, WORKFLOW_PHASES } from './constants';
 
 // ─── Deal intelligence ───────────────────────────────────────────────
 
@@ -8,7 +9,10 @@ export const getConversionScore = (inq: Inquiry): ConversionData => {
     let score = 0;
     if (inq.contact?.email && !inq.contact.email.startsWith('pending_')) score += 10;
     if (inq.contact?.phone_number) score += 10;
-    if (inq.workflow_status && typeof inq.workflow_status === 'object' && inq.workflow_status.needsAssessment === 'completed') score += 15;
+    // NOTE: `workflow_status` is a generic Json? column on `inquiries`; no backend code currently
+    // writes an `inquiryWizard`/`discoveryCall`/`clientApproval` shape into it, so this branch is a
+    // dormant fallback that only activates if that data is ever populated (e.g. by a future integration).
+    if (inq.workflow_status && typeof inq.workflow_status === 'object' && inq.workflow_status.inquiryWizard === 'completed') score += 15;
     if (inq.estimates && inq.estimates.length > 0) score += 15;
     if (inq.workflow_status && typeof inq.workflow_status === 'object' && inq.workflow_status.discoveryCall === 'completed') score += 10;
     if (inq.proposals && inq.proposals.length > 0) score += 15;
@@ -20,8 +24,8 @@ export const getConversionScore = (inq: Inquiry): ConversionData => {
     return { score, label: 'Cold', color: '#64748b' };
 };
 
-export const getNextBestAction = (inq: Inquiry, sub: NeedsAssessmentSubmission | null): NextActionData => {
-    if (!sub) return { action: 'Send Assessment', description: 'Get client requirements to start the conversation', color: '#3b82f6', sectionId: 'needs-assessment-section' };
+export const getNextBestAction = (inq: Inquiry, sub: InquiryWizardSubmission | null): NextActionData => {
+    if (!sub) return { action: 'Send Assessment', description: 'Get client requirements to start the conversation', color: '#3b82f6', sectionId: 'inquiry-wizard-section' };
     if (!inq.estimates || inq.estimates.length === 0) return { action: 'Create Estimate', description: 'Draft a pricing estimate based on their needs', color: '#10b981', sectionId: 'estimates-section' };
     if (!inq.proposals || inq.proposals.length === 0) return { action: 'Send Proposal', description: 'Create a compelling proposal to win them over', color: '#8b5cf6', sectionId: 'proposals-section' };
     if (!inq.quotes || inq.quotes.length === 0) return { action: 'Generate Quote', description: 'Finalize pricing with a professional quote', color: '#ef4444', sectionId: 'quotes-section' };
@@ -42,7 +46,7 @@ export const calculateWorkflowProgress = (inquiry: Inquiry) => {
     let completedSteps = 0;
     const totalSteps = 8;
     if (typeof status === 'object') {
-        if (status.needsAssessment === 'completed') completedSteps++;
+        if (status.inquiryWizard === 'completed') completedSteps++;
         if (status.discoveryCall === 'completed') completedSteps++;
         if (status.clientApproval === 'completed') completedSteps++;
     }
@@ -79,7 +83,7 @@ export function computeActiveIndex(
     const status = inquiry.workflow_status;
     let completedSteps = 0;
     if (typeof status === 'object') {
-        if (status.needsAssessment === 'completed') completedSteps++;
+        if (status.inquiryWizard === 'completed') completedSteps++;
         if (status.discoveryCall === 'completed') completedSteps++;
         if (status.clientApproval === 'completed') completedSteps++;
     }
@@ -139,7 +143,7 @@ export const getDealValue = (inquiry: Inquiry): number => {
     return primaryEst ? Number(primaryEst.total_amount || 0) : 0;
 };
 
-// ─── Needs assessment response formatting ────────────────────────────
+// ─── Inquiry Wizard response formatting ───────────────────────────────
 
 export const humanize = (k: string) => k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
@@ -150,19 +154,19 @@ export const fmtVal = (v: unknown): string => {
     return String(v);
 };
 
-export const groupNaResponses = (responses: Record<string, unknown>) => {
-    const naGrouped = NA_CATEGORIES.map(cat => {
+export const groupInquiryWizardResponses = (responses: Record<string, unknown>) => {
+    const grouped = INQUIRY_WIZARD_CATEGORIES.map(cat => {
         const entries = cat.keys
             .filter(k => responses[k] !== undefined && responses[k] !== null && responses[k] !== '')
             .map(k => ({ key: k, label: humanize(k), value: responses[k] }));
         return { ...cat, entries };
     }).filter(c => c.entries.length > 0);
 
-    const naCatKeys = new Set(NA_CATEGORIES.flatMap(c => c.keys));
-    const hiddenSet = new Set(NA_HIDDEN_KEYS);
-    const naUncategorized = Object.entries(responses)
-        .filter(([k, v]) => !naCatKeys.has(k) && !hiddenSet.has(k) && v !== undefined && v !== null && v !== '')
+    const categorizedKeys = new Set(INQUIRY_WIZARD_CATEGORIES.flatMap(c => c.keys));
+    const hiddenSet = new Set(INQUIRY_WIZARD_HIDDEN_KEYS);
+    const uncategorized = Object.entries(responses)
+        .filter(([k, v]) => !categorizedKeys.has(k) && !hiddenSet.has(k) && v !== undefined && v !== null && v !== '')
         .map(([k, v]) => ({ key: k, label: humanize(k), value: v }));
 
-    return { naGrouped, naUncategorized };
+    return { grouped, uncategorized };
 };

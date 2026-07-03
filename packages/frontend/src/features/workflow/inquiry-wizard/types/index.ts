@@ -10,17 +10,26 @@ export interface WizardStep {
     type?: 'questions' | 'package_select' | 'discovery_call';
 }
 
+/** Discriminates the two moments of the lead lifecycle a template/submission belongs to. */
+export type InquiryWizardStage = 'INTAKE' | 'DISCOVERY_CALL';
+
 export interface InquiryWizardQuestion {
     id?: number;
     order_index: number;
     prompt: string;
     field_type: string;
-    field_key?: string;
+    field_key?: string | null;
     required?: boolean;
     options?: { values?: string[] } | Record<string, unknown> | null;
     condition_json?: Record<string, unknown> | null;
     help_text?: string | null;
     category?: string | null;
+    /** DISCOVERY_CALL-stage: groups questions into script phases (e.g. "The Connection"). */
+    section?: string | null;
+    /** DISCOVERY_CALL-stage: script text shown to the caller, supports `{{variable}}` interpolation. */
+    script_hint?: string | null;
+    /** DISCOVERY_CALL-stage: 'both' | 'internal' — whether the question/script is client-visible. */
+    visibility?: string | null;
 }
 
 export interface InquiryWizardTemplate {
@@ -31,6 +40,8 @@ export interface InquiryWizardTemplate {
     is_active: boolean;
     status?: string;
     version?: string;
+    /** Defaults to INTAKE on the backend when omitted. */
+    stage?: InquiryWizardStage;
     published_at?: string | null;
     steps_config?: WizardStep[] | null;
     created_at: string;
@@ -55,6 +66,19 @@ export interface InquiryWizardSubmission {
     review_notes?: string | null;
     reviewed_at?: string | null;
     review_checklist_state?: Record<string, boolean> | null;
+    /** DISCOVERY_CALL-stage fields. */
+    call_notes?: string | null;
+    transcript?: string | null;
+    sentiment?: Record<string, unknown> | null;
+    call_duration_seconds?: number | null;
+}
+
+export interface UpdateInquiryWizardSubmissionPayload {
+    responses?: Record<string, unknown>;
+    call_notes?: string;
+    transcript?: string;
+    sentiment?: Record<string, unknown>;
+    call_duration_seconds?: number;
 }
 
 export interface IwDateConflictResult {
@@ -139,6 +163,11 @@ export interface InquiryWizardSubmissionPayload {
         preferred_payment_schedule_template_id?: number;
         event_type_id?: number;
     };
+    /** DISCOVERY_CALL-stage fields, set when submitting against a DISCOVERY_CALL template. */
+    call_notes?: string;
+    transcript?: string;
+    sentiment?: Record<string, unknown>;
+    call_duration_seconds?: number;
 }
 
 export type ScreenId =

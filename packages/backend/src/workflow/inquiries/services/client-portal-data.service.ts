@@ -16,6 +16,7 @@ const PORTAL_INCLUDE = {
         },
     },
     inquiry_wizard_submissions: {
+        where: { template: { stage: 'INTAKE' as const } },
         include: {
             template: {
                 include: {

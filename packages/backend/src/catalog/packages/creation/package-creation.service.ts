@@ -10,7 +10,7 @@ import { InquiryPackageCreator } from './sources/inquiry-package-creator.service
  * the run logger lifecycle, error handling, and dispatches to the right
  * creation strategy based on conceptual level:
  *   - catalog-level creation (admin builds a reusable package from a template)
- *   - inquiry-level creation (client-scoped draft from the Needs Assessment wizard)
+ *   - inquiry-level creation (client-scoped draft from the Inquiry Wizard)
  */
 @Injectable()
 export class PackageCreationService {
@@ -46,7 +46,7 @@ export class PackageCreationService {
 
   /**
    * Inquiry-level creation. Used by `POST /api/packages/from-builder`.
-   * Client-scoped; produces a draft package tied to a Needs Assessment.
+   * Client-scoped; produces a draft package tied to an Inquiry Wizard submission.
    */
   async createForInquiry(
     brandId: number,

@@ -39,4 +39,24 @@ export class CreateInquiryWizardSubmissionDto {
     @IsOptional()
     @IsInt()
     preferred_payment_schedule_template_id?: number;
+
+    /** DISCOVERY_CALL-stage only: freeform notes captured during the call. */
+    @IsOptional()
+    @IsString()
+    call_notes?: string;
+
+    /** DISCOVERY_CALL-stage only: full call transcript, e.g. from an AI note-taker. */
+    @IsOptional()
+    @IsString()
+    transcript?: string;
+
+    /** DISCOVERY_CALL-stage only: structured sentiment/analysis output. */
+    @IsOptional()
+    @IsObject()
+    sentiment?: Record<string, unknown>;
+
+    /** DISCOVERY_CALL-stage only: call length in seconds. */
+    @IsOptional()
+    @IsInt()
+    call_duration_seconds?: number;
 }

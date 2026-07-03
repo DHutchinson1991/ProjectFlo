@@ -24,13 +24,13 @@ import {
 } from '@mui/icons-material';
 import { useBrand } from '@/features/platform/brand';
 import { useAuth } from '@/features/platform/auth';
-import { DiscoveryQuestionnaireSubmission } from '@/features/workflow/inquiries/types';
+import type { InquiryWizardSubmission } from '../../types';
 import { WorkflowCard } from '@/shared/ui/WorkflowCard';
 import DiscoveryQuestionnaireFormDialog from './DiscoveryQuestionnaireFormDialog';
-import type { WorkflowCardProps } from '../../lib';
+import type { WorkflowCardProps } from '@/features/workflow/inquiries/lib';
 
 interface DiscoveryCardProps extends Omit<WorkflowCardProps, 'submission'> {
-    submission: DiscoveryQuestionnaireSubmission | null;
+    submission: InquiryWizardSubmission | null;
     onRefreshSubmission: () => Promise<void>;
 }
 
@@ -73,7 +73,7 @@ const DiscoveryQuestionnaireCard: React.FC<DiscoveryCardProps> = ({
     const { user } = useAuth();
     const [dialogOpen, setDialogOpen] = useState(false);
 
-    const handleSubmitted = async (_s: DiscoveryQuestionnaireSubmission) => {
+    const handleSubmitted = async (_s: InquiryWizardSubmission) => {
         setDialogOpen(false);
         await onRefreshSubmission();
         if (onRefresh) await onRefresh();

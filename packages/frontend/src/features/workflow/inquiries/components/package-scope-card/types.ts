@@ -1,4 +1,5 @@
-import type { Inquiry, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
+import type { Inquiry } from '@/features/workflow/inquiries/types';
+import type { InquiryWizardSubmission } from '@/features/workflow/inquiry-wizard';
 
 /* ------------------------------------------------------------------ */
 /*  Local interfaces                                                    */
@@ -25,7 +26,7 @@ export interface PackageScopeCardProps {
     onRefresh?: () => Promise<void>;
     isActive?: boolean;
     activeColor?: string;
-    submission?: NeedsAssessmentSubmission | null;
+    submission?: InquiryWizardSubmission | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     WorkflowCard: React.ComponentType<any>;
     onPackageDetailsClick?: () => void;

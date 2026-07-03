@@ -5,7 +5,7 @@ that controllers inject; it owns the run-logger lifecycle, error handling,
 and dispatch to the right creator based on **conceptual level**:
 
 - **Catalog-level** — admin builds a reusable package from an event-type template.
-- **Inquiry-level** — client-scoped draft built from the Needs Assessment wizard.
+- **Inquiry-level** — client-scoped draft built from the Inquiry Wizard.
 
 ## Entry points
 
@@ -29,7 +29,7 @@ and dispatch to the right creator based on **conceptual level**:
 | `package-creation.service.ts` | Facade — run-logger lifecycle, error handling, dispatch to a creator |
 | `package-creation-pipeline.service.ts` | Shared post-create pipeline — layout + activity-planning + blocking, with blocking/background modes |
 | `sources/catalog-package-creator.service.ts` | `CatalogPackageCreator` — builds a reusable catalog package from an event-type template |
-| `sources/inquiry-package-creator.service.ts` | `InquiryPackageCreator` — builds a client-scoped draft package from the Needs Assessment wizard |
+| `sources/inquiry-package-creator.service.ts` | `InquiryPackageCreator` — builds a client-scoped draft package from the Inquiry Wizard |
 | `builders/day-content.builder.ts` | `DayContentBuilder` — deterministic day-level content (activities, subjects, locations, equipment) |
 | `builders/crew.builder.ts` | `CrewBuilder` — crew-slot and equipment-assignment helpers shared by both creators |
 | `dto/*.dto.ts` | Wizard DTOs (root `CreatePackageFromEventTypeDto` plus nested activity/moment/crew/equipment shapes) |
@@ -48,7 +48,7 @@ and dispatch to the right creator based on **conceptual level**:
 - Package run logs remain file-backed under `logs/package-creator-ai/`; the package detail frontend reads that history through the package module's `/api/packages/:id/ai-runs` endpoints rather than touching this module directly.
 - `CatalogPackageCreator` starts the post-create pipeline in background and returns immediately; output package is `is_active: true` with `planning_status = CREATED/PLANNING`. The frontend navigates to `/packages/:id`, which streams progress via SSE (`usePlanningProgress`). Film creation is gated on `planning_status = READY`, and that terminal state is emitted only after both activity planning and package blocking complete.
 - `InquiryPackageCreator` starts the same post-create pipeline in background after the base package is created; output package is `is_active: false` and named after the client.
-- Creators own template/assessment resolution and deterministic package construction only.
+- Creators own template/inquiry-wizard resolution and deterministic package construction only.
 
 ## Related modules
 - **Backend**: `../event-types` — event-type templates and day/crew builders used by catalog-level creation

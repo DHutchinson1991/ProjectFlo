@@ -12,7 +12,7 @@ import {
     Handshake,
     Verified,
 } from '@mui/icons-material';
-import type { WorkflowPhase, NaCategory, PipelineTask } from './types';
+import type { WorkflowPhase, InquiryWizardCategory, PipelineTask } from './types';
 import type { InquiryTask, Inquiry } from '@/features/workflow/inquiries/types';
 
 // ─── Workflow phases ─────────────────────────────────────────────────
@@ -137,7 +137,7 @@ export function buildPipelineTasks(
             return a.order_index - b.order_index;
         })
         .map(t => {
-            const meta = TASK_META[t.name] ?? { icon: Assignment, sectionId: 'needs-assessment-section' };
+            const meta = TASK_META[t.name] ?? { icon: Assignment, sectionId: 'inquiry-wizard-section' };
             return {
                 id: t.id,
                 name: t.name,
@@ -171,7 +171,7 @@ export function buildPipelineTasksFromInquiry(inquiryTasks: InquiryTask[]): Pipe
         .map(t => {
             // Look up parent stage for section mapping
             const parentInfo = t.parent_inquiry_task_id ? stageMap.get(t.parent_inquiry_task_id) : null;
-            const sectionId = parentInfo?.name ?? (TASK_META[t.name]?.sectionId ?? 'needs-assessment-section');
+            const sectionId = parentInfo?.name ?? (TASK_META[t.name]?.sectionId ?? 'inquiry-wizard-section');
             const meta = TASK_META[t.name] ?? { icon: Assignment, sectionId };
             return {
                 id: t.task_library_id ?? t.id,
@@ -248,9 +248,9 @@ export const TASK_AUTO_COMPLETE: Record<string, AutoCompleteRule> = {
     },
 };
 
-// ─── Needs assessment grouping categories ────────────────────────────
+// ─── Inquiry Wizard response grouping categories ──────────────────────
 
-export const NA_CATEGORIES: NaCategory[] = [
+export const INQUIRY_WIZARD_CATEGORIES: InquiryWizardCategory[] = [
     { label: 'Contact', keys: ['contact_first_name', 'contact_last_name', 'contact_email', 'contact_phone', 'contact_role', 'partner_name'] },
     { label: 'Event', keys: ['event_type', 'wedding_date', 'wedding_date_approx', 'guest_count', 'is_birthday_person', 'birthday_person_name', 'birthday_relation'] },
     { label: 'Venue', keys: ['venue_name', 'venue_details', 'venue_address', 'venue_lat', 'venue_lng', 'venue_region'] },
@@ -262,4 +262,4 @@ export const NA_CATEGORIES: NaCategory[] = [
 ];
 
 /** Keys that are internal / transient and should never render in raw-data views */
-export const NA_HIDDEN_KEYS = ['builder_step', '_builder_initialized'];
+export const INQUIRY_WIZARD_HIDDEN_KEYS = ['builder_step', '_builder_initialized'];

@@ -101,7 +101,7 @@ export default function InquiryWizardReviewScreen() {
     if (loading) {
         return (
             <Box sx={{ display: "flex", justifyContent: "center", p: 5 }}>
-                <Typography variant="h6">Loading needs assessment...</Typography>
+                <Typography variant="h6">Loading Inquiry Wizard submission...</Typography>
             </Box>
         );
     }
@@ -111,7 +111,7 @@ export default function InquiryWizardReviewScreen() {
     if (!submission) {
         return (
             <Container maxWidth="md" sx={{ mt: 4 }}>
-                <Alert severity="warning">No needs assessment found for this inquiry.</Alert>
+                <Alert severity="warning">No Inquiry Wizard submission found for this inquiry.</Alert>
                 <Button sx={{ mt: 2 }} variant="outlined" onClick={() => window.close()}>Close Window</Button>
             </Container>
         );
@@ -125,7 +125,7 @@ export default function InquiryWizardReviewScreen() {
                         <IconButton onClick={() => window.close()} sx={{ border: 1, borderColor: "divider" }}>
                             <ArrowBack />
                         </IconButton>
-                        <Typography variant="h4" component="h1" fontWeight={700}>Needs Assessment Review</Typography>
+                        <Typography variant="h4" component="h1" fontWeight={700}>Inquiry Wizard Review</Typography>
                     </Box>
                     <Typography variant="body1" color="text.secondary" sx={{ ml: 7 }}>
                         Submitted on {new Date(submission.submitted_at).toLocaleDateString()} at{" "}

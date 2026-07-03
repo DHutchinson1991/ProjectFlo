@@ -39,12 +39,12 @@ export default function InquiryTab({
             {/* Col 1 — Event Details + Subjects */}
             <Grid item xs={12} md={4}>
                 <Stack spacing={3}>
-                    <div id="needs-assessment-section">
+                    <div id="inquiry-wizard-section">
                         <EventDetailsCard
                             inquiry={inquiry}
                             onRefresh={onRefresh}
-                            isActive={currentPhase === 'needs-assessment'}
-                            activeColor={phaseColor('needs-assessment')}
+                            isActive={currentPhase === 'inquiry-wizard'}
+                            activeColor={phaseColor('inquiry-wizard')}
                             submission={submission}
                             WorkflowCard={WorkflowCard}
                         />
@@ -64,8 +64,8 @@ export default function InquiryTab({
                         <AvailabilityCard
                             inquiry={inquiry}
                             inquiryTasks={inquiryTasks}
-                            isActive={currentPhase === 'needs-assessment'}
-                            activeColor={phaseColor('needs-assessment')}
+                            isActive={currentPhase === 'inquiry-wizard'}
+                            activeColor={phaseColor('inquiry-wizard')}
                             onTasksChanged={onTasksChanged}
                             WorkflowCard={WorkflowCard}
                         />
@@ -80,8 +80,8 @@ export default function InquiryTab({
                         <PackageScopeCard
                             inquiry={inquiry}
                             onRefresh={onRefresh}
-                            isActive={currentPhase === 'needs-assessment'}
-                            activeColor={phaseColor('needs-assessment')}
+                            isActive={currentPhase === 'inquiry-wizard'}
+                            activeColor={phaseColor('inquiry-wizard')}
                             submission={submission}
                             WorkflowCard={WorkflowCard}
                             onPackageDetailsClick={onScheduleClick}

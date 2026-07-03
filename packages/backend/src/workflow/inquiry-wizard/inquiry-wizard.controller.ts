@@ -14,14 +14,24 @@ import {
     ValidationPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { InquiryWizardStage } from '@prisma/client';
 import { CreateInquiryWizardTemplateDto } from './dto/create-inquiry-wizard-template.dto';
 import { UpdateInquiryWizardTemplateDto } from './dto/update-inquiry-wizard-template.dto';
 import { CreateInquiryWizardSubmissionDto } from './dto/create-inquiry-wizard-submission.dto';
+import { UpdateInquiryWizardSubmissionDto } from './dto/update-inquiry-wizard-submission.dto';
 import { ReviewIwSubmissionDto } from './dto/review-iw-submission.dto';
 import { ListIwSubmissionsQueryDto } from './dto/list-iw-submissions-query.dto';
 import { InquiryWizardTemplateService } from './services/inquiry-wizard-template.service';
 import { InquiryWizardSubmissionService } from './services/inquiry-wizard-submission.service';
 import { InquiryWizardConflictService } from './services/inquiry-wizard-conflict.service';
+
+/** Parses a raw `?stage=` query value into the enum, ignoring anything invalid. */
+function parseStage(raw?: string): InquiryWizardStage | undefined {
+    if (raw === InquiryWizardStage.INTAKE || raw === InquiryWizardStage.DISCOVERY_CALL) {
+        return raw;
+    }
+    return undefined;
+}
 
 @Controller('api/inquiry-wizard')
 @UseGuards(AuthGuard('jwt'))
@@ -35,16 +45,36 @@ export class InquiryWizardController {
     ) {}
 
     @Get('templates')
-    listTemplates(@Headers('x-brand-context') brandId: string) {
+    listTemplates(
+        @Headers('x-brand-context') brandId: string,
+        @Query('stage') stage?: string,
+    ) {
         const brandIdNum = Number(brandId);
-        return this.templateService.listTemplates(Number.isNaN(brandIdNum) ? 0 : brandIdNum);
+        return this.templateService.listTemplates(Number.isNaN(brandIdNum) ? 0 : brandIdNum, parseStage(stage));
     }
 
     @Get('templates/active')
-    getActiveTemplate(@Headers('x-brand-context') brandId: string) {
+    getActiveTemplate(
+        @Headers('x-brand-context') brandId: string,
+        @Query('stage') stage?: string,
+    ) {
         const brandIdNum = Number(brandId);
         this.logger.log(`Fetching active template for brandId: ${brandIdNum || 'none'}`);
-        return this.templateService.getActiveTemplate(Number.isNaN(brandIdNum) ? undefined : brandIdNum);
+        return this.templateService.getActiveTemplate(
+            Number.isNaN(brandIdNum) ? undefined : brandIdNum,
+            parseStage(stage) ?? InquiryWizardStage.INTAKE,
+        );
+    }
+
+    @Post('templates/reset')
+    resetActiveTemplate(
+        @Headers('x-brand-context') brandId: string,
+        @Query('stage') stage?: string,
+    ) {
+        return this.templateService.resetActiveTemplate(
+            Number(brandId),
+            parseStage(stage) ?? InquiryWizardStage.DISCOVERY_CALL,
+        );
     }
 
     @Get('templates/:id')
@@ -81,7 +111,17 @@ export class InquiryWizardController {
         return this.submissionService.listSubmissions(
             Number.isNaN(brandIdNum) ? undefined : brandIdNum,
             query.inquiryId,
+            query.stage,
         );
+    }
+
+    @Get('submissions/by-inquiry/:inquiryId')
+    getSubmissionByInquiry(
+        @Param('inquiryId', ParseIntPipe) inquiryId: number,
+        @Headers('x-brand-context') brandId: string,
+        @Query('stage') stage?: string,
+    ) {
+        return this.submissionService.getSubmissionByInquiryId(inquiryId, Number(brandId), parseStage(stage));
     }
 
     @Get('submissions/:id')
@@ -98,6 +138,15 @@ export class InquiryWizardController {
         @Headers('x-brand-context') brandId: string,
     ) {
         return this.submissionService.createSubmission(payload, Number(brandId));
+    }
+
+    @Patch('submissions/:id')
+    updateSubmission(
+        @Param('id', ParseIntPipe) id: number,
+        @Body(new ValidationPipe({ transform: true })) payload: UpdateInquiryWizardSubmissionDto,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        return this.submissionService.updateSubmission(id, payload, Number(brandId));
     }
 
     @Post('submissions/:id/convert')

@@ -39,7 +39,6 @@ export class PackagesController {
   }
 
   /**
-  /**
    * POST /api/packages/from-template/:packageTemplateId
    * Catalog-level creation: builds a reusable package from a PackageTemplate.
    */

@@ -1,19 +1,31 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma, InquiryWizardStage } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { CreateInquiryWizardTemplateDto } from '../dto/create-inquiry-wizard-template.dto';
 import { UpdateInquiryWizardTemplateDto } from '../dto/update-inquiry-wizard-template.dto';
 import { DEFAULT_TEMPLATE_QUESTIONS, DEFAULT_TEMPLATE_STEPS } from '../constants/default-template';
+import {
+    DEFAULT_DISCOVERY_CALL_QUESTIONS,
+    DISCOVERY_CALL_TEMPLATE_VERSION,
+} from '../constants/default-discovery-call-template';
 
 @Injectable()
 export class InquiryWizardTemplateService {
     constructor(private readonly prisma: PrismaService) {}
 
-    async getActiveTemplate(brandId?: number) {
+    async getActiveTemplate(brandId?: number, stage: InquiryWizardStage = InquiryWizardStage.INTAKE) {
+        if (stage === InquiryWizardStage.DISCOVERY_CALL) {
+            if (!brandId) {
+                throw new NotFoundException('No active discovery-call template found');
+            }
+            return this.getActiveDiscoveryCallTemplate(brandId);
+        }
+
         const existing = await this.prisma.inquiry_wizard_templates.findFirst({
             where: {
                 is_active: true,
+                stage,
                 ...(brandId ? { brand_id: brandId } : {}),
             },
             include: { questions: { orderBy: { order_index: 'asc' } } },
@@ -28,11 +40,64 @@ export class InquiryWizardTemplateService {
         return this.createDefaultTemplate(brandId);
     }
 
-    async listTemplates(brandId: number) {
+    async listTemplates(brandId: number, stage?: InquiryWizardStage) {
         return this.prisma.inquiry_wizard_templates.findMany({
-            where: { brand_id: brandId },
+            where: { brand_id: brandId, ...(stage ? { stage } : {}) },
             include: { questions: { orderBy: { order_index: 'asc' } } },
             orderBy: { updated_at: 'desc' },
+        });
+    }
+
+    /** DISCOVERY_CALL-stage only: delete the active template and recreate it from defaults. */
+    async resetActiveTemplate(brandId: number, stage: InquiryWizardStage = InquiryWizardStage.DISCOVERY_CALL) {
+        const existing = await this.prisma.inquiry_wizard_templates.findFirst({
+            where: { brand_id: brandId, is_active: true, stage },
+        });
+        if (existing) {
+            await this.prisma.inquiry_wizard_questions.deleteMany({
+                where: { template_id: existing.id },
+            });
+            await this.prisma.inquiry_wizard_templates.delete({
+                where: { id: existing.id },
+            });
+        }
+        return this.createDefaultDiscoveryCallTemplate(brandId);
+    }
+
+    private async getActiveDiscoveryCallTemplate(brandId: number) {
+        const existing = await this.prisma.inquiry_wizard_templates.findFirst({
+            where: { brand_id: brandId, is_active: true, stage: InquiryWizardStage.DISCOVERY_CALL },
+            include: { questions: { orderBy: { order_index: 'asc' } } },
+        });
+        if (!existing) return this.createDefaultDiscoveryCallTemplate(brandId);
+
+        // Auto-reset if template is from an older default version
+        const versionTag = `[v${DISCOVERY_CALL_TEMPLATE_VERSION}]`;
+        if (!existing.description?.includes(versionTag)) {
+            return this.resetActiveTemplate(brandId, InquiryWizardStage.DISCOVERY_CALL);
+        }
+        return existing;
+    }
+
+    private createDefaultDiscoveryCallTemplate(brandId: number) {
+        return this.prisma.inquiry_wizard_templates.create({
+            data: {
+                brand_id: brandId,
+                name: 'Discovery Call Guide',
+                description: `Conversational guide and notes capture for discovery calls with couples. Sections 1\u20135 are shareable with the client for review. [v${DISCOVERY_CALL_TEMPLATE_VERSION}]`,
+                is_active: true,
+                status: 'live',
+                stage: InquiryWizardStage.DISCOVERY_CALL,
+                questions: {
+                    create: DEFAULT_DISCOVERY_CALL_QUESTIONS.map((q) => ({
+                        ...q,
+                        options: q.options
+                            ? (q.options as Prisma.InputJsonValue)
+                            : undefined,
+                    })),
+                },
+            },
+            include: { questions: { orderBy: { order_index: 'asc' } } },
         });
     }
 
@@ -59,6 +124,7 @@ export class InquiryWizardTemplateService {
                 is_active: payload.is_active ?? true,
                 status,
                 version: payload.version ?? '1.0',
+                stage: payload.stage ?? InquiryWizardStage.INTAKE,
                 published_at: isLive ? new Date() : null,
                 steps_config: (payload.steps_config ?? undefined) as Prisma.InputJsonValue | undefined,
                 questions: {
@@ -72,6 +138,9 @@ export class InquiryWizardTemplateService {
                         condition_json: (question.condition_json ?? undefined) as Prisma.InputJsonValue | undefined,
                         help_text: question.help_text,
                         category: question.category,
+                        section: question.section,
+                        script_hint: question.script_hint,
+                        visibility: question.visibility ?? 'both',
                     })),
                 },
             },
@@ -116,6 +185,9 @@ export class InquiryWizardTemplateService {
                                   condition_json: (question.condition_json ?? undefined) as Prisma.InputJsonValue | undefined,
                                   help_text: question.help_text,
                                   category: question.category,
+                                  section: question.section,
+                                  script_hint: question.script_hint,
+                                  visibility: question.visibility ?? 'both',
                               })),
                           }
                         : undefined,

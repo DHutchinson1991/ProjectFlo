@@ -3,13 +3,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import type { Project } from '../../types/project.types';
-import { discoveryQuestionnaireSubmissionsApi } from '@/features/workflow/inquiries/api';
-import type { DiscoveryQuestionnaireSubmission } from '@/features/workflow/inquiries/types';
-
-// Reuse the discovery sub-cards from inquiry
-import DiscoveryStoryCard from '@/features/workflow/inquiries/components/discovery-questionnaire-card/DiscoveryStoryCard';
-import DiscoverySalesCard from '@/features/workflow/inquiries/components/discovery-questionnaire-card/DiscoverySalesCard';
-import DiscoveryTranscriptCard from '@/features/workflow/inquiries/components/discovery-questionnaire-card/DiscoveryTranscriptCard';
+import {
+    inquiryWizardSubmissionsApi,
+    DiscoveryStoryCard,
+    DiscoverySalesCard,
+    DiscoveryTranscriptCard,
+} from '@/features/workflow/inquiry-wizard';
+import type { InquiryWizardSubmission } from '@/features/workflow/inquiry-wizard';
 
 interface ProjectDiscoveryTabProps {
     project: Project;
@@ -20,7 +20,7 @@ interface ProjectDiscoveryTabProps {
  * Fetches the discovery submission using the project's `inquiry_id`.
  */
 export function ProjectDiscoveryTab({ project }: ProjectDiscoveryTabProps) {
-    const [submission, setSubmission] = useState<DiscoveryQuestionnaireSubmission | null>(null);
+    const [submission, setSubmission] = useState<InquiryWizardSubmission | null>(null);
     const [loading, setLoading] = useState(true);
 
     const fetchSubmission = useCallback(async () => {
@@ -29,7 +29,7 @@ export function ProjectDiscoveryTab({ project }: ProjectDiscoveryTabProps) {
             return;
         }
         try {
-            const s = await discoveryQuestionnaireSubmissionsApi.getByInquiryId(project.inquiry_id);
+            const s = await inquiryWizardSubmissionsApi.getSingleByInquiryId(project.inquiry_id, 'DISCOVERY_CALL');
             setSubmission(s && typeof s === 'object' && 'id' in s ? s : null);
         } catch {
             setSubmission(null);

@@ -1,13 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../platform/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, InquiryWizardStage } from '@prisma/client';
 import { GeocodingService } from '../locations/geocoding.service';
 
 /**
  * ProjectPackagePrefillService
  *
  * After cloning a package to an inquiry, pre-populates location slot names
- * and subject real_names from the inquiry's submitted needs-assessment responses.
+ * and subject real_names from the inquiry's submitted INTAKE-stage Inquiry
+ * Wizard responses.
  */
 @Injectable()
 export class ProjectPackagePrefillService {
@@ -24,7 +25,11 @@ export class ProjectPackagePrefillService {
         brandId: number | null,
     ) {
         const submission = await prisma.inquiry_wizard_submissions.findFirst({
-            where: { inquiry_id: inquiryId, status: 'submitted' },
+            where: {
+                inquiry_id: inquiryId,
+                status: 'submitted',
+                template: { stage: InquiryWizardStage.INTAKE },
+            },
             select: { responses: true },
             orderBy: { submitted_at: 'desc' },
         });

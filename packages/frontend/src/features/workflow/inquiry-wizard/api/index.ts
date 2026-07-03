@@ -4,6 +4,8 @@ import type {
     InquiryWizardTemplate,
     InquiryWizardSubmission,
     InquiryWizardSubmissionPayload,
+    UpdateInquiryWizardSubmissionPayload,
+    InquiryWizardStage,
     IwDateConflictResult,
     IwCrewConflictResult,
 } from '../types';
@@ -26,29 +28,38 @@ function requireCurrentBrandId(): number {
 
 export function createInquiryWizardTemplatesApi(client: ApiClient) {
     return {
-        getActive: () =>
-            client.get<InquiryWizardTemplate>('/api/inquiry-wizard/templates/active'),
-        getAll: () =>
-            client.get<InquiryWizardTemplate[]>('/api/inquiry-wizard/templates'),
+        getActive: (stage?: InquiryWizardStage) =>
+            client.get<InquiryWizardTemplate>(`/api/inquiry-wizard/templates/active${stage ? `?stage=${stage}` : ''}`),
+        getAll: (stage?: InquiryWizardStage) =>
+            client.get<InquiryWizardTemplate[]>(`/api/inquiry-wizard/templates${stage ? `?stage=${stage}` : ''}`),
         getById: (id: number) =>
             client.get<InquiryWizardTemplate>(`/api/inquiry-wizard/templates/${id}`),
         create: (data: Omit<InquiryWizardTemplate, 'id' | 'brand_id' | 'created_at' | 'updated_at'>) =>
             client.post<InquiryWizardTemplate>('/api/inquiry-wizard/templates', data),
         update: (id: number, data: Partial<InquiryWizardTemplate>) =>
             client.put<InquiryWizardTemplate>(`/api/inquiry-wizard/templates/${id}`, data),
+        /** Resets the active template for a stage back to the built-in defaults. Defaults to DISCOVERY_CALL. */
+        resetToDefault: (stage?: InquiryWizardStage) =>
+            client.post<InquiryWizardTemplate>(`/api/inquiry-wizard/templates/reset${stage ? `?stage=${stage}` : ''}`, {}),
     };
 }
 
 export function createInquiryWizardSubmissionsApi(client: ApiClient) {
     return {
-        getAll: () =>
-            client.get<InquiryWizardSubmission[]>('/api/inquiry-wizard/submissions'),
-        getByInquiryId: (inquiryId: number) =>
-            client.get<InquiryWizardSubmission[]>(`/api/inquiry-wizard/submissions?inquiryId=${inquiryId}`),
+        getAll: (stage?: InquiryWizardStage) =>
+            client.get<InquiryWizardSubmission[]>(`/api/inquiry-wizard/submissions${stage ? `?stage=${stage}` : ''}`),
+        getByInquiryId: (inquiryId: number, stage?: InquiryWizardStage) =>
+            client.get<InquiryWizardSubmission[]>(`/api/inquiry-wizard/submissions?inquiryId=${inquiryId}${stage ? `&stage=${stage}` : ''}`),
+        /** Single-submission lookup for a given inquiry + stage (returns null if none exists yet). */
+        getSingleByInquiryId: (inquiryId: number, stage?: InquiryWizardStage) =>
+            client.get<InquiryWizardSubmission | null>(`/api/inquiry-wizard/submissions/by-inquiry/${inquiryId}${stage ? `?stage=${stage}` : ''}`),
         getById: (id: number) =>
             client.get<InquiryWizardSubmission>(`/api/inquiry-wizard/submissions/${id}`),
         create: (data: InquiryWizardSubmissionPayload) =>
             client.post<InquiryWizardSubmission>('/api/inquiry-wizard/submissions', data),
+        /** Patches discovery-call fields (call_notes, transcript, sentiment, call_duration_seconds, responses) on an existing submission. */
+        update: (id: number, data: UpdateInquiryWizardSubmissionPayload) =>
+            client.patch<InquiryWizardSubmission>(`/api/inquiry-wizard/submissions/${id}`, data),
         convert: (id: number) =>
             client.post<InquiryWizardSubmission>(`/api/inquiry-wizard/submissions/${id}/convert`),
         checkDateConflicts: (id: number) =>

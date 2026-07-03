@@ -21,11 +21,6 @@ import type {
 } from '../types';
 import type { InquiryApiResponse } from '../types/inquiry-api';
 import { mapInquiryResponse } from '../mappers/inquiry-mappers';
-import type {
-    DiscoveryQuestionnaireTemplate,
-    DiscoveryQuestionnaireSubmission,
-    CreateDiscoverySubmissionPayload,
-} from '../types/discovery-questionnaire';
 
 function createInquiryScheduleSnapshotApi(client: ApiClient) {
     return {
@@ -152,44 +147,8 @@ export function createInquiryScheduleApi(client: ApiClient) {
     };
 }
 
-// ─── Discovery Questionnaire Templates ───────────────────────────────────────
-
-export function createDiscoveryQuestionnaireTemplatesApi(client: ApiClient) {
-    return {
-        getActive: (): Promise<DiscoveryQuestionnaireTemplate> =>
-            client.get('/api/discovery-questionnaire/templates/active'),
-        getAll: (): Promise<DiscoveryQuestionnaireTemplate[]> =>
-            client.get('/api/discovery-questionnaire/templates'),
-        getById: (id: number): Promise<DiscoveryQuestionnaireTemplate> =>
-            client.get(`/api/discovery-questionnaire/templates/${id}`),
-        update: (id: number, data: Partial<DiscoveryQuestionnaireTemplate>): Promise<DiscoveryQuestionnaireTemplate> =>
-            client.put(`/api/discovery-questionnaire/templates/${id}`, data),
-        resetToDefault: (): Promise<DiscoveryQuestionnaireTemplate> =>
-            client.post('/api/discovery-questionnaire/templates/reset', {}),
-    };
-}
-
-// ─── Discovery Questionnaire Submissions ─────────────────────────────────────
-
-export function createDiscoveryQuestionnaireSubmissionsApi(client: ApiClient) {
-    return {
-        getByInquiryId: (inquiryId: number): Promise<DiscoveryQuestionnaireSubmission | null> =>
-            client.get(`/api/discovery-questionnaire/submissions/by-inquiry/${inquiryId}`),
-        getById: (id: number): Promise<DiscoveryQuestionnaireSubmission> =>
-            client.get(`/api/discovery-questionnaire/submissions/${id}`),
-        create: (data: CreateDiscoverySubmissionPayload): Promise<DiscoveryQuestionnaireSubmission> =>
-            client.post('/api/discovery-questionnaire/submissions', data),
-        update: (id: number, data: Partial<CreateDiscoverySubmissionPayload>): Promise<DiscoveryQuestionnaireSubmission> =>
-            client.patch(`/api/discovery-questionnaire/submissions/${id}`, data),
-    };
-}
-
 export const inquiriesApi = createInquiriesApi(apiClient);
 export const inquiryScheduleApi = createInquiryScheduleApi(apiClient);
-export const discoveryQuestionnaireTemplatesApi = createDiscoveryQuestionnaireTemplatesApi(apiClient);
-export const discoveryQuestionnaireSubmissionsApi = createDiscoveryQuestionnaireSubmissionsApi(apiClient);
 
 export type InquiriesApi = ReturnType<typeof createInquiriesApi>;
 export type InquiryScheduleApi = ReturnType<typeof createInquiryScheduleApi>;
-export type DiscoveryQuestionnaireTemplatesApi = ReturnType<typeof createDiscoveryQuestionnaireTemplatesApi>;
-export type DiscoveryQuestionnaireSubmissionsApi = ReturnType<typeof createDiscoveryQuestionnaireSubmissionsApi>;

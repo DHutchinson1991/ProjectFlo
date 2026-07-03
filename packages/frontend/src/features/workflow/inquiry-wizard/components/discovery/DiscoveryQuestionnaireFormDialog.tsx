@@ -11,9 +11,8 @@ import {
     Alert,
 } from '@mui/material';
 import type {
-    DiscoveryQuestionnaireSubmission,
-    DiscoveryQuestion,
-} from '@/features/workflow/inquiries/types';
+    InquiryWizardSubmission,
+} from '../../types';
 import { getStepMeta } from '../../constants/discovery-questionnaire-config';
 import { DiscoveryQuestionField } from './DiscoveryQuestionField';
 import { DiscoverySentimentPanel } from './DiscoverySentimentPanel';
@@ -36,8 +35,8 @@ export interface DiscoveryQuestionnaireFormDialogProps {
     budgetRange?: string;
     estimateTotal?: number | null;
     currency?: string;
-    existingSubmission?: DiscoveryQuestionnaireSubmission | null;
-    onSubmitted?: (submission: DiscoveryQuestionnaireSubmission) => void;
+    existingSubmission?: InquiryWizardSubmission | null;
+    onSubmitted?: (submission: InquiryWizardSubmission) => void;
 }
 
 // ─── Main dialog ──────────────────────────────────────────────────────────────
@@ -184,7 +183,7 @@ export default function DiscoveryQuestionnaireFormDialog({
 
                                                 <DiscoveryQuestionField
                                                     question={q}
-                                                    value={form.responses[q.field_key ?? q.id.toString()] ?? (q.field_type === 'multiselect' ? [] : '')}
+                                                    value={form.responses[q.field_key ?? String(q.id)] ?? (q.field_type === 'multiselect' ? [] : '')}
                                                     onChange={(v) => form.handleChange(q.field_key ?? String(q.id), v)}
                                                     activities={form.activities}
                                                     paymentSchedule={form.paymentSchedule}

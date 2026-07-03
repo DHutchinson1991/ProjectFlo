@@ -21,6 +21,17 @@ export class InquiryLifecycleService {
         private readonly snapshotService: InquiryScheduleSnapshotService,
     ) {}
 
+    /**
+     * Builds a human-readable project name from the couple/contact name and the
+     * inquiry's freeform `event_category` (e.g. "Wedding", "Birthday", "Corporate"),
+     * instead of always assuming a wedding.
+     */
+    private _buildProjectName(firstName: string | null, lastName: string | null, eventCategory: string | null): string {
+        const name = [firstName, lastName].filter(Boolean).join(' & ');
+        const category = eventCategory?.trim() || 'Wedding';
+        return `${name}'s ${category}`;
+    }
+
     async convertInquiryToProject(inquiryId: number, brandId: number) {
         return this.prisma.$transaction(async (prisma) => {
             const inquiry = await prisma.inquiries.findFirst({
@@ -32,11 +43,12 @@ export class InquiryLifecycleService {
 
             const client = await prisma.clients.create({ data: { contact_id: inquiry.contact_id, inquiry_id: inquiry.id } });
 
+            const packageIdForSnapshot = inquiry.source_package_id ?? inquiry.selected_package_id ?? null;
             let packageContentsSnapshot: Prisma.InputJsonValue | undefined =
                 (inquiry.package_contents_snapshot as Prisma.InputJsonValue) ?? undefined;
-            if (!packageContentsSnapshot && inquiry.selected_package_id) {
+            if (!packageContentsSnapshot && packageIdForSnapshot) {
                 const pkg = await prisma.service_packages.findUnique({
-                    where: { id: inquiry.selected_package_id },
+                    where: { id: packageIdForSnapshot },
                     select: {
                         id: true,
                         name: true,
@@ -59,7 +71,7 @@ export class InquiryLifecycleService {
                     inquiry_id: inquiry.id,
                     contact_id: inquiry.contact_id,
                     event_category: inquiry.event_category ?? null,
-                    project_name: `${inquiry.contact.first_name} & ${inquiry.contact.last_name}'s Wedding`,
+                    project_name: this._buildProjectName(inquiry.contact.first_name, inquiry.contact.last_name, inquiry.event_category),
                     wedding_date: inquiry.wedding_date || new Date(),
                     booking_date: new Date(), phase: 'Booking',
                     status: 'Active',

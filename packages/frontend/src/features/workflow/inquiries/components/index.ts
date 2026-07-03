@@ -8,8 +8,6 @@ export { InvoicesCard } from '@/features/finance/invoices/components/InvoicesCar
 export { DiscoveryCallCard } from './discovery-call-card';
 export { ClientApprovalCard } from './client-approval-card';
 
-export { DiscoveryQuestionnaireCard, DiscoveryQuestionnaireFormDialog } from './discovery-questionnaire-card';
-
 export { default as QualifyCard } from './qualify-card';
 export { default as PaymentTermsCard } from '@/features/finance/payment-schedules/components/PaymentTermsCard';
 

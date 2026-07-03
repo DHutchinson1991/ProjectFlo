@@ -23,22 +23,22 @@ import {
     Lock,
 } from '@mui/icons-material';
 import type {
-    DiscoveryQuestionnaireSubmission,
-    DiscoveryQuestion,
-} from '@/features/workflow/inquiries/types';
+    InquiryWizardSubmission,
+    InquiryWizardQuestion,
+} from '../../types';
 import { getStepMeta } from '../../constants/discovery-questionnaire-config';
 
 // ─── DialogHeader ─────────────────────────────────────────────────────────────
 
 export interface DialogHeaderProps {
-    sections: { name: string; questions: DiscoveryQuestion[] }[];
+    sections: { name: string; questions: InquiryWizardQuestion[] }[];
     sectionIndex: number;
     setSectionIndex: (i: number) => void;
     loading: boolean;
     submitted: boolean;
     accentColor: string;
     customerName?: string;
-    sectionHasAnswers: (s: { name: string; questions: DiscoveryQuestion[] }) => boolean;
+    sectionHasAnswers: (s: { name: string; questions: InquiryWizardQuestion[] }) => boolean;
     onClose: () => void;
 }
 
@@ -131,11 +131,11 @@ function JourneyStepper({
     accentColor,
     sectionHasAnswers,
 }: {
-    sections: { name: string; questions: DiscoveryQuestion[] }[];
+    sections: { name: string; questions: InquiryWizardQuestion[] }[];
     sectionIndex: number;
     setSectionIndex: (i: number) => void;
     accentColor: string;
-    sectionHasAnswers: (s: { name: string; questions: DiscoveryQuestion[] }) => boolean;
+    sectionHasAnswers: (s: { name: string; questions: InquiryWizardQuestion[] }) => boolean;
 }) {
     return (
         <Box sx={{ position: 'relative', pb: 3, pt: 1, px: 2 }}>
@@ -271,7 +271,7 @@ function JourneyStepper({
 
 // ─── SectionHeader ────────────────────────────────────────────────────────────
 
-export function SectionHeader({ section, sectionIndex, totalSections }: { section: { name: string; questions: DiscoveryQuestion[] }; sectionIndex: number; totalSections: number }) {
+export function SectionHeader({ section, sectionIndex, totalSections }: { section: { name: string; questions: InquiryWizardQuestion[] }; sectionIndex: number; totalSections: number }) {
     const meta = getStepMeta(section.name);
     return (
         <Box sx={{
@@ -362,7 +362,7 @@ export interface BottomNavProps {
     setSectionIndex: (i: number) => void;
     accentColor: string;
     saving: boolean;
-    existingSubmission?: DiscoveryQuestionnaireSubmission | null;
+    existingSubmission?: InquiryWizardSubmission | null;
     onSubmit: () => void;
 }
 
@@ -481,7 +481,7 @@ export function BottomNav({
 
 // ─── SuccessScreen ────────────────────────────────────────────────────────────
 
-export function SuccessScreen({ existingSubmission, onClose }: { existingSubmission?: DiscoveryQuestionnaireSubmission | null; onClose: () => void }) {
+export function SuccessScreen({ existingSubmission, onClose }: { existingSubmission?: InquiryWizardSubmission | null; onClose: () => void }) {
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 2.5 }}>
             <Box sx={{

@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useMeetingSettings } from '@/features/platform/settings/hooks';
 import type {
-    DiscoveryQuestionnaireSubmission,
-    DiscoveryQuestion,
-} from '@/features/workflow/inquiries/types';
+    InquiryWizardSubmission,
+    InquiryWizardQuestion,
+} from '../types';
 import { DEFAULT_CURRENCY, formatCurrency } from '@projectflo/shared';
 import {
     useDiscoveryQuestionnaireTemplate,
@@ -70,8 +70,8 @@ export interface UseDiscoveryCallFormParams {
     budgetRange?: string;
     estimateTotal?: number | null;
     currency?: string;
-    existingSubmission?: DiscoveryQuestionnaireSubmission | null;
-    onSubmitted?: (submission: DiscoveryQuestionnaireSubmission) => void;
+    existingSubmission?: InquiryWizardSubmission | null;
+    onSubmitted?: (submission: InquiryWizardSubmission) => void;
 }
 
 export function useDiscoveryCallForm({
@@ -153,7 +153,7 @@ export function useDiscoveryCallForm({
     // ─── Computed ─────────────────────────────────────────────────────
     const sections = useMemo(() => {
         if (!template) return [];
-        const map = new Map<string, DiscoveryQuestion[]>();
+        const map = new Map<string, InquiryWizardQuestion[]>();
         for (const q of template.questions) {
             const key = q.section ?? 'Other';
             if (!map.has(key)) map.set(key, []);
@@ -234,7 +234,7 @@ export function useDiscoveryCallForm({
         }
     };
 
-    const sectionHasAnswers = (s: { name: string; questions: DiscoveryQuestion[] }) =>
+    const sectionHasAnswers = (s: { name: string; questions: InquiryWizardQuestion[] }) =>
         s.questions.some((q) => {
             const v = responses[q.field_key ?? ''];
             return v && (Array.isArray(v) ? v.length > 0 : String(v).trim() !== '');
@@ -260,7 +260,7 @@ export function useDiscoveryCallForm({
         setSectionIndex,
 
         // Derived
-        currentSection: sections[sectionIndex] as { name: string; questions: DiscoveryQuestion[] } | undefined,
+        currentSection: sections[sectionIndex] as { name: string; questions: InquiryWizardQuestion[] } | undefined,
         nextSectionName: sectionIndex < sections.length - 1 ? sections[sectionIndex + 1]?.name : null,
         prevSectionName: sectionIndex > 0 ? sections[sectionIndex - 1]?.name : null,
 

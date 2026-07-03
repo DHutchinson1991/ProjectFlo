@@ -29,9 +29,9 @@ export function getNavUrl(task: ActiveTask): string | null {
   if (task.source === "inquiry" && task.inquiry_id) {
     const base = `/inquiries/${task.inquiry_id}`;
     const subtaskSectionMap: Record<string, string> = {
-      verify_contact_details: "needs-assessment-section",
-      verify_event_date: "needs-assessment-section",
-      confirm_package_selection: "needs-assessment-section",
+      verify_contact_details: "inquiry-wizard-section",
+      verify_event_date: "inquiry-wizard-section",
+      confirm_package_selection: "inquiry-wizard-section",
       check_crew_availability: "availability-section",
       check_equipment_availability: "availability-section",
       resolve_availability_conflicts: "availability-section",
@@ -46,7 +46,7 @@ export function getNavUrl(task: ActiveTask): string | null {
     }
 
     const n = (task.name + " " + (task.description ?? "")).toLowerCase();
-    if (n.includes("needs assessment") || n.includes("assessment form")) return `${base}/needs-assessment`;
+    if (n.includes("needs assessment") || n.includes("assessment form")) return `${base}/inquiry-wizard`;
     if (n.includes("package") && (n.includes("select") || n.includes("review") || n.includes("scope") || n.includes("present"))) return `${base}/package`;
     if (n.includes("contract") || n.includes("sign agreement")) return `${base}#contracts-section`;
     if (n.includes("proposal review") || n.includes("review proposal")) return `${base}#proposal-review-section`;

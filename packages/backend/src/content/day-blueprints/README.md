@@ -390,15 +390,17 @@ PATCH/DELETE equivalents exist for every `:dayId`, `:activityId`,
   `sourceDayBlueprintVersionId` on their DTOs. When set,
   `DayBlueprintSnapshotService.consumeIntoPackage()` runs after the
   preset build and layers blueprint content on top with full lineage
-  stamping. Failures are logged (warn) but do not abort package
-  creation.
+  stamping. Failures are logged (warn) and then re-thrown as a
+  `BadRequestException`, aborting package creation — the caller must
+  fix the blueprint selection and retry.
 - Frontend surface: `packages/frontend/src/features/content/day-blueprints`
-  exposes the Day Designer list/version UI at
-  `/day-designer` (see `app/(studio)/(content)/day-designer/page.tsx`).
-  The package creation wizard pulls published versions via
-  `usePublishedDayBlueprintVersions()` and renders a "Designed from
-  blueprint" selector in the Name step, which feeds
+  has no standalone route. Authoring happens inside the package creation
+  wizard's Day Design step (`DayDesignLibraryStep` /
+  `DayDesignCreateStep` / `DayDesignGenerateStep`), which pulls published
+  versions via `usePublishedDayBlueprintVersions()` and feeds the chosen
   `sourceDayBlueprintVersionId` into the create-from-template payload.
+  Post-creation, blueprint-backed packages are viewed/edited on the
+  package detail Blueprint tab (`/packages/:id?mode=edit&tab=blueprint`).
 - Snapshotter: functional; pairs blueprint days to package event days
   positionally and materializes blueprint spaces into package
   `PackageSpaceSlot` rows with default sandbox floor-plan objects,

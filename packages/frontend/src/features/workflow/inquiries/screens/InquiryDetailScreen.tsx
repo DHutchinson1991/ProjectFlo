@@ -13,7 +13,8 @@ import {
     Tab,
 } from '@mui/material';
 import { Assignment } from '@mui/icons-material';
-import { Inquiry, InquiryTask, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
+import { Inquiry, InquiryTask } from '@/features/workflow/inquiries/types';
+import type { InquiryWizardSubmission } from '@/features/workflow/inquiry-wizard';
 import { inquiriesApi } from '@/features/workflow/inquiries';
 import { taskLibraryApi } from '@/features/catalog/task-library';
 import { inquiryWizardSubmissionsApi } from '@/features/workflow/inquiry-wizard';
@@ -53,8 +54,8 @@ export default function InquiryDetailScreen() {
 
     /* ---- core state ---- */
     const [inquiry, setInquiry] = useState<Inquiry | null>(null);
-    const [needsAssessmentSubmission, setNeedsAssessmentSubmission] =
-        useState<NeedsAssessmentSubmission | null>(null);
+    const [inquiryWizardSubmission, setInquiryWizardSubmission] =
+        useState<InquiryWizardSubmission | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
@@ -84,10 +85,10 @@ export default function InquiryDetailScreen() {
             setInquiry(data);
 
             try {
-                const submissions = await inquiryWizardSubmissionsApi.getByInquiryId(inquiryId);
-                setNeedsAssessmentSubmission(submissions[0] || null);
+                const submissions = await inquiryWizardSubmissionsApi.getByInquiryId(inquiryId, 'INTAKE');
+                setInquiryWizardSubmission(submissions[0] || null);
             } catch {
-                setNeedsAssessmentSubmission(null);
+                setInquiryWizardSubmission(null);
             }
         } catch (err) {
             console.error('Error loading inquiry:', err);
@@ -203,7 +204,7 @@ export default function InquiryDetailScreen() {
             <CommandCenterHeader
                 inquiry={inquiry}
                 inquiryTasks={inquiryTasksData}
-                needsAssessmentSubmission={needsAssessmentSubmission}
+                inquiryWizardSubmission={inquiryWizardSubmission}
                 conversionData={conversionData}
                 daysInPipeline={daysInPipeline}
                 dealValue={dealValue}
@@ -247,7 +248,7 @@ export default function InquiryDetailScreen() {
                     inquiryId={inquiry.id}
                     onRefresh={handleRefresh}
                     inquiryTasks={inquiryTasksData}
-                    submission={needsAssessmentSubmission}
+                    submission={inquiryWizardSubmission}
                     currentPhase={currentPhase}
                     phaseColor={phaseColor}
                     onTasksChanged={loadPipelineTasks}

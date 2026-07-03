@@ -19,10 +19,10 @@ import {
     ThumbUpAlt,
 } from '@mui/icons-material';
 import { WorkflowCard } from '@/shared/ui/WorkflowCard';
-import type { DiscoveryQuestionnaireSubmission } from '@/features/workflow/inquiries/types';
+import type { InquiryWizardSubmission } from '../../types';
 
 interface DiscoveryStoryCardProps {
-    submission: DiscoveryQuestionnaireSubmission;
+    submission: InquiryWizardSubmission;
 }
 
 interface StoryField {

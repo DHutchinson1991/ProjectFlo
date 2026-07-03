@@ -1,5 +1,6 @@
-import { IsArray, IsBoolean, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { InquiryWizardStage } from '@prisma/client';
 import { InquiryWizardQuestionDto } from './inquiry-wizard-question.dto';
 
 export class UpdateInquiryWizardTemplateDto {
@@ -22,6 +23,10 @@ export class UpdateInquiryWizardTemplateDto {
     @IsOptional()
     @IsString()
     version?: string;
+
+    @IsOptional()
+    @IsEnum(InquiryWizardStage)
+    stage?: InquiryWizardStage;
 
     @IsOptional()
     @IsArray()

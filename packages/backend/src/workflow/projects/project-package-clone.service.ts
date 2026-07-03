@@ -1,6 +1,6 @@
 ﻿import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../platform/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, InquiryWizardStage } from '@prisma/client';
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import { GeocodingService } from '../locations/geocoding.service';
 import { ProjectFilmCloneService } from './project-film-clone.service';
@@ -640,13 +640,13 @@ export class ProjectPackageCloneService {
         JSON.stringify(summary),
     );
 
-    // ── Post-clone: prefill locations & subjects from NA responses ─
+    // ── Post-clone: prefill locations & subjects from Inquiry Wizard responses ─
     if (target.inquiryId) {
       try {
-        await this._prefillFromNeedsAssessment(prisma, target.inquiryId, pkg.brand_id);
+        await this._prefillFromInquiryWizard(prisma, target.inquiryId, pkg.brand_id);
       } catch (err) {
         this.logger.warn(
-          `Post-clone NA prefill for inquiry ${target.inquiryId} failed (non-fatal): ${err}`,
+          `Post-clone Inquiry Wizard prefill for inquiry ${target.inquiryId} failed (non-fatal): ${err}`,
         );
       }
     }
@@ -977,17 +977,21 @@ export class ProjectPackageCloneService {
   }
 
   /**
-   * After cloning, check if the inquiry already has a submitted NA.
-   * If so, prefill newly-created location slot names and subject real_names
-   * from the NA responses.
+   * After cloning, check if the inquiry already has a submitted INTAKE-stage
+   * Inquiry Wizard submission. If so, prefill newly-created location slot
+   * names and subject real_names from its responses.
    */
-  private async _prefillFromNeedsAssessment(
+  private async _prefillFromInquiryWizard(
     prisma: Prisma.TransactionClient | PrismaService,
     inquiryId: number,
     brandId: number | null,
   ) {
     const submission = await prisma.inquiry_wizard_submissions.findFirst({
-      where: { inquiry_id: inquiryId, status: 'submitted' },
+      where: {
+        inquiry_id: inquiryId,
+        status: 'submitted',
+        template: { stage: InquiryWizardStage.INTAKE },
+      },
       select: { responses: true },
       orderBy: { submitted_at: 'desc' },
     });
@@ -1036,7 +1040,7 @@ export class ProjectPackageCloneService {
         }
       }
 
-      // Fallback: use NA venue_details or ceremony_location
+      // Fallback: use Inquiry Wizard venue_details or ceremony_location
       if (!locationName) {
         const fallback =
           responses['ceremony_location'] ??
@@ -1129,7 +1133,7 @@ export class ProjectPackageCloneService {
 
     if (locationsFilled || subjectsFilled) {
       this.logger.log(
-        `Post-clone NA prefill for inquiry ${inquiryId}: ` +
+        `Post-clone Inquiry Wizard prefill for inquiry ${inquiryId}: ` +
           `${locationsFilled} location(s), ${subjectsFilled} subject(s)`,
       );
     }

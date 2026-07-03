@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
-import type { Inquiry, NeedsAssessmentSubmission, InquiryTaskStatus } from '@/features/workflow/inquiries/types';
+import type { Inquiry, InquiryTaskStatus } from '@/features/workflow/inquiries/types';
+import type { InquiryWizardSubmission } from '@/features/workflow/inquiry-wizard';
 
 // ─── Shared prop interface for workflow card components ──────────────
 
@@ -8,7 +9,7 @@ export interface WorkflowCardProps {
     onRefresh?: () => Promise<void>;
     isActive?: boolean;
     activeColor?: string;
-    submission?: NeedsAssessmentSubmission | null;
+    submission?: InquiryWizardSubmission | null;
 }
 
 // ─── Deal intelligence types ─────────────────────────────────────────
@@ -66,9 +67,9 @@ export interface PipelineTask {
     is_auto_only?: boolean;
 }
 
-// ─── Needs assessment category ───────────────────────────────────────
+// ─── Inquiry Wizard response category ─────────────────────────────────
 
-export interface NaCategory {
+export interface InquiryWizardCategory {
     label: string;
     keys: string[];
 }

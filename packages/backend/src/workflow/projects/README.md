@@ -20,4 +20,4 @@ Owns studio project lifecycle: list/detail CRUD, brand-scoped access, project/pa
 
 ## Related modules
 - **Frontend**: `packages/frontend/src/features/workflow/projects`
-- **Backend consumers**: `inquiries`, `needs-assessments`, `estimates`, and `content/instance-films` import project services
+- **Backend consumers**: `inquiries`, `inquiry-wizard`, `estimates`, and `content/instance-films` import project services

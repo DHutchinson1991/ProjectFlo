@@ -1,10 +1,10 @@
 import type { Inquiry, InquiryTask } from '@/features/workflow/inquiries/types';
-import type { NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types/needs-assessment';
+import type { InquiryWizardSubmission } from '@/features/workflow/inquiry-wizard';
 
 export interface QualifyCardProps {
     inquiry: Inquiry;
     inquiryTasks: InquiryTask[];
-    submission: NeedsAssessmentSubmission | null;
+    submission: InquiryWizardSubmission | null;
     onRefresh: () => Promise<void>;
 }
 

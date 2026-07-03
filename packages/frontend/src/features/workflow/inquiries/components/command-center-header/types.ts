@@ -1,4 +1,5 @@
-import type { Inquiry, InquiryTask, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
+import type { Inquiry, InquiryTask } from '@/features/workflow/inquiries/types';
+import type { InquiryWizardSubmission } from '@/features/workflow/inquiry-wizard';
 import type { ConversionData } from '../../lib';
 
 /* ------------------------------------------------------------------ */
@@ -7,7 +8,7 @@ import type { ConversionData } from '../../lib';
 export interface CommandCenterHeaderProps {
     inquiry: Inquiry & { activity_logs?: unknown[] };
     inquiryTasks: InquiryTask[];
-    needsAssessmentSubmission: NeedsAssessmentSubmission | null;
+    inquiryWizardSubmission: InquiryWizardSubmission | null;
     conversionData: ConversionData;
     daysInPipeline: number;
     dealValue: number;
@@ -24,7 +25,7 @@ export interface ContactInfoProps {
 
 export interface MetricsPillsProps {
     inquiry: Inquiry;
-    needsAssessmentSubmission: NeedsAssessmentSubmission | null;
+    inquiryWizardSubmission: InquiryWizardSubmission | null;
     conversionData: ConversionData;
     dealValue: number;
     currencyCode: string;
@@ -34,7 +35,7 @@ export interface MetricsPillsProps {
 export interface HeaderActionsProps {
     inquiry: Inquiry;
     inquiryTasks: InquiryTask[];
-    submission: NeedsAssessmentSubmission | null;
+    submission: InquiryWizardSubmission | null;
     onRefresh: () => Promise<void>;
     onSnackbar: (msg: string) => void;
 }

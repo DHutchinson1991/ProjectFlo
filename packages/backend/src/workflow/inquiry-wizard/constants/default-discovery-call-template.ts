@@ -1,7 +1,7 @@
-/** Bump this any time the default questions change to auto-reset stale templates. */
-export const TEMPLATE_VERSION = 15;
+/** Bump this any time the default discovery-call questions change to auto-reset stale templates. */
+export const DISCOVERY_CALL_TEMPLATE_VERSION = 15;
 
-export interface DefaultQuestionTemplate {
+export interface DefaultDiscoveryCallQuestionTemplate {
     order_index: number;
     section: string;
     prompt: string;
@@ -13,7 +13,7 @@ export interface DefaultQuestionTemplate {
     options?: { values: string[] };
 }
 
-export const DEFAULT_DISCOVERY_QUESTIONS: DefaultQuestionTemplate[] = [
+export const DEFAULT_DISCOVERY_CALL_QUESTIONS: DefaultDiscoveryCallQuestionTemplate[] = [
     // ── Call Opening ────────────────────────────────────────────────
     {
         order_index: 1,

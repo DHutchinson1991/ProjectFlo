@@ -2,7 +2,7 @@
 
 ## What this module does
 
-Computes a full `PriceBreakdown` for a service package — crew costs, equipment costs, task costs, and grand total. This is the primary endpoint used by the Needs Assessment flow to show estimated pricing before an estimate or quote is created.
+Computes a full `PriceBreakdown` for a service package — crew costs, equipment costs, task costs, and grand total. This is the primary endpoint used by the Inquiry Wizard flow to show estimated pricing before an estimate or quote is created.
 
 ## Key files
 
@@ -29,5 +29,5 @@ After ANY code change in this module, update `PRICING_TOTALS_REFERENCE.md` (root
 
 - **Backend**: `../task-library` — provides `previewAutoGeneration` for task cost rows
 - **Backend**: `../../payment-brackets` — stores hourly rate brackets used in fallback chain
-- **Frontend**: Needs Assessment `SummaryScreen` consumes the breakdown
+- **Frontend**: Inquiry Wizard `SummaryScreen` consumes the breakdown
 - **Reference docs**: `PRICING_TOTALS_REFERENCE.md` (root) — full pricing contract

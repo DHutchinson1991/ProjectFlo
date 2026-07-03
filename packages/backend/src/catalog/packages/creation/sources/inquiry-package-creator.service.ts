@@ -10,7 +10,7 @@ import { validateBlueprintDayMappings } from '../shared/normalize-blueprint-crea
 
 /**
  * Inquiry-level package creation: creates a draft, client-scoped package
- * from the Needs Assessment wizard. Resolves preset activities from the
+ * from the Inquiry Wizard. Resolves preset activities from the
  * brand's main event day, auto-assigns equipment from the brand's
  * library, and returns before the shared post-create pipeline finishes.
  * Output package starts inactive and is named after the client.
@@ -309,7 +309,8 @@ export class InquiryPackageCreator {
       });
 
       // Optional Day Blueprint consume — same semantics as the catalog
-      // creator. Failures don't abort the inquiry-driven flow.
+      // creator: consume failures fail the request (BadRequestException)
+      // rather than silently continuing with a partially-seeded package.
       if (dto.sourceDayBlueprintVersionId) {
         try {
           const snapshot = await this.dayBlueprintSnapshot.consumeIntoPackage({

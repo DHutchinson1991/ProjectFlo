@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, $Enums } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { InquiryCrudService } from '../../inquiries/services/inquiry-crud.service';
@@ -10,6 +10,8 @@ import { CreateInquiryWizardSubmissionDto } from '../dto/create-inquiry-wizard-s
 
 @Injectable()
 export class InquiryWizardLinkService {
+    private readonly logger = new Logger(InquiryWizardLinkService.name);
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly inquiryCrudService: InquiryCrudService,
@@ -70,7 +72,7 @@ export class InquiryWizardLinkService {
                 try {
                     await this.inquiryPackageService.handlePackageSelection(payload.inquiry_id!, resolvedPkgId, brandId);
                 } catch (err) {
-                    console.error(`Failed to create inquiry package snapshot for inquiry ${payload.inquiry_id}:`, err);
+                    this.logger.error(`Failed to create inquiry package snapshot for inquiry ${payload.inquiry_id}:`, err instanceof Error ? err.stack : err);
                 }
             }
         }
@@ -99,7 +101,7 @@ export class InquiryWizardLinkService {
             await this.prefillService.prefillLocationSlots(payload.inquiry_id!, responses, brandId);
             await this.prefillService.prefillSubjectNames(payload.inquiry_id!, responses, prefillContactName);
         } catch (err) {
-            console.error(`NA prefill error for inquiry ${payload.inquiry_id}:`, err);
+            this.logger.error(`Inquiry Wizard prefill error for inquiry ${payload.inquiry_id}:`, err instanceof Error ? err.stack : err);
         }
 
         return { inquiryId: payload.inquiry_id!, contactId };
@@ -156,7 +158,7 @@ export class InquiryWizardLinkService {
             await this.prefillService.prefillLocationSlots(createdInquiry.id, responses, brandId);
             await this.prefillService.prefillSubjectNames(createdInquiry.id, responses, prefillContactName);
         } catch (err) {
-            console.error(`NA prefill error for new inquiry ${createdInquiry.id}:`, err);
+            this.logger.error(`Inquiry Wizard prefill error for new inquiry ${createdInquiry.id}:`, err instanceof Error ? err.stack : err);
         }
 
         return { inquiryId: createdInquiry.id, contactId: linkedContact?.id };
@@ -178,10 +180,5 @@ export class InquiryWizardLinkService {
         };
         const created = await this.inquiryCrudService.create(inferredInquiry, brandId);
         return created.id;
-    }
-
-    private async resolveEventType(rawEventType: string): Promise<string | null> {
-        const trimmed = rawEventType.trim();
-        return trimmed.length > 0 ? trimmed : null;
     }
 }

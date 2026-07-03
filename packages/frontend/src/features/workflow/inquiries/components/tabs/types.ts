@@ -1,4 +1,5 @@
-import type { Inquiry, InquiryTask, NeedsAssessmentSubmission } from '@/features/workflow/inquiries/types';
+import type { Inquiry, InquiryTask } from '@/features/workflow/inquiries/types';
+import type { InquiryWizardSubmission } from '@/features/workflow/inquiry-wizard';
 
 /** Tab ID type for inquiry detail screen navigation. */
 export type InquiryTabId = 'inquiry' | 'discovery' | 'proposal' | 'schedule';
@@ -12,7 +13,7 @@ export interface InquiryTabProps {
 /** Extended props for tabs that need extra data. */
 export interface InquiryTabWithContextProps extends InquiryTabProps {
     inquiryTasks: InquiryTask[];
-    submission: NeedsAssessmentSubmission | null;
+    submission: InquiryWizardSubmission | null;
     currentPhase: string;
     phaseColor: (id: string) => string | undefined;
     onTasksChanged: () => void;
@@ -25,7 +26,7 @@ export interface InquiryTabWithContextProps extends InquiryTabProps {
  */
 export const SECTION_TO_TAB: Record<string, InquiryTabId> = {
     // Inquiry tab
-    'needs-assessment-section': 'inquiry',
+    'inquiry-wizard-section': 'inquiry',
     'inquiry-section': 'inquiry',
     'availability-section': 'inquiry',
     'package-scope-section': 'inquiry',

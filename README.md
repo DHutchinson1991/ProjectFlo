@@ -125,9 +125,9 @@ Modules are grouped into five domain buckets under `src/`:
 
 | Bucket | Responsibilities |
 |--------|-----------------|
-| **`platform`** | Auth, Users/Crew, Roles, Contacts, Activity Logs, Job Roles, Needs Assessments, Payment Brackets |
+| **`platform`** | Auth, Users/Crew, Roles, Contacts, Activity Logs, Job Roles, Payment Brackets |
 | **`catalog`** | Brands, Service Packages, Package Sets, Task Library, Skill Role Mappings, Wedding Types, Event Types |
-| **`workflow`** | Inquiries, Proposals, Estimates, Quotes, Contracts, Invoices, Projects |
+| **`workflow`** | Inquiries, Inquiry Wizard, Proposals, Estimates, Quotes, Contracts, Invoices, Projects |
 | **`content`** | Films, Scenes, Moments, Beats, Coverage, Music, Subjects, Schedule, Instance Films, Locations |
 | **`finance`** | Billing, Payment processing, Financial reporting |
 
@@ -366,7 +366,7 @@ The backend exposes a RESTful API at `http://localhost:3002`. Key endpoint group
 | `GET /crew` | Crew management |
 | `GET /calendar` | Calendar events |
 | `GET /locations` | Location library |
-| `GET /needs-assessments` | Needs assessment forms |
+| `GET /inquiry-wizard/templates` | Inquiry wizard forms (intake + discovery-call stages) |
 | `GET /service-packages` | Service package configuration |
 
 All authenticated endpoints require: `Authorization: Bearer <token>`

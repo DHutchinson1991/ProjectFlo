@@ -15,13 +15,13 @@ import {
     Tooltip,
 } from '@mui/material';
 import { Check } from '@mui/icons-material';
-import type { DiscoveryQuestion } from '@/features/workflow/inquiries/types';
+import type { InquiryWizardQuestion } from '../../types';
 import type { PaymentScheduleTemplate, PaymentScheduleRule } from '@/features/finance/payment-schedules/types';
 import type { SnapshotActivity, SnapshotMoment } from '@/features/workflow/inquiries/types/schedule-snapshot';
 import { DEFAULT_CURRENCY, formatCurrency } from '@projectflo/shared';
 
 export interface DiscoveryQuestionFieldProps {
-    question: DiscoveryQuestion;
+    question: InquiryWizardQuestion;
     value: string | string[];
     onChange: (val: string | string[]) => void;
     activities?: SnapshotActivity[];
