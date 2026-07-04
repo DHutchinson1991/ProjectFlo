@@ -33,11 +33,16 @@ export class PublicInquiryWizardController {
         return this.submissionService.createPublicSubmission(token, dto);
     }
 
-    @Patch('submission/:submissionId/responses')
+    @Patch(':token/submission/:submissionId/responses')
     async updateResponses(
+        @Param('token') token: string,
         @Param('submissionId', ParseIntPipe) submissionId: number,
         @Body(new ValidationPipe({ transform: true })) dto: UpdateSubmissionResponsesDto,
     ) {
-        return this.submissionService.updateSubmissionResponses(submissionId, dto.responses);
+        return this.submissionService.updateSubmissionResponsesForPortal(
+            token,
+            submissionId,
+            dto.responses,
+        );
     }
 }

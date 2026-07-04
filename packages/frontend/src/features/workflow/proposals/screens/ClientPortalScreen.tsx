@@ -214,14 +214,14 @@ export function ClientPortalScreen({ token }: { token: string }) {
     /* ── Questionnaire handlers ─────────────────────── */
 
     const saveQuestionnaireField = useCallback(async (fieldKey: string, value: unknown) => {
-        if (!data?.sections?.questionnaire) return;
+        if (!data?.sections?.questionnaire || !token) return;
         const submissionId = data.sections.questionnaire.data.submission_id;
         setSavingField(true);
         try {
-            await publicInquiryWizardApi.updateSubmission(submissionId, { [fieldKey]: value });
+            await publicInquiryWizardApi.updateSubmission(token, submissionId, { [fieldKey]: value });
             await refreshPortal();
         } finally { setSavingField(false); }
-    }, [data, refreshPortal]);
+    }, [data, token, refreshPortal]);
 
     /* ── Package handlers ───────────────────────────── */
 

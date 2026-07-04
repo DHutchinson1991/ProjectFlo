@@ -94,15 +94,68 @@ export class InquiryPackageCreator {
     const mainTemplate = mainDayLink.event_day_template;
 
     const selectedIds = new Set(dto.selectedActivityPresetIds);
+    const blueprintMode = Boolean(dto.sourceDayBlueprintVersionId);
 
     const videographerRole = await this.prisma.job_roles.findFirst({
       where: { name: { equals: 'videographer', mode: 'insensitive' } },
     });
 
-    const totalMinutes = mainTemplate.activity_presets
-      .filter((preset) => selectedIds.has(preset.id))
-      .reduce((sum, preset) => sum + (preset.default_duration_minutes || 60), 0);
-    const coverageHours = Math.round((totalMinutes / 60) * 2) / 2;
+    let coverageHours = 8;
+    if (!blueprintMode) {
+      const totalMinutes = mainTemplate.activity_presets
+        .filter((preset) => selectedIds.has(preset.id))
+        .reduce((sum, preset) => sum + (preset.default_duration_minutes || 60), 0);
+      coverageHours = Math.round((totalMinutes / 60) * 2) / 2;
+    }
+
+    type DayScaffold = { eventDayTemplateId: number; orderIndex: number };
+    let dayScaffolds: DayScaffold[];
+
+    if (blueprintMode) {
+      const version = await this.prisma.dayBlueprintVersion.findUnique({
+        where: { id: dto.sourceDayBlueprintVersionId! },
+        select: {
+          days: {
+            orderBy: { order_index: 'asc' },
+            select: { id: true, order_index: true },
+          },
+        },
+      });
+      if (!version?.days.length) {
+        throw new BadRequestException('Selected blueprint version has no days to scaffold');
+      }
+
+      const templateDayByLinkId = new Map(sortedDays.map((day) => [day.id, day]));
+
+      if (dto.blueprintDayMappings?.length) {
+        const seenTemplateIds = new Set<number>();
+        dayScaffolds = [];
+        for (const mapping of dto.blueprintDayMappings) {
+          const link = templateDayByLinkId.get(mapping.eventTypeDayLinkId);
+          if (!link) {
+            throw new BadRequestException(
+              `Template day link ${mapping.eventTypeDayLinkId} is invalid for this package template`,
+            );
+          }
+          if (seenTemplateIds.has(link.event_day_template_id)) continue;
+          seenTemplateIds.add(link.event_day_template_id);
+          dayScaffolds.push({
+            eventDayTemplateId: link.event_day_template_id,
+            orderIndex: dayScaffolds.length,
+          });
+        }
+      } else {
+        dayScaffolds = version.days.map((_, index) => {
+          const link = sortedDays[index] ?? sortedDays[sortedDays.length - 1];
+          return {
+            eventDayTemplateId: link.event_day_template_id,
+            orderIndex: index,
+          };
+        });
+      }
+    } else {
+      dayScaffolds = [{ eventDayTemplateId: mainTemplate.id, orderIndex: 0 }];
+    }
 
     const pkgName = dto.clientName
       ? `Custom Package \u2014 ${dto.clientName}`
@@ -122,72 +175,79 @@ export class InquiryPackageCreator {
         },
       });
 
-      const packageEventDay = await tx.packageEventDay.create({
-        data: {
-          package_id: servicePackage.id,
-          event_day_template_id: mainTemplate.id,
-          order_index: 0,
-        },
-      });
-
-      let activityIdx = 0;
-      for (const preset of mainTemplate.activity_presets) {
-        if (!selectedIds.has(preset.id)) continue;
-
-        await tx.packageActivity.create({
+      const packageEventDays: Array<{ id: number; event_day_template_id: number }> = [];
+      for (const scaffold of dayScaffolds) {
+        const packageEventDay = await tx.packageEventDay.create({
           data: {
             package_id: servicePackage.id,
-            package_event_day_id: packageEventDay.id,
-            name: preset.name,
-            color: preset.color,
-            icon: preset.icon,
-            description: preset.description,
-            location_label: preset.location_label || null,
-            start_time: preset.default_start_time || null,
-            duration_minutes: preset.default_duration_minutes || 60,
-            order_index: activityIdx++,
+            event_day_template_id: scaffold.eventDayTemplateId,
+            order_index: scaffold.orderIndex,
           },
         });
+        packageEventDays.push(packageEventDay);
       }
+      const primaryPackageEventDay = packageEventDays[0]!;
 
-      const createdActivities = await tx.packageActivity.findMany({
-        where: { package_id: servicePackage.id },
-        select: { id: true, name: true, location_label: true },
-      });
+      if (!blueprintMode) {
+        let activityIdx = 0;
+        for (const preset of mainTemplate.activity_presets) {
+          if (!selectedIds.has(preset.id)) continue;
 
-      const locationSlot = await tx.packageLocationSlot.create({
-        data: {
-          package_id: servicePackage.id,
-          event_day_template_id: mainTemplate.id,
-          location_number: 1,
-          mode: 'SANDBOX',
-        },
-      });
+          await tx.packageActivity.create({
+            data: {
+              package_id: servicePackage.id,
+              package_event_day_id: primaryPackageEventDay.id,
+              name: preset.name,
+              color: preset.color,
+              icon: preset.icon,
+              description: preset.description,
+              location_label: preset.location_label || null,
+              start_time: preset.default_start_time || null,
+              duration_minutes: preset.default_duration_minutes || 60,
+              order_index: activityIdx++,
+            },
+          });
+        }
 
-      await tx.locationActivityAssignment.createMany({
-        data: createdActivities.map((activity) => ({
-          package_location_slot_id: locationSlot.id,
-          package_activity_id: activity.id,
-        })),
-        skipDuplicates: true,
-      });
+        const createdActivities = await tx.packageActivity.findMany({
+          where: { package_id: servicePackage.id },
+          select: { id: true, name: true, location_label: true },
+        });
 
-      for (const activity of createdActivities) {
-        const label = activity.location_label || `${activity.name} Space`;
-        const spaceSlot = await tx.packageSpaceSlot.create({
+        const locationSlot = await tx.packageLocationSlot.create({
           data: {
             package_id: servicePackage.id,
             event_day_template_id: mainTemplate.id,
-            label,
-            location_slot_id: locationSlot.id,
+            location_number: 1,
+            mode: 'SANDBOX',
           },
         });
-        await tx.spaceActivityAssignment.create({
-          data: {
-            package_space_slot_id: spaceSlot.id,
+
+        await tx.locationActivityAssignment.createMany({
+          data: createdActivities.map((activity) => ({
+            package_location_slot_id: locationSlot.id,
             package_activity_id: activity.id,
-          },
+          })),
+          skipDuplicates: true,
         });
+
+        for (const activity of createdActivities) {
+          const label = activity.location_label || `${activity.name} Space`;
+          const spaceSlot = await tx.packageSpaceSlot.create({
+            data: {
+              package_id: servicePackage.id,
+              event_day_template_id: mainTemplate.id,
+              label,
+              location_slot_id: locationSlot.id,
+            },
+          });
+          await tx.spaceActivityAssignment.create({
+            data: {
+              package_space_slot_id: spaceSlot.id,
+              package_activity_id: activity.id,
+            },
+          });
+        }
       }
 
       const crewSlotCount = Math.max(1, Math.min(dto.crewCount, 10));
@@ -196,7 +256,7 @@ export class InquiryPackageCreator {
         const operatorSlot = await tx.packageCrewSlot.create({
           data: {
             package_id: servicePackage.id,
-            package_event_day_id: packageEventDay.id,
+            package_event_day_id: primaryPackageEventDay.id,
             crew_id: null,
             job_role_id: videographerRole!.id,
             label: crewSlotCount > 1 ? `Videographer ${i + 1}` : null,

@@ -79,8 +79,12 @@ export function createPublicInquiryWizardApi(client: ApiClient) {
             client.get<InquiryWizardTemplate>(`/api/inquiry-wizard/share/${encodeURIComponent(token)}`, { skipBrandContext: true, skipAuth: true }),
         submit: (token: string, data: Record<string, unknown>): Promise<InquiryWizardSubmission> =>
             client.post<InquiryWizardSubmission>(`/api/inquiry-wizard/share/${encodeURIComponent(token)}/submit`, data, { skipBrandContext: true, skipAuth: true }),
-        updateSubmission: (submissionId: number, responses: Record<string, unknown>): Promise<InquiryWizardSubmission> =>
-            client.patch<InquiryWizardSubmission>(`/api/inquiry-wizard/share/submission/${submissionId}/responses`, { responses }, { skipBrandContext: true, skipAuth: true }),
+        updateSubmission: (portalToken: string, submissionId: number, responses: Record<string, unknown>): Promise<InquiryWizardSubmission> =>
+            client.patch<InquiryWizardSubmission>(
+                `/api/inquiry-wizard/share/${encodeURIComponent(portalToken)}/submission/${submissionId}/responses`,
+                { responses },
+                { skipBrandContext: true, skipAuth: true },
+            ),
     };
 }
 
