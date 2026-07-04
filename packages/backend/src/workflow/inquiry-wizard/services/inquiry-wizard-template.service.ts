@@ -48,18 +48,30 @@ export class InquiryWizardTemplateService {
         });
     }
 
-    /** DISCOVERY_CALL-stage only: delete the active template and recreate it from defaults. */
+    /** DISCOVERY_CALL-stage only: replace the active template with a fresh default. */
     async resetActiveTemplate(brandId: number, stage: InquiryWizardStage = InquiryWizardStage.DISCOVERY_CALL) {
         const existing = await this.prisma.inquiry_wizard_templates.findFirst({
             where: { brand_id: brandId, is_active: true, stage },
         });
         if (existing) {
-            await this.prisma.inquiry_wizard_questions.deleteMany({
+            const submissionCount = await this.prisma.inquiry_wizard_submissions.count({
                 where: { template_id: existing.id },
             });
-            await this.prisma.inquiry_wizard_templates.delete({
-                where: { id: existing.id },
-            });
+            if (submissionCount > 0) {
+                // Never delete templates with submissions — CASCADE would wipe
+                // discovery call notes, transcripts, and client responses.
+                await this.prisma.inquiry_wizard_templates.update({
+                    where: { id: existing.id },
+                    data: { is_active: false },
+                });
+            } else {
+                await this.prisma.inquiry_wizard_questions.deleteMany({
+                    where: { template_id: existing.id },
+                });
+                await this.prisma.inquiry_wizard_templates.delete({
+                    where: { id: existing.id },
+                });
+            }
         }
         return this.createDefaultDiscoveryCallTemplate(brandId);
     }

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, $Enums } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { InquiryCrudService } from '../../inquiries/services/inquiry-crud.service';
@@ -27,9 +27,26 @@ export class InquiryWizardLinkService {
         const responses = payload.responses || {};
         const existingInquiry = await this.prisma.inquiries.findUnique({
             where: { id: payload.inquiry_id },
-            include: { contact: { select: { id: true, first_name: true, last_name: true, email: true, phone_number: true } } },
+            include: {
+                contact: {
+                    select: {
+                        id: true,
+                        brand_id: true,
+                        first_name: true,
+                        last_name: true,
+                        email: true,
+                        phone_number: true,
+                    },
+                },
+            },
         });
-        const contactId = existingInquiry?.contact_id ?? undefined;
+        if (!existingInquiry) {
+            throw new NotFoundException('Inquiry not found');
+        }
+        if (existingInquiry.contact.brand_id !== brandId) {
+            throw new ForbiddenException('Inquiry does not belong to this brand');
+        }
+        const contactId = existingInquiry.contact_id ?? undefined;
         const inquiryUpdate: Record<string, unknown> = {};
 
         // Always prefer wizard-submitted date over placeholder date set at inquiry creation

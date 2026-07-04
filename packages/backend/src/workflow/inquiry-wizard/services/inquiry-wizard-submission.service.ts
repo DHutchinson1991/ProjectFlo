@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, InquiryWizardStage } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { CreateInquiryWizardSubmissionDto } from '../dto/create-inquiry-wizard-submission.dto';
@@ -106,6 +106,16 @@ export class InquiryWizardSubmissionService {
         brandId: number,
         templateId: number,
     ) {
+        if (payload.inquiry_id) {
+            const inquiry = await this.prisma.inquiries.findFirst({
+                where: { id: payload.inquiry_id, contact: { brand_id: brandId } },
+                select: { id: true },
+            });
+            if (!inquiry) {
+                throw new ForbiddenException('Inquiry does not belong to this brand');
+            }
+        }
+
         const submission = await this.prisma.inquiry_wizard_submissions.create({
             data: {
                 brand_id: brandId,
@@ -212,6 +222,30 @@ export class InquiryWizardSubmissionService {
             { ...payload, template_id: template.id },
             template.brand_id,
         );
+    }
+
+    async updateSubmissionResponsesForPortal(
+        portalToken: string,
+        submissionId: number,
+        responses: Record<string, unknown>,
+    ) {
+        const inquiry = await this.prisma.inquiries.findFirst({
+            where: { portal_token: portalToken },
+            select: { id: true },
+        });
+        if (!inquiry) {
+            throw new NotFoundException('Portal not found');
+        }
+
+        const submission = await this.prisma.inquiry_wizard_submissions.findFirst({
+            where: { id: submissionId, inquiry_id: inquiry.id },
+            select: { id: true, inquiry_id: true, responses: true },
+        });
+        if (!submission) {
+            throw new ForbiddenException('Submission not accessible from this portal');
+        }
+
+        return this.updateSubmissionResponses(submissionId, responses);
     }
 
     async updateSubmissionResponses(submissionId: number, responses: Record<string, unknown>) {
