@@ -178,9 +178,19 @@ export class InquiryQueryService {
         }));
     }
 
+    async assertInquiryOwnedByBrand(inquiryId: number, brandId: number): Promise<void> {
+        const inquiry = await this.prisma.inquiries.findFirst({
+            where: { id: inquiryId, archived_at: null, contact: { brand_id: brandId } },
+            select: { id: true },
+        });
+        if (!inquiry) {
+            throw new NotFoundException(`Inquiry with ID ${inquiryId} not found`);
+        }
+    }
+
     async findOne(id: number, brandId: number) {
         const inquiry = await this.prisma.inquiries.findFirst({
-            where: { id, archived_at: null },
+            where: { id, archived_at: null, contact: { brand_id: brandId } },
             select: {
                 id: true, status: true, wedding_date: true, notes: true, lead_source: true,
                 lead_source_details: true, selected_package_id: true, source_package_id: true,
