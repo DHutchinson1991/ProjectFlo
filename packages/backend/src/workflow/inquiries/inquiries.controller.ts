@@ -59,7 +59,8 @@ export class InquiriesController {
         @Headers('x-brand-context') brandId: string,
     ) {
         const brandIdNum = parseInt(brandId);
-        return this.queryService.findOne(id, brandIdNum || 0);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        return this.queryService.findOne(id, brandIdNum);
     }
 
     @Get(':id/discovery-call')
@@ -116,37 +117,79 @@ export class InquiriesController {
     // ─── Inquiry Schedule Snapshot Endpoints ─────────────────────────
 
     @Get(':id/schedule-snapshot')
-    async getScheduleSnapshot(@Param('id', ParseIntPipe) id: number) {
+    async getScheduleSnapshot(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        await this.queryService.assertInquiryOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getSnapshotSummary({ inquiryId: id });
     }
 
     @Get(':id/schedule-snapshot/event-days')
-    async getScheduleSnapshotEventDays(@Param('id', ParseIntPipe) id: number) {
+    async getScheduleSnapshotEventDays(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        await this.queryService.assertInquiryOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getEventDays({ inquiryId: id });
     }
 
     @Get(':id/schedule-snapshot/activities')
-    async getScheduleSnapshotActivities(@Param('id', ParseIntPipe) id: number) {
+    async getScheduleSnapshotActivities(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        await this.queryService.assertInquiryOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getActivities({ inquiryId: id });
     }
 
     @Get(':id/schedule-snapshot/crew-slots')
-    async getScheduleSnapshotCrewSlots(@Param('id', ParseIntPipe) id: number) {
+    async getScheduleSnapshotCrewSlots(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        await this.queryService.assertInquiryOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getCrewSlots({ inquiryId: id });
     }
 
     @Get(':id/schedule-snapshot/subjects')
-    async getScheduleSnapshotSubjects(@Param('id', ParseIntPipe) id: number) {
+    async getScheduleSnapshotSubjects(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        await this.queryService.assertInquiryOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getSubjects({ inquiryId: id });
     }
 
     @Get(':id/schedule-snapshot/locations')
-    async getScheduleSnapshotLocations(@Param('id', ParseIntPipe) id: number) {
+    async getScheduleSnapshotLocations(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        await this.queryService.assertInquiryOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getLocationSlots({ inquiryId: id });
     }
 
     @Get(':id/schedule-snapshot/films')
-    async getScheduleSnapshotFilms(@Param('id', ParseIntPipe) id: number) {
+    async getScheduleSnapshotFilms(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        await this.queryService.assertInquiryOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getFilms({ inquiryId: id });
     }
 
@@ -154,21 +197,37 @@ export class InquiriesController {
     async getScheduleSnapshotActivityMoments(
         @Param('id', ParseIntPipe) id: number,
         @Param('activityId', ParseIntPipe) activityId: number,
+        @Headers('x-brand-context') brandId: string,
     ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        await this.queryService.assertInquiryOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getActivityMoments({ inquiryId: id }, activityId);
     }
 
     // ─── Sync from Package ─────────────────────────────────────────
 
     @Post(':id/schedule/sync-from-package')
-    async syncInquiryScheduleFromPackage(@Param('id', ParseIntPipe) id: number) {
+    async syncInquiryScheduleFromPackage(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        await this.queryService.assertInquiryOwnedByBrand(id, brandIdNum);
         return this.cloneService.syncInquiryScheduleFromPackage(id);
     }
 
     // ─── Schedule Diff ─────────────────────────────────────────────
 
     @Get(':id/schedule/diff')
-    async getScheduleDiff(@Param('id', ParseIntPipe) id: number) {
+    async getScheduleDiff(
+        @Param('id', ParseIntPipe) id: number,
+        @Headers('x-brand-context') brandId: string,
+    ) {
+        const brandIdNum = parseInt(brandId);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        await this.queryService.assertInquiryOwnedByBrand(id, brandIdNum);
         return this.scheduleService.getScheduleDiff({ inquiry_id: id });
     }
 
