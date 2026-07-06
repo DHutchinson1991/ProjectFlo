@@ -3,6 +3,7 @@ import {
     Controller,
     Get,
     Headers,
+    NotFoundException,
     Param,
     ParseIntPipe,
     Patch,
@@ -33,6 +34,12 @@ function parseStage(raw?: string): InquiryWizardStage | undefined {
     return undefined;
 }
 
+function parseRequiredBrandId(brandId: string): number {
+    const brandIdNum = parseInt(brandId, 10);
+    if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+    return brandIdNum;
+}
+
 @Controller('api/inquiry-wizard')
 @UseGuards(AuthGuard('jwt'))
 export class InquiryWizardController {
@@ -49,8 +56,7 @@ export class InquiryWizardController {
         @Headers('x-brand-context') brandId: string,
         @Query('stage') stage?: string,
     ) {
-        const brandIdNum = Number(brandId);
-        return this.templateService.listTemplates(Number.isNaN(brandIdNum) ? 0 : brandIdNum, parseStage(stage));
+        return this.templateService.listTemplates(parseRequiredBrandId(brandId), parseStage(stage));
     }
 
     @Get('templates/active')
@@ -58,10 +64,10 @@ export class InquiryWizardController {
         @Headers('x-brand-context') brandId: string,
         @Query('stage') stage?: string,
     ) {
-        const brandIdNum = Number(brandId);
-        this.logger.log(`Fetching active template for brandId: ${brandIdNum || 'none'}`);
+        const brandIdNum = parseRequiredBrandId(brandId);
+        this.logger.log(`Fetching active template for brandId: ${brandIdNum}`);
         return this.templateService.getActiveTemplate(
-            Number.isNaN(brandIdNum) ? undefined : brandIdNum,
+            brandIdNum,
             parseStage(stage) ?? InquiryWizardStage.INTAKE,
         );
     }
@@ -72,7 +78,7 @@ export class InquiryWizardController {
         @Query('stage') stage?: string,
     ) {
         return this.templateService.resetActiveTemplate(
-            Number(brandId),
+            parseRequiredBrandId(brandId),
             parseStage(stage) ?? InquiryWizardStage.DISCOVERY_CALL,
         );
     }
@@ -82,7 +88,7 @@ export class InquiryWizardController {
         @Param('id', ParseIntPipe) id: number,
         @Headers('x-brand-context') brandId: string,
     ) {
-        return this.templateService.getTemplateById(id, Number(brandId));
+        return this.templateService.getTemplateById(id, parseRequiredBrandId(brandId));
     }
 
     @Post('templates')
@@ -90,7 +96,7 @@ export class InquiryWizardController {
         @Body(new ValidationPipe({ transform: true })) payload: CreateInquiryWizardTemplateDto,
         @Headers('x-brand-context') brandId: string,
     ) {
-        return this.templateService.createTemplate(payload, Number(brandId));
+        return this.templateService.createTemplate(payload, parseRequiredBrandId(brandId));
     }
 
     @Put('templates/:id')
@@ -99,7 +105,7 @@ export class InquiryWizardController {
         @Body(new ValidationPipe({ transform: true })) payload: UpdateInquiryWizardTemplateDto,
         @Headers('x-brand-context') brandId: string,
     ) {
-        return this.templateService.updateTemplate(id, payload, Number(brandId));
+        return this.templateService.updateTemplate(id, payload, parseRequiredBrandId(brandId));
     }
 
     @Get('submissions')
@@ -107,9 +113,8 @@ export class InquiryWizardController {
         @Headers('x-brand-context') brandId: string,
         @Query(new ValidationPipe({ transform: true })) query: ListIwSubmissionsQueryDto,
     ) {
-        const brandIdNum = Number(brandId);
         return this.submissionService.listSubmissions(
-            Number.isNaN(brandIdNum) ? undefined : brandIdNum,
+            parseRequiredBrandId(brandId),
             query.inquiryId,
             query.stage,
         );
@@ -121,7 +126,11 @@ export class InquiryWizardController {
         @Headers('x-brand-context') brandId: string,
         @Query('stage') stage?: string,
     ) {
-        return this.submissionService.getSubmissionByInquiryId(inquiryId, Number(brandId), parseStage(stage));
+        return this.submissionService.getSubmissionByInquiryId(
+            inquiryId,
+            parseRequiredBrandId(brandId),
+            parseStage(stage),
+        );
     }
 
     @Get('submissions/:id')
@@ -129,7 +138,7 @@ export class InquiryWizardController {
         @Param('id', ParseIntPipe) id: number,
         @Headers('x-brand-context') brandId: string,
     ) {
-        return this.submissionService.getSubmissionById(id, Number(brandId));
+        return this.submissionService.getSubmissionById(id, parseRequiredBrandId(brandId));
     }
 
     @Post('submissions')
@@ -137,7 +146,7 @@ export class InquiryWizardController {
         @Body(new ValidationPipe({ transform: true })) payload: CreateInquiryWizardSubmissionDto,
         @Headers('x-brand-context') brandId: string,
     ) {
-        return this.submissionService.createSubmission(payload, Number(brandId));
+        return this.submissionService.createSubmission(payload, parseRequiredBrandId(brandId));
     }
 
     @Patch('submissions/:id')
@@ -146,7 +155,7 @@ export class InquiryWizardController {
         @Body(new ValidationPipe({ transform: true })) payload: UpdateInquiryWizardSubmissionDto,
         @Headers('x-brand-context') brandId: string,
     ) {
-        return this.submissionService.updateSubmission(id, payload, Number(brandId));
+        return this.submissionService.updateSubmission(id, payload, parseRequiredBrandId(brandId));
     }
 
     @Post('submissions/:id/convert')
@@ -154,7 +163,7 @@ export class InquiryWizardController {
         @Param('id', ParseIntPipe) id: number,
         @Headers('x-brand-context') brandId: string,
     ) {
-        return this.submissionService.convertSubmission(id, Number(brandId));
+        return this.submissionService.convertSubmission(id, parseRequiredBrandId(brandId));
     }
 
     @Get('submissions/:id/conflict-check')
@@ -162,7 +171,7 @@ export class InquiryWizardController {
         @Param('id', ParseIntPipe) id: number,
         @Headers('x-brand-context') brandId: string,
     ) {
-        return this.conflictService.checkDateConflicts(id, Number(brandId));
+        return this.conflictService.checkDateConflicts(id, parseRequiredBrandId(brandId));
     }
 
     @Get('submissions/:id/crew-conflict-check')
@@ -170,7 +179,7 @@ export class InquiryWizardController {
         @Param('id', ParseIntPipe) id: number,
         @Headers('x-brand-context') brandId: string,
     ) {
-        return this.conflictService.checkCrewConflicts(id, Number(brandId));
+        return this.conflictService.checkCrewConflicts(id, parseRequiredBrandId(brandId));
     }
 
     @Patch('submissions/:id/review')
@@ -179,7 +188,7 @@ export class InquiryWizardController {
         @Headers('x-brand-context') brandId: string,
         @Body(new ValidationPipe({ transform: true })) body: ReviewIwSubmissionDto,
     ) {
-        return this.submissionService.reviewSubmission(id, Number(brandId), body);
+        return this.submissionService.reviewSubmission(id, parseRequiredBrandId(brandId), body);
     }
 
     @Post('templates/:id/share-token')
@@ -187,7 +196,7 @@ export class InquiryWizardController {
         @Param('id', ParseIntPipe) id: number,
         @Headers('x-brand-context') brandId: string,
     ) {
-        return this.templateService.generateShareToken(id, Number(brandId)).then(
+        return this.templateService.generateShareToken(id, parseRequiredBrandId(brandId)).then(
             (share_token) => ({ share_token }),
         );
     }
