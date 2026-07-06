@@ -18,10 +18,10 @@ export class InquiryWizardSubmissionService {
         private readonly linkService: InquiryWizardLinkService,
     ) {}
 
-    async listSubmissions(brandId?: number, inquiryId?: number, stage?: InquiryWizardStage) {
+    async listSubmissions(brandId: number, inquiryId?: number, stage?: InquiryWizardStage) {
         return this.prisma.inquiry_wizard_submissions.findMany({
             where: {
-                ...(brandId ? { brand_id: brandId } : {}),
+                brand_id: brandId,
                 ...(inquiryId ? { inquiry_id: inquiryId } : {}),
                 ...(stage ? { template: { stage } } : {}),
             },
@@ -106,6 +106,20 @@ export class InquiryWizardSubmissionService {
         brandId: number,
         templateId: number,
     ) {
+        if (payload.inquiry_id) {
+            const inquiry = await this.prisma.inquiries.findFirst({
+                where: {
+                    id: payload.inquiry_id,
+                    archived_at: null,
+                    contact: { brand_id: brandId },
+                },
+                select: { id: true },
+            });
+            if (!inquiry) {
+                throw new NotFoundException('Inquiry not found');
+            }
+        }
+
         const submission = await this.prisma.inquiry_wizard_submissions.create({
             data: {
                 brand_id: brandId,
