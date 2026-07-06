@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { ProjectPackageCloneService, parseGuestCountMidpoint } from '../../projects/project-package-clone.service';
 import { buildPackageContentsSnapshot } from '../../projects/package-contents-snapshot.util';
 import { InquiryScheduleSnapshotService } from './inquiry-schedule-snapshot.service';
+import { buildInquiryProjectName } from '../utils/build-inquiry-project-name';
 
 /**
  * InquiryLifecycleService
@@ -20,17 +21,6 @@ export class InquiryLifecycleService {
         private readonly packageCloneService: ProjectPackageCloneService,
         private readonly snapshotService: InquiryScheduleSnapshotService,
     ) {}
-
-    /**
-     * Builds a human-readable project name from the couple/contact name and the
-     * inquiry's freeform `event_category` (e.g. "Wedding", "Birthday", "Corporate"),
-     * instead of always assuming a wedding.
-     */
-    private _buildProjectName(firstName: string | null, lastName: string | null, eventCategory: string | null): string {
-        const name = [firstName, lastName].filter(Boolean).join(' & ');
-        const category = eventCategory?.trim() || 'Wedding';
-        return `${name}'s ${category}`;
-    }
 
     async convertInquiryToProject(inquiryId: number, brandId: number) {
         return this.prisma.$transaction(async (prisma) => {
@@ -71,7 +61,7 @@ export class InquiryLifecycleService {
                     inquiry_id: inquiry.id,
                     contact_id: inquiry.contact_id,
                     event_category: inquiry.event_category ?? null,
-                    project_name: this._buildProjectName(inquiry.contact.first_name, inquiry.contact.last_name, inquiry.event_category),
+                    project_name: buildInquiryProjectName(inquiry.contact.first_name, inquiry.contact.last_name, inquiry.event_category),
                     wedding_date: inquiry.wedding_date || new Date(),
                     booking_date: new Date(), phase: 'Booking',
                     status: 'Active',
