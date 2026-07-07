@@ -23,9 +23,17 @@ import { ActivityPlannerService } from '../../content/activity-planning/services
 import { PlanningEventsService } from '../../content/activity-planning/services/planning-events.service';
 import { PackageBlueprintResyncService } from './services/package-blueprint-resync.service';
 import { PackageBlueprintSpatialService } from './services/package-blueprint-spatial.service';
+import { PackagesService } from './packages.service';
 import { ResyncPackageBlueprintDto } from './dto/resync-blueprint.dto';
 import { GetPlanningLogQueryDto } from './dto/get-planning-log-query.dto';
 import { BrandId } from '../../platform/auth/decorators/brand-id.decorator';
+
+function requireBrandId(brandId: number | undefined): number {
+  if (!brandId || Number.isNaN(brandId)) {
+    throw new NotFoundException('Brand ID is required');
+  }
+  return brandId;
+}
 
 /** Heartbeat frequency for the planning-events SSE stream (ms). */
 const PLANNING_SSE_HEARTBEAT_MS = 15_000;
@@ -47,7 +55,15 @@ export class PackagesPlanningController {
     private readonly planningEvents: PlanningEventsService,
     private readonly blueprintResync: PackageBlueprintResyncService,
     private readonly blueprintSpatial: PackageBlueprintSpatialService,
+    private readonly packagesService: PackagesService,
   ) {}
+
+  /** Ensures the package exists and belongs to the requesting brand before mutating or streaming. */
+  private async assertPackageOwnedByBrand(packageId: number, brandId: number | undefined): Promise<number> {
+    const resolvedBrandId = requireBrandId(brandId);
+    await this.packagesService.findOne(packageId, resolvedBrandId);
+    return resolvedBrandId;
+  }
 
   /**
    * GET /api/packages/:id/blueprint-spatial
@@ -56,19 +72,31 @@ export class PackagesPlanningController {
    * sync base subject/camera positions, return package space slots.
    */
   @Get(':id/blueprint-spatial')
-  loadBlueprintSpatial(@Param('id', ParseIntPipe) id: number) {
+  async loadBlueprintSpatial(
+    @Param('id', ParseIntPipe) id: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.assertPackageOwnedByBrand(id, brandId);
     return this.blueprintSpatial.loadForPackage(id);
   }
 
   @Post(':id/replan')
   @HttpCode(200)
-  replanActivities(@Param('id', ParseIntPipe) id: number) {
+  async replanActivities(
+    @Param('id', ParseIntPipe) id: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.assertPackageOwnedByBrand(id, brandId);
     return this.activityPlanner.replanPackageActivities(id);
   }
 
   @Post(':id/resync')
   @HttpCode(200)
-  resyncScenes(@Param('id', ParseIntPipe) id: number) {
+  async resyncScenes(
+    @Param('id', ParseIntPipe) id: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.assertPackageOwnedByBrand(id, brandId);
     return this.activityPlanner.resyncScheduledScenes(id);
   }
 
@@ -79,8 +107,9 @@ export class PackagesPlanningController {
    * and the latest published version (for drift UX before confirming resync).
    */
   @Get(':id/blueprint-resync-preview')
-  previewBlueprintResync(@Param('id', ParseIntPipe) id: number, @BrandId() brandId: number) {
-    return this.blueprintResync.previewResync(id, brandId);
+  async previewBlueprintResync(@Param('id', ParseIntPipe) id: number, @BrandId() brandId: number) {
+    const resolvedBrandId = await this.assertPackageOwnedByBrand(id, brandId);
+    return this.blueprintResync.previewResync(id, resolvedBrandId);
   }
 
   /**
@@ -93,20 +122,23 @@ export class PackagesPlanningController {
    */
   @Post(':id/resync-blueprint')
   @HttpCode(200)
-  resyncBlueprint(
+  async resyncBlueprint(
     @Param('id', ParseIntPipe) id: number,
     @BrandId() brandId: number,
     @Body(new ValidationPipe({ transform: true, whitelist: true })) dto: ResyncPackageBlueprintDto,
   ) {
-    return this.blueprintResync.resyncToLatestBlueprint(id, brandId, dto);
+    const resolvedBrandId = await this.assertPackageOwnedByBrand(id, brandId);
+    return this.blueprintResync.resyncToLatestBlueprint(id, resolvedBrandId, dto);
   }
 
   @Get(':id/planning-log')
   @Header('Content-Type', 'text/plain; charset=utf-8')
-  findPlanningLog(
-    @Param('id', ParseIntPipe) _id: number,
+  async findPlanningLog(
+    @Param('id', ParseIntPipe) id: number,
+    @BrandId() brandId: number,
     @Query(new ValidationPipe({ transform: true })) query: GetPlanningLogQueryDto,
-  ): string {
+  ): Promise<string> {
+    await this.assertPackageOwnedByBrand(id, brandId);
     const filePath = resolvePlanningLogPath(query.path);
     if (!existsSync(filePath)) {
       throw new NotFoundException('Planning log not found');
@@ -115,7 +147,11 @@ export class PackagesPlanningController {
   }
 
   @Sse(':id/planning-events')
-  streamPlanningEvents(@Param('id', ParseIntPipe) id: number): Observable<MessageEvent> {
+  async streamPlanningEvents(
+    @Param('id', ParseIntPipe) id: number,
+    @BrandId() brandId: number,
+  ): Promise<Observable<MessageEvent>> {
+    await this.assertPackageOwnedByBrand(id, brandId);
     // Keep-alive heartbeat so proxies and browsers don't kill the stream
     // during long LLM phases (e.g. casting, which can exceed 6 minutes).
     // The client ignores heartbeat frames (step === 'heartbeat').
