@@ -10,6 +10,7 @@ import {
     UseGuards,
     Headers,
     ValidationPipe,
+    NotFoundException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ProjectsService } from './projects.service';
@@ -31,56 +32,56 @@ export class ProjectsController {
     ) { }
 
     @Get()
-    async getAllProjects(@Headers('x-brand-context') brandId?: string) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
-        return this.projectQueryService.getAllProjects(parsedBrandId);
+    async getAllProjects(@Headers('x-brand-context') brandId: string) {
+        const brandIdNum = this.parseBrandId(brandId);
+        return this.projectQueryService.getAllProjects(brandIdNum);
     }
 
     @Get(':id')
     async getProjectById(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
-        return this.projectQueryService.getProjectById(id, parsedBrandId);
+        const brandIdNum = this.parseBrandId(brandId);
+        return this.projectQueryService.getProjectById(id, brandIdNum);
     }
 
     @Post()
     async createProject(
         @Body(new ValidationPipe({ transform: true })) createProjectDto: CreateProjectDto,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
-        return this.projectsService.createProject(createProjectDto, parsedBrandId);
+        const brandIdNum = this.parseBrandId(brandId);
+        return this.projectsService.createProject(createProjectDto, brandIdNum);
     }
 
     @Put(':id')
     async updateProject(
         @Param('id', ParseIntPipe) id: number,
         @Body(new ValidationPipe({ transform: true })) updateProjectDto: UpdateProjectDto,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
-        return this.projectsService.updateProject(id, updateProjectDto, parsedBrandId);
+        const brandIdNum = this.parseBrandId(brandId);
+        return this.projectsService.updateProject(id, updateProjectDto, brandIdNum);
     }
 
     @Delete(':id')
     async deleteProject(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
-        return this.projectsService.deleteProject(id, parsedBrandId);
+        const brandIdNum = this.parseBrandId(brandId);
+        return this.projectsService.deleteProject(id, brandIdNum);
     }
 
     /** DEV/TESTING: Revert a project back to its source inquiry. */
     @Post(':id/revert')
     async revertToInquiry(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
-        return this.projectsService.revertToInquiry(id, parsedBrandId);
+        const brandIdNum = this.parseBrandId(brandId);
+        return this.projectsService.revertToInquiry(id, brandIdNum);
     }
 
     // ─── Project Package Snapshot Endpoints ───────────────────────────
@@ -89,9 +90,10 @@ export class ProjectsController {
     @Get(':id/package-snapshot')
     async getPackageSnapshot(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
+        const brandIdNum = this.parseBrandId(brandId);
+        await this.projectQueryService.assertProjectOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getSnapshotSummary({ projectId: id });
     }
 
@@ -99,9 +101,10 @@ export class ProjectsController {
     @Get(':id/package-snapshot/event-days')
     async getPackageSnapshotEventDays(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
+        const brandIdNum = this.parseBrandId(brandId);
+        await this.projectQueryService.assertProjectOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getEventDays({ projectId: id });
     }
 
@@ -109,9 +112,10 @@ export class ProjectsController {
     @Get(':id/package-snapshot/activities')
     async getPackageSnapshotActivities(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
+        const brandIdNum = this.parseBrandId(brandId);
+        await this.projectQueryService.assertProjectOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getActivities({ projectId: id });
     }
 
@@ -119,9 +123,10 @@ export class ProjectsController {
     @Get(':id/package-snapshot/crew-slots')
     async getPackageSnapshotCrewSlots(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
+        const brandIdNum = this.parseBrandId(brandId);
+        await this.projectQueryService.assertProjectOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getCrewSlots({ projectId: id });
     }
 
@@ -129,9 +134,10 @@ export class ProjectsController {
     @Get(':id/package-snapshot/subjects')
     async getPackageSnapshotSubjects(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
+        const brandIdNum = this.parseBrandId(brandId);
+        await this.projectQueryService.assertProjectOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getSubjects({ projectId: id });
     }
 
@@ -139,9 +145,10 @@ export class ProjectsController {
     @Get(':id/package-snapshot/locations')
     async getPackageSnapshotLocations(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
+        const brandIdNum = this.parseBrandId(brandId);
+        await this.projectQueryService.assertProjectOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getLocationSlots({ projectId: id });
     }
 
@@ -149,9 +156,10 @@ export class ProjectsController {
     @Get(':id/package-snapshot/films')
     async getPackageSnapshotFilms(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
+        const brandIdNum = this.parseBrandId(brandId);
+        await this.projectQueryService.assertProjectOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getFilms({ projectId: id });
     }
 
@@ -160,9 +168,10 @@ export class ProjectsController {
     async getPackageSnapshotActivityMoments(
         @Param('id', ParseIntPipe) id: number,
         @Param('activityId', ParseIntPipe) activityId: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
+        const brandIdNum = this.parseBrandId(brandId);
+        await this.projectQueryService.assertProjectOwnedByBrand(id, brandIdNum);
         return this.snapshotService.getActivityMoments({ projectId: id }, activityId);
     }
 
@@ -172,9 +181,10 @@ export class ProjectsController {
     @Post(':id/schedule/sync-from-package')
     async syncProjectScheduleFromPackage(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
+        const brandIdNum = this.parseBrandId(brandId);
+        await this.projectQueryService.assertProjectOwnedByBrand(id, brandIdNum);
         return this.cloneService.syncProjectScheduleFromPackage(id);
     }
 
@@ -184,9 +194,16 @@ export class ProjectsController {
     @Get(':id/schedule/diff')
     async getScheduleDiff(
         @Param('id', ParseIntPipe) id: number,
-        @Headers('x-brand-context') brandId?: string,
+        @Headers('x-brand-context') brandId: string,
     ) {
-        const parsedBrandId = brandId ? parseInt(brandId) : undefined;
+        const brandIdNum = this.parseBrandId(brandId);
+        await this.projectQueryService.assertProjectOwnedByBrand(id, brandIdNum);
         return this.scheduleService.getScheduleDiff({ project_id: id });
+    }
+
+    private parseBrandId(header: string): number {
+        const brandIdNum = parseInt(header, 10);
+        if (!brandIdNum) throw new NotFoundException('Brand ID is required');
+        return brandIdNum;
     }
 }

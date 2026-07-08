@@ -5,12 +5,20 @@ import { PrismaService } from '../../platform/prisma/prisma.service';
 export class ProjectQueryService {
     constructor(private readonly prisma: PrismaService) { }
 
-    async getAllProjects(brandId?: number) {
-        const where = brandId ? { brand_id: brandId } : {};
+    async assertProjectOwnedByBrand(projectId: number, brandId: number): Promise<void> {
+        const project = await this.prisma.projects.findFirst({
+            where: { id: projectId, archived_at: null, brand_id: brandId },
+            select: { id: true },
+        });
+        if (!project) {
+            throw new NotFoundException(`Project with ID ${projectId} not found`);
+        }
+    }
 
+    async getAllProjects(brandId: number) {
         return this.prisma.projects.findMany({
             where: {
-                ...where,
+                brand_id: brandId,
                 archived_at: null,
             },
             orderBy: {
@@ -50,9 +58,9 @@ export class ProjectQueryService {
         });
     }
 
-    async getProjectById(id: number, brandId?: number) {
+    async getProjectById(id: number, brandId: number) {
         const project = await this.prisma.projects.findFirst({
-            where: { id, brand_id: brandId },
+            where: { id, brand_id: brandId, archived_at: null },
             include: {
                 brand: {
                     select: {

@@ -9,7 +9,7 @@ export class ProjectsService {
 
     constructor(private prisma: PrismaService) { }
 
-    async createProject(createProjectDto: CreateProjectDto, brandId?: number) {
+    async createProject(createProjectDto: CreateProjectDto, brandId: number) {
         // For simple project creation, we'll set a default wedding date if not provided
         const defaultWeddingDate = createProjectDto.wedding_date
             ? new Date(createProjectDto.wedding_date)
@@ -74,7 +74,7 @@ export class ProjectsService {
         });
     }
 
-    async updateProject(id: number, updateProjectDto: UpdateProjectDto, brandId?: number) {
+    async updateProject(id: number, updateProjectDto: UpdateProjectDto, brandId: number) {
         // Check if project exists
         const existingProject = await this.prisma.projects.findFirst({
             where: { id, brand_id: brandId },
@@ -124,7 +124,7 @@ export class ProjectsService {
         });
     }
 
-    async deleteProject(id: number, brandId?: number) {
+    async deleteProject(id: number, brandId: number) {
         // Check if project exists
         const existingProject = await this.prisma.projects.findFirst({
             where: { id, brand_id: brandId },
@@ -154,10 +154,10 @@ export class ProjectsService {
      * DEV/TESTING: Revert a project back to its source inquiry.
      * Reverses the convertInquiryToProject flow.
      */
-    async revertToInquiry(projectId: number, brandId?: number) {
+    async revertToInquiry(projectId: number, brandId: number) {
         return this.prisma.$transaction(async (tx) => {
             const project = await tx.projects.findFirst({
-                where: { id: projectId, ...(brandId ? { brand_id: brandId } : {}) },
+                where: { id: projectId, brand_id: brandId },
             });
             if (!project) throw new NotFoundException(`Project ${projectId} not found`);
             if (!project.inquiry_id) throw new NotFoundException('No source inquiry linked to this project');
