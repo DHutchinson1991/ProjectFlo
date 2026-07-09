@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -43,7 +44,9 @@ export class StripeService {
    * Create a Stripe Express connected account for a brand
    * and return an Account Link URL for onboarding.
    */
-  async createConnectAccount(brandId: number): Promise<{ url: string }> {
+  async createConnectAccount(brandId: number, userId: number): Promise<{ url: string }> {
+    await this.assertBrandAccess(brandId, userId);
+
     const brand = await this.prisma.brands.findUnique({ where: { id: brandId } });
     if (!brand) throw new NotFoundException(`Brand ${brandId} not found`);
 
@@ -74,7 +77,9 @@ export class StripeService {
   /**
    * Generate a new Account Link (for onboarding or refreshing an expired link).
    */
-  async getOnboardingLink(brandId: number): Promise<{ url: string }> {
+  async getOnboardingLink(brandId: number, userId: number): Promise<{ url: string }> {
+    await this.assertBrandAccess(brandId, userId);
+
     const brand = await this.prisma.brands.findUnique({ where: { id: brandId } });
     if (!brand?.stripe_account_id) {
       throw new BadRequestException('Brand has no Stripe account. Create one first.');
@@ -87,13 +92,15 @@ export class StripeService {
   /**
    * Check whether a connected account has completed onboarding.
    */
-  async getAccountStatus(brandId: number): Promise<{
+  async getAccountStatus(brandId: number, userId: number): Promise<{
     has_account: boolean;
     onboarding_complete: boolean;
     charges_enabled: boolean;
     payouts_enabled: boolean;
     account_id: string | null;
   }> {
+    await this.assertBrandAccess(brandId, userId);
+
     const brand = await this.prisma.brands.findUnique({
       where: { id: brandId },
       select: { stripe_account_id: true, stripe_onboarding_complete: true },
@@ -131,7 +138,9 @@ export class StripeService {
   /**
    * Generate a Stripe Dashboard login link for the connected account.
    */
-  async getDashboardLink(brandId: number): Promise<{ url: string }> {
+  async getDashboardLink(brandId: number, userId: number): Promise<{ url: string }> {
+    await this.assertBrandAccess(brandId, userId);
+
     const brand = await this.prisma.brands.findUnique({ where: { id: brandId } });
     if (!brand?.stripe_account_id) {
       throw new BadRequestException('No Stripe account connected');
@@ -160,6 +169,9 @@ export class StripeService {
     });
 
     if (!invoice) throw new NotFoundException(`Invoice ${invoiceId} not found`);
+
+    await this.assertInvoiceAccessibleByPortalToken(invoice.inquiry_id, portalToken);
+
     if (!invoice.brand?.stripe_account_id) {
       throw new BadRequestException('Studio has not connected a Stripe account');
     }
@@ -234,6 +246,58 @@ export class StripeService {
 
   /* ─── Private helpers ─── */
 
+  private async assertBrandAccess(brandId: number, userId: number): Promise<void> {
+    const crew = await this.prisma.crew.findUnique({
+      where: { id: userId },
+      include: {
+        contact: {
+          include: {
+            user_account: { include: { system_role: true } },
+          },
+        },
+      },
+    });
+    if (crew?.contact.user_account?.system_role?.name === 'Global Admin') return;
+
+    const membership = await this.prisma.brandMember.findFirst({
+      where: { crew_id: userId, brand_id: brandId, is_active: true },
+    });
+    if (!membership) {
+      throw new ForbiddenException('Access denied to this brand');
+    }
+  }
+
+  /**
+   * Portal tokens live on inquiries until booking, then move to projects.
+   * Checkout must only proceed when the token resolves to the invoice's inquiry.
+   */
+  private async assertInvoiceAccessibleByPortalToken(
+    invoiceInquiryId: number,
+    portalToken: string,
+  ): Promise<void> {
+    const inquiryId = await this.resolveInquiryIdByPortalToken(portalToken);
+    if (!inquiryId) {
+      throw new ForbiddenException('Invalid portal token');
+    }
+    if (inquiryId !== invoiceInquiryId) {
+      throw new ForbiddenException('Invoice not accessible with this portal token');
+    }
+  }
+
+  private async resolveInquiryIdByPortalToken(token: string): Promise<number | null> {
+    const inquiry = await this.prisma.inquiries.findUnique({
+      where: { portal_token: token },
+      select: { id: true },
+    });
+    if (inquiry) return inquiry.id;
+
+    const project = await this.prisma.projects.findUnique({
+      where: { portal_token: token },
+      select: { inquiry_id: true },
+    });
+    return project?.inquiry_id ?? null;
+  }
+
   private async createAccountLink(
     accountId: string,
   ): Promise<Stripe.AccountLink> {
@@ -298,6 +362,16 @@ export class StripeService {
       } catch (err) {
         this.logger.warn(`Could not fetch PaymentIntent details: ${err}`);
       }
+    }
+
+    const existingPayment = await this.prisma.payments.findFirst({
+      where: { stripe_checkout_session_id: session.id },
+    });
+    if (existingPayment) {
+      this.logger.log(
+        `Payment already recorded for checkout session ${session.id}, skipping duplicate webhook`,
+      );
+      return;
     }
 
     // Record the payment

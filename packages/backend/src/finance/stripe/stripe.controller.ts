@@ -22,26 +22,38 @@ export class StripeController {
 
   @UseGuards(AuthGuard('jwt'))
   @Post('connect/create')
-  createAccount(@Headers('x-brand-context') brandHeader: string) {
-    return this.stripe.createConnectAccount(this.parseBrandId(brandHeader));
+  createAccount(
+    @Headers('x-brand-context') brandHeader: string,
+    @Req() req: Request & { user: { id: number } },
+  ) {
+    return this.stripe.createConnectAccount(this.parseBrandId(brandHeader), req.user.id);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Get('connect/status')
-  getStatus(@Headers('x-brand-context') brandHeader: string) {
-    return this.stripe.getAccountStatus(this.parseBrandId(brandHeader));
+  getStatus(
+    @Headers('x-brand-context') brandHeader: string,
+    @Req() req: Request & { user: { id: number } },
+  ) {
+    return this.stripe.getAccountStatus(this.parseBrandId(brandHeader), req.user.id);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('connect/onboarding-link')
-  getOnboardingLink(@Headers('x-brand-context') brandHeader: string) {
-    return this.stripe.getOnboardingLink(this.parseBrandId(brandHeader));
+  getOnboardingLink(
+    @Headers('x-brand-context') brandHeader: string,
+    @Req() req: Request & { user: { id: number } },
+  ) {
+    return this.stripe.getOnboardingLink(this.parseBrandId(brandHeader), req.user.id);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('connect/dashboard-link')
-  getDashboardLink(@Headers('x-brand-context') brandHeader: string) {
-    return this.stripe.getDashboardLink(this.parseBrandId(brandHeader));
+  getDashboardLink(
+    @Headers('x-brand-context') brandHeader: string,
+    @Req() req: Request & { user: { id: number } },
+  ) {
+    return this.stripe.getDashboardLink(this.parseBrandId(brandHeader), req.user.id);
   }
 
   /* ─── Client portal endpoint (public, token-authorized) ─── */
