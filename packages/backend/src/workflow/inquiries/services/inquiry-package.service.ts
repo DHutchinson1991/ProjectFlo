@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { ProjectPackageCloneService, parseGuestCountMidpoint } from '../../projects/project-package-clone.service';
@@ -30,6 +30,17 @@ export class InquiryPackageService {
             select: { source_package_id: true },
         });
         const hadPrevious = !!inquiry?.source_package_id;
+
+        if (newPackageId) {
+            const pkg = await this.prisma.service_packages.findUnique({
+                where: { id: newPackageId },
+                select: { brand_id: true },
+            });
+            if (!pkg) throw new NotFoundException('Selected package not found');
+            if (pkg.brand_id !== brandId) {
+                throw new ForbiddenException('Selected package does not belong to this brand');
+            }
+        }
 
         if (newPackageId && hadPrevious) {
             const swapResult = await this.prisma.$transaction(async (tx) => {

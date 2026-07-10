@@ -3,6 +3,10 @@ import { Prisma, $Enums } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { InquiryCrudService } from '../../inquiries/services/inquiry-crud.service';
 import { InquiryPackageService } from '../../inquiries/services/inquiry-package.service';
+import {
+    assertPaymentScheduleBelongsToBrand,
+    assertServicePackageBelongsToBrand,
+} from '../../inquiries/services/inquiry-brand-guards';
 import { CreateInquiryDto } from '../../inquiries/dto/inquiries.dto';
 import { InquiryTasksService } from '../../tasks/inquiry/services/inquiry-tasks.service';
 import { InquiryWizardPrefillService } from './inquiry-wizard-prefill.service';
@@ -48,14 +52,19 @@ export class InquiryWizardLinkService {
         const pkgIdFromResponses = responses['selected_package'] ? Number(responses['selected_package']) : null;
         const resolvedPkgId = (pkgIdFromPayload && !isNaN(pkgIdFromPayload)) ? pkgIdFromPayload
             : (pkgIdFromResponses && !isNaN(pkgIdFromResponses) ? pkgIdFromResponses : null);
-        if (resolvedPkgId && !existingInquiry?.selected_package_id)
+        if (resolvedPkgId && !existingInquiry?.selected_package_id) {
+            await assertServicePackageBelongsToBrand(this.prisma, resolvedPkgId, brandId);
             inquiryUpdate.selected_package_id = resolvedPkgId;
+        }
 
         const resolvedScheduleId = payload.preferred_payment_schedule_template_id
             ?? (responses['payment_schedule_template_id'] != null
                 ? Number(responses['payment_schedule_template_id'])
                 : null);
-        if (resolvedScheduleId) inquiryUpdate.preferred_payment_schedule_template_id = resolvedScheduleId;
+        if (resolvedScheduleId) {
+            await assertPaymentScheduleBelongsToBrand(this.prisma, resolvedScheduleId, brandId);
+            inquiryUpdate.preferred_payment_schedule_template_id = resolvedScheduleId;
+        }
 
         if (!existingInquiry?.event_category && responses['event_type']) {
             inquiryUpdate.event_category = String(responses['event_type']).trim();
@@ -134,7 +143,18 @@ export class InquiryWizardLinkService {
             ?? (responses['payment_schedule_template_id'] != null
                 ? Number(responses['payment_schedule_template_id'])
                 : undefined);
-        if (scheduleId) inferredInquiry.preferred_payment_schedule_template_id = scheduleId;
+        if (scheduleId) {
+            await assertPaymentScheduleBelongsToBrand(this.prisma, scheduleId, brandId);
+            inferredInquiry.preferred_payment_schedule_template_id = scheduleId;
+        }
+
+        if (inferredInquiry.selected_package_id) {
+            await assertServicePackageBelongsToBrand(
+                this.prisma,
+                inferredInquiry.selected_package_id,
+                brandId,
+            );
+        }
 
         if (responses['event_type']) {
             inferredInquiry.event_category = String(responses['event_type']).trim();

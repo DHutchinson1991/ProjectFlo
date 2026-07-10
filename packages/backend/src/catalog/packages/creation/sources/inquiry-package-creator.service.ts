@@ -41,8 +41,11 @@ export class InquiryPackageCreator {
 
     const currency = await this.brandCurrency.resolve(brandId);
 
-    const template = await this.prisma.packageTemplate.findUnique({
-      where: { id: dto.packageTemplateId },
+    const template = await this.prisma.packageTemplate.findFirst({
+      where: {
+        id: dto.packageTemplateId,
+        OR: [{ brand_id: null }, { brand_id: brandId }],
+      },
       include: {
         days: {
           include: {
@@ -64,10 +67,16 @@ export class InquiryPackageCreator {
     if (dto.blueprintDayMappings?.length && dto.sourceDayBlueprintVersionId) {
       const version = await this.prisma.dayBlueprintVersion.findUnique({
         where: { id: dto.sourceDayBlueprintVersionId },
-        include: { days: { select: { id: true } } },
+        include: {
+          days: { select: { id: true } },
+          day_blueprint: { select: { brand_id: true } },
+        },
       });
       if (!version) {
         throw new BadRequestException('sourceDayBlueprintVersionId not found');
+      }
+      if (version.day_blueprint.brand_id !== brandId) {
+        throw new BadRequestException('Selected blueprint version does not belong to this brand');
       }
       validateBlueprintDayMappings(
         template.days.map((day) => day.id),
@@ -312,6 +321,17 @@ export class InquiryPackageCreator {
       // creator: consume failures fail the request (BadRequestException)
       // rather than silently continuing with a partially-seeded package.
       if (dto.sourceDayBlueprintVersionId) {
+        const blueprint = await this.prisma.dayBlueprintVersion.findUnique({
+          where: { id: dto.sourceDayBlueprintVersionId },
+          select: { day_blueprint: { select: { brand_id: true } } },
+        });
+        if (!blueprint) {
+          throw new BadRequestException('sourceDayBlueprintVersionId not found');
+        }
+        if (blueprint.day_blueprint.brand_id !== brandId) {
+          throw new BadRequestException('Selected blueprint version does not belong to this brand');
+        }
+
         try {
           const snapshot = await this.dayBlueprintSnapshot.consumeIntoPackage({
             packageId: result.id,
@@ -340,6 +360,14 @@ export class InquiryPackageCreator {
             blueprintVersionId: dto.sourceDayBlueprintVersionId,
             error: message,
           });
+          try {
+            await this.prisma.service_packages.delete({ where: { id: result.id } });
+          } catch (deleteErr) {
+            this.logger.error(
+              `[builder] Failed to roll back package=${result.id} after blueprint consume failure`,
+              deleteErr instanceof Error ? deleteErr.stack : deleteErr,
+            );
+          }
           throw new BadRequestException(
             `Selected Day Blueprint version could not be consumed: ${message}`,
           );
