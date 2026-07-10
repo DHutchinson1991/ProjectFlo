@@ -5,6 +5,10 @@ import { $Enums } from '@prisma/client';
 import { CreateInquiryDto, UpdateInquiryDto } from '../dto/inquiries.dto';
 import { InquiryTasksService } from '../../tasks/inquiry/services/inquiry-tasks.service';
 import { InquiryPackageService } from './inquiry-package.service';
+import {
+    assertPaymentScheduleBelongsToBrand,
+    assertServicePackageBelongsToBrand,
+} from './inquiry-brand-guards';
 
 /**
  * InquiryCrudService
@@ -24,9 +28,32 @@ export class InquiryCrudService {
     async create(createInquiryDto: CreateInquiryDto, brandId: number) {
         const { first_name, last_name, email, phone_number, ...inquiryData } = createInquiryDto;
 
+        const existingContact = await this.prisma.contacts.findUnique({
+            where: { email },
+            select: { brand_id: true },
+        });
+        if (existingContact?.brand_id != null && existingContact.brand_id !== brandId) {
+            throw new ConflictException('A contact with this email already exists for another brand');
+        }
+
+        if (inquiryData.selected_package_id) {
+            await assertServicePackageBelongsToBrand(
+                this.prisma,
+                inquiryData.selected_package_id,
+                brandId,
+            );
+        }
+        if (inquiryData.preferred_payment_schedule_template_id) {
+            await assertPaymentScheduleBelongsToBrand(
+                this.prisma,
+                inquiryData.preferred_payment_schedule_template_id,
+                brandId,
+            );
+        }
+
         const contact = await this.prisma.contacts.upsert({
             where: { email },
-            update: { first_name, last_name, phone_number, brand_id: brandId },
+            update: { first_name, last_name, phone_number },
             create: { first_name, last_name, email, phone_number, type: $Enums.contacts_type.Client_Lead, brand_id: brandId },
         });
 
@@ -78,6 +105,23 @@ export class InquiryCrudService {
         if (!existingInquiry) throw new NotFoundException(`Inquiry with ID ${id} not found`);
 
         const packageChanging = inquiryData.selected_package_id !== undefined && inquiryData.selected_package_id !== existingInquiry.selected_package_id;
+
+        if (packageChanging && inquiryData.selected_package_id) {
+            await assertServicePackageBelongsToBrand(
+                this.prisma,
+                inquiryData.selected_package_id,
+                brandId,
+            );
+        }
+        if (inquiryData.preferred_payment_schedule_template_id !== undefined
+            && inquiryData.preferred_payment_schedule_template_id !== null
+            && inquiryData.preferred_payment_schedule_template_id !== existingInquiry.preferred_payment_schedule_template_id) {
+            await assertPaymentScheduleBelongsToBrand(
+                this.prisma,
+                inquiryData.preferred_payment_schedule_template_id,
+                brandId,
+            );
+        }
 
         if (first_name || last_name || email || phone_number) {
             if (email && email !== existingInquiry.contact.email) {
