@@ -22,6 +22,7 @@ export class InquiryScheduleSnapshotService {
         await tx.projectFilmSceneSchedule.deleteMany({ where: { project_film: { inquiry_id: inquiryId } } });
         await tx.projectCrewSlotEquipment.deleteMany({ where: { project_crew_slot: { inquiry_id: inquiryId } } });
         await tx.projectActivityMoment.deleteMany({ where: { inquiry_id: inquiryId } });
+        await tx.projectSpaceSlot.deleteMany({ where: { inquiry_id: inquiryId } });
         await tx.projectCrewSlot.deleteMany({ where: { inquiry_id: inquiryId } });
         await tx.projectDaySubject.deleteMany({ where: { inquiry_id: inquiryId } });
         await tx.projectLocationSlot.deleteMany({ where: { inquiry_id: inquiryId } });
@@ -39,6 +40,7 @@ export class InquiryScheduleSnapshotService {
             tx.projectActivityMoment.updateMany({ where, data: ownerUpdate }),
             tx.projectDaySubject.updateMany({ where, data: ownerUpdate }),
             tx.projectLocationSlot.updateMany({ where, data: ownerUpdate }),
+            tx.projectSpaceSlot.updateMany({ where, data: ownerUpdate }),
             tx.projectCrewSlot.updateMany({ where, data: ownerUpdate }),
             tx.projectFilm.updateMany({ where, data: ownerUpdate }),
         ]);

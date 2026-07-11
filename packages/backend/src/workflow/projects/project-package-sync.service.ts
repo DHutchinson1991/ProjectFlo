@@ -66,6 +66,7 @@ export class ProjectPackageSyncService {
         await tx.projectCrewSlotActivity.deleteMany({ where: { project_crew_slot: where } });
         await tx.projectCrewSlotEquipment.deleteMany({ where: { project_crew_slot: where } });
         await tx.projectFilmSceneSchedule.deleteMany({ where: { project_film: where } });
+        await tx.projectSpaceSlot.deleteMany({ where });
         await tx.projectActivityMoment.deleteMany({ where });
         await tx.projectDaySubject.deleteMany({ where });
         await tx.projectLocationSlot.deleteMany({ where });

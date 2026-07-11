@@ -4,6 +4,7 @@ import { Prisma, InquiryWizardStage } from '@prisma/client';
 import { DEFAULT_CURRENCY } from '@projectflo/shared';
 import { GeocodingService } from '../locations/geocoding.service';
 import { ProjectFilmCloneService } from './project-film-clone.service';
+import { ProjectTaskReassignService } from './project-task-reassign.service';
 import { buildPackageContentsSnapshot } from './package-contents-snapshot.util';
 
 /**
@@ -82,6 +83,7 @@ export class ProjectPackageCloneService {
     private readonly prisma: PrismaService,
     private readonly filmCloneService: ProjectFilmCloneService,
     private readonly geocodingService: GeocodingService,
+    private readonly taskReassign: ProjectTaskReassignService,
   ) {}
 
   /**
@@ -722,7 +724,7 @@ export class ProjectPackageCloneService {
     return this.prisma.$transaction(async (tx) => {
       await this._deleteInstanceData(tx, { inquiry_id: inquiryId });
       const result = await this._clone(tx, { inquiryId, packageId });
-      await this._reassignInquiryTasksFromCrew(tx, inquiryId);
+      await this.taskReassign.reassignInquiryTasksFromCrew(tx, inquiryId);
       return result;
     });
   }
@@ -757,6 +759,9 @@ export class ProjectPackageCloneService {
     await tx.projectFilmSceneSchedule.deleteMany({
       where: { project_film: where },
     });
+
+    // Space slots (floor plans) — children cascade on delete
+    await tx.projectSpaceSlot.deleteMany({ where });
 
     // Entity tables
     await tx.projectActivityMoment.deleteMany({ where });
@@ -889,93 +894,6 @@ export class ProjectPackageCloneService {
     );
   }
 
-  private async _reassignInquiryTasksFromCrew(
-    tx: Prisma.TransactionClient,
-    inquiryId: number,
-  ) {
-    const crewSlots = await tx.projectCrewSlot.findMany({
-      select: {
-        crew_id: true,
-        job_role_id: true,
-      },
-    });
-
-    if (crewSlots.length === 0) {
-      await tx.inquiry_tasks.updateMany({
-        where: { inquiry_id: inquiryId, is_active: true, is_task_group: false },
-        data: { assigned_to_id: null },
-      });
-      return;
-    }
-
-    const crewRoleRows = await tx.crewJobRole.findMany({
-      where: {
-        crew_id: { in: crewSlots.map((slot) => slot.crew_id!) },
-      },
-      include: {
-        payment_bracket: { select: { level: true } },
-      },
-    });
-
-    const validAssignments = new Set(
-      crewRoleRows.map((row) => `${row.crew_id}-${row.job_role_id}`),
-    );
-    const roleToCrew = new Map<number, Array<{ crewId: number; bracketLevel: number }>>();
-
-    for (const slot of crewSlots) {
-      const crewId = slot.crew_id;
-      const jobRoleId = slot.job_role_id;
-      if (!crewId || !jobRoleId) continue;
-      if (!validAssignments.has(`${crewId}-${jobRoleId}`)) continue;
-
-      const bracketLevel =
-        crewRoleRows.find(
-          (row) => row.crew_id === crewId && row.job_role_id === jobRoleId,
-        )?.payment_bracket?.level ?? 0;
-
-      if (!roleToCrew.has(jobRoleId)) {
-        roleToCrew.set(jobRoleId, []);
-      }
-      const list = roleToCrew.get(jobRoleId)!;
-      if (!list.some((entry) => entry.crewId === crewId)) {
-        list.push({ crewId, bracketLevel });
-      }
-    }
-
-    for (const [, list] of roleToCrew) {
-      list.sort((left, right) => left.bracketLevel - right.bracketLevel);
-    }
-
-    const pickCrewForRole = (roleId: number): number | null => {
-      const list = roleToCrew.get(roleId);
-      if (!list || list.length === 0) return null;
-      return list[0].crewId;
-    };
-
-    const tasks = await tx.inquiry_tasks.findMany({
-      where: { inquiry_id: inquiryId, is_active: true, is_task_group: false },
-      select: {
-        id: true,
-        job_role_id: true,
-      },
-    });
-
-    await Promise.all(
-      tasks.map((task) => {
-        const roleId = task.job_role_id;
-        if (!roleId) {
-          return Promise.resolve(null);
-        }
-
-        const assignedToId = pickCrewForRole(roleId);
-        return tx.inquiry_tasks.update({
-          where: { id: task.id },
-          data: { assigned_to_id: assignedToId },
-        });
-      }),
-    );
-  }
-
   /**
    * After cloning, check if the inquiry already has a submitted INTAKE-stage
    * Inquiry Wizard submission. If so, prefill newly-created location slot
@@ -1098,7 +1016,10 @@ export class ProjectPackageCloneService {
     const contactFullName = [contactFirstName, contactLastName].filter(Boolean).join(' ');
 
     const contactRole = ((responses['contact_role'] as string | undefined) ?? '').toLowerCase().trim();
-    const partnerName = ((responses['partner_name'] as string | undefined) ?? '').trim();
+    const partnerFirst = ((responses['partner_first_name'] as string | undefined) ?? '').trim();
+    const partnerLast = ((responses['partner_last_name'] as string | undefined) ?? '').trim();
+    const partnerName = [partnerFirst, partnerLast].filter(Boolean).join(' ')
+      || ((responses['partner_name'] as string | undefined) ?? '').trim();
 
     const emptySubjects = await prisma.projectDaySubject.findMany({
       where: { inquiry_id: inquiryId, real_name: null },
@@ -1107,19 +1028,18 @@ export class ProjectPackageCloneService {
 
     let subjectsFilled = 0;
     if (contactRole && contactRole !== 'prefer not to say' && contactFullName) {
-      let partnerRole: string | null = null;
-      if (contactRole === 'bride') partnerRole = 'groom';
-      else if (contactRole === 'groom') partnerRole = 'bride';
+      const nameMap = new Map<string, string>();
+      nameMap.set(contactRole, contactFullName);
+
+      const partnerRole = ((responses['partner_role'] as string | undefined) ?? '').toLowerCase().trim()
+        || (contactRole === 'bride' ? 'groom' : contactRole === 'groom' ? 'bride' : '');
+      if (partnerRole && partnerName) {
+        nameMap.set(partnerRole, partnerName);
+      }
 
       for (const subject of emptySubjects) {
-        const subjectLower = subject.name.toLowerCase();
-        let realName: string | null = null;
-
-        if (subjectLower.includes(contactRole)) {
-          realName = contactFullName;
-        } else if (partnerRole && subjectLower.includes(partnerRole) && partnerName) {
-          realName = partnerName;
-        }
+        const subjectNameLower = subject.name.toLowerCase().trim();
+        const realName = nameMap.get(subjectNameLower) ?? null;
 
         if (realName) {
           await prisma.projectDaySubject.update({
