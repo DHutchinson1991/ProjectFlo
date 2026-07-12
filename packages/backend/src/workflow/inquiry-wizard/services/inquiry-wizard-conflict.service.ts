@@ -26,6 +26,7 @@ export class InquiryWizardConflictService {
                 where: {
                     id: { not: submission.inquiry.id },
                     wedding_date: { gte: dayStart, lte: dayEnd },
+                    contact: { brand_id: brandId },
                 },
                 include: { contact: { select: { first_name: true, last_name: true } } },
             }),
@@ -84,8 +85,18 @@ export class InquiryWizardConflictService {
         const dayEnd = new Date(weddingDate);
         dayEnd.setHours(23, 59, 59, 999);
 
+        const brandMembers = await this.prisma.brandMember.findMany({
+            where: { brand_id: brandId, is_active: true },
+            select: { crew_id: true },
+        });
+        const crewIds = brandMembers.map((member) => member.crew_id);
+        if (crewIds.length === 0) {
+            return { conflicts: [] };
+        }
+
         const events = await this.prisma.calendar_events.findMany({
             where: {
+                crew_id: { in: crewIds },
                 event_type: { in: ['WEDDING_DAY', 'PROJECT_ASSIGNMENT'] },
                 start_time: { lte: dayEnd },
                 end_time: { gte: dayStart },
