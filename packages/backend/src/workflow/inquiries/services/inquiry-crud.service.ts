@@ -24,9 +24,17 @@ export class InquiryCrudService {
     async create(createInquiryDto: CreateInquiryDto, brandId: number) {
         const { first_name, last_name, email, phone_number, ...inquiryData } = createInquiryDto;
 
+        const existingContact = await this.prisma.contacts.findUnique({
+            where: { email },
+            select: { brand_id: true },
+        });
+        if (existingContact?.brand_id != null && existingContact.brand_id !== brandId) {
+            throw new ConflictException('A contact with this email already exists');
+        }
+
         const contact = await this.prisma.contacts.upsert({
             where: { email },
-            update: { first_name, last_name, phone_number, brand_id: brandId },
+            update: { first_name, last_name, phone_number },
             create: { first_name, last_name, email, phone_number, type: $Enums.contacts_type.Client_Lead, brand_id: brandId },
         });
 
