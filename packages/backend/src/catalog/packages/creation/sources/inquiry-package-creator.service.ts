@@ -7,6 +7,7 @@ import { PackageCreationPipelineService } from '../package-creation-pipeline.ser
 import { PackageCreationRunLogger } from '../run/package-creation-run-logger';
 import { BrandCurrencyResolver } from '../shared/brand-currency.resolver';
 import { validateBlueprintDayMappings } from '../shared/normalize-blueprint-create-request';
+import { PackageTemplatesService } from '../../templates/package-templates.service';
 
 /**
  * Inquiry-level package creation: creates a draft, client-scoped package
@@ -24,6 +25,7 @@ export class InquiryPackageCreator {
     private readonly packageCreationPipeline: PackageCreationPipelineService,
     private readonly brandCurrency: BrandCurrencyResolver,
     private readonly dayBlueprintSnapshot: DayBlueprintSnapshotService,
+    private readonly packageTemplatesService: PackageTemplatesService,
   ) {}
 
   async create(
@@ -41,25 +43,7 @@ export class InquiryPackageCreator {
 
     const currency = await this.brandCurrency.resolve(brandId);
 
-    const template = await this.prisma.packageTemplate.findUnique({
-      where: { id: dto.packageTemplateId },
-      include: {
-        days: {
-          include: {
-            event_day_template: {
-              include: {
-                activity_presets: {
-                  include: { moments: { orderBy: { order_index: 'asc' } } },
-                  orderBy: { order_index: 'asc' },
-                },
-              },
-            },
-          },
-          orderBy: { order_index: 'asc' },
-        },
-      },
-    });
-    if (!template) throw new NotFoundException('Package template not found');
+    const template = await this.packageTemplatesService.findOne(dto.packageTemplateId, brandId);
 
     if (dto.blueprintDayMappings?.length && dto.sourceDayBlueprintVersionId) {
       const version = await this.prisma.dayBlueprintVersion.findUnique({

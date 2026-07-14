@@ -106,6 +106,16 @@ export class InquiryWizardSubmissionService {
         brandId: number,
         templateId: number,
     ) {
+        if (payload.inquiry_id) {
+            const inquiry = await this.prisma.inquiries.findFirst({
+                where: { id: payload.inquiry_id, contact: { brand_id: brandId } },
+                select: { id: true },
+            });
+            if (!inquiry) {
+                throw new NotFoundException('Inquiry not found');
+            }
+        }
+
         const submission = await this.prisma.inquiry_wizard_submissions.create({
             data: {
                 brand_id: brandId,
