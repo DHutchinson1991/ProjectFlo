@@ -88,18 +88,18 @@ export class InquiryLifecycleService {
             if (hasScheduleData > 0) {
                 await this.snapshotService.transferScheduleOwnership(inquiryId, project.id, prisma);
                 this.logger.log(`Transferred schedule ownership from inquiry ${inquiryId} → project ${project.id}`);
-            } else if (inquiry.selected_package_id) {
+            } else if (packageIdForSnapshot) {
                 try {
                     const guestCount = parseGuestCountMidpoint(inquiry.guest_count) ?? undefined;
                     const result = await this.packageCloneService.clonePackageToProject(
                         project.id,
-                        inquiry.selected_package_id,
+                        packageIdForSnapshot,
                         prisma,
                         guestCount ? { guestCount } : undefined,
                     );
                     this.logger.log(`Package clone for project ${project.id}: ${result.event_days_created} days, ${result.activities_created} activities, ${result.films_created} films, ${result.crew_slots_created} crew slots`);
                 } catch (error) {
-                    this.logger.error(`Failed to clone package ${inquiry.selected_package_id} for project ${project.id}`, error instanceof Error ? error.stack : error);
+                    this.logger.error(`Failed to clone package ${packageIdForSnapshot} for project ${project.id}`, error instanceof Error ? error.stack : error);
                     throw error;
                 }
             }

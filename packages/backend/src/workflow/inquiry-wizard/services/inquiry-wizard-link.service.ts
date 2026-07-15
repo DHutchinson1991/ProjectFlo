@@ -48,8 +48,7 @@ export class InquiryWizardLinkService {
         const pkgIdFromResponses = responses['selected_package'] ? Number(responses['selected_package']) : null;
         const resolvedPkgId = (pkgIdFromPayload && !isNaN(pkgIdFromPayload)) ? pkgIdFromPayload
             : (pkgIdFromResponses && !isNaN(pkgIdFromResponses) ? pkgIdFromResponses : null);
-        if (resolvedPkgId && !existingInquiry?.selected_package_id)
-            inquiryUpdate.selected_package_id = resolvedPkgId;
+        const shouldAssignPackage = Boolean(resolvedPkgId && !existingInquiry?.selected_package_id);
 
         const resolvedScheduleId = payload.preferred_payment_schedule_template_id
             ?? (responses['payment_schedule_template_id'] != null
@@ -61,20 +60,21 @@ export class InquiryWizardLinkService {
             inquiryUpdate.event_category = String(responses['event_type']).trim();
         }
 
+        if (shouldAssignPackage) {
+            try {
+                await this.inquiryPackageService.handlePackageSelection(payload.inquiry_id!, resolvedPkgId!, brandId);
+                inquiryUpdate.selected_package_id = resolvedPkgId;
+            } catch (err) {
+                this.logger.error(`Failed to create inquiry package snapshot for inquiry ${payload.inquiry_id}:`, err instanceof Error ? err.stack : err);
+            }
+        }
+
         if (Object.keys(inquiryUpdate).length > 0) {
             await this.prisma.inquiries.update({
                 where: { id: payload.inquiry_id },
                 data: inquiryUpdate as Prisma.inquiriesUpdateInput,
             });
             await this.inquiryTasksService.syncReviewInquiryAutoSubtasks(payload.inquiry_id!);
-
-            if (resolvedPkgId && !existingInquiry?.selected_package_id) {
-                try {
-                    await this.inquiryPackageService.handlePackageSelection(payload.inquiry_id!, resolvedPkgId, brandId);
-                } catch (err) {
-                    this.logger.error(`Failed to create inquiry package snapshot for inquiry ${payload.inquiry_id}:`, err instanceof Error ? err.stack : err);
-                }
-            }
         }
 
         if (existingInquiry?.contact) {
