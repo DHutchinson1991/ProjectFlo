@@ -155,10 +155,6 @@ export class PackageBlueprintResyncService {
       `Pre-resync safety snapshot (blueprint → v${context.latestVersionNumber})`,
     );
 
-    const selectedActivityIds = await this.collectBlueprintActivityIds(packageId);
-
-    await this.clearBlueprintDerivedPackageContent(packageId);
-
     const pkgRow = await this.prisma.service_packages.findUnique({
       where: { id: packageId },
       select: { contents: true },
@@ -174,8 +170,8 @@ export class PackageBlueprintResyncService {
     await this.snapshotService.consumeIntoPackage({
       packageId,
       blueprintVersionId: context.latestVersionId,
-      selectedActivityIds: selectedActivityIds.length > 0 ? selectedActivityIds : undefined,
       blueprintDayMappings: storedMappings,
+      replaceExistingBlueprintContent: true,
     });
 
     await this.placementSeed.seedPackagePlacementsFromBlueprint(packageId, { seatLayout });
@@ -294,35 +290,4 @@ export class PackageBlueprintResyncService {
     return { days, activities, moments };
   }
 
-  private async collectBlueprintActivityIds(packageId: number): Promise<number[]> {
-    const rows = await this.prisma.packageActivity.findMany({
-      where: {
-        package_id: packageId,
-        source_day_blueprint_activity_id: { not: null },
-      },
-      select: { source_day_blueprint_activity_id: true },
-    });
-    return rows
-      .map((row) => row.source_day_blueprint_activity_id)
-      .filter((id): id is number => id != null);
-  }
-
-  /** Removes package rows snapshotted from a blueprint so re-consume does not duplicate. */
-  private async clearBlueprintDerivedPackageContent(packageId: number) {
-    await this.prisma.$transaction(async (tx) => {
-      const blueprintActivities = await tx.packageActivity.findMany({
-        where: {
-          package_id: packageId,
-          source_day_blueprint_activity_id: { not: null },
-        },
-        select: { id: true },
-      });
-      const activityIds = blueprintActivities.map((row) => row.id);
-      if (activityIds.length === 0) return;
-
-      await tx.packageActivity.deleteMany({
-        where: { id: { in: activityIds } },
-      });
-    });
-  }
 }

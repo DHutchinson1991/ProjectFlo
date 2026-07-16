@@ -50,14 +50,14 @@ describe('PackageBlueprintResyncService', () => {
           source_day_blueprint: {
             id: 10,
             display_name: 'Wedding Blueprint',
-            latest_published_version_id: 20,
+            latest_published_version_id: 30,
           },
           source_day_blueprint_version: { id: 20, version_number: 1 },
         }),
-        findUnique: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue({ contents: {} }),
       },
       dayBlueprintVersion: {
-        findUnique: jest.fn().mockResolvedValue({ version_number: 1 }),
+        findUnique: jest.fn().mockResolvedValue({ version_number: 2 }),
       },
       packageActivity: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -103,5 +103,33 @@ describe('PackageBlueprintResyncService', () => {
       seatLayout: CeremonySeatLayoutMode.FLUID,
     });
     expect(snapshotService.consumeIntoPackage).not.toHaveBeenCalled();
+  });
+
+  it('replaces blueprint structure atomically via consumeIntoPackage', async () => {
+    const result = await service.resyncToLatestBlueprint(7, 1, {
+      strategy: PackageBlueprintResyncStrategy.STRUCTURE_ONLY,
+    });
+
+    expect(result).toEqual({
+      already_current: false,
+      package_id: 7,
+      new_blueprint_version_id: 30,
+    });
+    expect(versionsService.createVersion).toHaveBeenCalledWith(
+      7,
+      1,
+      'Pre-resync safety snapshot (blueprint → v2)',
+    );
+    expect(snapshotService.consumeIntoPackage).toHaveBeenCalledWith({
+      packageId: 7,
+      blueprintVersionId: 30,
+      blueprintDayMappings: undefined,
+      replaceExistingBlueprintContent: true,
+    });
+    expect(placementSeed.seedPackagePlacementsFromBlueprint).toHaveBeenCalled();
+    expect(planningMaintenance.rerunPackageBlocking).toHaveBeenCalledWith(7, 'blueprint-resync', {
+      skipPlacementSeed: true,
+      seatLayout: CeremonySeatLayoutMode.FLUID,
+    });
   });
 });
