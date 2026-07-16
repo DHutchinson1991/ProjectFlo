@@ -44,6 +44,11 @@ export class DayBlueprintSnapshotService {
     selectedActivityIds?: number[];
     /** DayBlueprintDay.id → PackageTemplateDay.id; resolved to package_event_day rows. */
     blueprintDayMappings?: { blueprintDayId: number; eventTypeDayLinkId: number }[];
+    /**
+     * When true, blueprint-derived package rows are removed inside the same
+     * transaction before materializing the new snapshot (safe replace).
+     */
+    replaceExistingBlueprintContent?: boolean;
   }): Promise<{
     activitiesCreated: number;
     momentsCreated: number;
@@ -51,7 +56,13 @@ export class DayBlueprintSnapshotService {
     spaceSlotsCreated: number;
     subjectsCreated: number;
   }> {
-    const { packageId, blueprintVersionId, selectedActivityIds, blueprintDayMappings } = params;
+    const {
+      packageId,
+      blueprintVersionId,
+      selectedActivityIds,
+      blueprintDayMappings,
+      replaceExistingBlueprintContent,
+    } = params;
 
     const version = await this.prisma.dayBlueprintVersion.findUnique({
       where: { id: blueprintVersionId },
@@ -129,6 +140,10 @@ export class DayBlueprintSnapshotService {
     let subjectsCreated = 0;
 
     await this.prisma.$transaction(async (tx) => {
+      if (replaceExistingBlueprintContent) {
+        await this.clearBlueprintDerivedPackageContentInTx(tx, packageId);
+      }
+
       const blueprintSlots = new Map<number, SnapshotSpaceSlot>(
         version.space_slots.map((slot) => [slot.id, slot]),
       );
@@ -303,6 +318,26 @@ export class DayBlueprintSnapshotService {
     });
 
     return { activitiesCreated, momentsCreated, actionsCreated, spaceSlotsCreated, subjectsCreated };
+  }
+
+  /** Removes package rows snapshotted from a blueprint (same transaction as consume). */
+  private async clearBlueprintDerivedPackageContentInTx(
+    tx: Prisma.TransactionClient,
+    packageId: number,
+  ) {
+    const blueprintActivities = await tx.packageActivity.findMany({
+      where: {
+        package_id: packageId,
+        source_day_blueprint_activity_id: { not: null },
+      },
+      select: { id: true },
+    });
+    const activityIds = blueprintActivities.map((row) => row.id);
+    if (activityIds.length === 0) return;
+
+    await tx.packageActivity.deleteMany({
+      where: { id: { in: activityIds } },
+    });
   }
 
   private async ensurePackageSubjectsFromBlueprint(
