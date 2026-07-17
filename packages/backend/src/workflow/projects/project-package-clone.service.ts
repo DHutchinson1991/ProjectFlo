@@ -332,11 +332,21 @@ export class ProjectPackageCloneService {
     // ── 5b. Clone PackageSpaceSlot → ProjectSpaceSlot ────────
     const packageSpaceSlots = await prisma.packageSpaceSlot.findMany({
       where: { package_id: packageId },
-      include: { type_tags: true },
+      include: {
+        type_tags: true,
+        objects: { orderBy: { order_index: 'asc' } },
+        subject_positions: { orderBy: { order_index: 'asc' } },
+        camera_positions: { orderBy: { order_index: 'asc' } },
+      },
       orderBy: [{ event_day_template_id: 'asc' }, { label: 'asc' }],
     });
 
     const spaceSlotMap = new Map<number, number>();
+    const packageObjectToProjectObject = new Map<number, number>();
+    const pendingSpaceSlotCameras: Array<{
+      projectSpaceSlotId: number;
+      camera: (typeof packageSpaceSlots)[number]['camera_positions'][number];
+    }> = [];
 
     for (const pss of packageSpaceSlots) {
       const projDayId = templateToProjectDayMap.get(pss.event_day_template_id);
@@ -354,12 +364,60 @@ export class ProjectPackageCloneService {
           label: pss.label,
           project_location_slot_id: projLocationSlotId,
           location_space_id: pss.location_space_id,
+          canvas_width: pss.canvas_width,
+          canvas_height: pss.canvas_height,
+          layout_json: pss.layout_json ?? undefined,
           ...(pss.type_tags.length ? {
             type_tags: { create: pss.type_tags.map((t) => ({ space_type: t.space_type })) },
           } : {}),
         },
       });
       spaceSlotMap.set(pss.id, projectSpaceSlot.id);
+
+      for (const object of pss.objects) {
+        const projectObject = await prisma.projectSpaceSlotObject.create({
+          data: {
+            project_space_slot_id: projectSpaceSlot.id,
+            object_type: object.object_type,
+            label: object.label,
+            x: object.x,
+            y: object.y,
+            width: object.width,
+            height: object.height,
+            rotation: object.rotation,
+            metadata: object.metadata ?? undefined,
+            order_index: object.order_index,
+          },
+        });
+        packageObjectToProjectObject.set(object.id, projectObject.id);
+      }
+
+      for (const subjectPosition of pss.subject_positions) {
+        const projectDaySubjectId = subjectPosition.day_subject_id
+          ? subjectMap.get(subjectPosition.day_subject_id) ?? null
+          : null;
+        const boundObjectId = subjectPosition.bound_object_id
+          ? packageObjectToProjectObject.get(subjectPosition.bound_object_id) ?? null
+          : null;
+
+        await prisma.projectSpaceSlotSubject.create({
+          data: {
+            project_space_slot_id: projectSpaceSlot.id,
+            project_day_subject_id: projectDaySubjectId,
+            label: subjectPosition.label,
+            x: subjectPosition.x,
+            y: subjectPosition.y,
+            order_index: subjectPosition.order_index,
+          },
+        });
+      }
+
+      for (const camera of pss.camera_positions) {
+        pendingSpaceSlotCameras.push({
+          projectSpaceSlotId: projectSpaceSlot.id,
+          camera,
+        });
+      }
     }
 
     this.logger.debug(`  Space slots cloned: ${spaceSlotMap.size}`);
@@ -408,6 +466,26 @@ export class ProjectPackageCloneService {
     }
 
     this.logger.debug(`  Crew slots cloned: ${crewSlotMap.size}`);
+
+    for (const { projectSpaceSlotId, camera } of pendingSpaceSlotCameras) {
+      const projectCrewSlotId = camera.crew_slot_id
+        ? crewSlotMap.get(camera.crew_slot_id) ?? null
+        : null;
+
+      await prisma.projectSpaceSlotCamera.create({
+        data: {
+          project_space_slot_id: projectSpaceSlotId,
+          project_crew_slot_id: projectCrewSlotId,
+          label: camera.label,
+          x: camera.x,
+          y: camera.y,
+          rotation: camera.rotation,
+          focal_length_mm: camera.focal_length_mm,
+          is_unmanned: camera.is_unmanned,
+          order_index: camera.order_index,
+        },
+      });
+    }
 
     // ── 8. Clone PackageFilm → ProjectFilm ────────────────────────
     // Only clone the PackageFilm records that are currently listed in
