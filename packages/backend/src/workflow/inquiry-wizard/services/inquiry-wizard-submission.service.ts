@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, InquiryWizardStage } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { CreateInquiryWizardSubmissionDto } from '../dto/create-inquiry-wizard-submission.dto';
@@ -186,6 +186,9 @@ export class InquiryWizardSubmissionService {
         data: { review_notes?: string; review_checklist_state?: Record<string, unknown> },
     ) {
         const submission = await this.getSubmissionById(submissionId, brandId);
+        if (submission.template.stage !== InquiryWizardStage.INTAKE) {
+            throw new BadRequestException('Only INTAKE-stage submissions can be reviewed');
+        }
 
         const updated = await this.prisma.inquiry_wizard_submissions.update({
             where: { id: submissionId },
