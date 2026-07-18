@@ -49,8 +49,7 @@ export default function InquiryWizardReviewScreen() {
         const load = async () => {
             try {
                 setLoading(true);
-                const submissions = await inquiryWizardSubmissionsApi.getByInquiryId(inquiryId);
-                const sub = submissions[0] || null;
+                const sub = await inquiryWizardSubmissionsApi.getSingleByInquiryId(inquiryId, 'INTAKE');
                 setSubmission(sub);
                 if (sub) {
                     setReviewNotes(sub.review_notes ?? "");
