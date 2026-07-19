@@ -39,6 +39,15 @@ export class InquiryPackageCreator {
       selectedActivityPresetCount: dto.selectedActivityPresetIds.length,
     });
 
+    const hasBlueprintSelection = Boolean(dto.sourceDayBlueprintVersionId);
+    const hasPresetSelection = dto.selectedActivityPresetIds.length > 0;
+    const hasBlueprintActivities = (dto.selectedDayBlueprintActivityIds?.length ?? 0) > 0;
+    if (!hasPresetSelection && !(hasBlueprintSelection && hasBlueprintActivities)) {
+      throw new BadRequestException(
+        'Select at least one activity preset or a day blueprint with activities',
+      );
+    }
+
     const currency = await this.brandCurrency.resolve(brandId);
 
     const template = await this.prisma.packageTemplate.findUnique({

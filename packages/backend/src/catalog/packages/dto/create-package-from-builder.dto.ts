@@ -1,4 +1,4 @@
-import { IsNumber, IsArray, IsOptional, IsString, ValidateNested, ArrayMinSize, IsInt } from 'class-validator';
+import { IsNumber, IsArray, IsOptional, IsString, ValidateNested, ArrayMinSize, IsInt, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 import { BlueprintDayMappingDto } from '../creation/dto/blueprint-day-mapping.dto';
 
@@ -22,6 +22,7 @@ export class CreatePackageFromBuilderDto {
   packageTemplateId!: number;
 
   @IsArray()
+  @ValidateIf((dto: CreatePackageFromBuilderDto) => !dto.sourceDayBlueprintVersionId)
   @ArrayMinSize(1)
   @IsNumber({}, { each: true })
   @Type(() => Number)
