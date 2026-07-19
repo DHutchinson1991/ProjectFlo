@@ -49,7 +49,7 @@ export function useBuilderPackage(currentScreenId: string, eventTypes: EventType
         const builderFilms: Array<{ type: string; activityPresetId?: number; activityName?: string }> = responses.builder_films || [];
         const etName = (responses.event_type || '').toLowerCase();
         const matchedET = eventTypes.find((e: EventType) => e.name?.toLowerCase() === etName);
-        if (!matchedET || builderActivities.length === 0) return null;
+        if (!matchedET) return null;
 
         const sourceDayBlueprintVersionId =
             (responses.source_day_blueprint_version_id as number | undefined) ??
@@ -58,6 +58,11 @@ export function useBuilderPackage(currentScreenId: string, eventTypes: EventType
             (responses.selected_day_blueprint_activity_ids as number[] | undefined) ??
             (responses.selectedDayBlueprintActivityIds as number[] | undefined);
         const blueprintDayMappings = readBlueprintDayMappings(responses);
+        const hasBlueprintSelection =
+            Boolean(sourceDayBlueprintVersionId) &&
+            (selectedDayBlueprintActivityIds?.length ?? 0) > 0;
+
+        if (!hasBlueprintSelection && builderActivities.length === 0) return null;
 
         const customPkg = await wizardStudioDataApi.createPackageFromBuilder({
             packageTemplateId: matchedET.id,
