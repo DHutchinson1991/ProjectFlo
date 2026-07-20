@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma, $Enums } from '@prisma/client';
+import { Prisma, $Enums, InquiryWizardStage } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { InquiryCrudService } from '../../inquiries/services/inquiry-crud.service';
 import { InquiryPackageService } from '../../inquiries/services/inquiry-package.service';
@@ -32,8 +32,18 @@ export class InquiryWizardLinkService {
         const contactId = existingInquiry?.contact_id ?? undefined;
         const inquiryUpdate: Record<string, unknown> = {};
 
-        // Always prefer wizard-submitted date over placeholder date set at inquiry creation
-        if (responses['wedding_date'])
+        const hasPriorIntakeSubmission = await this.prisma.inquiry_wizard_submissions.findFirst({
+            where: {
+                inquiry_id: payload.inquiry_id,
+                brand_id: brandId,
+                template: { stage: InquiryWizardStage.INTAKE },
+            },
+            select: { id: true },
+        });
+        const isFirstWizardLink = !hasPriorIntakeSubmission;
+
+        // Prefer wizard-submitted date over placeholder date set at inquiry creation (first link only)
+        if (isFirstWizardLink && responses['wedding_date'])
             inquiryUpdate.wedding_date = new Date(responses['wedding_date'] as string);
         if (!existingInquiry?.guest_count && responses['guest_count'])
             inquiryUpdate.guest_count = responses['guest_count'] as string;
@@ -42,7 +52,8 @@ export class InquiryWizardLinkService {
             inquiryUpdate.notes = notesValue;
         if (!existingInquiry?.lead_source && responses['lead_source'])
             inquiryUpdate.lead_source = responses['lead_source'] as string;
-        inquiryUpdate.lead_source_details = JSON.stringify(responses);
+        if (isFirstWizardLink || !existingInquiry?.lead_source_details)
+            inquiryUpdate.lead_source_details = JSON.stringify(responses);
 
         const pkgIdFromPayload = payload.selected_package_id;
         const pkgIdFromResponses = responses['selected_package'] ? Number(responses['selected_package']) : null;
