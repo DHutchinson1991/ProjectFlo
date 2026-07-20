@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Prisma, InquiryWizardStage } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
@@ -15,10 +15,15 @@ export class InquiryWizardTemplateService {
     constructor(private readonly prisma: PrismaService) {}
 
     async getActiveTemplate(brandId?: number, stage: InquiryWizardStage = InquiryWizardStage.INTAKE) {
+        if (!brandId) {
+            throw new NotFoundException(
+                stage === InquiryWizardStage.DISCOVERY_CALL
+                    ? 'No active discovery-call template found'
+                    : 'No active inquiry wizard template found',
+            );
+        }
+
         if (stage === InquiryWizardStage.DISCOVERY_CALL) {
-            if (!brandId) {
-                throw new NotFoundException('No active discovery-call template found');
-            }
             return this.getActiveDiscoveryCallTemplate(brandId);
         }
 
@@ -26,16 +31,12 @@ export class InquiryWizardTemplateService {
             where: {
                 is_active: true,
                 stage,
-                ...(brandId ? { brand_id: brandId } : {}),
+                brand_id: brandId,
             },
             include: { questions: { orderBy: { order_index: 'asc' } } },
         });
 
         if (existing) return existing;
-
-        if (!brandId) {
-            throw new NotFoundException('No active inquiry wizard template found');
-        }
 
         return this.createDefaultTemplate(brandId);
     }
@@ -199,6 +200,9 @@ export class InquiryWizardTemplateService {
 
     async generateShareToken(templateId: number, brandId: number): Promise<string> {
         const template = await this.getTemplateById(templateId, brandId);
+        if (template.stage !== InquiryWizardStage.INTAKE) {
+            throw new BadRequestException('Only intake questionnaire templates can be shared publicly');
+        }
         if (template.share_token) return template.share_token;
 
         const token = randomUUID();
@@ -236,7 +240,7 @@ export class InquiryWizardTemplateService {
             },
         });
 
-        if (!template || !template.is_active) {
+        if (!template || !template.is_active || template.stage !== InquiryWizardStage.INTAKE) {
             throw new NotFoundException('Questionnaire not found or no longer active');
         }
 

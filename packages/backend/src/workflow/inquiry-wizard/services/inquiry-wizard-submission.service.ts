@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, InquiryWizardStage } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { CreateInquiryWizardSubmissionDto } from '../dto/create-inquiry-wizard-submission.dto';
@@ -106,6 +106,26 @@ export class InquiryWizardSubmissionService {
         brandId: number,
         templateId: number,
     ) {
+        if (payload.inquiry_id) {
+            const existing = await this.prisma.inquiry_wizard_submissions.findFirst({
+                where: {
+                    inquiry_id: payload.inquiry_id,
+                    brand_id: brandId,
+                    template: { stage: InquiryWizardStage.DISCOVERY_CALL },
+                },
+                orderBy: { submitted_at: 'desc' },
+            });
+            if (existing) {
+                return this.updateSubmission(existing.id, {
+                    responses: payload.responses,
+                    call_notes: payload.call_notes,
+                    transcript: payload.transcript,
+                    sentiment: payload.sentiment,
+                    call_duration_seconds: payload.call_duration_seconds,
+                }, brandId);
+            }
+        }
+
         const submission = await this.prisma.inquiry_wizard_submissions.create({
             data: {
                 brand_id: brandId,
@@ -140,9 +160,13 @@ export class InquiryWizardSubmissionService {
     async updateSubmission(submissionId: number, payload: UpdateInquiryWizardSubmissionDto, brandId: number) {
         const existing = await this.prisma.inquiry_wizard_submissions.findFirst({
             where: { id: submissionId, brand_id: brandId },
+            include: { template: { select: { stage: true } } },
         });
         if (!existing) {
             throw new NotFoundException('Inquiry wizard submission not found');
+        }
+        if (existing.template.stage !== InquiryWizardStage.DISCOVERY_CALL) {
+            throw new BadRequestException('Only discovery-call submissions can be patched via this endpoint');
         }
 
         return this.prisma.inquiry_wizard_submissions.update({
