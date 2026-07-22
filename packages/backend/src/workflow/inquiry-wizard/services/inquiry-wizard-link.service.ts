@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, $Enums } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { InquiryCrudService } from '../../inquiries/services/inquiry-crud.service';
@@ -29,18 +29,24 @@ export class InquiryWizardLinkService {
             where: { id: payload.inquiry_id },
             include: { contact: { select: { id: true, first_name: true, last_name: true, email: true, phone_number: true } } },
         });
-        const contactId = existingInquiry?.contact_id ?? undefined;
+        if (!existingInquiry) {
+            throw new NotFoundException(`Inquiry with ID ${payload.inquiry_id} not found`);
+        }
+        if (existingInquiry.archived_at != null || existingInquiry.status === 'Booked') {
+            throw new BadRequestException('Cannot submit wizard responses for a converted or archived inquiry');
+        }
+        const contactId = existingInquiry.contact_id ?? undefined;
         const inquiryUpdate: Record<string, unknown> = {};
 
         // Always prefer wizard-submitted date over placeholder date set at inquiry creation
         if (responses['wedding_date'])
             inquiryUpdate.wedding_date = new Date(responses['wedding_date'] as string);
-        if (!existingInquiry?.guest_count && responses['guest_count'])
+        if (!existingInquiry.guest_count && responses['guest_count'])
             inquiryUpdate.guest_count = responses['guest_count'] as string;
         const notesValue = (responses['special_requests'] || responses['notes']) as string | undefined;
-        if (!existingInquiry?.notes && notesValue)
+        if (!existingInquiry.notes && notesValue)
             inquiryUpdate.notes = notesValue;
-        if (!existingInquiry?.lead_source && responses['lead_source'])
+        if (!existingInquiry.lead_source && responses['lead_source'])
             inquiryUpdate.lead_source = responses['lead_source'] as string;
         inquiryUpdate.lead_source_details = JSON.stringify(responses);
 
@@ -48,7 +54,7 @@ export class InquiryWizardLinkService {
         const pkgIdFromResponses = responses['selected_package'] ? Number(responses['selected_package']) : null;
         const resolvedPkgId = (pkgIdFromPayload && !isNaN(pkgIdFromPayload)) ? pkgIdFromPayload
             : (pkgIdFromResponses && !isNaN(pkgIdFromResponses) ? pkgIdFromResponses : null);
-        if (resolvedPkgId && !existingInquiry?.selected_package_id)
+        if (resolvedPkgId && !existingInquiry.selected_package_id)
             inquiryUpdate.selected_package_id = resolvedPkgId;
 
         const resolvedScheduleId = payload.preferred_payment_schedule_template_id
@@ -57,7 +63,7 @@ export class InquiryWizardLinkService {
                 : null);
         if (resolvedScheduleId) inquiryUpdate.preferred_payment_schedule_template_id = resolvedScheduleId;
 
-        if (!existingInquiry?.event_category && responses['event_type']) {
+        if (!existingInquiry.event_category && responses['event_type']) {
             inquiryUpdate.event_category = String(responses['event_type']).trim();
         }
 
@@ -68,7 +74,7 @@ export class InquiryWizardLinkService {
             });
             await this.inquiryTasksService.syncReviewInquiryAutoSubtasks(payload.inquiry_id!);
 
-            if (resolvedPkgId && !existingInquiry?.selected_package_id) {
+            if (resolvedPkgId && !existingInquiry.selected_package_id) {
                 try {
                     await this.inquiryPackageService.handlePackageSelection(payload.inquiry_id!, resolvedPkgId, brandId);
                 } catch (err) {
@@ -77,7 +83,7 @@ export class InquiryWizardLinkService {
             }
         }
 
-        if (existingInquiry?.contact) {
+        if (existingInquiry.contact) {
             const contactUpdate: Record<string, string> = {};
             const c = existingInquiry.contact;
             const isPlaceholderEmail = c.email?.startsWith('pending_') && c.email?.endsWith('@temp.com');
@@ -94,8 +100,8 @@ export class InquiryWizardLinkService {
             }
         }
 
-        const prefillFirstName = ((responses['contact_first_name'] as string | undefined)?.trim()) || existingInquiry?.contact?.first_name || '';
-        const prefillLastName = ((responses['contact_last_name'] as string | undefined)?.trim()) || existingInquiry?.contact?.last_name || '';
+        const prefillFirstName = ((responses['contact_first_name'] as string | undefined)?.trim()) || existingInquiry.contact?.first_name || '';
+        const prefillLastName = ((responses['contact_last_name'] as string | undefined)?.trim()) || existingInquiry.contact?.last_name || '';
         const prefillContactName = [prefillFirstName, prefillLastName].filter(Boolean).join(' ');
         try {
             await this.prefillService.prefillLocationSlots(payload.inquiry_id!, responses, brandId);
