@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, InquiryWizardStage } from '@prisma/client';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { CreateInquiryWizardSubmissionDto } from '../dto/create-inquiry-wizard-submission.dto';
@@ -106,6 +106,19 @@ export class InquiryWizardSubmissionService {
         brandId: number,
         templateId: number,
     ) {
+        if (payload.inquiry_id) {
+            const inquiry = await this.prisma.inquiries.findUnique({
+                where: { id: payload.inquiry_id },
+                select: { id: true, archived_at: true, status: true },
+            });
+            if (!inquiry) {
+                throw new NotFoundException(`Inquiry with ID ${payload.inquiry_id} not found`);
+            }
+            if (inquiry.archived_at != null || inquiry.status === 'Booked') {
+                throw new BadRequestException('Cannot submit discovery call data for a converted or archived inquiry');
+            }
+        }
+
         const submission = await this.prisma.inquiry_wizard_submissions.create({
             data: {
                 brand_id: brandId,

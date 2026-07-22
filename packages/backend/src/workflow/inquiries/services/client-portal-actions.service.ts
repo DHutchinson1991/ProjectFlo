@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import { ProposalLifecycleService } from '../../proposals/services/proposal-lifecycle.service';
 import { randomUUID } from 'crypto';
@@ -48,6 +48,20 @@ export class ClientPortalActionsService {
             select: { id: true, contact: { select: { brand_id: true } } },
         });
         if (!inquiry) throw new NotFoundException('Portal not found');
+
+        if (data.selected_package_id != null) {
+            const pkg = await this.prisma.service_packages.findFirst({
+                where: {
+                    id: data.selected_package_id,
+                    brand_id: inquiry.contact.brand_id!,
+                    is_active: true,
+                },
+                select: { id: true },
+            });
+            if (!pkg) {
+                throw new BadRequestException('Selected package is not available for this inquiry');
+            }
+        }
 
         const request = await this.prisma.package_requests.create({
             data: {
