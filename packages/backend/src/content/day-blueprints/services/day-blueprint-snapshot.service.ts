@@ -414,6 +414,12 @@ export class DayBlueprintSnapshotService {
         }
         map.set(row.blueprintDayId, pkgDayId);
       }
+      if (map.size !== blueprintDays.length) {
+        const missing = blueprintDays.filter((day) => !map.has(day.id)).map((day) => day.id);
+        throw new BadRequestException(
+          `blueprintDayMappings must include every blueprint day on the selected version; missing day id(s): ${missing.join(', ')}`,
+        );
+      }
       return map;
     }
 

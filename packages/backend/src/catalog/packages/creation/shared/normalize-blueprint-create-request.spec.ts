@@ -28,10 +28,19 @@ describe('validateBlueprintDayMappings', () => {
     ).toThrow(/blueprint day may only appear once/);
   });
 
+  it('rejects partial mappings that omit blueprint days', () => {
+    expect(() =>
+      validateBlueprintDayMappings(templateDayLinkIds, seed, [
+        { blueprintDayId: 10, eventTypeDayLinkId: 100 },
+      ]),
+    ).toThrow(/must include all 2 blueprint day/);
+  });
+
   it('rejects blueprint day not on version', () => {
     expect(() =>
       validateBlueprintDayMappings(templateDayLinkIds, seed, [
         { blueprintDayId: 99, eventTypeDayLinkId: 100 },
+        { blueprintDayId: 11, eventTypeDayLinkId: 101 },
       ]),
     ).toThrow(/not on the selected blueprint version/);
   });
@@ -40,6 +49,7 @@ describe('validateBlueprintDayMappings', () => {
     expect(() =>
       validateBlueprintDayMappings(templateDayLinkIds, seed, [
         { blueprintDayId: 10, eventTypeDayLinkId: 999 },
+        { blueprintDayId: 11, eventTypeDayLinkId: 101 },
       ]),
     ).toThrow(/not on the selected template/);
   });
