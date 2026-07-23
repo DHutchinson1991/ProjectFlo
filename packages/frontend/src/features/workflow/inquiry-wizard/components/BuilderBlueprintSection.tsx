@@ -214,10 +214,11 @@ export function BuilderBlueprintSection({ matchedET, responses, handleChange }: 
             return;
         }
         if (Object.keys(dayMappings).length >= blueprintDays.length) return;
-        writeBlueprintDayMappings(
-            handleChange,
-            initBlueprintDayMappings(blueprintDays, templateDays),
-        );
+        const seeded = initBlueprintDayMappings(blueprintDays, templateDays);
+        // Only auto-seed when every blueprint day can be paired; partial mappings
+        // are rejected by the API and would silently drop unmapped days on consume.
+        if (Object.keys(seeded).length < blueprintDays.length) return;
+        writeBlueprintDayMappings(handleChange, seeded);
         // eslint-disable-next-line react-hooks/exhaustive-deps -- seed positional 1:1 once
     }, [versionId, showMatchDays, version?.id, blueprintDays.length, templateDays.length]);
 

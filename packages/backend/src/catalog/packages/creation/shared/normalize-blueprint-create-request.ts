@@ -26,6 +26,11 @@ export function validateBlueprintDayMappings(
 
   const blueprintDayIds = mappings.map((m) => m.blueprintDayId);
   const linkIds = mappings.map((m) => m.eventTypeDayLinkId);
+  if (blueprintDayIds.length !== blueprintSeed.dayIds.length) {
+    throw new BadRequestException(
+      `blueprintDayMappings must include all ${blueprintSeed.dayIds.length} blueprint day(s) on the selected version`,
+    );
+  }
   if (new Set(blueprintDayIds).size !== blueprintDayIds.length) {
     throw new BadRequestException('Each blueprint day may only appear once in blueprintDayMappings');
   }

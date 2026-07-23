@@ -61,6 +61,9 @@ export class InquiryWizardTemplateService {
                 where: { id: existing.id },
             });
         }
+        if (stage === InquiryWizardStage.INTAKE) {
+            return this.createDefaultTemplate(brandId);
+        }
         return this.createDefaultDiscoveryCallTemplate(brandId);
     }
 
