@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { project_phase } from '@prisma/client';
 import { PrismaService } from '../../platform/prisma/prisma.service';
 import { CreateProjectDto, UpdateProjectDto } from './dto/projects.dto';
@@ -155,6 +155,15 @@ export class ProjectsService {
      * Reverses the convertInquiryToProject flow.
      */
     async revertToInquiry(projectId: number, brandId?: number) {
+        const allowRevert =
+            process.env.NODE_ENV !== 'production' ||
+            process.env.ENABLE_DEV_PROJECT_REVERT === 'true';
+        if (!allowRevert) {
+            throw new ForbiddenException(
+                'Project revert is disabled in production',
+            );
+        }
+
         return this.prisma.$transaction(async (tx) => {
             const project = await tx.projects.findFirst({
                 where: { id: projectId, ...(brandId ? { brand_id: brandId } : {}) },

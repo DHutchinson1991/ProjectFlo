@@ -419,6 +419,12 @@ export class DayBlueprintSnapshotService {
 
     const sortedBlueprintDays = [...blueprintDays].sort((a, b) => a.order_index - b.order_index);
     const sortedPackageDays = [...packageEventDays].sort((a, b) => a.order_index - b.order_index);
+    if (sortedBlueprintDays.length > sortedPackageDays.length) {
+      throw new BadRequestException(
+        `Blueprint has ${sortedBlueprintDays.length} day(s) but package only has ${sortedPackageDays.length}; ` +
+          'provide blueprintDayMappings and scaffold matching package event days',
+      );
+    }
     for (let i = 0; i < sortedBlueprintDays.length; i++) {
       const pkgDay = sortedPackageDays[i];
       if (!pkgDay) break;

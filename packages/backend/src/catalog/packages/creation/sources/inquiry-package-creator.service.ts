@@ -8,6 +8,8 @@ import { PackageCreationRunLogger } from '../run/package-creation-run-logger';
 import { BrandCurrencyResolver } from '../shared/brand-currency.resolver';
 import { validateBlueprintDayMappings } from '../shared/normalize-blueprint-create-request';
 
+type TransactionClient = Prisma.TransactionClient;
+
 /**
  * Inquiry-level package creation: creates a draft, client-scoped package
  * from the Inquiry Wizard. Resolves preset activities from the
@@ -61,17 +63,26 @@ export class InquiryPackageCreator {
     });
     if (!template) throw new NotFoundException('Package template not found');
 
-    if (dto.blueprintDayMappings?.length && dto.sourceDayBlueprintVersionId) {
-      const version = await this.prisma.dayBlueprintVersion.findUnique({
-        where: { id: dto.sourceDayBlueprintVersionId },
-        include: { days: { select: { id: true } } },
-      });
-      if (!version) {
-        throw new BadRequestException('sourceDayBlueprintVersionId not found');
-      }
+    const blueprintVersion = dto.sourceDayBlueprintVersionId
+      ? await this.prisma.dayBlueprintVersion.findUnique({
+          where: { id: dto.sourceDayBlueprintVersionId },
+          include: {
+            days: {
+              orderBy: { order_index: 'asc' },
+              select: { id: true, name: true, description: true, order_index: true },
+            },
+          },
+        })
+      : null;
+
+    if (dto.sourceDayBlueprintVersionId && !blueprintVersion) {
+      throw new BadRequestException('sourceDayBlueprintVersionId not found');
+    }
+
+    if (dto.blueprintDayMappings?.length && blueprintVersion) {
       validateBlueprintDayMappings(
         template.days.map((day) => day.id),
-        { dayCount: version.days.length, dayIds: version.days.map((day) => day.id) },
+        { dayCount: blueprintVersion.days.length, dayIds: blueprintVersion.days.map((day) => day.id) },
         dto.blueprintDayMappings,
       );
     }
@@ -94,6 +105,7 @@ export class InquiryPackageCreator {
     const mainTemplate = mainDayLink.event_day_template;
 
     const selectedIds = new Set(dto.selectedActivityPresetIds);
+    const useBlueprintMode = Boolean(dto.sourceDayBlueprintVersionId);
 
     const videographerRole = await this.prisma.job_roles.findFirst({
       where: { name: { equals: 'videographer', mode: 'insensitive' } },
@@ -102,7 +114,9 @@ export class InquiryPackageCreator {
     const totalMinutes = mainTemplate.activity_presets
       .filter((preset) => selectedIds.has(preset.id))
       .reduce((sum, preset) => sum + (preset.default_duration_minutes || 60), 0);
-    const coverageHours = Math.round((totalMinutes / 60) * 2) / 2;
+    const coverageHours = useBlueprintMode
+      ? 8
+      : Math.round((totalMinutes / 60) * 2) / 2;
 
     const pkgName = dto.clientName
       ? `Custom Package \u2014 ${dto.clientName}`
@@ -122,72 +136,25 @@ export class InquiryPackageCreator {
         },
       });
 
-      const packageEventDay = await tx.packageEventDay.create({
-        data: {
-          package_id: servicePackage.id,
-          event_day_template_id: mainTemplate.id,
-          order_index: 0,
-        },
-      });
+      const packageEventDays = useBlueprintMode
+        ? await this.scaffoldBlueprintPackageDays(
+            tx,
+            brandId,
+            servicePackage.id,
+            template,
+            blueprintVersion!,
+            dto,
+          )
+        : await this.scaffoldPresetPackageDay(
+            tx,
+            servicePackage.id,
+            mainTemplate,
+            selectedIds,
+          );
 
-      let activityIdx = 0;
-      for (const preset of mainTemplate.activity_presets) {
-        if (!selectedIds.has(preset.id)) continue;
-
-        await tx.packageActivity.create({
-          data: {
-            package_id: servicePackage.id,
-            package_event_day_id: packageEventDay.id,
-            name: preset.name,
-            color: preset.color,
-            icon: preset.icon,
-            description: preset.description,
-            location_label: preset.location_label || null,
-            start_time: preset.default_start_time || null,
-            duration_minutes: preset.default_duration_minutes || 60,
-            order_index: activityIdx++,
-          },
-        });
-      }
-
-      const createdActivities = await tx.packageActivity.findMany({
-        where: { package_id: servicePackage.id },
-        select: { id: true, name: true, location_label: true },
-      });
-
-      const locationSlot = await tx.packageLocationSlot.create({
-        data: {
-          package_id: servicePackage.id,
-          event_day_template_id: mainTemplate.id,
-          location_number: 1,
-          mode: 'SANDBOX',
-        },
-      });
-
-      await tx.locationActivityAssignment.createMany({
-        data: createdActivities.map((activity) => ({
-          package_location_slot_id: locationSlot.id,
-          package_activity_id: activity.id,
-        })),
-        skipDuplicates: true,
-      });
-
-      for (const activity of createdActivities) {
-        const label = activity.location_label || `${activity.name} Space`;
-        const spaceSlot = await tx.packageSpaceSlot.create({
-          data: {
-            package_id: servicePackage.id,
-            event_day_template_id: mainTemplate.id,
-            label,
-            location_slot_id: locationSlot.id,
-          },
-        });
-        await tx.spaceActivityAssignment.create({
-          data: {
-            package_space_slot_id: spaceSlot.id,
-            package_activity_id: activity.id,
-          },
-        });
+      const primaryPackageEventDay = packageEventDays[0];
+      if (!primaryPackageEventDay) {
+        throw new BadRequestException('Package must have at least one event day');
       }
 
       const crewSlotCount = Math.max(1, Math.min(dto.crewCount, 10));
@@ -196,7 +163,7 @@ export class InquiryPackageCreator {
         const operatorSlot = await tx.packageCrewSlot.create({
           data: {
             package_id: servicePackage.id,
-            package_event_day_id: packageEventDay.id,
+            package_event_day_id: primaryPackageEventDay.id,
             crew_id: null,
             job_role_id: videographerRole!.id,
             label: crewSlotCount > 1 ? `Videographer ${i + 1}` : null,
@@ -286,7 +253,7 @@ export class InquiryPackageCreator {
             ...currentContents,
             ...(assignedEquipment.length > 0 ? {
               day_equipment: {
-                [String(mainTemplate.id)]: assignedEquipment,
+                [String(primaryPackageEventDay.event_day_template_id)]: assignedEquipment,
               },
             } : {}),
             equipment_counts: { cameras: cameraCount, audio: audioCount },
@@ -340,6 +307,7 @@ export class InquiryPackageCreator {
             blueprintVersionId: dto.sourceDayBlueprintVersionId,
             error: message,
           });
+          await this.prisma.service_packages.delete({ where: { id: result.id } }).catch(() => undefined);
           throw new BadRequestException(
             `Selected Day Blueprint version could not be consumed: ${message}`,
           );
@@ -352,5 +320,192 @@ export class InquiryPackageCreator {
     }
 
     return result;
+  }
+
+  private async scaffoldPresetPackageDay(
+    tx: TransactionClient,
+    packageId: number,
+    mainTemplate: {
+      id: number;
+      activity_presets: Array<{
+        id: number;
+        name: string;
+        color: string | null;
+        icon: string | null;
+        description: string | null;
+        location_label: string | null;
+        default_start_time: string | null;
+        default_duration_minutes: number | null;
+      }>;
+    },
+    selectedIds: Set<number>,
+  ): Promise<Array<{ id: number; event_day_template_id: number }>> {
+    const packageEventDay = await tx.packageEventDay.create({
+      data: {
+        package_id: packageId,
+        event_day_template_id: mainTemplate.id,
+        order_index: 0,
+      },
+    });
+
+    let activityIdx = 0;
+    for (const preset of mainTemplate.activity_presets) {
+      if (!selectedIds.has(preset.id)) continue;
+
+      await tx.packageActivity.create({
+        data: {
+          package_id: packageId,
+          package_event_day_id: packageEventDay.id,
+          name: preset.name,
+          color: preset.color,
+          icon: preset.icon,
+          description: preset.description,
+          location_label: preset.location_label || null,
+          start_time: preset.default_start_time || null,
+          duration_minutes: preset.default_duration_minutes || 60,
+          order_index: activityIdx++,
+        },
+      });
+    }
+
+    const createdActivities = await tx.packageActivity.findMany({
+      where: { package_id: packageId },
+      select: { id: true, name: true, location_label: true },
+    });
+
+    const locationSlot = await tx.packageLocationSlot.create({
+      data: {
+        package_id: packageId,
+        event_day_template_id: mainTemplate.id,
+        location_number: 1,
+        mode: 'SANDBOX',
+      },
+    });
+
+    await tx.locationActivityAssignment.createMany({
+      data: createdActivities.map((activity) => ({
+        package_location_slot_id: locationSlot.id,
+        package_activity_id: activity.id,
+      })),
+      skipDuplicates: true,
+    });
+
+    for (const activity of createdActivities) {
+      const label = activity.location_label || `${activity.name} Space`;
+      const spaceSlot = await tx.packageSpaceSlot.create({
+        data: {
+          package_id: packageId,
+          event_day_template_id: mainTemplate.id,
+          label,
+          location_slot_id: locationSlot.id,
+        },
+      });
+      await tx.spaceActivityAssignment.create({
+        data: {
+          package_space_slot_id: spaceSlot.id,
+          package_activity_id: activity.id,
+        },
+      });
+    }
+
+    return [packageEventDay];
+  }
+
+  private async scaffoldBlueprintPackageDays(
+    tx: TransactionClient,
+    brandId: number,
+    packageId: number,
+    template: {
+      id: number;
+      days: Array<{ id: number; order_index: number; event_day_template_id: number }>;
+    },
+    blueprintVersion: {
+      days: Array<{ id: number; name: string; description: string | null; order_index: number }>;
+    },
+    dto: CreatePackageFromBuilderDto,
+  ): Promise<Array<{ id: number; event_day_template_id: number }>> {
+    if (blueprintVersion.days.length === 0) {
+      throw new BadRequestException('Selected blueprint version has no days to scaffold');
+    }
+
+    const packageEventDays: Array<{ id: number; event_day_template_id: number }> = [];
+
+    if (dto.blueprintDayMappings?.length) {
+      const linkIds = [...new Set(dto.blueprintDayMappings.map((row) => row.eventTypeDayLinkId))];
+      const templateDayLinks = await tx.packageTemplateDay.findMany({
+        where: {
+          package_template_id: template.id,
+          id: { in: linkIds },
+        },
+        orderBy: { order_index: 'asc' },
+      });
+      const linkById = new Map(templateDayLinks.map((link) => [link.id, link]));
+      for (const linkId of linkIds) {
+        const link = linkById.get(linkId);
+        if (!link) {
+          throw new BadRequestException(
+            `Template day link id ${linkId} is invalid for this package template`,
+          );
+        }
+        const packageEventDay = await tx.packageEventDay.create({
+          data: {
+            package_id: packageId,
+            event_day_template_id: link.event_day_template_id,
+            order_index: link.order_index,
+          },
+        });
+        packageEventDays.push(packageEventDay);
+      }
+      return packageEventDays;
+    }
+
+    for (const blueprintDay of blueprintVersion.days) {
+      const eventDayTemplateId = await this.findOrCreateBrandEventDay(
+        tx,
+        brandId,
+        blueprintDay.name,
+        blueprintDay.description,
+        blueprintDay.order_index,
+      );
+      const packageEventDay = await tx.packageEventDay.create({
+        data: {
+          package_id: packageId,
+          event_day_template_id: eventDayTemplateId,
+          order_index: blueprintDay.order_index,
+        },
+      });
+      packageEventDays.push(packageEventDay);
+    }
+
+    return packageEventDays;
+  }
+
+  private async findOrCreateBrandEventDay(
+    tx: TransactionClient,
+    brandId: number,
+    name: string,
+    description: string | null | undefined,
+    orderIndex: number,
+  ): Promise<number> {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Blueprint day name is required to scaffold package days');
+    }
+    const existing = await tx.eventDay.findFirst({
+      where: { brand_id: brandId, name: trimmed },
+      select: { id: true },
+    });
+    if (existing) return existing.id;
+
+    const created = await tx.eventDay.create({
+      data: {
+        brand_id: brandId,
+        name: trimmed,
+        description: description?.trim() || undefined,
+        order_index: orderIndex,
+      },
+      select: { id: true },
+    });
+    return created.id;
   }
 }

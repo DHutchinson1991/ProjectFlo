@@ -117,7 +117,7 @@ export function ProjectHeader({ project, onSnackbar }: ProjectHeaderProps) {
                 </Box>
 
                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    {project.inquiry_id && (
+                    {process.env.NODE_ENV === 'development' && project.inquiry_id && (
                         <Tooltip title="DEV: Revert to inquiry">
                             <Button
                                 size="small"
