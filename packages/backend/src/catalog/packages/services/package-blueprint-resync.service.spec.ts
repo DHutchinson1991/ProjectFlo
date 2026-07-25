@@ -19,7 +19,8 @@ describe('PackageBlueprintResyncService', () => {
   let prisma: {
     service_packages: { findFirst: jest.Mock; findUnique: jest.Mock };
     dayBlueprintVersion: { findUnique: jest.Mock };
-    packageActivity: { findMany: jest.Mock };
+    packageActivity: { findMany: jest.Mock; deleteMany: jest.Mock };
+    packageSpaceSlot: { deleteMany: jest.Mock };
     $transaction: jest.Mock;
   };
 
@@ -61,8 +62,17 @@ describe('PackageBlueprintResyncService', () => {
       },
       packageActivity: {
         findMany: jest.fn().mockResolvedValue([]),
+        deleteMany: jest.fn(),
       },
-      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<void>) => fn({ packageActivity: { deleteMany: jest.fn() } })),
+      packageSpaceSlot: {
+        deleteMany: jest.fn(),
+      },
+      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<void>) =>
+        fn({
+          packageActivity: prisma.packageActivity,
+          packageSpaceSlot: prisma.packageSpaceSlot,
+        }),
+      ),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -77,6 +87,39 @@ describe('PackageBlueprintResyncService', () => {
     }).compile();
 
     service = moduleRef.get(PackageBlueprintResyncService);
+  });
+
+  it('clears blueprint-derived space slots before structure resync', async () => {
+    prisma.service_packages.findFirst.mockResolvedValueOnce({
+      id: 7,
+      name: 'Test Package',
+      source_day_blueprint_id: 10,
+      source_day_blueprint_version_id: 19,
+      source_day_blueprint: {
+        id: 10,
+        display_name: 'Wedding Blueprint',
+        latest_published_version_id: 20,
+      },
+      source_day_blueprint_version: { id: 19, version_number: 1 },
+    });
+    prisma.dayBlueprintVersion.findUnique.mockResolvedValueOnce({ version_number: 2 });
+    prisma.service_packages.findUnique.mockResolvedValueOnce({ contents: {} });
+    prisma.packageActivity.findMany
+      .mockResolvedValueOnce([{ source_day_blueprint_activity_id: 501 }])
+      .mockResolvedValueOnce([{ id: 101 }]);
+
+    await service.resyncToLatestBlueprint(7, 1);
+
+    expect(prisma.packageSpaceSlot.deleteMany).toHaveBeenCalledWith({
+      where: {
+        package_id: 7,
+        source_day_blueprint_space_slot_id: { not: null },
+      },
+    });
+    expect(prisma.packageActivity.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: [101] } },
+    });
+    expect(snapshotService.consumeIntoPackage).toHaveBeenCalled();
   });
 
   it('refreshes placements without replacing blueprint structure', async () => {

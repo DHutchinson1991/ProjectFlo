@@ -318,6 +318,16 @@ export class PackageBlueprintResyncService {
         select: { id: true },
       });
       const activityIds = blueprintActivities.map((row) => row.id);
+
+      // Activity deletion cascades assignments but not space slots; remove
+      // blueprint-derived slots so resync does not leave ghost floor plans.
+      await tx.packageSpaceSlot.deleteMany({
+        where: {
+          package_id: packageId,
+          source_day_blueprint_space_slot_id: { not: null },
+        },
+      });
+
       if (activityIds.length === 0) return;
 
       await tx.packageActivity.deleteMany({
