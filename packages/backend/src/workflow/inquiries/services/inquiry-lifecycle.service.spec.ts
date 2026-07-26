@@ -152,6 +152,60 @@ describe('InquiryLifecycleService', () => {
         expect(snapshotService.transferScheduleOwnership).not.toHaveBeenCalled();
     });
 
+    it('prefers source_package_id over selected_package_id when building package snapshot', async () => {
+        tx.inquiries.findFirst.mockResolvedValue({
+            id: 1,
+            status: 'Active',
+            contact_id: 5,
+            contact: { first_name: 'Jamie', last_name: 'Fox', brand_id: 1 },
+            event_category: 'Wedding',
+            wedding_date: new Date('2026-09-01'),
+            source_package_id: 99,
+            selected_package_id: null,
+            package_contents_snapshot: null,
+            notes: null,
+            guest_count: null,
+            portal_token: 'tok',
+        });
+        tx.clients.create.mockResolvedValue({ id: 20 });
+        tx.projects.create.mockResolvedValue({ id: 30 });
+        tx.projectEventDay.count.mockResolvedValue(0);
+        tx.service_packages.findUnique.mockResolvedValue({
+            id: 99,
+            name: 'Source Package',
+            currency: 'USD',
+            contents: {},
+            source_day_blueprint_id: 10,
+            source_day_blueprint_version_id: 20,
+            source_day_blueprint: { id: 10, key: 'wedding', display_name: 'Wedding Day' },
+            source_day_blueprint_version: { id: 20, version_number: 2 },
+        });
+        tx.proposals.updateMany.mockResolvedValue({ count: 0 });
+        tx.estimates.updateMany.mockResolvedValue({ count: 0 });
+        tx.quotes.updateMany.mockResolvedValue({ count: 0 });
+        tx.invoices.updateMany.mockResolvedValue({ count: 0 });
+        tx.contracts.updateMany.mockResolvedValue({ count: 0 });
+        tx.inquiry_tasks.updateMany.mockResolvedValue({ count: 0 });
+        tx.inquiries.update.mockResolvedValue({});
+        tx.contacts.update.mockResolvedValue({});
+
+        await service.convertInquiryToProject(1, 1);
+
+        expect(tx.service_packages.findUnique).toHaveBeenCalledWith(
+            expect.objectContaining({ where: { id: 99 } }),
+        );
+        expect(tx.projects.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    source_package_id: 99,
+                    package_contents_snapshot: expect.objectContaining({
+                        source_day_blueprint_id: 10,
+                    }),
+                }),
+            }),
+        );
+    });
+
     it('transfers schedule ownership instead of cloning when inquiry already has event days', async () => {
         tx.inquiries.findFirst.mockResolvedValue({
             id: 1,

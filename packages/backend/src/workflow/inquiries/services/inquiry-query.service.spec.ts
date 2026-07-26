@@ -252,6 +252,34 @@ describe('InquiryQueryService', () => {
             );
         });
 
+        it('falls back to most recent past discovery call when none are upcoming', async () => {
+            prisma.inquiries.findFirst.mockResolvedValue({ id: 5 });
+            const pastCall = {
+                id: 21,
+                title: 'Past Discovery',
+                start_time: new Date('2025-06-01'),
+                end_time: new Date('2025-06-01'),
+                meeting_type: 'PHONE',
+                meeting_url: null,
+                location: null,
+                is_confirmed: true,
+            };
+            prisma.calendar_events.findFirst
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce(pastCall);
+
+            const result = await service.getDiscoveryCall(5, 1);
+
+            expect(result).toEqual(pastCall);
+            expect(prisma.calendar_events.findFirst).toHaveBeenCalledTimes(2);
+            expect(prisma.calendar_events.findFirst).toHaveBeenNthCalledWith(
+                2,
+                expect.objectContaining({
+                    orderBy: { start_time: 'desc' },
+                }),
+            );
+        });
+
         it('throws when inquiry not found for brand', async () => {
             prisma.inquiries.findFirst.mockResolvedValue(null);
             await expect(service.getDiscoveryCall(5, 1)).rejects.toThrow(NotFoundException);
