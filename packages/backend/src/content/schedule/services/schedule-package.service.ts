@@ -92,11 +92,14 @@ export class SchedulePackageService {
   }
 
   async setPackageEventDays(packageId: number, dto: SetPackageEventDaysDto) {
-    await this.prisma.packageEventDay.deleteMany({ where: { package_id: packageId } });
-    const creates = dto.event_day_template_ids.map((templateId, idx) =>
-      this.prisma.packageEventDay.create({ data: { package_id: packageId, event_day_template_id: templateId, order_index: idx } }),
-    );
-    await Promise.all(creates);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.packageEventDay.deleteMany({ where: { package_id: packageId } });
+      for (const [idx, templateId] of dto.event_day_template_ids.entries()) {
+        await tx.packageEventDay.create({
+          data: { package_id: packageId, event_day_template_id: templateId, order_index: idx },
+        });
+      }
+    });
     return this.getPackageEventDays(packageId);
   }
 
