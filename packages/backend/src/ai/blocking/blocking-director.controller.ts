@@ -1,9 +1,11 @@
-import { Controller, Post, Body, ValidationPipe, Logger } from '@nestjs/common';
+import { Controller, Post, Body, ValidationPipe, Logger, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { GenerateBlockingDto } from './dto/generate-blocking.dto';
 import { GenerateSceneBlockingDto } from './dto/generate-scene-blocking.dto';
 import { SceneOrchestrationService } from '../orchestration/scene-orchestration.service';
 
 @Controller('api/ai/blocking')
+@UseGuards(AuthGuard('jwt'))
 export class BlockingDirectorController {
   private readonly logger = new Logger(BlockingDirectorController.name);
 
