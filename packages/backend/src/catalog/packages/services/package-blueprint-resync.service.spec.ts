@@ -62,7 +62,14 @@ describe('PackageBlueprintResyncService', () => {
       packageActivity: {
         findMany: jest.fn().mockResolvedValue([]),
       },
-      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<void>) => fn({ packageActivity: { deleteMany: jest.fn() } })),
+      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<void>) =>
+        fn({
+          packageActivity: {
+            findMany: jest.fn().mockResolvedValue([]),
+            deleteMany: jest.fn(),
+          },
+        }),
+      ),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -77,6 +84,40 @@ describe('PackageBlueprintResyncService', () => {
     }).compile();
 
     service = moduleRef.get(PackageBlueprintResyncService);
+  });
+
+  it('consumes the full latest blueprint version on structure resync (not stale activity ids)', async () => {
+    prisma.service_packages.findFirst.mockResolvedValue({
+      id: 7,
+      name: 'Test Package',
+      source_day_blueprint_id: 10,
+      source_day_blueprint_version_id: 20,
+      source_day_blueprint: {
+        id: 10,
+        display_name: 'Wedding Blueprint',
+        latest_published_version_id: 30,
+      },
+      source_day_blueprint_version: { id: 20, version_number: 1 },
+    });
+    prisma.dayBlueprintVersion.findUnique
+      .mockResolvedValueOnce({ version_number: 2 })
+      .mockResolvedValueOnce({ days: [], subject_roles: [], space_slots: [] });
+    prisma.service_packages.findUnique.mockResolvedValue({ contents: {} });
+
+    const result = await service.resyncToLatestBlueprint(7, 1);
+
+    expect(result).toEqual({
+      already_current: false,
+      package_id: 7,
+      new_blueprint_version_id: 30,
+    });
+    expect(snapshotService.consumeIntoPackage).toHaveBeenCalledWith({
+      packageId: 7,
+      blueprintVersionId: 30,
+      blueprintDayMappings: undefined,
+    });
+    const consumeArgs = snapshotService.consumeIntoPackage.mock.calls[0][0];
+    expect(consumeArgs).not.toHaveProperty('selectedActivityIds');
   });
 
   it('refreshes placements without replacing blueprint structure', async () => {

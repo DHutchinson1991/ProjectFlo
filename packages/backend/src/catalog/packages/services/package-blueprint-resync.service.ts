@@ -155,8 +155,6 @@ export class PackageBlueprintResyncService {
       `Pre-resync safety snapshot (blueprint → v${context.latestVersionNumber})`,
     );
 
-    const selectedActivityIds = await this.collectBlueprintActivityIds(packageId);
-
     await this.clearBlueprintDerivedPackageContent(packageId);
 
     const pkgRow = await this.prisma.service_packages.findUnique({
@@ -171,10 +169,13 @@ export class PackageBlueprintResyncService {
       ? (contents.blueprint_day_mappings as Array<{ blueprintDayId: number; eventTypeDayLinkId: number }>)
       : undefined;
 
+    // Re-consume the full latest version. Do not pass prior
+    // source_day_blueprint_activity_id values — branched blueprint
+    // versions get new activity row ids, and stale ids fail validation
+    // after clearBlueprintDerivedPackageContent already wiped activities.
     await this.snapshotService.consumeIntoPackage({
       packageId,
       blueprintVersionId: context.latestVersionId,
-      selectedActivityIds: selectedActivityIds.length > 0 ? selectedActivityIds : undefined,
       blueprintDayMappings: storedMappings,
     });
 
@@ -292,19 +293,6 @@ export class PackageBlueprintResyncService {
       0,
     );
     return { days, activities, moments };
-  }
-
-  private async collectBlueprintActivityIds(packageId: number): Promise<number[]> {
-    const rows = await this.prisma.packageActivity.findMany({
-      where: {
-        package_id: packageId,
-        source_day_blueprint_activity_id: { not: null },
-      },
-      select: { source_day_blueprint_activity_id: true },
-    });
-    return rows
-      .map((row) => row.source_day_blueprint_activity_id)
-      .filter((id): id is number => id != null);
   }
 
   /** Removes package rows snapshotted from a blueprint so re-consume does not duplicate. */
