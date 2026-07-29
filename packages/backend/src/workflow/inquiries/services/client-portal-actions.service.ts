@@ -25,14 +25,10 @@ export class ClientPortalActionsService {
     }
 
     async getPackageOptions(token: string) {
-        const inquiry = await this.prisma.inquiries.findFirst({
-            where: { portal_token: token },
-            select: { id: true, contact: { select: { brand_id: true } } },
-        });
-        if (!inquiry) throw new NotFoundException('Portal not found');
+        const { brandId } = await this.resolvePortalContext(token);
 
         const packages = await this.prisma.service_packages.findMany({
-            where: { brand_id: inquiry.contact.brand_id!, is_active: true },
+            where: { brand_id: brandId, is_active: true },
             select: { id: true, name: true, description: true, event_category: true, currency: true, contents: true },
             orderBy: { name: 'asc' },
         });
@@ -43,15 +39,11 @@ export class ClientPortalActionsService {
         token: string,
         data: { selected_package_id?: number; customisations?: Prisma.InputJsonValue; notes?: string },
     ) {
-        const inquiry = await this.prisma.inquiries.findFirst({
-            where: { portal_token: token },
-            select: { id: true, contact: { select: { brand_id: true } } },
-        });
-        if (!inquiry) throw new NotFoundException('Portal not found');
+        const { inquiryId } = await this.resolvePortalContext(token);
 
         const request = await this.prisma.package_requests.create({
             data: {
-                inquiry_id: inquiry.id,
+                inquiry_id: inquiryId,
                 selected_package_id: data.selected_package_id ?? null,
                 customisations: data.customisations ?? Prisma.DbNull,
                 notes: data.notes ?? null,
@@ -62,22 +54,44 @@ export class ClientPortalActionsService {
     }
 
     async respondToProposalByPortalToken(token: string, response: string, message?: string) {
-        const inquiry = await this.prisma.inquiries.findUnique({
-            where: { portal_token: token },
-            select: {
-                proposals: {
-                    where: { status: { in: ['Sent', 'ChangesRequested'] } },
-                    orderBy: { id: 'desc' },
-                    take: 1,
-                    select: { share_token: true },
-                },
-            },
-        });
-        if (!inquiry) throw new NotFoundException('Portal not found');
+        const { inquiryId } = await this.resolvePortalContext(token);
 
-        const proposal = inquiry.proposals[0];
+        const proposal = await this.prisma.proposals.findFirst({
+            where: {
+                inquiry_id: inquiryId,
+                status: { in: ['Sent', 'ChangesRequested'] },
+            },
+            orderBy: { id: 'desc' },
+            select: { share_token: true },
+        });
         if (!proposal?.share_token) throw new NotFoundException('No active proposal found for this portal');
 
         return this.proposalLifecycleService.respondToProposal(proposal.share_token, response, message);
+    }
+
+    /**
+     * Resolve portal context by token — checks inquiries first, then projects
+     * (portal_token moves to projects table after conversion).
+     */
+    private async resolvePortalContext(
+        token: string,
+    ): Promise<{ inquiryId: number; brandId: number }> {
+        const inquiry = await this.prisma.inquiries.findFirst({
+            where: { portal_token: token },
+            select: { id: true, contact: { select: { brand_id: true } } },
+        });
+        if (inquiry?.contact.brand_id) {
+            return { inquiryId: inquiry.id, brandId: inquiry.contact.brand_id };
+        }
+
+        const project = await this.prisma.projects.findFirst({
+            where: { portal_token: token },
+            select: { inquiry_id: true, brand_id: true },
+        });
+        if (!project?.inquiry_id || project.brand_id == null) {
+            throw new NotFoundException('Portal not found');
+        }
+
+        return { inquiryId: project.inquiry_id, brandId: project.brand_id };
     }
 }

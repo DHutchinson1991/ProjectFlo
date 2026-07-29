@@ -93,16 +93,21 @@ export class InquiryPackageCreator {
     if (!mainDayLink) throw new NotFoundException('Package template has no event days');
     const mainTemplate = mainDayLink.event_day_template;
 
+    const blueprintMode = Boolean(dto.sourceDayBlueprintVersionId);
     const selectedIds = new Set(dto.selectedActivityPresetIds);
 
     const videographerRole = await this.prisma.job_roles.findFirst({
       where: { name: { equals: 'videographer', mode: 'insensitive' } },
     });
 
-    const totalMinutes = mainTemplate.activity_presets
-      .filter((preset) => selectedIds.has(preset.id))
-      .reduce((sum, preset) => sum + (preset.default_duration_minutes || 60), 0);
-    const coverageHours = Math.round((totalMinutes / 60) * 2) / 2;
+    const totalMinutes = blueprintMode
+      ? 0
+      : mainTemplate.activity_presets
+          .filter((preset) => selectedIds.has(preset.id))
+          .reduce((sum, preset) => sum + (preset.default_duration_minutes || 60), 0);
+    const coverageHours = blueprintMode
+      ? 8
+      : Math.round((totalMinutes / 60) * 2) / 2;
 
     const pkgName = dto.clientName
       ? `Custom Package \u2014 ${dto.clientName}`
@@ -130,64 +135,66 @@ export class InquiryPackageCreator {
         },
       });
 
-      let activityIdx = 0;
-      for (const preset of mainTemplate.activity_presets) {
-        if (!selectedIds.has(preset.id)) continue;
+      if (!blueprintMode) {
+        let activityIdx = 0;
+        for (const preset of mainTemplate.activity_presets) {
+          if (!selectedIds.has(preset.id)) continue;
 
-        await tx.packageActivity.create({
-          data: {
-            package_id: servicePackage.id,
-            package_event_day_id: packageEventDay.id,
-            name: preset.name,
-            color: preset.color,
-            icon: preset.icon,
-            description: preset.description,
-            location_label: preset.location_label || null,
-            start_time: preset.default_start_time || null,
-            duration_minutes: preset.default_duration_minutes || 60,
-            order_index: activityIdx++,
-          },
+          await tx.packageActivity.create({
+            data: {
+              package_id: servicePackage.id,
+              package_event_day_id: packageEventDay.id,
+              name: preset.name,
+              color: preset.color,
+              icon: preset.icon,
+              description: preset.description,
+              location_label: preset.location_label || null,
+              start_time: preset.default_start_time || null,
+              duration_minutes: preset.default_duration_minutes || 60,
+              order_index: activityIdx++,
+            },
+          });
+        }
+
+        const createdActivities = await tx.packageActivity.findMany({
+          where: { package_id: servicePackage.id },
+          select: { id: true, name: true, location_label: true },
         });
-      }
 
-      const createdActivities = await tx.packageActivity.findMany({
-        where: { package_id: servicePackage.id },
-        select: { id: true, name: true, location_label: true },
-      });
-
-      const locationSlot = await tx.packageLocationSlot.create({
-        data: {
-          package_id: servicePackage.id,
-          event_day_template_id: mainTemplate.id,
-          location_number: 1,
-          mode: 'SANDBOX',
-        },
-      });
-
-      await tx.locationActivityAssignment.createMany({
-        data: createdActivities.map((activity) => ({
-          package_location_slot_id: locationSlot.id,
-          package_activity_id: activity.id,
-        })),
-        skipDuplicates: true,
-      });
-
-      for (const activity of createdActivities) {
-        const label = activity.location_label || `${activity.name} Space`;
-        const spaceSlot = await tx.packageSpaceSlot.create({
+        const locationSlot = await tx.packageLocationSlot.create({
           data: {
             package_id: servicePackage.id,
             event_day_template_id: mainTemplate.id,
-            label,
-            location_slot_id: locationSlot.id,
+            location_number: 1,
+            mode: 'SANDBOX',
           },
         });
-        await tx.spaceActivityAssignment.create({
-          data: {
-            package_space_slot_id: spaceSlot.id,
+
+        await tx.locationActivityAssignment.createMany({
+          data: createdActivities.map((activity) => ({
+            package_location_slot_id: locationSlot.id,
             package_activity_id: activity.id,
-          },
+          })),
+          skipDuplicates: true,
         });
+
+        for (const activity of createdActivities) {
+          const label = activity.location_label || `${activity.name} Space`;
+          const spaceSlot = await tx.packageSpaceSlot.create({
+            data: {
+              package_id: servicePackage.id,
+              event_day_template_id: mainTemplate.id,
+              label,
+              location_slot_id: locationSlot.id,
+            },
+          });
+          await tx.spaceActivityAssignment.create({
+            data: {
+              package_space_slot_id: spaceSlot.id,
+              package_activity_id: activity.id,
+            },
+          });
+        }
       }
 
       const crewSlotCount = Math.max(1, Math.min(dto.crewCount, 10));
