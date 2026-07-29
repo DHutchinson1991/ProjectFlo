@@ -242,6 +242,55 @@ describe('InquiryWizardSubmissionService', () => {
         });
     });
 
+    describe('listSubmissions', () => {
+        it('filters by brand, inquiry, and DISCOVERY_CALL stage', async () => {
+            prisma.inquiry_wizard_submissions.findMany.mockResolvedValue([]);
+
+            await service.listSubmissions(10, 50, InquiryWizardStage.DISCOVERY_CALL);
+
+            expect(prisma.inquiry_wizard_submissions.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: {
+                        brand_id: 10,
+                        inquiry_id: 50,
+                        template: { stage: InquiryWizardStage.DISCOVERY_CALL },
+                    },
+                }),
+            );
+        });
+    });
+
+    describe('updateSubmission', () => {
+        it('patches DISCOVERY_CALL fields on an existing submission', async () => {
+            prisma.inquiry_wizard_submissions.findFirst.mockResolvedValue({ id: 1, brand_id: 10 });
+            prisma.inquiry_wizard_submissions.update.mockResolvedValue({ id: 1, call_notes: 'Updated' });
+
+            await service.updateSubmission(
+                1,
+                { call_notes: 'Updated', transcript: 'Full transcript', call_duration_seconds: 900 },
+                10,
+            );
+
+            expect(prisma.inquiry_wizard_submissions.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    data: expect.objectContaining({
+                        call_notes: 'Updated',
+                        transcript: 'Full transcript',
+                        call_duration_seconds: 900,
+                    }),
+                }),
+            );
+        });
+
+        it('throws when submission is not found for brand', async () => {
+            prisma.inquiry_wizard_submissions.findFirst.mockResolvedValue(null);
+
+            await expect(service.updateSubmission(1, { call_notes: 'x' }, 10)).rejects.toThrow(
+                NotFoundException,
+            );
+        });
+    });
+
     describe('reviewSubmission', () => {
         it('marks reviewed and auto-completes Review Inquiry task', async () => {
             prisma.inquiry_wizard_submissions.findFirst.mockResolvedValue({
