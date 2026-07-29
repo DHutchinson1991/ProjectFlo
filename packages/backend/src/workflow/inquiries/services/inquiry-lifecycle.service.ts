@@ -41,7 +41,14 @@ export class InquiryLifecycleService {
             if (!inquiry) throw new NotFoundException(`Inquiry with ID ${inquiryId} not found.`);
             if (inquiry.status === 'Booked') throw new BadRequestException('This inquiry has already been converted.');
 
-            const client = await prisma.clients.create({ data: { contact_id: inquiry.contact_id, inquiry_id: inquiry.id } });
+            let client = await prisma.clients.findUnique({
+                where: { contact_id: inquiry.contact_id },
+            });
+            if (!client) {
+                client = await prisma.clients.create({
+                    data: { contact_id: inquiry.contact_id, inquiry_id: inquiry.id },
+                });
+            }
 
             const packageIdForSnapshot = inquiry.source_package_id ?? inquiry.selected_package_id ?? null;
             let packageContentsSnapshot: Prisma.InputJsonValue | undefined =

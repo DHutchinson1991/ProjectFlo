@@ -169,6 +169,13 @@ export class StripeService {
       throw new BadRequestException('Invoice is already fully paid');
     }
 
+    const payableStatuses = new Set(['Sent', 'Partially Paid', 'Overdue']);
+    if (!payableStatuses.has(invoice.status)) {
+      throw new BadRequestException(
+        `Invoice cannot be paid while status is ${invoice.status}`,
+      );
+    }
+
     const session = await this.stripeClient.checkout.sessions.create(
       {
         mode: 'payment',
@@ -248,9 +255,25 @@ export class StripeService {
   private async handleCheckoutCompleted(
     session: Stripe.Checkout.Session,
   ): Promise<void> {
+    if (session.payment_status !== 'paid') {
+      this.logger.log(
+        `Skipping checkout session ${session.id}: payment_status=${session.payment_status}`,
+      );
+      return;
+    }
+
     const invoiceId = parseInt(session.metadata?.invoice_id || '0', 10);
     if (!invoiceId) {
       this.logger.warn('Checkout session missing invoice_id metadata');
+      return;
+    }
+
+    const existingPayment = await this.prisma.payments.findFirst({
+      where: { stripe_checkout_session_id: session.id },
+      select: { id: true },
+    });
+    if (existingPayment) {
+      this.logger.log(`Checkout session ${session.id} already recorded — skipping`);
       return;
     }
 
@@ -262,7 +285,16 @@ export class StripeService {
       return;
     }
 
-    const amountPaid = (session.amount_total || 0) / 100; // cents → dollars
+    const total = Number(invoice.amount);
+    const alreadyPaid = Number(invoice.amount_paid ?? 0);
+    const remaining = total - alreadyPaid;
+    if (remaining <= 0.01) {
+      this.logger.log(`Invoice ${invoiceId} already fully paid — skipping webhook`);
+      return;
+    }
+
+    const sessionAmount = (session.amount_total || 0) / 100; // cents → dollars
+    const amountPaid = Math.min(sessionAmount, remaining);
     const currency = session.currency || undefined;
     const payerEmail = session.customer_details?.email || session.customer_email || undefined;
 
@@ -319,8 +351,8 @@ export class StripeService {
     });
 
     // Update invoice totals
-    const newAmountPaid = Number(invoice.amount_paid ?? 0) + amountPaid;
-    const fullyPaid = newAmountPaid >= Number(invoice.amount);
+    const newAmountPaid = alreadyPaid + amountPaid;
+    const fullyPaid = newAmountPaid >= total - 0.01;
 
     await this.prisma.invoices.update({
       where: { id: invoiceId },
