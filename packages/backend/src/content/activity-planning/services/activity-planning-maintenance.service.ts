@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { CeremonySeatLayoutMode } from '@projectflo/shared';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
 import {
@@ -38,12 +38,30 @@ export class ActivityPlanningMaintenanceService {
       });
     }
 
-    await this.packagePlanningOrchestrator.planPackageActivities(packageId);
+    const result = await this.packagePlanningOrchestrator.planPackageActivities(packageId);
+    if (!result.succeeded) {
+      await this.recoverActivityMoments(activityIds);
+      const message = result.summary.errors.at(-1) ?? 'Package replan failed';
+      throw new InternalServerErrorException(message);
+    }
 
     // Moments were recreated above, which discards every camera_subject_plan
     // and per-moment position override. Re-run blocking so the new moments get
     // fresh plans instead of leaving the floor plan / conflict panel stale.
     await this.rerunPackageBlocking(packageId, 'replan');
+  }
+
+  /** Re-seed skeleton moments after a failed replan so the package is not left empty. */
+  private async recoverActivityMoments(activityIds: number[]): Promise<void> {
+    for (const activityId of activityIds) {
+      try {
+        await this.momentKnowledge.ensureActivityMoments(activityId);
+      } catch (err) {
+        this.logger.error(
+          `recoverActivityMoments: failed for activity ${activityId} — ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
   }
 
   /**

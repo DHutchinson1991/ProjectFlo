@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Post, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards, ValidationPipe } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { GemmaService } from './gemma.service';
 import { GemmaChatRequestDto } from './dto/chat-request.dto';
 
 @Controller('api/ai/gemma')
+@UseGuards(AuthGuard('jwt'))
 export class GemmaController {
   constructor(private readonly gemmaService: GemmaService) {}
 
