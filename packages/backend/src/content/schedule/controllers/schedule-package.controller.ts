@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { SchedulePackageService } from '../services/schedule-package.service';
 import { SchedulePackageActivityService } from '../services/schedule-package-activity.service';
 import { SchedulePackageContentCreationService } from '../services/schedule-package-content-creation.service';
+import { SchedulePackageAccessService } from '../services/schedule-package-access.service';
 import {
   AddPackageEventDayDto, SetPackageEventDaysDto,
   CreatePackageFilmContentDto,
@@ -19,40 +20,73 @@ export class SchedulePackageController {
     private readonly packageService: SchedulePackageService,
     private readonly activityService: SchedulePackageActivityService,
     private readonly contentCreationService: SchedulePackageContentCreationService,
+    private readonly packageAccess: SchedulePackageAccessService,
   ) {}
 
   @Get('packages/:packageId/summary')
-  getPackageScheduleSummary(@Param('packageId', ParseIntPipe) packageId: number) {
+  async getPackageScheduleSummary(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.packageAccess.assertPackage(packageId, brandId);
     return this.packageService.getPackageScheduleSummary(packageId);
   }
 
   @Get('packages/:packageId/event-days')
-  getPackageEventDays(@Param('packageId', ParseIntPipe) packageId: number) {
+  async getPackageEventDays(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.packageAccess.assertPackage(packageId, brandId);
     return this.packageService.getPackageEventDays(packageId);
   }
 
   @Post('packages/:packageId/event-days')
-  addPackageEventDay(@Param('packageId', ParseIntPipe) packageId: number, @Body(new ValidationPipe({ transform: true })) dto: AddPackageEventDayDto) {
+  async addPackageEventDay(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: AddPackageEventDayDto,
+  ) {
+    await this.packageAccess.assertPackage(packageId, brandId);
     return this.packageService.addPackageEventDay(packageId, dto);
   }
 
   @Post('packages/:packageId/event-days/set')
-  setPackageEventDays(@Param('packageId', ParseIntPipe) packageId: number, @Body(new ValidationPipe({ transform: true })) dto: SetPackageEventDaysDto) {
+  async setPackageEventDays(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: SetPackageEventDaysDto,
+  ) {
+    await this.packageAccess.assertPackage(packageId, brandId);
     return this.packageService.setPackageEventDays(packageId, dto);
   }
 
   @Delete('packages/:packageId/event-days/:eventDayId')
-  removePackageEventDay(@Param('packageId', ParseIntPipe) packageId: number, @Param('eventDayId', ParseIntPipe) eventDayId: number) {
+  async removePackageEventDay(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Param('eventDayId', ParseIntPipe) eventDayId: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.packageAccess.assertPackage(packageId, brandId);
     return this.packageService.removePackageEventDay(packageId, eventDayId);
   }
 
   @Get('packages/:packageId/films')
-  getPackageFilms(@Param('packageId', ParseIntPipe) packageId: number) {
+  async getPackageFilms(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.packageAccess.assertPackage(packageId, brandId);
     return this.packageService.getPackageFilms(packageId);
   }
 
   @Post('packages/:packageId/films')
-  createPackageFilm(@Param('packageId', ParseIntPipe) packageId: number, @Body(new ValidationPipe({ transform: true })) dto: CreatePackageFilmDto) {
+  async createPackageFilm(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePackageFilmDto,
+  ) {
+    await this.packageAccess.assertPackage(packageId, brandId);
     return this.packageService.createPackageFilm(packageId, dto);
   }
 
@@ -66,87 +100,167 @@ export class SchedulePackageController {
   }
 
   @Patch('packages/films/:packageFilmId')
-  updatePackageFilm(@Param('packageFilmId', ParseIntPipe) packageFilmId: number, @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageFilmDto) {
+  async updatePackageFilm(
+    @Param('packageFilmId', ParseIntPipe) packageFilmId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageFilmDto,
+  ) {
+    await this.packageAccess.assertPackageFilm(packageFilmId, brandId);
     return this.packageService.updatePackageFilm(packageFilmId, dto);
   }
 
   @Delete('packages/films/:packageFilmId')
-  deletePackageFilm(@Param('packageFilmId', ParseIntPipe) packageFilmId: number) {
+  async deletePackageFilm(
+    @Param('packageFilmId', ParseIntPipe) packageFilmId: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.packageAccess.assertPackageFilm(packageFilmId, brandId);
     return this.packageService.deletePackageFilm(packageFilmId);
   }
 
   @Get('packages/films/:packageFilmId/schedule')
-  getPackageFilmSchedule(@Param('packageFilmId', ParseIntPipe) packageFilmId: number) {
+  async getPackageFilmSchedule(
+    @Param('packageFilmId', ParseIntPipe) packageFilmId: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.packageAccess.assertPackageFilm(packageFilmId, brandId);
     return this.packageService.getPackageFilmSchedule(packageFilmId);
   }
 
   @Post('packages/films/:packageFilmId/scenes')
-  upsertPackageFilmSceneSchedule(@Param('packageFilmId', ParseIntPipe) packageFilmId: number, @Body(new ValidationPipe({ transform: true })) dto: UpsertPackageFilmSceneScheduleDto) {
+  async upsertPackageFilmSceneSchedule(
+    @Param('packageFilmId', ParseIntPipe) packageFilmId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: UpsertPackageFilmSceneScheduleDto,
+  ) {
+    await this.packageAccess.assertPackageFilm(packageFilmId, brandId);
     return this.packageService.upsertPackageFilmSceneSchedule(packageFilmId, dto);
   }
 
   @Post('packages/films/:packageFilmId/scenes/bulk')
-  bulkUpsertPackageFilmSceneSchedules(@Param('packageFilmId', ParseIntPipe) packageFilmId: number, @Body(new ValidationPipe({ transform: true })) schedules: UpsertPackageFilmSceneScheduleDto[]) {
+  async bulkUpsertPackageFilmSceneSchedules(
+    @Param('packageFilmId', ParseIntPipe) packageFilmId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) schedules: UpsertPackageFilmSceneScheduleDto[],
+  ) {
+    await this.packageAccess.assertPackageFilm(packageFilmId, brandId);
     return this.packageService.bulkUpsertPackageFilmSceneSchedules(packageFilmId, schedules);
   }
 
   @Get('packages/:packageId/activities')
-  getPackageActivities(@Param('packageId', ParseIntPipe) packageId: number) {
+  async getPackageActivities(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.packageAccess.assertPackage(packageId, brandId);
     return this.activityService.getPackageActivities(packageId);
   }
 
   @Get('packages/:packageId/activities/day/:packageEventDayId')
-  getPackageActivitiesByDay(@Param('packageId', ParseIntPipe) packageId: number, @Param('packageEventDayId', ParseIntPipe) packageEventDayId: number) {
+  async getPackageActivitiesByDay(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Param('packageEventDayId', ParseIntPipe) packageEventDayId: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.packageAccess.assertPackage(packageId, brandId);
     return this.activityService.getPackageActivitiesByDay(packageId, packageEventDayId);
   }
 
   @Post('packages/:packageId/activities')
-  createPackageActivity(@Param('packageId', ParseIntPipe) packageId: number, @Body(new ValidationPipe({ transform: true })) dto: CreatePackageActivityDto) {
+  async createPackageActivity(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePackageActivityDto,
+  ) {
+    await this.packageAccess.assertPackage(packageId, brandId);
     return this.activityService.createPackageActivity(packageId, dto);
   }
 
   @Patch('packages/activities/:activityId')
-  updatePackageActivity(@Param('activityId', ParseIntPipe) activityId: number, @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageActivityDto) {
+  async updatePackageActivity(
+    @Param('activityId', ParseIntPipe) activityId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageActivityDto,
+  ) {
+    await this.packageAccess.assertActivity(activityId, brandId);
     return this.activityService.updatePackageActivity(activityId, dto);
   }
 
   @Delete('packages/activities/:activityId')
-  deletePackageActivity(@Param('activityId', ParseIntPipe) activityId: number) {
+  async deletePackageActivity(
+    @Param('activityId', ParseIntPipe) activityId: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.packageAccess.assertActivity(activityId, brandId);
     return this.activityService.deletePackageActivity(activityId);
   }
 
   @Post('packages/:packageId/activities/day/:packageEventDayId/reorder')
-  reorderPackageActivities(@Param('packageId', ParseIntPipe) packageId: number, @Param('packageEventDayId', ParseIntPipe) packageEventDayId: number, @Body(new ValidationPipe({ transform: true })) body: { activity_ids: number[] }) {
+  async reorderPackageActivities(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Param('packageEventDayId', ParseIntPipe) packageEventDayId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) body: { activity_ids: number[] },
+  ) {
+    await this.packageAccess.assertPackage(packageId, brandId);
     return this.activityService.reorderPackageActivities(packageId, packageEventDayId, body.activity_ids);
   }
 
   @Get('packages/activities/:activityId/moments')
-  getActivityMoments(@Param('activityId', ParseIntPipe) activityId: number) {
+  async getActivityMoments(
+    @Param('activityId', ParseIntPipe) activityId: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.packageAccess.assertActivity(activityId, brandId);
     return this.activityService.getActivityMoments(activityId);
   }
 
   @Post('packages/activities/:activityId/moments')
-  createActivityMoment(@Param('activityId', ParseIntPipe) activityId: number, @Body(new ValidationPipe({ transform: true })) dto: CreatePackageActivityMomentDto) {
+  async createActivityMoment(
+    @Param('activityId', ParseIntPipe) activityId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: CreatePackageActivityMomentDto,
+  ) {
+    await this.packageAccess.assertActivity(activityId, brandId);
     return this.activityService.createActivityMoment(activityId, dto);
   }
 
   @Post('packages/activities/:activityId/moments/bulk')
-  bulkCreateActivityMoments(@Param('activityId', ParseIntPipe) activityId: number, @Body(new ValidationPipe({ transform: true })) dto: BulkCreatePackageActivityMomentsDto) {
+  async bulkCreateActivityMoments(
+    @Param('activityId', ParseIntPipe) activityId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: BulkCreatePackageActivityMomentsDto,
+  ) {
+    await this.packageAccess.assertActivity(activityId, brandId);
     return this.activityService.bulkCreateActivityMoments(activityId, dto);
   }
 
   @Patch('packages/activities/moments/:momentId')
-  updateActivityMoment(@Param('momentId', ParseIntPipe) momentId: number, @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageActivityMomentDto) {
+  async updateActivityMoment(
+    @Param('momentId', ParseIntPipe) momentId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdatePackageActivityMomentDto,
+  ) {
+    await this.packageAccess.assertActivityMoment(momentId, brandId);
     return this.activityService.updateActivityMoment(momentId, dto);
   }
 
   @Delete('packages/activities/moments/:momentId')
-  deleteActivityMoment(@Param('momentId', ParseIntPipe) momentId: number) {
+  async deleteActivityMoment(
+    @Param('momentId', ParseIntPipe) momentId: number,
+    @BrandId() brandId: number,
+  ) {
+    await this.packageAccess.assertActivityMoment(momentId, brandId);
     return this.activityService.deleteActivityMoment(momentId);
   }
 
   @Post('packages/activities/:activityId/moments/reorder')
-  reorderActivityMoments(@Param('activityId', ParseIntPipe) activityId: number, @Body(new ValidationPipe({ transform: true })) body: { moment_ids: number[] }) {
+  async reorderActivityMoments(
+    @Param('activityId', ParseIntPipe) activityId: number,
+    @BrandId() brandId: number,
+    @Body(new ValidationPipe({ transform: true })) body: { moment_ids: number[] },
+  ) {
+    await this.packageAccess.assertActivity(activityId, brandId);
     return this.activityService.reorderActivityMoments(activityId, body.moment_ids);
   }
 }
