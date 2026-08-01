@@ -27,6 +27,7 @@ import {
   ScheduleDiffService,
   MomentKnowledgeService,
   SchedulePackageContentCreationService,
+  SchedulePackageAccessService,
 } from './services';
 
 // Split controllers (api/ prefixed, guarded)
@@ -74,6 +75,7 @@ import {
     ScheduleDiffService,
     MomentKnowledgeService,
     SchedulePackageContentCreationService,
+    SchedulePackageAccessService,
   ],
   exports: [
     ScheduleDiffService,

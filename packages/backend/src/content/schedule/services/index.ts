@@ -10,3 +10,4 @@ export { ScheduleInstanceCrewSlotsService } from './schedule-instance-crew-slots
 export { ScheduleDiffService } from './schedule-diff.service';
 export { MomentKnowledgeService } from './moment-knowledge.service';
 export { SchedulePackageContentCreationService } from './schedule-package-content-creation.service';
+export { SchedulePackageAccessService } from './schedule-package-access.service';
