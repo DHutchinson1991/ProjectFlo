@@ -273,8 +273,14 @@ export class MomentKnowledgeService {
           continue;
         }
 
-        const actionsByKey = this.toActionMap(activityMoment.actions);
-        const focalByKey = this.toFocalMap(activityMoment.actions);
+        const actionsByKey =
+          activityMoment.actions.length > 0
+            ? this.toActionMap(activityMoment.actions)
+            : this.toActionMapFromJson(activityMoment.subject_actions);
+        const focalByKey =
+          activityMoment.actions.length > 0
+            ? this.toFocalMap(activityMoment.actions)
+            : this.toFocalMapFromJson(activityMoment.subject_actions);
         await tx.filmSceneMomentSubject.createMany({
           data: packageSubjects.map((subject) => ({
             moment_id: moment.id,
@@ -482,6 +488,49 @@ export class MomentKnowledgeService {
     }
 
     return scaled;
+  }
+
+  /**
+   * Parse legacy subject_actions JSON into a flat action map.
+   * Handles both { "Name": "action" } and { "Name": { action, focal } }.
+   */
+  private toActionMapFromJson(subjectActions: unknown): Record<string, string> {
+    if (!subjectActions || typeof subjectActions !== 'object' || Array.isArray(subjectActions)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(subjectActions)
+        .map(([key, value]) => {
+          if (typeof value === 'string') return [key, value];
+          if (value && typeof value === 'object' && 'action' in value && typeof (value as any).action === 'string') {
+            return [key, (value as any).action];
+          }
+          return null;
+        })
+        .filter((entry): entry is [string, string] => entry != null),
+    ) as Record<string, string>;
+  }
+
+  /**
+   * Parse legacy subject_actions JSON into a focal priority map.
+   * Only works with { "Name": { action, focal } } entries.
+   */
+  private toFocalMapFromJson(subjectActions: unknown): Record<string, string> {
+    if (!subjectActions || typeof subjectActions !== 'object' || Array.isArray(subjectActions)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(subjectActions)
+        .map(([key, value]) => {
+          if (value && typeof value === 'object' && 'focal' in value && typeof (value as any).focal === 'string') {
+            return [key, (value as any).focal];
+          }
+          return null;
+        })
+        .filter((entry): entry is [string, string] => entry != null),
+    ) as Record<string, string>;
   }
 
   /**
