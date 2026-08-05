@@ -108,13 +108,23 @@ export class ProjectFilmCloneService {
     this.logger.debug(`  Tracks cloned: ${trackMap.size}`);
 
     // ── 2. Clone PackageDaySubject → ProjectFilmSubject ──────────────
-    const pf = await prisma.packageFilm.findFirst({
-      where: { film_id: filmId },
-      select: { package_id: true },
+    // Resolve subjects from the originating package-film row, not an arbitrary
+    // PackageFilm that happens to share the same library film_id.
+    const projectFilm = await prisma.projectFilm.findUnique({
+      where: { id: projectFilmId },
+      select: { package_film_id: true },
     });
-    const subjects = pf
+    let packageId: number | null = null;
+    if (projectFilm?.package_film_id) {
+      const pf = await prisma.packageFilm.findUnique({
+        where: { id: projectFilm.package_film_id },
+        select: { package_id: true },
+      });
+      packageId = pf?.package_id ?? null;
+    }
+    const subjects = packageId
       ? await prisma.packageDaySubject.findMany({
-          where: { package_id: pf.package_id },
+          where: { package_id: packageId },
           orderBy: { id: 'asc' },
         })
       : [];
